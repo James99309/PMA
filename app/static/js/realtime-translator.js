@@ -41,6 +41,7 @@ class RealtimeTranslator {
 
         this.onMessage = options.onMessage || (() => {});
         this.onError = options.onError || console.error;
+        this.onLevel = options.onLevel || (() => {});  // 实时音量回调（0-1 RMS），每 50ms 触发一次
         this.onStatus = options.onStatus || (() => {});
 
         // 内部状态
@@ -123,6 +124,7 @@ class RealtimeTranslator {
             sum += v * v;
         }
         const rms = Math.sqrt(sum / this._timeData.length);
+        try { this.onLevel(rms); } catch (_) {}
         const now = Date.now();
         const chunkAge = this._chunkStartTs ? now - this._chunkStartTs : 0;
         const isVoiced = rms >= this._vadRmsThreshold;
@@ -255,11 +257,12 @@ class RealtimeTranslator {
             this._startNewRecorderCycle();
         }
 
-        // 上传判断：peak 必须够大 + 有一定语音比例（防止纯噪音 chunk 进 Whisper hallucinate）
+        // 上传判断：peak + voiced 绝对值 + voiced 比例 三道闸（防止偶发噪音/低信噪比 chunk 进 Whisper hallucinate）
         if (this._analyser) {
-            const isVoice = peak >= this._vadMinPeak && voiced >= 5;  // 至少 5 个采样有声音
+            const voicedRatio = samples > 0 ? voiced / samples : 0;
+            const isVoice = peak >= this._vadMinPeak && voiced >= 10 && voicedRatio >= 0.20;
             if (!isVoice) {
-                console.log(`[VAD ${this.speaker}] SKIP: voiced=${voiced} peak=${peak.toFixed(3)}`);
+                console.log(`[VAD ${this.speaker}] SKIP: voiced=${voiced}/${samples} ratio=${voicedRatio.toFixed(2)} peak=${peak.toFixed(3)}`);
                 return;
             }
         }

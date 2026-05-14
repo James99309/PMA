@@ -345,13 +345,15 @@ $dispatch('open-meeting-panel', {
                     <span class="font-mono text-sm font-semibold tabular-nums"
                           x-text="$store.meeting.formatTime($store.meeting.elapsedTime)">00:00:00</span>
                 </div>
-                <!-- 波形 -->
+                <!-- 波形（real-time RMS 滚动滑窗；每根柱子 = 不同时刻的瞬时音量） -->
                 <div class="flex items-center gap-0.5 h-5 flex-1 overflow-hidden">
-                    <template x-for="i in 28">
+                    <template x-for="(lvl, i) in $store.meeting.audioLevelHistory" :key="i">
                         <div class="w-0.5 bg-slate-300 dark:bg-slate-600 rounded"
                              :style="{
-                                 height: $store.meeting.paused ? '20%' : (Math.random() * 80 + 20) + '%',
-                                 transition: 'height 0.3s ease',
+                                 height: $store.meeting.paused
+                                     ? '15%'
+                                     : (Math.min(1, lvl * 4) * 85 + 8) + '%',
+                                 transition: 'height 0.08s linear',
                                  opacity: $store.meeting.paused ? 0.3 : 0.7
                              }"></div>
                     </template>
@@ -491,6 +493,10 @@ document.addEventListener('alpine:init', () => {
         elapsedTime: 0,
         recording: false,
         paused: false,
+        audioLevel: 0,                    // 当前瞬时音量（0-1，mic 与 peer 的瞬时最大值）
+        audioLevelHistory: Array(28).fill(0),  // 最近 28 帧滑窗，给 28 根波形柱子用（驱动"起伏"）
+        _audioLevelMe: 0,
+        _audioLevelPeer: 0,
         _guestPollHandle: null,           // guest 轮询定时器
         _guestRenderSig: '',              // 渲染签名（segCount:lang:trKeyCount），变化才重建 UI
 
@@ -1022,7 +1028,13 @@ document.addEventListener('alpine:init', () => {
                             detectedLang: msg.detectedLang, wasTranslated: msg.wasTranslated
                         });
                     },
-                    onError: (err) => { this._errorMessage = '{{ _('我的翻译') }}: ' + err; }
+                    onError: (err) => { this._errorMessage = '{{ _('我的翻译') }}: ' + err; },
+                    onLevel: (lvl) => {
+                        this._audioLevelMe = lvl;
+                        this.audioLevel = Math.max(this._audioLevelMe, this._audioLevelPeer);
+                        // 推入 28 帧滑窗，给波形柱子产生"起伏"
+                        this.audioLevelHistory = [...this.audioLevelHistory.slice(1), this.audioLevel];
+                    }
                 });
                 await this._translatorMe.start();
                 console.log('[meeting] mic translator started');
@@ -1058,7 +1070,12 @@ document.addEventListener('alpine:init', () => {
                                     detectedLang: msg.detectedLang, wasTranslated: msg.wasTranslated
                                 });
                             },
-                            onError: (err) => { this._errorMessage = '{{ _('对方翻译') }}: ' + err; }
+                            onError: (err) => { this._errorMessage = '{{ _('对方翻译') }}: ' + err; },
+                            onLevel: (lvl) => {
+                                this._audioLevelPeer = lvl;
+                                this.audioLevel = Math.max(this._audioLevelMe, this._audioLevelPeer);
+                                this.audioLevelHistory = [...this.audioLevelHistory.slice(1), this.audioLevel];
+                            }
                         });
                         await this._translatorPeer.start();
                         console.log('[meeting] peer translator started');

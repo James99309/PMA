@@ -37,6 +37,10 @@ meeting = Blueprint('meeting', __name__, url_prefix='/meeting')
 _REALTIME_CTX_MAX_CHARS = 220   # Whisper prompt 上限 224 tokens，保守取字符数
 _realtime_history = {}
 
+# 跨 chunk 重复检测：保存最近 N 段的归一化文本，命中即判定为幻觉
+_REALTIME_DEDUP_WINDOW = 3
+_realtime_recent_texts = {}     # key: (recording_id, speaker)  value: list[str]
+
 
 def _push_realtime_history(recording_id, speaker, text_chunk):
     if not text_chunk:
@@ -57,6 +61,31 @@ def _clear_realtime_history(recording_id):
     for k in list(_realtime_history.keys()):
         if k[0] == recording_id:
             _realtime_history.pop(k, None)
+    for k in list(_realtime_recent_texts.keys()):
+        if k[0] == recording_id:
+            _realtime_recent_texts.pop(k, None)
+
+
+def _normalize_for_dedup(text):
+    """归一化：去标点空白、小写，用于跨 chunk 比对"""
+    import re
+    return re.sub(r'[\s　\W_]+', '', (text or '').lower(), flags=re.UNICODE)
+
+
+def _is_recent_duplicate(recording_id, speaker, text):
+    """如果归一化后与最近 N 段任一相同 → True；否则把当前 push 进窗口并 False"""
+    norm = _normalize_for_dedup(text)
+    if not norm or len(norm) < 3:
+        return False  # 太短不参与去重
+    key = (recording_id, speaker)
+    recent = _realtime_recent_texts.get(key, [])
+    hit = norm in recent
+    if not hit:
+        recent.append(norm)
+        if len(recent) > _REALTIME_DEDUP_WINDOW:
+            recent = recent[-_REALTIME_DEDUP_WINDOW:]
+        _realtime_recent_texts[key] = recent
+    return hit
 
 
 def _is_hallucinated_segment(text):
@@ -969,6 +998,37 @@ def api_realtime_translate(recording_id):
         }
         detected_lang = _full_to_iso.get(detected_lang.lower(), detected_lang.lower())
 
+        # 用 Whisper 自己的置信度信号过滤幻觉（verbose_json segments）
+        # no_speech_prob > 0.6 → 模型认为这段就是噪音
+        # avg_logprob < -1.0 → 模型对输出非常不自信
+        # compression_ratio > 2.4 → 检测到 looping / 重复填充
+        low_conf_segment = False
+        try:
+            segs = getattr(transcript_resp, 'segments', None) or []
+            kept_texts = []
+            for seg in segs:
+                nsp = float(getattr(seg, 'no_speech_prob', 0.0) or 0.0)
+                alp = float(getattr(seg, 'avg_logprob', 0.0) or 0.0)
+                cr  = float(getattr(seg, 'compression_ratio', 1.0) or 1.0)
+                if nsp > 0.6 or alp < -1.0 or cr > 2.4:
+                    current_app.logger.info(
+                        f"[realtime-translate] drop segment no_speech={nsp:.2f} "
+                        f"avg_logprob={alp:.2f} compression_ratio={cr:.2f} "
+                        f"text={getattr(seg, 'text', '')!r}"
+                    )
+                    low_conf_segment = True
+                    continue
+                kept_texts.append(getattr(seg, 'text', ''))
+            if segs:
+                rebuilt = ''.join(kept_texts).strip()
+                # 只在所有 segment 都被丢弃时才覆盖；否则用 keep 的 segments 拼回
+                if not rebuilt:
+                    original_text = ''
+                else:
+                    original_text = rebuilt
+        except Exception as _seg_err:
+            current_app.logger.warning(f"[realtime-translate] segment 分析失败: {_seg_err}")
+
         # 过滤 Whisper 在静音/噪音上的常见 hallucination 模板
         HALLUCINATION_PATTERNS = [
             # 中文 YouTube 模板
@@ -998,10 +1058,17 @@ def api_realtime_translate(recording_id):
             'MBC 뉴스', 'mbc 뉴스', '구독', '좋아요',
         ]
         text_lower = original_text.lower()
+        is_dup = _is_recent_duplicate(recording_id, speaker, original_text)
         is_hallucination = (
             any(p.lower() in text_lower for p in HALLUCINATION_PATTERNS)
             or _is_hallucinated_segment(original_text)
+            or (low_conf_segment and not original_text)
+            or is_dup
         )
+        if is_dup:
+            current_app.logger.info(
+                f"[realtime-translate] drop duplicate text={original_text!r} speaker={speaker}"
+            )
 
         # 调试日志
         current_app.logger.info(
