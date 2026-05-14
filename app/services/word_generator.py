@@ -1584,7 +1584,31 @@ class WordGenerator:
             # PDF输出路径
             tmp_pdf_path = tmp_docx_path.replace('.docx', '.pdf')
 
-            system = platform.system()
+            # 优先走 Mac mini office-convert 服务（容器无需 LibreOffice）
+            service_url = os.environ.get('PMA_OFFICE_CONVERT_URL', '').rstrip('/')
+            if service_url:
+                import requests as _http
+                try:
+                    resp = _http.post(
+                        f"{service_url}/convert",
+                        files={'file': (os.path.basename(tmp_docx_path), word_content,
+                                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document')},
+                        data={'target': 'pdf'},
+                        timeout=120,
+                    )
+                    if resp.status_code == 200:
+                        with open(tmp_pdf_path, 'wb') as f:
+                            f.write(resp.content)
+                    else:
+                        logger.warning(f"office-convert 服务返回 {resp.status_code}: {resp.text[:200]}")
+                        raise Exception(f"远程转换失败 HTTP {resp.status_code}")
+                except _http.exceptions.RequestException as e:
+                    logger.error(f"office-convert 服务不可达: {e}")
+                    raise Exception(f"远程转换服务不可达: {e}")
+                # 跳过本地路径
+                system = None
+            else:
+                system = platform.system()
 
             if system == "Darwin":  # macOS
                 # 尝试使用 LibreOffice
@@ -2349,7 +2373,28 @@ class WordGenerator:
             excel_content = excel_result['content']
             excel_filename = excel_result['filename']
 
-            # 2. 创建临时目录
+            # 优先走 Mac mini office-convert 服务
+            service_url = os.environ.get('PMA_OFFICE_CONVERT_URL', '').rstrip('/')
+            if service_url:
+                import requests as _http
+                try:
+                    resp = _http.post(
+                        f"{service_url}/convert",
+                        files={'file': (excel_filename, excel_content,
+                                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')},
+                        data={'target': 'pdf'},
+                        timeout=120,
+                    )
+                except _http.exceptions.RequestException as e:
+                    logger.error(f"office-convert 服务不可达: {e}")
+                    raise RuntimeError(f"远程转换服务不可达: {e}")
+                if resp.status_code != 200:
+                    logger.error(f"office-convert 服务返回 {resp.status_code}: {resp.text[:200]}")
+                    raise RuntimeError(f"远程转换失败 HTTP {resp.status_code}")
+                pdf_filename = excel_filename.replace('.xlsx', '.pdf')
+                return {'content': resp.content, 'filename': pdf_filename}
+
+            # 2. 创建临时目录（本地 fallback）
             temp_dir = tempfile.mkdtemp()
             try:
                 # 保存Excel到临时文件
@@ -2373,7 +2418,7 @@ class WordGenerator:
                         break
 
                 if not soffice_cmd:
-                    raise RuntimeError("LibreOffice未安装，无法转换PDF")
+                    raise RuntimeError("LibreOffice未安装，无法转换PDF (可配置 PMA_OFFICE_CONVERT_URL 改用远程服务)")
 
                 # 执行转换
                 cmd = [

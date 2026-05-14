@@ -54,14 +54,46 @@ def _cache_path(sha256: str) -> str:
 
 
 def get_or_convert_pdf(*, content: bytes, sha256: str, filename: str) -> tuple[bool, str]:
-    """返回 (success, path_or_error_message)。命中缓存则直接返回路径。"""
+    """返回 (success, path_or_error_message)。命中缓存则直接返回路径。
+
+    路由：优先调 Mac mini office-convert 服务（PMA_OFFICE_CONVERT_URL）；
+    未配置则回退到本地 soffice subprocess（开发机 / 老部署兼容）。
+    """
     cached = _cache_path(sha256)
     if os.path.exists(cached) and os.path.getsize(cached) > 0:
         return True, cached
 
+    service_url = os.environ.get('PMA_OFFICE_CONVERT_URL', '').rstrip('/')
+
+    if service_url:
+        # ── 远程路径：HTTP POST 给 Mac mini office_convert.py ──
+        import requests as _http
+        try:
+            resp = _http.post(
+                f"{service_url}/convert",
+                files={'file': (filename, content, 'application/octet-stream')},
+                data={'target': 'pdf'},
+                timeout=120,
+            )
+        except _http.exceptions.RequestException as e:
+            logger.error('office-convert service unreachable: %s', e)
+            return False, f'文档转换服务不可达: {e}'
+
+        if resp.status_code != 200:
+            logger.error('office-convert service error %s: %s', resp.status_code, resp.text[:300])
+            return False, f'文档转换失败 HTTP {resp.status_code}'
+
+        # 并发保护：拿到 PDF 再写缓存（写入用临时文件 + rename 避免半成品）
+        tmp_out = cached + '.tmp'
+        with open(tmp_out, 'wb') as f:
+            f.write(resp.content)
+        os.replace(tmp_out, cached)
+        return True, cached
+
+    # ── 本地 fallback 路径：subprocess soffice ──
     soffice = _soffice_binary()
     if not soffice:
-        return False, 'LibreOffice (soffice) 未安装；请在 Docker 镜像内安装 libreoffice'
+        return False, 'LibreOffice (soffice) 未安装；请在 Docker 镜像内安装 libreoffice 或配置 PMA_OFFICE_CONVERT_URL'
 
     # 串行执行避免 LibreOffice 并发实例冲突
     with _convert_lock:
