@@ -2400,6 +2400,130 @@ def save_user_ai_config(user_id):
 
 
 # =============================================
+# 发送 App 安装邀请邮件
+# =============================================
+
+# Evertac PMA Mobile - TestFlight 公开邀请链接（已通过 Apple Beta App Review）
+TESTFLIGHT_INVITE_URL = 'https://testflight.apple.com/join/dMe9GxcE'
+
+
+def _build_app_invite_email(recipient_name, lang):
+    """根据用户语言偏好生成 App 安装邀请邮件。返回 (subject, html)."""
+    safe_name = recipient_name or 'there'
+    url = TESTFLIGHT_INVITE_URL
+
+    if lang == 'en':
+        subject = 'Invitation to test Evertac PMA mobile app on TestFlight'
+        greeting = f'Hi {safe_name},'
+        intro = ('You are invited to try the <strong>Evertac PMA</strong> mobile app — '
+                 'now available for iOS via Apple TestFlight.')
+        steps_title = 'How to install (about 2 minutes)'
+        steps = [
+            'On your <strong>iPhone</strong>, install <em>TestFlight</em> from the App Store (free).',
+            f'Open this invite link on your iPhone: <a href="{url}" style="color:#1d4ed8;">{url}</a>',
+            'Tap <strong>Accept</strong>, then <strong>Install</strong> — Evertac PMA will appear on your home screen.',
+            'Open the app and sign in with your PMA account.',
+        ]
+        notes_title = 'Notes'
+        notes = [
+            'Open the link on your iPhone (Safari) — desktop browsers cannot install TestFlight apps.',
+            'You will receive updates automatically. Most feature updates do not require re-installing.',
+            'If you do not have a PMA account yet, please contact your administrator.',
+        ]
+        cta = 'Open Invite Link'
+        footer = 'This is an automated message from PMA. Please do not reply directly.'
+    else:
+        subject = 'Evertac PMA 移动端 App 内测邀请'
+        greeting = f'{safe_name},您好:'
+        intro = ('诚邀您试用 <strong>Evertac PMA</strong> 移动端 App,'
+                 '现已通过 Apple TestFlight 开放 iOS 内测。')
+        steps_title = '安装步骤(约 2 分钟)'
+        steps = [
+            '在 <strong>iPhone</strong> 上从 App Store 免费下载 <em>TestFlight</em>。',
+            f'用 iPhone 打开邀请链接: <a href="{url}" style="color:#1d4ed8;">{url}</a>',
+            '点击 <strong>Accept</strong> → <strong>Install</strong>,Evertac PMA 即会出现在桌面。',
+            '打开 App,使用您的 PMA 账号登录。',
+        ]
+        notes_title = '说明'
+        notes = [
+            '请用 iPhone 的 Safari 打开链接,电脑/Android 浏览器无法安装。',
+            '后续功能更新一般自动推送,无需重新安装。',
+            '如尚未开通 PMA 账号,请联系您的管理员。',
+        ]
+        cta = '打开邀请链接'
+        footer = '此邮件由 PMA 系统自动发送,请勿直接回复。'
+
+    steps_html = ''.join(f'<li style="margin:0 0 8px;line-height:1.65;">{s}</li>' for s in steps)
+    notes_html = ''.join(f'<li style="margin:0 0 6px;line-height:1.6;">{n}</li>' for n in notes)
+
+    html = f"""
+    <!doctype html>
+    <html>
+    <body style="margin:0;padding:24px;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#262626;">
+        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e8e8e8;border-radius:12px;overflow:hidden;">
+            <div style="padding:32px 32px 0;">
+                <p style="font-size:15px;margin:0 0 12px;color:#262626;">{greeting}</p>
+                <p style="font-size:14px;color:#404040;margin:0 0 24px;line-height:1.65;">{intro}</p>
+                <div style="text-align:center;padding:8px 0 24px;">
+                    <a href="{url}" style="display:inline-block;padding:14px 32px;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:500;font-size:14px;border-radius:8px;">{cta}</a>
+                </div>
+            </div>
+            <div style="padding:0 32px 24px;">
+                <h3 style="font-size:14px;color:#262626;margin:0 0 12px;font-weight:600;">{steps_title}</h3>
+                <ol style="font-size:13px;color:#404040;padding-left:20px;margin:0 0 24px;">{steps_html}</ol>
+                <div style="border:1px solid #e8e8e8;border-radius:8px;padding:16px 18px;background:#fafafa;">
+                    <h4 style="font-size:12px;color:#686868;margin:0 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">{notes_title}</h4>
+                    <ul style="font-size:12px;color:#545454;padding-left:18px;margin:0;">{notes_html}</ul>
+                </div>
+            </div>
+            <div style="padding:18px 32px;background:#fafafa;border-top:1px solid #e8e8e8;text-align:center;">
+                <p style="font-size:11px;color:#a0a0a0;margin:0;">{footer}</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return subject, html
+
+
+@config_management_bp.route('/api/user/<int:user_id>/send-app-invite', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def send_app_invite(user_id):
+    """向指定用户发送 Evertac PMA 移动端 App 安装邀请邮件。"""
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        if not user.email or '@' not in user.email:
+            return jsonify({'success': False, 'message': '该用户未配置有效邮箱'}), 400
+
+        recipient_name = user.real_name or user.username
+        lang = (user.language_preference or 'zh').lower()
+        lang_code = 'en' if lang.startswith('en') else 'zh'
+
+        subject, html = _build_app_invite_email(recipient_name, lang_code)
+
+        from app.utils.email import send_email
+        ok = send_email(subject, user.email, None, html=html, async_send=True)
+
+        if not ok:
+            return jsonify({'success': False, 'message': '邮件发送失败(请检查 SMTP 配置)'}), 500
+
+        logger.info(f"App invite email queued: to={user.email} lang={lang_code} by={current_user.id}")
+        return jsonify({
+            'success': True,
+            'message': f'已发送邀请邮件至 {user.email}',
+            'email': user.email,
+            'language': lang_code,
+        })
+    except Exception as e:
+        logger.error(f"发送 App 邀请邮件失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# =============================================
 # 绩效数据手工录入 API
 # =============================================
 

@@ -175,11 +175,21 @@
                                             {{ _('基本信息') }}
                                         </h3>
                                         {% if can_edit %}
-                                        <button @click="openEditModal()"
-                                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
-                                            <span class="material-symbols-outlined text-lg">edit</span>
-                                            {{ _('编辑') }}
-                                        </button>
+                                        <div class="flex items-center gap-2">
+                                            <button @click="sendAppInvite()"
+                                                    :disabled="!userData?.email || sendingInvite"
+                                                    :title="!userData?.email ? '{{ _('用户未配置邮箱') }}' : '{{ _('向该用户邮箱发送 App 安装邀请') }}'"
+                                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                                <span class="material-symbols-outlined text-lg" x-show="!sendingInvite">send</span>
+                                                <span class="material-symbols-outlined text-lg animate-spin" x-show="sendingInvite" x-cloak>progress_activity</span>
+                                                <span x-text="sendingInvite ? '{{ _('发送中...') }}' : '{{ _('发送App邀请') }}'"></span>
+                                            </button>
+                                            <button @click="openEditModal()"
+                                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
+                                                <span class="material-symbols-outlined text-lg">edit</span>
+                                                {{ _('编辑') }}
+                                            </button>
+                                        </div>
                                         {% endif %}
                                     </div>
                                     <div class="p-6">
@@ -4411,6 +4421,7 @@
             loading: false,
             saving: false,
             showEditModal: false,
+            sendingInvite: false,
 
             // 表单数据
             form: {
@@ -4476,6 +4487,50 @@
             getRoleDisplayName(role) {
                 const roleDict = {{ role_dict | tojson }};
                 return roleDict[role] || role || '-';
+            },
+
+            async sendAppInvite() {
+                if (!this.userData || !this.userData.id) return;
+                if (!this.userData.email) {
+                    if (window.showToast) window.showToast('{{ _("该用户未配置邮箱") }}', 'error');
+                    return;
+                }
+                const name = this.userData.real_name || this.userData.username || '';
+                const confirmMsg = `{{ _('确认向') }} ${name} (${this.userData.email}) {{ _('发送 App 安装邀请邮件吗?') }}`;
+                if (!window.confirm(confirmMsg)) return;
+
+                this.sendingInvite = true;
+                try {
+                    const response = await fetch(`/config-management/api/user/${this.userData.id}/send-app-invite`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        }
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        if (window.showToast) {
+                            window.showToast(data.message || '{{ _("邀请邮件发送成功") }}', 'success');
+                        } else {
+                            alert(data.message || '{{ _("邀请邮件发送成功") }}');
+                        }
+                    } else {
+                        const msg = data.message || data.error || '{{ _("发送失败") }}';
+                        if (window.showToast) {
+                            window.showToast(msg, 'error');
+                        } else {
+                            alert(msg);
+                        }
+                    }
+                } catch (e) {
+                    console.error('发送 App 邀请失败:', e);
+                    if (window.showToast) {
+                        window.showToast('{{ _("发送失败,请重试") }}', 'error');
+                    }
+                } finally {
+                    this.sendingInvite = false;
+                }
             },
 
             async openEditModal() {
