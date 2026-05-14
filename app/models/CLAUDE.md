@@ -16,7 +16,6 @@
 | #106 | " | 🔵 | Pricing and Settlement Order Data Models Schema | ~578 |
 | #88 | 10:45 PM | 🔵 | Complete Database Schema Compilation for Export Task | ~538 |
 | #87 | " | 🔵 | Approval Workflow System with PricingOrder Integration | ~425 |
-| #86 | " | 🔵 | Quotation Model Schema for Project Context | ~401 |
 
 ### Feb 7, 2026
 
@@ -105,4 +104,10 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #8704 | 3:30 PM | 🔵 | SG PMA products table schema uses product_mn column for MN numbers | ~373 |
+
+### May 9, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8737 | 8:23 AM | 🔵 | PMA Backend Expense and Approval Infrastructure | ~723 |
 </claude-mem-context>
