@@ -530,9 +530,14 @@ def create_app(config_class=Config):
     csrf.exempt(internal_api_bp)  # 内部 API 使用 token 鉴权，豁免 CSRF
 
     # pma-training v2 内部 API (X-Internal-Token + X-User-ID 鉴权)
-    from app.routes.training_api import training_api_bp
+    from app.routes.training_api import training_api_bp, wiki_image_public_bp
     app.register_blueprint(training_api_bp)
     csrf.exempt(training_api_bp)
+
+    # 公开 wiki 图片端点 (HMAC token 鉴权, 无 session/X-Internal-Token)
+    # 路径: /wiki-img/<token>  — 供 Cowork 客户端渲染 markdown 图片用
+    app.register_blueprint(wiki_image_public_bp)
+    csrf.exempt(wiki_image_public_bp)
 
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
@@ -715,6 +720,7 @@ def create_app(config_class=Config):
             '/api/dingtalk/',  # 钉钉服务器回调（企业事件推送，自有签名验证）
             '/internal/api/',  # 内部 API（MCP Server 专用，使用 X-Internal-Token 鉴权）
             '/user/api/claude-ai/download-dxt',  # DXT 下载（使用 ?t=token 认证，无需登录）
+            '/wiki-img/',  # 公开 wiki 图片端点（HMAC token 鉴权，供 Cowork 客户端渲染 markdown 图片）
         ]
         
         # 检查当前路径是否需要登录

@@ -14,11 +14,15 @@ URL 前缀: /internal/api/training/*
 - POST /application/submit                          — 应用任务交付
 """
 import logging
+import base64
+import hashlib
+import json as _json
+import time
 from datetime import datetime, date, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, send_file, abort, current_app
 import hmac, os
 
 from app import db
@@ -32,6 +36,10 @@ from app.models.training import (
 logger = logging.getLogger(__name__)
 
 training_api_bp = Blueprint('training_api', __name__, url_prefix='/internal/api/training')
+
+# Separate blueprint for the PUBLIC image endpoint (no auth required, validates HMAC token).
+# Mounted at root so URL is short: /wiki-img/<token>
+wiki_image_public_bp = Blueprint('wiki_image_public', __name__)
 
 
 # ---------------------------------------------------------------------------
@@ -404,3 +412,185 @@ def submit_application():
     db.session.commit()
 
     return jsonify({'submission': sub.to_dict()})
+
+
+# ---------------------------------------------------------------------------
+# 8. GET /wiki/image-url — 生成签名 URL (供 AI 内联 ![](url) 到对话)
+# ---------------------------------------------------------------------------
+
+def _sign_image_token(article_id: int, asset_path: str, ttl_sec: int = 3600) -> str:
+    """生成 HMAC 签名的 wiki 图片访问 token.
+
+    payload = base64url(json({"a": article_id, "p": asset_path, "e": exp}))
+    sig     = hex(hmac_sha256(INTERNAL_API_TOKEN, payload))
+    token   = f"{payload}.{sig}"
+
+    默认 TTL 1 小时.
+    """
+    secret = os.environ.get('INTERNAL_API_TOKEN', '').encode()
+    if not secret:
+        raise RuntimeError('INTERNAL_API_TOKEN not configured')
+    exp = int(time.time()) + ttl_sec
+    payload = _json.dumps({'a': article_id, 'p': asset_path, 'e': exp}, separators=(',', ':'))
+    payload_b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip('=')
+    sig = hmac.new(secret, payload_b64.encode(), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{sig}"
+
+
+def _verify_image_token(token: str) -> tuple:
+    """验证 token, 返回 (article_id, asset_path) 或抛异常."""
+    secret = os.environ.get('INTERNAL_API_TOKEN', '').encode()
+    if not secret:
+        raise PermissionError('INTERNAL_API_TOKEN not configured')
+
+    if '.' not in token:
+        raise ValueError('malformed token')
+    payload_b64, sig_provided = token.rsplit('.', 1)
+
+    sig_expected = hmac.new(secret, payload_b64.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig_provided, sig_expected):
+        raise PermissionError('invalid signature')
+
+    # decode payload
+    pad = '=' * (-len(payload_b64) % 4)
+    try:
+        payload = _json.loads(base64.urlsafe_b64decode(payload_b64 + pad))
+    except Exception:
+        raise ValueError('payload decode failed')
+
+    if int(payload.get('e', 0)) < int(time.time()):
+        raise PermissionError('token expired')
+
+    article_id = int(payload['a'])
+    asset_path = str(payload['p'])
+    return article_id, asset_path
+
+
+@training_api_bp.route('/wiki/image-url', methods=['GET'])
+@internal_auth_required
+def wiki_image_url():
+    """返回一个签名 URL, AI 用 `![](signed_url)` 内联到对话即可.
+    Cowork 客户端去拉图, 图片字节不进 Claude context.
+
+    Query: article_id, asset_path, ttl (optional, default 3600s, max 86400s)
+    """
+    article_id_raw = request.args.get('article_id', '').strip()
+    asset_path = (request.args.get('asset_path') or '').strip()
+    if not article_id_raw or not asset_path:
+        return jsonify({'error': 'article_id and asset_path required'}), 400
+    try:
+        article_id = int(article_id_raw)
+    except ValueError:
+        return jsonify({'error': 'article_id must be int'}), 400
+
+    try:
+        ttl = min(int(request.args.get('ttl') or 3600), 86400)
+    except ValueError:
+        ttl = 3600
+
+    # Validate article exists + user has access (defense-in-depth: signed URL
+    # later is public, but we don't issue a signed URL for non-existent assets).
+    from app.models.knowledge import KnowledgeWikiArticle
+    from app.services.wiki.paths import get_wiki_dir
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if art is None:
+        return jsonify({'error': f'article {article_id} not found'}), 404
+    expected_prefix = f'_assets/{art.slug}/'
+    if '..' in asset_path or not asset_path.startswith(expected_prefix):
+        return jsonify({'error': 'invalid asset_path'}), 400
+    abs_path = (get_wiki_dir() / art.topic / asset_path).resolve()
+    base = (get_wiki_dir() / art.topic).resolve()
+    try:
+        abs_path.relative_to(base)
+    except ValueError:
+        return jsonify({'error': 'asset out of bounds'}), 400
+    if not abs_path.is_file():
+        return jsonify({'error': 'asset file missing'}), 404
+
+    token = _sign_image_token(article_id, asset_path, ttl_sec=ttl)
+    # Public URL — uses the same host PMA is served on (Tailscale IP / Cloudflare tunnel).
+    # AI inlines this URL via ![alt](url); Cowork client-side renders it without
+    # putting image bytes into Claude's context.
+    base_url = (request.headers.get('X-Public-Base-URL') or '').strip()
+    if not base_url:
+        # Derive from request.url_root (works for Tailscale direct access).
+        base_url = request.url_root.rstrip('/')
+    url = f"{base_url}/wiki-img/{token}"
+
+    return jsonify({
+        'url': url,
+        'expires_at': int(time.time()) + ttl,
+        'article_id': article_id,
+        'asset_path': asset_path,
+    })
+
+
+# ---------------------------------------------------------------------------
+# 9. GET /wiki-img/<token> — PUBLIC (no auth, validates HMAC token)
+# ---------------------------------------------------------------------------
+
+@wiki_image_public_bp.route('/wiki-img/<path:token>', methods=['GET'])
+def wiki_image_public(token):
+    """Public endpoint serving a wiki image. Token = HMAC-signed (article_id, asset_path, exp).
+
+    No login / no X-Internal-Token required — the HMAC IS the auth.
+    Used by Cowork client-side image rendering for ![alt](url) markdown.
+    """
+    try:
+        article_id, asset_path = _verify_image_token(token)
+    except PermissionError as e:
+        abort(403, description=str(e))
+    except ValueError as e:
+        abort(400, description=str(e))
+
+    from app.models.knowledge import KnowledgeWikiArticle
+    from app.services.wiki.paths import get_wiki_dir
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if art is None:
+        abort(404)
+
+    expected_prefix = f'_assets/{art.slug}/'
+    if '..' in asset_path or not asset_path.startswith(expected_prefix):
+        abort(400)
+
+    abs_path = (get_wiki_dir() / art.topic / asset_path).resolve()
+    base = (get_wiki_dir() / art.topic).resolve()
+    try:
+        abs_path.relative_to(base)
+    except ValueError:
+        abort(400)
+    if not abs_path.is_file():
+        abort(404)
+
+    # Optional resize via ?max_width=600 (uses Pillow if available, falls back
+    # to serving original if not).
+    max_w_raw = request.args.get('max_width', '').strip()
+    if max_w_raw and max_w_raw.isdigit():
+        max_w = int(max_w_raw)
+        try:
+            from PIL import Image
+            import io
+            with Image.open(str(abs_path)) as img:
+                if img.width > max_w:
+                    ratio = max_w / img.width
+                    new_h = int(img.height * ratio)
+                    img = img.resize((max_w, new_h), Image.LANCZOS)
+                    buf = io.BytesIO()
+                    fmt = (img.format or 'JPEG').upper()
+                    if fmt not in ('JPEG', 'PNG', 'WEBP'):
+                        fmt = 'JPEG'
+                    save_kwargs = {'optimize': True}
+                    if fmt == 'JPEG':
+                        save_kwargs['quality'] = 80
+                        if img.mode in ('RGBA', 'LA'):
+                            img = img.convert('RGB')
+                    img.save(buf, format=fmt, **save_kwargs)
+                    buf.seek(0)
+                    mime = {'JPEG': 'image/jpeg', 'PNG': 'image/png', 'WEBP': 'image/webp'}[fmt]
+                    return send_file(buf, mimetype=mime)
+        except ImportError:
+            pass  # Pillow not available — serve original
+        except Exception as e:
+            logger.warning(f'[wiki-img] resize failed for {asset_path}: {e}; serving original')
+
+    return send_file(str(abs_path))
