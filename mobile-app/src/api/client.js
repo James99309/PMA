@@ -10,13 +10,13 @@ export const REGIONS = {
     id: 'cn',
     label: '中国',
     flag: '🇨🇳',
-    baseUrl: import.meta.env.VITE_API_BASE_URL_CN || 'https://pma-test.jamesgpone.win',
+    baseUrl: import.meta.env.VITE_API_BASE_URL_CN || 'https://pma.jamesgpone.win',
   },
   sg: {
     id: 'sg',
     label: '新加坡',
     flag: '🇸🇬',
-    baseUrl: import.meta.env.VITE_API_BASE_URL_SG || 'https://pma-test-sg.jamesgpone.win',
+    baseUrl: import.meta.env.VITE_API_BASE_URL_SG || 'https://sg-pma.jamesgpone.win',
   },
 }
 
@@ -48,6 +48,9 @@ const client = axios.create({
   baseURL: `${(REGIONS[detectRegion()] || { baseUrl: FALLBACK }).baseUrl}/api/v1`,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
+  // 数组参数序列化成 `owner_names=A&owner_names=B` 格式 (Flask request.args.getlist 期望的)
+  // axios 默认 indexes=false → 发 `owner_names[]=A&owner_names[]=B`, Flask 收不到
+  paramsSerializer: { indexes: null },
 })
 
 // 自动附加 JWT token（按当前区域读对应的 token）+ Accept-Language
