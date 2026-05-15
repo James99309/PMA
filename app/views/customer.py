@@ -213,6 +213,34 @@ def get_existing_filter_options(viewable_query):
 
     return company_type_options, industry_options, status_options, country_options
 
+
+def _get_customer_owner_options(current_user):
+    """获取客户拥有人筛选选项 - 只查询当前用户可见客户的实际 owner.
+
+    与 project._get_project_owner_options 同模式: 用 get_viewable_data 取范围,
+    distinct owner_id, 然后 join User 取展示名。
+
+    返回: [{'value': str(user.id), 'label': name, 'translate': False}, ...]
+    供 mobile filter facet 或 web 通用筛选下拉使用。
+    """
+    try:
+        viewable_query = get_viewable_data(Company, current_user)
+        unique_owner_ids = {r[0] for r in viewable_query
+                            .filter(Company.owner_id.isnot(None))
+                            .with_entities(Company.owner_id.distinct()).all()}
+        if not unique_owner_ids:
+            return []
+        owners = User.query.filter(User.id.in_(unique_owner_ids))\
+                           .order_by(User.real_name, User.username).all()
+        return [
+            {'value': str(u.id), 'label': u.real_name or u.username, 'translate': False}
+            for u in owners
+        ]
+    except Exception as e:
+        current_app.logger.error(f"获取客户拥有人选项失败: {e}")
+        return []
+
+
 @customer.route('/')
 @permission_required('customer', 'view')
 def list_companies():

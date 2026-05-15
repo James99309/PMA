@@ -9,6 +9,7 @@
 - 语言检测与翻译触发
 - AI 对话管理
 """
+import json
 import logging
 import re
 import unicodedata
@@ -24,12 +25,73 @@ from app.services.chat_agent.config import CHAT_CONTEXT_REJECT
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Conversation ↔ Project 共享联动
+# ---------------------------------------------------------------------------
+
+def _load_meta(conv):
+    """sync_metadata 字段反序列化，兼容 None / 非 JSON 字符串"""
+    if not conv or not conv.sync_metadata:
+        return {}
+    try:
+        m = json.loads(conv.sync_metadata)
+        return m if isinstance(m, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _save_meta(conv, meta):
+    conv.sync_metadata = json.dumps(meta, ensure_ascii=False) if meta else None
+
+
+def _sync_project_share(conv, user_id, action):
+    """如果会话挂在某个项目上（meta.project_id），把成员变化同步到 Project.shared_with_users。
+
+    action: 'add' | 'remove'
+    会自动 flush，但不 commit；调用方负责 commit/rollback。
+    会跳过创建人/owner（项目 owner 已经天然可见）。
+    """
+    if not conv:
+        return
+    meta = _load_meta(conv)
+    project_id = meta.get('project_id')
+    if not project_id:
+        return
+    try:
+        from app.models.project import Project
+        project = Project.query.get(project_id)
+        if not project:
+            return
+        if user_id == project.owner_id:
+            return  # owner 不需要进 shared_with_users
+        shared = list(project.shared_with_users or [])
+        if action == 'add':
+            if user_id not in shared:
+                shared.append(user_id)
+                project.shared_with_users = shared
+                logger.info(f"项目 {project_id} 自动共享给用户 {user_id}（来自群聊 {conv.id}）")
+        elif action == 'remove':
+            if user_id in shared:
+                shared = [u for u in shared if u != user_id]
+                project.shared_with_users = shared
+                logger.info(f"项目 {project_id} 取消对用户 {user_id} 的共享（来自群聊 {conv.id}）")
+    except Exception as e:
+        # 共享同步失败不应阻断聊天逻辑，仅记录日志
+        logger.warning(f"同步项目共享失败 conv={conv.id} user={user_id} action={action}: {e}")
+
+
 def _utc_iso(dt):
-    """把 naive / aware datetime 统一序列化为带 Z 的 UTC ISO 字符串，让前端 Date 正确解析时区。"""
+    """ISO 序列化, 给前端 Date() 正确解析。
+
+    naive datetime: 视作本地时间, 不加 Z (PG `timestamp without time zone` 在
+                    UTC+8 区会把 SQLAlchemy 写入的 aware UTC 转成本地存,
+                    读回是 naive 本地; 加 Z 会让前端再偏移一个时区导致显示错乱)
+    aware datetime: 标准 UTC ISO + Z
+    """
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.isoformat() + 'Z'
+        return dt.isoformat()
     return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
@@ -111,13 +173,14 @@ def get_user_conversations(user_id, viewer_language=None):
         dict: {'success': True, 'data': [...]}
     """
     try:
-        # 查询用户参与的所有未删除对话
+        # 查询用户参与的所有未删除对话; 排除自己已"从列表移出"的
         participations = (
             ChatParticipant.query
             .join(ChatConversation, ChatParticipant.conversation_id == ChatConversation.id)
             .filter(
                 ChatParticipant.user_id == user_id,
-                ChatConversation.is_deleted == False
+                ChatConversation.is_deleted == False,
+                ChatParticipant.is_hidden == False,
             )
             .all()
         )
@@ -172,12 +235,43 @@ def get_user_conversations(user_id, viewer_language=None):
                     lm_content = '[客户卡片]'
                 elif msg_type == 'project_card':
                     lm_content = '[项目卡片]'
-                elif msg_type == 'image':
-                    lm_content = '[图片]'
-                elif msg_type == 'video':
-                    lm_content = '[视频]'
-                elif msg_type == 'file':
-                    lm_content = f'[文件] {last_msg.file_name or ""}'
+                elif msg_type in ('image', 'video', 'file', 'voice', 'location'):
+                    # 附件 content 是 JSON {text, name, address, ...}; 解析说明文字
+                    name = ''; caption = ''
+                    if last_msg.content:
+                        try:
+                            import json as _j
+                            payload = _j.loads(last_msg.content)
+                            if isinstance(payload, dict):
+                                name = (payload.get('name') or '').strip()
+                                caption = (payload.get('text') or '').strip()
+                        except Exception:
+                            pass
+                    if msg_type == 'image':
+                        lm_content = f'[图片]{" " + caption if caption else ""}'
+                    elif msg_type == 'video':
+                        lm_content = f'[视频]{" " + caption if caption else ""}'
+                    elif msg_type == 'file':
+                        lm_content = f'[文件] {name or last_msg.file_name or ""}'.rstrip()
+                    elif msg_type == 'voice':
+                        lm_content = '[语音]'
+                    else:  # location
+                        lm_content = f'[位置]{" " + name if name else ""}'
+                elif msg_type == 'text_refs':
+                    # 引用卡消息：取出 text 部分预览，并在末尾标记引用数
+                    try:
+                        import json as _j
+                        payload = _j.loads(last_msg.content or '{}')
+                        txt = (payload.get('text') or '').strip()[:40]
+                        ref_count = len(payload.get('refs') or [])
+                        suffix = f" [引用 ×{ref_count}]" if ref_count else ''
+                        lm_content = (txt or '[引用卡片]') + suffix
+                    except Exception:
+                        lm_content = '[引用消息]'
+                elif msg_type == 'stage_advance':
+                    lm_content = '[阶段推进]'
+                elif msg_type == 'system':
+                    lm_content = last_msg.content[:50] if last_msg.content else '[系统消息]'
                 else:
                     lm_content = last_msg.content[:50] if last_msg.content else ''
 
@@ -285,7 +379,7 @@ def get_user_conversations(user_id, viewer_language=None):
 # 3. 创建对话
 # ---------------------------------------------------------------------------
 
-def create_conversation(creator_id, participant_ids, conv_type=None, name=None):
+def create_conversation(creator_id, participant_ids, conv_type=None, name=None, sync_metadata=None):
     """
     创建新对话。
 
@@ -345,6 +439,8 @@ def create_conversation(creator_id, participant_ids, conv_type=None, name=None):
             name=name,
             created_by=creator_id,
         )
+        if isinstance(sync_metadata, dict) and sync_metadata:
+            _save_meta(conv, sync_metadata)
         db.session.add(conv)
         db.session.flush()  # 获取 conv.id
 
@@ -365,6 +461,8 @@ def create_conversation(creator_id, participant_ids, conv_type=None, name=None):
                 role='member',
             )
             db.session.add(member)
+            # 项目群联动：把项目共享给新成员
+            _sync_project_share(conv, uid, 'add')
 
         db.session.commit()
 
@@ -531,7 +629,23 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
             )
             recalled_ids = [{'id': r.id, 'sender_id': r.sender_id} for r in recalled]
 
-        return {'success': True, 'data': data, 'recalled_ids': recalled_ids}
+        # 私聊场景：返回对方的 last_read_at，前端据此渲染"已读"
+        peer_last_read_at = None
+        conv = ChatConversation.query.get(conversation_id)
+        if conv and conv.type == 'private':
+            peer = ChatParticipant.query.filter(
+                ChatParticipant.conversation_id == conversation_id,
+                ChatParticipant.user_id != user_id,
+            ).first()
+            if peer and peer.last_read_at:
+                peer_last_read_at = _utc_iso(peer.last_read_at)
+
+        return {
+            'success': True,
+            'data': data,
+            'recalled_ids': recalled_ids,
+            'peer_last_read_at': peer_last_read_at,
+        }
 
     except Exception as e:
         logger.error(f"获取消息失败: {e}", exc_info=True)
@@ -542,29 +656,22 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
 # 6. 发送消息
 # ---------------------------------------------------------------------------
 
-def send_message(conversation_id, sender_id, content, reply_to_id=None):
+def send_message(conversation_id, sender_id, content, reply_to_id=None, refs=None,
+                 message_type='text', file_url=None, file_meta=None):
     """
     发送消息到对话。
 
-    流程：
-    1. 验证发送者是对话参与者
-    2. 检测消息语言
-    3. 创建消息记录
-    4. 更新对话的 updated_at 时间戳
-    5. 更新发送者的 last_read_at
-    6. 触发翻译（异步 / 后台）
-
     Args:
-        conversation_id: 对话 ID
-        sender_id: 发送者用户 ID
-        content: 消息文本内容
-        reply_to_id: 回复的消息 ID（可选）
-
-    Returns:
-        dict: {'success': True, 'data': {...}} 或错误信息
+        refs: optional list of {type:'#'|'$', item:{...}} —— 项目/客户引用卡
+              如果有 refs，message_type 设为 'text_refs'，content 序列化为
+              JSON {"text": <原文>, "refs": [...]}
+        message_type: 'text' / 'image' / 'file' / 'voice' / 'location'
+        file_url:   附件 URL（NAS 路径），image/file/voice 时必填
+        file_meta:  dict {name, size, duration?, lat?, lon?} → 序列化进 content
     """
     try:
-        if not content or not content.strip():
+        is_attachment = message_type in ('image', 'file', 'voice', 'location')
+        if not is_attachment and (not content or not content.strip()):
             return {'success': False, 'message': '消息内容不能为空'}
 
         # 验证参与者身份
@@ -575,16 +682,34 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
         if not participant:
             return {'success': False, 'message': '您不是该对话的参与者'}
 
-        # 检测语言
-        source_lang = detect_language(content)
+        # 检测语言（仅文本时）
+        source_lang = detect_language(content) if content else None
+
+        # 决定最终 message_type / content
+        msg_type = message_type or 'text'
+        msg_content = (content or '').strip()
+        if refs and not is_attachment:
+            msg_type = 'text_refs'
+            msg_content = json.dumps(
+                {'text': msg_content, 'refs': refs},
+                ensure_ascii=False,
+            )
+        elif is_attachment:
+            # 附件 meta 与可选说明文字打包进 content（前端按 type 解析）
+            payload = {'text': msg_content}
+            if file_meta:
+                payload.update(file_meta)
+            msg_content = json.dumps(payload, ensure_ascii=False)
 
         # 创建消息
         message = ChatMessage(
             conversation_id=conversation_id,
             sender_id=sender_id,
-            content=content.strip(),
+            content=msg_content,
+            message_type=msg_type,
             source_language=source_lang,
             reply_to_id=reply_to_id,
+            file_url=file_url,
         )
         db.session.add(message)
 
@@ -595,6 +720,12 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
 
         # 更新发送者的 last_read_at
         participant.last_read_at = datetime.now(timezone.utc)
+
+        # 自动 unhide 所有参与者(包括之前"从列表移出"的) — 让对话重新冒出来
+        # 这是微信式行为: 别人删了你, 你发消息, 对方列表又出现
+        ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, is_hidden=True
+        ).update({'is_hidden': False})
 
         db.session.commit()
 
@@ -967,6 +1098,8 @@ def add_participants(conversation_id, user_ids, current_user_id):
                 role='member',
             )
             db.session.add(member)
+            # 项目群联动：把项目共享给新成员
+            _sync_project_share(conv, uid, 'add')
             added.append(uid)
 
         if added:
@@ -977,14 +1110,16 @@ def add_participants(conversation_id, user_ids, current_user_id):
                 # flush 使新成员可查询
                 db.session.flush()
                 # 生成群名：所有成员名字拼接
-                all_members = ChatParticipant.query.filter_by(
-                    conversation_id=conversation_id).all()
-                names = []
-                for m in all_members:
-                    u = User.query.get(m.user_id)
-                    if u:
-                        names.append(u.real_name or u.username)
-                conv.name = '、'.join(names)
+                # 仅在用户未手动改过群名时自动生成 (conv.name 为空时)
+                if not (conv.name or '').strip():
+                    all_members = ChatParticipant.query.filter_by(
+                        conversation_id=conversation_id).all()
+                    names = []
+                    for m in all_members:
+                        u = User.query.get(m.user_id)
+                        if u:
+                            names.append(u.real_name or u.username)
+                    conv.name = '、'.join(names)
 
             conv.updated_at = datetime.now(timezone.utc)
             db.session.commit()
@@ -1024,6 +1159,286 @@ def add_participants(conversation_id, user_ids, current_user_id):
 
 
 # ---------------------------------------------------------------------------
+# 10a. 重命名对话
+# ---------------------------------------------------------------------------
+
+def rename_conversation(conversation_id, new_name, current_user_id):
+    """重命名对话 (1对1 / 群聊都支持)。
+
+    规则:
+    - 必须是该对话的参与者
+    - 群聊建议由 owner 改, 但 PMA 场景允许任何成员改 (轻协作)
+    - 名字 trim 后非空, 长度 ≤ 100 (DB 限制)
+    """
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return {'success': False, 'message': '对话不存在'}
+        if conv.type == 'ai':
+            return {'success': False, 'message': 'AI 对话不支持改名'}
+
+        participant = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=current_user_id
+        ).first()
+        if not participant:
+            return {'success': False, 'message': '您不是该对话的参与者'}
+
+        name = (new_name or '').strip()
+        if not name:
+            return {'success': False, 'message': '名称不能为空'}
+        if len(name) > 100:
+            return {'success': False, 'message': '名称过长 (最多 100 字符)'}
+
+        conv.name = name
+        conv.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        logger.info(f"对话 {conversation_id} 改名为 '{name}', by user {current_user_id}")
+        return {'success': True, 'data': {'id': conversation_id, 'name': name}}
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"对话改名失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'改名失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 10b. 移除群聊成员
+# ---------------------------------------------------------------------------
+
+def remove_participant(conversation_id, target_user_id, current_user_id):
+    """从群聊中移除一名成员。
+
+    规则：
+    - 仅群聊允许移除（私聊、AI 不允许）
+    - 操作者必须是参与者
+    - 操作者可以移除自己（退群）
+    - 移除他人需要 owner 权限（创建人）
+    - 不能移除最后一名成员
+
+    若会话挂在某个项目（meta.project_id），同时把目标用户从 Project.shared_with_users 移除。
+    """
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return {'success': False, 'message': '对话不存在'}
+        if conv.type != 'group':
+            return {'success': False, 'message': '仅群聊支持移除成员'}
+
+        operator = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=current_user_id
+        ).first()
+        if not operator:
+            return {'success': False, 'message': '您不是该对话的参与者'}
+
+        target = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=target_user_id
+        ).first()
+        if not target:
+            return {'success': False, 'message': '该成员不在群聊中'}
+
+        if target_user_id != current_user_id and operator.role != 'owner':
+            return {'success': False, 'message': '只有群主可以移除其他成员'}
+
+        # 不允许群里最后一人被移除（应改用删除会话）
+        member_count = ChatParticipant.query.filter_by(conversation_id=conversation_id).count()
+        if member_count <= 1:
+            return {'success': False, 'message': '群聊中至少需保留一名成员'}
+
+        db.session.delete(target)
+        # 项目共享同步移除
+        _sync_project_share(conv, target_user_id, 'remove')
+        conv.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        logger.info(f"对话 {conversation_id} 移除成员 {target_user_id}（操作者 {current_user_id}）")
+        return {
+            'success': True,
+            'data': {'removed_user_id': target_user_id},
+            'message': '成员已移除',
+        }
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"移除成员失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'移除成员失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 10c. 获取会话详情（含成员、关联项目等）
+# ---------------------------------------------------------------------------
+
+def get_conversation_detail(conversation_id, user_id):
+    """返回群聊设置页所需的完整会话信息。
+
+    Returns:
+        dict: {
+            'success': True,
+            'data': {
+                'id', 'type', 'name', 'created_at', 'announcement',
+                'is_owner': bool,
+                'participants': [{user_id, name, dept, role, is_self}, ...],
+                'linked_project': {id, name, stage, amount, owner, region} | None,
+            }
+        }
+    """
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return {'success': False, 'message': '对话不存在'}
+
+        operator = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=user_id
+        ).first()
+        if not operator:
+            return {'success': False, 'message': '您不是该对话的参与者'}
+
+        meta = _load_meta(conv)
+        announcement = meta.get('announcement') or ''
+
+        # 参与者
+        members = []
+        for p in conv.participants.all():
+            u = p.user
+            display_name = (u.real_name or u.username) if u else f'用户#{p.user_id}'
+            members.append({
+                'user_id': p.user_id,
+                'name': display_name,
+                'dept': (u.department if u else '') or '',
+                'role': p.role,
+                'is_self': p.user_id == user_id,
+                'avatar': display_name[0] if display_name else '?',
+            })
+
+        # 关联项目
+        linked_project = None
+        if meta.get('project_id'):
+            try:
+                from app.models.project import Project
+                from app.utils.dictionary_helpers import project_stage_label
+                p = Project.query.get(meta['project_id'])
+                if p and not getattr(p, 'is_deleted', False):
+                    owner_name = ''
+                    if p.owner:
+                        owner_name = p.owner.real_name or p.owner.username or ''
+                    linked_project = {
+                        'id': p.id,
+                        'name': p.project_name,
+                        'stage': project_stage_label(p.current_stage) if p.current_stage else '',
+                        'amount': float(p.quotation_customer or 0),
+                        'owner': owner_name,
+                        'region': p.region or '',
+                    }
+            except Exception as e:
+                logger.warning(f"加载关联项目失败 conv={conversation_id}: {e}")
+
+        return {
+            'success': True,
+            'data': {
+                'id': conv.id,
+                'type': conv.type,
+                'name': conv.name or '',
+                'created_at': _utc_iso(conv.created_at),
+                'announcement': announcement,
+                'is_owner': operator.role == 'owner',
+                'participants': members,
+                'linked_project': linked_project,
+            },
+        }
+    except Exception as e:
+        logger.error(f"获取会话详情失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'获取会话详情失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 10c2. 发送系统消息（无 sender，message_type='system'）
+# ---------------------------------------------------------------------------
+
+def send_system_message(conversation_id, content, message_type='system'):
+    """以系统身份给会话发一条消息（无 sender_id）。
+
+    message_type:
+      - 'system'：普通系统消息（居中斜体小字）
+      - 'stage_advance'：阶段推进，content 应为 JSON 字符串包含
+        {from_stage_label, to_stage_label, by_name, by_initial, note?}，前端用
+        StageAdvanceCard 富卡渲染
+
+    失败仅记录日志，不抛异常 —— 系统通知不应阻断主业务。
+    """
+    if not content or not content.strip():
+        return None
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return None
+        msg = ChatMessage(
+            conversation_id=conversation_id,
+            sender_id=None,
+            content=content.strip(),
+            message_type=message_type,
+        )
+        db.session.add(msg)
+        conv.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        logger.info(f"系统消息已发到会话 {conversation_id}: {content[:40]}")
+        return msg.id
+    except Exception as e:
+        db.session.rollback()
+        logger.warning(f"发送系统消息失败 conv={conversation_id}: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# 10d. 查找项目讨论群
+# ---------------------------------------------------------------------------
+
+def find_project_conversation(user_id, project_id):
+    """查找指定用户已参与的、绑定到指定项目的群聊（用户可见性场景）。
+
+    Returns:
+        int | None: 找到的 conversation id，否则 None
+    """
+    try:
+        rows = (
+            db.session.query(ChatConversation)
+            .join(ChatParticipant, ChatParticipant.conversation_id == ChatConversation.id)
+            .filter(
+                ChatParticipant.user_id == user_id,
+                ChatConversation.is_deleted == False,
+                ChatConversation.type == 'group',
+                ChatConversation.sync_metadata.isnot(None),
+            )
+            .all()
+        )
+        for conv in rows:
+            meta = _load_meta(conv)
+            if meta.get('project_id') == project_id:
+                return conv.id
+        return None
+    except Exception as e:
+        logger.warning(f"查找项目讨论群失败 user={user_id} project={project_id}: {e}")
+        return None
+
+
+def find_any_project_conversation(project_id):
+    """全局查找绑定到指定项目的群聊（不限定用户）—— 系统通知场景用。"""
+    try:
+        rows = (
+            ChatConversation.query
+            .filter(
+                ChatConversation.is_deleted == False,
+                ChatConversation.type == 'group',
+                ChatConversation.sync_metadata.isnot(None),
+            ).all()
+        )
+        for conv in rows:
+            meta = _load_meta(conv)
+            if meta.get('project_id') == project_id:
+                return conv.id
+        return None
+    except Exception as e:
+        logger.warning(f"全局查找项目群失败 project={project_id}: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
 # 11. 创建 AI 对话
 # ---------------------------------------------------------------------------
 
@@ -1058,37 +1473,91 @@ def create_ai_conversation(user_id):
 
 def delete_conversation(conversation_id, user_id):
     """
-    软删除对话（对所有参与者不可见）。
+    "从列表移出"语义 — 仅当前用户的列表隐藏 (微信式删除)。
+    对方仍能看到; 对方再发消息时 is_hidden 会被自动 unhide 重新冒出来。
+    历史消息保留, 不破坏。
 
-    Args:
-        conversation_id: 对话 ID
-        user_id: 操作者用户 ID
-
-    Returns:
-        dict: {'success': True/False, 'message': ...}
+    要彻底删除整个对话(对所有参与者不可见)请用 dismiss_conversation (仅创建人 +
+    非业务群)。要离开群请用 leave_conversation (删自己 participant)。
     """
     try:
-        conv = ChatConversation.query.get(conversation_id)
-        if not conv:
-            return {'success': False, 'message': '对话不存在'}
-
-        # 验证操作者是参与者
         participant = ChatParticipant.query.filter_by(
             conversation_id=conversation_id, user_id=user_id
         ).first()
         if not participant:
             return {'success': False, 'message': '您不是该对话的参与者'}
 
-        conv.is_deleted = True
+        participant.is_hidden = True
         db.session.commit()
-
-        logger.info(f"对话 {conversation_id} 已被用户 {user_id} 删除")
-        return {'success': True, 'message': '对话已删除'}
+        logger.info(f"对话 {conversation_id} 已被用户 {user_id} 从列表移出")
+        return {'success': True, 'message': '已从列表移出'}
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f"删除对话失败: {e}", exc_info=True)
-        return {'success': False, 'message': f'删除对话失败: {str(e)}'}
+        logger.error(f"从列表移出对话失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'操作失败: {str(e)}'}
+
+
+def _is_business_conversation(conv):
+    """检查是否为绑定到业务对象(项目/客户/批价/报价/订单)的群聊。
+    业务群禁止解散, 只能退出/隐藏。"""
+    try:
+        meta = _load_meta(conv)
+        return any(meta.get(k) for k in ('project_id', 'customer_id', 'pricing_order_id', 'quotation_id', 'order_id'))
+    except Exception:
+        return False
+
+
+def dismiss_conversation(conversation_id, user_id):
+    """解散群聊 — 整个 conv.is_deleted=True, 所有参与者都看不到。
+    限制: 仅创建人, 仅非业务群; 私聊也允许(等价于双方互删)。"""
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return {'success': False, 'message': '对话不存在'}
+        if conv.created_by != user_id:
+            return {'success': False, 'message': '只有创建人可以解散'}
+        if _is_business_conversation(conv):
+            return {'success': False, 'message': '业务群(项目/客户/批价/报价/订单)不能解散, 只能退出'}
+
+        conv.is_deleted = True
+        db.session.commit()
+        logger.info(f"对话 {conversation_id} 已被创建人 {user_id} 解散")
+        return {'success': True, 'message': '已解散'}
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"解散对话失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'解散失败: {str(e)}'}
+
+
+def leave_conversation(conversation_id, user_id):
+    """退出群聊 — 删除自己的 ChatParticipant 记录。
+    群主不能退出(应该解散), 私聊不允许退出(应该用"从列表移出")."""
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return {'success': False, 'message': '对话不存在'}
+        if conv.type == 'private':
+            return {'success': False, 'message': '私聊不能退出, 请用"从列表移出"'}
+        if conv.created_by == user_id:
+            return {'success': False, 'message': '群主不能退出, 请先转让群主或解散群'}
+
+        participant = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=user_id
+        ).first()
+        if not participant:
+            return {'success': False, 'message': '您不在该群'}
+
+        db.session.delete(participant)
+        db.session.commit()
+        logger.info(f"用户 {user_id} 已退出群聊 {conversation_id}")
+        return {'success': True, 'message': '已退出群聊'}
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"退出群聊失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'退出失败: {str(e)}'}
 
 
 # ---------------------------------------------------------------------------

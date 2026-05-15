@@ -1,0 +1,247 @@
+<!--
+  ApprovalSheet · 同意/驳回/转交 sheet
+  严格对齐 design_handoff/expense-approval.jsx::ApprovalSheet (L235-311)
+  - 三种 action 决定颜色: approve=green / reject=red / forward=blue
+  - drag indicator → eyebrow(action 大写) → 22 serif title → ID 13 ink3
+  - forward 时上方"转交给"卡 (含 user-picker)
+  - 备注卡(reject 必填红 *, approve 可选 + 一键标签)
+  - CTA 取消(flex 1 outline) + 确认(flex 2 action color)
+-->
+<template>
+  <Teleport to="body">
+    <transition name="ex-submit-sheet">
+      <div
+        v-if="modelValue"
+        class="fixed inset-0 z-50"
+        :style="{ background: 'rgba(26,26,26,.42)' }"
+        @click.self="close"
+      >
+        <div
+          class="absolute left-0 right-0 bottom-0"
+          :style="[{
+            background: 'var(--color-ex-bg)',
+            borderRadius: '20px 20px 0 0',
+            padding: '14px 20px 26px',
+            paddingBottom: `calc(26px + env(safe-area-inset-bottom) + ${kbStyle.paddingBottom || '0px'})`,
+            boxShadow: 'var(--shadow-ex-sheet)',
+            transition: 'padding-bottom 0.25s cubic-bezier(.25,.46,.45,.94)',
+          }]"
+        >
+          <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '0 auto 14px' }" />
+          <!-- eyebrow: 设计稿是 label.toUpperCase()(中文 toUpperCase 还是中文); 不能直接显示英文 -->
+          <div
+            :style="{ fontSize: '11px', color: cfg.color, letterSpacing: '0.6px', fontWeight: 600 }"
+          >{{ cfg.label }}</div>
+          <div
+            :style="{ fontSize: '22px', fontWeight: 500, fontFamily: 'var(--font-serif)', marginTop: '4px' }"
+          >{{ cfg.title }}</div>
+          <div
+            :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)', marginTop: '4px' }"
+          >{{ contextLine }}</div>
+
+          <!-- forward 选人卡 -->
+          <div
+            v-if="action === 'forward'"
+            :style="{
+              marginTop: '14px', padding: '12px 14px',
+              background: 'var(--color-ex-card)', borderRadius: '10px',
+              border: '1px solid var(--color-ex-divider)',
+            }"
+          >
+            <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '6px' }">{{ t('ex.forwardTo') }}</div>
+            <div v-if="selectedUser" class="flex items-center" :style="{ gap: '10px' }">
+              <div
+                class="flex items-center justify-center"
+                :style="{
+                  width: '32px', height: '32px', borderRadius: '16px',
+                  background: '#9B5DE5', color: '#fff',
+                  fontSize: '13px', fontWeight: 600,
+                }"
+              >{{ selectedUser.name.slice(0, 1) }}</div>
+              <div class="flex-1">
+                <div :style="{ fontSize: '13px', fontWeight: 600 }">{{ selectedUser.name }}</div>
+                <div
+                  v-if="selectedUser.role_label"
+                  :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)' }"
+                >{{ selectedUser.role_label }}</div>
+              </div>
+              <div
+                :style="{ fontSize: '12px', color: 'var(--color-ex-accent)', fontWeight: 600 }"
+                @click="onPickUser"
+              >{{ t('ex.change') }}</div>
+            </div>
+            <div
+              v-else
+              class="flex items-center justify-center"
+              :style="{
+                height: '40px', borderRadius: '8px',
+                border: '1px dashed var(--color-ex-divider)',
+                color: 'var(--color-ex-ink3)', fontSize: '13px',
+              }"
+              @click="onPickUser"
+            >{{ t('ex.selectForwardTarget') }}</div>
+          </div>
+
+          <!-- 备注框 -->
+          <div
+            :style="{
+              marginTop: '14px', padding: '12px 14px',
+              background: 'var(--color-ex-card)', borderRadius: '10px',
+              border: '1px solid var(--color-ex-divider)',
+            }"
+          >
+            <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '6px' }">
+              {{ t('ex.note') }}
+              <span v-if="action === 'reject'" :style="{ color: 'var(--color-ex-red)' }">*</span>
+            </div>
+            <textarea
+              v-model="comment"
+              rows="3"
+              :placeholder="cfg.placeholder"
+              :style="{
+                width: '100%', background: 'transparent', border: 'none',
+                fontSize: '13px', color: 'var(--color-ex-ink)', outline: 'none',
+                lineHeight: 1.55, resize: 'none',
+              }"
+            />
+            <!-- 同意快捷标签 -->
+            <div
+              v-if="action === 'approve'"
+              class="flex flex-wrap"
+              :style="{ marginTop: '10px', gap: '6px' }"
+            >
+              <div
+                v-for="t in approveChips"
+                :key="t"
+                :style="{
+                  fontSize: '11px', color: 'var(--color-ex-ink3)',
+                  padding: '4px 10px',
+                  background: 'var(--color-ex-divider-soft)',
+                  borderRadius: '12px',
+                }"
+                @click="onApplyChip(t)"
+              >{{ t }}</div>
+            </div>
+          </div>
+
+          <!-- CTA - 加 role="button" 让 useKeyboardOffset 识别为可交互元素,
+               不在 touchstart 时 dismiss 键盘(避免按钮位置在键盘下落动画中位移导致 click 落空) -->
+          <div class="flex" :style="{ gap: '10px', marginTop: '18px' }">
+            <div
+              class="flex-1 flex items-center justify-center"
+              role="button"
+              :style="{
+                height: '48px', borderRadius: '24px',
+                background: 'var(--color-ex-card)',
+                border: '1.5px solid var(--color-ex-divider)',
+                color: 'var(--color-ex-ink2)',
+                fontSize: '14px', fontWeight: 600,
+              }"
+              @click="close"
+            >{{ t('common.cancel') }}</div>
+            <div
+              class="flex items-center justify-center"
+              role="button"
+              :style="{
+                flex: 2,
+                height: '48px',
+                borderRadius: '24px',
+                background: cfg.color,
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: 600,
+              }"
+              @click="onClickConfirm"
+            >{{ submitting ? t('ex.processing') : t('ex.confirmAction', { action: cfg.label }) }}</div>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </Teleport>
+</template>
+
+<script setup>
+import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { t, tm } = useI18n()
+
+const { kbStyle } = useKeyboardOffset()
+
+const props = defineProps({
+  modelValue: { type: Boolean, default: false },
+  action: { type: String, required: true }, // approve / reject / forward
+  contextLine: { type: String, default: '' },
+  selectedUser: { type: Object, default: null }, // {id, name, role_label?}
+  submitting: { type: Boolean, default: false },
+  // 业务对象类型 (报销单/项目/批价单/报价单/采购单), 用于 title 和 placeholder
+  objectTypeLabel: { type: String, default: '' },
+  // 业务对象 kind (expense / project / pricing_order / quotation), 用于隐藏报销专属 chip
+  objectKind: { type: String, default: '' },
+})
+const emit = defineEmits(['update:modelValue', 'confirm', 'pick-user'])
+
+const comment = ref('')
+
+watch(() => props.modelValue, (v) => { if (v) comment.value = '' })
+
+const cfg = computed(() => {
+  const obj = props.objectTypeLabel || t('ex.defaultObj')
+  const isExpense = props.objectKind === 'expense' || (!props.objectKind && obj.includes('报销'))
+  const rejectPh = isExpense ? t('ex.placeholderRejectExpense') : t('ex.placeholderReject')
+  const map = {
+    approve: { label: t('ex.actionApprove'), title: t('ex.titleApprove', { obj }), color: 'var(--color-ex-green)', placeholder: t('ex.placeholderApprove') },
+    reject:  { label: t('ex.actionReject'),  title: t('ex.titleReject',  { obj }), color: 'var(--color-ex-red)',   placeholder: rejectPh },
+    forward: { label: t('ex.actionForward'), title: t('ex.titleForward'),          color: 'var(--color-ex-blue)',  placeholder: t('ex.placeholderForward') },
+  }
+  return map[props.action] || map.approve
+})
+
+const approveChips = computed(() => {
+  if (props.objectKind === 'project')       return tm('ex.chipProject')
+  if (props.objectKind === 'pricing_order') return tm('ex.chipPricing')
+  if (props.objectKind === 'quotation')     return tm('ex.chipQuotation')
+  return tm('ex.chipExpense')
+})
+
+const canConfirm = computed(() => {
+  if (props.submitting) return false
+  if (props.action === 'reject' && comment.value.trim().length < 5) return false
+  if (props.action === 'forward' && !props.selectedUser) return false
+  return true
+})
+
+function onApplyChip(t) {
+  comment.value = comment.value ? `${comment.value}; ${t}` : t
+}
+
+function onPickUser() {
+  emit('pick-user')
+}
+
+function submit() {
+  emit('confirm', { comment: comment.value, targetUserId: props.selectedUser?.id })
+}
+
+// 点击确认 — 校验失败用 alert 提示(替代之前 disabled 灰按钮的视觉)
+function onClickConfirm() {
+  if (props.submitting) return
+  if (props.action === 'reject' && comment.value.trim().length < 5) {
+    alert('请填写驳回原因(至少 5 个字)')
+    return
+  }
+  if (props.action === 'forward' && !props.selectedUser) {
+    alert('请选择转交目标')
+    return
+  }
+  submit()
+}
+
+function close() { emit('update:modelValue', false) }
+</script>
+
+<style scoped>
+.ex-submit-sheet-enter-active, .ex-submit-sheet-leave-active { transition: opacity 0.2s; }
+.ex-submit-sheet-enter-from, .ex-submit-sheet-leave-to { opacity: 0; }
+</style>

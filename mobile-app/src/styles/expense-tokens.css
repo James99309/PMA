@@ -1,0 +1,36 @@
+/* ─────────────────────────────────────────────────────────────────
+   PMA · 报销/审批模块 EX 设计 token
+   严格对齐 design_handoff_expense_approval/expense-base.jsx 的 EX 对象
+   命名空间 ex-* 避免污染全局 token
+   ─────────────────────────────────────────────────────────────── */
+@theme {
+  --color-ex-bg: #F7F5F2;
+  --color-ex-card: #FFFFFF;
+  --color-ex-ink: #1A1A1A;
+  --color-ex-ink2: #3A3A3A;
+  --color-ex-ink3: #7A7570;
+  --color-ex-ink4: #B5AEA3;
+  --color-ex-divider: #EBE6DD;
+  --color-ex-divider-soft: #F2EEE6;
+  --color-ex-accent: #D97757;
+  --color-ex-accent-soft: #FAEEE5;
+  --color-ex-warn: #C77B22;
+  --color-ex-warn-soft: #F9F1E6;
+  --color-ex-green: #2F7A4F;
+  --color-ex-green-soft: #E9F1EB;
+  --color-ex-red: #B5453A;
+  --color-ex-red-soft: #F4E4E1;
+  --color-ex-blue: #3A6FB7;
+  --color-ex-blue-soft: #E5EBF4;
+
+  /* 草稿状态色 — 来自 EX_STATUS.draft */
+  --color-ex-draft: #7A7570;
+  --color-ex-draft-soft: #EFEAE2;
+}
+
+/* FAB 阴影 — 严格对齐 jsx 的 boxShadow */
+:root {
+  --shadow-ex-fab: 0 10px 24px rgba(26, 26, 26, 0.22);
+  --shadow-ex-sheet: 0 -10px 30px rgba(0, 0, 0, 0.18);
+  --shadow-ex-receipt: 0 22px 36px rgba(0, 0, 0, 0.6);
+}

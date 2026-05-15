@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=0.5">
+  <title>{{ quotation.quotation_number }}</title>
+  <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #cfd2d7;
+      font-family: 'Inter', 'Calibri', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      font-size: 12px;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    /* ── 工具栏 ── */
+    .toolbar {
+      position: sticky; top: 0; z-index: 100;
+      background: #fff; border-bottom: 1px solid #e2e8f0;
+      padding: 8px 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .toolbar .qno { font-size: 14px; font-weight: 700; color: #1e293b; flex: 1; }
+    .toolbar button {
+      padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 4px;
+    }
+    .btn-print { background: #137fec; color: #fff; }
+    .btn-print:active { background: #0f6fd4; }
+    .tip { font-size: 11px; color: #94a3b8; }
+
+    /* ── 纸张 ── */
+    .quotation-paper {
+      background: #fff;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+      margin: 16px auto;
+      width: 1100px;
+      max-width: calc(100vw - 32px);
+      padding: 36px 50px 50px 50px;
+    }
+
+    /* ── 表格基础 ── */
+    table.q-grid { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+    table.q-grid td {
+      border: 1px solid #b3b3b3;
+      padding: 4px 8px; vertical-align: middle; background: #fff;
+      line-height: 1.35; color: #000; word-wrap: break-word; overflow-wrap: break-word;
+    }
+    td.no-border { border: none !important; padding: 2px 8px; background: transparent !important; }
+    td.label { font-weight: 700; background: #fafbfc; }
+    td.val { background: #fff; color: #1e293b; }
+
+    /* ── 信头 ── */
+    .company-name { background: transparent !important; padding: 0 4px !important; vertical-align: top !important; font-size: 18px; font-weight: 700; border: none !important; }
+    .company-info  { background: transparent !important; padding: 0 4px !important; vertical-align: top !important; font-size: 11px; border: none !important; }
+    .logo-area { width: 116px; min-height: 58px; display: flex; align-items: flex-start; justify-content: flex-start; }
+    .logo-area img { width: 100%; height: auto; display: block; }
+
+    /* ── 大标题 ── */
+    .title-cell {
+      font-size: 24px; font-weight: 700; text-align: center;
+      padding: 10px 0 !important; letter-spacing: 1px; background: transparent !important; border: none !important;
+    }
+
+    /* ── 产品表头 ── */
+    td.product-th {
+      background: #f1f5f9; font-weight: 700; text-align: center;
+      padding: 5px 4px; white-space: nowrap;
+    }
+
+    /* ── 产品行 ── */
+    td.pv { vertical-align: top; }
+    td.pv-r { vertical-align: top; text-align: right; }
+    .section-td { background: #f8fafc !important; font-weight: 700; color: #334155; }
+
+    /* ── 合计行 ── */
+    .total-row td { background: #fafbfc; }
+    .total-label { font-weight: 700; text-align: right; }
+    .total-value { font-weight: 700; text-align: right; }
+    .total-final td { border-top: 2px solid #000 !important; }
+    .total-final .total-value { font-size: 13px; }
+
+    /* ── 签字区 ── */
+    .sign-blank { min-height: 50px; background: #fff; }
+    .sign-line { display: block; font-weight: 600; font-size: 12px; padding-bottom: 2px; border-bottom: 1px solid #666; min-width: 160px; }
+
+    /* ── 打印 ── */
+    @media print {
+      .toolbar { display: none !important; }
+      body { background: #fff; }
+      .quotation-paper { box-shadow: none; margin: 0; width: 100%; max-width: 100%; padding: 12px 16px; }
+      table.q-grid td { border: 1px solid #000 !important; color: #000 !important; }
+      td.no-border { border: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 工具栏 -->
+<div class="toolbar">
+  <span class="qno">{{ quotation.quotation_number }}</span>
+  <span class="tip">只读预览</span>
+  <button class="btn-print" onclick="window.print()">打印</button>
+</div>
+
+<div class="quotation-paper">
+
+  <!-- ── 信头 ── -->
+  {% set lh = user_letterhead %}
+  <table class="q-grid" style="margin-bottom:8px">
+    <colgroup><col style="width:130px"><col></colgroup>
+    <tbody>
+      <tr>
+        <td class="no-border" rowspan="3" style="vertical-align:top;padding:0 8px 0 0">
+          <div class="logo-area">
+            {% if lh.logo_url %}<img src="{{ lh.logo_url }}" alt="LOGO" onerror="this.style.display='none'">{% endif %}
+          </div>
+        </td>
+        <td class="company-name">{{ lh.line1 or 'EVERTAC SOLUTIONS SINGAPORE PTE. LTD.' }}</td>
+      </tr>
+      <tr><td class="company-info">{{ lh.line2 or '18 Boon Lay Way, #03-117 Tradehub 21, Singapore 609966' }}</td></tr>
+      <tr><td class="company-info">{{ lh.line3 or 'UEN No/GST Reg. No.: 202230146C    Website: www.evertac-solutions.com' }}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="title-cell">QUOTATION</div>
+
+  <!-- ── 客户信息 + 报价单元数据（11列布局与编辑页一致） ── -->
+  {% set ef = extra_fields %}
+  <table class="q-grid" id="mainGrid">
+    <colgroup>
+      <col style="width:26px">
+      <col style="width:4%"><col style="width:13%"><col style="width:12%">
+      <col>
+      <col style="width:7%"><col style="width:9%">
+      <col style="width:9%"><col style="width:6%"><col style="width:11%">
+      <col style="width:12%">
+      <col style="width:28px">
+    </colgroup>
+    <tbody>
+      <!-- 客户名称 / 报价编号 -->
+      <tr>
+        <td class="no-border"></td>
+        <td class="label" colspan="3">客户名称:</td>
+        <td class="val" colspan="3">{{ quotation.customer.company_name if quotation.customer else '' }}</td>
+        <td class="label" colspan="2">报价编号:</td>
+        <td class="val" colspan="2">{{ quotation.quotation_number }}</td>
+        <td class="no-border"></td>
+      </tr>
+      <!-- 客户地址 / 报价日期 -->
+      <tr>
+        <td class="no-border"></td>
+        <td class="label" colspan="3">客户地址:</td>
+        <td class="val" colspan="3">{{ ef.customer_address or '' }}</td>
+        <td class="label" colspan="2">报价日期:</td>
+        <td class="val" colspan="2">{{ ef.quotation_date or (quotation.created_at.strftime('%Y-%m-%d') if quotation.created_at else '') }}</td>
+        <td class="no-border"></td>
+      </tr>
+      <!-- 联系人 / 付款条件 -->
+      <tr>
+        <td class="no-border"></td>
+        <td class="label" colspan="3">联系人:</td>
+        <td class="val" colspan="3">{{ quotation.contact.name if quotation.contact else '' }}</td>
+        <td class="label" colspan="2">付款条件:</td>
+        <td class="val" colspan="2">{{ ef.payment_terms or '' }}</td>
+        <td class="no-border"></td>
+      </tr>
+      <!-- 联系电话 / 交付条件 -->
+      <tr>
+        <td class="no-border"></td>
+        <td class="label" colspan="3">联系电话:</td>
+        <td class="val" colspan="3">{{ ef.contact_phone or (quotation.contact.phone if quotation.contact else '') }}</td>
+        <td class="label" colspan="2">交付条件:</td>
+        <td class="val" colspan="2">{{ ef.shipping_terms or '' }}</td>
+        <td class="no-border"></td>
+      </tr>
+      <!-- 项目名称 / 有效期 -->
+      <tr>
+        <td class="no-border"></td>
+        <td class="label" colspan="3">项目名称:</td>
+        <td class="val" colspan="3">{{ quotation.project.project_name if quotation.project else '' }}</td>
+        <td class="label" colspan="2">有效期:</td>
+        <td class="val" colspan="2">{{ ef.validity or '' }}</td>
+        <td class="no-border"></td>
+      </tr>
+      <!-- 货币 / 参考编号 -->
+      <tr>
+        <td class="no-border"></td>
+        <td class="label" colspan="3">货币:</td>
+        <td class="val" colspan="3">{{ quotation.currency or 'CNY' }}</td>
+        <td class="label" colspan="2">参考编号:</td>
+        <td class="val" colspan="2">{{ ef.ref_no or '' }}</td>
+        <td class="no-border"></td>
+      </tr>
+    </tbody>
+
+    <!-- ── 产品表头 ── -->
+    <tbody>
+      <tr>
+        <td class="no-border"></td>
+        <td class="product-th">S/N</td>
+        <td class="product-th">产品编码</td>
+        <td class="product-th">品牌</td>
+        <td class="product-th">型号规格</td>
+        <td class="product-th">折扣%</td>
+        <td class="product-th">市场价</td>
+        <td class="product-th">单价</td>
+        <td class="product-th">数量</td>
+        <td class="product-th">小计</td>
+        <td class="product-th">备注</td>
+        <td class="no-border"></td>
+      </tr>
+    </tbody>
+
+    <!-- ── 产品明细（服务端渲染，无 JS 依赖）── -->
+    <tbody>
+      {% set ns = namespace(sn=0) %}
+      {% for d in details %}
+        {% if d.row_type == 'section' %}
+        <tr>
+          <td class="no-border"></td>
+          <td class="section-td" colspan="10">{{ d.section_label or '' }}</td>
+          <td class="no-border"></td>
+        </tr>
+        {% else %}
+        {% set ns.sn = ns.sn + 1 %}
+        <tr>
+          <td class="no-border"></td>
+          <td class="pv" style="text-align:center;color:#94a3b8">{{ ns.sn }}</td>
+          <td class="pv" style="font-size:11px;color:#475569">{{ d.product_mn or '' }}</td>
+          <td class="pv">{{ d.brand or '' }}</td>
+          <td class="pv">
+            {% if d.product_name %}{{ d.product_name }}{% endif %}
+            {% if d.product_model %}<br><span style="color:#475569">{{ d.product_model }}</span>{% endif %}
+            {% if d.product_desc %}<br><span style="color:#64748b;font-size:11px">{{ d.product_desc }}</span>{% endif %}
+          </td>
+          <td class="pv-r">
+            {% if d.discount is not none and d.discount != 1.0 %}
+              {{ '{:.0f}'.format(d.discount * 100) }}%
+            {% endif %}
+          </td>
+          <td class="pv-r">
+            {% if d.market_price is not none %}{{ '{:,.2f}'.format(d.market_price) }}{% endif %}
+          </td>
+          <td class="pv-r">
+            {% if d.unit_price is not none %}{{ '{:,.2f}'.format(d.unit_price) }}{% endif %}
+          </td>
+          <td class="pv-r">{{ d.quantity or '' }}{% if d.unit %} {{ d.unit }}{% endif %}</td>
+          <td class="pv-r" style="font-weight:600">
+            {% if d.total_price is not none %}{{ '{:,.2f}'.format(d.total_price) }}{% endif %}
+          </td>
+          <td class="pv" style="font-size:11px;color:#64748b">{{ d.item_note or '' }}</td>
+          <td class="no-border"></td>
+        </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+
+    <!-- ── 合计 ── -->
+    <tbody>
+      {% set subtotal = namespace(v=0) %}
+      {% for d in details %}{% if d.row_type != 'section' and d.total_price %}{% set subtotal.v = subtotal.v + d.total_price %}{% endif %}{% endfor %}
+      <tr class="total-row">
+        <td class="no-border"></td>
+        <td colspan="4" style="border:none;background:transparent"></td>
+        <td class="total-label" colspan="4">合计</td>
+        <td class="total-value">{{ '{:,.2f}'.format(subtotal.v) }}</td>
+        <td class="val"></td>
+        <td class="no-border"></td>
+      </tr>
+      {% if quotation.amount is not none and (quotation.amount | round(2)) != (subtotal.v | round(2)) %}
+      <tr class="total-row total-final">
+        <td class="no-border"></td>
+        <td colspan="4" style="border:none;background:transparent"></td>
+        <td class="total-label" colspan="4">总计 ({{ quotation.currency or 'CNY' }})</td>
+        <td class="total-value" style="font-size:13px">{{ '{:,.2f}'.format(quotation.amount) }}</td>
+        <td class="val"></td>
+        <td class="no-border"></td>
+      </tr>
+      {% endif %}
+      <!-- 备注 -->
+      {% if quotation.notes %}
+      <tr>
+        <td class="no-border"></td>
+        <td class="label" colspan="2" style="vertical-align:top">备注:</td>
+        <td colspan="8" style="vertical-align:top;white-space:pre-wrap">{{ quotation.notes }}</td>
+        <td class="no-border"></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <!-- ── 签字区 ── -->
+  {% set sg = user_signature %}
+  <table class="q-grid" style="margin-top:40px">
+    <colgroup>
+      <col style="width:26px"><col style="width:4%"><col style="width:13%"><col style="width:12%">
+      <col><col style="width:7%"><col style="width:9%">
+      <col style="width:9%"><col style="width:6%"><col style="width:11%">
+      <col style="width:12%"><col style="width:28px">
+    </colgroup>
+    <tbody>
+      <tr>
+        <td class="no-border"></td>
+        <td class="sign-blank" colspan="4"></td>
+        <td class="no-border" style="font-weight:700;font-size:12px;padding-left:12px" colspan="5">Signed and Accepted by Customer:</td>
+        <td class="no-border" colspan="1"></td>
+        <td class="no-border"></td>
+      </tr>
+      <tr>
+        <td class="no-border"></td>
+        <td class="sign-blank" colspan="4" style="min-height:50px">
+          {% if sg.url %}<img src="{{ sg.url }}" alt="" style="max-height:60px;max-width:100%" onerror="this.style.display='none'">{% endif %}
+        </td>
+        <td class="sign-blank" colspan="5"></td>
+        <td class="no-border" colspan="1"></td>
+        <td class="no-border"></td>
+      </tr>
+      <tr>
+        <td class="no-border"></td>
+        <td class="no-border" colspan="4" style="padding-left:12px">
+          <span class="sign-line">{{ sg.left or '' }}</span>
+        </td>
+        <td class="no-border" colspan="5" style="padding-left:12px;font-size:11px;font-style:italic">
+          <span class="sign-line" style="font-weight:400">{{ sg.right or '' }}</span>
+        </td>
+        <td class="no-border" colspan="1"></td>
+        <td class="no-border"></td>
+      </tr>
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>

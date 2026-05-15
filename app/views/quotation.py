@@ -5154,3 +5154,51 @@ def save_quotation_template():
 
     db.session.commit()
     return jsonify({'success': True})
+
+
+@quotation.route('/mobile-view/<token>')
+def mobile_view_quotation(token):
+    """
+    移动端报价单只读预览。
+    直接验证 JWT preview token 并渲染专用模板，完全绕开 Flask-Login / permission 装饰器，
+    页面内无 AJAX 调用，不依赖 session cookie，不会跳登录页。
+    """
+    try:
+        from flask_jwt_extended import decode_token
+
+        data = decode_token(token)
+        if not data.get('mobile_preview'):
+            return "链接无效", 403
+
+        user_id = int(data.get('sub', 0))
+        quotation_id = int(data.get('quotation_id', 0))
+
+        user = User.query.get(user_id)
+        if not user:
+            return "用户不存在", 403
+
+        quotation = Quotation.query.get_or_404(quotation_id)
+        if not can_view_quotation(user, quotation):
+            return "无权查看此报价单", 403
+
+        details = QuotationDetail.query\
+            .filter_by(quotation_id=quotation_id)\
+            .order_by(QuotationDetail.sort_order, QuotationDetail.id)\
+            .all()
+
+        extra_fields = quotation.extra_fields or {}
+        user_letterhead = getattr(quotation.owner, 'quotation_letterhead', None) or {}
+        user_signature = getattr(quotation.owner, 'quotation_signature', None) or {}
+
+        return render_template(
+            'quotation/mobile_quotation_view.html',
+            quotation=quotation,
+            details=details,
+            extra_fields=extra_fields,
+            user_letterhead=user_letterhead,
+            user_signature=user_signature,
+        )
+
+    except Exception as e:
+        logger.error(f"mobile_view_quotation error: {e}", exc_info=True)
+        return "链接已过期或无效，请重新打开", 403

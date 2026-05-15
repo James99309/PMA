@@ -65,10 +65,12 @@ class Project(SharingMixin, db.Model):
     industry = Column(String(50), nullable=True)  # 项目所属行业
 
     # 地址相关字段
-    address = Column(String(500), nullable=True)  # 详细地址
-    country = Column(String(10), nullable=True)   # 国家代码
-    region = Column(String(100), nullable=True)   # 省/州
-    city = Column(String(100), nullable=True)     # 城市
+    address = Column(String(500), nullable=True)
+    country = Column(String(10), nullable=True)
+    region = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
+    latitude = Column(db.Float, nullable=True)
+    longitude = Column(db.Float, nullable=True)
 
     # AI 网络调研字段
     ai_research_data = Column(JSON, nullable=True)  # 结构化调研结果

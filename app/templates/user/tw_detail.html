@@ -273,6 +273,25 @@
                                     {% endif %}
                                 </div>
                             </div>
+                            {# 跨系统协作标记 #}
+                            {% if user.cross_team_visible or user.is_mirror %}
+                            <div>
+                                <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('跨系统协作') }}</label>
+                                <div class="mt-1">
+                                    {% if user.cross_team_visible and not user.is_mirror %}
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+                                          style="background:#FFF8F0; color:#D97757; border:1px solid #D97757;">
+                                        🌏 {{ user.cross_team_label or _('海外支持') }}
+                                    </span>
+                                    {% elif user.is_mirror %}
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+                                          style="background:#E5EDFA; color:#1E4FAA; border:1px solid #4D82E0;">
+                                        🔗 {{ _('来自') }} {{ (user.source_system or '')|upper }} {{ _('镜像') }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
 

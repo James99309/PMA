@@ -13,6 +13,21 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Foreign
 from app import db
 
 
+def _iso(dt):
+    """ISO 序列化, 给前端 Date() 正确解析。
+
+    naive datetime: 视作本地时间, 不加 Z (PG `timestamp without time zone` 在
+                    UTC+8 区会把 SQLAlchemy 写入的 aware UTC 转成本地存,
+                    读回是 naive 本地; 加 Z 会让前端再偏移一个时区导致显示错乱)
+    aware datetime: 标准 UTC ISO + Z
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.isoformat()
+    return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
 class ChatConversation(db.Model):
     """对话/群组模型"""
     __tablename__ = 'chat_conversations'
@@ -49,8 +64,8 @@ class ChatConversation(db.Model):
             'topic': self.topic,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name or self.creator.username if self.creator else None,
-            'created_at': (self.created_at.isoformat() + 'Z') if self.created_at else None,
-            'updated_at': (self.updated_at.isoformat() + 'Z') if self.updated_at else None,
+            'created_at': _iso(self.created_at),
+            'updated_at': _iso(self.updated_at),
         }
 
         # 计算未读消息数
@@ -76,29 +91,67 @@ class ChatConversation(db.Model):
         ).order_by(ChatMessage.created_at.desc()).first()
         if last_message:
             # 附件消息显示类型标签
-            lm_content = last_message.content[:50] if last_message.content else ''
-            if not lm_content and last_message.message_type == 'image':
-                lm_content = '[图片]'
-            elif not lm_content and last_message.message_type == 'video':
-                lm_content = '[视频]'
-            elif not lm_content and last_message.message_type == 'file':
-                lm_content = f'[文件] {last_message.file_name or ""}'
-            elif last_message.message_type == 'customer_card':
-                lm_content = '[客户卡片]'
-            elif last_message.message_type == 'project_card':
-                lm_content = '[项目卡片]'
-            elif last_message.message_type == 'form_result_card':
+            mt = last_message.message_type
+            # 尝试解析 content 里的可选说明文字 (text)
+            caption = ''
+            if last_message.content:
                 try:
-                    import json
-                    card = json.loads(last_message.content or '{}')
+                    import json as _json
+                    payload = _json.loads(last_message.content)
+                    if isinstance(payload, dict):
+                        caption = (payload.get('text') or '').strip()
+                except (ValueError, TypeError):
+                    pass
+            lm_content = last_message.content[:50] if last_message.content else ''
+            if mt == 'image':
+                lm_content = f'[图片]{" " + caption if caption else ""}'
+            elif mt == 'video':
+                lm_content = f'[视频]{" " + caption if caption else ""}'
+            elif mt == 'file':
+                # 优先尝试从 content JSON 拿 name，否则 file_name 字段
+                name = ''
+                if last_message.content:
+                    try:
+                        import json as _json
+                        p = _json.loads(last_message.content)
+                        if isinstance(p, dict):
+                            name = p.get('name') or ''
+                    except (ValueError, TypeError):
+                        pass
+                lm_content = f'[文件] {name or last_message.file_name or ""}'.strip()
+            elif mt == 'voice':
+                lm_content = '[语音]'
+            elif mt == 'location':
+                # 地点名优先；否则坐标
+                loc_name = ''
+                if last_message.content:
+                    try:
+                        import json as _json
+                        p = _json.loads(last_message.content)
+                        if isinstance(p, dict):
+                            loc_name = p.get('name') or ''
+                    except (ValueError, TypeError):
+                        pass
+                lm_content = f'[位置]{" " + loc_name if loc_name else ""}'
+            elif mt == 'customer_card':
+                lm_content = '[客户卡片]'
+            elif mt == 'project_card':
+                lm_content = '[项目卡片]'
+            elif mt == 'text_refs':
+                # 引用卡: 只显示文本部分
+                lm_content = caption or '[卡片]'
+            elif mt == 'form_result_card':
+                try:
+                    import json as _json
+                    card = _json.loads(last_message.content or '{}')
                     lm_content = f'[已创建: {card.get("entity_name", "记录")}]'
-                except (json.JSONDecodeError, TypeError):
+                except (ValueError, TypeError):
                     lm_content = '[表单操作]'
             result['last_message'] = {
                 'id': last_message.id,
                 'content': lm_content,
                 'sender_id': last_message.sender_id,
-                'created_at': (last_message.created_at.isoformat() + 'Z') if last_message.created_at else None,
+                'created_at': _iso(last_message.created_at),
             }
 
         # 参与者列表
@@ -124,6 +177,7 @@ class ChatParticipant(db.Model):
     role = Column(String(20), default='member')  # 'owner', 'member'
     joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_read_at = Column(DateTime, nullable=True)
+    is_hidden = Column(Boolean, default=False, nullable=False)  # 用户从列表移出 (微信式删除); 收消息时自动 unhide
 
     # 关系
     user = db.relationship('User', foreign_keys=[user_id], backref='chat_participations')
@@ -185,7 +239,7 @@ class ChatMessage(db.Model):
             'is_ai_response': self.is_ai_response,
             'ai_model': self.ai_model,
             'reply_to_id': self.reply_to_id,
-            'created_at': (self.created_at.isoformat() + 'Z') if self.created_at else None,
+            'created_at': _iso(self.created_at),
             'is_deleted': self.is_deleted,
         }
 

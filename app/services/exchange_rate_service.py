@@ -22,7 +22,9 @@ class ExchangeRateService:
         'MYR': '马来西亚林吉特',
         'IDR': '印尼盾',
         'THB': '泰铢',
-        'HKD': '港币'
+        'HKD': '港币',
+        'TWD': '新台币',
+        'VND': '越南盾',
     }
     
     # 免费汇率API - 使用exchangerate-api.com
@@ -170,7 +172,9 @@ class ExchangeRateService:
             'MYR': 0.65,     # 1 CNY = 0.65 MYR
             'IDR': 2100.0,   # 1 CNY = 2100 IDR
             'THB': 5.0,      # 1 CNY = 5.0 THB
-            'HKD': 1.08      # 1 CNY = 1.08 HKD
+            'HKD': 1.08,     # 1 CNY = 1.08 HKD
+            'TWD': 4.45,     # 1 CNY ≈ 4.45 TWD
+            'VND': 3500.0,   # 1 CNY ≈ 3500 VND
         }
         
         if base_currency == 'CNY':

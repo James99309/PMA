@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMA App UI Preview</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { -webkit-tap-highlight-color: transparent; user-select: none; }
+  body { background: #1c1c1e; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: -apple-system, "SF Pro Display", sans-serif; }
+  .phone { width: 393px; height: 852px; background: #f2f2f7; border-radius: 54px; overflow: hidden; position: relative; box-shadow: 0 40px 80px rgba(0,0,0,.6), inset 0 0 0 1.5px rgba(255,255,255,.15); display: flex; flex-direction: column; }
+  .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 126px; height: 37px; background: #000; border-radius: 0 0 24px 24px; z-index: 100; }
+  .screen { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .screen.active { display: flex; }
+  .tab-bar { background: rgba(242,242,247,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 0.5px solid rgba(0,0,0,.12); padding-bottom: 20px; flex-shrink: 0; }
+  .tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 0 0; gap: 3px; cursor: pointer; }
+  .tab-icon { width: 28px; height: 28px; }
+  .tab-label { font-size: 10px; font-weight: 500; }
+  .large-title { font-size: 34px; font-weight: 700; color: #000; letter-spacing: -0.5px; }
+  .nav-bar { background: rgba(242,242,247,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); flex-shrink: 0; }
+  .ios-btn { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .ios-btn:active { opacity: 0.4; }
+  .list-item { background: white; cursor: pointer; transition: background 0.1s; }
+  .list-item:active { background: #f2f2f7; }
+  .filter-sheet { position: absolute; bottom: 0; left: 0; right: 0; background: white; border-radius: 24px 24px 0 0; transform: translateY(100%); transition: transform 0.3s cubic-bezier(.32,.72,0,1); z-index: 50; }
+  .filter-sheet.open { transform: translateY(0); }
+  .overlay { position: absolute; inset: 0; background: rgba(0,0,0,.4); opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 40; }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+  .chip { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 100px; border: 1px solid #e5e7eb; font-size: 13px; cursor: pointer; transition: all 0.15s; background: white; color: #374151; }
+  .chip.selected { background: #007aff; border-color: #007aff; color: white; }
+  .modal-sheet { position: absolute; bottom: 0; left: 0; right: 0; background: white; border-radius: 20px 20px 0 0; transform: translateY(100%); transition: transform 0.35s cubic-bezier(.32,.72,0,1); z-index: 50; max-height: 75%; display: flex; flex-direction: column; }
+  .modal-sheet.open { transform: translateY(0); }
+  .inset-sep { border-bottom: 0.5px solid rgba(0,0,0,.1); margin-left: 16px; }
+  .inset-sep:last-child { border-bottom: none; }
+
+  /* Stage colors */
+  .stage-discover { background: linear-gradient(135deg,#d3e3fc,#9dc5f4); color: #0d47a1; }
+  .stage-embed { background: linear-gradient(135deg,#b7ddc8,#87c99e); color: #1b5e20; }
+  .stage-tendering { background: linear-gradient(135deg,#6daf6c,#4d7c4c); color: white; }
+  .stage-signed { background: linear-gradient(135deg,#216822,#154518); color: white; }
+  .stage-lost { background: linear-gradient(135deg,#6e2b23,#4a1f1a); color: white; }
+
+  ::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<div style="display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;justify-content:center">
+
+<!-- PHONE 1: 项目列表（改进版） -->
+<div>
+  <p style="color:#aaa;text-align:center;margin-bottom:12px;font-family:-apple-system;font-size:13px">项目列表（改进）</p>
+  <div class="phone">
+    <div class="notch"></div>
+
+    <div class="screen active" id="s1-list" style="padding-top:47px">
+      <!-- Large Title Header -->
+      <div style="padding: 8px 20px 0; flex-shrink:0;">
+        <div class="large-title">项目</div>
+        <!-- Search Bar -->
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;margin-bottom:8px">
+          <div style="flex:1;display:flex;align-items:center;background:rgba(118,118,128,.12);border-radius:12px;padding:8px 10px;gap:6px">
+            <svg width="14" height="14" fill="none" stroke="#8e8e93" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <span style="font-size:15px;color:#8e8e93;flex:1">搜索</span>
+          </div>
+          <!-- Filter button with badge -->
+          <div style="position:relative;cursor:pointer" onclick="openFilter1()" class="ios-btn">
+            <div style="width:36px;height:36px;border-radius:10px;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;background:white">
+              <svg width="16" height="16" fill="none" stroke="#007aff" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 12h10M11 20h2"/></svg>
+            </div>
+            <div id="filter-badge1" style="display:none;position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:#ff3b30;border-radius:50%;color:white;font-size:9px;display:none;align-items:center;justify-content:center;font-weight:700">1</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active filter strip -->
+      <div id="filter-strip1" style="display:none;background:#e8f0fe;padding:6px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <span style="font-size:12px;color:#1a56db">已筛选：招标中</span>
+        <span style="font-size:12px;color:#007aff;cursor:pointer" onclick="clearFilter1()" class="ios-btn">清除</span>
+      </div>
+
+      <!-- List -->
+      <div style="flex:1;overflow-y:auto;margin-top:0">
+        <div style="background:white;margin:0 0 8px 0">
+          <!-- Inset separator style -->
+          <div class="list-item inset-sep" style="padding:12px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:8px">上海某制造厂节能改造项目</div>
+                <div style="font-size:13px;color:#8e8e93;margin-top:2px">张伟</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+                <span class="stage-tendering" style="font-size:11px;padding:2px 8px;border-radius:100px;font-weight:600">招标中</span>
+                <span style="font-size:14px;font-weight:600;color:#1c1c1e">42.50万</span>
+              </div>
+            </div>
+          </div>
+          <div class="list-item inset-sep" style="padding:12px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:600;color:#000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px">南京数据中心配电工程</div>
+                <div style="font-size:13px;color:#8e8e93;margin-top:2px">李明</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+                <span class="stage-embed" style="font-size:11px;padding:2px 8px;border-radius:100px;font-weight:600">嵌入</span>
+                <span style="font-size:14px;font-weight:600;color:#1c1c1e">128.00万</span>
+              </div>
+            </div>
+          </div>
+          <div class="list-item inset-sep" style="padding:12px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:600;color:#000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px">广州化工厂安全系统升级</div>
+                <div style="font-size:13px;color:#8e8e93;margin-top:2px">王芳</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+                <span class="stage-discover" style="font-size:11px;padding:2px 8px;border-radius:100px;font-weight:600">发现</span>
+                <span style="font-size:14px;font-weight:600;color:#1c1c1e">-</span>
+              </div>
+            </div>
+          </div>
+          <div class="list-item inset-sep" style="padding:12px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:600;color:#000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px">深圳半导体工厂扩产</div>
+                <div style="font-size:13px;color:#8e8e93;margin-top:2px">陈刚</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+                <span class="stage-signed" style="font-size:11px;padding:2px 8px;border-radius:100px;font-weight:600">签约</span>
+                <span style="font-size:14px;font-weight:600;color:#1c1c1e">320.00万</span>
+              </div>
+            </div>
+          </div>
+          <div class="list-item" style="padding:12px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:600;color:#000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px">北京地铁16号线隧道监控</div>
+                <div style="font-size:13px;color:#8e8e93;margin-top:2px">刘洋</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+                <span class="stage-lost" style="font-size:11px;padding:2px 8px;border-radius:100px;font-weight:600">丢单</span>
+                <span style="font-size:14px;font-weight:600;color:#1c1c1e">55.00万</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <div style="display:flex">
+          <div class="tab-item" style="color:#007aff">
+            <!-- Filled folder icon (active) -->
+            <svg class="tab-icon" viewBox="0 0 28 28" fill="currentColor"><path d="M4 8a3 3 0 013-3h4.172a2 2 0 011.414.586l1.828 1.828A2 2 0 0015.828 8H21a3 3 0 013 3v9a3 3 0 01-3 3H7a3 3 0 01-3-3V8z"/></svg>
+            <span class="tab-label">项目</span>
+          </div>
+          <div class="tab-item" style="color:#8e8e93">
+            <!-- Outline checkmark circle (inactive) -->
+            <svg class="tab-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="14" cy="14" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l3 3 5-5"/></svg>
+            <span class="tab-label">审批</span>
+          </div>
+          <div class="tab-item" style="color:#8e8e93">
+            <svg class="tab-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8zM21 11c1.5.5 2.5 2 2.5 3.5V17"/></svg>
+            <span class="tab-label">客户</span>
+          </div>
+          <div class="tab-item" style="color:#8e8e93">
+            <!-- Profile icon (replaces 退出) -->
+            <svg class="tab-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="14" cy="9" r="5"/><path stroke-linecap="round" d="M5 23c0-5 4-8 9-8s9 3 9 8"/></svg>
+            <span class="tab-label">我的</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter Sheet -->
+      <div class="overlay" id="overlay1" onclick="closeFilter1()"></div>
+      <div class="filter-sheet" id="fsheet1" style="padding-bottom:40px">
+        <div style="display:flex;justify-content:center;padding:10px"><div style="width:36px;height:4px;background:#d1d5db;border-radius:4px"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 20px 12px;border-bottom:0.5px solid rgba(0,0,0,.1)">
+          <span style="font-size:17px;font-weight:600">筛选</span>
+          <span style="color:#007aff;font-size:15px;cursor:pointer" onclick="resetFilter1()" class="ios-btn">重置</span>
+        </div>
+        <div style="padding:16px 20px;overflow-y:auto;max-height:360px">
+          <div style="margin-bottom:20px">
+            <p style="font-size:12px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">项目阶段</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px" id="stage-chips">
+              <div class="chip" onclick="selectStage(this,'发现')">发现</div>
+              <div class="chip" onclick="selectStage(this,'嵌入')">嵌入</div>
+              <div class="chip" onclick="selectStage(this,'预招标')">预招标</div>
+              <div class="chip selected" onclick="selectStage(this,'招标中')">招标中</div>
+              <div class="chip" onclick="selectStage(this,'中标')">中标</div>
+              <div class="chip" onclick="selectStage(this,'已报价')">已报价</div>
+              <div class="chip" onclick="selectStage(this,'签约')">签约</div>
+              <div class="chip" onclick="selectStage(this,'丢单')">丢单</div>
+              <div class="chip" onclick="selectStage(this,'暂停')">暂停</div>
+            </div>
+          </div>
+          <div>
+            <p style="font-size:12px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">行业</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <div class="chip" onclick="toggleChip(this)">制造</div>
+              <div class="chip" onclick="toggleChip(this)">数据</div>
+              <div class="chip" onclick="toggleChip(this)">化工</div>
+              <div class="chip" onclick="toggleChip(this)">能源</div>
+              <div class="chip" onclick="toggleChip(this)">交通</div>
+              <div class="chip" onclick="toggleChip(this)">隧道</div>
+              <div class="chip" onclick="toggleChip(this)">地产</div>
+              <div class="chip" onclick="toggleChip(this)">半导体</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 20px">
+          <button onclick="applyFilter1()" style="width:100%;background:#007aff;color:white;border:none;border-radius:14px;padding:15px;font-size:16px;font-weight:600;cursor:pointer" class="ios-btn">确认</button>
+        </div>
+      </div>
+
+      <!-- FAB 新建按钮 -->
+      <div style="position:absolute;right:20px;bottom:90px;width:52px;height:52px;background:#007aff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,122,255,.4);cursor:pointer;z-index:30" class="ios-btn">
+        <svg width="22" height="22" fill="white" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- PHONE 2: 新建表单（模态 Sheet 风格） -->
+<div>
+  <p style="color:#aaa;text-align:center;margin-bottom:12px;font-family:-apple-system;font-size:13px">新建表单（Sheet 样式）</p>
+  <div class="phone">
+    <div class="notch"></div>
+    <!-- Background: list blurred -->
+    <div style="flex:1;background:#f2f2f7;display:flex;flex-direction:column;padding-top:47px;position:relative">
+      <div style="padding:8px 20px 12px;opacity:.3">
+        <div class="large-title">项目</div>
+      </div>
+      <div style="background:white;border-radius:14px 14px 0 0;flex:1;box-shadow:0 -4px 24px rgba(0,0,0,.15);overflow:hidden;display:flex;flex-direction:column">
+        <!-- Sheet Handle -->
+        <div style="display:flex;justify-content:center;padding:10px 0 4px">
+          <div style="width:36px;height:4px;background:#d1d5db;border-radius:4px"></div>
+        </div>
+        <!-- Nav -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 20px 12px;border-bottom:0.5px solid rgba(0,0,0,.1);flex-shrink:0">
+          <span style="color:#007aff;font-size:16px;cursor:pointer" class="ios-btn">取消</span>
+          <span style="font-size:17px;font-weight:600">新建项目</span>
+          <span style="color:#007aff;font-size:16px;font-weight:600;cursor:pointer" class="ios-btn">创建</span>
+        </div>
+        <!-- Form -->
+        <div style="flex:1;overflow-y:auto;padding:20px 20px 0">
+          <!-- Section 1 -->
+          <p style="font-size:12px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-left:4px">基本信息</p>
+          <div style="background:#f9f9f9;border-radius:14px;overflow:hidden;margin-bottom:20px">
+            <div style="padding:13px 16px;border-bottom:0.5px solid rgba(0,0,0,.08)">
+              <div style="font-size:12px;color:#8e8e93;margin-bottom:4px">项目名称 <span style="color:#ff3b30">*</span></div>
+              <input type="text" placeholder="输入项目名称…" style="width:100%;border:none;background:transparent;font-size:15px;outline:none;color:#000" />
+            </div>
+            <div style="padding:13px 16px">
+              <div style="font-size:12px;color:#8e8e93;margin-bottom:4px">项目地址</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="text" placeholder="搜索地址…" style="flex:1;border:none;background:transparent;font-size:15px;outline:none;color:#000" />
+                <svg width="20" height="20" fill="none" stroke="#007aff" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2 -->
+          <p style="font-size:12px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-left:4px">分类</p>
+          <div style="background:#f9f9f9;border-radius:14px;overflow:hidden;margin-bottom:20px">
+            <div style="padding:13px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:0.5px solid rgba(0,0,0,.08)">
+              <span style="font-size:15px;color:#000">行业 <span style="color:#ff3b30">*</span></span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:15px;color:#8e8e93">请选择</span>
+                <svg width="14" height="14" fill="none" stroke="#c7c7cc" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+              </div>
+            </div>
+            <div style="padding:13px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:0.5px solid rgba(0,0,0,.08)">
+              <span style="font-size:15px;color:#000">项目类型</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:15px;color:#8e8e93">请选择</span>
+                <svg width="14" height="14" fill="none" stroke="#c7c7cc" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+              </div>
+            </div>
+            <div style="padding:13px 16px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:15px;color:#000">品牌情况</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:15px;color:#8e8e93">请选择</span>
+                <svg width="14" height="14" fill="none" stroke="#c7c7cc" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3 -->
+          <p style="font-size:12px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-left:4px">项目描述 <span style="color:#ff3b30">*</span></p>
+          <div style="background:#f9f9f9;border-radius:14px;overflow:hidden;margin-bottom:20px">
+            <textarea placeholder="请描述项目背景和情况…" style="width:100%;border:none;background:transparent;font-size:15px;outline:none;padding:13px 16px;min-height:80px;resize:none;box-sizing:border-box;color:#000;font-family:inherit"></textarea>
+          </div>
+
+          <div style="height:30px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHONE 3: 详情页（改进版） -->
+<div>
+  <p style="color:#aaa;text-align:center;margin-bottom:12px;font-family:-apple-system;font-size:13px">详情页（改进）</p>
+  <div class="phone">
+    <div class="notch"></div>
+    <div style="display:flex;flex-direction:column;flex:1;padding-top:47px;background:#f2f2f7">
+
+      <!-- Nav Bar -->
+      <div style="background:rgba(242,242,247,0.85);backdrop-filter:blur(20px);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:0.5px solid rgba(0,0,0,.1)">
+        <div style="display:flex;align-items:center;gap:4px;color:#007aff;cursor:pointer" class="ios-btn">
+          <svg width="10" height="17" viewBox="0 0 10 17" fill="none"><path d="M9 1L1 8.5L9 16" stroke="#007aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:16px">项目</span>
+        </div>
+        <span style="font-size:17px;font-weight:600">详情</span>
+        <button style="color:#007aff;font-size:15px;border:none;background:none;padding:4px 8px;border-radius:8px;cursor:pointer" class="ios-btn">+ 跟进</button>
+      </div>
+
+      <div style="flex:1;overflow-y:auto">
+
+        <!-- Hero card -->
+        <div style="background:white;margin:12px 16px;border-radius:20px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+            <span class="stage-tendering" style="font-size:12px;padding:3px 10px;border-radius:100px;font-weight:600">招标中</span>
+            <span style="background:#f0fdf4;color:#16a34a;font-size:12px;padding:3px 10px;border-radius:100px;font-weight:600">AUTH-2024-0089</span>
+          </div>
+          <div style="font-size:18px;font-weight:700;color:#000;line-height:1.3;margin-bottom:4px">上海某制造厂节能改造项目</div>
+          <div style="font-size:13px;color:#8e8e93;margin-bottom:16px">张伟 · 制造</div>
+          <div style="font-size:32px;font-weight:700;color:#000;letter-spacing:-0.5px">42.50<span style="font-size:18px;font-weight:400;color:#8e8e93;margin-left:4px">万</span></div>
+        </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;gap:10px;padding:0 16px;margin-bottom:12px">
+          <button style="flex:1;background:#007aff;color:white;border:none;border-radius:14px;padding:13px;font-size:15px;font-weight:600;cursor:pointer" class="ios-btn">推进阶段</button>
+          <button style="flex:1;background:white;color:#007aff;border:1px solid rgba(0,122,255,.3);border-radius:14px;padding:13px;font-size:15px;font-weight:600;cursor:pointer" class="ios-btn">申请授权</button>
+        </div>
+
+        <!-- Details grouped -->
+        <div style="background:white;border-radius:16px;margin:0 16px 12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+          <div style="padding:13px 16px;display:flex;justify-content:space-between;border-bottom:0.5px solid rgba(0,0,0,.08)">
+            <span style="font-size:14px;color:#8e8e93">负责人</span>
+            <span style="font-size:14px;color:#000;font-weight:500">张伟</span>
+          </div>
+          <div style="padding:13px 16px;display:flex;justify-content:space-between;border-bottom:0.5px solid rgba(0,0,0,.08)">
+            <span style="font-size:14px;color:#8e8e93">活跃度</span>
+            <span style="font-size:14px;color:#000;font-weight:500">活跃</span>
+          </div>
+          <div style="padding:13px 16px;display:flex;justify-content:space-between;border-bottom:0.5px solid rgba(0,0,0,.08)">
+            <span style="font-size:14px;color:#8e8e93">地址</span>
+            <span style="font-size:14px;color:#000;font-weight:500;text-align:right;max-width:200px">上海市浦东新区张江高科技园区</span>
+          </div>
+          <div style="padding:13px 16px;display:flex;justify-content:space-between">
+            <span style="font-size:14px;color:#8e8e93">预计交货</span>
+            <span style="font-size:14px;color:#000;font-weight:500">2025-06-30</span>
+          </div>
+        </div>
+
+        <!-- Contacts -->
+        <div style="background:white;border-radius:16px;margin:0 16px 12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+          <div style="padding:10px 16px 6px;font-size:12px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px">联系人</div>
+          <div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-top:0.5px solid rgba(0,0,0,.08)">
+            <div>
+              <div style="font-size:15px;font-weight:600;color:#000">李华</div>
+              <div style="font-size:13px;color:#8e8e93;margin-top:2px">采购部经理 · 上海某制造</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <div style="width:34px;height:34px;background:#e8f5e9;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer" class="ios-btn">
+                <svg width="16" height="16" fill="none" stroke="#34a853" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div style="background:white;border-radius:16px;margin:0 16px 30px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+          <div style="padding:10px 16px 6px;font-size:12px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px">跟进记录</div>
+          <div style="padding:12px 16px;border-top:0.5px solid rgba(0,0,0,.08)">
+            <div style="font-size:12px;color:#8e8e93;margin-bottom:4px">2026-04-28 · 张伟</div>
+            <div style="font-size:14px;color:#1c1c1e;line-height:1.5">与客户采购部完成初步需求确认，对方要求提交技术方案和报价。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <div style="display:flex">
+          <div class="tab-item" style="color:#007aff">
+            <svg class="tab-icon" viewBox="0 0 28 28" fill="currentColor"><path d="M4 8a3 3 0 013-3h4.172a2 2 0 011.414.586l1.828 1.828A2 2 0 0015.828 8H21a3 3 0 013 3v9a3 3 0 01-3 3H7a3 3 0 01-3-3V8z"/></svg>
+            <span class="tab-label">项目</span>
+          </div>
+          <div class="tab-item" style="color:#8e8e93">
+            <svg class="tab-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="14" cy="14" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l3 3 5-5"/></svg>
+            <span class="tab-label">审批</span>
+          </div>
+          <div class="tab-item" style="color:#8e8e93">
+            <svg class="tab-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+            <span class="tab-label">客户</span>
+          </div>
+          <div class="tab-item" style="color:#8e8e93">
+            <svg class="tab-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="14" cy="9" r="5"/><path stroke-linecap="round" d="M5 23c0-5 4-8 9-8s9 3 9 8"/></svg>
+            <span class="tab-label">我的</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</div><!-- end flex -->
+
+<script>
+function openFilter1() {
+  document.getElementById('fsheet1').classList.add('open');
+  document.getElementById('overlay1').classList.add('open');
+}
+function closeFilter1() {
+  document.getElementById('fsheet1').classList.remove('open');
+  document.getElementById('overlay1').classList.remove('open');
+}
+function applyFilter1() {
+  closeFilter1();
+  document.getElementById('filter-strip1').style.display = 'flex';
+}
+function clearFilter1() {
+  document.getElementById('filter-strip1').style.display = 'none';
+  document.querySelectorAll('#stage-chips .chip').forEach(c => c.classList.remove('selected'));
+}
+function resetFilter1() {
+  document.querySelectorAll('#fsheet1 .chip').forEach(c => c.classList.remove('selected'));
+}
+function selectStage(el, label) {
+  document.querySelectorAll('#stage-chips .chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function toggleChip(el) {
+  el.classList.toggle('selected');
+}
+</script>
+</body>
+</html>

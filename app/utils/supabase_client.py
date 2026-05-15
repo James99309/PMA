@@ -390,7 +390,9 @@ class SupabaseStorageClient:
                     allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
                                          'txt', 'zip', 'rar', '7z', 'csv', 'json', 'xml',
                                          'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif',
-                                         'mp4', 'mov', 'avi', 'webm']
+                                         'mp4', 'mov', 'avi', 'webm',
+                                         # 音频（chat voice message）
+                                         'm4a', 'mp3', 'wav', 'aac', 'ogg', 'opus']
 
                 if file_ext not in allowed_extensions:
                     raise ValueError(f"不支持的文件类型。{file_type}文件支持：{', '.join(allowed_extensions)}")

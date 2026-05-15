@@ -36,6 +36,8 @@ class User(db.Model, UserMixin):
     _is_active = db.Column(db.Boolean, default=False, name="is_active")  # 账号是否激活，使用不同名称避免与属性冲突
     language_preference = db.Column(db.String(10), default='zh')  # 语言偏好设置，默认简体中文
     settlement_currency = db.Column(db.String(10), default=None)  # 结算货币，NULL则使用系统默认
+    push_token = db.Column(db.String(512), nullable=True)  # FCM/APNs 设备推送 token
+    push_platform = db.Column(db.String(10), nullable=True)  # ios 或 android
     linked_company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)  # 关联外部用户到Company表(供应商/代理商/客户)
     storage_quota = db.Column(db.BigInteger, default=10737418240)  # 存储配额(字节), 默认10GB
     storage_used = db.Column(db.BigInteger, default=0)  # 已用存储(字节)
@@ -52,6 +54,16 @@ class User(db.Model, UserMixin):
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间
+
+    # ─── 跨系统镜像 (Federation Lite) ───────────────────────────────
+    # 当前用户是否对另一个系统可见（CN 端勾选 → 自动 mirror 到 SG）
+    cross_team_visible = db.Column(db.Boolean, default=False, nullable=False)
+    cross_team_label = db.Column(db.String(50), nullable=True)  # 对外身份标签, 如"海外技术支持"
+    # 镜像账户标记 (本行是从对方系统镜像过来的)
+    source_system = db.Column(db.String(20), nullable=True)     # 'sp8d' / 'ovs' / NULL=本地原生
+    source_user_id = db.Column(db.Integer, nullable=True)        # 源系统的 user.id
+    is_mirror = db.Column(db.Boolean, default=False, nullable=False)
+    mirrored_at = db.Column(db.Float, nullable=True)             # 上次同步时间
     
     # 关系
     permissions = db.relationship('Permission', backref='user', lazy='dynamic', cascade='all, delete-orphan')
@@ -129,7 +141,17 @@ class User(db.Model, UserMixin):
             'linked_company_id': self.linked_company_id,
             'created_at': self.created_at,
             'updated_at': self.updated_at,
-            'last_login': self.last_login
+            'last_login': self.last_login,
+            # 跨系统镜像 (Federation Lite)
+            'cross_team_visible': bool(getattr(self, 'cross_team_visible', False)),
+            'cross_team_label': getattr(self, 'cross_team_label', None),
+            'is_mirror': bool(getattr(self, 'is_mirror', False)),
+            'source_system': getattr(self, 'source_system', None),
+            'source_user_id': getattr(self, 'source_user_id', None),
+            'mirrored_at': getattr(self, 'mirrored_at', None),
+            # 个人偏好
+            'settlement_currency': self.settlement_currency,
+            'language_preference': self.language_preference,
         }
     
     def _load_permission_cache(self):

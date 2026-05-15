@@ -887,6 +887,9 @@ def edit_user(user_id):
         password = request.form.get('password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
+        # 跨系统镜像 (Federation Lite Phase 1) - 仅 admin 可改
+        cross_team_visible = 'cross_team_visible' in request.form
+        cross_team_label = (request.form.get('cross_team_label') or '').strip() or None
 
         # 对角色字段进行去空格处理，防止空格问题
         if role:
@@ -909,7 +912,10 @@ def edit_user(user_id):
         old_manager = user.is_department_manager
         old_role = user.role  # 记录旧角色
         old_is_active = user.is_active  # 记录旧激活状态，用于触发项目活跃度重算
-        
+        # 跨系统镜像状态变化追踪
+        old_cross_visible = bool(getattr(user, 'cross_team_visible', False))
+        old_pw_hash = user.password_hash
+
         user.real_name = real_name
         user.company_name = company
         user.email = email
@@ -919,9 +925,13 @@ def edit_user(user_id):
         user.settlement_currency = settlement_currency
         user.is_active = is_active
         user.is_department_manager = is_department_manager
+        # 跨系统镜像字段（admin only；mirror 用户本地不允许编辑这两项）
+        if not bool(getattr(user, 'is_mirror', False)) and current_user.role == 'admin':
+            user.cross_team_visible = cross_team_visible
+            user.cross_team_label = cross_team_label
         if password and password.strip():
             user.set_password(password)
-            
+
         # 检查角色是否发生变化，如果变化则重置个人权限
         if old_role != role:
             logger.info(f"[用户编辑] 用户 {user.username} 角色从 {old_role} 变更为 {role}，重置个人权限")
@@ -943,6 +953,40 @@ def edit_user(user_id):
                     current_app.logger.exception(
                         f"recompute_projects_for_user failed for user {user.id}: {e}"
                     )
+
+            # 跨系统镜像同步 (Federation Lite Phase 1)
+            # 仅本地原生用户（非 mirror）参与对外镜像
+            if not bool(getattr(user, 'is_mirror', False)):
+                try:
+                    from app.services import cross_team_mirror as ctm
+                    new_cross = bool(getattr(user, 'cross_team_visible', False))
+                    pw_changed = (user.password_hash != old_pw_hash)
+                    if not old_cross_visible and new_cross:
+                        # 第一次开 → 推送 mirror_user
+                        ok, info = ctm.push_mirror(user)
+                        if not ok and info.get('code') == 'CONFLICT':
+                            # 对端已有同名/同邮箱账号 → 转 promote_to_mirror
+                            existing_id = info.get('existing_id')
+                            if existing_id:
+                                pok, pinfo = ctm.push_promote(user, existing_id)
+                                if not pok:
+                                    current_app.logger.warning(
+                                        f'[cross-team] push_promote failed (existing#{existing_id}): {pinfo}')
+                            else:
+                                current_app.logger.warning(
+                                    f'[cross-team] CONFLICT 无 existing_id, 无法 promote: {info}')
+                        elif not ok:
+                            current_app.logger.warning(f'[cross-team] push_mirror failed: {info}')
+                    elif old_cross_visible and not new_cross:
+                        # 取消 → disable mirror
+                        ctm.push_disable(user)
+                    elif new_cross:
+                        # 仍 visible：推送最新 (real_name/email/label/active)，幂等 upsert
+                        # mirror_user 已带 is_active 和 password_hash，无需再单独 push_password
+                        ctm.push_mirror(user)
+                    db.session.commit()  # 持久化 mirrored_at
+                except Exception as ce:
+                    current_app.logger.exception(f'[cross-team] mirror sync failed: {ce}')
 
             # 记录变更历史
             try:

@@ -449,6 +449,14 @@ def create_app(config_class=Config):
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')
     csrf.exempt(api_v1_bp)  # 豁免API v1蓝图的CSRF保护（供外部系统调用）
 
+    # 为移动端 API 添加 CORS（允许 Capacitor WebView 跨域访问）
+    from flask_cors import CORS
+    CORS(app, resources={r'/api/v1/*': {
+        'origins': '*',
+        'methods': ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        'allow_headers': ['Content-Type', 'Authorization'],
+    }}, supports_credentials=False)
+
     # 注册外部API蓝图（供Stargirl培训系统等外部系统调用）
     from app.api.external import external_api_bp
     app.register_blueprint(external_api_bp)
@@ -721,6 +729,7 @@ def create_app(config_class=Config):
             '/internal/api/',  # 内部 API（MCP Server 专用，使用 X-Internal-Token 鉴权）
             '/user/api/claude-ai/download-dxt',  # DXT 下载（使用 ?t=token 认证，无需登录）
             '/wiki-img/',  # 公开 wiki 图片端点（HMAC token 鉴权，供 Cowork 客户端渲染 markdown 图片）
+            '/quotation/mobile-view/',  # 移动端报价单预览（JWT token 自包含鉴权）
         ]
         
         # 检查当前路径是否需要登录

@@ -250,6 +250,22 @@
                                                         </span>
                                                     </p>
                                                 </div>
+                                                {# 跨系统协作标记 #}
+                                                <div x-show="userData.cross_team_visible || userData.is_mirror">
+                                                    <label class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('跨系统协作') }}</label>
+                                                    <p class="mt-1">
+                                                        <span x-show="userData.cross_team_visible && !userData.is_mirror"
+                                                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                                                              style="background:#FFF8F0; color:#D97757; border:1px solid #D97757;">
+                                                            🌏 <span x-text="userData.cross_team_label || '{{ _("海外支持") }}'"></span>
+                                                        </span>
+                                                        <span x-show="userData.is_mirror"
+                                                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                                                              style="background:#E5EDFA; color:#1E4FAA; border:1px solid #4D82E0;">
+                                                            🔗 <span x-text="'来自 ' + (userData.source_system || '').toUpperCase() + ' 镜像'"></span>
+                                                        </span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -382,6 +398,47 @@
                                     </label>
                                 </div>
                             </div>
+
+                            {# 跨系统镜像 (Federation Lite) — 仅 admin 可改, mirror 用户不显示 #}
+                            {% if current_user.role == 'admin' %}
+                            <div class="mt-4 p-3 rounded-lg border border-dashed"
+                                 style="border-color: #D97757; background: #FFF8F0;"
+                                 x-show="!form.is_mirror">
+                                <div class="flex items-start gap-2 mb-3">
+                                    <span class="text-base">🌏</span>
+                                    <div class="flex-1">
+                                        <div class="text-sm font-semibold" style="color: #D97757;">
+                                            {{ _('跨系统协作（海外支持）') }}
+                                        </div>
+                                        <div class="text-xs mt-1" style="color: #7A7570;">
+                                            {{ _('勾选后此账户镜像到对方 NAS，可用同账号密码登对方系统。角色 / 权限由对方 admin 单独配置。') }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" x-model="form.cross_team_visible"
+                                               class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary">
+                                        <span class="text-sm text-slate-700 dark:text-slate-300">
+                                            {{ _('设为海外支持 / 镜像到对方系统') }}
+                                        </span>
+                                    </label>
+                                    <div>
+                                        <input type="text" x-model="form.cross_team_label"
+                                               :disabled="!form.cross_team_visible"
+                                               placeholder="{{ _('对外身份标签，例如：海外技术支持') }}"
+                                               class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-primary focus:border-primary">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-4 p-3 rounded-lg" style="background: #E5EDFA; color: #1E4FAA;"
+                                 x-show="form.is_mirror">
+                                <div class="text-sm">
+                                    🔗 <span x-text="'此账号是来自 ' + (form.source_system || '').toUpperCase() + ' 系统的镜像用户'"></span>。
+                                    {{ _('姓名 / 邮箱 / 密码由源系统管理，本地不可改。本系统下的角色和权限可正常配置。') }}
+                                </div>
+                            </div>
+                            {% endif %}
 
                             <!-- 管理部门（多选） -->
                             <div class="mt-4" x-show="form.company_name">
@@ -4435,7 +4492,12 @@
                 is_active: true,
                 is_department_manager: false,
                 ai_enabled: false,
-                managed_departments: []
+                managed_departments: [],
+                // 跨系统镜像 (Federation Lite)
+                cross_team_visible: false,
+                cross_team_label: '',
+                is_mirror: false,
+                source_system: ''
             },
 
             // 下拉选项
@@ -4553,7 +4615,12 @@
                     is_active: this.userData.is_active,
                     is_department_manager: this.userData.is_department_manager || false,
                     ai_enabled: this.aiConfig.enabled,
-                    managed_departments: []
+                    managed_departments: [],
+                    // 跨系统镜像
+                    cross_team_visible: this.userData.cross_team_visible || false,
+                    cross_team_label: this.userData.cross_team_label || '',
+                    is_mirror: this.userData.is_mirror || false,
+                    source_system: this.userData.source_system || ''
                 };
 
                 // 加载用户当前管理的部门
@@ -4648,7 +4715,10 @@
                             settlement_currency: this.form.settlement_currency,
                             is_active: this.form.is_active,
                             is_department_manager: this.form.is_department_manager,
-                            managed_department_ids: this.form.managed_departments.map(d => d.id)
+                            managed_department_ids: this.form.managed_departments.map(d => d.id),
+                            // 跨系统镜像 (后端 admin only + 非 mirror 才接受)
+                            cross_team_visible: this.form.cross_team_visible,
+                            cross_team_label: this.form.cross_team_label
                         })
                     });
 
@@ -4678,6 +4748,9 @@
                         this.userData.settlement_currency = this.form.settlement_currency;
                         this.userData.is_active = this.form.is_active;
                         this.userData.is_department_manager = this.form.is_department_manager;
+                        // 跨系统协作 (Federation Lite)
+                        this.userData.cross_team_visible = this.form.cross_team_visible;
+                        this.userData.cross_team_label = this.form.cross_team_label;
 
                         this.aiConfig.enabled = this.form.ai_enabled;
 

@@ -228,6 +228,22 @@ def update_user(user_id):
     is_active = data.get('is_active', user.is_active)
     settlement_currency = data.get('settlement_currency')
     managed_department_ids = data.get('managed_department_ids')
+    # 跨系统镜像 (Federation Lite) - 仅 admin 可改, 镜像用户行不允许改
+    # 解析当前操作者: session current_user 优先, 否则从 JWT 取
+    from flask_login import current_user as _cu
+    _operator = _cu if (_cu and getattr(_cu, 'is_authenticated', False)) else None
+    if not _operator:
+        try:
+            from flask_jwt_extended import get_jwt_identity
+            uid = get_jwt_identity()
+            if uid:
+                _operator = User.query.get(uid)
+        except Exception:
+            pass
+    can_cross = bool(_operator and getattr(_operator, 'role', None) == 'admin'
+                     and not bool(getattr(user, 'is_mirror', False)))
+    cross_team_visible = data.get('cross_team_visible') if can_cross else None
+    cross_team_label = data.get('cross_team_label') if can_cross else None
 
     # 验证邮箱是否已被其他用户使用
     if email and email != user.email:
@@ -260,6 +276,13 @@ def update_user(user_id):
 
     user.is_department_manager = is_department_manager
     user.is_active = is_active
+    # 跨系统镜像变化追踪 (用于决定是否触发对端推送)
+    old_cross_visible = bool(getattr(user, 'cross_team_visible', False))
+    if can_cross:
+        if cross_team_visible is not None:
+            user.cross_team_visible = bool(cross_team_visible)
+        if cross_team_label is not None:
+            user.cross_team_label = (cross_team_label or '').strip() or None
 
     # 处理管理部门关系
     if managed_department_ids is not None:
@@ -281,12 +304,30 @@ def update_user(user_id):
 
     try:
         db.session.commit()
-        
+
         # 如果角色发生变化，记录日志并清除用户会话（强制重新登录）
         if role and old_role != role:
             logger.info(f"用户 {user.username} (ID: {user.id}) 的角色从 {old_role} 更改为 {role}")
-            # 注意：这里无法直接清除特定用户的会话，需要用户重新登录才能获取新角色
-        
+
+        # 跨系统镜像同步 (Federation Lite)
+        if can_cross:
+            try:
+                from app.services import cross_team_mirror as ctm
+                new_cross = bool(getattr(user, 'cross_team_visible', False))
+                if not old_cross_visible and new_cross:
+                    ok, info = ctm.push_mirror(user)
+                    if not ok and info.get('code') == 'CONFLICT':
+                        existing_id = info.get('existing_id')
+                        if existing_id:
+                            ctm.push_promote(user, existing_id)
+                elif old_cross_visible and not new_cross:
+                    ctm.push_disable(user)
+                elif new_cross:
+                    ctm.push_mirror(user)  # 幂等 upsert (label/active 同步)
+                db.session.commit()  # 持久化 mirrored_at
+            except Exception as ce:
+                logger.exception(f'[cross-team] mirror sync failed: {ce}')
+
         return api_response(
             success=True,
             message="用户信息更新成功" + ("，角色已更改，用户需要重新登录才能生效" if role and old_role != role else ""),
@@ -475,7 +516,7 @@ def update_user_profile():
     real_name = data.get('real_name')
     email = data.get('email')
     phone = data.get('phone')
-    
+
     # 验证邮箱唯一性
     if email and email != user.email:
         if User.query.filter(User.id != current_user_id, User.email == email).first():
@@ -484,7 +525,7 @@ def update_user_profile():
                 code=400,
                 message="邮箱已被使用"
             )
-    
+
     # 更新字段
     if real_name:
         user.real_name = real_name
@@ -492,6 +533,15 @@ def update_user_profile():
         user.email = email
     if phone:
         user.phone = phone
+    # 结算货币 (允许 null/空字符串清空回归 region 默认)
+    if 'settlement_currency' in data:
+        sc = (data.get('settlement_currency') or '').strip()
+        user.settlement_currency = sc if sc else None
+    # 语言偏好 (mobile/web 共用)
+    if 'language_preference' in data:
+        lp = (data.get('language_preference') or '').strip().lower()
+        if lp in ('zh', 'en'):
+            user.language_preference = lp
     
     try:
         db.session.commit()

@@ -2453,7 +2453,28 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
             pass
         
         db.session.commit()
-        
+
+        # 阶段切换 → 给项目讨论群推送结构化"阶段推进卡"（不阻断主业务）
+        try:
+            import json as _json
+            from app.services import chat_service as _cs
+            from app.utils.dictionary_helpers import project_stage_label
+            conv_id = _cs.find_any_project_conversation(project_id)
+            if conv_id and old_stage != new_stage:
+                from_label = project_stage_label(old_stage) if old_stage else '未设置'
+                to_label = project_stage_label(new_stage) if new_stage else '未设置'
+                actor = user.real_name or user.username or '系统'
+                payload = _json.dumps({
+                    'from_stage_label': from_label,
+                    'to_stage_label': to_label,
+                    'by_name': actor,
+                    'by_initial': actor[0] if actor else '?',
+                }, ensure_ascii=False)
+                _cs.send_system_message(conv_id, payload, message_type='stage_advance')
+        except Exception as _hook_err:
+            # 通知失败不影响主业务
+            pass
+
         return {
             'success': True,
             'project_id': project_id,
@@ -2461,7 +2482,7 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
             'new_stage': new_stage,
             'message': '项目阶段更新成功'
         }
-        
+
     except Exception as e:
         db.session.rollback()
         return {'error': f'更新项目阶段失败: {str(e)}'}
