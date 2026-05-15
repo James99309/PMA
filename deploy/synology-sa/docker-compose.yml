@@ -52,6 +52,13 @@ services:
       # 数据库类型：OVS（决定货币为 USD/$）
       PMA_DB_TYPE: ovs
 
+      # APNs Push Notifications (2026-05-15) — iOS 推送，密钥需放入 SG storage/secrets 命名卷
+      APNS_BUNDLE_ID: com.evertacsolutions.pma.mobile
+      APNS_TEAM_ID: N2L8SYV8GY
+      APNS_KEY_ID: AYP9W4J6JU
+      APNS_AUTH_KEY_PATH: /app/storage/secrets/apns_key.p8
+      APNS_USE_SANDBOX: "false"
+
       # Flask 配置
       FLASK_ENV: production
       SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-this}

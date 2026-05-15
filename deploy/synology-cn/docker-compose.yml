@@ -86,6 +86,13 @@ services:
       # 数据库类型：SP8D（决定货币为 CNY/¥）
       PMA_DB_TYPE: sp8d
 
+      # APNs Push Notifications (2026-05-15) — iOS 推送，密钥在命名卷 storage/secrets
+      APNS_BUNDLE_ID: com.evertacsolutions.pma.mobile
+      APNS_TEAM_ID: N2L8SYV8GY
+      APNS_KEY_ID: AYP9W4J6JU
+      APNS_AUTH_KEY_PATH: /app/storage/secrets/apns_key.p8
+      APNS_USE_SANDBOX: "false"
+
       # 强制本地存储（不使用 Supabase）
       FORCE_LOCAL_STORAGE: "true"
 
