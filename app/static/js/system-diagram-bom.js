@@ -179,7 +179,7 @@ function extractBOMData() {
         const prod = pid ? PRODUCTS.find(p => p.id === pid) : null;
         map[key] = {
           product_id: pid || null,
-          name: prod ? prod.productName : n.name,
+          name: prod ? prod.productName : _nodeDisplayName(n),
           model: prod ? prod.model : (n.model || ''),
           mn: prod ? prod.mn : '',
           qty: 0,

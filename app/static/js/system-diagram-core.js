@@ -9,6 +9,39 @@ const _lang = (document.documentElement.lang||'zh').startsWith('en') ? 'en' : 'z
 function _t(k){const v=(window.SD_I18N&&window.SD_I18N[k])||k;return(typeof v==='object'&&v!==null)?(v[_lang]||v.zh):v;}
 function _m(obj){return (typeof obj==='object'&&obj!==null)?(obj[_lang]||obj.zh):obj;}
 
+/* ── 子分类/分类 显示名 (render-time locale fallback)
+ *   - 老图持久化的 node.name 多为 CN; UI 渲染统一通过这里走
+ *   - 仅影响显示; 落库时仍写原 n.name
+ */
+function _subDisplayName(sub){
+  if(!sub) return '';
+  if(_lang==='en' && sub.name_en) return sub.name_en;
+  return sub.name || '';
+}
+function _catDisplayName(cat){
+  if(!cat) return '';
+  if(_lang==='en' && cat.name_en) return cat.name_en;
+  return cat.name || '';
+}
+function _nodeDisplayName(n){
+  if(!n) return '';
+  const sub=(typeof SUBCATEGORIES!=='undefined')?SUBCATEGORIES[n.subcategoryId]:null;
+  if(sub){
+    if(_lang==='en' && sub.name_en) return sub.name_en;
+    if(sub.name) return sub.name;
+  }
+  return n.name || '';
+}
+function _nodeDisplayCategory(n){
+  if(!n) return '';
+  const sub=(typeof SUBCATEGORIES!=='undefined')?SUBCATEGORIES[n.subcategoryId]:null;
+  if(sub){
+    if(_lang==='en' && sub.categoryNameEn) return sub.categoryNameEn;
+    if(sub.categoryName) return sub.categoryName;
+  }
+  return n.category || '';
+}
+
 // ====== CABLE TYPES ======
 const CABLE_TYPES = {
   coax_half:{name:{zh:'1/2" 同轴电缆',en:'1/2" Coax'},shortName:{zh:'1/2" 同轴',en:'1/2" Coax'},color:'#f59e0b',width:2,dash:'',category:{zh:'同轴电缆',en:'Coaxial'},desc:{zh:'室内馈线',en:'Indoor feeder'}},
@@ -325,6 +358,7 @@ function buildProductPanel(categories){
       products.forEach(p=>{
         p.iconData=getIconForProduct(p,sub.name,sub.iconKey);
         p.subcategoryId=sub.id;p.subcategoryName=sub.name;
+        p.subcategoryNameEn=sub.name_en||'';
         PRODUCTS.push(p);
       });
       let repIcon;
@@ -336,21 +370,24 @@ function buildProductPanel(categories){
       sub.iconData=repIcon;
       sub.color=cat.color||'#64748b';
       sub.categoryName=cat.name;
+      sub.categoryNameEn=cat.name_en||'';
       SUBCATEGORIES[sub.id]=sub;
       totalProducts+=products.length;
+      const _subDisp=_subDisplayName(sub);
       subcatHtml+=`<div class="subcat-item" draggable="true" data-subid="${sub.id}" data-name="${sub.name}" data-products="${products.map(p=>p.model||p.mn||p.productName).join(',')}">
         <div class="item-icon">${renderIconPanel(repIcon)}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${sub.name}</div>
+          <div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_subDisp}</div>
         </div>
         <span class="subcat-count">${products.length}</span>
       </div>`;
     });
+    const _catDisp=_catDisplayName(cat);
     h+=`<div class="category-group">
       <div class="category-header" onclick="toggleCategory(this)">
         <span class="arrow">▶</span>
         <span class="cat-icon" style="color:${cat.color||'#64748b'}">${_catIcon(cat.name)}</span>
-        <span>${cat.name}</span>
+        <span>${_catDisp}</span>
         <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">${totalProducts}</span>
       </div>
       <div class="category-items">${subcatHtml}</div>
@@ -424,10 +461,11 @@ function buildExistingDevicesPanel(){
     const used=placementCount[n.id]||0;
     const remaining=qty-used;
     const allUsed=remaining<=0;
-    h+=`<div class="existing-device-item${allUsed?' all-placed':''}" ${allUsed?'':'draggable="true"'} data-existing-node-id="${n.id}" data-name="${n.name} ${n.model||''}">
+    const _nDisp=_nodeDisplayName(n);
+    h+=`<div class="existing-device-item${allUsed?' all-placed':''}" ${allUsed?'':'draggable="true"'} data-existing-node-id="${n.id}" data-name="${_nDisp} ${n.model||''}">
       <div class="item-icon">${renderIconPanel(n.iconData).replace('<svg','<svg width="24" height="24"')}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.name}</div>
+        <div style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_nDisp}</div>
         ${n.model?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.model}</div>`:''}
       </div>
       ${allUsed?`<span class="placed-badge" style="color:var(--text-muted);">${used}/${qty}</span>`

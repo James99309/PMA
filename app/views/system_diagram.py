@@ -823,14 +823,17 @@ def _get_products_data():
         cat_id = p.category_id or 0
         cat_obj = p.category_obj
         cat_name = cat_obj.name if cat_obj else _('未分类')
+        cat_name_en = (getattr(cat_obj, 'name_en', None) or '') if cat_obj else ''
         sub_id = p.subcategory_id or 0
         sub_obj = p.subcategory_obj
         sub_name = sub_obj.name if sub_obj else _('未分类')
+        sub_name_en = (getattr(sub_obj, 'name_en', None) or '') if sub_obj else ''
 
         if cat_id not in categories:
             categories[cat_id] = {
                 'id': cat_id,
                 'name': cat_name,
+                'name_en': cat_name_en,
                 'iconKey': getattr(cat_obj, 'icon_key', None) if cat_obj else None,
                 'color': _category_color(cat_name),
                 'subcategories': {}
@@ -841,6 +844,7 @@ def _get_products_data():
             subs[sub_id] = {
                 'id': sub_id,
                 'name': sub_name,
+                'name_en': sub_name_en,
                 'iconKey': getattr(sub_obj, 'icon_key', None) if sub_obj else None,
                 'products': []
             }

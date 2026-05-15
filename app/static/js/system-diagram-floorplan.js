@@ -2441,9 +2441,10 @@ function renderFloorNodes(fp){
 
     // Label
     if(!n.hideLabel){
-      const nameText=displaySettings.iconLabel?n.name:'',modelText=(displaySettings.iconModel&&n.model)?n.model:'';
+      const _dispName=_nodeDisplayName(n);
+      const nameText=displaySettings.iconLabel?_dispName:'',modelText=(displaySettings.iconModel&&n.model)?n.model:'';
       const lines=[];if(nameText)lines.push(nameText);if(modelText)lines.push(modelText);
-      if(!lines.length)lines.push(n.name);
+      if(!lines.length)lines.push(_dispName);
       const lblW=Math.max(...lines.map(t=>t.length))*12+12,lblH=lines.length*12+4;
       const side=pl.labelPosition||computeBestLabelSide((fp.routes||[]).map(r=>({sourceId:r.sourceNodeId,targetId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort})),n.id);
       const lc=getLabelCoords(side,n.w,n.h,lblW,lblH);
@@ -4199,7 +4200,7 @@ function showFloorNodeProps(id){
   const maxQty=nodeQty-usedElsewhere;
   const plQty=pl?(pl.qty||1):1;
   document.getElementById('propsContent').innerHTML=`
-    <div class="props-field"><span class="props-label">${_t('名称')}</span><input class="props-input" value="${n.name}" disabled></div>
+    <div class="props-field"><span class="props-label">${_t('名称')}</span><input class="props-input" value="${_nodeDisplayName(n)}" disabled></div>
     ${n.model?`<div class="props-field"><span class="props-label">${_t('型号')}</span><input class="props-input" value="${n.model}" disabled></div>`:''}
     <div class="props-field"><span class="props-label">${_t('位置')}</span><input class="props-input" value="X: ${Math.round(pl?pl.x:n.x)}, Y: ${Math.round(pl?pl.y:n.y)}" disabled></div>
     ${pl?`
