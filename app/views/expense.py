@@ -2223,55 +2223,50 @@ def monthly_expense_stats():
     })
 
 
+def _get_same_company_users_data(current_user):
+    """获取同公司所有活跃账户列表(用于费用归属选择). web + mobile 共用。
+    返回: [{id, username, real_name, department, is_current_user}, ...] 当前用户排最前。"""
+    current_company = current_user.company_name
+    if not current_company:
+        return [{
+            'id': current_user.id,
+            'username': current_user.username,
+            'real_name': current_user.real_name or current_user.username,
+            'department': current_user.department or '',
+            'is_current_user': True,
+        }]
+    users = User.query.filter(
+        User.company_name == current_company
+    ).order_by(
+        case((User.id == current_user.id, 0), else_=1),
+        User.real_name,
+        User.username,
+    ).all()
+    result = []
+    for u in users:
+        if not u.is_active:
+            continue
+        result.append({
+            'id': u.id,
+            'username': u.username,
+            'real_name': u.real_name or u.username,
+            'department': u.department or '',
+            'is_current_user': u.id == current_user.id,
+        })
+    return result
+
+
 @expense.route('/api/users/same-company')
 @login_required
 @permission_required('expense', 'view')
 def get_same_company_users():
     """获取同公司所有活跃账户列表（用于费用归属选择）"""
     try:
-        # 获取当前用户的公司名称
-        current_company = current_user.company_name
-
-        if not current_company:
-            # 如果当前用户没有公司名称，只返回自己
-            return jsonify({
-                'success': True,
-                'users': [{
-                    'id': current_user.id,
-                    'username': current_user.username,
-                    'real_name': current_user.real_name or current_user.username,
-                    'department': current_user.department or '',
-                    'is_current_user': True
-                }]
-            })
-
-        # 查询同公司所有用户（is_active 是 property，需要在 Python 层面过滤）
-        users = User.query.filter(
-            User.company_name == current_company
-        ).order_by(
-            # 当前用户排在最前面
-            case((User.id == current_user.id, 0), else_=1),
-            User.real_name,
-            User.username
-        ).all()
-
-        users_data = []
-        for user in users:
-            # 在 Python 层面过滤活跃用户（因为 is_active 是 property）
-            if not user.is_active:
-                continue
-            users_data.append({
-                'id': user.id,
-                'username': user.username,
-                'real_name': user.real_name or user.username,
-                'department': user.department or '',
-                'is_current_user': user.id == current_user.id
-            })
-
+        users_data = _get_same_company_users_data(current_user)
         return jsonify({
             'success': True,
             'users': users_data,
-            'company_name': current_company
+            'company_name': current_user.company_name,
         })
 
     except Exception as e:

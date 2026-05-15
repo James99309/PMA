@@ -229,6 +229,22 @@ def handle_image_ocr_upload(file_storage, owner_id, business_type, ocr_fn,
         return False, {'file_url': None}, 400, '图片为空'
 
     # 1) 存到 NAS 的 chat 桶 (复用现有 attachment 通道)
+    # 按 blob magic bytes 判 file_type, 否则 SupabaseStorageClient 按 image 白名单拒收 PDF
+    from app.services.claude_vision_ocr import detect_image_type
+    detected_mime = detect_image_type(blob)
+    detected_file_type = 'pdf' if detected_mime == 'application/pdf' else 'image'
+
+    # 合成一个一定带正确扩展名的文件名传给 storage:
+    # 用户传的中文文件名经过 werkzeug.secure_filename 会被剥到只剩 'pdf'(没点),
+    # 让 SupabaseStorageClient 的 file_ext 嗅探拿不到扩展名导致白名单失败
+    _ext_map = {
+        'application/pdf': 'pdf',
+        'image/jpeg': 'jpg', 'image/png': 'png',
+        'image/webp': 'webp', 'image/gif': 'gif',
+    }
+    safe_ext = _ext_map.get(detected_mime, 'jpg')
+    safe_filename = f'invoice-{owner_id}.{safe_ext}'
+
     file_url = None
     try:
         from app.utils.smart_storage_manager import get_smart_storage
@@ -237,8 +253,8 @@ def handle_image_ocr_upload(file_storage, owner_id, business_type, ocr_fn,
         result = storage.upload_file(
             object_id=owner_id,
             file=file_storage.stream,
-            filename=file_storage.filename or default_filename,
-            file_type='image',
+            filename=safe_filename,
+            file_type=detected_file_type,
             bucket_type='chat',
             business_type=business_type,
         )

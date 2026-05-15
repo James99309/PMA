@@ -96,7 +96,7 @@ def mobile_chat_send(conv_id):
             return api_response(success=False, code=400, message="消息内容不能为空")
         if msg_type in ('image', 'file', 'voice', 'location') and not (file_url or msg_type == 'location'):
             return api_response(success=False, code=400, message="附件消息缺少 file_url")
-        return jsonify(chat_service.send_message(
+        result = chat_service.send_message(
             conversation_id=conv_id,
             sender_id=user_id,
             content=content,
@@ -105,10 +105,60 @@ def mobile_chat_send(conv_id):
             message_type=msg_type,
             file_url=file_url,
             file_meta=data.get('file_meta'),
-        ))
+        )
+        # 触发 iOS APNs 推送给其他参与者(env 未配则静默跳过, 不影响主流程)
+        # NOTE: chat_service.send_message 返回 {success, data:{id,...}}, id 在 data 里
+        msg_data = (result or {}).get('data') if isinstance(result, dict) else None
+        if isinstance(msg_data, dict) and msg_data.get('id'):
+            _push_chat_message_async(conv_id, user_id, msg_data, msg_type, content)
+        return jsonify(result)
     except Exception as e:
         logger.error(f"mobile chat send error: {e}", exc_info=True)
         return api_response(success=False, code=500, message=str(e))
+
+
+def _push_chat_message_async(conv_id, sender_id, msg_data, msg_type, content):
+    """异步给其他参与者推送 APNs notification, 含未读 badge。失败不影响发消息流程。"""
+    import threading
+    from flask import current_app
+    app = current_app._get_current_object()
+    def _worker():
+        with app.app_context():
+            try:
+                from app.models.chat import ChatParticipant
+                from app.services.apns_service import send_push
+                others = ChatParticipant.query.filter(
+                    ChatParticipant.conversation_id == conv_id,
+                    ChatParticipant.user_id != sender_id,
+                ).all()
+                if not others:
+                    return
+                sender = User.query.get(sender_id)
+                sender_name = (sender.real_name or sender.username) if sender else ''
+                # body 预览: 文本截断 80 字; 附件类型给 placeholder
+                placeholder = {
+                    'image': '[图片]', 'file': '[文件]',
+                    'voice': '[语音]', 'location': '[位置]',
+                }.get(msg_type)
+                body = (placeholder or content or '').strip()[:80] or '新消息'
+                for p in others:
+                    try:
+                        unread = chat_service.get_total_unread_count(p.user_id)
+                        badge = (unread.get('data') or {}).get('total_unread', 0) if isinstance(unread, dict) else 0
+                    except Exception:
+                        badge = None
+                    send_push(
+                        user_ids=[p.user_id],
+                        title=sender_name or '新消息',
+                        body=body,
+                        badge=badge,
+                        data={'type': 'chat_message',
+                              'conversation_id': conv_id,
+                              'message_id': msg_data.get('id')},
+                    )
+            except Exception as e:
+                logger.warning(f'chat push hook 失败: {e}')
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 # ─── 4b. 上传附件（图片/文件/语音）──────────────────────────────
@@ -250,6 +300,26 @@ def mobile_chat_conversation_detail(conv_id):
         return jsonify(result), (200 if result.get('success') else 404)
     except Exception as e:
         logger.error(f"mobile chat conv detail error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
+
+
+# ─── 6c. 重命名对话 ───────────────────────────────────────────────
+@api_v1_bp.route('/mobile/chat/conversations/<int:conv_id>', methods=['PATCH'])
+@jwt_required()
+def mobile_chat_rename(conv_id):
+    user, user_id = _current_user()
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+    try:
+        data = request.get_json() or {}
+        name = data.get('name')
+        if name is None:
+            return api_response(success=False, code=400, message="缺少 name 字段")
+        return jsonify(chat_service.rename_conversation(
+            conversation_id=conv_id, new_name=name, current_user_id=user_id,
+        ))
+    except Exception as e:
+        logger.error(f"mobile chat rename error: {e}", exc_info=True)
         return api_response(success=False, code=500, message=str(e))
 
 

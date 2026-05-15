@@ -310,7 +310,8 @@ def mobile_project_list():
     stage = request.args.get('stage', '').strip()
     industry = request.args.get('industry', '').strip()
     activity = request.args.get('activity', '').strip()
-    owner_names = request.args.getlist('owner_names')  # 多选
+    # 多选: 兼容 axios indexes:false 默认带方括号 (owner_names[]=A) 和 indexes:null (owner_names=A)
+    owner_names = request.args.getlist('owner_names') + request.args.getlist('owner_names[]')
     owner_name = request.args.get('owner_name', '').strip()  # 兼容旧单选
     region = request.args.get('region', '').strip()
     amount_min = request.args.get('amount_min', type=float)
@@ -367,6 +368,23 @@ def mobile_project_list():
         'pages': pagination.pages,
         'stages': [{'key': k, 'label': v} for k, v in STAGE_LABELS.items()],
     })
+
+
+@api_v1_bp.route('/mobile/projects/owners', methods=['GET'])
+@jwt_required()
+def mobile_project_owners():
+    """返回当前用户可见项目的 distinct owner 列表(供筛选下拉用)。
+    复用 web 端 _get_project_owner_options, 与 web 端筛选数据口径一致。"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+    try:
+        from app.views.project import _get_project_owner_options
+        return api_response(success=True, data=_get_project_owner_options(user))
+    except Exception as e:
+        logger.error(f"mobile_project_owners error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
 
 
 @api_v1_bp.route('/mobile/projects/<int:project_id>', methods=['GET'])

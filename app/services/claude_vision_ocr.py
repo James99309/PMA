@@ -37,7 +37,9 @@ def get_client():
 
 
 def detect_image_type(blob: bytes) -> str:
-    """简单嗅探: jpg / png / webp"""
+    """简单嗅探: jpg / png / webp / pdf"""
+    if blob.startswith(b'%PDF'):
+        return 'application/pdf'
     if blob.startswith(b'\xff\xd8'):
         return 'image/jpeg'
     if blob.startswith(b'\x89PNG'):
@@ -83,9 +85,20 @@ def extract_with_schema(
         return {'success': False, 'message': '未配置 ANTHROPIC_API_KEY'}
 
     media_type = detect_image_type(image_blob)
+    is_pdf = media_type == 'application/pdf'
     image_b64 = base64.standard_b64encode(image_blob).decode('ascii')
     if model is None:
         model = os.environ.get('CLAUDE_VISION_MODEL', 'claude-haiku-4-5-20251001')
+
+    # Claude 支持 type=image 和 type=document, document 用于 PDF (会自动 OCR 每页)
+    content_block = {
+        'type': 'document' if is_pdf else 'image',
+        'source': {
+            'type': 'base64',
+            'media_type': media_type,
+            'data': image_b64,
+        },
+    }
 
     raw = ''
     try:
@@ -96,14 +109,7 @@ def extract_with_schema(
             messages=[{
                 'role': 'user',
                 'content': [
-                    {
-                        'type': 'image',
-                        'source': {
-                            'type': 'base64',
-                            'media_type': media_type,
-                            'data': image_b64,
-                        },
-                    },
+                    content_block,
                     {'type': 'text', 'text': user_text},
                 ],
             }],

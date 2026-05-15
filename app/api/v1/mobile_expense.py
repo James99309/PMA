@@ -385,7 +385,9 @@ def mobile_expense_create():
         owner_id=user_id,
         status='draft',
     )
-    e.attributed_to_id = e.calculate_attributed_to()
+    # 归属人默认 = 申请人自己; 跟 web 行为对齐, 关联客户/项目不再自动改归属人。
+    # 若 mobile 后续加"归属其他人"UI, 前端传 attributed_to_id 即可。
+    e.attributed_to_id = data.get('attributed_to_id') or user_id
     db.session.add(e)
     try:
         db.session.commit()
@@ -425,7 +427,11 @@ def mobile_expense_update(expense_id):
         if k in data:
             setattr(e, k, data[k] or None)
 
-    e.attributed_to_id = e.calculate_attributed_to()
+    # 归属人: 跟 web 对齐, 关联客户/项目不再自动改; 前端显式传才改, 否则保持原值或落回 owner
+    if 'attributed_to_id' in data:
+        e.attributed_to_id = data.get('attributed_to_id') or e.owner_id
+    elif not e.attributed_to_id:
+        e.attributed_to_id = e.owner_id
     e.calculate_total_amount()
 
     try:
@@ -691,8 +697,12 @@ def mobile_expense_recall(expense_id):
         result = recall_approval('expense', expense_id, user_id, reason=data.get('reason'))
         if not result or (isinstance(result, dict) and not result.get('success')):
             return api_response(success=False, code=400, message=(result or {}).get('message', '召回失败'))
-        # 召回成功 → 状态回到 draft
+        # 召回成功 → 状态回到 draft; mobile UI 没归属人选项, 顺手把残留的 attributed_to_id 重置到 owner,
+        # 避免之前的 bug 数据(自动归属客户 owner)在重提时再走错流程
         e.status = 'draft'
+        if e.attributed_to_id != e.owner_id:
+            logger.info(f'recall: 重置 expense {e.id} attributed_to_id {e.attributed_to_id} -> {e.owner_id}')
+            e.attributed_to_id = e.owner_id
         db.session.commit()
     except Exception as exc:
         db.session.rollback()
@@ -811,6 +821,22 @@ def mobile_expense_categories():
         'categories': [{'key': k, 'label': _category_label(k)} for k, _ in EXPENSE_CATEGORIES],
         'statuses': [{'key': k, 'label': _status_label_i18n(k), **_status_block(k)} for k, _ in EXPENSE_STATUS],
     })
+
+
+@api_v1_bp.route('/mobile/expense/attributed-to-candidates', methods=['GET'])
+@jwt_required()
+def mobile_expense_attributed_candidates():
+    """归属人候选 = 当前用户同公司所有 active 账户(自己排最前). 与 web 端 /expense/api/users/same-company 同口径."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    try:
+        from app.views.expense import _get_same_company_users_data
+        return api_response(success=True, data=_get_same_company_users_data(user))
+    except Exception as e:
+        logger.error(f'mobile attributed-to-candidates error: {e}', exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
 
 
 # ─── 货币 + 实时汇率(以 CNY 为基准) ─────────────────────────────────────

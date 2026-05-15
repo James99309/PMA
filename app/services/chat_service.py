@@ -1110,14 +1110,16 @@ def add_participants(conversation_id, user_ids, current_user_id):
                 # flush 使新成员可查询
                 db.session.flush()
                 # 生成群名：所有成员名字拼接
-                all_members = ChatParticipant.query.filter_by(
-                    conversation_id=conversation_id).all()
-                names = []
-                for m in all_members:
-                    u = User.query.get(m.user_id)
-                    if u:
-                        names.append(u.real_name or u.username)
-                conv.name = '、'.join(names)
+                # 仅在用户未手动改过群名时自动生成 (conv.name 为空时)
+                if not (conv.name or '').strip():
+                    all_members = ChatParticipant.query.filter_by(
+                        conversation_id=conversation_id).all()
+                    names = []
+                    for m in all_members:
+                        u = User.query.get(m.user_id)
+                        if u:
+                            names.append(u.real_name or u.username)
+                    conv.name = '、'.join(names)
 
             conv.updated_at = datetime.now(timezone.utc)
             db.session.commit()
@@ -1154,6 +1156,48 @@ def add_participants(conversation_id, user_ids, current_user_id):
         db.session.rollback()
         logger.error(f"添加成员失败: {e}", exc_info=True)
         return {'success': False, 'message': f'添加成员失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 10a. 重命名对话
+# ---------------------------------------------------------------------------
+
+def rename_conversation(conversation_id, new_name, current_user_id):
+    """重命名对话 (1对1 / 群聊都支持)。
+
+    规则:
+    - 必须是该对话的参与者
+    - 群聊建议由 owner 改, 但 PMA 场景允许任何成员改 (轻协作)
+    - 名字 trim 后非空, 长度 ≤ 100 (DB 限制)
+    """
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return {'success': False, 'message': '对话不存在'}
+        if conv.type == 'ai':
+            return {'success': False, 'message': 'AI 对话不支持改名'}
+
+        participant = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=current_user_id
+        ).first()
+        if not participant:
+            return {'success': False, 'message': '您不是该对话的参与者'}
+
+        name = (new_name or '').strip()
+        if not name:
+            return {'success': False, 'message': '名称不能为空'}
+        if len(name) > 100:
+            return {'success': False, 'message': '名称过长 (最多 100 字符)'}
+
+        conv.name = name
+        conv.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        logger.info(f"对话 {conversation_id} 改名为 '{name}', by user {current_user_id}")
+        return {'success': True, 'data': {'id': conversation_id, 'name': name}}
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"对话改名失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'改名失败: {str(e)}'}
 
 
 # ---------------------------------------------------------------------------

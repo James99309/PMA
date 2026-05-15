@@ -121,6 +121,8 @@ def mobile_customer_list():
     company_type = request.args.get('company_type', '').strip()
     status_f = request.args.get('status', '').strip()
     region = request.args.get('region', '').strip()
+    # 多选: 兼容 axios 带/不带方括号两种 array 序列化格式
+    owner_names = request.args.getlist('owner_names') + request.args.getlist('owner_names[]')
     # tier / value_min / value_max / open_bucket: 模型字段缺失或需聚合，暂未实现过滤
     page = max(1, int(request.args.get('page', 1)))
     per_page = min(50, int(request.args.get('per_page', 20)))
@@ -138,6 +140,10 @@ def mobile_customer_list():
         # 命中 city 或 region 任一（LIKE 兼容 "上海" vs "上海市"）
         like = f'%{region}%'
         query = query.filter((Company.city.like(like)) | (Company.region.like(like)))
+    if owner_names:
+        # 与 mobile_projects 同模式: 用 real_name 或 username 匹配, 兼容显示名
+        query = query.join(User, User.id == Company.owner_id) \
+                     .filter(User.real_name.in_(owner_names) | User.username.in_(owner_names))
 
     query = query.order_by(Company.updated_at.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -186,6 +192,24 @@ def mobile_customer_list():
         'page': page,
         'pages': pagination.pages,
     })
+
+
+@api_v1_bp.route('/mobile/customers/owners', methods=['GET'])
+@jwt_required()
+def mobile_customer_owners():
+    """返回当前用户可见客户的 distinct owner 列表(供筛选下拉用)。
+    复用 web 端 _get_customer_owner_options, 与 web 端筛选数据口径一致。"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+    try:
+        from app.views.customer import _get_customer_owner_options
+        return api_response(success=True, data=_get_customer_owner_options(user))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"mobile_customer_owners error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
 
 
 @api_v1_bp.route('/mobile/customers/<int:company_id>', methods=['GET'])
