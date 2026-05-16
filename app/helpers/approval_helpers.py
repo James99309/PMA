@@ -3598,7 +3598,10 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
                 _create_skip_record(instance, first_step,
                     "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(first_step, instance)
                     else "条件不满足，自动跳过")
-                next_executable = _advance_to_next_executable_step(instance, 0, all_steps, target_object)
+                # 从首步序号(而非写死0)之后找下一可执行步, 否则 advance 会从 order=1
+                # 重新评估并二次记录同一首步 → skipped 记录重复 (引擎原有 quirk, 修正为单条)
+                _fs_order = first_step.get('step_order') if isinstance(first_step, dict) else first_step.step_order
+                next_executable = _advance_to_next_executable_step(instance, _fs_order, all_steps, target_object)
                 if next_executable:
                     next_order = next_executable.get('step_order') if isinstance(next_executable, dict) else next_executable.step_order
                     instance.current_step = next_order
