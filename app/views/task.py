@@ -204,71 +204,6 @@ def get_task(id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-def _fmt_dt(v):
-    if not v:
-        return _('（无）')
-    if hasattr(v, 'strftime'):
-        # date 或 datetime
-        return v.strftime('%Y-%m-%d %H:%M') if isinstance(v, datetime) else v.strftime('%Y-%m-%d')
-    return str(v)
-
-
-def _user_names(user_ids):
-    """根据 user_id 列表返回 'A、B、C' 形式的中文名串，找不到的用 'ID:n' 兜底。"""
-    if not user_ids:
-        return _('（无）')
-    users = User.query.filter(User.id.in_(list(user_ids))).all()
-    name_map = {u.id: (u.real_name or u.username) for u in users}
-    return '、'.join(name_map.get(uid, f'ID:{uid}') for uid in user_ids)
-
-
-def _build_task_change_log(t, before):
-    """对比任务修改前后的关键字段，返回多行变更描述。空列表表示无变更。"""
-    PRIORITY_LABELS = {'normal': _('普通'), 'high': _('高'), 'urgent': _('紧急'), 'low': _('低')}
-    lines = []
-
-    def diff(label, old, new, formatter=None):
-        if old == new:
-            return
-        f = formatter or (lambda v: v if v not in (None, '') else _('（无）'))
-        lines.append(f'{label}：{f(old)} → {f(new)}')
-
-    diff(_('标题'), before['title'], t.title)
-    diff(_('描述'), before['description'], t.description)
-    diff(_('优先级'), before['priority'], t.priority,
-         lambda v: PRIORITY_LABELS.get(v, v) if v else _('（无）'))
-    diff(_('截止时间'), before['due_date'], t.due_date, _fmt_dt)
-    diff(_('开始时间'), before['start_date'], t.start_date, _fmt_dt)
-    # 关联项目 / 报价单：按 id 对比，用快照里的名称展示旧值
-    if before['project_id'] != t.project_id:
-        old = before['project_name'] or _('（无）')
-        new = (t.project.project_name if t.project else _('（无）'))
-        lines.append(f"{_('关联项目')}：{old} → {new}")
-    if before['quotation_id'] != t.quotation_id:
-        old = before['quotation_number'] or _('（无）')
-        new = (t.quotation.quotation_number if t.quotation else _('（无）'))
-        lines.append(f"{_('关联报价单')}：{old} → {new}")
-
-    # 负责人
-    if before['assignee_id'] != t.assignee_id:
-        ids = [i for i in [before['assignee_id'], t.assignee_id] if i]
-        name_map = {u.id: (u.real_name or u.username) for u in User.query.filter(User.id.in_(ids)).all()} if ids else {}
-        old_name = name_map.get(before['assignee_id'], _('（无）')) if before['assignee_id'] else _('（无）')
-        new_name = name_map.get(t.assignee_id, _('（无）')) if t.assignee_id else _('（无）')
-        lines.append(f"{_('负责人')}：{old_name} → {new_name}")
-
-    # 协助人（集合对比，顺序无关）
-    if set(before['shared_with_users']) != set(t.shared_with_users or []):
-        lines.append(f"{_('协助人')}：{_user_names(before['shared_with_users'])} → {_user_names(t.shared_with_users or [])}")
-
-    # 审计人
-    new_reviewer_ids = sorted(r.reviewer_id for r in t.task_reviewers)
-    if before['reviewer_ids'] != new_reviewer_ids:
-        lines.append(f"{_('审计人')}：{_user_names(before['reviewer_ids'])} → {_user_names(new_reviewer_ids)}")
-
-    return lines
-
-
 @task.route('/api/<int:id>', methods=['PUT'])
 @login_required
 def update_task(id):
@@ -284,88 +219,11 @@ def update_task(id):
         if not data:
             return jsonify({'success': False, 'message': '无效的请求数据'}), 400
 
-        # ── 快照修改前的关键字段，用于生成变更日志 ──
-        before = {
-            'title': t.title,
-            'description': t.description,
-            'priority': t.priority,
-            'due_date': t.due_date,
-            'start_date': t.start_date,
-            'assignee_id': t.assignee_id,
-            'shared_with_users': list(t.shared_with_users or []),
-            'reviewer_ids': sorted(r.reviewer_id for r in t.task_reviewers),
-            'project_id': t.project_id,
-            'project_name': t.project.project_name if t.project else None,
-            'quotation_id': t.quotation_id,
-            'quotation_number': t.quotation.quotation_number if t.quotation else None,
-        }
-
-        for field in ['title', 'description', 'priority', 'external_link', 'external_link_label']:
-            if field in data:
-                setattr(t, field, (data[field] or '').strip() or None if field != 'title' else (data[field] or '').strip())
-
-        for fk_field in ['assignee_id', 'project_id', 'quotation_id', 'customer_id']:
-            if fk_field in data:
-                setattr(t, fk_field, data[fk_field] or None)
-
-        # 会审审计人更新
-        if 'reviewer_ids' in data:
-            new_ids = set(int(rid) for rid in (data['reviewer_ids'] or []) if rid)
-            old_ids = set(r.reviewer_id for r in t.task_reviewers)
-            # 删除移除的审计人
-            for tr in list(t.task_reviewers):
-                if tr.reviewer_id not in new_ids:
-                    db.session.delete(tr)
-            # 添加新的审计人
-            for rid in new_ids - old_ids:
-                db.session.add(TaskReviewer(task_id=t.id, reviewer_id=rid))
-
-        if 'shared_with_users' in data:
-            t.shared_with_users = [int(uid) for uid in (data['shared_with_users'] or []) if uid]
-
-        if 'due_date' in data:
-            if data['due_date']:
-                try:
-                    t.due_date = datetime.fromisoformat(data['due_date'])
-                    t.calendar_date = t.due_date.date()
-                except (ValueError, TypeError):
-                    pass
-            else:
-                t.due_date = None
-                t.calendar_date = None
-
-        if 'start_date' in data:
-            if data['start_date']:
-                try:
-                    t.start_date = date.fromisoformat(data['start_date'][:10])
-                    # 根据开始时间自动调整状态
-                    if t.status == 'pending' and t.start_date <= date.today():
-                        t.status = 'in_progress'
-                    elif t.status == 'in_progress' and t.start_date > date.today():
-                        t.status = 'pending'
-                except (ValueError, TypeError):
-                    pass
-            else:
-                t.start_date = None
-                # 没有开始日期且还在等待 → 立即开始
-                if t.status == 'pending':
-                    t.status = 'in_progress'
-
-        if 'status' in data and data['status'] in ('pending', 'in_progress', 'paused'):
-            t.status = data['status']
-
-        # ── 生成变更日志（写入 TaskReply, reply_type='update'）──
-        change_lines = _build_task_change_log(t, before)
-        if change_lines:
-            db.session.add(TaskReply(
-                task_id=t.id,
-                subtask_id=None,
-                author_id=current_user.id,
-                content='\n'.join(change_lines),
-                reply_type='update',
-            ))
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            task_service.update_task(current_user, t, data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('任务已更新'), 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -496,33 +354,15 @@ def upload_attachment(id):
         file_size = file.tell()
         file.seek(0)
 
-        from app.utils.smart_storage_manager import get_smart_storage
-        smart_storage = get_smart_storage()
-        result = smart_storage.upload_file(
-            object_id=id,
-            file=file,
-            filename=filename,
-            file_type='attachment',
-            bucket_type='task',
-            business_type='task'
-        )
-
-        if not result:
-            return jsonify({'success': False, 'message': '文件上传失败'}), 500
-
         subtask_id = request.form.get('subtask_id', type=int)
 
-        attachment = TaskAttachment(
-            task_id=id,
-            subtask_id=subtask_id,
-            filename=filename,
-            storage_path=result.get('storage_path', ''),
-            file_size=file_size,
-            file_type=file_ext,
-            uploaded_by=current_user.id,
-        )
-        db.session.add(attachment)
-        db.session.commit()
+        from app.services import task_service
+        try:
+            attachment = task_service.add_attachment(
+                current_user, t, file, filename, file_size, file_ext,
+                subtask_id=subtask_id)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
 
         subtask_title = None
         if attachment.subtask_id:
@@ -559,21 +399,11 @@ def delete_attachment(id, att_id):
         if not att:
             return jsonify({'success': False, 'message': '附件不存在'}), 404
 
-        # 只有上传者本人可以删除附件
-        if att.uploaded_by != current_user.id:
-            return jsonify({'success': False, 'message': _('只能删除自己上传的附件')}), 403
-
-        # 删除存储文件
-        if att.storage_path:
-            try:
-                from app.utils.smart_storage_manager import get_smart_storage
-                storage = get_smart_storage()
-                storage.delete_file(att.storage_path, bucket_type='task')
-            except Exception as e:
-                logger.warning(f"删除附件文件失败: {e}")
-
-        db.session.delete(att)
-        db.session.commit()
+        from app.services import task_service
+        try:
+            task_service.delete_attachment(current_user, att)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 403
         return jsonify({'success': True, 'message': _('附件已删除')})
     except Exception as e:
         db.session.rollback()
@@ -1300,53 +1130,12 @@ def update_subtask_status(task_id, subtask_id):
             return jsonify({'success': False, 'message': '节点不存在'}), 404
 
         data = request.get_json() or {}
-        action = data.get('action')  # 'start', 'complete'
-
-        today = date.today()
-
-        if action == 'start':
-            # 检查子任务开始日期，未设则看任务开始日期
-            start = subtask.start_date or t.start_date
-            if start and today < start:
-                return jsonify({'success': False,
-                                'message': _('该节点尚未到开始日期（%(date)s）', date=start.strftime("%m/%d"))}), 400
-            subtask.status = 'in_progress'
-        elif action == 'complete':
-            # 里程碑节点完成时进入待确认（会审）
-            if subtask.is_milestone and subtask.milestone_reviewers:
-                subtask.status = 'completed'
-                subtask.completed_at = get_local_time()
-                subtask.milestone_status = 'pending_confirmation'
-                # 重置并通知所有确认人
-                try:
-                    from app.models.message import Message
-                    for mr in subtask.milestone_reviewers:
-                        mr.status = 'pending'
-                        mr.reviewed_at = None
-                        mr.comment = None
-                        msg = Message.create_task_assigned(
-                            sender_id=current_user.id,
-                            recipient_id=mr.reviewer_id,
-                            task=t
-                        )
-                        db.session.add(msg)
-                except Exception as e:
-                    logger.warning(f"发送里程碑通知失败: {e}")
-            else:
-                subtask.status = 'completed'
-                subtask.completed_at = get_local_time()
-                try:
-                    from app.services.points_service import award_points
-                    uid = subtask.assignee_id or t.assignee_id
-                    award_points(user_id=uid, behavior_code='subtask_complete',
-                                 source_type='subtask', source_id=subtask.id,
-                                 context=subtask.title)
-                except Exception as _pts_err:
-                    logger.warning(f'subtask_complete积分发放失败: {_pts_err}')
-        else:
-            return jsonify({'success': False, 'message': '无效操作'}), 400
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            task_service.set_subtask_status(
+                current_user, t, subtask, data.get('action'))
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()

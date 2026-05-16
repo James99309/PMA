@@ -14,6 +14,8 @@
 import logging
 from datetime import datetime, date
 
+from flask_babel import gettext as _
+
 from app import db
 from app.models.task import Task, TaskReply, TaskReviewer, get_local_time
 from app.models.user import User
@@ -240,3 +242,240 @@ def review_task(actor, t, action, comment=''):
         notif.notify_task_completed(actor.id, t.assignee_id, t)
     db.session.commit()
     return t, msg_text
+
+
+# ─── 编辑 (忠实抽取 web update_task,web/mobile 共用) ──────────────────
+
+
+def _fmt_dt(v):
+    if not v:
+        return _('（无）')
+    if hasattr(v, 'strftime'):
+        return v.strftime('%Y-%m-%d %H:%M') if isinstance(v, datetime) else v.strftime('%Y-%m-%d')
+    return str(v)
+
+
+def _user_names(user_ids):
+    """user_id 列表 → 'A、B、C';找不到用 'ID:n' 兜底。"""
+    if not user_ids:
+        return _('（无）')
+    users = User.query.filter(User.id.in_(list(user_ids))).all()
+    name_map = {u.id: (u.real_name or u.username) for u in users}
+    return '、'.join(name_map.get(uid, f'ID:{uid}') for uid in user_ids)
+
+
+def _build_task_change_log(t, before):
+    """对比修改前后关键字段,返回多行变更描述。空列表=无变更。"""
+    PRIORITY_LABELS = {'normal': _('普通'), 'high': _('高'),
+                       'urgent': _('紧急'), 'low': _('低')}
+    lines = []
+
+    def diff(label, old, new, formatter=None):
+        if old == new:
+            return
+        f = formatter or (lambda v: v if v not in (None, '') else _('（无）'))
+        lines.append(f'{label}：{f(old)} → {f(new)}')
+
+    diff(_('标题'), before['title'], t.title)
+    diff(_('描述'), before['description'], t.description)
+    diff(_('优先级'), before['priority'], t.priority,
+         lambda v: PRIORITY_LABELS.get(v, v) if v else _('（无）'))
+    diff(_('截止时间'), before['due_date'], t.due_date, _fmt_dt)
+    diff(_('开始时间'), before['start_date'], t.start_date, _fmt_dt)
+    if before['project_id'] != t.project_id:
+        old = before['project_name'] or _('（无）')
+        new = (t.project.project_name if t.project else _('（无）'))
+        lines.append(f"{_('关联项目')}：{old} → {new}")
+    if before['quotation_id'] != t.quotation_id:
+        old = before['quotation_number'] or _('（无）')
+        new = (t.quotation.quotation_number if t.quotation else _('（无）'))
+        lines.append(f"{_('关联报价单')}：{old} → {new}")
+    if before['assignee_id'] != t.assignee_id:
+        ids = [i for i in [before['assignee_id'], t.assignee_id] if i]
+        name_map = {u.id: (u.real_name or u.username)
+                    for u in User.query.filter(User.id.in_(ids)).all()} if ids else {}
+        old_name = name_map.get(before['assignee_id'], _('（无）')) if before['assignee_id'] else _('（无）')
+        new_name = name_map.get(t.assignee_id, _('（无）')) if t.assignee_id else _('（无）')
+        lines.append(f"{_('负责人')}：{old_name} → {new_name}")
+    if set(before['shared_with_users']) != set(t.shared_with_users or []):
+        lines.append(f"{_('协助人')}：{_user_names(before['shared_with_users'])} → "
+                     f"{_user_names(t.shared_with_users or [])}")
+    new_reviewer_ids = sorted(r.reviewer_id for r in t.task_reviewers)
+    if before['reviewer_ids'] != new_reviewer_ids:
+        lines.append(f"{_('审计人')}：{_user_names(before['reviewer_ids'])} → "
+                     f"{_user_names(new_reviewer_ids)}")
+    return lines
+
+
+def update_task(actor, t, data):
+    """编辑任务(忠实抽取 web update_task)。actor=User,t=Task。返回 Task。
+
+    校验由调用方(web/mobile 路由)在边缘做(_can_edit);本服务只管业务+
+    变更日志副作用,自管 commit(与原 web 行为一致)。
+    """
+    before = {
+        'title': t.title,
+        'description': t.description,
+        'priority': t.priority,
+        'due_date': t.due_date,
+        'start_date': t.start_date,
+        'assignee_id': t.assignee_id,
+        'shared_with_users': list(t.shared_with_users or []),
+        'reviewer_ids': sorted(r.reviewer_id for r in t.task_reviewers),
+        'project_id': t.project_id,
+        'project_name': t.project.project_name if t.project else None,
+        'quotation_id': t.quotation_id,
+        'quotation_number': t.quotation.quotation_number if t.quotation else None,
+    }
+
+    for field in ['title', 'description', 'priority', 'external_link', 'external_link_label']:
+        if field in data:
+            setattr(t, field, (data[field] or '').strip() or None
+                    if field != 'title' else (data[field] or '').strip())
+
+    for fk_field in ['assignee_id', 'project_id', 'quotation_id', 'customer_id']:
+        if fk_field in data:
+            setattr(t, fk_field, data[fk_field] or None)
+
+    if 'reviewer_ids' in data:
+        new_ids = set(int(rid) for rid in (data['reviewer_ids'] or []) if rid)
+        old_ids = set(r.reviewer_id for r in t.task_reviewers)
+        for tr in list(t.task_reviewers):
+            if tr.reviewer_id not in new_ids:
+                db.session.delete(tr)
+        for rid in new_ids - old_ids:
+            db.session.add(TaskReviewer(task_id=t.id, reviewer_id=rid))
+
+    if 'shared_with_users' in data:
+        t.shared_with_users = [int(uid) for uid in (data['shared_with_users'] or []) if uid]
+
+    if 'due_date' in data:
+        if data['due_date']:
+            try:
+                t.due_date = datetime.fromisoformat(data['due_date'])
+                t.calendar_date = t.due_date.date()
+            except (ValueError, TypeError):
+                pass
+        else:
+            t.due_date = None
+            t.calendar_date = None
+
+    if 'start_date' in data:
+        if data['start_date']:
+            try:
+                t.start_date = date.fromisoformat(data['start_date'][:10])
+                if t.status == 'pending' and t.start_date <= date.today():
+                    t.status = 'in_progress'
+                elif t.status == 'in_progress' and t.start_date > date.today():
+                    t.status = 'pending'
+            except (ValueError, TypeError):
+                pass
+        else:
+            t.start_date = None
+            if t.status == 'pending':
+                t.status = 'in_progress'
+
+    if 'status' in data and data['status'] in ('pending', 'in_progress', 'paused'):
+        t.status = data['status']
+
+    change_lines = _build_task_change_log(t, before)
+    if change_lines:
+        db.session.add(TaskReply(
+            task_id=t.id, subtask_id=None, author_id=actor.id,
+            content='\n'.join(change_lines), reply_type='update',
+        ))
+
+    db.session.commit()
+    return t
+
+
+# ─── 附件 (忠实抽取 web upload/delete_attachment,web/mobile 共用) ──────
+
+
+def add_attachment(actor, t, file, filename, file_size, file_ext, subtask_id=None):
+    """上传任务附件。actor=User,t=Task。返回 TaskAttachment。失败抛 ValueError。"""
+    from app.models.task import TaskAttachment
+    from app.utils.smart_storage_manager import get_smart_storage
+    result = get_smart_storage().upload_file(
+        object_id=t.id, file=file, filename=filename,
+        file_type='attachment', bucket_type='task', business_type='task')
+    if not result:
+        raise ValueError(_('文件上传失败'))
+    att = TaskAttachment(
+        task_id=t.id, subtask_id=subtask_id, filename=filename,
+        storage_path=result.get('storage_path', ''), file_size=file_size,
+        file_type=file_ext, uploaded_by=actor.id)
+    db.session.add(att)
+    db.session.commit()
+    return att
+
+
+def delete_attachment(actor, att):
+    """删除任务附件(含存储文件)。仅上传者本人;否则抛 ValueError。"""
+    if att.uploaded_by != actor.id:
+        raise ValueError(_('只能删除自己上传的附件'))
+    if att.storage_path:
+        try:
+            from app.utils.smart_storage_manager import get_smart_storage
+            get_smart_storage().delete_file(att.storage_path, bucket_type='task')
+        except Exception as e:
+            logger.warning(f'删除附件文件失败: {e}')
+    db.session.delete(att)
+    db.session.commit()
+
+
+def set_subtask_status(actor, t, subtask, action):
+    """子任务开始/完成(忠实抽取 web update_subtask_status)。
+    里程碑完成→待确认并经统一通知服务通知确认人;普通完成→发积分。"""
+    today = date.today()
+    if action == 'start':
+        start = subtask.start_date or t.start_date
+        if start and today < start:
+            raise ValueError(_('该节点尚未到开始日期（%(date)s）',
+                               date=start.strftime('%m/%d')))
+        subtask.status = 'in_progress'
+    elif action == 'complete':
+        if subtask.is_milestone and subtask.milestone_reviewers:
+            subtask.status = 'completed'
+            subtask.completed_at = get_local_time()
+            subtask.milestone_status = 'pending_confirmation'
+            try:
+                for mr in subtask.milestone_reviewers:
+                    mr.status = 'pending'
+                    mr.reviewed_at = None
+                    mr.comment = None
+                    notif.notify_task_assigned(actor.id, mr.reviewer_id, t)
+            except Exception as e:
+                logger.warning(f'发送里程碑通知失败: {e}')
+        else:
+            subtask.status = 'completed'
+            subtask.completed_at = get_local_time()
+            try:
+                from app.services.points_service import award_points
+                uid = subtask.assignee_id or t.assignee_id
+                award_points(user_id=uid, behavior_code='subtask_complete',
+                             source_type='subtask', source_id=subtask.id,
+                             context=subtask.title)
+            except Exception as _e:
+                logger.warning(f'subtask_complete积分发放失败: {_e}')
+    else:
+        raise ValueError(_('无效操作'))
+    db.session.commit()
+    return subtask
+
+
+def attachment_dict(a, nas_ok=None):
+    """附件序列化(与 web 任务详情一致)。"""
+    return {
+        'id': a.id,
+        'filename': a.filename,
+        'storage_path': a.storage_path,
+        'file_size': a.file_size,
+        'file_type': a.file_type,
+        'uploaded_by': a.uploaded_by,
+        'uploader_name': (a.uploader.real_name or a.uploader.username) if a.uploader else None,
+        'subtask_id': a.subtask_id,
+        'subtask_title': a.subtask.title if a.subtask else None,
+        'created_at': a.created_at.isoformat() if a.created_at else None,
+        'is_cloud': bool(nas_ok) and not (a.storage_path or '').startswith('LOCAL-'),
+    }

@@ -224,6 +224,7 @@ def _sub_rows(task):
             'owner_name': oname, 'owner_short': _initials(oname),
             'start': _due_disp(s.start_date), 'due': _due_disp(s.due_date),
             'status': s.status,
+            'status_label': _status_label(s.status),
             'is_milestone': bool(s.is_milestone),
             'progress_notes': notes,
         })
@@ -248,6 +249,25 @@ def _timeline(task):
     return out
 
 
+
+
+def _attachment_rows(t):
+    """任务附件列表(序列化复用 task_service.attachment_dict + 下载代理 url)。"""
+    from urllib.parse import quote
+    from app.models.task import TaskAttachment
+    from app.services import task_service
+    from app.utils.smart_storage_manager import get_smart_storage
+    st = get_smart_storage()
+    nas_ok = st.nas_enabled and st.is_nas_available()
+    rows = TaskAttachment.query.filter_by(
+        task_id=t.id, is_deleted=False
+    ).order_by(TaskAttachment.created_at.desc()).all()
+    out = []
+    for a in rows:
+        ad = task_service.attachment_dict(a, nas_ok=nas_ok)
+        ad['url'] = '/api/v1/mobile/tasks/file?path=' + quote(a.storage_path or '')
+        out.append(ad)
+    return out
 
 
 def _can_see(t, uid, user):
@@ -277,10 +297,11 @@ def mobile_task_detail(tid):
     d['subtasks'] = _sub_rows(t)
     d['timeline'] = _timeline(t)
     d['overdue'] = _is_overdue(t)
+    d['attachments'] = _attachment_rows(t)
     my_rv = next((rv for rv in t.task_reviewers if rv.reviewer_id == uid), None)
     d['my_review_state'] = my_rv.status if my_rv else None
-    d['can_edit'] = (t.creator_id == uid or t.assignee_id == uid) and \
-        t.status not in ('completed', 'cancelled')
+    # 与 web _can_edit 单一来源一致:仅创建人可编辑
+    d['can_edit'] = (t.creator_id == uid)
     d['can_review'] = bool(my_rv and my_rv.status == 'pending'
                            and t.status == 'pending_review')
     return api_response(success=True, data=d)
@@ -303,6 +324,32 @@ def mobile_task_create():
         db.session.rollback()
         logger.error(f'task create error: {e}')
         return api_response(success=False, code=500, message='创建失败')
+    return api_response(success=True, data={'id': t.id})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>', methods=['PATCH'])
+@jwt_required()
+def mobile_task_update(tid):
+    """薄壳:编辑走共享 task_service.update_task(与 web 同一来源)。
+    权限与 web _can_edit 一致:仅创建人。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t:
+        return api_response(success=False, code=404, message='任务不存在')
+    if t.creator_id != uid:
+        return api_response(success=False, code=403, message='仅创建人可编辑此任务')
+    from app.services import task_service
+    try:
+        task_service.update_task(user, t, request.get_json() or {})
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'task update error: {e}')
+        return api_response(success=False, code=500, message='更新失败')
     return api_response(success=True, data={'id': t.id})
 
 
@@ -343,9 +390,12 @@ def mobile_task_reply(tid):
     t = Task.query.filter_by(id=tid, is_deleted=False).first()
     if not t or not _can_see(t, uid, user):
         return api_response(success=False, code=404, message='任务不存在或无权限')
+    body = request.get_json() or {}
     from app.services import task_service
     try:
-        task_service.add_reply(user, t, (request.get_json() or {}).get('content'))
+        task_service.add_reply(user, t, body.get('content'),
+                               subtask_id=body.get('subtask_id'),
+                               reply_type=body.get('reply_type') or 'comment')
     except ValueError as ve:
         return api_response(success=False, code=400, message=str(ve))
     except Exception as e:
@@ -378,3 +428,131 @@ def mobile_task_review(tid):
         return api_response(success=False, code=500, message='操作失败')
     return api_response(success=True, data={'status': t.status,
                                             'status_label': _status_label(t.status)})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/attachments', methods=['POST'])
+@jwt_required()
+def mobile_task_attach(tid):
+    """薄壳:上传附件走共享 task_service.add_attachment。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t or not _can_see(t, uid, user):
+        return api_response(success=False, code=404, message='任务不存在或无权限')
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return api_response(success=False, code=400, message='请选择文件')
+    filename = f.filename
+    file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    f.seek(0, 2)
+    file_size = f.tell()
+    f.seek(0)
+    subtask_id = request.form.get('subtask_id', type=int)
+    from app.services import task_service
+    try:
+        att = task_service.add_attachment(user, t, f, filename, file_size,
+                                          file_ext, subtask_id=subtask_id)
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'task attach error: {e}')
+        return api_response(success=False, code=500, message='上传失败')
+    from urllib.parse import quote
+    ad = task_service.attachment_dict(att)
+    ad['url'] = '/api/v1/mobile/tasks/file?path=' + quote(att.storage_path or '')
+    return api_response(success=True, data=ad)
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/attachments/<int:aid>', methods=['DELETE'])
+@jwt_required()
+def mobile_task_attach_delete(tid, aid):
+    """薄壳:删除附件走共享 task_service.delete_attachment(仅上传者)。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    from app.models.task import TaskAttachment
+    att = TaskAttachment.query.filter_by(id=aid, task_id=tid, is_deleted=False).first()
+    if not att:
+        return api_response(success=False, code=404, message='附件不存在')
+    from app.services import task_service
+    try:
+        task_service.delete_attachment(user, att)
+    except ValueError as ve:
+        return api_response(success=False, code=403, message=str(ve))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'task attach delete error: {e}')
+        return api_response(success=False, code=500, message='删除失败')
+    return api_response(success=True, data={'id': aid})
+
+
+@api_v1_bp.route('/mobile/tasks/file', methods=['GET'])
+def mobile_task_file():
+    """任务附件下载代理(JWT header 或 ?token=)。镜像 chat,bucket=task。"""
+    from flask_jwt_extended import decode_token
+    from flask import Response
+    token = request.headers.get('Authorization', '').replace('Bearer ', '') \
+        or request.args.get('token', '')
+    if not token:
+        return api_response(success=False, code=401, message='缺少 token')
+    try:
+        decode_token(token)
+    except Exception:
+        return api_response(success=False, code=401, message='token 无效')
+    rel_path = request.args.get('path', '')
+    if not rel_path or '..' in rel_path:
+        return api_response(success=False, code=400, message='非法路径')
+    try:
+        from app.utils.smart_storage_manager import get_smart_storage
+        data = get_smart_storage().download_file(rel_path, bucket_type='task')
+        if not data:
+            return api_response(success=False, code=404, message='文件不存在')
+        ext = (rel_path.rsplit('.', 1)[-1] or '').lower()
+        ct = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+            'gif': 'image/gif', 'webp': 'image/webp', 'pdf': 'application/pdf',
+            'mp4': 'video/mp4', 'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }.get(ext, 'application/octet-stream')
+        from urllib.parse import quote
+        fn = quote(rel_path.split('/')[-1])
+        return Response(data, mimetype=ct, headers={
+            'Cache-Control': 'private, max-age=3600',
+            'Content-Disposition': f"inline; filename*=UTF-8''{fn}",
+        })
+    except Exception as e:
+        logger.error(f'mobile task file error: {e}', exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/subtasks/<int:sid>/status', methods=['POST'])
+@jwt_required()
+def mobile_subtask_status(tid, sid):
+    """薄壳:子任务开始/完成走共享 task_service.set_subtask_status。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t or not _can_see(t, uid, user):
+        return api_response(success=False, code=404, message='任务不存在或无权限')
+    s = SubTask.query.filter_by(id=sid, task_id=tid, is_deleted=False).first()
+    if not s:
+        return api_response(success=False, code=404, message='子任务不存在')
+    from app.services import task_service
+    try:
+        task_service.set_subtask_status(
+            user, t, s, (request.get_json() or {}).get('action'))
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'subtask status error: {e}')
+        return api_response(success=False, code=500, message='操作失败')
+    return api_response(success=True, data={'id': s.id, 'status': s.status})
