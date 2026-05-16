@@ -1,0 +1,1715 @@
+src/api/auth.js	// 指定 region 登录 (用对应 region 的 baseURL, 不依赖当前 client 状态)
+src/api/auth.js	// 普通登录 (走当前 region 的 baseURL, 兼容旧调用)
+src/api/chat.js	// @ 实体搜索
+src/api/chat.js	// AI SSE（fetch + EventSource 都可，下面给 fetch 流式版）
+src/api/chat.js	// SSE: 事件以 \n\n 分割
+src/api/chat.js	// scope: { conversationId? } 限制为该群成员；{ projectId? } 限制为该项目成员；
+src/api/chat.js	// token 失效，清掉跳登录
+src/api/chat.js	// ─── 跨区域：用 peer 区的 token + baseURL 直接访问对端 NAS ─────────
+src/api/chat.js	// 上传附件到 NAS chat 桶（图片 / 文件 / 语音）
+src/api/chat.js	// 会话
+src/api/chat.js	// 后端：/api/v1/mobile/chat/* （详见 app/api/v1/mobile_chat.py）
+src/api/chat.js	// 未读
+src/api/chat.js	// 消息
+src/api/chat.js	// 用于"统一会话列表"：同时拉本区 + 对区 conversations / unread-count
+src/api/chat.js	// 用法：const reader = await streamAi({ content, conversationId, onEvent })
+src/api/chat.js	// 移动端聊天 API client
+src/api/chat.js	// 群成员
+src/api/chat.js	// 都不传 → 全员（用于新建聊天 / 添加成员等用户选择器场景）
+src/api/chat.js	// 重命名对话 (1对1 / 群聊都支持)
+src/api/client.js	// 401 自动跳登录（仅清当前区域 token）
+src/api/client.js	// axios 默认 indexes=false → 发 `owner_names[]=A&owner_names[]=B`, Flask 收不到
+src/api/client.js	// i18n: 后端按此 header 返回业务标签的对应语言 (zh-CN / en)
+src/api/client.js	// ─── 多区域配置 (Federation Lite) ───────────────────────────────────
+src/api/client.js	// 优先按区域分桶的 token，回退到旧的统一 access_token（向后兼容）
+src/api/client.js	// 切换 axios baseURL（即时生效，无需 reload）
+src/api/client.js	// 数组参数序列化成 `owner_names=A&owner_names=B` 格式 (Flask request.args.getlist 期望的)
+src/api/client.js	// 简单按时区猜
+src/api/client.js	// 编译时 fallback 用 .env.production 的 VITE_API_BASE_URL（向后兼容）
+src/api/client.js	// 自动检测默认区域：localStorage > device locale > fallback CN
+src/api/client.js	// 自动附加 JWT token（按当前区域读对应的 token）+ Accept-Language
+src/api/client.js	// 运行时优先读 localStorage.region，按 REGIONS 表查 baseUrl
+src/api/client.js	label: '中国',
+src/api/client.js	label: '新加坡',
+src/api/client.js	localStorage.removeItem('access_token')   // 兼容旧 key
+src/api/customers.js	// 合并扫描结果到现有联系人 (空字段才填, 名片图覆盖)
+src/api/customers.js	// 名片扫描: multipart 上传裁剪后的图, 后端返回 OCR JSON + NAS file_url
+src/api/customers.js	// 联系人 CRUD
+src/api/customers.js	// 联系人重复检测 (phone / email 精确匹配)
+src/api/dictionaries.js	// 后端：GET /api/v1/dictionary/<type>?active_only=true
+src/api/dictionaries.js	// 字典 API client
+src/api/expense.js	// (附 ?token=JWT 让文件端点直通鉴权; 同 MessageAttachment.fullUrl)
+src/api/expense.js	// access_token_<region> (旧统一 access_token 是 winner 区的, SG 视图会 401 →
+src/api/expense.js	// 不能缓存 (否则切到 SG 仍指 CN host → 附件 404 占位符); token 取区域专属
+src/api/expense.js	// 发票上传 + OCR — multipart
+src/api/expense.js	// 取明细的第一张发票缩略图 URL (无图返回 '')
+src/api/expense.js	// 必须区域感知: client.defaults.baseURL 由 setCurrentRegion() 同步为当前区域,
+src/api/expense.js	// 把后端返回的 invoice_image 相对 URL 转成可被 <img> 直接 src 的全 URL
+src/api/expense.js	// 报销模块 API client — 对应后端 mobile_expense.py
+src/api/expense.js	// 错误页当图片渲染就是乱码), 与 client.js 拦截器同口径。
+src/components/CreateFormPage.vue	<!-- 滚动内容 -->
+src/components/CreateFormPage.vue	<!-- 顶部导航（AppShell 已处理 safe-area-top，这里只需 44px） -->
+src/components/CreateFormPage.vue	<button @click="emit('back')" class="text-blue-500 text-sm py-1 pr-3">取消</button>
+src/components/CreateFormPage.vue	submitLabel: { type: String, default: '创建' },
+src/components/CreateFormPage.vue	{{ submitting ? '提交中…' : submitLabel }}
+src/components/FilterSheet.vue	// ─── 客户专属维度 —— 状态对齐 activity_tracker.ACTIVITY_STATUS
+src/components/FilterSheet.vue	// 地区选项按当前数据区切换 (CN/SG); 区内城市按 region 字段后端原值匹配
+src/components/FilterSheet.vue	// 活跃度 6 级 —— 配色与 ProjectDetailView ACTIVITY_COLORS 完全一致
+src/components/FilterSheet.vue	// 累计客户价值滑块（与项目金额复用 onMin/onMax 机制）
+src/components/FilterSheet.vue	// 阶段选项 = 字典 + "全部"
+src/components/FilterSheet.vue	<!-- 1. 状态 -->
+src/components/FilterSheet.vue	<!-- 3. 累计价值 双滑块 -->
+src/components/FilterSheet.vue	<!-- 4. 进行中项目 -->
+src/components/FilterSheet.vue	<!-- 5. 地区（chips 替代之前的 input）-->
+src/components/FilterSheet.vue	<!-- 6. 行业（both — chips）-->
+src/components/FilterSheet.vue	<!-- ── CUSTOMER 5 维筛选（去 tier 后）── -->
+src/components/FilterSheet.vue	<!-- ── PROJECT: 活跃度（6 级，3x2 网格）── -->
+src/components/FilterSheet.vue	<!-- ── PROJECT: 金额范围 ── -->
+src/components/FilterSheet.vue	<!-- ── PROJECT: 阶段 ── -->
+src/components/FilterSheet.vue	<!-- ── 地区 (project chip 选择器，与 customer 一致) ── -->
+src/components/FilterSheet.vue	<!-- ── 负责人 (project + customer) ── -->
+src/components/FilterSheet.vue	<!-- 内容 -->
+src/components/FilterSheet.vue	<!-- 把手 -->
+src/components/FilterSheet.vue	<!-- 标题栏 -->
+src/components/FilterSheet.vue	const VALUE_MAX = 800  // 客户累计价值上限（万元）
+src/components/FilterSheet.vue	if (!r.owner_names?.length) delete r.owner_names  // 空数组 → 不发
+src/components/FilterSheet.vue	{ value: '上海' }, { value: '南京' }, { value: '广州' }, { value: '深圳' },
+src/components/FilterSheet.vue	{ value: '杭州' }, { value: '成都' }, { value: '北京' }, { value: '苏州' },
+src/components/approval/ApplicantCard.vue	- 可选 stats.text 行(后端按业务类型组装,如"本月报销 1 笔 · 平均 ¥837.06")
+src/components/approval/ApplicantCard.vue	- 右侧消息按钮(可选,emit 'message')
+src/components/approval/ApplicantCard.vue	- 头像(首字母 + 主题色)
+src/components/approval/ApplicantCard.vue	- 姓名 · 部门
+src/components/approval/ApplicantCard.vue	ApplicantCard · 审批/详情页通用申请人卡片
+src/components/common/AddressPickerSheet.vue	// 地址选择器 sheet —— 自动匹配 + GPS 定位
+src/components/common/AddressPickerSheet.vue	// 用法：
+src/components/common/AddressPickerSheet.vue	style="color: var(--color-ink-3);">没找到匹配地址</div>
+src/components/common/Avatar.vue	// shape: 'circle' (40 圆联系人头像) | 'square' (42 圆角 12 客户首字母方头像)
+src/components/common/Avatar.vue	// 对齐 customer-screens.jsx 联系人头像 + SearchCustomerRow 客户首字母头像
+src/components/common/Avatar.vue	badge:   { type: String, default: '' },        // 客户层级 A/B/C 等
+src/components/common/Avatar.vue	primary: { type: Boolean, default: false },   // 主联系人 ★
+src/components/common/ChatPlusPanel.vue	'pick-camera', // 用户拍照后 → File
+src/components/common/ChatPlusPanel.vue	'pick-file',   // 用户选了文件 → File
+src/components/common/ChatPlusPanel.vue	'pick-image',  // 用户选了图片 → File[]
+src/components/common/ChatPlusPanel.vue	'share-location', // 用户点了位置 → 由父组件打开 LocationSheet
+src/components/common/ChatPlusPanel.vue	// Composer + 按钮展开后的 4 操作面板：相册 / 拍照 / 位置 / 文件
+src/components/common/ChatPlusPanel.vue	// photo.webPath 是 capacitor:// 本地 URI；fetch 后转 File
+src/components/common/ChatPlusPanel.vue	// 严格对齐 chat-input-states.jsx ChatPlusPanel 设计
+src/components/common/ChatPlusPanel.vue	// 原生 iOS 用 Capacitor Camera 插件; web 环境 fallback HTML capture
+src/components/common/ChatPlusPanel.vue	// 原生 iPhone 相机：完整聚焦/变焦/视频切换 UI（需要 @capacitor/camera 插件 + 原生重建）
+src/components/common/ChatPlusPanel.vue	// 用户取消 / 插件未装 → 回退到 HTML capture input
+src/components/common/ChatPlusPanel.vue	<!-- 位置 -->
+src/components/common/ChatPlusPanel.vue	<!-- 拍照 -->
+src/components/common/ChatPlusPanel.vue	<!-- 文件 -->
+src/components/common/ChatPlusPanel.vue	<!-- 相册 -->
+src/components/common/ChatPlusPanel.vue	<!-- 隐藏的原生 file input；iOS WKWebView 支持 capture/accept -->
+src/components/common/ChatPlusPanel.vue	{ key: 'camera',  label: '拍照', color: '#3a8c5a' },
+src/components/common/ChatPlusPanel.vue	{ key: 'file',    label: '文件', color: '#7355C9' },
+src/components/common/ChatPlusPanel.vue	{ key: 'gallery', label: '相册', color: 'var(--color-accent)' },
+src/components/common/ChatPlusPanel.vue	{ key: 'location',label: '位置', color: '#4D82E0' },
+src/components/common/Chip.vue	// 对齐 customer-screens.jsx Chip(active) + filter-screens.jsx Chip(closeable, count)
+src/components/common/CrossRegionMsgCard.vue	// 列表顶部琥珀卡 — 在本区聊天列表顶部显示对区有未读, 点击 → 切区
+src/components/common/CrossRegionMsgCard.vue	<span style="font-size: 13px; color: #6E4814; font-weight: 500;">· {{ unreadCount }} 条新消息</span>
+src/components/common/CrossRegionMsgCard.vue	<span style="font-size: 14px; font-weight: 600; color: #6E4814;">{{ regionLabel }}库</span>
+src/components/common/CrossRegionMsgCard.vue	切去看 ›
+src/components/common/CrossRegionMsgCard.vue	点击切到 {{ regionLabel }}库查看
+src/components/common/DocumentScanFlow.vue	- allowMulti: 是否允许累积多张(发票场景)
+src/components/common/DocumentScanFlow.vue	- cancel()                         用户取消(无任何页)
+src/components/common/DocumentScanFlow.vue	- captureTip: capture 步说明文字
+src/components/common/DocumentScanFlow.vue	- done(pages: [{blob, dataUrl}])  用户最终确认的所有页 (1 或多张)
+src/components/common/DocumentScanFlow.vue	- multiPrimaryFormat: 多张时主 CTA 模板(用 {n} 占位待拍数)
+src/components/common/DocumentScanFlow.vue	- previewTip: preview 步说明文字
+src/components/common/DocumentScanFlow.vue	- primaryLabel: 单张时主 CTA 文字
+src/components/common/DocumentScanFlow.vue	// VisionKit 已让用户连拍多张, 直接 emit done (allowMulti 也无需再让用户决定)
+src/components/common/DocumentScanFlow.vue	// allowMulti=true 时累积已确认的页(每页 {blob, dataUrl})
+src/components/common/DocumentScanFlow.vue	// data:URL → Blob (用于 multipart 上传)
+src/components/common/DocumentScanFlow.vue	// web 退化方案: 同 input file 但不带 capture, 让浏览器开"文件选择"
+src/components/common/DocumentScanFlow.vue	// 不再立刻 finalize, 让用户在 capture 屏看到 "从相册" / "重拍" 按钮
+src/components/common/DocumentScanFlow.vue	// 不限制页数 + 不压缩, 保留原图清晰度
+src/components/common/DocumentScanFlow.vue	// 从相册/文件 picker 选已有照片 (跳过 VisionKit; 选完直接走 crop → preview 流程)
+src/components/common/DocumentScanFlow.vue	// 全部入累积
+src/components/common/DocumentScanFlow.vue	// 公开方法 — 父组件可以手动触发
+src/components/common/DocumentScanFlow.vue	// 是否在 mount 时立即触发 VisionKit / 相机(默认 true)
+src/components/common/DocumentScanFlow.vue	// 状态: capture (调相机/扫描) | crop (兜底手动裁剪) | preview (拍完预览)
+src/components/common/DocumentScanFlow.vue	// 用户从相机直接退出 → 已拍的累积页提交; 否则取消
+src/components/common/DocumentScanFlow.vue	// 用户取消 / 未识别
+src/components/common/DocumentScanFlow.vue	// 用这张 + 完成
+src/components/common/DocumentScanFlow.vue	// 用这张 + 继续(多张模式)
+src/components/common/DocumentScanFlow.vue	// 重拍当前页
+src/components/common/DocumentScanFlow.vue	<!-- step: crop (fallback 手动 4 角) -->
+src/components/common/DocumentScanFlow.vue	<!-- 主备入口: 用户如果意外关掉了相机弹窗, 还能从这里选相册 / 重拍 -->
+src/components/common/DocumentScanFlow.vue	<!-- 单张模式: 重拍 / 用这张 两按钮 -->
+src/components/common/DocumentScanFlow.vue	<!-- 多张模式: 重拍 / 继续拍 / 完成 三按钮 -->
+src/components/common/DocumentScanFlow.vue	<!-- 调试条 -->
+src/components/common/DocumentScanFlow.vue	DocumentScanFlow · 通用文档扫描流(名片 / 发票等共用)
+src/components/common/DocumentScanFlow.vue	const total = accumulatedCount.value + 1  // +1 当前预览页
+src/components/common/DocumentScanFlow.vue	source: CameraSource.Photos,  // 强制从相册选, 不走相机
+src/components/common/DocumentScanFlow.vue	内部状态: 累积已确认的 pages, allowMulti=false 时 1 张就 emit done; true 时由用户决定
+src/components/common/DocumentScanFlow.vue	发出事件:
+src/components/common/DocumentScanFlow.vue	封装: VisionKit DocumentScanner 优先 → fallback Camera + ImageCrop4Corners
+src/components/common/DocumentScanFlow.vue	生命周期: capture (调相机) → crop (兜底手动 4 角) → preview (拍后预览)
+src/components/common/EditField.vue	// required: 标签后红 *；highlight: 必填未填，标签变橙
+src/components/common/EditField.vue	// 双层结构：小标签 11px + 大值 16px
+src/components/common/EditField.vue	// 字段行 — 严格对齐设计稿 edit-project.jsx FieldRow
+src/components/common/EditField.vue	highlight:{ type: Boolean, default: false },  // 必填未填高亮
+src/components/common/EditFormHeader.vue	// 中：标题（serif 18px）+ 副标题（11px ink3，必填进度提示）
+src/components/common/EditFormHeader.vue	// 右：保存胶囊按钮（dirty + 全填齐 → accent 橙；否则 ink4 灰）
+src/components/common/EditFormHeader.vue	// 左：取消（默认 router.back）
+src/components/common/EditFormHeader.vue	// 编辑/新建表单顶部 — 严格对齐设计稿 edit-project.jsx
+src/components/common/EditFormHeader.vue	cancelLabel: { type: String, default: '' },       // 空 → 用 i18n common.cancel
+src/components/common/EditFormHeader.vue	dirty: { type: Boolean, default: true },          // 是否有未保存改动
+src/components/common/EditFormHeader.vue	missingCount: { type: Number, default: 0 },       // 必填未完成数量
+src/components/common/EditFormHeader.vue	saveLabel: { type: String, default: '' },         // 空 → 用 i18n common.save
+src/components/common/FileCard.vue	// 在「我的消息」黑底气泡里 inverted=true，对方消息白底 inverted=false
+src/components/common/FileCard.vue	// 文件附件卡 —— 严格对齐 chat-screens.jsx DMChat (line 433-447) 风格
+src/components/common/FileCard.vue	<!-- 文件类型角标 -->
+src/components/common/FileCard.vue	const meta = computed(() => [props.size, props.pages ? `${props.pages} 页` : ''].filter(Boolean).join(' · '))
+src/components/common/FileCard.vue	inverted: { type: Boolean, default: false },    // 我的消息黑底
+src/components/common/FilledField.vue	// 对齐 customer-screens.jsx FilledField (12px label / 15px or 17px value / arrow / pin)
+src/components/common/FilledField.vue	accent:      { type: Boolean, default: false },  // value 用 accent 色（如 A 类）
+src/components/common/FilledField.vue	big:         { type: Boolean, default: false },  // 公司名等：衬线 17px
+src/components/common/FilterGroup.vue	// 对齐 customer-screens.jsx FilterGroup
+src/components/common/Highlight.vue	// 对齐 customer-screens.jsx Highlight：accentBg 底 + accent 文字
+src/components/common/ImageCrop4Corners.vue	//   1. 加载图原始尺寸到 imgEl
+src/components/common/ImageCrop4Corners.vue	//   2. 在覆盖层显示 4 个圆形 handle, 默认收缩到图四角内 8% (引导用户对准名片)
+src/components/common/ImageCrop4Corners.vue	//   3. 用户拖 handle → 更新 4 个像素坐标 (基于原始图坐标系)
+src/components/common/ImageCrop4Corners.vue	//   4. 完成时: canvas perspective transform, 把四边形 → 矩形输出
+src/components/common/ImageCrop4Corners.vue	//   @crop(blob, dataUrl): 用户点完成后回调, 给出裁剪后的 JPEG blob + data URL
+src/components/common/ImageCrop4Corners.vue	//   src: 图片 URL (blob:/file:/http: 都行)
+src/components/common/ImageCrop4Corners.vue	// 4 角拖拽 + canvas 透视变换裁剪
+src/components/common/ImageCrop4Corners.vue	// SVG 多边形描边 (4 角连接, 显示坐标)
+src/components/common/ImageCrop4Corners.vue	// canvas 绘制源图到 offscreen, 然后做 perspective sampling
+src/components/common/ImageCrop4Corners.vue	// src 换了等图 onload 重置
+src/components/common/ImageCrop4Corners.vue	// 上边线 tl→tr 在 v=0, 下边线 bl→br 在 v=1
+src/components/common/ImageCrop4Corners.vue	// 估算输出宽高: 取上下两边平均长度作输出宽, 左右两边作输出高
+src/components/common/ImageCrop4Corners.vue	// 初始 4 角默认离边 8% (留点空间提示用户拖)
+src/components/common/ImageCrop4Corners.vue	// 四角 (基于显示坐标 px)。顺序: TL, TR, BR, BL
+src/components/common/ImageCrop4Corners.vue	// 在源四边形内做双线性 (沿四边比例插值) — 简化版无矩阵, 名片直拍场景够用
+src/components/common/ImageCrop4Corners.vue	// 当前行起点 = lerp(tl, bl, v); 终点 = lerp(tr, br, v)
+src/components/common/ImageCrop4Corners.vue	// 把 corner 从旧坐标 → 新坐标 (转成原图比例再回投)
+src/components/common/ImageCrop4Corners.vue	// 把显示坐标 → 原图像素坐标
+src/components/common/ImageCrop4Corners.vue	// 最近邻 (够快, 名片不需要太精细)
+src/components/common/ImageCrop4Corners.vue	// 用法: <ImageCrop4Corners :src="blobUrl" @crop="onCropped" @cancel="..." />
+src/components/common/ImageCrop4Corners.vue	// 等比缩放 fit-contain
+src/components/common/ImageCrop4Corners.vue	// 输出 JPEG blob
+src/components/common/ImageCrop4Corners.vue	// 透视采样: 对输出每个像素 (u, v) ∈ [0,1]^2,
+src/components/common/ImageCrop4Corners.vue	// 逻辑:
+src/components/common/ImageCrop4Corners.vue	// 重新计算同时按比例迁移角点
+src/components/common/ImageCrop4Corners.vue	// 长边限制 outputMaxLong
+src/components/common/ImageCrop4Corners.vue	<!-- 4 个角 handle -->
+src/components/common/ImageCrop4Corners.vue	<!-- SVG 多边形描边 -->
+src/components/common/ImageCrop4Corners.vue	<!-- 图片 + 拖拽层 -->
+src/components/common/ImageCrop4Corners.vue	<!-- 底部提示 -->
+src/components/common/ImageCrop4Corners.vue	<!-- 顶部 nav -->
+src/components/common/ImageCrop4Corners.vue	const offsetX = ref(0)  // 图在容器内左上角偏移
+src/components/common/ImageCrop4Corners.vue	const ratio = ref(1)    // display:natural 比例
+src/components/common/ImageCrop4Corners.vue	outputMaxLong: { type: Number, default: 1600 },  // 输出长边像素上限
+src/components/common/LocationMiniMap.vue	// 不可拖动/缩放，纯展示；中国用高德瓦片，海外用 OSM
+src/components/common/LocationMiniMap.vue	// 聊天气泡内的缩略地图预览（设计 chat-location.jsx MiniMap 同款）
+src/components/common/LocationSheet.vue	//   - Leaflet 地图（中国高德瓦片 / 海外 OSM）
+src/components/common/LocationSheet.vue	//   - 选中后「发送」带 name + address，而非裸坐标
+src/components/common/LocationSheet.vue	//   - 附近地点列表（reverse geocode 当前位置 + 半径搜索）
+src/components/common/LocationSheet.vue	//   - 顶部搜索 → 调 Nominatim search 出候选
+src/components/common/LocationSheet.vue	// viewbox 限制在当前位置 ~5km 范围内（lon,lat,lon,lat 顺序：左下右上）
+src/components/common/LocationSheet.vue	// ── Nominatim 客户端（无 key, 1 req/s 限速；UA 必须）
+src/components/common/LocationSheet.vue	// ── 主流程
+src/components/common/LocationSheet.vue	// 共享位置（设计稿对齐 chat-pickers.jsx LocationPicker）：
+src/components/common/LocationSheet.vue	// 反向地理编码当前位置
+src/components/common/LocationSheet.vue	// 键盘弹起 → 地图容器高度变化 → 通知 Leaflet 重算
+src/components/common/LocationSheet.vue	<!-- 地图 -->
+src/components/common/LocationSheet.vue	<!-- 搜索框 -->
+src/components/common/LocationSheet.vue	<!-- 附近地点列表 -->
+src/components/common/LocationSheet.vue	<!-- 顶部 nav: 取消 / 共享位置 / 发送 -->
+src/components/common/LocationSheet.vue	const baseLat = ref(null)   // 起点（当前位置）
+src/components/common/MentionPopover.vue	// @/#/$ 3 维提及选择器
+src/components/common/MentionPopover.vue	// AI-only 模式（私聊场景）：@ 只显示源助手，不调用 /users/search
+src/components/common/MentionPopover.vue	// 在群聊 / 项目讨论：AI（源助手）总是可被 @
+src/components/common/MentionPopover.vue	// 把后端返回标准化为 { id, name, ... } 形式（render 里要 name 字段）
+src/components/common/MentionPopover.vue	// 接真后端搜索：@用户（按 conv/project scope 限制）/ #项目 / $客户
+src/components/common/MentionPopover.vue	// 监听 visible / type / query / scope 变化触发搜索
+src/components/common/MentionPopover.vue	// 真后端搜索（防抖式：每个 type+query 只发一次）
+src/components/common/MentionPopover.vue	// 真后端结果缓存
+src/components/common/MentionPopover.vue	// 私聊 @ 限制
+src/components/common/MentionPopover.vue	// 群成员 scope（@ 用户搜索时强制限制范围，避免全局 @）
+src/components/common/MentionPopover.vue	<!-- 列表 -->
+src/components/common/MentionPopover.vue	<!-- 头部 -->
+src/components/common/MentionPopover.vue	<!-- 客户 -->
+src/components/common/MentionPopover.vue	<!-- 底部切换条 -->
+src/components/common/MentionPopover.vue	<!-- 成员 -->
+src/components/common/MentionPopover.vue	<!-- 项目 -->
+src/components/common/MentionPopover.vue	aiOnly:  { type: Boolean, default: false }, // 私聊场景：@ 只显示源助手
+src/components/common/MentionPopover.vue	{{ sym }} {{ TYPE_META[sym]?.label?.replace(/^(提及|引用|Mention |Reference )/, '') || '' }}
+src/components/common/MessageActions.vue	// ── 转发 sheet 状态
+src/components/common/MessageActions.vue	// 关闭时重置子 sheet
+src/components/common/MessageActions.vue	// 没时间戳就让后端校验
+src/components/common/MessageActions.vue	// 消息长按 action sheet（复制 / 转发 / 撤回） + 转发 sheet
+src/components/common/MessageActions.vue	// 父组件传入 message（null 关闭），通过 events 收回结果
+src/components/common/MessageActions.vue	// 解析真实后端消息 ID（'srv-123' → 123；纯数字 → 123；其他 → null）
+src/components/common/MessageActions.vue	<!-- 转发 sheet -->
+src/components/common/MessageActions.vue	<!-- 顶级 action sheet：复制 / 转发 / 撤回 -->
+src/components/common/MessageAttachment.vue	// 把后端返回的相对 URL 拼成完整地址，并把 JWT 作为 ?token= 注入（用于 img/audio 直接访问）
+src/components/common/MessageAttachment.vue	// 数据由 ChatMessage.message_type + file_url + content(JSON) 组合
+src/components/common/MessageAttachment.vue	// 模块级缓存 baseURL + token，避免每次渲染都读 localStorage / 改正则
+src/components/common/MessageAttachment.vue	// 波形高度 — 与 chat-screens.jsx voice msg 设计稿一致
+src/components/common/MessageAttachment.vue	// 渲染聊天消息中的附件（image / file / voice / location）
+src/components/common/MessageAttachment.vue	<!-- 14 条波形 -->
+src/components/common/MessageAttachment.vue	<!-- ── 位置 ── 严格对齐 chat-location.jsx (252w 卡 + 顶部缩略图 + 下方名称/地址) -->
+src/components/common/MessageAttachment.vue	<!-- ── 图片 ── -->
+src/components/common/MessageAttachment.vue	<!-- ── 文件 ── 发送方 inverted=true: 黑底白字; 接收方: 浅 card -->
+src/components/common/MessageAttachment.vue	<!-- ── 语音 ── 发送方 inverted=true: 黑底白波形; 接收方: 浅 card 底 + 黑波形 -->
+src/components/common/MessageAttachment.vue	<!-- 发送方 (inverted=true): ink 黑底 + 白字; 接收方: 浅 card 底 + 黑字 -->
+src/components/common/MessageAttachment.vue	<!-- 播放钮：accent orange + 白色 ▶/■ (两态都用 accent, 视觉锚点) -->
+src/components/common/MessageAttachment.vue	<!-- 时长 -->
+src/components/common/MessageAttachment.vue	url:  { type: String, default: '' },        // file_url（可能是相对路径）
+src/components/common/MessageRefs.vue	// 消息附挂的引用卡列表（# 项目 / $ 客户）
+src/components/common/MessageRefs.vue	// 点击 → 跳转对应详情页
+src/components/common/MessageText.vue	// 消息文字渲染（含 @/#/$/§ token 自动着色）
+src/components/common/MessageText.vue	// 用法：放在 bubble 内部替代直接 {{ m.text }}
+src/components/common/MessageText.vue	inverted: { type: Boolean, default: false },  // 黑底气泡 → 用浅色 token
+src/components/common/NoteSheet.vue	// title/placeholder 为空时用 i18n 默认; 调用方可覆盖
+src/components/common/NoteSheet.vue	// ─── Capacitor Keyboard 事件作为兜底（iOS native resize 模式下 vv 可能不变）
+src/components/common/NoteSheet.vue	// ─── visualViewport：当键盘弹起，window.innerHeight - visualViewport.height = 键盘高度
+src/components/common/NoteSheet.vue	// 通用「添加跟进记录」底部弹层，被 ProjectDetailView / CustomerDetailView 共用
+src/components/common/NoteSheet.vue	// 键盘弹起时使用 visualViewport API（最可靠跨平台）+ Capacitor Keyboard 双保险
+src/components/common/NoteSheet.vue	<!-- 用 bottom 直接定位到键盘上方，比 padding 方案更可靠 -->
+src/components/common/NoteSheet.vue	const kbOffset = ref(0)  // 键盘遮挡 panel 底部需要抬起的像素
+src/components/common/OcrProcessingAnimation.vue	- 上方: 卡片堆叠(单张/双张/三张可选) + 横向扫描线
+src/components/common/OcrProcessingAnimation.vue	- 下方: 副标题 (12 ink3)
+src/components/common/OcrProcessingAnimation.vue	- 中间: 主标题 (serif 22)
+src/components/common/OcrProcessingAnimation.vue	- 字段揭示列表(stagger 250ms 淡入), 可选
+src/components/common/OcrProcessingAnimation.vue	// 字段揭示动画 - stagger 250ms
+src/components/common/OcrProcessingAnimation.vue	<!-- 主标题 -->
+src/components/common/OcrProcessingAnimation.vue	<!-- 副标题 -->
+src/components/common/OcrProcessingAnimation.vue	<!-- 卡片堆叠 + 扫描线 -->
+src/components/common/OcrProcessingAnimation.vue	<!-- 字段揭示列表 -->
+src/components/common/OcrProcessingAnimation.vue	<!-- 扫描线(横向移动) -->
+src/components/common/OcrProcessingAnimation.vue	<!-- 第一张(总是有) -->
+src/components/common/OcrProcessingAnimation.vue	<!-- 第三张(最底): cardCount === 3 -->
+src/components/common/OcrProcessingAnimation.vue	<!-- 第二张: cardCount >= 2 -->
+src/components/common/OcrProcessingAnimation.vue	<!-- 错误 + 重试 -->
+src/components/common/OcrProcessingAnimation.vue	@retry   用户点击"重拍"
+src/components/common/OcrProcessingAnimation.vue	OcrProcessingAnimation · 通用 OCR 识别动画
+src/components/common/OcrProcessingAnimation.vue	cardCount   1 | 2 | 3        卡片堆叠张数, 默认 3
+src/components/common/OcrProcessingAnimation.vue	error       错误信息(显示后可重试)
+src/components/common/OcrProcessingAnimation.vue	fields      [{label, val, confident}] 字段揭示列表, 可选
+src/components/common/OcrProcessingAnimation.vue	retryLabel  重拍按钮文案, 默认 "重拍"
+src/components/common/OcrProcessingAnimation.vue	subtitle    副标题, e.g. "通常 2-5 秒"
+src/components/common/OcrProcessingAnimation.vue	title       主标题, e.g. "正在识别 1 张名片"
+src/components/common/OcrProcessingAnimation.vue	从 ReceiptProcessingView 提取, 名片扫描/发票识别等共用。
+src/components/common/OcrProcessingAnimation.vue	视觉:
+src/components/common/PendingRefsPreview.vue	// composer 上方的待发引用卡预览（# / $ / §），每张卡右上角有 × 移除按钮
+src/components/common/PersonPickerSheet.vue	// 椭圆 chip 自适应换行 + 搜索 + 部门快筛
+src/components/common/PersonPickerSheet.vue	// 选人 sheet — 严格对齐设计稿 edit-project.jsx PickSalesOwner
+src/components/common/PersonPickerSheet.vue	<input v-model="search" type="text" placeholder="搜索姓名或部门"
+src/components/common/PersonPickerSheet.vue	activeDept.value = '全部'
+src/components/common/PersonPickerSheet.vue	const activeDept = ref('全部')
+src/components/common/PersonPickerSheet.vue	const set = new Set(['全部'])
+src/components/common/PersonPickerSheet.vue	if (activeDept.value !== '全部' && o.department !== activeDept.value) return false
+src/components/common/PersonPickerSheet.vue	style="font-size: 14px; color: var(--color-accent); font-weight: 500;">清空</button>
+src/components/common/PersonPickerSheet.vue	style="font-size: 14px; color: var(--color-ink-2); font-weight: 500;">取消</button>
+src/components/common/PersonPickerSheet.vue	title:        { type: String,  default: '选择负责人' },
+src/components/common/PersonPickerSheet.vue	已选 <span style="color: var(--color-accent); font-weight: 600;">{{ selectedCount }}</span> 人
+src/components/common/PersonPickerSheet.vue	没有匹配的人员
+src/components/common/PersonPickerSheet.vue	确定
+src/components/common/PickerSheet.vue	//   <PickerSheet v-model="show" title="选择行业" :options="[{value,label},...]"
+src/components/common/PickerSheet.vue	// 用法：
+src/components/common/PickerSheet.vue	// 通用底部 chip 选择器
+src/components/common/PickerSheet.vue	title:      { type: String,  default: '请选择' },
+src/components/common/PixelP.vue	// 18 格，6 行 × 5 列；t: b=亮蓝 / d=深蓝 / w=白 / h=洞（与 bg 同色）
+src/components/common/PixelP.vue	// PIXEL_P 数据（splash-login.jsx line 16-24）
+src/components/common/PixelP.vue	// PMA 像素 P logo —— 严格对齐 splash-login.jsx PIXEL_P + cellColor
+src/components/common/PixelP.vue	b: '#4D82E0',  // 亮蓝
+src/components/common/PixelP.vue	bg:      { type: String, default: 'transparent' }, // 整体背景；splash 内圆形可用 navy
+src/components/common/PixelP.vue	d: '#2F66D6',  // 深蓝
+src/components/common/PixelP.vue	h: '#0E1828',  // 洞（深 navy）
+src/components/common/PixelP.vue	w: '#FFFFFF',  // 白
+src/components/common/ReadReceipt.vue	//   'delivered' → 双灰勾（已到服务器，对方未读）
+src/components/common/ReadReceipt.vue	//   'read'      → 双蓝勾（对方已读）
+src/components/common/ReadReceipt.vue	//   'sending'   → 单灰勾（本地发出，未到服务器）
+src/components/common/ReadReceipt.vue	// WhatsApp 风格已读回执
+src/components/common/ReadReceipt.vue	<!-- 单勾：发送中 -->
+src/components/common/ReadReceipt.vue	<!-- 双勾：已送达（灰）/ 已读（蓝） -->
+src/components/common/ReadReceipt.vue	const COLOR_BLUE = '#34B7F1'  // WhatsApp 蓝
+src/components/common/StageAdvanceCard.vue	// 用法：聊天流里作为系统消息 kind='stage-advance' 渲染
+src/components/common/StageAdvanceCard.vue	// 阶段推进卡 —— 严格对齐 chat-screens.jsx StageAdvance 内的核心 box (line 372-414)
+src/components/common/StageAdvanceCard.vue	<!-- 从 → 到 -->
+src/components/common/StageAdvanceCard.vue	<!-- 备注（衬线斜体引用） -->
+src/components/common/StageAdvanceCard.vue	<!-- 操作人 + 时间 -->
+src/components/common/StageAdvanceCard.vue	<!-- 浮标 "阶段推进" -->
+src/components/common/StageAdvanceCard.vue	<span class="font-serif italic" style="color: var(--color-ink-3);"> 推进了阶段</span>
+src/components/common/StageAdvanceCard.vue	note:      { type: String, default: '' },     // 备注（衬线斜体引用样式）
+src/components/common/StageAdvanceCard.vue	style="color: var(--color-accent); background: var(--color-bg); letter-spacing: 1px;">阶段推进</div>
+src/components/common/StageAdvanceCard.vue	style="color: var(--color-accent); letter-spacing: 0.5px;">到</div>
+src/components/common/StageAdvanceCard.vue	style="color: var(--color-ink-3); letter-spacing: 0.5px;">从</div>
+src/components/common/StageDot.vue	// + screens.jsx AStageDot 的 6 tone 补 'pre_tender' 与 'paused'
+src/components/common/StageDot.vue	// 严格对齐 customer-screens.jsx StageDot 配色（5 tone）
+src/components/common/StageDot.vue	awarded:    { color: '#D97757', label: '授权' },
+src/components/common/StageDot.vue	bidding:    { color: '#D97757', label: '招标中' },
+src/components/common/StageDot.vue	discover:   { color: '#7A7570', label: '发现' },
+src/components/common/StageDot.vue	embed:      { color: '#7A7570', label: '嵌入' },
+src/components/common/StageDot.vue	lost:       { color: '#C2BBB3', label: '丢单' },
+src/components/common/StageDot.vue	paused:     { color: '#C2BBB3', label: '暂停' },
+src/components/common/StageDot.vue	pre_tender: { color: '#7A7570', label: '预招标' },
+src/components/common/StageDot.vue	quoted:     { color: '#D97757', label: '已报价' },
+src/components/common/StageDot.vue	signed:     { color: '#1A1A1A', label: '签约' },
+src/components/common/StageDot.vue	tendering:  { color: '#D97757', label: '招标中' },
+src/components/common/StageDot.vue	won:        { color: '#1A1A1A', label: '签约' },
+src/components/common/SwipeRowAction.vue	- disabled: 禁用滑动(如非草稿不允许删除)
+src/components/common/SwipeRowAction.vue	- 任何外部 tap (如另一行 swipe / 滚动) 自动收回
+src/components/common/SwipeRowAction.vue	- 滑动 > 阈值显示按钮; 释放时 snap to 0 或 -actionWidth
+src/components/common/SwipeRowAction.vue	// 单一打开: 任何其它 SwipeRowAction 打开时, 自己收回
+src/components/common/SwipeRowAction.vue	// 弹性: 拉超 -actionWidth 后缩减增量
+src/components/common/SwipeRowAction.vue	// 操作完成自动收回
+src/components/common/SwipeRowAction.vue	// 横向滑动: 只允许向左拉(dx<0); 向右拉超过 0 时夹回 0
+src/components/common/SwipeRowAction.vue	// 滑过半数 → snap 到 fully open; 否则收回
+src/components/common/SwipeRowAction.vue	// 滚动列表也收回
+src/components/common/SwipeRowAction.vue	// 点行内任意位置 → 如果当前是打开状态, 第一次点收回(吃掉点击, 不触发行内 router.push)
+src/components/common/SwipeRowAction.vue	// 第一次 move: 判断方向(横向才接管)
+src/components/common/SwipeRowAction.vue	// 通知所有同级 SwipeRowAction 收回(单一打开)
+src/components/common/SwipeRowAction.vue	<!-- 内容(可滑动) -->
+src/components/common/SwipeRowAction.vue	<!-- 操作按钮区(在内容下方, 滑出后显露) -->
+src/components/common/SwipeRowAction.vue	SwipeRowAction · 通用左滑显示操作按钮(类 iOS Mail 删除)
+src/components/common/SwipeRowAction.vue	actionWidth: { type: Number, default: 80 },       // 单个 action 默认 80
+src/components/common/SwipeRowAction.vue	if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return  // 还不够判定
+src/components/common/SwipeRowAction.vue	let isHorizontal = null  // null/true/false — 第一次 move 时锁定方向
+src/components/common/SwipeRowAction.vue	threshold: { type: Number, default: 30 },          // 拖动多少 px 才认为是滑动手势
+src/components/common/VoiceMsg.vue	// 14 根波形条 + ▶ 播放按钮 + 时长 tabular
+src/components/common/VoiceMsg.vue	// 波形（mock，14 根 5-20px 高度）—— 真实接入时由后端 / WebAudio 出频谱
+src/components/common/VoiceMsg.vue	// 真接入后这里 audio.play()/pause()
+src/components/common/VoiceMsg.vue	// 语音消息卡 —— 严格对齐 chat-screens.jsx DMChat 语音波形 (line 451-467)
+src/components/common/VoiceMsg.vue	<!-- 播放按钮 -->
+src/components/common/VoiceMsg.vue	<!-- 时长 -->
+src/components/common/VoiceMsg.vue	<!-- 波形 -->
+src/components/common/VoiceMsg.vue	inverted: { type: Boolean, default: false },   // 我的消息黑底
+src/components/common/VoiceRecordSheet.vue	// iOS WKWebView 支持 audio/mp4, Android/Chrome 支持 audio/webm
+src/components/common/VoiceRecordSheet.vue	// 简化交互：点击麦克风开始/停止录音；左滑取消、点发送上传
+src/components/common/VoiceRecordSheet.vue	// 简易波形条（非实时频谱，使用伪随机静态数据避免性能开销）
+src/components/common/VoiceRecordSheet.vue	// 语音消息录制底部弹层 — Web MediaRecorder 实现
+src/components/common/VoiceRecordSheet.vue	<!-- 已录制 → 试听 -->
+src/components/common/VoiceRecordSheet.vue	<!-- 操作按钮 -->
+src/components/common/VoiceRecordSheet.vue	<!-- 标题行：录音中红点 + 时长 -->
+src/components/common/VoiceRecordSheet.vue	<!-- 波形显示区 -->
+src/components/common/VoiceRecordSheet.vue	<!-- 麦克 / 停止图标 -->
+src/components/common/VoiceRecordSheet.vue	const elapsed = ref(0)         // 秒
+src/components/common/refs/ContactRefCard.vue	// 严格对齐 chat-bridge.jsx ContactRefCard (line 293-319)
+src/components/common/refs/ContactRefCard.vue	<div class="text-[9px] font-bold uppercase" style="color: var(--color-ink-3); letter-spacing: 1px;">联系人</div>
+src/components/common/refs/CustomerRefCard.vue	// 严格对齐 chat-bridge.jsx CustomerRefCard (line 240-264)
+src/components/common/refs/CustomerRefCard.vue	<div class="text-[9px] font-bold uppercase" style="color: var(--color-ink-3); letter-spacing: 1px;">客户</div>
+src/components/common/refs/CustomerRefCard.vue	<span class="font-semibold tabular" style="color: var(--color-ink);">¥{{ value }}万</span>
+src/components/common/refs/CustomerRefCard.vue	status:  { type: String, default: '活跃' },
+src/components/common/refs/CustomerRefCard.vue	tier:    { type: String, default: '' },     // A/B/C，可选
+src/components/common/refs/ProjectRefCard.vue	// 严格对齐 chat-bridge.jsx ProjectRefCard (line 219-238)
+src/components/common/refs/ProjectRefCard.vue	<div class="text-[9px] font-bold uppercase" style="color: var(--color-ink-3); letter-spacing: 1px;">项目</div>
+src/components/common/refs/ProjectRefCard.vue	<span class="font-semibold tabular" style="color: var(--color-ink);">¥{{ amount }}万</span>
+src/components/common/refs/ProjectRefCard.vue	stageTone: { type: String, default: '#7A7570' },  // 阶段彩点颜色
+src/components/expense/ApprovalSheet.vue	- CTA 取消(flex 1 outline) + 确认(flex 2 action color)
+src/components/expense/ApprovalSheet.vue	- drag indicator → eyebrow(action 大写) → 22 serif title → ID 13 ink3
+src/components/expense/ApprovalSheet.vue	- forward 时上方"转交给"卡 (含 user-picker)
+src/components/expense/ApprovalSheet.vue	- 三种 action 决定颜色: approve=green / reject=red / forward=blue
+src/components/expense/ApprovalSheet.vue	- 备注卡(reject 必填红 *, approve 可选 + 一键标签)
+src/components/expense/ApprovalSheet.vue	// 业务对象 kind (expense / project / pricing_order / quotation), 用于隐藏报销专属 chip
+src/components/expense/ApprovalSheet.vue	// 业务对象类型 (报销单/项目/批价单/报价单/采购单), 用于 title 和 placeholder
+src/components/expense/ApprovalSheet.vue	// 点击确认 — 校验失败用 alert 提示(替代之前 disabled 灰按钮的视觉)
+src/components/expense/ApprovalSheet.vue	<!-- CTA - 加 role="button" 让 useKeyboardOffset 识别为可交互元素,
+src/components/expense/ApprovalSheet.vue	<!-- eyebrow: 设计稿是 label.toUpperCase()(中文 toUpperCase 还是中文); 不能直接显示英文 -->
+src/components/expense/ApprovalSheet.vue	<!-- forward 选人卡 -->
+src/components/expense/ApprovalSheet.vue	<!-- 同意快捷标签 -->
+src/components/expense/ApprovalSheet.vue	<!-- 备注框 -->
+src/components/expense/ApprovalSheet.vue	ApprovalSheet · 同意/驳回/转交 sheet
+src/components/expense/ApprovalSheet.vue	alert('请填写驳回原因(至少 5 个字)')
+src/components/expense/ApprovalSheet.vue	alert('请选择转交目标')
+src/components/expense/ApprovalSheet.vue	const isExpense = props.objectKind === 'expense' || (!props.objectKind && obj.includes('报销'))
+src/components/expense/ApprovalSheet.vue	不在 touchstart 时 dismiss 键盘(避免按钮位置在键盘下落动画中位移导致 click 落空) -->
+src/components/expense/ApprovalSheet.vue	严格对齐 design_handoff/expense-approval.jsx::ApprovalSheet (L235-311)
+src/components/expense/ExBottomBar.vue	- 卡片背景, 顶部 1px divider
+src/components/expense/ExBottomBar.vue	- 右 primary: flex-2, 46px 高, ink 背景白字; disabled → divider 背景 ink4 字
+src/components/expense/ExBottomBar.vue	- 左 secondary: flex-1, 46px 高, 23 圆角, 1.5px divider 边
+src/components/expense/ExBottomBar.vue	- 绝对底部, padding 12/16/28(留 home indicator)
+src/components/expense/ExBottomBar.vue	ExBottomBar · 表单底部 CTA
+src/components/expense/ExBottomBar.vue	secondary: { type: String, default: '' },  // 空字符串 → 不渲染次按钮, primary 撑满
+src/components/expense/ExBottomBar.vue	严格对齐 design_handoff/expense-list-form.jsx::ExBottomBar (L488-505)
+src/components/expense/ExConfirmSheet.vue	- color: 'red' (危险动作如删除) / 'ink' (普通确认)
+src/components/expense/ExConfirmSheet.vue	ExConfirmSheet · 通用二次确认 sheet (召回/删除等单选确认)
+src/components/expense/ExConfirmSheet.vue	对齐 ExSubmitSheet 视觉风格 (drag + eyebrow + serif title + sub + 取消/确认 按钮)
+src/components/expense/ExDefRow.vue	- padding 11/20, gap 12, 底部 1px dividerSoft (last 隐藏)
+src/components/expense/ExDefRow.vue	ExDefRow · 定义列表行(详情卡用)
+src/components/expense/ExDefRow.vue	严格对齐 design_handoff/expense-list-form.jsx::DefRow (L449-457)
+src/components/expense/ExFieldRow.vue	- note 10px ink4 (warn 时同色 warn)
+src/components/expense/ExFieldRow.vue	- padding 12/20, 顶部 1px dividerSoft
+src/components/expense/ExFieldRow.vue	- value 14/500, warn 时 warn 颜色
+src/components/expense/ExFieldRow.vue	- 卡片背景, warn 时切 warnSoft 背景
+src/components/expense/ExFieldRow.vue	- 末尾: lock 时 🔒, 否则 ›
+src/components/expense/ExFieldRow.vue	ExFieldRow · OCR 核对字段行
+src/components/expense/ExFieldRow.vue	严格对齐 design_handoff/expense-receipt.jsx::FieldRow (L293-306)
+src/components/expense/ExFlowNode.vue	* @property {string=} remark - 备注(可选)
+src/components/expense/ExFlowNode.vue	* @property {string|null} at - 处理时间(done 节点必填)
+src/components/expense/ExFlowNode.vue	* @property {string} node - 节点名(如 "票据审核")
+src/components/expense/ExFlowNode.vue	* @property {string} user - 处理人姓名
+src/components/expense/ExFlowNode.vue	- 三态: done(绿) / current(warn 双环) / pending(ink4)
+src/components/expense/ExFlowNode.vue	- 子文本: user · 已通过/处理中/待处理 + 可选 remark(斜体引号)
+src/components/expense/ExFlowNode.vue	- 时间线竖线 1px divider, 不在最后一个节点出现
+src/components/expense/ExFlowNode.vue	- 点 14x14, 当前节点带 3px warnSoft border + 0 0 0 2px warn shadow
+src/components/expense/ExFlowNode.vue	- 节点标题 13/600, current 时 ink, 否则 ink2
+src/components/expense/ExFlowNode.vue	<!-- current 用多重 box-shadow 双圈(替代 border, 避免改变 box 大小) -->
+src/components/expense/ExFlowNode.vue	<!-- 右端: 召回(创建人 + current) 优先, 否则时间戳 -->
+src/components/expense/ExFlowNode.vue	<!-- 文本 -->
+src/components/expense/ExFlowNode.vue	<!-- 时间线 dot + line -->
+src/components/expense/ExFlowNode.vue	ExFlowNode · 审批流时间线节点
+src/components/expense/ExFlowNode.vue	严格对齐 design_handoff/expense-list-form.jsx::ExFlowNode (L459-486)
+src/components/expense/ExFlowSheet.vue	ExFlowSheet · 审批流程时间线 sheet
+src/components/expense/ExFlowSheet.vue	替代之前在每个详情页底部塞一大块"审批进度"的做法
+src/components/expense/ExFlowSheet.vue	顶部状态 chip 点击 → 弹出此 sheet 显示完整流程节点
+src/components/expense/ExLineDetailSheet.vue	// PDF 直接调 iOS in-app Safari, 完整 pinch zoom / 翻页 / 分享
+src/components/expense/ExLineDetailSheet.vue	// 兼容两种字段名(line.expense_category 来自 expense.lines, line.category 来自 approval lines)
+src/components/expense/ExLineDetailSheet.vue	// 内联编辑状态
+src/components/expense/ExLineDetailSheet.vue	// 当前可编辑字段(由审批步骤 editable_fields 决定); 包含哪个字段就显示 ✏ chip
+src/components/expense/ExLineDetailSheet.vue	// 用 iOS in-app Safari 打开 PDF (有完整 pinch zoom / 翻页 / 分享)
+src/components/expense/ExLineDetailSheet.vue	<!-- PDF: 占位 + 角标 -->
+src/components/expense/ExLineDetailSheet.vue	<!-- hero: 科目 + 金额 -->
+src/components/expense/ExLineDetailSheet.vue	<!-- 全屏图片查看器 (PDF 走 Capacitor Browser, 不进这层) -->
+src/components/expense/ExLineDetailSheet.vue	<!-- 内容滚动 -->
+src/components/expense/ExLineDetailSheet.vue	<!-- 发票照片网格 -->
+src/components/expense/ExLineDetailSheet.vue	<!-- 字段表 -->
+src/components/expense/ExLineDetailSheet.vue	<!-- 无照片提示 -->
+src/components/expense/ExLineDetailSheet.vue	<!-- 标题栏 -->
+src/components/expense/ExLineDetailSheet.vue	ExLineDetailSheet · 报销明细详情 sheet (只读查看)
+src/components/expense/ExLineDetailSheet.vue	const m = { CNY: '人民币', USD: '美元', HKD: '港币', TWD: '台币', SGD: '新加坡元', MYR: '马来西亚林吉特', IDR: '印尼盾', THB: '泰铢', VND: '越南盾' }
+src/components/expense/ExLineDetailSheet.vue	在 ExpenseDetail / ApprovalDetail 中点 明细行 → 弹出此 sheet
+src/components/expense/ExLineDetailSheet.vue	显示: 完整字段 + 发票照片网格(点击放大全屏 + 左右切换)
+src/components/expense/ExLineFormSheet.vue	ExLineFormSheet · 手动添加/编辑明细 sheet
+src/components/expense/ExLineFormSheet.vue	字段: 报销科目 / 发生日期 / 金额 / 币种 / 描述 / 单据数
+src/components/expense/ExNav.vue	- 位置: top=STATUS_PAD(54), height=48
+src/components/expense/ExNav.vue	- 标题: 15/600 ink, sub 11 ink3
+src/components/expense/ExNav.vue	- 背景: EX.bg, 底部 1px 实色 divider
+src/components/expense/ExNav.vue	- 返回箭头: 32x32, 字号 22, 颜色 ink2
+src/components/expense/ExNav.vue	ExNav · 报销模块顶部导航条
+src/components/expense/ExNav.vue	严格对齐 design_handoff/expense-list-form.jsx::ExNav (L5-19)
+src/components/expense/ExPickerSheet.vue	<div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="close">取消</div>
+src/components/expense/ExPickerSheet.vue	ExPickerSheet · 通用底部 picker (chip 选项列表)
+src/components/expense/ExPickerSheet.vue	title: { type: String, default: '请选择' },
+src/components/expense/ExRow.vue	- label: 84px 宽, 12px ink3
+src/components/expense/ExRow.vue	- value: 14px ink, 行高 multi=1.55 / 否则 1.4
+src/components/expense/ExRow.vue	- 卡片背景, padding 12/20, 顶部 1px dividerSoft
+src/components/expense/ExRow.vue	ExRow · 报销表单单行(label/value/sub/right)
+src/components/expense/ExRow.vue	严格对齐 design_handoff/expense-list-form.jsx::RowEx (L428-440)
+src/components/expense/ExSearchPickerSheet.vue	>取消</div>
+src/components/expense/ExSearchPickerSheet.vue	ExSearchPickerSheet · 通用搜索选择 sheet
+src/components/expense/ExSearchPickerSheet.vue	placeholder:{ type: String,  default: '输入关键词搜索' },
+src/components/expense/ExSearchPickerSheet.vue	title:      { type: String,  default: '搜索' },
+src/components/expense/ExSearchPickerSheet.vue	搜索中...
+src/components/expense/ExSearchPickerSheet.vue	没有找到相关结果
+src/components/expense/ExSearchPickerSheet.vue	用于 ExpenseEditView 的"关联客户/关联项目"挑选, 走后端 search API
+src/components/expense/ExSectionHeader.vue	ExSectionHeader · 区块标题(eyebrow)
+src/components/expense/ExSectionHeader.vue	严格对齐 design_handoff/expense-list-form.jsx::SectionHeader (L442-447)
+src/components/expense/ExSubmitSheet.vue	- eyebrow 11 ink3 letterSpacing 0.6 "提交审批"
+src/components/expense/ExSubmitSheet.vue	- title 22/500 serif "确认提交?"
+src/components/expense/ExSubmitSheet.vue	- 下一节点 callout: warnSoft 背景, padding 10/12, radius 8
+src/components/expense/ExSubmitSheet.vue	- 信息卡: 14 padding, card bg, 1px divider 边
+src/components/expense/ExSubmitSheet.vue	- 按钮: 取消(flex 1, 48 高, 24 圆, divider 边) + 确认提交(flex 2, ink 黑底)
+src/components/expense/ExSubmitSheet.vue	<!-- 下一节点预告 -->
+src/components/expense/ExSubmitSheet.vue	<!-- 信息卡 -->
+src/components/expense/ExSubmitSheet.vue	<!-- 按钮组 - role="button" 让 useKeyboardOffset 识别为可交互 -->
+src/components/expense/ExSubmitSheet.vue	ExSubmitSheet · 提交确认 sheet
+src/components/expense/ExSubmitSheet.vue	def-list 12 ink3 -> ink2(关联客户/项目/明细数)
+src/components/expense/ExSubmitSheet.vue	eyebrow 11/600 warn "下一节点"
+src/components/expense/ExSubmitSheet.vue	严格对齐 design_handoff/expense-list-form.jsx::ExpenseSubmitSheet (L361-425)
+src/components/expense/ExSubmitSheet.vue	分隔 1px dividerSoft
+src/components/expense/ExSubmitSheet.vue	正文 13 ink2: <name 600> · <node> · 通常 1 个工作日内
+src/components/expense/ExSubmitSheet.vue	行: 报销总金额(13 ink3) + 数额(20 serif 600)
+src/components/project/ProjectSubmitSheet.vue	<!-- 下一节点提示 -->
+src/components/project/ProjectSubmitSheet.vue	<!-- 项目信息卡 -->
+src/components/project/ProjectSubmitSheet.vue	<!-- 项目名 + 类型徽章 -->
+src/components/project/ProjectSubmitSheet.vue	ProjectSubmitSheet · 项目提交审批确认 sheet
+src/components/project/ProjectSubmitSheet.vue	字段:项目名(主体) + 项目类型徽章 + 关联客户 + 负责人 + 预计金额
+src/components/project/ProjectSubmitSheet.vue	视觉对齐 ExSubmitSheet (报销),展示项目摘要而非金额明细
+src/composables/useApprovalRecall.js	// 兼容两种约定: axios response 含 data.success / mobile api_response 含 success 字段
+src/composables/useApprovalRecall.js	// 用法:
+src/composables/useApprovalRecall.js	// 通用召回逻辑 — 任何业务详情页接入审批召回时复用。
+src/composables/useApprovalRecall.js	export function useApprovalRecall({ request, onSuccess, errorPrefix = '召回失败' }) {
+src/composables/useKeyboardOffset.js	//                                跟 native resize 动画同步的操作。
+src/composables/useKeyboardOffset.js	//   - 点击键盘外的纯展示区域 → 自动 dismiss 键盘 (iOS 中文键盘没有 Done 键)
+src/composables/useKeyboardOffset.js	//   - 键盘升起时自动 scrollIntoView 当前 focused input (表单页避免遮挡)
+src/composables/useKeyboardOffset.js	// (resize:native 等环境) 时作为加成更新; 归零交给 keyboardWillHide。
+src/composables/useKeyboardOffset.js	// didShow 时 padding transition 已完成, scrollEl 容器已缩小, scrollHeight 是最终值
+src/composables/useKeyboardOffset.js	// paddingBottom 减 env(safe-area-inset-bottom): 键盘弹起时 home indicator 区域已被键盘
+src/composables/useKeyboardOffset.js	// resize:None 下 visualViewport 键盘弹起时不变 (diff≈0), 不能用它清零 kbOffset
+src/composables/useKeyboardOffset.js	// visualViewport 算, 供 fixed sheet 使用。
+src/composables/useKeyboardOffset.js	// —— 否则会盖掉 keyboardWillShow 拿到的原生 keyboardHeight。 仅当 vv 真算出正值
+src/composables/useKeyboardOffset.js	// 上次值兜底, 让 kbStyle 对所有 fixed sheet 正确抬起。
+src/composables/useKeyboardOffset.js	// 不在 button / a / input 上 dismiss, 避免动画期间按钮位移导致 click 落空
+src/composables/useKeyboardOffset.js	// 但 position: fixed 的 sheet 在某些 iOS 版本仍参考物理屏幕, 不跟随 keyboard, 因此
+src/composables/useKeyboardOffset.js	// 使用:
+src/composables/useKeyboardOffset.js	// 全局共享: 跨视图记住上次拿到的真实键盘高度, 兜底首次 willShow keyboardHeight=0
+src/composables/useKeyboardOffset.js	// 全屏页用 CSS `100dvh` 自动响应键盘, 不需要手动 padding。 这里订阅事件仅为
+src/composables/useKeyboardOffset.js	// 到键盘上方, window.innerHeight + visualViewport 自动变小, h-full / 100% 全屏容器
+src/composables/useKeyboardOffset.js	// 副作用:
+src/composables/useKeyboardOffset.js	// 原生 keyboardHeight 是 resize:None 下唯一可靠的键盘高度 (与 main.js
+src/composables/useKeyboardOffset.js	// 我们仍提供 kbOffset / kbStyle 供这些场景手动抬起。
+src/composables/useKeyboardOffset.js	// 点击键盘外纯展示区域 → 收起键盘 (iOS 中文键盘无 Done)
+src/composables/useKeyboardOffset.js	// 给消费者提供 onKeyboardWillShow hook (chat scrollToBottom 用)。 kbOffset 仍由
+src/composables/useKeyboardOffset.js	// 自 build 10 起 Capacitor `Keyboard.resize: 'native'` 模式让 iOS WKWebView 自己 resize
+src/composables/useKeyboardOffset.js	// 自然跟着缩 — 全屏页 (chat / form 等) **不需要** 手动 paddingBottom = kbOffset。
+src/composables/useKeyboardOffset.js	// 覆盖, 不该再 padding 一遍 (env=21pt iPhone X+, env=0 其他)
+src/composables/useKeyboardOffset.js	// 设的 --kb-height 同源)。 首次 willShow 偶发 keyboardHeight=0, 用全局
+src/composables/useKeyboardOffset.js	// 跨平台键盘高度订阅 — 主要给 fixed 浮层(NoteSheet/LocationSheet/Approval/...) 用。
+src/composables/useKeyboardOffset.js	// 钩子: onKeyboardWillShow(cb) — 键盘**将要**弹起那一帧触发, 用于 scrollToBottom 等
+src/composables/useLongPress.js	// 用法：
+src/composables/useLongPress.js	// 长按检测（移动端）—— 触发 callback(payload) 在 delay ms 后
+src/composables/useMention.js	* - # 项目 / $ 客户：仅挂卡片，不动输入文字（图标触发无 token；输入触发也直接清掉）
+src/composables/useMention.js	* - @ 用户：把 @xxx 替换为 @全名+空格 留在文字里（@ 通知功能要保留 token）
+src/composables/useMention.js	/** input 值变化时调用，传入当前文本 + 光标位置 */
+src/composables/useMention.js	/** 用户在 popover 里点了一项
+src/composables/useMention.js	/** 由外部图标按钮调用：直接打开 # 或 $ 选择器，无文字 token */
+src/composables/useMention.js	// # / $ 只挂卡片
+src/composables/useMention.js	// - # / $ 不再走输入文字触发，由外部图标按钮调 openPicker('#') / openPicker('$')
+src/composables/useMention.js	// - @ 选中后留 @全名 token 在文字里；# / $ 选中后只挂卡片，不进文字
+src/composables/useMention.js	// - 输入 @ → 自动弹 popover（@ 通知是普遍习惯保留）
+src/composables/useMention.js	// @ 必走文字 token 替换
+src/composables/useMention.js	// 仅 @ 触发输入文字检测；# / $ 改用图标按钮主动调用
+src/composables/useMention.js	// 内部状态：当前 token 的起始位置（用于替换）；-1 = 无 token；-2 = 图标触发（无文字 token 要删）
+src/composables/useMention.js	// 在 caret 之前向左找到最近的 trigger 字符
+src/composables/useMention.js	// 如果遇到空格/换行，token 中断
+src/composables/useMention.js	// 待发引用（# 项目 / $ 客户），@ 人不挂卡所以不进
+src/composables/useMention.js	// 检查 trigger 前一个字符必须是 空格 / 行首 / 标点（避免在邮箱里乱触发）
+src/composables/useMention.js	// 输入框 ↔ MentionPopover 联动 composable
+src/composables/useMention.js	// 输入触发：清掉 #xxx 文字
+src/composables/useMention.js	tokenStart = -2  // 图标触发，无 token 文字要删
+src/main.js	// Capacitor keyboardHeight 已是键盘完整可见高度 (含 autocomplete bar / 候选词栏)
+src/main.js	// None 模式：webview/body 都不自动 resize → 由各页面 composer 用 kbOffset 同步 transform
+src/main.js	// Source Serif Pro：自托管 400 + 600 + 700
+src/main.js	// ─── Capacitor Keyboard：用 Body 模式让键盘弹起时压缩页面
+src/main.js	// ─── Capgo OTA：通知 native 端 web 已准备好（释放冷启等待，autoUpdate 会自动检查新版本）
+src/main.js	// 已登录用户启动 App 时补一次 APNs push 注册 (login 流程会注册, 这里覆盖"已登录后冷启动")
+src/main.js	// 让 iOS 自动滚动聚焦的输入框到可见区 (覆盖普通表单页) — 聊天 composer 用 kbOffset 自管, 不冲突
+src/main.js	// 设计稿用 W500，Source Serif Pro 没有 W500 → 浏览器自动 fallback 到 W600
+src/main.js	// 防御性动态 import：如果原生层未安装该插件（旧 Xcode build），不会崩溃
+src/plugins/documentScanner.js	// JS 端代理 → 原生 DocumentScanner plugin (iOS only, VisionKit)
+src/plugins/documentScanner.js	// reject. 调用方应 try/catch 并 fallback 到手动裁剪流程。
+src/plugins/documentScanner.js	// web 平台没有 VisionKit, 直接拒绝让调用方 fallback
+src/plugins/documentScanner.js	// 用法:
+src/plugins/documentScanner.js	// 老版本 App 没装这个原生插件 → registerPlugin 返回 proxy, 调方法时
+src/router/index.js	// 审批模块详情(列表已存在)
+src/router/index.js	// 报销模块
+src/router/index.js	// 第一次进 App 任何页面，先走 splash
+src/router/index.js	// 跟踪是否已经播过 splash —— App 启动后只播一次
+src/stores/auth.js	* 切换到另一个区域 (用 reactive tokens 判断)
+src/stores/auth.js	* 安全要点: 登录前必须清掉两区所有残留 token —— 否则同一台设备前次登录的
+src/stores/auth.js	* 智能并行登录: 同时尝试 CN + SG
+src/stores/auth.js	* 用户残留 token 会被新用户继承, 导致"Patrick 登录后能切到 liuwei"的串号 bug
+src/stores/auth.js	//     region                — 'cn' | 'sg' (当前活跃区域)
+src/stores/auth.js	//     user_cn / user_sg     — 各区域 user 资料
+src/stores/auth.js	// i18n: SG 区一律英文 (覆盖个人 language_preference); 其它区按用户偏好
+src/stores/auth.js	// iOS push notifications: 拿 device token 并上报后端 (失败不影响登录)
+src/stores/auth.js	// liuwei 在 CN 是本地用户, 在 SG 是镜像 → 默认进 CN
+src/stores/auth.js	// 两边 token / user 都存 reactive state, getter 才能正确响应
+src/stores/auth.js	// 主区不存在(双 mirror 或 API 没返回 is_mirror)时, 退回 remembered → cn → 任一
+src/stores/auth.js	// 兼容旧 key
+src/stores/auth.js	// 兼容旧 key (access_token / user) — 首次升级时迁移到新 key, 标 region=cn
+src/stores/auth.js	// 同步 reactive state
+src/stores/auth.js	// 同步旧 key 给暂未升级的代码
+src/stores/auth.js	// 多区域 token / user 存储 (Federation Lite)
+src/stores/auth.js	// 安全: 退出时必须清两区全部 token —— 防止下个用户继承上个用户的另一区会话
+src/stores/auth.js	// 是否切到非本位的对区
+src/stores/auth.js	// 本位区: 用户是 native (is_mirror=false) 那一区; 没找到则退回当前区
+src/stores/auth.js	// 清 APNs push token (后端 & 本地 listener)
+src/stores/auth.js	// 清前次会话残留 (本地 + reactive state)
+src/stores/auth.js	// 默认进入用户的"主区"(非 mirror 那一区, 即 user.is_mirror=false 的区)
+src/stores/auth.js	throw lastErr || new Error('登录失败')
+src/stores/cardScan.js	// attachToCompanyId / attachToCompanyName 保留, 让连拍继续挂同一客户
+src/stores/cardScan.js	// 保存成功后展示给 SuccessView 用的数据 (保留到用户离开 success 页)
+src/stores/cardScan.js	// 名片扫描临时状态 — Capture/Crop/Confirm 三屏共享
+src/stores/cardScan.js	// 完整重置 — 跳出整个名片扫描流程时调用
+src/stores/cardScan.js	// 继续拍下一张 — 保留 attachTo (如果有), 清掉本次结果
+src/stores/cardScan.js	attachToCompanyId: null,    // 若有, 跳过新建客户, 直接给该客户加联系人
+src/stores/cardScan.js	confidence: {},    // 各字段置信度 {name: 0.95, ...}
+src/stores/cardScan.js	cropDataUrl: '',   // 裁剪后图 dataURL (用作预览缩略)
+src/stores/cardScan.js	fields: {},        // OCR 字段 {name, company, position, phone, email, department, address}
+src/stores/cardScan.js	fileUrl: '',       // NAS 上的图 URL (用作存档 + 联系人 business_card_image_url)
+src/stores/cardScan.js	ocrJson: '',       // 原始 JSON 字符串 (供备审计)
+src/stores/chat.js	/** 取群消息；不存在时用 fallback 初始化（保证两端首次进入看到同样的种子数据） */
+src/stores/chat.js	/** 替换群内一条消息（AI thinking → 实际回复时用） */
+src/stores/chat.js	/** 追加一条消息到群（项目详情卡和群聊页都用） */
+src/stores/chat.js	// groupId 用 'proj-{projectId}' 形式（项目群）或 'g-{convId}' 形式（普通群）
+src/stores/chat.js	// 聊天状态共享 store —— 当前纯前端 mock，未来接后端时把 actions 改成 API 调用即可
+src/stores/dictionaries.js	/** 拉取并缓存指定字典类型；已缓存且未过期则跳过 */
+src/stores/dictionaries.js	//   const lbl  = ds.label('project_stage', 'embed') // '植入'
+src/stores/dictionaries.js	// fallback: 没 label_en 时退回 label, 避免英文界面显示空
+src/stores/dictionaries.js	// labelMap 返回 key → 当前 locale 对应文案 (替代之前只返回 zh label)
+src/stores/dictionaries.js	// list 返回的每项加 displayLabel (按当前 locale)
+src/stores/dictionaries.js	// 字典 Pinia store —— 进程内缓存（避免重复 fetch）
+src/stores/dictionaries.js	// 字典项格式（从后端 Dictionary.to_dict()）：
+src/stores/dictionaries.js	// 当前 locale → 决定取 label (zh) / label_en (en)
+src/stores/dictionaries.js	// 标准化：把 {value, value_en} 映射为 {label, label_en}
+src/stores/dictionaries.js	// 用法：
+src/stores/dictionaries.js	inflight: {},     // type -> Promise（避免并发重复 fetch）
+src/stores/expense.js	// ── OCR 待处理发票队列(连拍场景) ─────────────────────
+src/stores/expense.js	// ── 列表态 ────────────────────────────────────────────
+src/stores/expense.js	// ── 参考字典(科目/货币) ───────────────────────────────
+src/stores/expense.js	// ── 编辑中表单本地暂存(防加明细走 OCR 跳页后返回丢失手输内容)──
+src/stores/expense.js	// ── 编辑草稿(进 ExpenseEditView 时用) ────────────────
+src/stores/expense.js	// ── 详情缓存 ──────────────────────────────────────────
+src/stores/expense.js	// 仅在草稿已存在(有 id)时暂存; key=草稿 id。零服务器调用, 跨路由存活。
+src/stores/expense.js	// 报销模块 Pinia store — 列表 + 详情缓存 + 草稿持久化
+src/stores/expense.js	// 每张发票: {idx, blob, dataUrl(预览), file_url?, fields?, confidence?, status: 'pending'|'ocr'|'done'|'failed'}
+src/stores/expense.js	// 编辑中表单本地暂存
+src/utils/chatTime.js	&& d.getDate() === yesterday.getDate()) return '昨天'
+src/utils/chatTime.js	// 7 天内：周几
+src/utils/chatTime.js	// 入：ISO 字符串 '2026-02-23T16:41:04.139812Z'
+src/utils/chatTime.js	// 出：'09:32' / '昨天 17:42' / '周二 09:18' / '04-15 09:18'
+src/utils/chatTime.js	// 同一天
+src/utils/chatTime.js	// 同年：月-日
+src/utils/chatTime.js	// 当天分隔条用：'今天' / '昨天' / '周二' / '04-15'
+src/utils/chatTime.js	// 昨天
+src/utils/chatTime.js	// 聊天消息时间格式化
+src/utils/chatTime.js	// 跨年：年-月-日
+src/utils/chatTime.js	const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+src/utils/chatTime.js	if (sameDay) return '今天'
+src/utils/chatTime.js	return `昨天 ${hhmm}`
+src/utils/imageProcessor.js	// GIF 直接放过（动图压缩会丢帧）
+src/utils/imageProcessor.js	// iOS WKWebView (Safari 14+) 完整支持 createImageBitmap({ imageOrientation: 'from-image' })
+src/utils/imageProcessor.js	// 上传前处理图片：按 EXIF 方向翻正 + 缩放压缩
+src/utils/imageProcessor.js	// 仅在压缩有收益时返回新文件（避免反而变大）
+src/utils/imageProcessor.js	// 老内核回退：不传 imageOrientation
+src/utils/imageProcessor.js	catch { return file }   // 实在不行，原图上传
+src/utils/imageProcessor.js	const JPEG_QUALITY = 0.82   // JPEG 质量
+src/utils/imageProcessor.js	const MAX_SIDE = 1600       // 长边最大像素
+src/utils/mentionRender.js	'#': 'var(--color-ink)',     // 项目 - ink 黑
+src/utils/mentionRender.js	'$': 'var(--color-accent)',  // 客户 - accent 橙
+src/utils/mentionRender.js	'@': 'var(--color-accent)',  // 人 - accent 橙
+src/utils/mentionRender.js	// @ / # / $ 提及的统一渲染辅助
+src/utils/mentionRender.js	// trigger → 引用卡组件
+src/utils/mentionRender.js	// 反色气泡（ink 黑底，"我"的消息）下 token 颜色 —— 浅色高对比
+src/utils/mentionRender.js	// 在 ProjectDetailView 项目讨论卡 / GroupChatView / DmChatView 共用
+src/utils/mentionRender.js	// 把消息文字按 @/#/$ token 切分成段，便于 v-for 着色渲染
+src/utils/mentionRender.js	// 普通气泡（白底）下 token 颜色
+src/utils/mentionRender.js	const regex = /([@#$][一-龥\w-]+)/g
+src/utils/pdfPreview.js	//   const blobUrl = makePdfBlobUrl(file)  // 给 iframe 全屏看
+src/utils/pdfPreview.js	// pdfjs-dist 是动态 import (~500KB), 首次选 PDF 时才加载
+src/utils/pdfPreview.js	// worker: vite ?url 后缀 → 自动拷到 dist, 返回最终 URL
+src/utils/pdfPreview.js	// 客户端渲染 PDF 第 1 页 → JPEG dataUrl (供 thumbnail / 全屏 view 用)
+src/utils/pdfPreview.js	// 用法:
+src/utils/pdfPreview.js	// 白底, 避免透明 PDF 在深色背景上看不清
+src/utils/push.js	//   1. requestPermissions: 弹系统通知权限弹窗 (用户首次拒绝则永远收不到 push)
+src/utils/push.js	//   2. register: 注册到 APNs, 拿 device token (回调 'registration' event)
+src/utils/push.js	//   3. POST device token 到 /mobile/push/register
+src/utils/push.js	//   4. 监听 pushNotificationReceived(前台收到) + pushNotificationActionPerformed(用户点通知)
+src/utils/push.js	// 1. 权限
+src/utils/push.js	// 2. 监听 — 必须在 register 之前注册, 避免错过 token 回调
+src/utils/push.js	// 3. 注册 (触发 registration 事件)
+src/utils/push.js	// Push Notifications setup — 仅 native iOS, web/Android 自动 noop
+src/utils/push.js	// 切区时不重新注册(简化), 但切到的区也需要拿到 token → 由后续切区操作触发同步
+src/utils/push.js	// 前台收到 (App 打开时), iOS 默认不弹横幅, 可选自己 toast
+src/utils/push.js	// 多区 (cn/sg) 用户: device token 只上报到 ACTIVE region (login 后 winner region)
+src/utils/push.js	// 注销 push (logout 时调) — 通知后端清除 token, 然后忘掉本地 listener
+src/utils/push.js	// 流程:
+src/utils/push.js	// 用 hash route 避免与现有 router 冲突, 主流程响应即可
+src/utils/push.js	// 用户点了 lock screen / 通知中心的 push, App 启动到前台
+src/utils/push.js	// 简化路由: chat_message → 跳对应会话
+src/utils/push.js	// 调用时机: login 成功后, 或 App 启动时(若已登录)
+src/utils/push.js	console.log('[push] token 已上报后端')
+src/utils/push.js	console.log('[push] 前台收到:', notification?.title, notification?.body)
+src/utils/push.js	console.log('[push] 暂未实现 Android FCM, 跳过')
+src/utils/push.js	console.log('[push] 用户点击通知:', data)
+src/utils/push.js	console.log('[push] 非 native 平台, 跳过')
+src/utils/push.js	console.warn('[push] 上报 token 失败:', e?.message)
+src/utils/push.js	console.warn('[push] 初始化失败:', e?.message || e)
+src/utils/push.js	console.warn('[push] 用户拒绝通知权限')
+src/views/AppShell.vue	// Capacitor WebView 下 router.go(0) 是 no-op, 必须 location.reload 真刷新
+src/views/AppShell.vue	// away 时全局顶部琥珀条; 登录页等不显示
+src/views/AppShell.vue	// label 用 i18n key, 渲染时 $t 取
+src/views/AppShell.vue	// 未读消息数 —— 30s 轮询, 只数本区 (peer 走琥珀卡, 不再 sum)
+src/views/AppShell.vue	// 路由切换时立即刷新未读 (用户从聊天详情返回 tab badge 立刻更新, 不用等 30s)
+src/views/AppShell.vue	// 进入聊天详情、设置、广播等沉浸页时隐藏 tab bar（避免和聊天 composer 冲突）
+src/views/AppShell.vue	// 静默失败
+src/views/AppShell.vue	<!-- 主内容区 -->
+src/views/AppShell.vue	<!-- 全局跨区域提示条: 用户切到非本位区时常驻 -->
+src/views/AppShell.vue	<!-- 底部导航（聊天详情等沉浸页隐藏） -->
+src/views/AppShell.vue	<!-- 报销 tab: ¥ 字符(serif) -->
+src/views/AppShell.vue	<!-- 聊天 tab 角标 -->
+src/views/AppShell.vue	<!-- 顶部安全区域（刘海/灵动岛）-->
+src/views/SplashView.vue	// 18 格 50ms 间隔 pop-in (~900ms) → 文字 fade up (1.1s 起) → 公司归属 fade in (1.5s 起)
+src/views/SplashView.vue	// 共 ~2s 完成动画后，根据登录态跳转 /login 或 /
+src/views/SplashView.vue	// 动画总时长约 2s，再多停 200ms 让用户看清最终态
+src/views/SplashView.vue	// 启动动画 —— 严格对齐 splash-login.jsx AnimatedSplash
+src/views/SplashView.vue	<!-- PMA 字标 + Project Management（jsx line 362-370） -->
+src/views/SplashView.vue	<!-- 像素 P 落格动画 -->
+src/views/SplashView.vue	<!-- 公司归属（jsx line 372-378） —— 真 logo 图 -->
+src/views/SplashView.vue	<!-- 背景 vignette（径向蓝晕，对齐 jsx line 108-111） -->
+src/views/approval/ApprovalDetailView.vue	// 800ms 后自动返回审批列表(让用户看到 toast)
+src/views/approval/ApprovalDetailView.vue	// 业务对象 sheet 标题
+src/views/approval/ApprovalDetailView.vue	// 内联编辑明细字段保存
+src/views/approval/ApprovalDetailView.vue	// 区分业务对象类型
+src/views/approval/ApprovalDetailView.vue	// 同步更新本地 line + total
+src/views/approval/ApprovalDetailView.vue	// 处理完后用户已无操作权(已驳回/已转交/已同意 → 当前步骤不再属于此用户)
+src/views/approval/ApprovalDetailView.vue	// 当前审批人 + 报销审批 + step.editable_fields 决定明细可编辑字段
+src/views/approval/ApprovalDetailView.vue	// 标记列表需要刷新(列表页 onActivated/onMounted 会重新拉)
+src/views/approval/ApprovalDetailView.vue	// 用专用端点(任何 jwt 用户都可调, 不查 user.view 权限)
+src/views/approval/ApprovalDetailView.vue	// 简易 toast (页面顶部短暂浮现)
+src/views/approval/ApprovalDetailView.vue	// 顶部 toast 浮现操作结果
+src/views/approval/ApprovalDetailView.vue	<!-- Header — 项目同款 (返回 ‹ 审批 + ··· 菜单) -->
+src/views/approval/ApprovalDetailView.vue	<!-- Hero — 项目同款: 30px 标题 + 44px serif tabular 金额 -->
+src/views/approval/ApprovalDetailView.vue	<!-- Sub: 申请人提交时间 -->
+src/views/approval/ApprovalDetailView.vue	<!-- ··· 直接打开转交 sheet(设计稿没有中间菜单步骤);
+src/views/approval/ApprovalDetailView.vue	<!-- ↻ 设计稿是历史按钮(audit 入口); 暂复用为转交触发, 转交 sheet 在弹出 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 主题: 30px serif (项目同款) -->
+src/views/approval/ApprovalDetailView.vue	<!-- 之前底部「审批进度」section 已迁到顶部 chip 点击弹 ExFlowSheet,
+src/views/approval/ApprovalDetailView.vue	<!-- 同意/驳回/转交 sheet -->
+src/views/approval/ApprovalDetailView.vue	<!-- 审批进度 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 底部审批操作 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 批价单字段 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 报价单字段 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 报销字段 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 操作成功 toast -->
+src/views/approval/ApprovalDetailView.vue	<!-- 明细 list -->
+src/views/approval/ApprovalDetailView.vue	<!-- 明细详情 sheet — 当前审批人在 editable_fields 内字段可内联编辑 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 流程 sheet (顶部 chip 点击触发) -->
+src/views/approval/ApprovalDetailView.vue	<!-- 状态 chip + 单号 + 转交徽章 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 状态 chip 可点击 → 弹流程 sheet (替代之前底部一大块审批进度) -->
+src/views/approval/ApprovalDetailView.vue	<!-- 申请人卡 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 详情 def list — 报销 / 项目 字段不同 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 转交徽章: 当前步骤已被代理时显示 -->
+src/views/approval/ApprovalDetailView.vue	<!-- 转交目标 user picker -->
+src/views/approval/ApprovalDetailView.vue	<!-- 金额 44px serif tabular (项目同款) -->
+src/views/approval/ApprovalDetailView.vue	<!-- 项目字段 -->
+src/views/approval/ApprovalDetailView.vue	ApprovalDetailView · 审批详情(审批人视角)
+src/views/approval/ApprovalDetailView.vue	const m = { CNY: '人民币', USD: '美元', HKD: '港币', TWD: '台币', SGD: '新加坡元', MYR: '马来西亚林吉特', IDR: '印尼盾', THB: '泰铢', VND: '越南盾' }
+src/views/approval/ApprovalDetailView.vue	{{ currencyLabel(detail.business_obj?.currency) }} · 折扣 {{ ((detail.business_obj?.pricing_total_discount_rate || 1) * 100).toFixed(1) }}%
+src/views/approval/ApprovalDetailView.vue	严格对齐 design_handoff/expense-approval.jsx::ApprovalDetail (L139-232)
+src/views/approval/ApprovalDetailView.vue	节省屏幕空间 + 进度查看入口更显眼 -->
+src/views/approval/ApprovalDetailView.vue	非当前审批人不显示 -->
+src/views/approval/ApprovalView.vue	- StatusPad 54 + ExNav "我审批的"
+src/views/approval/ApprovalView.vue	- 三段 tab(待我审批 N / 我已处理 / 抄送给我), active 带 ink 下划线 2px
+src/views/approval/ApprovalView.vue	- 行: 36x36 头像(色彩按申请人) + 标题 14/600 + tag 9/600 + 副 12 ink3
+src/views/approval/ApprovalView.vue	// keep-alive 场景: 从详情返回时若有 flag 则重新拉
+src/views/approval/ApprovalView.vue	// onMounted 每次进页面都触发(非 keep-alive), loadAll 已涵盖刷新需求
+src/views/approval/ApprovalView.vue	// stage_label 后端已映射成中文(发现/植入/招标中等), 不再显示 enum key
+src/views/approval/ApprovalView.vue	// tab=pending → instance.id 直接跳详情
+src/views/approval/ApprovalView.vue	// 不可命名为 t, 会 shadow useI18n 的 t() 函数, 导致下方 t('approval.suffixWan') 把字符串当函数调用 → TypeError → map 崩溃 → 列表空
+src/views/approval/ApprovalView.vue	// 副信息按对象类型
+src/views/approval/ApprovalView.vue	// 按 created_at 排序; 缺失时间放最后
+src/views/approval/ApprovalView.vue	// 筛选 / 排序 (三段共用)
+src/views/approval/ApprovalView.vue	// 简单 hash → 颜色
+src/views/approval/ApprovalView.vue	<!-- 业务类型 — 纯文字 + 选中粗+ink, 同 ProjectListView sort tabs -->
+src/views/approval/ApprovalView.vue	<!-- 副信息: 申请人 · 客户 · 项目 · N 项明细 -->
+src/views/approval/ApprovalView.vue	<!-- 单号 · 时间 (设计稿底部左) -->
+src/views/approval/ApprovalView.vue	<!-- 排序 -->
+src/views/approval/ApprovalView.vue	<!-- 段落 tabs -->
+src/views/approval/ApprovalView.vue	<!-- 筛选 + 排序 row -->
+src/views/approval/ApprovalView.vue	ApprovalView · 我审批的列表
+src/views/approval/ApprovalView.vue	const sortDir = ref('desc')     // desc=最新 | asc=最早
+src/views/approval/ApprovalView.vue	created_at: i.created_at,           // 保留原始时间用于排序
+src/views/approval/ApprovalView.vue	object_type: i.object_type,         // 用于业务类型筛选
+src/views/approval/ApprovalView.vue	严格对齐 design_handoff/expense-approval.jsx::ApprovalList (L74-136)
+src/views/approval/ApprovalView.vue	底: ID·时间 10 ink4 + 金额 14/600 serif
+src/views/auth/LoginView.vue	/* 顶部留白：刘海下 ~80px，整体比设计稿再下移一点 */
+src/views/auth/LoginView.vue	// --kb-height (335px 实证可靠), focus 切换(键盘不收)时也重算。
+src/views/auth/LoginView.vue	// SG 区: 上次登录是 SG (region 持久化) → 登录页一律英文 + SG logo。
+src/views/auth/LoginView.vue	// didShow+focusin 多次调用收敛到同一值, 不会叠加过冲)
+src/views/auth/LoginView.vue	// focus 的输入框抬到键盘上方 —— 与是否可滚无关, 必定生效。kb 高取 main.js 设的
+src/views/auth/LoginView.vue	// rect.bottom 含当前 transform → 加回 liftY 还原真实位置, 算绝对目标 (幂等,
+src/views/auth/LoginView.vue	// 严格对齐 splash-login.jsx Login 组件（line 188-314）
+src/views/auth/LoginView.vue	// 无效 (诊断条实证 sh==ch 永不溢出)。改为键盘弹起时直接 translateY 整个 root, 让
+src/views/auth/LoginView.vue	// 智能并行登: 自动同时试 CN + SG, 两边都成功就两份 token 都缓存
+src/views/auth/LoginView.vue	// 登录成功后 auth.js 会按 winner 区再次校正 (SG 强制 en)。
+src/views/auth/LoginView.vue	// 装饰用散落像素（splash-login.jsx ScatteredPixels line 317-342）
+src/views/auth/LoginView.vue	// 键盘抬升: login-form{flex:1} 让 flex 列永远自撑满容器, padding/scroll 路线天生
+src/views/auth/LoginView.vue	<!-- Hero: 像素 P + PMA + 副标 -->
+src/views/auth/LoginView.vue	<!-- 公司归属：用真 logo 图 (设计包 assets/evertac-logo.png) -->
+src/views/auth/LoginView.vue	<!-- 密码 -->
+src/views/auth/LoginView.vue	<!-- 登录按钮 -->
+src/views/auth/LoginView.vue	<!-- 表单 -->
+src/views/auth/LoginView.vue	<!-- 装饰用散落像素 (上右角) -->
+src/views/auth/LoginView.vue	<!-- 账号 -->
+src/views/auth/LoginView.vue	<!-- 错误提示 -->
+src/views/customers/CardScanCaptureView.vue	// 名片是单张
+src/views/customers/CardScanCaptureView.vue	// 名片识别字段揭示动画 (与 OCR 实际返回字段对齐)
+src/views/customers/CardScanCaptureView.vue	<!-- OCR 进行中: 复用通用 OCR 动画 (单卡 + 字段揭示, 替代黑屏 spinner) -->
+src/views/customers/CardScanCaptureView.vue	<!-- 扫描流(VisionKit / Camera fallback) -->
+src/views/customers/CardScanCaptureView.vue	CardScanCaptureView · 名片扫描 - 复用 DocumentScanFlow 公用组件
+src/views/customers/CardScanCaptureView.vue	capture-tip="把名片放在桌面平整位置, 设备保持稳定 1-2 秒等聚焦, 系统会自动捕捉, 也可以手动按白色快门"
+src/views/customers/CardScanCaptureView.vue	error.value = `请求失败: ${e?.message || e}`
+src/views/customers/CardScanCaptureView.vue	error.value = res.data?.message || '识别失败'
+src/views/customers/CardScanCaptureView.vue	preview-tip="看清楚名片再识别"
+src/views/customers/CardScanCaptureView.vue	primary-label="AI 识别"
+src/views/customers/CardScanCaptureView.vue	subtitle="通常 2-5 秒"
+src/views/customers/CardScanCaptureView.vue	title="正在识别名片"
+src/views/customers/CardScanCaptureView.vue	{ label: '公司',     val: '识别中...', confident: true },
+src/views/customers/CardScanCaptureView.vue	{ label: '姓名',     val: '识别中...', confident: true },
+src/views/customers/CardScanCaptureView.vue	{ label: '电话',     val: '识别中...', confident: true },
+src/views/customers/CardScanCaptureView.vue	{ label: '职务',     val: '识别中...', confident: true },
+src/views/customers/CardScanCaptureView.vue	{ label: '邮箱',     val: '识别中...', confident: false },
+src/views/customers/CardScanCaptureView.vue	与 ReceiptCaptureView 共享同一套 capture/crop/preview UI
+src/views/customers/CardScanCaptureView.vue	本视图只负责: 接收 done 事件 → 调 OCR API → 跳到 confirm 页
+src/views/customers/CardScanConfirmView.vue	// 1) 创建客户
+src/views/customers/CardScanConfirmView.vue	// 2) 创建联系人 (带名片图 URL + OCR JSON)
+src/views/customers/CardScanConfirmView.vue	// attachTo 模式: 公司名锁定为目标客户名 (OCR 出的公司名忽略)
+src/views/customers/CardScanConfirmView.vue	// attachTo 模式: 公司用 scanStore.attachToCompanyId 决定, 不靠 form.company 判断
+src/views/customers/CardScanConfirmView.vue	// attachTo 模式: 直接挂联系人到指定客户, 不新建公司
+src/views/customers/CardScanConfirmView.vue	// attachTo 模式: 直接给指定客户加联系人, 不新建客户
+src/views/customers/CardScanConfirmView.vue	// dup sheet 确认按钮: 根据 radio 选择执行合并 or 新建
+src/views/customers/CardScanConfirmView.vue	// ignore, 继续保存
+src/views/customers/CardScanConfirmView.vue	// 仅 score >= 70 视为强匹配, 60-70 不打扰
+src/views/customers/CardScanConfirmView.vue	// 低置信度字段数 (供副标"M 个待你后续核对")
+src/views/customers/CardScanConfirmView.vue	// 公司级合并: 用户选了某个已有客户 → 直接 addContact 到那个公司
+src/views/customers/CardScanConfirmView.vue	// 公司级重复检测: 仅"新建客户"路径才查 (attachTo 已指定客户, 跳过)
+src/views/customers/CardScanConfirmView.vue	// 名片识别核对页 — 显示 OCR 字段, 用户编辑确认 → 重复检测 → 创建客户+联系人
+src/views/customers/CardScanConfirmView.vue	// 后端返回 data.similar: [{id, name, score}], 0.6+ 相似度
+src/views/customers/CardScanConfirmView.vue	// 字段编辑状态
+src/views/customers/CardScanConfirmView.vue	// 字段视觉提示: 0.9+ 正常, 0.7-0.9 黄, <0.7 黄+图标
+src/views/customers/CardScanConfirmView.vue	// 检测失败也不阻塞用户
+src/views/customers/CardScanConfirmView.vue	// 用于成功页判断 "新建" vs "加到现有客户"
+src/views/customers/CardScanConfirmView.vue	// 直接到这页 (没经过 capture) → 退回
+src/views/customers/CardScanConfirmView.vue	// 统计填了几个字段 (供成功页副标"N 个字段已保存")
+src/views/customers/CardScanConfirmView.vue	// 联系人级重复检测 (phone/email 命中) — attachTo 模式也查, 让用户避免重复
+src/views/customers/CardScanConfirmView.vue	// 进成功页, 显示"合并到已有联系人"
+src/views/customers/CardScanConfirmView.vue	// 重复检测: 公司级 (公司名 fuzzy 命中) — attachTo 模式下不需要
+src/views/customers/CardScanConfirmView.vue	// 重复检测: 联系人级 (phone/email)
+src/views/customers/CardScanConfirmView.vue	<!-- 仍然新建客户 radio -->
+src/views/customers/CardScanConfirmView.vue	<!-- 仍然新建独立联系人 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 候选 list — 第一个推荐, 都是 radio 风格 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 公司地址 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 公司级重复 sheet (设计稿 ScanDuplicate, 公司维度) -->
+src/views/customers/CardScanConfirmView.vue	<!-- 合并选项 (含富预览卡: 累计金额/进行中/联系人数) -->
+src/views/customers/CardScanConfirmView.vue	<!-- 合并选项 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 名片缩略 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 客户预览卡 (富信息) -->
+src/views/customers/CardScanConfirmView.vue	<!-- 底部确认/取消 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 必填: 公司 (attachTo 模式下锁定为目标客户) -->
+src/views/customers/CardScanConfirmView.vue	<!-- 必填: 姓名 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 标题 (⚠️ 黄三角 + 文字) -->
+src/views/customers/CardScanConfirmView.vue	<!-- 电话 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 职位 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 联系人级重复 sheet (设计稿 ScanDuplicate 风格) -->
+src/views/customers/CardScanConfirmView.vue	<!-- 联系人预览卡 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 邮箱 -->
+src/views/customers/CardScanConfirmView.vue	<!-- 部门 -->
+src/views/customers/CardScanConfirmView.vue	const dupChoice = ref('merge')         // 'merge' (合并到选中的) | 'new' (仍然新建)
+src/views/customers/CardScanConfirmView.vue	const dupSelectedIdx = ref(0)          // 选中第几条 candidate (默认推荐 0)
+src/views/customers/CardScanSuccessView.vue	// "加入项目" — 当前 PMA 没有 contact 直接关联到 project 的接口,
+src/views/customers/CardScanSuccessView.vue	// 3 快捷动作
+src/views/customers/CardScanSuccessView.vue	// 低置信度字段数 (置信度 <0.9, 由 ConfirmView countLowConfidence 计算后传入)
+src/views/customers/CardScanSuccessView.vue	// 保留 attachTo 状态, 重新进取景
+src/views/customers/CardScanSuccessView.vue	// 副标文字: 跟客户的关系 (公司名加粗)
+src/views/customers/CardScanSuccessView.vue	// 双 CTA
+src/views/customers/CardScanSuccessView.vue	// 名片原图带 token 的全 URL
+src/views/customers/CardScanSuccessView.vue	// 名片扫描保存成功页 (设计稿 ScanSuccess)
+src/views/customers/CardScanSuccessView.vue	// 显示: ✓ + 联系人卡 + 名片图 + 3 快捷动作 + 双 CTA (继续拍 / 去详情)
+src/views/customers/CardScanSuccessView.vue	// 暂时跳到项目列表让用户人工挑 (后续如果加 API 再接)
+src/views/customers/CardScanSuccessView.vue	// 没有 saveResult 直接到这页 (刷新/直访) → 跳客户列表
+src/views/customers/CardScanSuccessView.vue	// 设计稿: 右 CTA 文案 "去客户详情 ›", 跳客户详情而非联系人详情
+src/views/customers/CardScanSuccessView.vue	<!-- 3 快捷动作 row (设计稿: 12px 0 padding, right border 分隔, icon 16px) -->
+src/views/customers/CardScanSuccessView.vue	<!-- 名片全屏 lightbox -->
+src/views/customers/CardScanSuccessView.vue	<!-- 名片原图 chip row -->
+src/views/customers/CardScanSuccessView.vue	<!-- 大对勾 + 标题 + 副标 (设计稿: 76px + box-shadow) -->
+src/views/customers/CardScanSuccessView.vue	<!-- 底部双 CTA (设计稿: 50px 高, 14px 圆角) -->
+src/views/customers/CardScanSuccessView.vue	<!-- 联系人 row -->
+src/views/customers/CardScanSuccessView.vue	<!-- 联系人卡 (含名片图 chip + 3 快捷动作, 全在一张卡里) -->
+src/views/customers/CardScanSuccessView.vue	<!-- 顶部 NavBar (左空 / 中空 / 右 X) -->
+src/views/customers/ContactDetailView.vue	// NavBar 事件
+src/views/customers/ContactDetailView.vue	// 下面: 头像卡 + 联系方式 + 备注 + 名片原图
+src/views/customers/ContactDetailView.vue	// 删除
+src/views/customers/ContactDetailView.vue	// 名片图 URL 注入 ?token= 鉴权
+src/views/customers/ContactDetailView.vue	// 操作菜单
+src/views/customers/ContactDetailView.vue	// 更新本地视图字段, 退出编辑模式
+src/views/customers/ContactDetailView.vue	// 编辑
+src/views/customers/ContactDetailView.vue	// 编辑模式: 字段变成可编辑 input + 顶部右侧"保存"
+src/views/customers/ContactDetailView.vue	// 编辑状态
+src/views/customers/ContactDetailView.vue	// 联系人详情页 — /customers/:cid/contacts/:contactId
+src/views/customers/ContactDetailView.vue	// 顶部 NavBar: 返回 + ... 菜单 (编辑 / 删除)
+src/views/customers/ContactDetailView.vue	<!-- 删除确认 -->
+src/views/customers/ContactDetailView.vue	<!-- 名片全屏 lightbox -->
+src/views/customers/ContactDetailView.vue	<!-- 名片原图 (有就显示, 编辑模式也显示但只读) -->
+src/views/customers/ContactDetailView.vue	<!-- 备注 -->
+src/views/customers/ContactDetailView.vue	<!-- 头像 + 姓名卡 -->
+src/views/customers/ContactDetailView.vue	<!-- 电话 -->
+src/views/customers/ContactDetailView.vue	<!-- 编辑模式额外字段: 职位 / 部门 -->
+src/views/customers/ContactDetailView.vue	<!-- 联系方式 -->
+src/views/customers/ContactDetailView.vue	<!-- 邮箱 -->
+src/views/customers/ContactDetailView.vue	<!-- 顶部 ... 弹出: 编辑 / 删除 -->
+src/views/customers/ContactDetailView.vue	<!-- 顶部 NavBar: 编辑模式时右侧改"保存", 默认 "..." 菜单 -->
+src/views/customers/CustomerCreateView.vue	/* 衬线类同时启用 OSF —— 设计稿 hero 标题/数字均高低错落 */
+src/views/customers/CustomerCreateView.vue	<!-- ── Sheet: 企业类型 ── -->
+src/views/customers/CustomerCreateView.vue	<!-- ── Sheet: 地址 ── -->
+src/views/customers/CustomerCreateView.vue	<!-- ── Sheet: 查重详情 ── -->
+src/views/customers/CustomerCreateView.vue	<!-- ── Sheet: 行业 ── -->
+src/views/customers/CustomerCreateView.vue	<!-- 分类 -->
+src/views/customers/CustomerCreateView.vue	<!-- 地址 -->
+src/views/customers/CustomerCreateView.vue	<!-- 基本 -->
+src/views/customers/CustomerCreateView.vue	<!-- 备注 -->
+src/views/customers/CustomerDetailView.vue	// 名片图全屏查看 — 后端 /mobile/chat/file 要 ?token= 鉴权
+src/views/customers/CustomerDetailView.vue	// 带 attachTo 给扫描页, 让其跳过新建客户, 直接给该客户加联系人
+src/views/customers/CustomerDetailView.vue	// 新增联系人 sheet（对标 customer-screens.jsx AddContactSheet）
+src/views/customers/CustomerDetailView.vue	// 注: 后端 mobile_customer_detail 用 _company_summary 返回 'name' (不是 company_name)
+src/views/customers/CustomerDetailView.vue	// 跟进
+src/views/customers/CustomerDetailView.vue	// 阶段 → tier 颜色（A=ink, B=ink3, C=ink4）— 对标 SearchCustomerRow tierColor
+src/views/customers/CustomerDetailView.vue	<!-- + 添加联系人: 拍名片 vs 手动 选择 sheet -->
+src/views/customers/CustomerDetailView.vue	<!-- ─── 名下项目 ─────────────────────────────────── -->
+src/views/customers/CustomerDetailView.vue	<!-- ─── 新增联系人 sheet（对标 AddContactSheet） ───── -->
+src/views/customers/CustomerDetailView.vue	<!-- ─── 联系人 ───────────────────────────────────── -->
+src/views/customers/CustomerDetailView.vue	<!-- ─── 详情 definition list ─────────────────────── -->
+src/views/customers/CustomerDetailView.vue	<!-- ─── 跟进时间轴 ─────────────────────────────── -->
+src/views/customers/CustomerDetailView.vue	<!-- ─── 跟进输入弹层（公用组件，与 ProjectDetailView 共用） ────── -->
+src/views/customers/CustomerDetailView.vue	<!-- ─── 项目概览 4 数 ──────────────────────────── -->
+src/views/customers/CustomerDetailView.vue	<!-- 主推: 拍名片 (橘色渐变) -->
+src/views/customers/CustomerDetailView.vue	<!-- 名片 chip: 这条联系人是名片扫描录入的 -->
+src/views/customers/CustomerDetailView.vue	<!-- 名片图全屏 lightbox -->
+src/views/customers/CustomerDetailView.vue	<!-- 手动 -->
+src/views/customers/CustomerDetailView.vue	<!-- 累计客户价值 -->
+src/views/customers/CustomerDetailView.vue	const showAddContactChooser = ref(false)   // + 添加 → 选 "拍名片" / "手动" 的 sheet
+src/views/customers/CustomerDetailView.vue	if (s === '冷却' || s === 'Cooling') return '#7A7570'
+src/views/customers/CustomerDetailView.vue	if (s === '活跃' || s === 'Active') return '#2F7A45'
+src/views/customers/CustomerEditView.vue	// Picker 开关
+src/views/customers/CustomerEditView.vue	// STATUS_OPTIONS 后端用中文 value, 仅显示需要 i18n 化(未在 UI 暴露 picker, 留作后续)
+src/views/customers/CustomerEditView.vue	// source 后端存中文，所以 value 仍用原始 label, 显示用 displayLabel
+src/views/customers/CustomerEditView.vue	// 字典 + 静态选项
+src/views/customers/CustomerEditView.vue	// 显示用 label
+src/views/customers/CustomerEditView.vue	// 行业（PMA 没存 DB 字典，复用 project.industry.* 翻译）
+src/views/customers/CustomerEditView.vue	<!-- 副标题（衬线斜体）-->
+src/views/customers/CustomerEditView.vue	<!-- 危险区 -->
+src/views/customers/CustomerEditView.vue	<!-- 基本信息 -->
+src/views/customers/CustomerEditView.vue	<!-- 来源 -->
+src/views/customers/CustomerEditView.vue	const focusedKey = ref('company_name')  // 默认聚焦公司名
+src/views/customers/CustomerEditView.vue	const totalCount = ref(0)  // 名下项目数
+src/views/customers/CustomerListView.vue	'高度活跃', '活跃', '正常',
+src/views/customers/CustomerListView.vue	// "活跃态" 状态集合 —— 显示绿点 (检查 zh + en 两套, status 由后端按 lang 返回)
+src/views/customers/CustomerListView.vue	// V2: owner options 来自后端 /mobile/customers/owners(复用 web _get_customer_owner_options),
+src/views/customers/CustomerListView.vue	// ─── 最近搜索 (localStorage 持久化) ────────────────────────────
+src/views/customers/CustomerListView.vue	// 兜底中文(老 cache 数据可能仍是中文)
+src/views/customers/CustomerListView.vue	// 字典 label 改 computed (跟 i18n locale)
+src/views/customers/CustomerListView.vue	// 覆盖当前用户全部可见客户的 owner,不再受首页加载数据所限。
+src/views/customers/CustomerListView.vue	<!-- + 按钮: 新增客户方式选择 -->
+src/views/customers/CustomerListView.vue	<!-- 42 圆角方头像（首字符）-->
+src/views/customers/CustomerListView.vue	<!-- CustomerRow — 严格对齐 unified-lists.CustomerRow -->
+src/views/customers/CustomerListView.vue	<!-- SortRow / 搜索匹配数 二选一 -->
+src/views/customers/CustomerListView.vue	<!-- ─── PageHead 严格对齐 unified-lists.PageHead ─────────────── -->
+src/views/customers/CustomerListView.vue	<!-- 主信息 -->
+src/views/customers/CustomerListView.vue	<!-- 列表 -->
+src/views/customers/CustomerListView.vue	<!-- 手动新建 -->
+src/views/customers/CustomerListView.vue	<!-- 扫名片 (主推, 高亮) -->
+src/views/customers/CustomerListView.vue	<!-- 排序下拉菜单 -->
+src/views/customers/CustomerListView.vue	<!-- 搜索 + 筛选 行 -->
+src/views/customers/CustomerListView.vue	<!-- 最近搜索（搜索框 focused + empty 时显示，对齐 customer-screens.CustomersSearch line 296-309）-->
+src/views/customers/CustomerListView.vue	<!-- 状态 + 地区 + 进行中 + lastTouch -->
+src/views/customers/CustomerListView.vue	<!-- 联系人 italic 衬线 -->
+src/views/customers/CustomerListView.vue	const showAddSheet = ref(false)   // + 按钮弹出的"扫名片 / 手动新建"sheet
+src/views/expense/ExpenseDetailView.vue	- SectionHeader: 审批流程 · 当前在「N」 → ExFlowNode x N
+src/views/expense/ExpenseDetailView.vue	- SectionHeader: 明细 · N 项 → 紧凑明细行
+src/views/expense/ExpenseDetailView.vue	- SectionHeader: 详情 → DefRow x6
+src/views/expense/ExpenseDetailView.vue	// 召回 — 通过 composable 复用
+src/views/expense/ExpenseDetailView.vue	// 召回已迁至流程 sheet 内, "..." 菜单仅承载重提
+src/views/expense/ExpenseDetailView.vue	// 打开 ExSubmitSheet, 用户在 sheet 里点"确认提交"才真正调 API
+src/views/expense/ExpenseDetailView.vue	// 提交 sheet 状态(用 ExSubmitSheet 替代原生 confirm)
+src/views/expense/ExpenseDetailView.vue	:next-approver="{ user: '上级', node: '上级审批' }"
+src/views/expense/ExpenseDetailView.vue	<!-- Header — 对齐 ProjectDetailView 标准: 返回 ‹ 报销 + ··· -->
+src/views/expense/ExpenseDetailView.vue	<!-- Hero — 对齐 ProjectDetailView 标准: 30px serif 标题 + 44px serif tabular 金额 -->
+src/views/expense/ExpenseDetailView.vue	<!-- ··· 菜单(召回已迁至流程 sheet, 此菜单仅承载已驳回时的重提) -->
+src/views/expense/ExpenseDetailView.vue	<!-- 主题: 30px serif weight 500 (项目同款) -->
+src/views/expense/ExpenseDetailView.vue	<!-- 之前底部 '审批流程' section 已迁到顶部状态 chip 点击弹 ExFlowSheet, 节省屏幕 -->
+src/views/expense/ExpenseDetailView.vue	<!-- 副标题: 申请人 · 客户 · 项目 -->
+src/views/expense/ExpenseDetailView.vue	<!-- 召回确认 sheet -->
+src/views/expense/ExpenseDetailView.vue	<!-- 实际发票缩略图 -->
+src/views/expense/ExpenseDetailView.vue	<!-- 底部操作栏(仅草稿态显示提交; 召回/重提 已迁到 ··· 菜单) -->
+src/views/expense/ExpenseDetailView.vue	<!-- 提交/重提确认 sheet (设计稿同款 ExSubmitSheet, 不再用 native confirm) -->
+src/views/expense/ExpenseDetailView.vue	<!-- 明细 (放在审批流程之上, 用户审单时先看花了什么再看流程) -->
+src/views/expense/ExpenseDetailView.vue	<!-- 明细详情 sheet -->
+src/views/expense/ExpenseDetailView.vue	<!-- 流程 sheet (顶部 chip 点击触发) -->
+src/views/expense/ExpenseDetailView.vue	<!-- 状态 chip + 单号 -->
+src/views/expense/ExpenseDetailView.vue	<!-- 状态 chip 在审批中时可点开流程 sheet (审批中 / 已驳回 / 已通过 / 已支付都有流程) -->
+src/views/expense/ExpenseDetailView.vue	<!-- 详情 def list -->
+src/views/expense/ExpenseDetailView.vue	<!-- 金额: 44px serif tabular (项目同款) -->
+src/views/expense/ExpenseDetailView.vue	ExpenseDetailView · 报销单详情(申请人视角, 含审批时间轴)
+src/views/expense/ExpenseDetailView.vue	chip 审批中(warn 10/600) + ID mono 10 ink4
+src/views/expense/ExpenseDetailView.vue	const m = { CNY: '人民币', USD: '美元', HKD: '港币', TWD: '台币', SGD: '新加坡元', MYR: '马来西亚林吉特', IDR: '印尼盾', THB: '泰铢', VND: '越南盾' }
+src/views/expense/ExpenseDetailView.vue	meta 11 ink3 (人民币 · 共 N 项明细)
+src/views/expense/ExpenseDetailView.vue	严格对齐 design_handoff/expense-list-form.jsx::ExpenseDetail (L292-358)
+src/views/expense/ExpenseEditView.vue	- ExpenseLines (L218-289) — ② 明细 · 已添加 N 项
+src/views/expense/ExpenseEditView.vue	- ExpenseNewForm (L132-216) — ① 主表 · 单号系统自动生成 (无明细)
+src/views/expense/ExpenseEditView.vue	// (await 会丢失 user-activation → 选择器一闪而过)。建草稿挪到选完文件之后。
+src/views/expense/ExpenseEditView.vue	// AI 生成标题: 不阻塞用户(不 await 调用方), 但拿回结果原地写回 +
+src/views/expense/ExpenseEditView.vue	// PDF 不渲染首页缩略 — 让 UI 显示 "📄 PDF" 占位, 点击走 iOS Safari 看
+src/views/expense/ExpenseEditView.vue	// canSubmit: 底部"提交审批"按钮启用条件 — 必须有明细 + 说明 + (关联客户/项目 或 不关联模式)
+src/views/expense/ExpenseEditView.vue	// hydrated 守卫: 恢复完成前不写, 避免默认值/loadExisting 覆盖已有暂存
+src/views/expense/ExpenseEditView.vue	// mobile_customers 接受 search/q 兼容
+src/views/expense/ExpenseEditView.vue	// mobile_projects 字段名: name (不是 project_name), owner_name (不是 customer_name)
+src/views/expense/ExpenseEditView.vue	// nextTick 后再开 → 触发打开的那次点击事件已结束, 不会穿透到刚铺上的遮罩
+src/views/expense/ExpenseEditView.vue	// pickImages 支持相册多选 (getPhoto 仅单张); 逐张走 OCR 链路
+src/views/expense/ExpenseEditView.vue	// web fallback: 走文件 input
+src/views/expense/ExpenseEditView.vue	// ── 保存草稿 / 提交 ──────────────────────────
+src/views/expense/ExpenseEditView.vue	// ── 加载已有报销单(编辑模式) ────────────────────
+src/views/expense/ExpenseEditView.vue	// ── 客户/项目搜索 ─────────────────────────────
+src/views/expense/ExpenseEditView.vue	// ── 拍发票 ───────────────────────────────────
+src/views/expense/ExpenseEditView.vue	// ── 明细 CRUD(本地) ──────────────────────────
+src/views/expense/ExpenseEditView.vue	// ── 添加明细 4 选项分发 ──────────────────────────
+src/views/expense/ExpenseEditView.vue	// ⚠️ iOS WKWebView: input.click() 必须在用户手势同步周期内触发, 不能先 await
+src/views/expense/ExpenseEditView.vue	// 不留在列表(软删 is_deleted)。从列表打开的旧草稿不受影响。
+src/views/expense/ExpenseEditView.vue	// 仅作初始值, 创建/编辑时可点头部货币行改 form.currency。
+src/views/expense/ExpenseEditView.vue	// 从文件选(可 PDF+图片混合多张). 弹原生文件选择器
+src/views/expense/ExpenseEditView.vue	// 从相册选(可多张). 每张走 OCR 识别流, 复用 processing → confirm 链路
+src/views/expense/ExpenseEditView.vue	// 加载归属人候选(同公司用户). 失败不阻塞表单
+src/views/expense/ExpenseEditView.vue	// 已有 → 更新
+src/views/expense/ExpenseEditView.vue	// 底部"提交审批": 保存最新数据 + 打开提交确认 sheet
+src/views/expense/ExpenseEditView.vue	// 归属人候选 (同公司所有 active 用户, 自己排最前) - onMounted 加载
+src/views/expense/ExpenseEditView.vue	// 归属人选择
+src/views/expense/ExpenseEditView.vue	// 当 d.attributed_to.id 等于 owner_id 时, 视为"归属自己"(UI 不显示具体名字), 置 null
+src/views/expense/ExpenseEditView.vue	// 必须先创建草稿才能加明细 — title 真空就传空字符串(后端不再硬塞 fallback)
+src/views/expense/ExpenseEditView.vue	// 打开加明细 sheet: 先收键盘(避免键盘收起重排与进场动画打架),
+src/views/expense/ExpenseEditView.vue	// 新建模式: 用 step 引导
+src/views/expense/ExpenseEditView.vue	// 期间显示"生成标题中…", 完成自动替换, 用户无需手动刷新
+src/views/expense/ExpenseEditView.vue	// 本地暂存: 草稿已存在时, 表单任何改动写进 store(跨路由存活, 零服务器调用)
+src/views/expense/ExpenseEditView.vue	// 本次会话里因加明细/OCR 自动建出来的草稿(非从列表打开的旧草稿)
+src/views/expense/ExpenseEditView.vue	// 添加明细 4 选项 sheet
+src/views/expense/ExpenseEditView.vue	// 用于"取消即丢弃": 取消时删掉它, 不留在列表
+src/views/expense/ExpenseEditView.vue	// 用户已选完文件 → 此时再建草稿(同步翻译延迟不再卡选择器弹出)
+src/views/expense/ExpenseEditView.vue	// 编辑模式: 显示单号 + 明细数
+src/views/expense/ExpenseEditView.vue	// 背景点击关闭: 刚打开 <350ms 内忽略 → 同一次手势的误触/穿透关不掉它
+src/views/expense/ExpenseEditView.vue	// 草稿建好即把当前表单暂存到新 id, 之后走 OCR 跳页返回不丢手输内容
+src/views/expense/ExpenseEditView.vue	// 货币可选 (创建/编辑时点头部货币行打开选择器)
+src/views/expense/ExpenseEditView.vue	// 返回本页时优先用本地暂存恢复手输内容(服务器值可能是建草稿那刻的旧值)
+src/views/expense/ExpenseEditView.vue	// 选"我自己" → 清空 attributed_to_id
+src/views/expense/ExpenseEditView.vue	// 静默失败, 标题保持空, 不打扰用户
+src/views/expense/ExpenseEditView.vue	// 顶栏右上"保存": 保存草稿 + 返回. 客户/项目缺失时仅保存为不完整草稿(不提交流程)
+src/views/expense/ExpenseEditView.vue	// 顶栏左上"取消": 若本次会话自动建了草稿且未主动保存/提交 → 删掉它,
+src/views/expense/ExpenseEditView.vue	// 默认货币: 用户结算货币 → 当前区域默认 (cn=CNY, sg=SGD)。
+src/views/expense/ExpenseEditView.vue	<!-- Nav 表头: 取消(左) / 标题(中) / 保存草稿(右) — 底部 CTA 只留"提交审批" -->
+src/views/expense/ExpenseEditView.vue	<!-- ─── 明细区域(以下与有无明细无关, 始终显示) ─── -->
+src/views/expense/ExpenseEditView.vue	<!-- 不关联客户 toggle -->
+src/views/expense/ExpenseEditView.vue	<!-- 主表区域 — 始终显示, 让用户在有明细时也能改主题/客户/项目/说明 -->
+src/views/expense/ExpenseEditView.vue	<!-- 关联客户 / 项目 (no_link=false 时) -->
+src/views/expense/ExpenseEditView.vue	<!-- 多张发票数量角标 -->
+src/views/expense/ExpenseEditView.vue	<!-- 实际发票缩略图; 加载失败 fallback 文字 -->
+src/views/expense/ExpenseEditView.vue	<!-- 客户/项目 picker -->
+src/views/expense/ExpenseEditView.vue	<!-- 底部 CTA: 保存草稿。 提交审批移到详情页 (存草稿后 detail.control.can_submit
+src/views/expense/ExpenseEditView.vue	<!-- 归属人 (默认自己; 选其他人会插入"归属人审批"节点) -->
+src/views/expense/ExpenseEditView.vue	<!-- 归属人 picker sheet (FilterSheet 风格的头像 chip) -->
+src/views/expense/ExpenseEditView.vue	<!-- 报销主题 -->
+src/views/expense/ExpenseEditView.vue	<!-- 报销说明 -->
+src/views/expense/ExpenseEditView.vue	<!-- 提交确认 sheet -->
+src/views/expense/ExpenseEditView.vue	<!-- 明细 section header -->
+src/views/expense/ExpenseEditView.vue	<!-- 明细 · 列表态 (左滑删除, 仅可编辑状态) -->
+src/views/expense/ExpenseEditView.vue	<!-- 明细 · 空状态 (虚线卡 + 单 CTA 弹 4-option sheet) -->
+src/views/expense/ExpenseEditView.vue	<!-- 明细表单 sheet -->
+src/views/expense/ExpenseEditView.vue	<!-- 添加明细 选项 sheet (拍照 / 相册 / 文件 / 手动) -->
+src/views/expense/ExpenseEditView.vue	<!-- 申请人 -->
+src/views/expense/ExpenseEditView.vue	<!-- 续拍 / 添加 (有明细时显示) -->
+src/views/expense/ExpenseEditView.vue	<!-- 货币 + 状态 -->
+src/views/expense/ExpenseEditView.vue	<!-- 货币选择 sheet -->
+src/views/expense/ExpenseEditView.vue	<!-- 隐藏 file input — 用于"从文件上传" (含 PDF) -->
+src/views/expense/ExpenseEditView.vue	<!-- 顶部安全区 -->
+src/views/expense/ExpenseEditView.vue	ExpenseEditView · 新建/编辑报销单
+src/views/expense/ExpenseEditView.vue	attributed_to_id: null,  // null = 自己; 非空 = 归属其他人, 流程会插入"归属人审批"节点
+src/views/expense/ExpenseEditView.vue	autoCreatedThisSession.value = false  // 已主动保存为草稿, 取消时不再删
+src/views/expense/ExpenseEditView.vue	autoCreatedThisSession.value = false  // 已提交, 取消时不再删
+src/views/expense/ExpenseEditView.vue	autoCreatedThisSession.value = true  // 取消时该删
+src/views/expense/ExpenseEditView.vue	e.target.value = ''  // 允许同一文件再次选择
+src/views/expense/ExpenseEditView.vue	if (!form.value.description.trim()) return  // 没说明, AI 也无从生成
+src/views/expense/ExpenseEditView.vue	if (form.value.title.trim()) return  // 用户已手填, 不覆盖
+src/views/expense/ExpenseEditView.vue	store.clearCompose(editingId.value)  // 提交完成, 暂存作废
+src/views/expense/ExpenseEditView.vue	triggerAutoTitle()  // fire-and-forget AI 生成标题
+src/views/expense/ExpenseEditView.vue	triggerAutoTitle()  // 描述更新可能影响标题, 重新触发 AI
+src/views/expense/ExpenseEditView.vue	try { await expApi.deleteExpense(editingId.value) } catch (e) { /* 删失败也不挡返回 */ }
+src/views/expense/ExpenseEditView.vue	合并 design_handoff:
+src/views/expense/ExpenseEditView.vue	才出现), 编辑态不提交流程 -->
+src/views/expense/ExpenseEditView.vue	根据 lines.length 切换 sub-title 和明细区域(空态卡 / 列表态)
+src/views/expense/ExpenseListView.vue	- PageHead: 季度小字 + 32px 标题 + FAB; 共 N 单 · ¥X 待审批
+src/views/expense/ExpenseListView.vue	- SortRow (最近/金额/状态)
+src/views/expense/ExpenseListView.vue	- 搜索 (圆角胶囊 38px, focused accent border) + 筛选按钮 (38x38 红点)
+src/views/expense/ExpenseListView.vue	- 行: 标题 16 serif + 金额 15 tabular; meta(状态彩点 + 申请人 + 当前节点 + 日期)
+src/views/expense/ExpenseListView.vue	// 内联快速筛选 sheet
+src/views/expense/ExpenseListView.vue	// 排序映射到后端
+src/views/expense/ExpenseListView.vue	// 状态颜色 — 对齐 _STATUS_META 后端
+src/views/expense/ExpenseListView.vue	<!-- meta: 状态 + 单号·明细 + 当前节点 + 日期 -->
+src/views/expense/ExpenseListView.vue	<!-- ─── PageHead 严格对齐 ProjectListView ─────────────── -->
+src/views/expense/ExpenseListView.vue	<!-- 列表 -->
+src/views/expense/ExpenseListView.vue	<!-- 排序下拉 -->
+src/views/expense/ExpenseListView.vue	<!-- 搜索 + 筛选 -->
+src/views/expense/ExpenseListView.vue	<!-- 标题 + 金额 -->
+src/views/expense/ExpenseListView.vue	<!-- 状态快速筛选 sheet -->
+src/views/expense/ExpenseListView.vue	ExpenseListView · 报销列表
+src/views/expense/ExpenseListView.vue	对齐 ProjectListView/CustomerListView 标准布局:
+src/views/expense/ReceiptCaptureView.vue	// 重置队列(每次拍发票 = 新一批)
+src/views/expense/ReceiptCaptureView.vue	ReceiptCaptureView · 拍发票 - 复用 DocumentScanFlow 公用组件
+src/views/expense/ReceiptCaptureView.vue	capture-tip="把发票放在桌面平整位置, 设备保持稳定 1-2 秒等聚焦, 系统会自动捕捉并校正纸面"
+src/views/expense/ReceiptCaptureView.vue	multi-primary-format="用这张 · 共 {n} 张 · 开始识别"
+src/views/expense/ReceiptCaptureView.vue	preview-tip="看清楚发票字段"
+src/views/expense/ReceiptCaptureView.vue	primary-label="AI 识别"
+src/views/expense/ReceiptCaptureView.vue	与 CardScanCaptureView 完全同款方法 (VisionKit 优先 + Camera fallback + 4 角裁剪 + 预览)
+src/views/expense/ReceiptCaptureView.vue	本视图只负责: 接收 done 事件 → 把页加入 pendingReceipts → 跳到 OCR 识别页
+src/views/expense/ReceiptConfirmView.vue	- ExNav 核对发票 N/M · 检查字段后保存 + 下一张›
+src/views/expense/ReceiptConfirmView.vue	- 合并模式 picker: 独立明细 / 合并到现有
+src/views/expense/ReceiptConfirmView.vue	- 字段表单(用 ExFieldRow): 报销科目* / 发生日期* / 描述 / 金额* / 币种 / 汇率(lock)
+src/views/expense/ReceiptConfirmView.vue	- 底部 ExBottomBar: 保存这张 · 下一张 / 跳过
+src/views/expense/ReceiptConfirmView.vue	- 顶部缩略 92x64 + 类型/编号/字段置信度
+src/views/expense/ReceiptConfirmView.vue	/ 报销金额(lock 自动计算) / 开票方 / 税额
+src/views/expense/ReceiptConfirmView.vue	// PDF: 直接走 iOS Safari (Capacitor Browser), 完整 pinch zoom / 翻页 / 分享
+src/views/expense/ReceiptConfirmView.vue	// 优先找当前 idx 之后的未处理
+src/views/expense/ReceiptConfirmView.vue	// 优先用已上传的 server URL (有 ?token), 退化用本地 blob URL
+src/views/expense/ReceiptConfirmView.vue	// 保留原文件名(含正确扩展名), 用户从相册/文件选的 PDF 显示真实名字;
+src/views/expense/ReceiptConfirmView.vue	// 全部处理完
+src/views/expense/ReceiptConfirmView.vue	// 全部处理完则清队列 + 跳 edit
+src/views/expense/ReceiptConfirmView.vue	// 只需要 currency 字段, 用 cache 即可; force=true 会跟保存后的 fetch 形成竞态
+src/views/expense/ReceiptConfirmView.vue	// 合并模式: 累加金额到 mergeable[0] 对应的 detail
+src/views/expense/ReceiptConfirmView.vue	// 启用全局键盘 offset 跟踪 + 点击空白处自动收键盘 (iOS 中文输入法没有 Done 按钮, 必须靠这个退出)
+src/views/expense/ReceiptConfirmView.vue	// 图片: 内嵌 overlay
+src/views/expense/ReceiptConfirmView.vue	// 已处理数 = saved + skipped (用于显示 + 决定底部主按钮文案)
+src/views/expense/ReceiptConfirmView.vue	// 当前及之前的同 category + 同 currency 的 receipts
+src/views/expense/ReceiptConfirmView.vue	// 拍照路径 receipt.filename undefined → 落回 invoice-N.jpg (拍照永远是 jpeg)
+src/views/expense/ReceiptConfirmView.vue	// 是否所有(其他)receipt 都已处理 — 此时按钮变"保存全部"
+src/views/expense/ReceiptConfirmView.vue	// 智能跳转 — 跳到下一张未处理的(saved=false 且 skipped=false)
+src/views/expense/ReceiptConfirmView.vue	// 没找到 → 从头找(可能用户来回浏览跳过了某些)
+src/views/expense/ReceiptConfirmView.vue	// 独立明细 → 调 addLine
+src/views/expense/ReceiptConfirmView.vue	// 用 iOS in-app Safari 打开 PDF (Capacitor Browser, 完整 pinch zoom)
+src/views/expense/ReceiptConfirmView.vue	// 纯导航 — 不动 saved/skipped 状态, 用户可来回浏览
+src/views/expense/ReceiptConfirmView.vue	// 输入(键盘弹起)时隐藏 合并/独立 选项, 避免它在滚动区外造成视觉偏移
+src/views/expense/ReceiptConfirmView.vue	// 输入框聚焦时, 延迟 300ms 等键盘弹起完成, 把当前 input 滚动到屏幕中部, 避免被键盘遮住
+src/views/expense/ReceiptConfirmView.vue	<!-- Header — 返回 + 标题 + 上一张/下一张(纯导航,不影响保存状态) -->
+src/views/expense/ReceiptConfirmView.vue	<!-- PDF 角标 -->
+src/views/expense/ReceiptConfirmView.vue	<!-- 主滚动区(整页可滚动, 包括缩略图和字段表单).
+src/views/expense/ReceiptConfirmView.vue	<!-- 全屏图片预览 (PDF 走 Capacitor Browser, 不在这层) -->
+src/views/expense/ReceiptConfirmView.vue	<!-- 合并/独立: 移出滚动区, 与底部按钮同处固定底部容器 (顶边+同卡片底色视觉一体);
+src/views/expense/ReceiptConfirmView.vue	<!-- 字段表单 -->
+src/views/expense/ReceiptConfirmView.vue	<!-- 币种选择 -->
+src/views/expense/ReceiptConfirmView.vue	<!-- 报销科目选择 -->
+src/views/expense/ReceiptConfirmView.vue	<!-- 放大镜角标 (图片 + PDF 都有) -->
+src/views/expense/ReceiptConfirmView.vue	<!-- 渲染失败 / 没 thumbnail 的 fallback -->
+src/views/expense/ReceiptConfirmView.vue	<!-- 缩略 + 元信息 (点击放大查看原图) -->
+src/views/expense/ReceiptConfirmView.vue	ReceiptConfirmView · 核对单张发票字段
+src/views/expense/ReceiptConfirmView.vue	alert('保存失败: ' + (e.response?.data?.message || e.message))
+src/views/expense/ReceiptConfirmView.vue	alert('请填写正确的发票金额')
+src/views/expense/ReceiptConfirmView.vue	nextUnprocessed()  // 跳到下一张未处理的
+src/views/expense/ReceiptConfirmView.vue	严格对齐 design_handoff/expense-receipt.jsx::ExReceiptConfirm (L167-231)
+src/views/expense/ReceiptConfirmView.vue	键盘弹起(输入字段)时隐藏, 避免在滚动区外造成偏移 -->
+src/views/expense/ReceiptConfirmView.vue	键盘弹起时 --kb-height 由 main.js 写入, 这里加到 padding 让最后一行也能滚到键盘上方 -->
+src/views/expense/ReceiptMergeView.vue	- ExBottomBar 保存合并 / 拆分独立
+src/views/expense/ReceiptMergeView.vue	- SectionHeader 包含发票 + 行(36x26 mini + seller + date·#no + amount + ×)
+src/views/expense/ReceiptMergeView.vue	- SectionHeader 明细字段(汇总) + ExFieldRow x6
+src/views/expense/ReceiptMergeView.vue	- hero: 合并科目 12 ink3 / 22 serif 科目名 / 38 serif 总额 / 11 ink3 N 张合计
+src/views/expense/ReceiptMergeView.vue	// filename 后缀必须反映真实类型: 查看器/后端靠 .pdf 后缀判 PDF。
+src/views/expense/ReceiptMergeView.vue	// 之前写死 .jpg → 合并后 PDF 被当图片渲染 (PDF 变图片 bug)
+src/views/expense/ReceiptMergeView.vue	// 回到 confirm, 把当前 receipt 当独立明细处理
+src/views/expense/ReceiptMergeView.vue	// 标记所有合并的票为已保存
+src/views/expense/ReceiptMergeView.vue	// 跳到下一张未处理的
+src/views/expense/ReceiptMergeView.vue	<!-- 包含发票 -->
+src/views/expense/ReceiptMergeView.vue	<!-- 汇总字段 -->
+src/views/expense/ReceiptMergeView.vue	ReceiptMergeView · 多张发票合并为 1 行
+src/views/expense/ReceiptMergeView.vue	严格对齐 design_handoff/expense-receipt.jsx::ExReceiptMerge (L234-290)
+src/views/expense/ReceiptProcessingView.vue	- 中部:三张叠票 220x156 + 扫描线 (accent 颜色 1.6s 动画)
+src/views/expense/ReceiptProcessingView.vue	- 副标题 13 ink3: 通常需要 3-5 秒
+src/views/expense/ReceiptProcessingView.vue	- 字段揭示列表(animated stagger 250ms): 开票方/开票日期/价税合计/推荐科目(warn)
+src/views/expense/ReceiptProcessingView.vue	- 标题 22/500 serif: 正在识别 N 张发票
+src/views/expense/ReceiptProcessingView.vue	- 顶部 ExNav: 识别中 / N 张发票 · AI 正在提取字段
+src/views/expense/ReceiptProcessingView.vue	// 全部处理完 → 跳确认页
+src/views/expense/ReceiptProcessingView.vue	// 占位字段(动画用), 实际 OCR 完成后跳页; 跟随 locale
+src/views/expense/ReceiptProcessingView.vue	// 根据 blob.type 决定 filename 后缀, 让后端正确判断 PDF/图片
+src/views/expense/ReceiptProcessingView.vue	// 顺序上传所有发票, 取得 OCR 结果
+src/views/expense/ReceiptProcessingView.vue	ReceiptProcessingView · OCR 识别中
+src/views/expense/ReceiptProcessingView.vue	严格对齐 design_handoff/expense-receipt.jsx::ExReceiptProcessing (L116-164)
+src/views/messages/AiChatView.vue	'主要联系人 李华（采购部经理）对你信任度高',
+src/views/messages/AiChatView.vue	'名下进行中 3 个项目，其中 1 个已到「招标中」',
+src/views/messages/AiChatView.vue	'是老客户，过往合作 2 个签约项目',
+src/views/messages/AiChatView.vue	// AI 一对一对话 —— 严格对齐 ai-chat.jsx AIOneOnOne (line 148-223)
+src/views/messages/AiChatView.vue	// AI 流式回复
+src/views/messages/AiChatView.vue	// Mock 回复内容（不同 query 显示不同内容）
+src/views/messages/AiChatView.vue	// SUGGEST_TAGS_1 是 demo seed 提示, 暂保留中文(只在没有 backend mock 时显示)
+src/views/messages/AiChatView.vue	// 后端把 conversation_id 回传，存下来，后续消息复用同一个会话
+src/views/messages/AiChatView.vue	// 在 thinking 气泡里累加 streamed content（用临时 body 'streaming' + streamText）
+src/views/messages/AiChatView.vue	// 替换初始 demo 消息为真历史
+src/views/messages/AiChatView.vue	// 现有 AI 会话 id（从 ChatListView 跳过来时带 query.id；否则首次发消息时由后端创建）
+src/views/messages/AiChatView.vue	// 真接 SSE：POST /api/v1/mobile/chat/ai/stream
+src/views/messages/AiChatView.vue	// 设计稿初始 demo 对话（line 169-194）
+src/views/messages/AiChatView.vue	// 进入页面时拉历史（如果有 conversationId）
+src/views/messages/AiChatView.vue	// 默认
+src/views/messages/AiChatView.vue	<!-- AI 工具状态 -->
+src/views/messages/AiChatView.vue	<!-- mock 分析回复（保留为兜底，后端不到时可手动触发）-->
+src/views/messages/AiChatView.vue	<!-- 对比客户 -->
+src/views/messages/AiChatView.vue	<!-- 引用项目卡 -->
+src/views/messages/AiChatView.vue	<!-- 快速指令 chip 行 -->
+src/views/messages/AiChatView.vue	<!-- 操作行 -->
+src/views/messages/AiChatView.vue	<!-- 真后端流式输出 -->
+src/views/messages/AiChatView.vue	<!-- 第一轮回复后的建议追问 chip -->
+src/views/messages/AiChatView.vue	<!-- 起草回复 -->
+src/views/messages/AiChatView.vue	<!-- 输入框行 -->
+src/views/messages/AiChatView.vue	<!-- 错误 -->
+src/views/messages/AiChatView.vue	cardLead: '名下项目中，「宝山节能改造项目」最值得重点跟进：',
+src/views/messages/AiChatView.vue	const SUGGEST_TAGS_1 = ['这个项目下一步该做什么？', '帮我起草约见短信', '其他客户对比一下']
+src/views/messages/AiChatView.vue	footer: '数据来源：6 个名下项目 · 12 条跟进记录 · 上次拜访 04 · 22',
+src/views/messages/AiChatView.vue	if (query.includes('对比')) {
+src/views/messages/AiChatView.vue	if (query.includes('约见') || query.includes('短信')) {
+src/views/messages/AiChatView.vue	intro: '结合我看到的数据，宝山节能整体赢率较高（约 72%），主要原因有三点：',
+src/views/messages/AiChatView.vue	label: '建议回复 · 已结合客户偏好与历史互动',
+src/views/messages/AiChatView.vue	refCard: { name: '宝山节能改造项目', stage: '招标中', amount: '42.50' },
+src/views/messages/AiChatView.vue	streamMsg.thinking = false  // 流开始就不再显示 ... 转圈
+src/views/messages/AiChatView.vue	text: '李经理您好，关于您说的方案，我希望本周能登门拜访 30 分钟，把更新版当面对一遍，您看周三或周四下午方便吗？',
+src/views/messages/AiChatView.vue	title: '已为你对比 3 家客户（按累计价值倒序）',
+src/views/messages/AiChatView.vue	{ id: 1, kind: 'user', time: '14:21', text: '帮我分析一下宝山节能这个客户的赢率怎么样？最近的项目有几个有戏？' },
+src/views/messages/AiChatView.vue	{ name: '上海宝山节能科技', value: '380.50 万', tag: 'A 类活跃' },
+src/views/messages/AiChatView.vue	{ name: '南京数据港集团', value: '256.00 万', tag: 'A 类活跃' },
+src/views/messages/AiChatView.vue	{ name: '深圳明远半导体', value: '620.00 万', tag: 'A 类活跃' },
+src/views/messages/BroadcastView.vue	// Mock 公告列表（实际由后端 announcement 表提供）
+src/views/messages/BroadcastView.vue	// 公司广播详情 —— 设计稿无此屏，按 Plan A 风格新建
+src/views/messages/BroadcastView.vue	// 顶部 Hero：广播频道名 + 订阅者数；下方按时间倒序的公告列表
+src/views/messages/BroadcastView.vue	<!-- Hero：广播频道介绍 -->
+src/views/messages/BroadcastView.vue	<!-- 元信息 -->
+src/views/messages/BroadcastView.vue	<!-- 公告列表 -->
+src/views/messages/BroadcastView.vue	<!-- 标题行 -->
+src/views/messages/BroadcastView.vue	<!-- 正文 -->
+src/views/messages/BroadcastView.vue	body: '5月 1 日至 3 日（周五至周日）放假调休。4 日（周一）正常上班。请提前安排好客户对接。',
+src/views/messages/BroadcastView.vue	body: '各位同事：Q2 全员业绩目标已在 OA 发布，请项目经理本周前与团队对齐 KPI。\n\n重点指标：\n  · 新签客户 +20%\n  · 已签项目准时回款 ≥ 85%\n  · NPS 提升 5 个点\n\n如有疑问请联系 HR 王芳。',
+src/views/messages/BroadcastView.vue	body: '恭喜张伟（132%）、陈刚（118%）、李明（105%）超额完成 4 月业绩。详细排名见 OA。',
+src/views/messages/BroadcastView.vue	body: '本周一 PMA 系统升级到 v1.4，新增移动端 AI 助手「源助手」、客户讨论卡功能。详情见内部文档。',
+src/views/messages/BroadcastView.vue	id: 1, time: '09:21 · 今天', author: '管理员',
+src/views/messages/BroadcastView.vue	id: 2, time: '昨天 14:00', author: '行政',
+src/views/messages/BroadcastView.vue	id: 3, time: '上周 周一', author: '产品部',
+src/views/messages/BroadcastView.vue	id: 4, time: '上周 周三', author: '销售总监',
+src/views/messages/BroadcastView.vue	title: '4 月销冠表彰',
+src/views/messages/BroadcastView.vue	title: '5月 1-3 日劳动节放假通知',
+src/views/messages/BroadcastView.vue	title: 'PMA 系统 v1.4 上线公告',
+src/views/messages/BroadcastView.vue	title: 'Q2 全员目标已发布',
+src/views/messages/ChatListView.vue	// Capacitor WebView 下 router.go(0) 是 no-op, 用 location.reload 真刷新
+src/views/messages/ChatListView.vue	// DM 场景: 取对方 participant 的 department 作为副标
+src/views/messages/ChatListView.vue	// Vue 3 reactive 支持 Set 的 add/delete 触发更新; ref(new Set()) 不触发
+src/views/messages/ChatListView.vue	// sync_metadata.project_id 让后端知道这是项目群，
+src/views/messages/ChatListView.vue	// 一次拉全员 (后端已过滤 is_active=True 且最多 500), 后续本地实时过滤
+src/views/messages/ChatListView.vue	// 不再合并对区会话; 对区有未读时, 顶部琥珀卡提示, 点卡片切到对区即可
+src/views/messages/ChatListView.vue	// 之后加成员时会自动把项目共享给新成员
+src/views/messages/ChatListView.vue	// 从列表移出 (仅自己列表隐藏 — 对方再发消息会自动 unhide 重新出现)
+src/views/messages/ChatListView.vue	// 会话列表 — 严格本区 (Federation Lite v2 简化方案)
+src/views/messages/ChatListView.vue	// 公司广播 → 公告列表
+src/views/messages/ChatListView.vue	// 创建私聊（type='private'，1 对 1）
+src/views/messages/ChatListView.vue	// 创建项目群（type='group'，名字用项目名，仅创建人；后续可在群设置加成员）
+src/views/messages/ChatListView.vue	// 后端 type: 'private' / 'group' / 'ai'
+src/views/messages/ChatListView.vue	// 如果有现成 AI 会话则带 id 进入；否则进 AI 页时由后端自动建一个
+src/views/messages/ChatListView.vue	// 对区未读数 (用于顶部琥珀卡)
+src/views/messages/ChatListView.vue	// 并行: 本区会话 + 对区未读总数 (只用于决定琥珀卡)
+src/views/messages/ChatListView.vue	// 把后端 conversation 映射为 UI 行
+src/views/messages/ChatListView.vue	// 拆 AI 顶置卡 vs 普通会话
+src/views/messages/ChatListView.vue	// 搜索状态: 直接平铺命中的人员, 不再分组(避免 IME 期间 watch + reactive Set
+src/views/messages/ChatListView.vue	// 是否在搜索状态(q 非空)
+src/views/messages/ChatListView.vue	// 本地过滤 — 替代后端搜索, 避免中文 IME debounce 竞态
+src/views/messages/ChatListView.vue	// 滑动列表时收起键盘, 避免被键盘遮挡
+src/views/messages/ChatListView.vue	// 点琥珀卡 → 切到对区, 重载让 ChatListView 重新挂载并加载对区列表
+src/views/messages/ChatListView.vue	// 私聊 → DmChatView，把对方部门一起带过去
+src/views/messages/ChatListView.vue	// 立即从本地列表移除, 体感顺滑
+src/views/messages/ChatListView.vue	// 简单 30s 轮询刷新（未读+新消息），后续可换 SSE / WebSocket
+src/views/messages/ChatListView.vue	// 触发渲染递归导致 iOS WebView 卡死)
+src/views/messages/ChatListView.vue	// 选择器步骤：'main'（三选一）/ 'dm'（选联系人）/ 'group'（选项目）
+src/views/messages/ChatListView.vue	// 避开了中文 IME composition 与 debounce 的竞态(原方案 2 字符以上不匹配)
+src/views/messages/ChatListView.vue	// 非搜索状态: 公司 → 部门 → 人员 三级树; 自己公司排最前
+src/views/messages/ChatListView.vue	// 项目群 → GroupChatView
+src/views/messages/ChatListView.vue	// 默认展开当前用户的公司 + 部门
+src/views/messages/ChatListView.vue	<!-- AI 助手 主推 -->
+src/views/messages/ChatListView.vue	<!-- AI 助手置顶卡 (设计 line 474-492) -->
+src/views/messages/ChatListView.vue	<!-- panel: bottom 跟随键盘抬升, max-h 减去键盘 -->
+src/views/messages/ChatListView.vue	<!-- ─── Step: dm 选联系人 (三级 公司 → 部门 → 人员) ─── -->
+src/views/messages/ChatListView.vue	<!-- ─── Step: group 选项目 ─── -->
+src/views/messages/ChatListView.vue	<!-- ─── Step: main 三选一 ─── -->
+src/views/messages/ChatListView.vue	<!-- 人员行 (Level 3, 仅部门展开时显示) -->
+src/views/messages/ChatListView.vue	<!-- 公司行 (Level 1) -->
+src/views/messages/ChatListView.vue	<!-- 列表 — 滑动收键盘, 避免遮挡 -->
+src/views/messages/ChatListView.vue	<!-- 加载中 -->
+src/views/messages/ChatListView.vue	<!-- 发起聊天 sheet — Teleport 到 body -->
+src/views/messages/ChatListView.vue	<!-- 头像（广播=方形 + ink；其他=圆形 + accent-soft）-->
+src/views/messages/ChatListView.vue	<!-- 搜索态: 平铺命中结果 (避免树+reactive Set 在 IME 期间卡死) -->
+src/views/messages/ChatListView.vue	<!-- 普通会话 (左滑「移出」: 仅自己列表隐藏, 对方再发消息会自动重现) -->
+src/views/messages/ChatListView.vue	<!-- 私聊同事 -->
+src/views/messages/ChatListView.vue	<!-- 跨区域提示卡: 对区有未读时显示, 点击切到对区 -->
+src/views/messages/ChatListView.vue	<!-- 遮罩点击关闭 sheet -->
+src/views/messages/ChatListView.vue	<!-- 部门行 + 人员 (Level 2 + 3, 仅公司展开时显示) -->
+src/views/messages/ChatListView.vue	<!-- 非搜索态: 树形分组 -->
+src/views/messages/ChatListView.vue	<!-- 项目群 -->
+src/views/messages/ChatListView.vue	await load()  // 刷新列表
+src/views/messages/ChatListView.vue	const allDmUsers = ref([])            // dm step 一次拉全员, 后续本地过滤
+src/views/messages/ChatListView.vue	const pickerResults = ref([])         // group/project step 用 (后端搜)
+src/views/messages/ChatSettingsView.vue	// proj-* 等虚拟会话：没有后端数据，展示降级 UI
+src/views/messages/ChatSettingsView.vue	// ─── 删除成员 / 退群 ──────────────────────────────────────────
+src/views/messages/ChatSettingsView.vue	// ─── 添加成员 ─────────────────────────────────────────────────
+src/views/messages/ChatSettingsView.vue	// 先尝试用 remove_participant 把自己移出（也会同步项目共享）
+src/views/messages/ChatSettingsView.vue	// 加载会话详情（成员、关联项目、公告等）
+src/views/messages/ChatSettingsView.vue	// 如果是最后一人，回退到删除会话
+src/views/messages/ChatSettingsView.vue	// 支持：添加成员（用户搜索 sheet）、删除成员（owner）、退群（自己）
+src/views/messages/ChatSettingsView.vue	// 添加成员 sheet
+src/views/messages/ChatSettingsView.vue	// 群聊设置 —— 真后端版本
+src/views/messages/ChatSettingsView.vue	// 过滤掉已在群里的
+src/views/messages/ChatSettingsView.vue	// 重命名 sheet
+src/views/messages/ChatSettingsView.vue	// 重新拉详情，刷新成员
+src/views/messages/ChatSettingsView.vue	// 默认拉一批活跃用户
+src/views/messages/ChatSettingsView.vue	:placeholder="t('chat.renamePlaceholder') || '请输入名称'"
+src/views/messages/ChatSettingsView.vue	<!-- Hero：群头像 + 名 + 元信息 -->
+src/views/messages/ChatSettingsView.vue	<!-- 公告（仅当存在时） -->
+src/views/messages/ChatSettingsView.vue	<!-- 关联项目（仅项目群有） -->
+src/views/messages/ChatSettingsView.vue	<!-- 加载中 -->
+src/views/messages/ChatSettingsView.vue	<!-- 成员 -->
+src/views/messages/ChatSettingsView.vue	<!-- 添加成员 sheet -->
+src/views/messages/ChatSettingsView.vue	<!-- 移除按钮：群主可移除非自己；自己不显示（自己用底部退群） -->
+src/views/messages/ChatSettingsView.vue	<!-- 退出群聊 -->
+src/views/messages/ChatSettingsView.vue	<!-- 选项 -->
+src/views/messages/ChatSettingsView.vue	<!-- 重命名 sheet -->
+src/views/messages/ChatSettingsView.vue	<span class="font-serif" style="font-size: 16px; font-weight: 500;">{{ t('chat.renameTitle') || '修改名称' }}</span>
+src/views/messages/ChatSettingsView.vue	alert(e?.response?.data?.message || e?.message || '改名失败')
+src/views/messages/ChatSettingsView.vue	alert(r?.data?.message || t('chat.renameFailed') || '改名失败')
+src/views/messages/ChatSettingsView.vue	if (r.data?.message?.includes('至少需保留') || r.data?.message?.includes('at least')) {
+src/views/messages/ChatSettingsView.vue	style="color: var(--color-accent);">{{ t('common.save') || '保存' }}</button>
+src/views/messages/DmChatView.vue	'尊敬的李经理：关于您提到的报价及工期事项，我方已重新评估，可让利约 5%，工期也可压缩至 90 天（需分两批进场）。建议明日面谈细节。' :
+src/views/messages/DmChatView.vue	'李经理您好，报价我争取 5% 让利、工期 90 天可行。明天面聊一下细节？' :
+src/views/messages/DmChatView.vue	'李经理，报价 5% 让利 + 工期 90 天可行（设备分两批）。补充：产能方面我们二期已扩产 30%，可保进度。',
+src/views/messages/DmChatView.vue	//   'delivered' = 已到服务器（id 以 srv- 开头），对方未读
+src/views/messages/DmChatView.vue	//   'read'      = 对方 last_read_at >= 该消息时间
+src/views/messages/DmChatView.vue	//   'sending'   = 本地乐观（_local），尚未到服务器
+src/views/messages/DmChatView.vue	// (兜底防御后端时间戳漂移, 如时区错位)
+src/views/messages/DmChatView.vue	// AI 草稿区只在 mock 场景默认显示；真后端 DM 默认隐藏（用户主动 @AI 才弹 AI 气泡）
+src/views/messages/DmChatView.vue	// AI 草稿（独立浮层）
+src/views/messages/DmChatView.vue	// IME 状态显式跟踪 (iOS Chinese 键盘 e.isComposing / 229 不可靠)
+src/views/messages/DmChatView.vue	// compositionend 后保留 100ms 缓冲, 避免候选确认 + keyup.enter 同帧双发
+src/views/messages/DmChatView.vue	// route.params.id：纯数字 → 真后端 conversation id；非数字 → 仅 mock
+src/views/messages/DmChatView.vue	// ── 消息长按 actions ──
+src/views/messages/DmChatView.vue	// ── 附件上传 / + 面板 / 录音 / 位置 ──
+src/views/messages/DmChatView.vue	// 乐观插入用户消息（标记 _local + 内容 hash 用于轮询去重）
+src/views/messages/DmChatView.vue	// 优先 30s 时间窗 + 原文匹配; 失败时仅原文匹配兜底
+src/views/messages/DmChatView.vue	// 假装重新生成，把 tag 加入 meta
+src/views/messages/DmChatView.vue	// 分支 1：私聊里 @源助手 → 走 AI SSE，AI 回复仅你可见（写入 DM 会话历史）
+src/views/messages/DmChatView.vue	// 分支 2：普通 DM 消息（含可能的 #/$ 引用卡）
+src/views/messages/DmChatView.vue	// 图片：后台压缩 + EXIF 翻正
+src/views/messages/DmChatView.vue	// 增量轮询 + 已读回执
+src/views/messages/DmChatView.vue	// 如果是自己发的消息，找匹配的本地乐观消息 → 替换
+src/views/messages/DmChatView.vue	// 延迟 blur，防止点击 chip 时先触发 blur 把 chip 隐藏导致点击落空
+src/views/messages/DmChatView.vue	// 我发的某条消息 → 状态
+src/views/messages/DmChatView.vue	// 抓引用快照（clearRefs 之前）
+src/views/messages/DmChatView.vue	// 文本消息匹配: dedup 时用"原文"比较 (本地 _content 总是用户输入的原文,
+src/views/messages/DmChatView.vue	// 服务器消息若被翻译则 displayText=译文, 此时 originalText=原文)
+src/views/messages/DmChatView.vue	// 检测 @AI
+src/views/messages/DmChatView.vue	// 消息列表
+src/views/messages/DmChatView.vue	// 真后端 DM（数字 id）：空数组，loadHistory 拉真历史
+src/views/messages/DmChatView.vue	// 私聊 + AI 草稿区 —— 严格对齐 ai-chat.jsx DMAIDraft (line 383-459)
+src/views/messages/DmChatView.vue	// 立即所有原图气泡插入；压缩+上传都在背景里跑
+src/views/messages/DmChatView.vue	// 立即插入气泡（用原图预览）→ 后台压缩 + 上传
+src/views/messages/DmChatView.vue	// 翻译: 后端按 viewer language_preference 已附带 translation 字段
+src/views/messages/DmChatView.vue	// 联系人信息（从 query 串接，实际拉历史时由后端 participants 补全）
+src/views/messages/DmChatView.vue	// 节流: 800ms 内重复触发的 send 直接吞掉 (iOS IME 双发兜底)
+src/views/messages/DmChatView.vue	// 解析消息正文 + 引用卡 + 附件 meta
+src/views/messages/DmChatView.vue	// 译文为主, 原文作为同气泡内弱化双语小字 (设计稿: BiMsg 气泡)
+src/views/messages/DmChatView.vue	// 键盘弹起/收回的 250ms 动画期间, 用 rAF 持续 scrollToBottom, 让最新消息整个动画都贴 composer 上方
+src/views/messages/DmChatView.vue	// 附件消息：上传完成后我们把 file_url 写到 local._serverFileUrl，靠它精准匹配
+src/views/messages/DmChatView.vue	// 非数字 id（罕见，比如未来的虚拟会话）：保留富媒体演示种子
+src/views/messages/DmChatView.vue	// 顺便从消息里推断 peer 真实姓名（取第一条非我的消息的 sender_name）
+src/views/messages/DmChatView.vue	<!-- + 展开面板 -->
+src/views/messages/DmChatView.vue	<!-- AI 流式回复（私聊里 @源助手 触发）-->
+src/views/messages/DmChatView.vue	<!-- AI 草稿区（仅你可见）-->
+src/views/messages/DmChatView.vue	<!-- Composer (含 @ 提及 popover) -->
+src/views/messages/DmChatView.vue	<!-- 位置 sheet（共享 / 查看 共用）-->
+src/views/messages/DmChatView.vue	<!-- 双语气泡 BiMsg (黑底): 译文 + 原文同气泡内, 弱化白 -->
+src/views/messages/DmChatView.vue	<!-- 双语气泡 BiMsg: 译文上方 + 原文同气泡下方弱化, 中间细分隔线 -->
+src/views/messages/DmChatView.vue	<!-- 对方消息（带头像）-->
+src/views/messages/DmChatView.vue	<!-- 引用快捷入口：项目 / 客户（始终渲染、靠 display 切换避免聚焦时 mount 延迟）-->
+src/views/messages/DmChatView.vue	<!-- 微调追问 chip -->
+src/views/messages/DmChatView.vue	<!-- 我的消息（右对齐 ink 黑底）-->
+src/views/messages/DmChatView.vue	<!-- 操作行 -->
+src/views/messages/DmChatView.vue	<!-- 文件 -->
+src/views/messages/DmChatView.vue	<!-- 文本气泡（含可能的引用卡）-->
+src/views/messages/DmChatView.vue	<!-- 日期分隔条 -->
+src/views/messages/DmChatView.vue	<!-- 时间 + 已读回执 -->
+src/views/messages/DmChatView.vue	<!-- 消息长按 actions -->
+src/views/messages/DmChatView.vue	<!-- 语音 -->
+src/views/messages/DmChatView.vue	<!-- 语音录制 sheet -->
+src/views/messages/DmChatView.vue	<!-- 附件（image / file / voice / location）-->
+src/views/messages/DmChatView.vue	<!-- 麦克风 → 打开录音 sheet -->
+src/views/messages/DmChatView.vue	const SUGGEST_TAGS = ['更简短一点', '更正式一点', '加一句关于产能的']
+src/views/messages/DmChatView.vue	const isAtAi = t.includes('@AI') || t.includes('@源助手')
+src/views/messages/DmChatView.vue	const locationView = ref(null)        // {lat, lon} 用于查看模式
+src/views/messages/DmChatView.vue	const peerLastReadMs = ref(0)  // 对方上次已读时间（ms）
+src/views/messages/DmChatView.vue	file: { name: '深圳半导体方案 V3.pdf', size: '2.4 MB', pages: 12, type: 'PDF' }, read: true },
+src/views/messages/DmChatView.vue	function onForwarded() { console.log('转发成功') }
+src/views/messages/DmChatView.vue	id: aiId, kind: 'ai', time: `今天 ${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}`,
+src/views/messages/DmChatView.vue	id: localId, kind: 'me', time: `今天 ${hh}:${mm}`, text: t,
+src/views/messages/DmChatView.vue	label: '建议回复 · 已结合客户偏好与历史报价',
+src/views/messages/DmChatView.vue	local._serverFileUrl = data.file_url   // 用作 server 消息精准匹配
+src/views/messages/DmChatView.vue	meta: ['语气：专业但温暖', '引用：历史 5% 让利记录'],
+src/views/messages/DmChatView.vue	meta: ['语气：直接果断', '换一版 · 更短'],
+src/views/messages/DmChatView.vue	meta: [`语气：${tag.replace('一点', '').replace('加一句关于', '加')}`, ...draft.value.meta.slice(1)],
+src/views/messages/DmChatView.vue	onKeyboardWillHide(() => _smoothScrollDuringTransition())  // 键盘收回时聊天下浮也保持流畅
+src/views/messages/DmChatView.vue	tag.includes('正式') ?
+src/views/messages/DmChatView.vue	text: '收到了，谢谢！客户那边什么时候反馈？' },
+src/views/messages/DmChatView.vue	text: '李经理您好，报价方面我这边已经申请到约 5% 的让利空间，稍后单独发您。工期方面，90 天是有挑战但可以做，前提是设备分两批进场。今晚我先把更新版方案发您，明天我们当面对一遍？',
+src/views/messages/DmChatView.vue	text: '李经理，关于报价和工期我都听到了，给我半天时间打个新版方案，今晚发您；同时我会争取约个见面机会，把细节当面对一下。',
+src/views/messages/DmChatView.vue	text: '深圳那个项目方案 PDF 你有吗？' },
+src/views/messages/DmChatView.vue	text: tag.includes('简短') ?
+src/views/messages/DmChatView.vue	time: '今天 09:12',
+src/views/messages/DmChatView.vue	{ id: 1, kind: 'them', day: '昨天', time: '昨天 17:42',
+src/views/messages/DmChatView.vue	{ id: 2, kind: 'me', time: '昨天 17:45', text: '有，我现在发给你。', read: true },
+src/views/messages/DmChatView.vue	{ id: 3, kind: 'me', time: '昨天 17:45',
+src/views/messages/DmChatView.vue	{ id: 4, kind: 'them', day: '今天', time: '今天 09:02',
+src/views/messages/DmChatView.vue	{ id: 5, kind: 'them', time: '今天 09:03',
+src/views/messages/GroupChatView.vue	// + 共享 chat store：与 ProjectDetailView 项目讨论卡同源
+src/views/messages/GroupChatView.vue	// + 引用项目卡用 components/common/refs/ProjectRefCard.vue
+src/views/messages/GroupChatView.vue	// IME 状态显式跟踪 (iOS Chinese 键盘 e.isComposing / 229 不可靠)
+src/views/messages/GroupChatView.vue	// proj-* 虚拟群只是入口占位，无后端，亦不再注入 mock 种子。
+src/views/messages/GroupChatView.vue	// proj-* 虚拟群（无后端会话）：保留旧 mock 流程
+src/views/messages/GroupChatView.vue	// ── 消息长按 actions ──
+src/views/messages/GroupChatView.vue	// ── 附件上传 / + 面板 / 录音 / 位置 ──
+src/views/messages/GroupChatView.vue	// 兜底: 时间戳漂移时仅原文匹配
+src/views/messages/GroupChatView.vue	// 分支 1：@源助手 走 SSE（streamAi 内部会在后端保存 user message + AI 回复）
+src/views/messages/GroupChatView.vue	// 分支 2：普通消息直接 apiSend（含可能的 #/$ 引用卡）
+src/views/messages/GroupChatView.vue	// 去重：store 已有则跳过
+src/views/messages/GroupChatView.vue	// 同步撤回
+src/views/messages/GroupChatView.vue	// 增量轮询新消息（每 3 秒）
+src/views/messages/GroupChatView.vue	// 已知本地最新消息时间（增量轮询用）
+src/views/messages/GroupChatView.vue	// 弱提示：暂时不打扰用户
+src/views/messages/GroupChatView.vue	// 把后端消息 dict 映射到 store 并追加（去重）
+src/views/messages/GroupChatView.vue	// 抓快照（pushUser 会 clearRefs，要先存）
+src/views/messages/GroupChatView.vue	// 拉真消息历史（项目群 'proj-*' 跳过，仅普通群）
+src/views/messages/GroupChatView.vue	// 真 SSE：在群里 @AI
+src/views/messages/GroupChatView.vue	// 真后端会话（数字 id）由 loadHistory() 拉真历史；
+src/views/messages/GroupChatView.vue	// 立即插入气泡（原图预览）→ 后台压缩 + 上传
+src/views/messages/GroupChatView.vue	// 群 id（route.params.id 来自 URL；项目群约定 'proj-{id}' 形式）
+src/views/messages/GroupChatView.vue	// 群信息：从后端拉详情，proj-* 虚拟群退化为 query 字段
+src/views/messages/GroupChatView.vue	// 群聊 + @AI —— 严格对齐 ai-chat.jsx GroupAtAI (line 309-381)
+src/views/messages/GroupChatView.vue	// 翻译: 后端按 viewer language_preference 已附带 translation
+src/views/messages/GroupChatView.vue	// 自己发的文本消息: 用原文+时间窗匹配本地乐观气泡, 找到就替换不重复显示
+src/views/messages/GroupChatView.vue	// 自己发的附件消息：靠 file_url 精准替换本地乐观气泡
+src/views/messages/GroupChatView.vue	// 节流: 800ms 内重复触发的 send 直接吞掉 (iOS IME 双发兜底)
+src/views/messages/GroupChatView.vue	// 解析带引用卡的消息：content 是 JSON {text, refs}
+src/views/messages/GroupChatView.vue	// 译文为主, 原文同气泡内弱化双语小字 (BiMsg)
+src/views/messages/GroupChatView.vue	1. 阶段：嵌入 → 招标中
+src/views/messages/GroupChatView.vue	2. 客户方案 V1 已交付
+src/views/messages/GroupChatView.vue	3. 群内消息 38 条 / 跟进 2 条
+src/views/messages/GroupChatView.vue	<!-- @/#/$ 提及选择器 -->
+src/views/messages/GroupChatView.vue	<!-- AI 公开回答 -->
+src/views/messages/GroupChatView.vue	<!-- Composer (含 @ 提及 popover) -->
+src/views/messages/GroupChatView.vue	<!-- 位置 sheet（共享 / 查看 共用）-->
+src/views/messages/GroupChatView.vue	<!-- 别人的消息（带头像）-->
+src/views/messages/GroupChatView.vue	<!-- 双语气泡 BiMsg (黑底): 译文 + 原文同气泡内 -->
+src/views/messages/GroupChatView.vue	<!-- 双语气泡 BiMsg: 译文 + 原文同气泡内 -->
+src/views/messages/GroupChatView.vue	<!-- 引用快捷入口：项目 / 客户（始终渲染、靠 display 切换避免聚焦时 mount 延迟）-->
+src/views/messages/GroupChatView.vue	<!-- 我的消息（右对齐，ink 黑底）-->
+src/views/messages/GroupChatView.vue	<!-- 旧 mock 周报模板（保留兜底，proj-* 虚拟群仍用）-->
+src/views/messages/GroupChatView.vue	<!-- 消息长按 actions -->
+src/views/messages/GroupChatView.vue	<!-- 真后端 SSE 流式 -->
+src/views/messages/GroupChatView.vue	<!-- 系统消息（居中斜体小字）-->
+src/views/messages/GroupChatView.vue	<!-- 续写：导出格式 -->
+src/views/messages/GroupChatView.vue	<!-- 语音录制 sheet -->
+src/views/messages/GroupChatView.vue	<!-- 阶段推进卡（系统消息富卡）-->
+src/views/messages/GroupChatView.vue	<div class="text-[11px] font-semibold mb-1" style="color: #2F66D6;">📊 项目周报 · 第 17 周</div>
+src/views/messages/GroupChatView.vue	<div><b>{{ group.name }}</b>本周关键进展：</div>
+src/views/messages/GroupChatView.vue	<div>已为你导出飞书富文本格式：</div>
+src/views/messages/GroupChatView.vue	<li>04 · 25 阶段从「嵌入」推进到「招标中」(陈刚)</li>
+src/views/messages/GroupChatView.vue	<li>04 · 26 客户方案 V1 已交付，正在评审</li>
+src/views/messages/GroupChatView.vue	<li>本周新增 2 条跟进 · 群内消息 38 条</li>
+src/views/messages/GroupChatView.vue	<span v-else-if="typeof m.mention === 'string' && m.mention !== '@我' && m.mention !== '@me'" class="font-semibold" style="color: #2F66D6;">{{ m.mention }}&nbsp;</span>
+src/views/messages/GroupChatView.vue	<span v-if="m.mention === true || m.mention === '@我' || m.mention === '@me'" class="font-semibold"
+src/views/messages/GroupChatView.vue	console.log('转发成功')
+src/views/messages/GroupChatView.vue	const cleanedText = text.replace(/^@(AI|源助手)\s*/, '')
+src/views/messages/GroupChatView.vue	const isAt = pushUser(t)            // 本地立即显示用户消息
+src/views/messages/GroupChatView.vue	const isAtAi = text.includes('@AI') || text.includes('@源助手')
+src/views/messages/GroupChatView.vue	content: t,                   // 保留 @源助手 前缀让 AI 知道被点名
+src/views/messages/GroupChatView.vue	mention: isAtAi ? '@源助手' : null,
+src/views/messages/GroupChatView.vue	style="background: var(--color-card); border: 1px dashed var(--color-divider-strong); color: var(--color-ink-2);">📊 项目周报 · 第 17 周
+src/views/messages/GroupChatView.vue	⚠️ 提示：标书 V2 截止 周五，目前进度待跟进
+src/views/messages/GroupChatView.vue	⚠️ 标书 V2 截止 周五</div>
+src/views/messages/GroupChatView.vue	本周关键进展：
+src/views/messages/GroupChatView.vue	项目：{{ group.name }}
+src/views/profile/ProfileView.vue	// Bundle 版本（Capgo 当前激活的）
+src/views/profile/ProfileView.vue	// Capacitor WebView 下 router.go(0) 是 no-op, 必须用 location.reload 真刷新
+src/views/profile/ProfileView.vue	// Eyebrow 文案: away 时双语提示
+src/views/profile/ProfileView.vue	// Web/dev 环境忽略
+src/views/profile/ProfileView.vue	// 切换 sheet 状态
+src/views/profile/ProfileView.vue	// 切换会影响报销/绩效/薪酬的统计口径, mobile 不开放避免来回切造成混乱
+src/views/profile/ProfileView.vue	// 区域信息 (Federation Lite)
+src/views/profile/ProfileView.vue	// 同步到后端 user.language_preference (失败不阻塞 UI)
+src/views/profile/ProfileView.vue	// 当前在用的区域: 没动作
+src/views/profile/ProfileView.vue	// 待审批数(显示在审批中心圆形图标里)
+src/views/profile/ProfileView.vue	// 数据区域两行: home 在前, peer 在后
+src/views/profile/ProfileView.vue	// 没有对区 token (单区用户): 不应进 sheet (UI 已经隐藏)
+src/views/profile/ProfileView.vue	// 简短动画: 先关 sheet, 显示 toast 450ms, 再 reload
+src/views/profile/ProfileView.vue	// 结算货币 — 只读展示, 修改入口在 Web 端
+src/views/profile/ProfileView.vue	// 语言切换 — 同步到 i18n + localStorage + 后端 user.language_preference
+src/views/profile/ProfileView.vue	<!-- 44x44 圆形带待审批数字(对齐设计稿 expense-approval.jsx L36-37) -->
+src/views/profile/ProfileView.vue	<!-- 切换中 toast -->
+src/views/profile/ProfileView.vue	<!-- 切换确认 sheet -->
+src/views/profile/ProfileView.vue	<!-- 名称 + 描述 -->
+src/views/profile/ProfileView.vue	<!-- 国旗块 -->
+src/views/profile/ProfileView.vue	<!-- 头像卡 -->
+src/views/profile/ProfileView.vue	<!-- 工作入口 -->
+src/views/profile/ProfileView.vue	<!-- 数据区域 (仅多区账户) -->
+src/views/profile/ProfileView.vue	<!-- 概览对比卡 -->
+src/views/profile/ProfileView.vue	<!-- 状态 chip / hint -->
+src/views/profile/ProfileView.vue	<!-- 设置 -->
+src/views/profile/ProfileView.vue	<!-- 语言切换 picker -->
+src/views/profile/ProfileView.vue	<!-- 退出 -->
+src/views/profile/ProfileView.vue	await new Promise(r => setTimeout(r, 100))  // 给 sheet 关闭动画一点时间
+src/views/profile/ProfileView.vue	await new Promise(r => setTimeout(r, 350))  // toast 显示窗口
+src/views/profile/ProfileView.vue	setLocale(code)              // 立即生效 + 本地缓存 + axios header 下次自动用新 lang
+src/views/projects/ProjectCreateView.vue	// 选项 keys, label 由 i18n 动态计算
+src/views/projects/ProjectCreateView.vue	<!-- ── Sheet: 品牌情况 ── -->
+src/views/projects/ProjectCreateView.vue	<!-- ── Sheet: 地址 ── -->
+src/views/projects/ProjectCreateView.vue	<!-- ── Sheet: 报备来源 ── -->
+src/views/projects/ProjectCreateView.vue	<!-- ── Sheet: 查重详情 ── -->
+src/views/projects/ProjectCreateView.vue	<!-- ── Sheet: 行业 ── -->
+src/views/projects/ProjectCreateView.vue	<!-- ── Sheet: 项目类型 ── -->
+src/views/projects/ProjectCreateView.vue	<!-- 分类 -->
+src/views/projects/ProjectCreateView.vue	<!-- 地址 card (under 基本, no section header) -->
+src/views/projects/ProjectCreateView.vue	<!-- 基本 -->
+src/views/projects/ProjectCreateView.vue	<!-- 时间 -->
+src/views/projects/ProjectCreateView.vue	<!-- 项目描述 -->
+src/views/projects/ProjectCreateView.vue	<template v-else>* 为必填项 · 其他可在详情页随时补充</template>
+src/views/projects/ProjectCreateView.vue	<template v-if="validCount === totalCount">所有必填已完成 · 可以创建</template>
+src/views/projects/ProjectCreateView.vue	{{ selectedDup.score >= 80 ? '高度相似' : '部分相似' }}
+src/views/projects/ProjectDetailView.vue	(5 dots + 4 thin lines · 无白底卡片 · current 14×14 accent · past 8×8 ink solid · future 8×8 transparent + 1.5px ink-3 ring) -->
+src/views/projects/ProjectDetailView.vue	(左 2px 竖线: 首条 accent / 其他 divider · serif 16px · tabular 日期) -->
+src/views/projects/ProjectDetailView.vue	.filter(s => s.label !== s.key)  // 字典还没加载时 label === key，先不渲染
+src/views/projects/ProjectDetailView.vue	// 6 级活跃度配色（覆盖后端所有 status，避免 fallback 到黑色）
+src/views/projects/ProjectDetailView.vue	// @ 提及（项目讨论卡专用 —— useMention 内置 pendingRefs 跟踪 #/$）
+src/views/projects/ProjectDetailView.vue	// Stepper dot 样式 — 对齐 ADetail line 343-348
+src/views/projects/ProjectDetailView.vue	// Stepper label 样式 — 对齐 ADetail line 348
+src/views/projects/ProjectDetailView.vue	// ─── 创建讨论群（项目还未绑定群聊时）─────────────────────────────
+src/views/projects/ProjectDetailView.vue	// ─── 项目讨论卡片 · 行内快速回复（共享 store，与 GroupChatView 同源）────────
+src/views/projects/ProjectDetailView.vue	// 严格对齐 customer-screens.jsx StageDot 配色（A 方向 5 tone）
+src/views/projects/ProjectDetailView.vue	// 主流程进度条阶段 keys（横向 dots） —— 终止态 lost/paused 不在 track 上
+src/views/projects/ProjectDetailView.vue	// 主进度 track：按 STAGE_TRACK_KEYS 顺序取字典 label
+src/views/projects/ProjectDetailView.vue	// 刷新一次项目详情让 discussion_conversation_id 生效（后续返回此页时即可）
+src/views/projects/ProjectDetailView.vue	// 卡片只显示最近 4 条（包括用户刚发的）—— 倒序展示新的在上
+src/views/projects/ProjectDetailView.vue	// 召回 — 复用 composable
+src/views/projects/ProjectDetailView.vue	// 字典驱动：label 来自后端 project_stage 字典
+src/views/projects/ProjectDetailView.vue	// 审批流程 sheet (顶部 chip 点击展开) — 走通用 ApprovalInstance
+src/views/projects/ProjectDetailView.vue	// 已存在 instance(stale UI) — 静默关闭 + 刷新 + 顺势打开流程查看
+src/views/projects/ProjectDetailView.vue	// 拼出 STAGES_ALL：字典 displayLabel(按 locale 切 zh/en) + 前端 desc/pct
+src/views/projects/ProjectDetailView.vue	// 没有讨论群时（null）→ 走 "创建讨论群" 流程，不显示输入框和消息预览
+src/views/projects/ProjectDetailView.vue	// 真实讨论群 id 来自后端 project.discussion_conversation_id
+src/views/projects/ProjectDetailView.vue	// 货币按数据区切: SP8D=¥...万 / OVS=$...K (与 i18n locale 无关)
+src/views/projects/ProjectDetailView.vue	// 阶段赢率（前端，不进字典）。描述走 i18n: project.stageDesc.<key>
+src/views/projects/ProjectDetailView.vue	// 项目成员（来自后端 owner + shared_with_users）
+src/views/projects/ProjectDetailView.vue	// 项目讨论卡片：真实数据驱动，无 mock 种子
+src/views/projects/ProjectDetailView.vue	:style="{ color: m.from === '我' ? 'var(--color-accent)' : 'var(--color-ink-2)' }">{{ m.from }}</span>
+src/views/projects/ProjectDetailView.vue	<!-- @ 提及选择器（向上弹出） -->
+src/views/projects/ProjectDetailView.vue	<!-- Amount — 货币按数据区切 ¥...万 / $...K -->
+src/views/projects/ProjectDetailView.vue	<!-- CTA row — 推进按钮 + 跟进按钮 -->
+src/views/projects/ProjectDetailView.vue	<!-- Header — 对齐 ADetail line 289-295 (返回 ink-2 不是 accent) -->
+src/views/projects/ProjectDetailView.vue	<!-- Hero — 严格对齐 screens.jsx ADetail line 297-315 (无白底卡片) -->
+src/views/projects/ProjectDetailView.vue	<!-- connector line — 固定 24px, 视觉清晰 -->
+src/views/projects/ProjectDetailView.vue	<!-- footer 提示：至少 1 人 -->
+src/views/projects/ProjectDetailView.vue	<!-- ── Note box bottom sheet（公用组件，与 CustomerDetailView 共用） ── -->
+src/views/projects/ProjectDetailView.vue	<!-- 主要联系人 — 单卡（首联系人）对齐 ADetail line 369-393 -->
+src/views/projects/ProjectDetailView.vue	<!-- 关联客户 -->
+src/views/projects/ProjectDetailView.vue	<!-- 创建讨论群 sheet（多选成员）-->
+src/views/projects/ProjectDetailView.vue	<!-- 召回确认 sheet -->
+src/views/projects/ProjectDetailView.vue	<!-- 审批中（含老 authorization_status='pending' 兼容） → 点击弹流程 sheet -->
+src/views/projects/ProjectDetailView.vue	<!-- 审批流程 sheet (授权 chip 点击触发) -->
+src/views/projects/ProjectDetailView.vue	<!-- 已签约 → 显示成功态；其余情况一律显示橙色推进按钮，无权时仅视觉禁用 -->
+src/views/projects/ProjectDetailView.vue	<!-- 已选 chips -->
+src/views/projects/ProjectDetailView.vue	<!-- 待发引用卡预览 -->
+src/views/projects/ProjectDetailView.vue	<!-- 报价单 -->
+src/views/projects/ProjectDetailView.vue	<!-- 普通消息 / 我的消息 -->
+src/views/projects/ProjectDetailView.vue	<!-- 最近消息预览（动态：发送后我的消息会插到顶部，含 @ token 着色 + 引用卡 + 阶段推进卡）-->
+src/views/projects/ProjectDetailView.vue	<!-- 未建立讨论群：极简卡 + 创建入口 -->
+src/views/projects/ProjectDetailView.vue	<!-- 未提交状态：可申请人显示橙色按钮，无权人灰色提示 -->
+src/views/projects/ProjectDetailView.vue	<!-- 横向可滚动: column 固定 64px, connector 固定 24px。
+src/views/projects/ProjectDetailView.vue	<!-- 添加跟进快捷入口（与"跟进记录 +添加"等价） -->
+src/views/projects/ProjectDetailView.vue	<!-- 群头 -->
+src/views/projects/ProjectDetailView.vue	<!-- 行内快速回复（含 @ 提及 popover + 待发引用卡预览）-->
+src/views/projects/ProjectDetailView.vue	<!-- 详情 def-list — 90px 1fr grid 对齐 ADetail line 358-366 -->
+src/views/projects/ProjectDetailView.vue	<!-- 跟进记录 —— 严格对齐 customer-screens.jsx 时间轴样式
+src/views/projects/ProjectDetailView.vue	<!-- 阶段 stepper — 严格对齐 screens.jsx ADetail line 333-355
+src/views/projects/ProjectDetailView.vue	<!-- 阶段彩点 + 标签 + auth code -->
+src/views/projects/ProjectDetailView.vue	<!-- 阶段推进卡（系统消息富卡，与 GroupChatView 复用同一个组件）-->
+src/views/projects/ProjectDetailView.vue	<!-- 项目名 — 30px 衬线 weight 500 line-height 1.2 letter-spacing -0.3 -->
+src/views/projects/ProjectDetailView.vue	<!-- 项目提交审批确认 sheet -->
+src/views/projects/ProjectDetailView.vue	<!-- 项目讨论预览卡 —— 对齐 chat-bridge.jsx ProjectDetailWithChat (line 50-87) -->
+src/views/projects/ProjectDetailView.vue	<div class="text-[14px] font-semibold">项目群 · {{ projectMembers.length }} 人</div>
+src/views/projects/ProjectDetailView.vue	<span class="font-serif" style="font-size: 16px; font-weight: 500;">创建讨论群</span>
+src/views/projects/ProjectDetailView.vue	active:        '#1E40AF',  // 深蓝
+src/views/projects/ProjectDetailView.vue	alert(`创建失败：${e.message || e}`)
+src/views/projects/ProjectDetailView.vue	churned:       '#4B5563',  // 深灰
+src/views/projects/ProjectDetailView.vue	confirm-label="确认召回"
+src/views/projects/ProjectDetailView.vue	const amountUnit = computed(() => auth.regionId === 'sg' ? 'K' : '万')
+src/views/projects/ProjectDetailView.vue	dormant:       '#C2410C',  // 深橙
+src/views/projects/ProjectDetailView.vue	eyebrow="召回"
+src/views/projects/ProjectDetailView.vue	flowLoadError.value = '未找到流程数据（此项目可能由旧入口创建）'
+src/views/projects/ProjectDetailView.vue	flowLoadError.value = '流程加载失败'
+src/views/projects/ProjectDetailView.vue	frozen:        '#6B7280',  // 中灰
+src/views/projects/ProjectDetailView.vue	highly_active: '#166534',  // 深绿
+src/views/projects/ProjectDetailView.vue	if (msg.includes('已有进行中') || msg.includes('正在审批')) {
+src/views/projects/ProjectDetailView.vue	if (project.value.authorization_status === 'pending') return false  // 兼容老数据
+src/views/projects/ProjectDetailView.vue	kind: 'me', from: '我', initial: '我',
+src/views/projects/ProjectDetailView.vue	normal:        '#0369A1',  // 深青
+src/views/projects/ProjectDetailView.vue	placeholder="在群里说点什么…  @ 通知某人"
+src/views/projects/ProjectDetailView.vue	style="background: var(--color-ink);" title="进群">›</button>
+src/views/projects/ProjectDetailView.vue	style="color: var(--color-accent); background: var(--color-accent-bg);">@我</span>
+src/views/projects/ProjectDetailView.vue	style="color: var(--color-ink-3);">取消</button>
+src/views/projects/ProjectDetailView.vue	title="确认召回此项目?"
+src/views/projects/ProjectDetailView.vue	to_follow:     '#A16207',  // 深黄
+src/views/projects/ProjectDetailView.vue	type="text" placeholder="搜索姓名 / 部门"
+src/views/projects/ProjectDetailView.vue	{{ (project.name || '上')[0] }}
+src/views/projects/ProjectDetailView.vue	{{ cgCreating ? '创建中…' : `创建${cgSelected.length ? `(${cgSelected.length})` : ''}` }}
+src/views/projects/ProjectDetailView.vue	至少选择 1 名成员才能创建讨论群
+src/views/projects/ProjectDetailView.vue	英文 label 比中文长得多 (Embedding vs 植入), 用滚动避免 connector 被挤成噪点。 -->
+src/views/projects/ProjectEditView.vue	// Picker 开关
+src/views/projects/ProjectEditView.vue	// 任何字段变化标记 dirty
+src/views/projects/ProjectEditView.vue	// 厂商销售
+src/views/projects/ProjectEditView.vue	// 必填检查（项目名 + 厂商销售）
+src/views/projects/ProjectEditView.vue	// 适配 PersonPickerSheet 的 options 格式
+src/views/projects/ProjectEditView.vue	// 键盘弹起时把聚焦输入滚进可视区 + 抬起底部(同 ProjectCreateView)
+src/views/projects/ProjectEditView.vue	<!-- 厂商销售（必填，未填高亮）-->
+src/views/projects/ProjectEditView.vue	<!-- 基本信息 -->
+src/views/projects/ProjectEditView.vue	<!-- 备注/详细 -->
+src/views/projects/ProjectEditView.vue	<!-- 详细 -->
+src/views/projects/ProjectListView.vue	// V2: owner options 来自后端 /mobile/projects/owners(复用 web _get_project_owner_options),
+src/views/projects/ProjectListView.vue	// 严格对齐 unified-lists / customer-screens StageDot tone map
+src/views/projects/ProjectListView.vue	// 字典 label 改 computed, 跟随 i18n locale 切换
+src/views/projects/ProjectListView.vue	// 覆盖当前用户全部可见项目的 owner,不再受首页加载数据所限。
+src/views/projects/ProjectListView.vue	<!-- FilterBanner 已激活筛选条 — 对齐 unified-lists FilterBanner -->
+src/views/projects/ProjectListView.vue	<!-- ProjectRow — 对齐 unified-lists.ProjectRow -->
+src/views/projects/ProjectListView.vue	<!-- SortRow — 对齐 unified-lists.SortRow -->
+src/views/projects/ProjectListView.vue	<!-- ─── PageHead 严格对齐 unified-lists.PageHead ─────────────── -->
+src/views/projects/ProjectListView.vue	<!-- 列表 -->
+src/views/projects/ProjectListView.vue	<!-- 排序下拉菜单 -->
+src/views/projects/ProjectListView.vue	<!-- 搜索 + 筛选 行 -->
+src/views/quotations/QuotationDetailView.vue	${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical-align:top">备注:</td><td colspan="8" style="vertical-align:top;white-space:pre-wrap">${esc(q.notes)}</td><td class="nb"></td></tr>` : ''}
+src/views/quotations/QuotationDetailView.vue	${showTotal ? `<tr class="tr tf"><td class="nb"></td><td colspan="4" style="border:none;background:transparent"></td><td class="tl" colspan="4">总计 (${esc(q.currency)})</td><td class="tv" style="font-size:13px">${esc(fmt(q.amount))}</td><td class="val"></td><td class="nb"></td></tr>` : ''}
+src/views/quotations/QuotationDetailView.vue	// (user-scalable=no 时 touchstart 拿不到第二根手指, 但 gesturestart 仍 fire)
+src/views/quotations/QuotationDetailView.vue	// (跨源 srcdoc iframe, 父级直接读 contentDocument 可能失败, postMessage 永远可用)
+src/views/quotations/QuotationDetailView.vue	// gesturestart 时锁定锚点(双指中心相对内容的位置), gesturechange 时维持锚点不变
+src/views/quotations/QuotationDetailView.vue	// iOS 专属 gesture* 事件 — pinch 走这个最可靠
+src/views/quotations/QuotationDetailView.vue	// iframe 内注入: 通过 postMessage 把真实高度发给父级
+src/views/quotations/QuotationDetailView.vue	// iframe 加载完后, 优先靠 postMessage 收高度(跨源安全), 次选直接读 contentDocument
+src/views/quotations/QuotationDetailView.vue	// iframe 有自己的 viewport width=1100，浏览器等比例缩放，捏合缩放原生支持
+src/views/quotations/QuotationDetailView.vue	// 产品行
+src/views/quotations/QuotationDetailView.vue	// 双击切换 1× / 2× (常见 doc preview 行为)
+src/views/quotations/QuotationDetailView.vue	// 双指松一指 → 切到 pan, 重置 anchor
+src/views/quotations/QuotationDetailView.vue	// 可选: 内容变化(图片 onload 等)时也重报
+src/views/quotations/QuotationDetailView.vue	// 合计
+src/views/quotations/QuotationDetailView.vue	// 图片可能晚加载; 多次重报
+src/views/quotations/QuotationDetailView.vue	// 完全自定义手势 — touch-action: none + JS 接管 pan + pinch
+src/views/quotations/QuotationDetailView.vue	// 新 scrollLeft = 锚点新位置 - 锚点屏幕位置 = pinchAnchorX * next - pinchAnchorClientX
+src/views/quotations/QuotationDetailView.vue	// 显式注册 passive:false 的 touch listeners
+src/views/quotations/QuotationDetailView.vue	// 生成完整 HTML 放入 iframe srcdoc
+src/views/quotations/QuotationDetailView.vue	// 用宽高比例的 min, 保证宽高都塞下; 0.95 留点边距; 不低于 0.15
+src/views/quotations/QuotationDetailView.vue	// 监听 iframe 内 postMessage('pma-quotation-h')
+src/views/quotations/QuotationDetailView.vue	// 第一次拿到真实高度, 自动设 scale=fit, 让用户一进来看到完整报价单
+src/views/quotations/QuotationDetailView.vue	// 自动适配最低缩放 — 让缩到最小时整个内容能塞进 viewport
+src/views/quotations/QuotationDetailView.vue	// 计算两指中心相对内容的位置
+src/views/quotations/QuotationDetailView.vue	// 调整 scroll 让锚点 (pinchAnchorX, pinchAnchorY) 在新缩放下仍在原屏幕位置
+src/views/quotations/QuotationDetailView.vue	// 调试计数 — 显示在 overlay 上, 让用户直接看到哪些事件 fire
+src/views/quotations/QuotationDetailView.vue	// 锚点在 unscaled 内容坐标系: (屏幕位置 + 滚动距离) / 当前缩放
+src/views/quotations/QuotationDetailView.vue	<!-- pointer-events: none 让 touch 穿透到外层 wrapper(否则 iframe 自己捕获 touch
+src/views/quotations/QuotationDetailView.vue	<!-- sized wrapper: 宽高 = 内容尺寸 × scale, 撑出 scrollable 区域 -->
+src/views/quotations/QuotationDetailView.vue	<!-- 加载中 -->
+src/views/quotations/QuotationDetailView.vue	<!-- 失败 -->
+src/views/quotations/QuotationDetailView.vue	<!-- 自定义 pinch-zoom: 外容器 overflow 滚动 + sized wrapper 撑出 scaled 区域 + iframe transform
+src/views/quotations/QuotationDetailView.vue	<!-- 顶部导航（在主 viewport 下渲染，尺寸正常） -->
+src/views/quotations/QuotationDetailView.vue	<button @click="load" class="text-sm text-blue-500">重试</button>
+src/views/quotations/QuotationDetailView.vue	<span>加载失败</span>
+src/views/quotations/QuotationDetailView.vue	<tr class="tr"><td class="nb"></td><td colspan="4" style="border:none;background:transparent"></td><td class="tl" colspan="4">合计</td><td class="tv">${esc(fmt(subtotal))}</td><td class="val"></td><td class="nb"></td></tr>
+src/views/quotations/QuotationDetailView.vue	<tr><td class="nb"></td><td class="lbl" colspan="3">客户名称:</td><td class="val" colspan="3">${esc(q.customer?.name)}</td><td class="lbl" colspan="2">报价编号:</td><td class="val" colspan="2">${esc(q.quotation_number)}</td><td class="nb"></td></tr>
+src/views/quotations/QuotationDetailView.vue	<tr><td class="nb"></td><td class="lbl" colspan="3">客户地址:</td><td class="val" colspan="3">${esc(ef.customer_address)}</td><td class="lbl" colspan="2">报价日期:</td><td class="val" colspan="2">${esc(ef.quotation_date || q.created_at)}</td><td class="nb"></td></tr>
+src/views/quotations/QuotationDetailView.vue	<tr><td class="nb"></td><td class="lbl" colspan="3">联系人:</td><td class="val" colspan="3">${esc(q.contact?.name)}</td><td class="lbl" colspan="2">付款条件:</td><td class="val" colspan="2">${esc(ef.payment_terms)}</td><td class="nb"></td></tr>
+src/views/quotations/QuotationDetailView.vue	<tr><td class="nb"></td><td class="lbl" colspan="3">联系电话:</td><td class="val" colspan="3">${esc(ef.contact_phone || q.contact?.phone)}</td><td class="lbl" colspan="2">交付条件:</td><td class="val" colspan="2">${esc(ef.shipping_terms)}</td><td class="nb"></td></tr>
+src/views/quotations/QuotationDetailView.vue	<tr><td class="nb"></td><td class="lbl" colspan="3">货币:</td><td class="val" colspan="3">${esc(q.currency)}</td><td class="lbl" colspan="2">参考编号:</td><td class="val" colspan="2">${esc(ef.ref_no)}</td><td class="nb"></td></tr>
+src/views/quotations/QuotationDetailView.vue	<tr><td class="nb"></td><td class="lbl" colspan="3">项目名称:</td><td class="val" colspan="3">${esc(q.project?.name)}</td><td class="lbl" colspan="2">有效期:</td><td class="val" colspan="2">${esc(ef.validity)}</td><td class="nb"></td></tr>
+src/views/quotations/QuotationDetailView.vue	<tr><td class="nb"></td><td class="th">S/N</td><td class="th">产品编码</td><td class="th">品牌</td><td class="th">型号规格</td><td class="th">折扣%</td><td class="th">市场价</td><td class="th">单价</td><td class="th">数量</td><td class="th">小计</td><td class="th">备注</td><td class="nb"></td></tr>
+src/views/quotations/QuotationDetailView.vue	let pinchAnchorClientX = 0  // 锚点在屏幕(wrapRef)中的位置
+src/views/quotations/QuotationDetailView.vue	let pinchAnchorX = 0  // 锚点在内容坐标系中的位置(无缩放下)
+src/views/quotations/QuotationDetailView.vue	tm1: 0,  // 1 指 touchmove
+src/views/quotations/QuotationDetailView.vue	tm2: 0,  // 2 指 touchmove
+src/views/quotations/QuotationDetailView.vue	touch handlers 在 onMounted 用 addEventListener+passive:false 绑定(Vue @touchstart 在
+src/views/quotations/QuotationDetailView.vue	ts1: 0,  // 1 指 touchstart
+src/views/quotations/QuotationDetailView.vue	ts2: 0,  // 2 指 touchstart
+src/views/quotations/QuotationDetailView.vue	{{ quotation?.quotation_number || '报价单' }}
+src/views/quotations/QuotationDetailView.vue	导致 pinch 手势无法被父级检测). 副作用: 不能选/复制 iframe 内容, 但报价单
+src/views/quotations/QuotationDetailView.vue	是只读预览, 可接受. -->
+src/views/quotations/QuotationDetailView.vue	某些 iOS WebView 是 passive 默认, preventDefault 静默失败) -->
