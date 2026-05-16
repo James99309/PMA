@@ -27,7 +27,7 @@ const auth = useAuthStore()
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 // 货币按数据区切: SP8D=¥...万 / OVS=$...K (与 i18n locale 无关)
 const amountSymbol = computed(() => auth.regionId === 'sg' ? '$' : '¥')
@@ -209,17 +209,10 @@ const {
 // 主流程进度条阶段 keys（横向 dots） —— 终止态 lost/paused 不在 track 上
 const STAGE_TRACK_KEYS = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
 
-// 阶段 UI metadata（赢率 + 描述）—— 仅前端，不进字典
-const STAGE_META = {
-  discover:   { desc: '初步识别商机，尚未深入接触',  pct: 10  },
-  embed:      { desc: '已与客户建立联系，理解需求',  pct: 25  },
-  pre_tender: { desc: '项目即将招标，提前布局',      pct: 35  },
-  tendering:  { desc: '正式参与招标或方案评审',     pct: 50  },
-  awarded:    { desc: '获得客户授权或意向确认',      pct: 75  },
-  quoted:     { desc: '已完成报价，等待决策',        pct: 85  },
-  signed:     { desc: '合同签署，项目正式启动',      pct: 100 },
-  lost:       { desc: '项目未中标或客户放弃',        pct: 0   },
-  paused:     { desc: '项目暂时搁置',               pct: 0   },
+// 阶段赢率（前端，不进字典）。描述走 i18n: project.stageDesc.<key>
+const STAGE_PCT = {
+  discover: 10, embed: 25, pre_tender: 35, tendering: 50,
+  awarded: 75, quoted: 85, signed: 100, lost: 0, paused: 0,
 }
 
 // 字典驱动：label 来自后端 project_stage 字典
@@ -230,8 +223,8 @@ const stageLabelMap = computed(() => dictStore.labelMap('project_stage'))
 const STAGES_ALL = computed(() => stageDictList.value.map(d => ({
   key: d.key,
   label: d.displayLabel || d.label,
-  desc: STAGE_META[d.key]?.desc || '',
-  pct:  STAGE_META[d.key]?.pct ?? 0,
+  desc: te(`project.stageDesc.${d.key}`) ? t(`project.stageDesc.${d.key}`) : '',
+  pct:  STAGE_PCT[d.key] ?? 0,
 })))
 
 // 主进度 track：按 STAGE_TRACK_KEYS 顺序取字典 label
@@ -266,13 +259,6 @@ const ACTIVITY_COLORS = {
   frozen:        '#6B7280',  // 中灰
 }
 
-const INDUSTRY_LABELS = {
-  manufacturing: '制造业', datacenter: '数据中心', chemical: '化工',
-  energy: '能源', transportation: '交通', tunnel_underground: '隧道/地下',
-  real_estate: '地产', hospitality: '酒店', government: '政府',
-  education: '教育', healthcare: '医疗', technology: '科技',
-  semiconductor: '半导体', shipbuilding: '造船', finance: '金融', other: '其他',
-}
 
 const stageColor = computed(() =>
   project.value ? (STAGE_COLORS[project.value.current_stage] || '#9CA3AF') : '#9CA3AF'
@@ -530,7 +516,7 @@ onMounted(() => {
 
         <!-- Sub: owner · industry · city -->
         <div class="mt-3.5 text-[13px]" style="color: var(--color-ink-3);">
-          {{ [project.owner_name, INDUSTRY_LABELS[project.industry] || project.industry, project.city].filter(Boolean).join(' · ') }}
+          {{ [project.owner_name, project.industry_label || project.industry, project.city].filter(Boolean).join(' · ') }}
         </div>
 
         <!-- Amount — 货币按数据区切 ¥...万 / $...K -->
@@ -758,7 +744,7 @@ onMounted(() => {
                 {{ memberSummary }}
               </div>
               <div v-else class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">
-                暂无成员
+                {{ t('project.noMembers') }}
               </div>
             </div>
           </div>
@@ -847,10 +833,10 @@ onMounted(() => {
       <div class="px-7 pt-5 pb-10">
         <div class="flex items-center justify-between mb-3">
           <div class="text-[11px] font-semibold uppercase"
-            style="color: var(--color-ink-3); letter-spacing: 1px;">跟进记录</div>
+            style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.followLog') }}</div>
           <button @click="openNoteBox"
             class="text-[12px] font-medium active:opacity-60"
-            style="color: var(--color-accent);">+ 添加</button>
+            style="color: var(--color-accent);">{{ t('project.followAdd') }}</button>
         </div>
         <div v-if="project.actions?.length">
           <div v-for="(a, i) in project.actions" :key="a.id"
@@ -872,7 +858,7 @@ onMounted(() => {
             </div>
           </div>
         </div>
-        <div v-else class="text-center text-[13px] py-4" style="color: var(--color-ink-3);">暂无跟进记录</div>
+        <div v-else class="text-center text-[13px] py-4" style="color: var(--color-ink-3);">{{ t('project.noFollow') }}</div>
       </div>
     </div>
 
@@ -885,9 +871,9 @@ onMounted(() => {
             :style="{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }">
             <div class="w-10 h-1 bg-[#D0CBC4] rounded-full mx-auto mt-3 mb-4" />
             <div class="px-5 mb-3">
-              <p class="text-[12px] text-[#9CA3AF] font-medium mb-1">推进阶段</p>
+              <p class="text-[12px] text-[#9CA3AF] font-medium mb-1">{{ t('project.stageAdvanceEyebrow') }}</p>
               <p class="font-serif text-[22px] font-bold text-[#1A1A1A]">
-                从 {{ project?.stage_label }} 推进到
+                {{ t('project.fromStageTo', { stage: project?.stage_label }) }}
               </p>
             </div>
             <!-- Stage list -->
@@ -930,10 +916,10 @@ onMounted(() => {
                 class="w-full py-4 rounded-2xl text-white text-[16px] font-semibold disabled:opacity-40 active:opacity-80"
                 style="background:#D97757">
                 {{ updatingStage
-                  ? '推进中…'
+                  ? t('project.advancing')
                   : selectedStage
-                    ? `推进到 ${STAGES_ALL.find(s => s.key === selectedStage)?.label}`
-                    : '选择目标阶段' }}
+                    ? t('project.advanceTo', { stage: STAGES_ALL.find(s => s.key === selectedStage)?.label })
+                    : t('project.pickTargetStage') }}
               </button>
             </div>
           </div>
@@ -1005,7 +991,7 @@ onMounted(() => {
               </div>
               <div v-else-if="!cgResults.length" class="text-center py-8 text-[13px]"
                 style="color: var(--color-ink-3);">
-                {{ cgSearch ? '没有找到匹配的用户' : '暂无可选用户' }}
+                {{ cgSearch ? t('project.noMatchUsers') : t('project.noSelectableUsers') }}
               </div>
               <button v-else v-for="u in cgResults" :key="u.id"
                 @click="toggleCgSelect(u)"

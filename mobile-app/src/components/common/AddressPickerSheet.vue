@@ -8,8 +8,10 @@
 //
 // emit('select', { country, region, city, address, latitude, longitude })
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Geolocation } from '@capacitor/geolocation'
 import { searchAddress, reverseGeocode, getAddressDetail } from '@/api/customers'
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue:    { type: Boolean, default: false },
@@ -102,12 +104,12 @@ async function getLocation() {
     const d = r.data?.data || {}
     emitSelected({
       country: d.country, region: d.region, city: d.city,
-      address: d.address || '当前位置',
+      address: d.address || t('common.addrCurrent'),
       latitude: pos.coords.latitude,
       longitude: pos.coords.longitude,
     })
   } catch (e) {
-    alert('定位失败：' + (e.message || e))
+    alert(t('common.addrLocateFail', { msg: e.message || e }))
   } finally {
     locating.value = false
   }
@@ -125,8 +127,8 @@ async function getLocation() {
           <!-- Header -->
           <div class="px-5 pt-4 pb-2 flex items-center justify-between shrink-0">
             <button @click="close" class="text-[13px]"
-              style="color: var(--color-ink-3);">取消</button>
-            <span class="font-serif" style="font-size: 16px; font-weight: 500;">选择地址</span>
+              style="color: var(--color-ink-3);">{{ t('common.cancel') }}</button>
+            <span class="font-serif" style="font-size: 16px; font-weight: 500;">{{ t('common.addrTitle') }}</span>
             <span class="w-8" />
           </div>
 
@@ -139,7 +141,7 @@ async function getLocation() {
                 <path d="M11 11l3 3" stroke="#7A7570" stroke-width="1.4" stroke-linecap="round" />
               </svg>
               <input v-model="query" @input="onInput"
-                type="text" placeholder="搜索地址 / 商场 / 公司名…"
+                type="text" :placeholder="t('common.addrSearchPh')"
                 autocomplete="off"
                 class="flex-1 bg-transparent outline-none text-[14px]"
                 style="font-family: var(--font-sans);" />
@@ -175,7 +177,7 @@ async function getLocation() {
             <div v-else-if="!searching && query.length >= 2" class="text-center py-10 text-[13px]"
               style="color: var(--color-ink-3);">没找到匹配地址</div>
             <div v-else-if="query.length < 2" class="text-center py-10 text-[13px]"
-              style="color: var(--color-ink-3);">输入 2+ 字符开始搜索，或点右侧 📍 用当前位置</div>
+              style="color: var(--color-ink-3);">{{ t('common.addrHint') }}</div>
           </div>
         </div>
       </div>

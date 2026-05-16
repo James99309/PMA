@@ -4,19 +4,23 @@
 // 中：标题（serif 18px）+ 副标题（11px ink3，必填进度提示）
 // 右：保存胶囊按钮（dirty + 全填齐 → accent 橙；否则 ink4 灰）
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 
 const props = defineProps({
   title: { type: String, required: true },
   saving: { type: Boolean, default: false },
   dirty: { type: Boolean, default: true },          // 是否有未保存改动
   missingCount: { type: Number, default: 0 },       // 必填未完成数量
-  cancelLabel: { type: String, default: '取消' },
-  saveLabel: { type: String, default: '保存' },
+  cancelLabel: { type: String, default: '' },       // 空 → 用 i18n common.cancel
+  saveLabel: { type: String, default: '' },         // 空 → 用 i18n common.save
 })
 defineEmits(['cancel', 'save'])
 
 const subtitle = computed(() =>
-  props.missingCount > 0 ? `${props.missingCount} 项必填未完成` : '所有必填已完成'
+  props.missingCount > 0
+    ? t('common.requiredMissing', { n: props.missingCount })
+    : t('common.allRequiredDone')
 )
 const canSave = computed(() => props.dirty && props.missingCount === 0 && !props.saving)
 </script>
@@ -27,14 +31,14 @@ const canSave = computed(() => props.dirty && props.missingCount === 0 && !props
     <button @click="$emit('cancel')" type="button"
       class="active:opacity-60 shrink-0"
       style="font-size: 15px; color: var(--color-ink-2); font-weight: 500;">
-      {{ cancelLabel }}
+      {{ cancelLabel || t('common.cancel') }}
     </button>
 
     <div class="text-center flex-1 min-w-0">
       <div class="font-serif"
         style="font-size: 18px; font-weight: 500; color: var(--color-ink);">{{ title }}</div>
       <div style="font-size: 11px; color: var(--color-ink-3); margin-top: 1px;">
-        {{ saving ? '保存中…' : subtitle }}
+        {{ saving ? t('common.saving2') : subtitle }}
       </div>
     </div>
 
@@ -50,7 +54,7 @@ const canSave = computed(() => props.dirty && props.missingCount === 0 && !props
         borderRadius: '999px',
         border: 'none',
       }">
-      {{ saveLabel }}
+      {{ saveLabel || t('common.save') }}
     </button>
   </div>
 </template>
