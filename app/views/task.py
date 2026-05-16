@@ -88,130 +88,16 @@ def _can_access(t):
 @task.route('/api/create', methods=['POST'])
 @login_required
 def create_task():
-    """创建任务"""
+    """创建任务(薄壳:逻辑+副作用在 app.services.task_service,web/mobile 共用)"""
     try:
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'message': '无效的请求数据'}), 400
-
-        title = (data.get('title') or '').strip()
-        if not title:
-            return jsonify({'success': False, 'message': '任务标题不能为空'}), 400
-
-        assignee_id = data.get('assignee_id')
-        if not assignee_id:
-            return jsonify({'success': False, 'message': '请选择指派人'}), 400
-
-        new_task = Task(
-            title=title,
-            description=(data.get('description') or '').strip() or None,
-            creator_id=current_user.id,
-            assignee_id=int(assignee_id),
-            priority=data.get('priority', 'normal'),
-            external_link=(data.get('external_link') or '').strip() or None,
-            external_link_label=(data.get('external_link_label') or '').strip() or None,
-            project_id=data.get('project_id') or None,
-            quotation_id=data.get('quotation_id') or None,
-            customer_id=data.get('customer_id') or None,
-        )
-
-        # 协助人
-        shared_users = data.get('shared_with_users')
-        if shared_users and isinstance(shared_users, list):
-            new_task.shared_with_users = [int(uid) for uid in shared_users if uid]
-
-        # 处理截止日期
-        due_date_str = data.get('due_date')
-        if due_date_str:
-            try:
-                new_task.due_date = datetime.fromisoformat(due_date_str)
-            except (ValueError, TypeError):
-                pass
-
-        # 处理开始日期 → 决定初始状态
-        start_date_str = data.get('start_date')
-        if start_date_str:
-            try:
-                new_task.start_date = date.fromisoformat(start_date_str[:10])
-                if new_task.start_date <= date.today():
-                    new_task.status = 'in_progress'
-                else:
-                    new_task.status = 'pending'
-            except (ValueError, TypeError):
-                new_task.status = 'in_progress'
-        else:
-            # 没有开始日期 → 立即开始
-            new_task.status = 'in_progress'
-
-        # calendar_date 默认与 due_date 一致
-        if new_task.due_date:
-            new_task.calendar_date = new_task.due_date.date()
-
-        db.session.add(new_task)
-        db.session.flush()  # 获取 id
-
-        # 审计对象（会审，支持多人）
-        reviewer_ids = data.get('reviewer_ids') or []
-        # 兼容旧的单审计人字段
-        if not reviewer_ids and data.get('reviewer_id'):
-            reviewer_ids = [data['reviewer_id']]
-        for rid in reviewer_ids:
-            rid = int(rid)
-            tr = TaskReviewer(task_id=new_task.id, reviewer_id=rid)
-            db.session.add(tr)
-
-        # 发送通知给被指派人和协助人
-        notify_ids = set()
-        if new_task.assignee_id != current_user.id:
-            notify_ids.add(new_task.assignee_id)
-        for uid in (new_task.shared_with_users or []):
-            if uid != current_user.id:
-                notify_ids.add(uid)
-        if notify_ids:
-            try:
-                from app.models.message import Message
-                for uid in notify_ids:
-                    msg = Message.create_task_assigned(
-                        sender_id=current_user.id,
-                        recipient_id=uid,
-                        task=new_task
-                    )
-                    db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送任务通知失败: {e}")
-
+        from app.services import task_service
         try:
-            from app.services.points_service import award_points
-            award_points(user_id=current_user.id, behavior_code='task_create',
-                         source_type='task', source_id=new_task.id,
-                         context=new_task.title)
-        except Exception as _pts_err:
-            logger.warning(f'task_create积分发放失败: {_pts_err}')
-
-        db.session.commit()
-
-        try:
-            from app.utils.work_item_recorder import record_task_activity
-            record_task_activity(
-                'create', new_task.id, new_task.title, current_user,
-                project_id=new_task.project_id, customer_id=new_task.customer_id
-            )
-        except Exception as _log_err:
-            logger.warning(f'task日志记录失败: {_log_err}')
-
-        # 跨系统推送任务通知（异步，不阻塞）
-        if new_task.assignee_id != current_user.id:
-            try:
-                from app.services.cross_sync_service import is_cross_sync_enabled, push_task_to_peer
-                if is_cross_sync_enabled():
-                    assignee = User.query.get(new_task.assignee_id)
-                    if assignee and assignee.email:
-                        creator_name = current_user.real_name or current_user.username
-                        due_str = new_task.due_date.strftime('%Y-%m-%d') if new_task.due_date else None
-                        push_task_to_peer(assignee.email, creator_name, title, due_str)
-            except Exception as e:
-                logger.warning(f"跨系统任务推送失败: {e}")
-
+            new_task = task_service.create_task(current_user, data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({
             'success': True,
             'message': _('任务创建成功'),
@@ -498,60 +384,10 @@ def complete_task(id):
         if t.assignee_id != current_user.id and t.creator_id != current_user.id:
             return jsonify({'success': False, 'message': '无权完成此任务'}), 403
 
-        # 审计类任务（会审）：进入待审核状态而非直接完成
-        if t.task_reviewers and not t.review_status:
-            t.status = 'pending_review'
-            t.review_status = 'pending_review'
-            # 所有审计人重置为 pending 并通知
-            try:
-                from app.models.message import Message
-                for tr in t.task_reviewers:
-                    tr.status = 'pending'
-                    tr.reviewed_at = None
-                    tr.comment = None
-                    msg = Message.create_task_assigned(
-                        sender_id=current_user.id,
-                        recipient_id=tr.reviewer_id,
-                        task=t
-                    )
-                    db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送审计通知失败: {e}")
-            db.session.commit()
-            return jsonify({'success': True, 'message': _('任务已提交审核'), 'data': t.to_dict()})
-
-        t.status = 'completed'
-        t.completed_at = get_local_time()
-
-        # 通知创建人
-        if t.creator_id != current_user.id:
-            try:
-                from app.models.message import Message
-                msg = Message.create_task_completed(
-                    sender_id=current_user.id,
-                    recipient_id=t.creator_id,
-                    task=t
-                )
-                db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送完成通知失败: {e}")
-
-        # 发放积分：任务完成
-        try:
-            from app.services.points_service import award_points
-            assignee_id = t.assignee_id if t.assignee_id else current_user.id
-            award_points(
-                user_id=assignee_id,
-                behavior_code='task_complete',
-                source_type='task',
-                source_id=t.id,
-                context=t.title,
-            )
-        except Exception as pts_err:
-            logger.warning(f"发放任务完成积分失败: {pts_err}")
-
-        db.session.commit()
-        return jsonify({'success': True, 'message': _('任务已完成'), 'data': t.to_dict()})
+        from app.services import task_service
+        task_service.complete_task(current_user, t)
+        msg = _('任务已提交审核') if t.status == 'pending_review' else _('任务已完成')
+        return jsonify({'success': True, 'message': msg, 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
         logger.error(f"完成任务失败: {e}", exc_info=True)
@@ -569,8 +405,8 @@ def cancel_task(id):
         if not _can_edit(t):
             return jsonify({'success': False, 'message': '无权取消此任务'}), 403
 
-        t.status = 'cancelled'
-        db.session.commit()
+        from app.services import task_service
+        task_service.cancel_task(current_user, t)
         return jsonify({'success': True, 'message': _('任务已取消'), 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -590,42 +426,11 @@ def pause_task(id):
             return jsonify({'success': False, 'message': '无权操作此任务'}), 403
 
         data = request.get_json() or {}
-        reason = (data.get('reason') or '').strip()
-        if not reason:
-            return jsonify({'success': False, 'message': _('请填写暂停理由')}), 400
-
-        t.status = 'paused'
-
-        # 通知审计人
-        if t.task_reviewers:
-            try:
-                from app.models.message import Message
-                for tr in t.task_reviewers:
-                    msg = Message(
-                        sender_id=current_user.id,
-                        recipient_id=tr.reviewer_id,
-                        message_type='task_notification',
-                        title=_('任务已暂停'),
-                        content=f'{t.title} - {_("暂停理由")}: {reason}',
-                        related_object_type='task',
-                        related_object_id=t.id,
-                    )
-                    db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送暂停通知失败: {e}")
-
-        # 记录暂停理由到回复中，便于追溯
+        from app.services import task_service
         try:
-            reply = TaskReply(
-                task_id=t.id,
-                author_id=current_user.id,
-                content=f'[{_("任务暂停")}] {reason}',
-            )
-            db.session.add(reply)
-        except Exception as e:
-            logger.warning(f"记录暂停理由失败: {e}")
-
-        db.session.commit()
+            task_service.pause_task(current_user, t, data.get('reason'))
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('任务已暂停'), 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -823,34 +628,15 @@ def add_reply(id):
         if not _can_access(t):
             return jsonify({'success': False, 'message': '无权操作此任务'}), 403
 
-        data = request.get_json()
-        content = (data.get('content') or '').strip() if data else ''
-        if not content:
-            return jsonify({'success': False, 'message': '回复内容不能为空'}), 400
-
-        subtask_id = data.get('subtask_id') if data else None
-        reply_type = (data.get('reply_type') or 'comment') if data else 'comment'
-        if reply_type not in ('comment', 'update'):
-            reply_type = 'comment'
-
-        reply = TaskReply(
-            task_id=id,
-            subtask_id=subtask_id,
-            author_id=current_user.id,
-            content=content,
-            reply_type=reply_type,
-        )
-        db.session.add(reply)
-        db.session.commit()
-
+        data = request.get_json() or {}
+        from app.services import task_service
         try:
-            from app.utils.work_item_recorder import record_task_activity
-            record_task_activity(
-                'reply', t.id, t.title, current_user,
-                project_id=t.project_id, customer_id=t.customer_id
-            )
-        except Exception as _log_err:
-            logger.warning(f'task日志记录失败: {_log_err}')
+            reply = task_service.add_reply(
+                current_user, t, data.get('content'),
+                subtask_id=data.get('subtask_id'),
+                reply_type=data.get('reply_type') or 'comment')
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
 
         subtask_title = None
         if reply.subtask_id:
@@ -1242,77 +1028,13 @@ def review_task(id):
         if not t:
             return jsonify({'success': False, 'message': '任务不存在'}), 404
 
-        # 找到当前用户的审计记录
-        my_review = next((r for r in t.task_reviewers if r.reviewer_id == current_user.id), None)
-        if not my_review:
-            return jsonify({'success': False, 'message': _('您不是此任务的审计对象')}), 403
-        if t.review_status != 'pending_review':
-            return jsonify({'success': False, 'message': _('任务不在待审核状态')}), 400
-        if my_review.status != 'pending':
-            return jsonify({'success': False, 'message': _('您已完成审核')}), 400
-
         data = request.get_json() or {}
-        action = data.get('action')  # 'approve' or 'reject'
-        comment = (data.get('comment') or '').strip()
-
-        if action == 'approve':
-            my_review.status = 'approved'
-            my_review.comment = comment or None
-            my_review.reviewed_at = get_local_time()
-
-            # 检查是否所有人都已通过 → 任务完成
-            all_approved = all(r.status == 'approved' for r in t.task_reviewers)
-            if all_approved:
-                t.review_status = 'approved'
-                t.reviewed_at = get_local_time()
-                t.status = 'completed'
-                t.completed_at = get_local_time()
-                msg_text = _('任务审核通过')
-                # 发放积分
-                try:
-                    from app.services.points_service import award_points
-                    award_points(user_id=t.assignee_id, behavior_code='task_complete',
-                                 source_type='task', source_id=t.id,
-                                 context=t.title)
-                    for r in t.task_reviewers:
-                        award_points(user_id=r.reviewer_id, behavior_code='task_review_approved',
-                                     source_type='task_review', source_id=t.id,
-                                     context=t.title)
-                except Exception as pts_err:
-                    logger.warning(f"发放任务完成积分失败: {pts_err}")
-            else:
-                # 部分通过，等待其他审计人
-                remaining = [r for r in t.task_reviewers if r.status == 'pending']
-                msg_text = _('您已通过，等待其他审计人')
-
-        elif action == 'reject':
-            if not comment:
-                return jsonify({'success': False, 'message': _('驳回时必须填写意见')}), 400
-            my_review.status = 'rejected'
-            my_review.comment = comment
-            my_review.reviewed_at = get_local_time()
-            # 任一驳回 → 整体驳回
-            t.review_status = 'rejected'
-            t.reviewed_at = get_local_time()
-            t.status = 'in_progress'
-            msg_text = _('任务审核被驳回')
-        else:
-            return jsonify({'success': False, 'message': _('无效的操作')}), 400
-
-        # 通知执行人（全部通过或被驳回时）
-        if t.review_status in ('approved', 'rejected'):
-            try:
-                from app.models.message import Message
-                msg = Message.create_task_completed(
-                    sender_id=current_user.id,
-                    recipient_id=t.assignee_id,
-                    task=t
-                )
-                db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送审计结果通知失败: {e}")
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            t, msg_text = task_service.review_task(
+                current_user, t, data.get('action'), data.get('comment'))
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': msg_text, 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()

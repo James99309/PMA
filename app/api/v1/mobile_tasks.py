@@ -207,20 +207,7 @@ def mobile_tasks_list():
     })
 
 
-# ─── P1④ 详情 / 新建 / 改状态 / 评论 / 审核 ───────────────────────
-
-from datetime import datetime as _dt  # noqa: E402
-
-
-def _parse_d(s):
-    if not s:
-        return None
-    for fmt in ('%Y-%m-%d', '%Y/%m/%d', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M'):
-        try:
-            return _dt.strptime(s[:19], fmt)
-        except ValueError:
-            continue
-    return None
+# ─── P1④ 详情 / 新建 / 改状态 / 评论 / 审核 (写侧走 task_service) ──────
 
 
 def _sub_rows(task):
@@ -261,10 +248,6 @@ def _timeline(task):
     return out
 
 
-def _sys_reply(task_id, uid, text):
-    from app.models.task import TaskReply
-    db.session.add(TaskReply(
-        task_id=task_id, author_id=uid, content=text, reply_type='system'))
 
 
 def _can_see(t, uid, user):
@@ -306,52 +289,21 @@ def mobile_task_detail(tid):
 @api_v1_bp.route('/mobile/tasks', methods=['POST'])
 @jwt_required()
 def mobile_task_create():
+    """薄壳:逻辑+副作用走共享 task_service(与 web 同一来源)。"""
     uid = int(get_jwt_identity())
     user = User.query.get(uid)
     if not user:
         return api_response(success=False, code=401, message='用户不存在')
-    data = request.get_json() or {}
-    title = (data.get('title') or '').strip()
-    assignee_id = data.get('assignee_id')
-    if not title or not assignee_id:
-        return api_response(success=False, code=400, message='标题与负责人必填')
-    t = Task(
-        title=title,
-        description=(data.get('description') or '').strip() or None,
-        creator_id=uid,
-        assignee_id=int(assignee_id),
-        priority=data.get('priority') or 'normal',
-        status='pending',
-        start_date=(_parse_d(data.get('start_date')).date()
-                    if _parse_d(data.get('start_date')) else None),
-        due_date=_parse_d(data.get('due_date')),
-        project_id=data.get('project_id') or None,
-        customer_id=data.get('customer_id') or None,
-        quotation_id=data.get('quotation_id') or None,
-        shared_with_users=data.get('shared_with_users') or [],
-    )
-    db.session.add(t)
-    db.session.flush()
-    from app.models.task import TaskReviewer
-    for rid in (data.get('reviewer_ids') or []):
-        db.session.add(TaskReviewer(task_id=t.id, reviewer_id=int(rid)))
-    a = User.query.get(int(assignee_id))
-    _sys_reply(t.id, uid,
-               f'{user.real_name or user.username} 创建了任务,指派给 '
-               f'{(a.real_name or a.username) if a else assignee_id}')
+    from app.services import task_service
     try:
-        db.session.commit()
+        t = task_service.create_task(user, request.get_json() or {})
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
     except Exception as e:
         db.session.rollback()
         logger.error(f'task create error: {e}')
         return api_response(success=False, code=500, message='创建失败')
     return api_response(success=True, data={'id': t.id})
-
-
-_STATUS_TRANS = {
-    'pending': '待开始', 'paused': '已暂停', 'pending_review': '待审核',
-    'completed': '已完成', 'cancelled': '已取消', 'in_progress': '进行中',
-}
 
 
 @api_v1_bp.route('/mobile/tasks/<int:tid>/status', methods=['POST'])
@@ -367,23 +319,12 @@ def mobile_task_status(tid):
     if t.creator_id != uid and t.assignee_id != uid:
         return api_response(success=False, code=403, message='仅创建人或负责人可改状态')
     data = request.get_json() or {}
-    to = (data.get('to') or '').strip()
-    reason = (data.get('reason') or '').strip()
-    if to not in ('pending', 'paused', 'pending_review', 'completed', 'cancelled'):
-        return api_response(success=False, code=400, message='非法目标状态')
-    if to == 'paused' and not reason:
-        return api_response(success=False, code=400, message='暂停需填原因')
-    old = t.status
-    t.status = to
-    if to == 'completed':
-        t.completed_at = _dt.now()
-    nm = (user.real_name or user.username)
-    txt = f'{nm} 改变状态:{_STATUS_TRANS.get(old, old)} → {_STATUS_TRANS.get(to, to)}'
-    if reason:
-        txt += f'({reason})'
-    _sys_reply(t.id, uid, txt)
+    from app.services import task_service
     try:
-        db.session.commit()
+        task_service.change_status(user, t, (data.get('to') or '').strip(),
+                                   reason=data.get('reason') or '')
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
     except Exception as e:
         db.session.rollback()
         logger.error(f'task status error: {e}')
@@ -402,14 +343,11 @@ def mobile_task_reply(tid):
     t = Task.query.filter_by(id=tid, is_deleted=False).first()
     if not t or not _can_see(t, uid, user):
         return api_response(success=False, code=404, message='任务不存在或无权限')
-    content = (request.get_json() or {}).get('content', '').strip()
-    if not content:
-        return api_response(success=False, code=400, message='评论不能为空')
-    from app.models.task import TaskReply
-    db.session.add(TaskReply(task_id=t.id, author_id=uid,
-                             content=content, reply_type='comment'))
+    from app.services import task_service
     try:
-        db.session.commit()
+        task_service.add_reply(user, t, (request.get_json() or {}).get('content'))
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
     except Exception as e:
         db.session.rollback()
         logger.error(f'task reply error: {e}')
@@ -427,37 +365,13 @@ def mobile_task_review(tid):
     t = Task.query.filter_by(id=tid, is_deleted=False).first()
     if not t:
         return api_response(success=False, code=404, message='任务不存在')
-    from app.models.task import TaskReviewer
-    rv = next((x for x in t.task_reviewers if x.reviewer_id == uid), None)
-    if not rv or rv.status != 'pending' or t.status != 'pending_review':
-        return api_response(success=False, code=403, message='无待审权限')
     data = request.get_json() or {}
-    action = (data.get('action') or '').strip()
-    comment = (data.get('comment') or '').strip()
-    nm = (user.real_name or user.username)
-    if action == 'reject':
-        if not comment:
-            return api_response(success=False, code=400, message='驳回需填原因')
-        rv.status = 'rejected'
-        rv.comment = comment
-        rv.reviewed_at = _dt.now()
-        t.status = 'in_progress'
-        t.review_status = 'rejected'
-        _sys_reply(t.id, uid, f'{nm} 驳回:{comment}')
-    elif action == 'approve':
-        rv.status = 'approved'
-        rv.comment = comment or None
-        rv.reviewed_at = _dt.now()
-        _sys_reply(t.id, uid, f'{nm} 同意' + (f':{comment}' if comment else ''))
-        if all(x.status == 'approved' for x in t.task_reviewers):
-            t.status = 'completed'
-            t.completed_at = _dt.now()
-            t.review_status = 'approved'
-            _sys_reply(t.id, uid, '全部审核通过,任务完成')
-    else:
-        return api_response(success=False, code=400, message='非法动作')
+    from app.services import task_service
     try:
-        db.session.commit()
+        t, _msg = task_service.review_task(
+            user, t, (data.get('action') or '').strip(), data.get('comment') or '')
+    except ValueError as ve:
+        return api_response(success=False, code=403, message=str(ve))
     except Exception as e:
         db.session.rollback()
         logger.error(f'task review error: {e}')
