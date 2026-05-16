@@ -28,7 +28,7 @@
 
 ### 护栏(自动拦截,非靠自觉)
 
-`mobile-app/scripts/i18n-guard.mjs` —— 棘轮式:`scripts/i18n-baseline.json`
+`mobile-app/scripts/i18n-guard.mjs` —— 棘轮式:`scripts/i18n-baseline.txt`
 锚定现有中文债,**只拦新增**硬编码中文。已接入:
 
 - `npm run lint:i18n` — 检查(`release-ota.sh` 发版前自动跑,`set -e` 拦截,新增中文直接中止发版)
