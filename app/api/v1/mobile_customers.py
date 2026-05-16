@@ -2,7 +2,7 @@ from flask import request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import date, timedelta
 from app.api.v1 import api_v1_bp
-from app.api.v1.utils import api_response
+from app.api.v1.utils import api_response, get_request_lang as _lang
 from app.models.user import User
 from app.models.customer import Company, Contact
 from app.models.project import Project
@@ -39,16 +39,23 @@ _STAGE_LABEL = {
     'paused':     '暂停',
 }
 
-# 客户活跃度状态英文 → 中文（与 app/utils/activity_tracker.ACTIVITY_STATUS 同步）
+# 客户活跃度状态 zh/en（与 app/utils/activity_tracker.ACTIVITY_STATUS 同步）
 _STATUS_LABEL = {
-    'highly_active': '高度活跃',
-    'active':        '活跃',
-    'normal':        '正常',
-    'to_follow':     '待跟进',
-    'dormant':       '休眠',
-    'churned':       '流失',
-    'frozen':        '已冻结',
+    'highly_active': {'zh': '高度活跃', 'en': 'Highly active'},
+    'active':        {'zh': '活跃',     'en': 'Active'},
+    'normal':        {'zh': '正常',     'en': 'Normal'},
+    'to_follow':     {'zh': '待跟进',   'en': 'To follow up'},
+    'dormant':       {'zh': '休眠',     'en': 'Dormant'},
+    'churned':       {'zh': '流失',     'en': 'Churned'},
+    'frozen':        {'zh': '已冻结',   'en': 'Frozen'},
 }
+
+def _status_label(key):
+    """按 Accept-Language 取 zh/en, 未知值原样返回。"""
+    m = _STATUS_LABEL.get(key)
+    if not m:
+        return key or ('正常' if _lang() == 'zh' else 'Normal')
+    return m.get(_lang(), m['zh'])
 
 
 def _source_label(key):
@@ -62,25 +69,35 @@ def _source_label(key):
         return key
 
 
+_REL_DATE = {
+    'today':     {'zh': '今天', 'en': 'Today'},
+    'yesterday': {'zh': '昨天', 'en': 'Yesterday'},
+    'this_week': {'zh': '本周', 'en': 'This week'},
+    'last_week': {'zh': '上周', 'en': 'Last week'},
+    'this_month':{'zh': '本月', 'en': 'This month'},
+    'last_month':{'zh': '上月', 'en': 'Last month'},
+}
+
 def _relative_date(d):
-    """返回 '今天' / '昨天' / '本周' / '上周' / '本月' / '上月' 等相对描述"""
+    """相对日期描述, 按 Accept-Language 出 zh/en; 超 60 天回 ISO 日期。"""
     if not d:
         return ''
-    today = date.today()
-    diff = (today - d).days
+    diff = (date.today() - d).days
     if diff <= 0:
-        return '今天'
-    if diff == 1:
-        return '昨天'
-    if diff <= 7:
-        return '本周'
-    if diff <= 14:
-        return '上周'
-    if diff <= 31:
-        return '本月'
-    if diff <= 60:
-        return '上月'
-    return d.isoformat()
+        key = 'today'
+    elif diff == 1:
+        key = 'yesterday'
+    elif diff <= 7:
+        key = 'this_week'
+    elif diff <= 14:
+        key = 'last_week'
+    elif diff <= 31:
+        key = 'this_month'
+    elif diff <= 60:
+        key = 'last_month'
+    else:
+        return d.isoformat()
+    return _REL_DATE[key].get(_lang(), _REL_DATE[key]['zh'])
 
 
 def _contact_dict(ct):
@@ -179,7 +196,7 @@ def mobile_customer_list():
             **_company_summary(c),
             'primary_contact_name': primary.name if primary else '',
             'primary_contact_phone': primary.phone if primary else '',
-            'status':       _STATUS_LABEL.get(c.status, c.status or '正常'),
+            'status':       _status_label(c.status),
             'value':        round(stat['value'] / 10000, 2),
             'open_count':   stat['open'],
             'last_touch':   _relative_date(c.updated_at.date() if c.updated_at else None),
@@ -289,7 +306,7 @@ def mobile_customer_detail(company_id):
         'website':       getattr(company, 'website', None),
         'company_type':  company.company_type,
         'source':        _source_label(company.source) if company.source else '',
-        'status':        _STATUS_LABEL.get(company.status, company.status or '正常'),
+        'status':        _status_label(company.status),
         'owner_name':    company.owner.real_name or company.owner.username if company.owner else '',
         'last_touch':    _relative_date(last_action_date),
         'value':         value_wan,
