@@ -696,6 +696,8 @@ async function ensureExpenseExists() {
   })
   if (r.data?.success) {
     editingId.value = r.data.data.id
+    // 草稿建好即把当前表单暂存到新 id, 之后走 OCR 跳页返回不丢手输内容
+    store.stashCompose(editingId.value, form.value)
     triggerAutoTitle()  // fire-and-forget AI 生成标题
     return editingId.value
   }
@@ -794,8 +796,9 @@ async function pickFromGallery() {
 }
 
 // 从文件选(可 PDF+图片混合多张). 弹原生文件选择器
-async function pickFromFile() {
-  if (!await ensureExpenseExists().catch(() => null)) return
+// ⚠️ iOS WKWebView: input.click() 必须在用户手势同步周期内触发, 不能先 await
+// (await 会丢失 user-activation → 选择器一闪而过)。建草稿挪到选完文件之后。
+function pickFromFile() {
   fileInputEl.value?.click()
 }
 
@@ -803,7 +806,9 @@ async function onFileInputChange(e) {
   const files = Array.from(e.target.files || [])
   e.target.value = ''  // 允许同一文件再次选择
   if (!files.length) return
-  const id = editingId.value
+  // 用户已选完文件 → 此时再建草稿(同步翻译延迟不再卡选择器弹出)
+  const id = await ensureExpenseExists().catch(() => null)
+  if (!id) return
   for (const f of files) {
     const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
     // PDF 不渲染首页缩略 — 让 UI 显示 "📄 PDF" 占位, 点击走 iOS Safari 看
@@ -878,6 +883,7 @@ async function onConfirmSubmit() {
       ? await expApi.resubmitExpense(editingId.value)
       : await expApi.submitExpense(editingId.value)
     if (r.data?.success) {
+      store.clearCompose(editingId.value)  // 提交完成, 暂存作废
       submitSheetOpen.value = false
       router.replace(`/expense/${editingId.value}`)
     } else {
@@ -890,9 +896,23 @@ async function onConfirmSubmit() {
   }
 }
 
+// 本地暂存: 草稿已存在时, 表单任何改动写进 store(跨路由存活, 零服务器调用)
+// hydrated 守卫: 恢复完成前不写, 避免默认值/loadExisting 覆盖已有暂存
+const hydrated = ref(false)
+watch(form, () => {
+  if (!hydrated.value || !editingId.value) return
+  store.stashCompose(editingId.value, form.value)
+}, { deep: true })
+
 onMounted(async () => {
   await store.loadReference()
   if (editingId.value) await loadExisting()
+  // 返回本页时优先用本地暂存恢复手输内容(服务器值可能是建草稿那刻的旧值)
+  if (editingId.value) {
+    const stashed = store.getCompose(editingId.value)
+    if (stashed) form.value = { ...form.value, ...stashed }
+  }
+  hydrated.value = true
   // 加载归属人候选(同公司用户). 失败不阻塞表单
   expApi.getAttributedCandidates()
     .then(r => { attributedCandidates.value = r.data?.data || [] })

@@ -96,6 +96,20 @@ export const useExpenseStore = defineStore('expense', () => {
   }
   function clearDraft() { editingDraft.value = null }
 
+  // ── 编辑中表单本地暂存(防加明细走 OCR 跳页后返回丢失手输内容)──
+  // 仅在草稿已存在(有 id)时暂存; key=草稿 id。零服务器调用, 跨路由存活。
+  const composeStash = ref({})
+  function stashCompose(id, formObj) {
+    if (!id) return
+    composeStash.value[id] = { ...formObj }
+  }
+  function getCompose(id) {
+    return id ? composeStash.value[id] || null : null
+  }
+  function clearCompose(id) {
+    if (id) delete composeStash.value[id]
+  }
+
   // ── OCR 待处理发票队列(连拍场景) ─────────────────────
   // 每张发票: {idx, blob, dataUrl(预览), file_url?, fields?, confidence?, status: 'pending'|'ocr'|'done'|'failed'}
   const pendingReceipts = ref([])
@@ -129,6 +143,8 @@ export const useExpenseStore = defineStore('expense', () => {
     loadReference, categoryLabel, currencySymbol,
     // draft
     editingDraft, startDraft, clearDraft,
+    // 编辑中表单本地暂存
+    composeStash, stashCompose, getCompose, clearCompose,
     // OCR pending receipts
     pendingReceipts, currentReceiptExpenseId,
     clearPendingReceipts, addPendingReceipt, updatePendingReceipt,
