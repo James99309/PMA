@@ -30,12 +30,31 @@ _PROMPT = """根据用户填写的报销说明, 生成一个 5-12 个中文字�
 仅输出主题文字, 不带引号/解释/前缀."""
 
 
-def generate_title(description: str, fallback: str = '未命名报销') -> str:
+_PROMPT_EN = """Generate a concise 3-6 word English title for an expense claim,
+based on the user's expense description.
+
+Requirements:
+- Noun or gerund phrase, Title Case, no punctuation
+- Highlight the key scenario (place / client / activity), do not restate the text
+- Translate to English even if the description is in Chinese or another language
+- Examples:
+  description "2026年4月29日苏州客户技术对接陪同张工现场调试设备" -> "Suzhou Client Site Support"
+  description "上海长宁机房日常巡检" -> "Shanghai Server Room Inspection"
+  description "招待中油客户陪同晚餐" -> "PetroChina Client Dinner"
+  description "PMA Singapore demo 客户拜访" -> "Singapore Client Demo Visit"
+
+Output ONLY the title text, no quotes / explanation / prefix."""
+
+
+def generate_title(description: str, fallback: str = '未命名报销',
+                    lang: str = 'zh') -> str:
     """根据报销说明生成主题.
 
     Args:
         description: 报销说明文字
         fallback: AI 调用失败时的兜底主题
+        lang: 区域系统语言 'zh'|'en'。'en' 时直接生成英文标题
+              (SG 抬头一开始即英文, 无需事后翻译)
 
     Returns:
         str: 生成的主题(成功) 或 fallback(失败)
@@ -54,7 +73,7 @@ def generate_title(description: str, fallback: str = '未命名报销') -> str:
         msg = get_client().messages.create(
             model=model,
             max_tokens=64,
-            system=_PROMPT,
+            system=(_PROMPT_EN if lang == 'en' else _PROMPT),
             messages=[{
                 'role': 'user',
                 'content': desc,
@@ -63,7 +82,7 @@ def generate_title(description: str, fallback: str = '未命名报销') -> str:
         raw = (msg.content[0].text if msg.content else '').strip()
         # 防御: 去掉可能的引号 / 句号 / 多行
         title = raw.strip('"\'\n。.： :「」').split('\n')[0].strip()
-        if 1 <= len(title) <= 30:
+        if 1 <= len(title) <= 60:  # 英文标题更长, 放宽到 60
             return title
         return fallback
     except anthropic.APIStatusError as e:

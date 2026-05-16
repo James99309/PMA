@@ -52,16 +52,35 @@ Rules:
 - category 是软推荐, 用户可改; 不确定就给较低 confidence (≤0.7) 让 UI 飘黄."""
 
 
-def extract_invoice(image_blob: bytes) -> dict:
+# 区域语言指令: SG(en) 时强制 description 直接出英文(中文票也翻),
+# seller 保留票面原文(专有名词)。CN(zh) 不追加, 维持原行为。
+_LANG_DIRECTIVE = {
+    'en': (
+        "\n\nLANGUAGE: Output the \"description\" field in natural English. "
+        "If the receipt/invoice is written in Chinese or any other language, "
+        "translate the description into English. Keep \"seller\" exactly as "
+        "printed on the receipt (do NOT translate the merchant name). "
+        "All other fields follow the schema as specified."
+    ),
+}
+
+
+def extract_invoice(image_blob: bytes, lang: str = 'zh') -> dict:
     """从发票/收据图字节流提取字段。
+
+    Args:
+        image_blob: 发票/收据图字节流
+        lang: 区域系统语言 'zh'|'en'。'en' 时 description 直接出英文
+              (确认页一开始就是英文, 无需事后翻译); seller 仍保票面原文。
 
     Returns:
         成功 → {'success': True, 'data': {seller, invoice_no, date, currency,
                 invoice_amount, tax_amount, category, description, confidence}}
         失败 → {'success': False, 'message': '...'}
     """
+    prompt = _INVOICE_PROMPT + _LANG_DIRECTIVE.get(lang, '')
     return extract_with_schema(
         image_blob,
-        _INVOICE_PROMPT,
+        prompt,
         user_text='请提取这张发票/收据的字段, 仅返回 JSON.',
     )

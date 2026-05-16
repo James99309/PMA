@@ -847,7 +847,7 @@ def mobile_expense_auto_title(expense_id):
 
     try:
         from app.services.expense_title_generator import generate_title
-        new_title = generate_title(e.description, fallback='')
+        new_title = generate_title(e.description, fallback='', lang=_lang())
     except Exception as exc:
         logger.warning(f'auto-title generate failed: {exc}')
         return api_response(success=False, code=500, message='AI 生成失败')
@@ -933,6 +933,19 @@ _EX_CURRENCIES = [
     {'code': 'VND', 'label': '越南盾',          'symbol': '₫',   'fallback_rate': 0.0003},
 ]
 
+# 英文 label 映射 (SG/en 用) — 同 _category_label / _status_label_i18n 模式
+_EXPENSE_CURRENCY_EN = {
+    'CNY': 'Chinese Yuan',
+    'USD': 'US Dollar',
+    'HKD': 'Hong Kong Dollar',
+    'TWD': 'Taiwan Dollar',
+    'SGD': 'Singapore Dollar',
+    'MYR': 'Malaysian Ringgit',
+    'IDR': 'Indonesian Rupiah',
+    'THB': 'Thai Baht',
+    'VND': 'Vietnamese Dong',
+}
+
 
 @api_v1_bp.route('/mobile/expense/currencies', methods=['GET'])
 @jwt_required()
@@ -949,12 +962,13 @@ def mobile_expense_currencies():
     except Exception as e:
         logger.warning(f'mobile expense currencies fetch rates fail: {e}')
 
+    en = (_lang() == 'en')
     items = []
     for c in _EX_CURRENCIES:
         rate = rates_map.get(c['code'], c['fallback_rate'])
         items.append({
             'code': c['code'],
-            'label': c['label'],
+            'label': _EXPENSE_CURRENCY_EN.get(c['code'], c['label']) if en else c['label'],
             'symbol': c['symbol'],
             'rate': round(rate, 6),
         })
@@ -1000,11 +1014,12 @@ def mobile_expense_upload_invoice():
 
     from app.services.expense_invoice_ocr import extract_invoice
     from app.api.v1.utils import handle_image_ocr_upload
+    _req_lang = _lang()  # SG→en: description 直接出英文(确认页一开始即英文)
     success, payload, code, message = handle_image_ocr_upload(
         request.files.get('file'),
         owner_id=user_id,
         business_type='expense_invoice',
-        ocr_fn=extract_invoice,
+        ocr_fn=lambda blob: extract_invoice(blob, lang=_req_lang),
         default_filename='invoice.jpg',
     )
     return api_response(success=success, code=code, message=message, data=payload)
