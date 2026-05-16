@@ -27,7 +27,7 @@
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { createTask } from '@/api/tasks'
+import { createTask, uploadTaskAttachment } from '@/api/tasks'
 import { getAttributedCandidates } from '@/api/expense'
 import TaskFormFields from '@/components/tasks/TaskFormFields.vue'
 
@@ -43,7 +43,8 @@ const TK = {
 const form = reactive({
   title: '', assignee_id: null, priority: 'normal', start_date: '', due_date: '',
   description: '', project_id: null, project_name: '', customer_id: null,
-  customer_name: '', reviewer_ids: [], shared_with_users: [],
+  customer_name: '', quotation_id: null, quotation_name: '',
+  reviewer_ids: [], shared_with_users: [], pending_files: [], attachments: [],
 })
 const people = ref([])
 const canCreate = computed(() => !!form.title.trim() && !!form.assignee_id)
@@ -59,12 +60,23 @@ async function submit() {
       description: form.description.trim() || null,
       project_id: form.project_id || null,
       customer_id: form.customer_id || null,
+      quotation_id: form.quotation_id || null,
       reviewer_ids: form.reviewer_ids,
       shared_with_users: form.shared_with_users,
     })
     const id = r.data?.data?.id
-    if (id) router.replace(`/tasks/${id}`)
-    else router.back()
+    if (id) {
+      for (const f of form.pending_files) {
+        try {
+          const fd = new FormData()
+          fd.append('file', f)
+          await uploadTaskAttachment(id, fd)
+        } catch (e) { /* skip failed file, continue */ }
+      }
+      router.replace(`/tasks/${id}`)
+    } else {
+      router.back()
+    }
   } catch (e) { /* keep form on failure */ }
 }
 

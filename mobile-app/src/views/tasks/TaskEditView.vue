@@ -22,7 +22,7 @@
       justifyContent: 'center', color: TK.ink4 }">···</div>
 
     <div v-else :style="{ flex: 1, overflowY: 'auto', paddingBottom: '30px' }">
-      <TaskFormFields :form="form" :people="people" />
+      <TaskFormFields :form="form" :people="people" :task-id="id" />
     </div>
   </div>
 </template>
@@ -51,7 +51,8 @@ const people = ref([])
 const form = reactive({
   title: '', assignee_id: null, priority: 'normal', start_date: '', due_date: '',
   description: '', project_id: null, project_name: '', customer_id: null,
-  customer_name: '', reviewer_ids: [], shared_with_users: [],
+  customer_name: '', quotation_id: null, quotation_name: '',
+  reviewer_ids: [], shared_with_users: [], pending_files: [], attachments: [],
 })
 const canSave = computed(() => !!form.title.trim() && !!form.assignee_id)
 
@@ -66,6 +67,7 @@ async function submit() {
       description: form.description.trim() || null,
       project_id: form.project_id || null,
       customer_id: form.customer_id || null,
+      quotation_id: form.quotation_id || null,
       reviewer_ids: form.reviewer_ids,
       shared_with_users: form.shared_with_users,
     })
@@ -95,8 +97,11 @@ onMounted(async () => {
     form.project_name = d.project_name || ''
     form.customer_id = d.customer_id || null
     form.customer_name = d.customer_name || ''
+    form.quotation_id = d.quotation_id || null
+    form.quotation_name = d.quotation_number || ''
     form.reviewer_ids = (d.reviewers || []).map(rv => rv.reviewer_id).filter(Boolean)
     form.shared_with_users = Array.isArray(d.shared_with_users) ? [...d.shared_with_users] : []
+    form.attachments = Array.isArray(d.attachments) ? [...d.attachments] : []
   } catch (e) { /* noop */ } finally {
     loading.value = false
   }

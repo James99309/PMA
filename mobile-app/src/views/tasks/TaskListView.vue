@@ -20,49 +20,38 @@
       </button>
     </div>
 
+    <!-- viewing-other amber banner -->
+    <div v-if="viewingOwner" :style="{ display: 'flex', alignItems: 'center', gap: '8px',
+      padding: '10px 20px', background: TK.warnSoft, borderBottom: `1px solid ${TK.warn}33` }">
+      <span :style="avatarStyle(viewingOwner.name, 18)">{{ viewingOwner.short }}</span>
+      <span :style="{ flex: 1, fontSize: '12.5px', color: TK.warn, fontWeight: 600,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">
+        {{ t('task.viewingBanner', { name: viewingOwner.name }) }}</span>
+      <span @click="backToMine" class="active:opacity-60"
+        :style="{ fontSize: '12.5px', color: TK.ink2, fontWeight: 600, flexShrink: 0 }">
+        {{ t('task.backToMine') }} ›</span>
+    </div>
+
     <div :style="{ flex: 1, overflowY: 'auto', paddingBottom: '40px' }">
       <!-- hero -->
       <div :style="{ padding: '14px 20px 14px', display: 'flex', alignItems: 'flex-start',
         justifyContent: 'space-between', gap: '14px' }">
-        <div :style="{ flex: 1, minWidth: 0, position: 'relative' }">
-          <div @click="tabMenu = !tabMenu" class="active:opacity-70"
+        <div :style="{ flex: 1, minWidth: 0 }">
+          <div @click="perspSheet = true" class="active:opacity-70"
             :style="{ display: 'inline-flex', alignItems: 'center', gap: '7px' }">
+            <span v-if="viewingOwner" :style="avatarStyle(viewingOwner.name, 22)">{{ viewingOwner.short }}</span>
             <span :style="{ fontFamily: 'var(--font-serif)', fontSize: '26px', fontWeight: 600,
-              color: TK.ink, letterSpacing: '-0.3px' }">{{ currentTabLabel }}</span>
-            <span :style="{ fontSize: '13px', color: TK.ink3,
-              transform: tabMenu ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }">▾</span>
+              color: TK.ink, letterSpacing: '-0.3px' }">{{ heroTitle }}</span>
+            <span :style="{ fontSize: '13px', color: TK.ink3 }">▾</span>
           </div>
           <div :style="{ fontSize: '13px', color: TK.ink3, marginTop: '4px' }">
-            {{ t('task.heroSub', { ip: counts.in_progress, rv: counts.review, od: counts.overdue }) }}
+            {{ heroSub }}
           </div>
-
-          <!-- tab dropdown switcher (#4) -->
-          <template v-if="tabMenu">
-            <div @click="tabMenu = false"
-              :style="{ position: 'fixed', inset: 0, zIndex: 40 }" />
-            <div :style="{ position: 'absolute', top: '40px', left: 0, zIndex: 41,
-              background: TK.card, borderRadius: '12px', minWidth: '190px',
-              border: `1px solid ${TK.divider}`, boxShadow: '0 8px 28px rgba(0,0,0,.16)',
-              overflow: 'hidden' }">
-              <div v-for="tb in tabs" :key="tb.k"
-                @click="tabMenu = false; switchTab(tb.k)" class="active:opacity-70"
-                :style="{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px',
-                  borderBottom: `1px solid ${TK.dividerSoft}`,
-                  background: activeTab === tb.k ? TK.bg : TK.card }">
-                <span :style="{ flex: 1, fontSize: '14px',
-                  fontWeight: activeTab === tb.k ? 600 : 500,
-                  color: activeTab === tb.k ? TK.ink : TK.ink2 }">{{ tb.l }}</span>
-                <span v-if="tb.n > 0" :style="{ fontSize: '12px', fontWeight: 600,
-                  color: tb.alert ? TK.warn : TK.ink3 }">{{ tb.n }}</span>
-                <span v-if="activeTab === tb.k" :style="{ color: TK.accent, fontSize: '13px' }">✓</span>
-              </div>
-            </div>
-          </template>
         </div>
-        <div :style="{ width: '36px', height: '36px', borderRadius: '18px', background: TK.ink,
-          color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '22px', fontWeight: 300, lineHeight: 1, flexShrink: 0 }"
-          @click="onCreate">+</div>
+        <div v-if="!viewingOwner" :style="{ width: '36px', height: '36px', borderRadius: '18px',
+          background: TK.ink, color: '#FFF', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', fontSize: '22px', fontWeight: 300, lineHeight: 1,
+          flexShrink: 0 }" @click="onCreate">+</div>
       </div>
       <div :style="{ height: '1px', background: TK.divider }" />
 
@@ -99,10 +88,14 @@
       <div v-else-if="!items.length" :style="{ padding: '48px 0', textAlign: 'center',
         color: TK.ink3, fontSize: '13px' }">{{ t('task.empty') }}</div>
       <div v-else :style="{ background: TK.card, borderTop: `1px solid ${TK.dividerSoft}` }">
-        <div v-for="(it, i) in items" :key="it.id"
+        <SwipeRowAction v-for="(it, i) in items" :key="it.id"
+          :disabled="!!viewingOwner || !it.can_delete"
+          :actions="[{ label: t('common.delete'), color: 'red', handler: () => onDeleteTask(it) }]"
+          :style="{ borderBottom: i === items.length - 1 ? 'none' : `1px solid ${TK.dividerSoft}` }">
+        <div
           @click="router.push(`/tasks/${it.id}`)" class="active:opacity-60"
           :style="{ padding: '13px 20px', display: 'flex', alignItems: 'flex-start', gap: '11px',
-            borderBottom: i === items.length - 1 ? 'none' : `1px solid ${TK.dividerSoft}` }">
+            background: TK.card }">
           <!-- Status dot -->
           <span :style="{ width: '8px', height: '8px', borderRadius: '4px', flexShrink: 0,
             marginTop: '5px', background: stat(it.status).color,
@@ -150,16 +143,21 @@
             </div>
           </div>
         </div>
+        </SwipeRowAction>
       </div>
     </div>
+
+    <PerspectiveSheet v-model="perspSheet" @pick="onPickAccount" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getTasks } from '@/api/tasks'
+import { getTasks, deleteTask } from '@/api/tasks'
+import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
+import PerspectiveSheet from '@/components/tasks/PerspectiveSheet.vue'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -205,21 +203,43 @@ function avatarStyle(name, size) {
 }
 
 const activeTab = ref('mine')
-const tabMenu = ref(false)
+const perspSheet = ref(false)
+const viewingOwner = ref(null)  // {id,name,short,department,total} or null = self
 const statusF = ref('all')
 const sort = ref('due_desc')
 const loading = ref(false)
 const items = ref([])
 const counts = ref({ mine: 0, created: 0, shared: 0, review: 0, in_progress: 0, overdue: 0 })
 
-const tabs = computed(() => [
-  { k: 'mine',    l: t('task.tabMine'),    n: counts.value.mine },
-  { k: 'created', l: t('task.tabCreated'), n: counts.value.created },
-  { k: 'shared',  l: t('task.tabShared'),  n: counts.value.shared },
-  { k: 'review',  l: t('task.tabReview'),  n: counts.value.review, alert: true },
-])
-const currentTabLabel = computed(() =>
-  tabs.value.find(tb => tb.k === activeTab.value)?.l || t('task.title'))
+const tabs = computed(() => {
+  if (viewingOwner.value) {
+    const name = viewingOwner.value.name
+    return [
+      { k: 'mine',    l: t('task.ownerTabMine', { name }),    n: counts.value.mine },
+      { k: 'created', l: t('task.ownerTabCreated', { name }), n: counts.value.created },
+      { k: 'shared',  l: t('task.ownerTabShared', { name }),  n: counts.value.shared },
+    ]
+  }
+  return [
+    { k: 'mine',    l: t('task.tabMine'),    n: counts.value.mine },
+    { k: 'created', l: t('task.tabCreated'), n: counts.value.created },
+    { k: 'shared',  l: t('task.tabShared'),  n: counts.value.shared },
+    { k: 'review',  l: t('task.tabReview'),  n: counts.value.review, alert: true },
+  ]
+})
+const heroTitle = computed(() => viewingOwner.value
+  ? t('task.ownerTabMine', { name: viewingOwner.value.name })
+  : t('task.title'))
+const heroSub = computed(() => {
+  if (viewingOwner.value) {
+    const o = viewingOwner.value
+    return [o.name, o.department,
+      t('task.nTasks', { n: o.total != null ? o.total : counts.value.mine })]
+      .filter(Boolean).join(' · ')
+  }
+  return t('task.heroSub', {
+    ip: counts.value.in_progress, rv: counts.value.review, od: counts.value.overdue })
+})
 const statusFilters = computed(() => [
   { k: 'all',            l: t('task.fAll') },
   { k: 'in_progress',    l: t('task.fInProgress') },
@@ -231,10 +251,15 @@ const statusFilters = computed(() => [
 async function load() {
   loading.value = true
   try {
-    const r = await getTasks({ tab: activeTab.value, status: statusF.value, sort: sort.value })
+    const params = { tab: activeTab.value, status: statusF.value, sort: sort.value }
+    if (viewingOwner.value) params.owner_id = viewingOwner.value.id
+    const r = await getTasks(params)
     const d = r.data?.data || {}
     items.value = d.items || []
     if (d.counts) counts.value = d.counts
+    if (viewingOwner.value && d.owner) {
+      viewingOwner.value = { ...viewingOwner.value, ...d.owner }
+    }
   } catch (e) {
     items.value = []
   } finally {
@@ -244,8 +269,31 @@ async function load() {
 function switchTab(k) { if (k !== activeTab.value) { activeTab.value = k; load() } }
 function toggleSort() { sort.value = sort.value === 'due_desc' ? 'due_asc' : 'due_desc'; load() }
 function onCreate() { router.push('/tasks/new') }
+function onPickAccount(e) {
+  if (!e || e.is_self) { backToMine(); return }
+  if (viewingOwner.value && viewingOwner.value.id === e.id) return
+  viewingOwner.value = { id: e.id, name: e.name, short: e.short,
+    department: e.department, total: e.count }
+  activeTab.value = 'mine'
+  load()
+}
+function backToMine() {
+  if (!viewingOwner.value) return
+  viewingOwner.value = null
+  activeTab.value = 'mine'
+  load()
+}
+async function onDeleteTask(it) {
+  if (!window.confirm(t('task.confirmDelete', { title: it.title }))) return
+  try {
+    await deleteTask(it.id)
+    items.value = items.value.filter(x => x.id !== it.id)
+  } catch (e) {
+    window.alert(t('task.deleteFailed') + ': ' +
+      (e.response?.data?.message || e.message))
+  }
+}
 
-import { watch } from 'vue'
 watch(statusF, load)
 onMounted(load)
 </script>

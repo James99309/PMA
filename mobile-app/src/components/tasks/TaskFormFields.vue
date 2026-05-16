@@ -72,6 +72,16 @@
           <span v-else :style="{ marginLeft: 'auto', color: TK.ink4 }">›</span>
         </div>
       </div>
+      <div>
+        <div :style="lab">{{ t('task.fQuotation') }}</div>
+        <div @click="quotationSheet = true" :style="fieldBox">
+          <span v-if="form.quotation_name" :style="{ fontSize: '13px', fontWeight: 500 }">{{ form.quotation_name }}</span>
+          <span v-else :style="{ fontSize: '13px', color: TK.ink4 }">{{ t('task.fQuotationPh') }}</span>
+          <span v-if="form.quotation_id" @click.stop="clearQuotation"
+            :style="{ marginLeft: 'auto', color: TK.ink4, fontSize: '14px' }">✕</span>
+          <span v-else :style="{ marginLeft: 'auto', color: TK.ink4 }">›</span>
+        </div>
+      </div>
     </div>
 
     <!-- reviewers / collaborators -->
@@ -92,6 +102,37 @@
           <span :style="{ marginLeft: 'auto', color: TK.ink4 }">›</span>
         </div>
       </div>
+    </div>
+
+    <!-- attachments -->
+    <div :style="{ ...lab, padding: '6px 20px 8px' }">{{ t('task.secAttach') }}</div>
+    <div :style="{ background: TK.card, borderTop: `1px solid ${TK.divider}`,
+      borderBottom: `1px solid ${TK.divider}`, marginBottom: '14px' }">
+      <!-- existing (edit mode) -->
+      <div v-for="a in existingAtt" :key="'e' + a.id" :style="{ padding: '11px 20px',
+        display: 'flex', alignItems: 'center', gap: '10px',
+        borderBottom: `1px solid ${TK.divider}` }">
+        <span :style="{ fontSize: '13px', flex: 1, minWidth: 0, overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">{{ a.filename }}</span>
+        <span @click="delExisting(a)" class="active:opacity-60"
+          :style="{ color: TK.red, fontSize: '12px', flexShrink: 0 }">✕</span>
+      </div>
+      <!-- staged (create mode) -->
+      <div v-for="(f, i) in form.pending_files" :key="'p' + i" :style="{ padding: '11px 20px',
+        display: 'flex', alignItems: 'center', gap: '10px',
+        borderBottom: `1px solid ${TK.divider}` }">
+        <span :style="{ fontSize: '13px', flex: 1, minWidth: 0, overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">{{ f.name }}</span>
+        <span @click="form.pending_files.splice(i, 1)" class="active:opacity-60"
+          :style="{ color: TK.red, fontSize: '12px', flexShrink: 0 }">✕</span>
+      </div>
+      <div @click="pickFile" class="active:opacity-60"
+        :style="{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '8px',
+          color: TK.accent, fontSize: '13px', fontWeight: 600 }">
+        <span :style="{ fontSize: '16px', lineHeight: 1 }">＋</span>
+        {{ uploading ? t('task.uploading') : t('task.addAttachment') }}
+      </div>
+      <input ref="fileInput" type="file" style="display:none" @change="onFile" />
     </div>
 
     <!-- description -->
@@ -116,6 +157,8 @@
       :placeholder="t('task.fProjectPh')" :search-fn="searchProjects" @pick="onPickProject" />
     <ExSearchPickerSheet v-model="customerSheet" :title="t('task.fCustomer')"
       :placeholder="t('task.fCustomerPh')" :search-fn="searchCustomers" @pick="onPickCustomer" />
+    <ExSearchPickerSheet v-model="quotationSheet" :title="t('task.fQuotation')"
+      :placeholder="t('task.fQuotationPh')" :search-fn="searchQuotationsFn" @pick="onPickQuotation" />
   </div>
 </template>
 
@@ -123,6 +166,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import client from '@/api/client'
+import { searchQuotations, uploadTaskAttachment, deleteTaskAttachment } from '@/api/tasks'
 import PersonPickerSheet from '@/components/common/PersonPickerSheet.vue'
 import PickerSheet from '@/components/common/PickerSheet.vue'
 import MultiPersonPickerSheet from '@/components/common/MultiPersonPickerSheet.vue'
@@ -131,6 +175,7 @@ import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
 const props = defineProps({
   form:   { type: Object, required: true },
   people: { type: Array,  default: () => [] },
+  taskId: { type: [Number, String], default: null },  // edit mode -> upload now
 })
 const { t } = useI18n()
 const form = props.form
@@ -154,6 +199,11 @@ const reviewerSheet = ref(false)
 const sharedSheet = ref(false)
 const projectSheet = ref(false)
 const customerSheet = ref(false)
+const quotationSheet = ref(false)
+const fileInput = ref(null)
+const uploading = ref(false)
+if (!Array.isArray(form.pending_files)) form.pending_files = []
+const existingAtt = computed(() => form.attachments || [])
 
 const priorityOptions = computed(() => [
   { value: 'urgent', label: t('task.priUrgent') },
@@ -192,8 +242,43 @@ async function searchCustomers(q) {
     sub: c.primary_contact_name || c.industry || '',
   }))
 }
+async function searchQuotationsFn(q) {
+  const r = await searchQuotations(q)
+  return (r.data?.data?.items || []).map(x => ({
+    id: x.id, label: x.label, sub: x.sub || '',
+  }))
+}
 function onPickProject(it) { form.project_id = it.id; form.project_name = it.label }
 function onPickCustomer(it) { form.customer_id = it.id; form.customer_name = it.label }
+function onPickQuotation(it) { form.quotation_id = it.id; form.quotation_name = it.label }
 function clearProject() { form.project_id = null; form.project_name = '' }
 function clearCustomer() { form.customer_id = null; form.customer_name = '' }
+function clearQuotation() { form.quotation_id = null; form.quotation_name = '' }
+
+function pickFile() { if (!uploading.value) fileInput.value?.click() }
+async function onFile(e) {
+  const f = e.target.files?.[0]
+  e.target.value = ''
+  if (!f) return
+  if (!props.taskId) {            // create mode → stage locally
+    form.pending_files.push(f)
+    return
+  }
+  uploading.value = true          // edit mode → upload immediately
+  try {
+    const fd = new FormData()
+    fd.append('file', f)
+    const r = await uploadTaskAttachment(props.taskId, fd)
+    const ad = r.data?.data
+    if (ad) (form.attachments = form.attachments || []).push(ad)
+  } catch (err) { /* noop */ } finally {
+    uploading.value = false
+  }
+}
+async function delExisting(a) {
+  try {
+    await deleteTaskAttachment(props.taskId, a.id)
+    form.attachments = (form.attachments || []).filter(x => x.id !== a.id)
+  } catch (err) { /* noop */ }
+}
 </script>

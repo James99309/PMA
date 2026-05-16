@@ -30,3 +30,11 @@ export const uploadTaskAttachment = (id, formData) =>
 
 export const deleteTaskAttachment = (id, aid) =>
   client.delete(`/mobile/tasks/${id}/attachments/${aid}`)
+
+export const deleteTask = id => client.delete(`/mobile/tasks/${id}`)
+
+export const getTaskPerspectives = () =>
+  client.get('/mobile/tasks/perspectives')
+
+export const searchQuotations = q =>
+  client.get('/mobile/quotations', { params: { q: q || '' } })
