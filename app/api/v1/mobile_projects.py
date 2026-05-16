@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 # 实际使用的阶段值（来自 dictionary_helpers.py）
 from app.utils.dictionary_helpers import (
-    PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS, PROJECT_TYPE_LABELS
+    PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS, PROJECT_TYPE_LABELS,
+    INDUSTRY_LABELS,
 )
 
 def _mobile_project_query(user):
@@ -61,6 +62,13 @@ def _project_type_label(key):
         return ''
     return PROJECT_TYPE_LABELS.get(key, {}).get(_lang(), key)
 
+def _industry_label(key):
+    """行业按 Accept-Language 取 zh/en(复用 PMA 统一 INDUSTRY_LABELS),
+    未知值原样返回。前端不再各自维护中文 map。"""
+    if not key:
+        return ''
+    return INDUSTRY_LABELS.get(key, {}).get(_lang(), key)
+
 _PRODUCT_SITUATION_LABELS = {
     'qualified':    {'zh': '入围',     'en': 'Qualified'},
     'controlled':   {'zh': '受控',     'en': 'Controlled'},
@@ -93,7 +101,8 @@ def _project_summary(p):
         'currency': getattr(p, 'quotation_currency', 'CNY') or 'CNY',
         'owner_name': p.owner.real_name or p.owner.username if p.owner else '',
         'city': p.city or '',
-        'industry': p.industry or '',
+        'industry': p.industry or '',  # raw, 筛选用
+        'industry_label': _industry_label(p.industry),  # 显示用(区域语言)
         'updated_at': p.updated_at.isoformat() if p.updated_at else None,
     }
 
