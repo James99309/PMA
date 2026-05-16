@@ -215,7 +215,7 @@
             background: 'var(--color-ex-ink)', color: 'var(--color-ex-card)',
             gap: '6px', fontSize: '13px', fontWeight: 600,
           }"
-          @click="addOptionsSheetOpen = true"
+          @click="openAddOptions"
         >＋ {{ t('expense.addLineCTA') }}</div>
       </div>
 
@@ -298,7 +298,7 @@
             border: '1.5px solid var(--color-ex-ink)',
             gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--color-ex-ink)',
           }"
-          @click="addOptionsSheetOpen = true"
+          @click="openAddOptions"
         >＋ {{ t('expense.addLineCTA') }}</div>
       </div>
     </div>
@@ -366,7 +366,7 @@
         <div v-if="addOptionsSheetOpen"
           class="fixed inset-0 z-50 flex flex-col"
           :style="{ background: 'rgba(0,0,0,0.32)' }"
-          @click.self="addOptionsSheetOpen = false">
+          @click.self="closeAddOptionsBackdrop">
           <div class="mt-auto"
             :style="{
               background: 'var(--color-ex-bg)',
@@ -471,7 +471,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import client from '@/api/client'
@@ -543,6 +543,23 @@ const attributedPickerOpen = ref(false)
 
 // 添加明细 4 选项 sheet
 const addOptionsSheetOpen = ref(false)
+const addSheetOpenedAt = ref(0)
+
+// 打开加明细 sheet: 先收键盘(避免键盘收起重排与进场动画打架),
+// nextTick 后再开 → 触发打开的那次点击事件已结束, 不会穿透到刚铺上的遮罩
+async function openAddOptions() {
+  try { document.activeElement?.blur?.() } catch (e) { /* noop */ }
+  await nextTick()
+  addSheetOpenedAt.value = Date.now()
+  addOptionsSheetOpen.value = true
+}
+
+// 背景点击关闭: 刚打开 <350ms 内忽略 → 同一次手势的误触/穿透关不掉它
+function closeAddOptionsBackdrop() {
+  if (Date.now() - addSheetOpenedAt.value < 350) return
+  addOptionsSheetOpen.value = false
+}
+
 const fileInputEl = ref(null)
 const addOptions = computed(() => [
   { key: 'camera',  icon: '📷', label: t('expense.addOptCamera'),  sub: t('expense.addOptCameraSub') },
