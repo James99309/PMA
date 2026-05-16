@@ -603,6 +603,7 @@ export default {
     newTitle: '新建报销单',
     fSubject: '报销主题',
     fSubjectAi: '留空时 AI 据说明自动生成',
+    fSubjectGenerating: '生成标题中…',
     fSubjectPh: '例: 苏州客户拜访 (可留空 AI 生成)',
     fStatus: '状态',
     fNoLink: '不关联客户/项目模式',

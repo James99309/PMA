@@ -589,6 +589,7 @@ export default {
     newTitle: 'New Expense',
     fSubject: 'Subject',
     fSubjectAi: 'Leave empty for AI to auto-generate',
+    fSubjectGenerating: 'Generating title…',
     fSubjectPh: 'e.g. Suzhou client visit (leave empty for AI)',
     fStatus: 'Status',
     fNoLink: 'No customer/project link',

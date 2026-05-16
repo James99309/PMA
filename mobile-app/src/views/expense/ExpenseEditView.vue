@@ -12,21 +12,25 @@
     <!-- 顶部安全区 -->
     <div style="height: env(safe-area-inset-top); background: #F7F5F2;" />
 
-    <!-- Nav 表头 — 对齐 ProjectCreateView/CustomerCreateView 的 na-nav 标准 -->
+    <!-- Nav 表头: 取消(左) / 标题(中) / 保存草稿(右) — 底部 CTA 只留"提交审批" -->
     <div class="flex items-center justify-between shrink-0" style="padding: 10px 20px 8px;">
       <button @click="$router.back()"
         class="active:opacity-60"
-        style="font-size: 15px; color: #3A3A3A; font-weight: 500; background: none; border: none; padding: 0;">
+        style="font-size: 15px; color: #3A3A3A; font-weight: 500; background: none; border: none; padding: 0; min-width: 48px; text-align: left;">
         {{ t('common.cancel') }}
       </button>
-      <div class="text-center">
+      <div class="text-center flex-1">
         <div style="font-family: 'Noto Serif SC', Georgia, serif; font-size: 18px; font-weight: 500; color: #1A1A1A;">
           {{ editingId ? t('expense.editTitle') : t('expense.newTitle') }}
         </div>
         <div style="font-size: 11px; color: #7A7570; margin-top: 1px;">{{ navSub }}</div>
       </div>
-      <!-- 右侧占位让标题居中(主操作在底部 ExBottomBar) -->
-      <div style="width: 32px;" />
+      <button @click="onTopSave"
+        class="active:opacity-60"
+        :disabled="savingTop"
+        style="font-size: 15px; color: var(--color-accent); font-weight: 500; background: none; border: none; padding: 0; min-width: 48px; text-align: right;">
+        {{ savingTop ? t('expense.lineSaving') : t('expense.save') }}
+      </button>
     </div>
 
     <div
@@ -39,8 +43,10 @@
         <div :style="{ padding: '0 20px 16px' }">
           <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">
             {{ t('expense.fSubject') }}
-            <span :style="{ color: 'var(--color-ex-ink4)', fontWeight: 400, marginLeft: '4px' }">
-              {{ t('expense.fSubjectAi') }}
+            <span
+              :style="{ color: titleGenerating ? 'var(--color-ex-warn)' : 'var(--color-ex-ink4)', fontWeight: 400, marginLeft: '4px' }"
+            >
+              {{ titleGenerating ? t('expense.fSubjectGenerating') : t('expense.fSubjectAi') }}
             </span>
           </div>
           <input
@@ -65,15 +71,21 @@
         <div class="flex" :style="{ padding: '0 20px', gap: '16px', marginBottom: '18px' }">
           <div class="flex-1">
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">
-              {{ t('expense.settlementCurrency') }}<span :style="{ color: 'var(--color-ex-ink4)', marginLeft: '4px' }">· {{ t('expense.bySettlementPref') }}</span>
+              {{ t('expense.settlementCurrency') }}
             </div>
-            <div :style="{
+            <div @click="currencyPickerOpen = true"
+              :style="{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
                 fontSize: '14px',
                 fontWeight: 500,
                 color: 'var(--color-ex-ink)',
                 lineHeight: '24px',
+                cursor: 'pointer',
               }">
               {{ currencyDisplayLabel }}
+              <span :style="{ color: 'var(--color-ex-ink4)', fontSize: '13px' }">›</span>
             </div>
           </div>
           <div class="flex-1">
@@ -147,6 +159,15 @@
             <span :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)' }">{{ t('expense.fSystemDefault') }}</span>
           </template>
         </ExRow>
+
+        <!-- 归属人 (默认自己; 选其他人会插入"归属人审批"节点) -->
+        <ExRow :label="t('expense.fAttributedTo')"
+               :value="form.attributed_to_name || t('expense.fAttributedSelf')"
+               @click="attributedPickerOpen = true">
+          <template #right>
+            <span :style="{ fontSize: '13px', color: 'var(--color-ex-ink4)' }">›</span>
+          </template>
+        </ExRow>
       </div>
 
       <!-- ─── 明细区域(以下与有无明细无关, 始终显示) ─── -->
@@ -173,7 +194,7 @@
         </div>
       </div>
 
-      <!-- 明细 · 空状态 (虚线卡 + 拍发票/手动添加) -->
+      <!-- 明细 · 空状态 (虚线卡 + 单 CTA 弹 4-option sheet) -->
       <div
         v-if="!hasLines"
         :style="{
@@ -187,30 +208,15 @@
         <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)', textAlign: 'center', marginBottom: '14px' }">
           {{ t('expense.emptyHint') }}
         </div>
-        <div class="flex" :style="{ gap: '10px' }">
-          <div
-            class="flex-1 flex items-center justify-center"
-            :style="{
-              height: '44px', borderRadius: '22px',
-              background: 'var(--color-ex-ink)', color: 'var(--color-ex-card)',
-              gap: '6px', fontSize: '13px', fontWeight: 600,
-            }"
-            @click="onCapture"
-          >
-            <span :style="{ fontSize: '14px' }">◉</span> {{ t('expense.captureReceipt') }}
-          </div>
-          <div
-            class="flex-1 flex items-center justify-center"
-            :style="{
-              height: '44px', borderRadius: '22px',
-              background: 'var(--color-ex-card)',
-              border: '1.5px solid var(--color-ex-ink)',
-              color: 'var(--color-ex-ink)',
-              fontSize: '13px', fontWeight: 600,
-            }"
-            @click="openLineForm()"
-          >{{ t('expense.addManual') }}</div>
-        </div>
+        <div
+          class="flex items-center justify-center"
+          :style="{
+            height: '44px', borderRadius: '22px',
+            background: 'var(--color-ex-ink)', color: 'var(--color-ex-card)',
+            gap: '6px', fontSize: '13px', fontWeight: 600,
+          }"
+          @click="addOptionsSheetOpen = true"
+        >＋ {{ t('expense.addLineCTA') }}</div>
       </div>
 
       <!-- 明细 · 列表态 (左滑删除, 仅可编辑状态) -->
@@ -283,7 +289,7 @@
       </div>
 
       <!-- 续拍 / 添加 (有明细时显示) -->
-      <div v-if="hasLines" class="flex" :style="{ padding: '14px 20px', gap: '10px' }">
+      <div v-if="hasLines" class="flex" :style="{ padding: '14px 20px' }">
         <div
           class="flex-1 flex items-center justify-center"
           :style="{
@@ -292,28 +298,17 @@
             border: '1.5px solid var(--color-ex-ink)',
             gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--color-ex-ink)',
           }"
-          @click="onCapture"
-        ><span>◉</span> {{ t('expense.continueShoot') }}</div>
-        <div
-          class="flex-1 flex items-center justify-center"
-          :style="{
-            height: '42px', borderRadius: '21px',
-            background: 'var(--color-ex-card)',
-            border: '1px solid var(--color-ex-divider)',
-            fontSize: '13px', color: 'var(--color-ex-ink2)',
-          }"
-          @click="openLineForm()"
-        >{{ t('expense.addManual') }}</div>
+          @click="addOptionsSheetOpen = true"
+        >＋ {{ t('expense.addLineCTA') }}</div>
       </div>
     </div>
 
-    <!-- 底部 CTA -->
+    <!-- 底部 CTA: 保存草稿。 提交审批移到详情页 (存草稿后 detail.control.can_submit
+         才出现), 编辑态不提交流程 -->
     <ExBottomBar
-      :primary="hasLines ? t('expense.submit') : t('expense.save')"
-      :secondary="hasLines ? t('expense.save') : t('expense.submit')"
-      :disabled="!canPrimary"
-      @primary="onPrimary"
-      @secondary="onSecondary"
+      :primary="savingTop ? t('expense.lineSaving') : t('expense.save')"
+      :disabled="savingTop"
+      @primary="onTopSave"
     />
 
     <!-- 客户/项目 picker -->
@@ -355,6 +350,123 @@
       :submitting="submitting"
       @confirm="onConfirmSubmit"
     />
+
+    <!-- 货币选择 sheet -->
+    <ExPickerSheet
+      v-model="currencyPickerOpen"
+      :title="t('expense.settlementCurrency')"
+      :options="currencyOptions"
+      :selected="form.currency"
+      @pick="onPickCurrency"
+    />
+
+    <!-- 添加明细 选项 sheet (拍照 / 相册 / 文件 / 手动) -->
+    <Teleport to="body">
+      <transition name="sheet">
+        <div v-if="addOptionsSheetOpen"
+          class="fixed inset-0 z-50 flex flex-col"
+          :style="{ background: 'rgba(0,0,0,0.32)' }"
+          @click.self="addOptionsSheetOpen = false">
+          <div class="mt-auto"
+            :style="{
+              background: 'var(--color-ex-bg)',
+              borderRadius: '20px 20px 0 0',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+            }">
+            <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '10px auto 6px' }" />
+            <div class="px-5 pt-2 pb-3 text-center" :style="{ fontSize: '15px', fontWeight: 600 }">
+              {{ t('expense.addLineCTA') }}
+            </div>
+            <div
+              v-for="(opt, i) in addOptions"
+              :key="opt.key"
+              class="flex items-center"
+              :style="{
+                padding: '16px 20px',
+                background: 'var(--color-ex-card)',
+                borderTop: i === 0 ? '1px solid var(--color-ex-divider-soft)' : 'none',
+                borderBottom: '1px solid var(--color-ex-divider-soft)',
+                gap: '14px',
+              }"
+              @click="onAddOptionTap(opt.key)">
+              <div :style="{ fontSize: '20px', width: '24px', textAlign: 'center' }">{{ opt.icon }}</div>
+              <div class="flex-1">
+                <div :style="{ fontSize: '14px', fontWeight: 600, color: 'var(--color-ex-ink)' }">{{ opt.label }}</div>
+                <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">{{ opt.sub }}</div>
+              </div>
+              <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink4)' }">›</div>
+            </div>
+            <div class="text-center active:opacity-70"
+              :style="{ padding: '14px 0', fontSize: '14px', color: 'var(--color-ex-ink3)' }"
+              @click="addOptionsSheetOpen = false">
+              {{ t('common.cancel') }}
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
+    <!-- 隐藏 file input — 用于"从文件上传" (含 PDF) -->
+    <input ref="fileInputEl"
+      type="file"
+      accept="image/*,application/pdf"
+      multiple
+      style="display: none;"
+      @change="onFileInputChange" />
+
+    <!-- 归属人 picker sheet (FilterSheet 风格的头像 chip) -->
+    <Teleport to="body">
+      <transition name="sheet">
+        <div v-if="attributedPickerOpen"
+          class="fixed inset-0 z-50 flex flex-col"
+          :style="{ background: 'rgba(0,0,0,0.32)' }"
+          @click.self="attributedPickerOpen = false">
+          <div class="mt-auto flex flex-col"
+            :style="{
+              background: 'var(--color-ex-bg)',
+              borderRadius: '20px 20px 0 0',
+              maxHeight: '70vh',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+            }">
+            <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '10px auto 6px' }" />
+            <div class="px-5 pt-2 pb-3 flex items-center justify-between shrink-0">
+              <div :style="{ fontSize: '15px', fontWeight: 600 }">{{ t('expense.fAttributedTo') }}</div>
+              <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="attributedPickerOpen = false">{{ t('common.cancel') }}</div>
+            </div>
+            <div class="overflow-auto" :style="{ padding: '12px 20px 20px' }">
+              <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink4)', marginBottom: '12px', lineHeight: 1.5 }">
+                {{ t('expense.fAttributedHint') }}
+              </div>
+              <div class="flex flex-wrap" :style="{ gap: '16px' }">
+                <button v-for="(u, idx) in attributedCandidates"
+                  :key="u.id"
+                  type="button"
+                  class="flex flex-col items-center gap-1 active:opacity-70"
+                  @click="onPickAttributed(u)">
+                  <div class="flex items-center justify-center"
+                    :style="{
+                      width: '44px', height: '44px', borderRadius: '22px',
+                      background: (u.is_current_user && !form.attributed_to_id) || form.attributed_to_id === u.id
+                        ? '#D97757' : attributedAvatarColor(idx),
+                      color: '#fff', fontSize: '16px', fontWeight: 700,
+                      transition: 'all 0.15s',
+                    }"
+                    :class="(u.is_current_user && !form.attributed_to_id) || form.attributed_to_id === u.id ? 'ring-2 ring-offset-1 ring-[#D97757]' : ''">
+                    {{ (u.real_name || u.username || '?')[0] }}
+                  </div>
+                  <div :style="{ fontSize: '12px', color: 'var(--color-ex-ink2)', maxWidth: '56px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">
+                    {{ u.is_current_user ? t('expense.fAttributedSelf') : u.real_name }}
+                  </div>
+                  <div v-if="u.department" :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)', maxWidth: '56px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">
+                    {{ u.department }}
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -376,6 +488,7 @@ import ExBottomBar from '@/components/expense/ExBottomBar.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
 import ExLineFormSheet from '@/components/expense/ExLineFormSheet.vue'
 import ExSubmitSheet from '@/components/expense/ExSubmitSheet.vue'
+import ExPickerSheet from '@/components/expense/ExPickerSheet.vue'
 import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 
 const route = useRoute()
@@ -387,18 +500,29 @@ const auth = useAuthStore()
 const editingId = ref(parseInt(route.params.id) || null)
 const isNew = computed(() => !editingId.value)
 
-// 默认货币: 用户结算货币 → 区域默认 (cn=CNY, sg=USD)
-// 创建后不允许切换 (按结算偏好), 只读展示
+// 默认货币: 用户结算货币 → 当前区域默认 (cn=CNY, sg=SGD)。
+// 仅作初始值, 创建/编辑时可点头部货币行改 form.currency。
 const defaultCurrency = (() => {
   const u = auth.user
   if (u?.settlement_currency) return u.settlement_currency
-  return auth.regionId === 'sg' ? 'USD' : 'CNY'
+  return auth.regionId === 'sg' ? 'SGD' : 'CNY'
 })()
 const currencyDisplayLabel = computed(() => {
   const c = currencies.value?.find(x => x.code === form.value.currency)
   if (c) return `${c.label} ${c.symbol} (${c.code})`
   return form.value.currency || '—'
 })
+// 货币可选 (创建/编辑时点头部货币行打开选择器)
+const currencyPickerOpen = ref(false)
+const currencyOptions = computed(() =>
+  (currencies.value || []).map(c => ({
+    value: c.code,
+    label: `${c.label || c.code} ${c.symbol || ''} (${c.code})`.replace(/\s+/g, ' ').trim(),
+  })))
+function onPickCurrency(code) {
+  form.value.currency = code
+  currencyPickerOpen.value = false
+}
 
 const form = ref({
   title: '',
@@ -410,7 +534,22 @@ const form = ref({
   customer_code: '',
   project_id: null,
   project_name: '',
+  attributed_to_id: null,  // null = 自己; 非空 = 归属其他人, 流程会插入"归属人审批"节点
+  attributed_to_name: '',
 })
+// 归属人候选 (同公司所有 active 用户, 自己排最前) - onMounted 加载
+const attributedCandidates = ref([])
+const attributedPickerOpen = ref(false)
+
+// 添加明细 4 选项 sheet
+const addOptionsSheetOpen = ref(false)
+const fileInputEl = ref(null)
+const addOptions = computed(() => [
+  { key: 'camera',  icon: '📷', label: t('expense.addOptCamera'),  sub: t('expense.addOptCameraSub') },
+  { key: 'gallery', icon: '🖼',  label: t('expense.addOptGallery'), sub: t('expense.addOptGallerySub') },
+  { key: 'file',    icon: '📄', label: t('expense.addOptFile'),    sub: t('expense.addOptFileSub') },
+  { key: 'manual',  icon: '✏️', label: t('expense.addOptManual'),  sub: t('expense.addOptManualSub') },
+])
 const lines = ref([])
 const status = ref('draft')
 
@@ -449,20 +588,23 @@ function formatAmount(n) {
   return (n || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-// canPrimary: 有明细 → 主按钮是"提交"; 无明细 → 主按钮是"保存草稿"
-// 主题可空(后端会用 AI 据说明生成); 但提交审批前需要有说明 + 客户/项目
-const canPrimary = computed(() => {
+// canSubmit: 底部"提交审批"按钮启用条件 — 必须有明细 + 说明 + (关联客户/项目 或 不关联模式)
+const canSubmit = computed(() => {
+  if (!hasLines.value) return false
+  if (!form.value.description.trim()) return false
   if (!form.value.no_link && (!form.value.customer_id || !form.value.project_id)) return false
-  if (hasLines.value && !canSubmit.value) return false
   return true
 })
-const canSubmit = computed(() => hasLines.value && form.value.description.trim())
 
 // ── 加载已有报销单(编辑模式) ────────────────────
 async function loadExisting() {
   if (!editingId.value) return
   const d = await store.fetchDetail(editingId.value, true)
   if (!d) return
+  // 当 d.attributed_to.id 等于 owner_id 时, 视为"归属自己"(UI 不显示具体名字), 置 null
+  const myId = auth.user?.id
+  const attrId = d.attributed_to?.id
+  const isSelfAttr = !attrId || attrId === myId || attrId === d.owner_id
   form.value = {
     title: d.title || '',
     description: d.description || '',
@@ -473,6 +615,8 @@ async function loadExisting() {
     customer_code: d.customer?.code || '',
     project_id: d.project?.id || null,
     project_name: d.project?.name || '',
+    attributed_to_id: isSelfAttr ? null : attrId,
+    attributed_to_name: isSelfAttr ? '' : (d.attributed_to?.name || ''),
   }
   lines.value = (d.lines || []).map(l => ({ ...l }))
   status.value = d.status
@@ -531,6 +675,7 @@ async function ensureExpenseExists() {
     currency: form.value.currency,
     customer_id: form.value.no_link ? null : form.value.customer_id,
     project_id: form.value.no_link ? null : form.value.project_id,
+    attributed_to_id: form.value.attributed_to_id || null,
   })
   if (r.data?.success) {
     editingId.value = r.data.data.id
@@ -540,12 +685,23 @@ async function ensureExpenseExists() {
   throw new Error(r.data?.message || t('expense.createFail'))
 }
 
-// 异步触发 AI 生成标题, 不阻塞用户操作
-function triggerAutoTitle() {
+// AI 生成标题: 不阻塞用户(不 await 调用方), 但拿回结果原地写回 +
+// 期间显示"生成标题中…", 完成自动替换, 用户无需手动刷新
+const titleGenerating = ref(false)
+async function triggerAutoTitle() {
   if (!editingId.value) return
   if (form.value.title.trim()) return  // 用户已手填, 不覆盖
   if (!form.value.description.trim()) return  // 没说明, AI 也无从生成
-  expApi.autoTitle(editingId.value).catch(() => {})  // 静默失败
+  titleGenerating.value = true
+  try {
+    const r = await expApi.autoTitle(editingId.value)
+    const tt = r?.data?.data?.title
+    if (tt && !form.value.title.trim()) form.value.title = tt
+  } catch (e) {
+    // 静默失败, 标题保持空, 不打扰用户
+  } finally {
+    titleGenerating.value = false
+  }
 }
 
 async function onSaveLine(payload) {
@@ -582,6 +738,76 @@ async function onCapture() {
   if (id) router.push(`/expense/${id}/capture`)
 }
 
+// ── 添加明细 4 选项分发 ──────────────────────────
+async function onAddOptionTap(key) {
+  addOptionsSheetOpen.value = false
+  if (key === 'camera') return onCapture()
+  if (key === 'manual') return openLineForm()
+  if (key === 'gallery') return pickFromGallery()
+  if (key === 'file') return pickFromFile()
+}
+
+// 从相册选(可多张). 每张走 OCR 识别流, 复用 processing → confirm 链路
+async function pickFromGallery() {
+  const id = await ensureExpenseExists().catch(() => null)
+  if (!id) return
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.isNativePlatform?.()) {
+      const { Camera } = await import('@capacitor/camera')
+      // pickImages 支持相册多选 (getPhoto 仅单张); 逐张走 OCR 链路
+      const result = await Camera.pickImages({ quality: 90 })
+      const photos = result?.photos || []
+      if (!photos.length) return
+      for (const p of photos) {
+        const res = await fetch(p.webPath)
+        const blob = await res.blob()
+        _queueReceipt(blob, p.webPath)
+      }
+      _gotoProcessing(id)
+    } else {
+      // web fallback: 走文件 input
+      pickFromFile()
+    }
+  } catch (e) {
+    const msg = e?.message || String(e || '')
+    if (msg.includes('cancelled') || msg.includes('canceled')) return
+    alert(t('scan.galleryFail', { msg: msg.slice(0, 80) }))
+  }
+}
+
+// 从文件选(可 PDF+图片混合多张). 弹原生文件选择器
+async function pickFromFile() {
+  if (!await ensureExpenseExists().catch(() => null)) return
+  fileInputEl.value?.click()
+}
+
+async function onFileInputChange(e) {
+  const files = Array.from(e.target.files || [])
+  e.target.value = ''  // 允许同一文件再次选择
+  if (!files.length) return
+  const id = editingId.value
+  for (const f of files) {
+    const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
+    // PDF 不渲染首页缩略 — 让 UI 显示 "📄 PDF" 占位, 点击走 iOS Safari 看
+    const dataUrl = isPdf ? '' : URL.createObjectURL(f)
+    _queueReceipt(f, dataUrl, { isPdf, filename: f.name })
+  }
+  _gotoProcessing(id)
+}
+
+function _queueReceipt(blob, dataUrl, meta = {}) {
+  if (store.currentReceiptExpenseId !== editingId.value) {
+    store.clearPendingReceipts()
+    store.currentReceiptExpenseId = editingId.value
+  }
+  store.addPendingReceipt({ blob, dataUrl, ...meta })
+}
+
+function _gotoProcessing(id) {
+  router.push(`/expense/${id}/processing`)
+}
+
 // ── 保存草稿 / 提交 ──────────────────────────
 const submitSheetOpen = ref(false)
 const submitting = ref(false)
@@ -596,6 +822,7 @@ async function saveDraft() {
         currency: form.value.currency,
         customer_id: form.value.no_link ? null : form.value.customer_id,
         project_id: form.value.no_link ? null : form.value.project_id,
+        attributed_to_id: form.value.attributed_to_id || null,
       })
       triggerAutoTitle()  // 描述更新可能影响标题, 重新触发 AI
     } else {
@@ -608,25 +835,23 @@ async function saveDraft() {
   }
 }
 
-async function onPrimary() {
-  if (!canPrimary.value) return
-  if (hasLines.value) {
-    // 提交
-    if (!await saveDraft()) return
-    submitSheetOpen.value = true
-  } else {
-    // 保存草稿
+// 顶栏右上"保存": 保存草稿 + 返回. 客户/项目缺失时仅保存为不完整草稿(不提交流程)
+const savingTop = ref(false)
+async function onTopSave() {
+  if (savingTop.value) return
+  savingTop.value = true
+  try {
     if (await saveDraft()) router.back()
+  } finally {
+    savingTop.value = false
   }
 }
 
-async function onSecondary() {
-  if (hasLines.value) {
-    if (await saveDraft()) router.back()
-  } else {
-    // 无明细 不能提交
-    alert(t('expense.atLeastOneLine'))
-  }
+// 底部"提交审批": 保存最新数据 + 打开提交确认 sheet
+async function onSubmit() {
+  if (!canSubmit.value) return
+  if (!await saveDraft()) return
+  submitSheetOpen.value = true
 }
 
 async function onConfirmSubmit() {
@@ -651,5 +876,27 @@ async function onConfirmSubmit() {
 onMounted(async () => {
   await store.loadReference()
   if (editingId.value) await loadExisting()
+  // 加载归属人候选(同公司用户). 失败不阻塞表单
+  expApi.getAttributedCandidates()
+    .then(r => { attributedCandidates.value = r.data?.data || [] })
+    .catch(e => console.warn('[expense] load attributed candidates failed:', e?.message))
 })
+
+// 归属人选择
+function onPickAttributed(u) {
+  const myId = auth.user?.id
+  if (!u || u.id === myId) {
+    // 选"我自己" → 清空 attributed_to_id
+    form.value.attributed_to_id = null
+    form.value.attributed_to_name = ''
+  } else {
+    form.value.attributed_to_id = u.id
+    form.value.attributed_to_name = u.real_name
+  }
+  attributedPickerOpen.value = false
+}
+function attributedAvatarColor(idx) {
+  const palette = ['#3A6FB7', '#9B5DE5', '#2F7A4F', '#C77B22', '#B5453A', '#7A7570', '#1A1A1A']
+  return palette[idx % palette.length]
+}
 </script>
