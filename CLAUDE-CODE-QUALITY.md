@@ -34,6 +34,54 @@
 
 ---
 
+## 📱 移动端 API · 服务抽离纪律(强制 · 所有开发遵守)
+
+**背景**:`app/api/v1/mobile_*.py` 是 JWT/JSON 层;web 业务逻辑在 `app/views/*.py`
+的 `@login_required` 厚路由里(绑 `flask_login.current_user`,JWT 蓝图调不了)。
+历史上 `mobile_tasks` 因 web 任务写逻辑没抽 service,被迫**平行重写**,且漏掉
+通知 / `work_item_recorder` / `points_service` / `cross_sync` 等副作用 —— 这是
+"同一功能两套实现 → 行为漂移 → SG/线上才发现"的典型债(与 i18n 纪律同一教训)。
+
+### 铁律
+
+1. **任何 web 模块要上 mobile(新增/扩写 `mobile_*` 写端点)前,其写/业务逻辑
+   必须先抽成"鉴权无关"的 service**:`app/services/<x>_service.py` 或
+   `app/helpers/<x>_helpers.py`,**禁止依赖 `current_user` / flask request /
+   flash / redirect**;改为显式传 `actor_user_id` 等参数。
+2. **web 路由改成薄壳**调该 service;**mobile 端点调同一个 service**。
+   严禁在 `mobile_*` 里平行重写已存在(或本可抽出)的写逻辑。
+3. **副作用必须在 service 内统一触发**(通知 / 积分 / 跨区 / 工作项 / 审批),
+   使 web 与 mobile 行为 100% 一致。已就绪可直接复用、**不要重写**的共享件:
+   - 审批引擎 `app/helpers/approval_helpers.py`(`start_approval_process` 等)
+   - `app/services/chat_service.py`、`points_service.py`、`cross_sync_service.py`
+   - `app/utils/work_item_recorder.py`、`app/services/translation_service.py`
+4. **站内通知**目前各视图内联手搓 `Message(...)`、无统一服务 —— 新写 service
+   必须通过共享 `app/services/notification_service.py` 发通知(若尚无则先建),
+   **不得**再内联 `Message(...)`。
+
+### 现状与路线(债是收敛的,不是遍地)
+
+横切引擎大多已 service 化、mobile 可直接复用;真正缺口只是少数模块的"写编排"
+未抽 + 通知无服务。需主动处理的:
+
+| 模块 | 状态 | 动作 |
+|---|---|---|
+| **Task** | 未抽,mobile 已平行(现行债) | **P0**:抽 `task_service` + `notification_service`,web/mobile 同调 |
+| **Worklog/日历** | 未抽,mobile 未上 | **P1**:做 mobile worklog 前先抽 `worklog_service`(复用 notification_service) |
+| **通知** | 散落、无服务 | **P1**:抽 `notification_service`,task/worklog/未来共用 |
+| **Project / Quotation** | 部分抽(审批已复用,create/edit 仍内联) | P2:顺手收口,不阻塞 |
+| Meeting / 其余只读模块 | 多已部分有 service 或只读 | 上 mobile 时再补,低优先 |
+
+### 检查门(扩写任何 mobile_* 写端点前必过)
+
+- [ ] 该模块写逻辑是否已有鉴权无关 service?**没有 → 先抽,不准平行写**
+- [ ] web 路由是否已改为薄壳调 service?
+- [ ] mobile 端点是否调**同一** service?
+- [ ] 通知/积分/跨区/工作项/审批是否都在 service 内经共享引擎触发?
+- [ ] 本地验证 web 与 mobile 行为一致(同建一条记录,两端副作用一致)?
+
+---
+
 ## 📏 文件大小控制标准
 
 ### **Python文件**
@@ -595,6 +643,7 @@ def process_approval(...):
 - [ ] **命名清晰**：变量、函数、类名能准确表达其用途
 - [ ] **注释适度**：复杂逻辑有注释，简单逻辑不过度注释
 - [ ] **错误处理完整**：所有可能的异常都有处理
+- [ ] **移动端服务抽离门**(改/加任何 `mobile_*` 写端点时):写逻辑已抽鉴权无关 service?web 路由已薄壳?mobile 调同一 service?副作用经共享引擎?web/mobile 行为一致已本地验证?(详见「📱 移动端 API · 服务抽离纪律」)
 
 ### **文件大小检查**
 
@@ -688,6 +737,12 @@ def process_approval(...):
 
 ## 📝 更新日志
 
+- **2026-05-16**: 🧱 **新增「移动端 API · 服务抽离纪律」(强制)**
+  - 任何 web 模块上 mobile 前,写逻辑必须先抽鉴权无关 service;web 路由薄壳、
+    mobile 调同一 service;副作用统一在 service 内经共享引擎触发
+  - 列明已就绪可复用引擎 + 需主动抽离路线(Task P0 / Worklog·通知 P1 /
+    Project·Quotation P2)
+  - 提交前检查清单加「服务抽离门」
 - **2026-01-01**: 添加 Alpine.js 和前端组件预防规范
   - 新增 Alpine.js 组件函数大小控制标准（150行警告、400行强制拆分）
   - 添加新增配置 Tab 前的检查清单（复用检查、结构检查、代码审查）
