@@ -693,7 +693,67 @@ def mobile_expense_submit(expense_id):
         logger.error(f'mobile expense submit error: {exc}')
         return api_response(success=False, code=500, message='提交失败')
 
+    # 提交后异步把自由文本归一成区域系统语言(SG→en / CN→zh), 不阻塞用户
+    _translate_expense_async(expense_id)
     return api_response(success=True, data=_expense_detail_dict(e, with_flow=True, current_user_id=user_id))
+
+
+def _translate_expense_sync(expense_id):
+    """把 expense 的 title / description / 各明细描述归一成区域系统语言。
+
+    同步执行(供异步 worker 调用, 也便于单测)。已是目标语言由
+    translate_to 内部原样返回; 任何异常只 log, 绝不影响调用方。
+    """
+    try:
+        from app.services.translation_service import (
+            translate_to, normalize_lang_for_region,
+        )
+        target = normalize_lang_for_region()
+        ex = Expense.query.get(expense_id)
+        if not ex:
+            return
+        changed = False
+        if ex.title:
+            t = translate_to(ex.title, target)
+            if t and t != ex.title:
+                ex.title = t
+                changed = True
+        if ex.description:
+            d = translate_to(ex.description, target)
+            if d and d != ex.description:
+                ex.description = d
+                changed = True
+        for det in (ex.details or []):
+            if det.description:
+                nd = translate_to(det.description, target)
+                if nd and nd != det.description:
+                    det.description = nd
+                    changed = True
+        if changed:
+            db.session.commit()
+    except Exception as e:
+        logger.warning(f'expense translate hook 失败 (id={expense_id}): {e}')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+
+def _translate_expense_async(expense_id):
+    """提交后 fire-and-forget 异步执行 _translate_expense_sync。
+
+    与 mobile_chat._push_chat_message_async 同款范式(线程 + 独立
+    app_context), 不阻塞提交响应。
+    """
+    import threading
+    from flask import current_app
+    app = current_app._get_current_object()
+
+    def _worker():
+        with app.app_context():
+            _translate_expense_sync(expense_id)
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 @api_v1_bp.route('/mobile/expense/<int:expense_id>/recall', methods=['POST'])
