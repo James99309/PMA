@@ -102,6 +102,23 @@ def _expense_summary(e: Expense) -> dict:
     }
 
 
+def _normalize_invoice_images(images):
+    """老报销单 invoice_images 的 url 是 web 会话路由 /storage/nas/invoice?path=...
+    App 无 web session → 命中即 302 跳 web 登录页。 序列化时改写成 JWT 版 mobile
+    端点 (不动 DB, 一次修好所有老单)。 新单已是 /api/v1/mobile/chat/file?... ,
+    绝对 http(s) 链接(更老 Supabase 时代)保持原样。"""
+    if not images:
+        return images
+    out = []
+    for im in images:
+        u = (im or {}).get('url') or ''
+        if u.startswith('/storage/nas/invoice?path='):
+            im = {**im, 'url': '/api/v1/mobile/expense/invoice-file?path='
+                  + u.split('?path=', 1)[1]}
+        out.append(im)
+    return out
+
+
 def _line_dict(d: ExpenseDetail) -> dict:
     cat_label = _category_label(d.expense_category)
     return {
@@ -115,7 +132,7 @@ def _line_dict(d: ExpenseDetail) -> dict:
         'invoice_amount': d.invoice_amount or 0.0,
         'current_amount': d.current_amount or 0.0,
         'exchange_rate': d.exchange_rate or 1.0,
-        'invoice_images': d.invoice_images_list,
+        'invoice_images': _normalize_invoice_images(d.invoice_images_list),
     }
 
 
@@ -929,3 +946,38 @@ def mobile_expense_upload_invoice():
         default_filename='invoice.jpg',
     )
     return api_response(success=success, code=code, message=message, data=payload)
+
+
+@api_v1_bp.route('/mobile/expense/invoice-file', methods=['GET'])
+def mobile_expense_invoice_file():
+    """老报销单发票文件 JWT 代理。
+
+    老 url /storage/nas/invoice?path=... 是 @login_required web 路由, App 无
+    session → 302 跳 web 登录页。 _line_dict 已把老 url 改写指向此端点; 鉴权
+    同 chat/file (Authorization header 或 ?token=, 供 <img>/Browser 直连),
+    取文件复用 storage.py 同款解析, 与 web 路由结果完全一致。
+    """
+    from flask import Response
+    from flask_jwt_extended import decode_token
+    from urllib.parse import unquote
+    token = request.headers.get('Authorization', '').replace('Bearer ', '') \
+        or request.args.get('token', '')
+    if not token:
+        return api_response(success=False, code=401, message="缺少 token")
+    try:
+        decode_token(token)
+    except Exception:
+        return api_response(success=False, code=401, message="token 无效")
+    file_path = unquote(request.args.get('path', ''))
+    if (not file_path or '/../' in file_path or file_path.startswith('../')
+            or file_path.endswith('/..') or file_path.startswith('/')):
+        return api_response(success=False, code=400, message="非法路径")
+    from app.views.storage import _get_file_with_fallback, _get_content_type
+    data, _src = _get_file_with_fallback(file_path, 'invoice')
+    if not data:
+        return api_response(success=False, code=404, message="文件不存在")
+    fname = file_path.split('/')[-1]
+    return Response(data, mimetype=_get_content_type(file_path), headers={
+        'Cache-Control': 'private, max-age=3600',
+        'Content-Disposition': f'inline; filename="{fname}"',
+    })
