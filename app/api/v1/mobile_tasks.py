@@ -205,3 +205,262 @@ def mobile_tasks_list():
             'overdue': overdue_n,
         },
     })
+
+
+# ─── P1④ 详情 / 新建 / 改状态 / 评论 / 审核 ───────────────────────
+
+from datetime import datetime as _dt  # noqa: E402
+
+
+def _parse_d(s):
+    if not s:
+        return None
+    for fmt in ('%Y-%m-%d', '%Y/%m/%d', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M'):
+        try:
+            return _dt.strptime(s[:19], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _sub_rows(task):
+    from app.models.task import TaskReply
+    out = []
+    for s in task.subtasks.filter_by(is_deleted=False):
+        owner = s.assignee
+        oname = (owner.real_name or owner.username) if owner else ''
+        notes = TaskReply.query.filter_by(
+            subtask_id=s.id, is_deleted=False
+        ).count()
+        out.append({
+            'id': s.id, 'title': s.title,
+            'owner_name': oname, 'owner_short': _initials(oname),
+            'start': _due_disp(s.start_date), 'due': _due_disp(s.due_date),
+            'status': s.status,
+            'is_milestone': bool(s.is_milestone),
+            'progress_notes': notes,
+        })
+    return out
+
+
+def _timeline(task):
+    out = []
+    for r in task.replies.filter_by(is_deleted=False):
+        au = r.author
+        aname = (au.real_name or au.username) if au else (r.reply_type == 'system' and 'System' or '')
+        rt = r.reply_type or 'comment'
+        kind = 'system' if rt == 'system' else ('progress' if rt in ('update', 'progress') else 'reply')
+        out.append({
+            'kind': kind,
+            'author': aname,
+            'author_short': _initials(aname),
+            'at': r.created_at.strftime('%m/%d %H:%M') if r.created_at else '',
+            'text': r.content or '',
+            'sub': (r.subtask.title if getattr(r, 'subtask', None) else None),
+        })
+    return out
+
+
+def _sys_reply(task_id, uid, text):
+    from app.models.task import TaskReply
+    db.session.add(TaskReply(
+        task_id=task_id, author_id=uid, content=text, reply_type='system'))
+
+
+def _can_see(t, uid, user):
+    if t.creator_id == uid or t.assignee_id == uid:
+        return True
+    if uid in (t.shared_with_users or []):
+        return True
+    if any(rv.reviewer_id == uid for rv in t.task_reviewers):
+        return True
+    role = (getattr(user, 'role', '') or '').lower()
+    return role in ('admin', 'ceo')
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>', methods=['GET'])
+@jwt_required()
+def mobile_task_detail(tid):
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t or not _can_see(t, uid, user):
+        return api_response(success=False, code=404, message='任务不存在或无权限')
+    d = t.to_dict()
+    d['status_label'] = _status_label(t.status)
+    d['priority_label'] = _priority_label(t.priority)
+    d['subtasks'] = _sub_rows(t)
+    d['timeline'] = _timeline(t)
+    d['overdue'] = _is_overdue(t)
+    my_rv = next((rv for rv in t.task_reviewers if rv.reviewer_id == uid), None)
+    d['my_review_state'] = my_rv.status if my_rv else None
+    d['can_edit'] = (t.creator_id == uid or t.assignee_id == uid) and \
+        t.status not in ('completed', 'cancelled')
+    d['can_review'] = bool(my_rv and my_rv.status == 'pending'
+                           and t.status == 'pending_review')
+    return api_response(success=True, data=d)
+
+
+@api_v1_bp.route('/mobile/tasks', methods=['POST'])
+@jwt_required()
+def mobile_task_create():
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()
+    assignee_id = data.get('assignee_id')
+    if not title or not assignee_id:
+        return api_response(success=False, code=400, message='标题与负责人必填')
+    t = Task(
+        title=title,
+        description=(data.get('description') or '').strip() or None,
+        creator_id=uid,
+        assignee_id=int(assignee_id),
+        priority=data.get('priority') or 'normal',
+        status='pending',
+        start_date=(_parse_d(data.get('start_date')).date()
+                    if _parse_d(data.get('start_date')) else None),
+        due_date=_parse_d(data.get('due_date')),
+        project_id=data.get('project_id') or None,
+        customer_id=data.get('customer_id') or None,
+        quotation_id=data.get('quotation_id') or None,
+        shared_with_users=data.get('shared_with_users') or [],
+    )
+    db.session.add(t)
+    db.session.flush()
+    from app.models.task import TaskReviewer
+    for rid in (data.get('reviewer_ids') or []):
+        db.session.add(TaskReviewer(task_id=t.id, reviewer_id=int(rid)))
+    a = User.query.get(int(assignee_id))
+    _sys_reply(t.id, uid,
+               f'{user.real_name or user.username} 创建了任务,指派给 '
+               f'{(a.real_name or a.username) if a else assignee_id}')
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'task create error: {e}')
+        return api_response(success=False, code=500, message='创建失败')
+    return api_response(success=True, data={'id': t.id})
+
+
+_STATUS_TRANS = {
+    'pending': '待开始', 'paused': '已暂停', 'pending_review': '待审核',
+    'completed': '已完成', 'cancelled': '已取消', 'in_progress': '进行中',
+}
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/status', methods=['POST'])
+@jwt_required()
+def mobile_task_status(tid):
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t:
+        return api_response(success=False, code=404, message='任务不存在')
+    if t.creator_id != uid and t.assignee_id != uid:
+        return api_response(success=False, code=403, message='仅创建人或负责人可改状态')
+    data = request.get_json() or {}
+    to = (data.get('to') or '').strip()
+    reason = (data.get('reason') or '').strip()
+    if to not in ('pending', 'paused', 'pending_review', 'completed', 'cancelled'):
+        return api_response(success=False, code=400, message='非法目标状态')
+    if to == 'paused' and not reason:
+        return api_response(success=False, code=400, message='暂停需填原因')
+    old = t.status
+    t.status = to
+    if to == 'completed':
+        t.completed_at = _dt.now()
+    nm = (user.real_name or user.username)
+    txt = f'{nm} 改变状态:{_STATUS_TRANS.get(old, old)} → {_STATUS_TRANS.get(to, to)}'
+    if reason:
+        txt += f'({reason})'
+    _sys_reply(t.id, uid, txt)
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'task status error: {e}')
+        return api_response(success=False, code=500, message='操作失败')
+    return api_response(success=True, data={'status': t.status,
+                                            'status_label': _status_label(t.status)})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/replies', methods=['POST'])
+@jwt_required()
+def mobile_task_reply(tid):
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t or not _can_see(t, uid, user):
+        return api_response(success=False, code=404, message='任务不存在或无权限')
+    content = (request.get_json() or {}).get('content', '').strip()
+    if not content:
+        return api_response(success=False, code=400, message='评论不能为空')
+    from app.models.task import TaskReply
+    db.session.add(TaskReply(task_id=t.id, author_id=uid,
+                             content=content, reply_type='comment'))
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'task reply error: {e}')
+        return api_response(success=False, code=500, message='发送失败')
+    return api_response(success=True, data={'timeline': _timeline(t)})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/review', methods=['POST'])
+@jwt_required()
+def mobile_task_review(tid):
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t:
+        return api_response(success=False, code=404, message='任务不存在')
+    from app.models.task import TaskReviewer
+    rv = next((x for x in t.task_reviewers if x.reviewer_id == uid), None)
+    if not rv or rv.status != 'pending' or t.status != 'pending_review':
+        return api_response(success=False, code=403, message='无待审权限')
+    data = request.get_json() or {}
+    action = (data.get('action') or '').strip()
+    comment = (data.get('comment') or '').strip()
+    nm = (user.real_name or user.username)
+    if action == 'reject':
+        if not comment:
+            return api_response(success=False, code=400, message='驳回需填原因')
+        rv.status = 'rejected'
+        rv.comment = comment
+        rv.reviewed_at = _dt.now()
+        t.status = 'in_progress'
+        t.review_status = 'rejected'
+        _sys_reply(t.id, uid, f'{nm} 驳回:{comment}')
+    elif action == 'approve':
+        rv.status = 'approved'
+        rv.comment = comment or None
+        rv.reviewed_at = _dt.now()
+        _sys_reply(t.id, uid, f'{nm} 同意' + (f':{comment}' if comment else ''))
+        if all(x.status == 'approved' for x in t.task_reviewers):
+            t.status = 'completed'
+            t.completed_at = _dt.now()
+            t.review_status = 'approved'
+            _sys_reply(t.id, uid, '全部审核通过,任务完成')
+    else:
+        return api_response(success=False, code=400, message='非法动作')
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'task review error: {e}')
+        return api_response(success=False, code=500, message='操作失败')
+    return api_response(success=True, data={'status': t.status,
+                                            'status_label': _status_label(t.status)})
