@@ -387,7 +387,8 @@ def mobile_expense_create():
 
     data = request.get_json() or {}
     title = (data.get('title') or '').strip()
-    description = (data.get('description') or '').strip()
+    # A: 手输描述保存即归一区域语言(SG→en), 草稿立刻英文, 无需提交/等待
+    description = _normalize_region_text((data.get('description') or '').strip())
     # 不再同步调 AI 生成 title — 改由前端 fire-and-forget 调 /auto-title 异步生成
     # title 留空也允许; 列表/详情展示时前端用「未命名报销」占位
 
@@ -437,9 +438,14 @@ def mobile_expense_update(expense_id):
         return api_response(success=False, code=400, message='当前状态不可编辑')
 
     data = request.get_json() or {}
-    for k in ('title', 'description'):
-        if k in data:
-            setattr(e, k, (data[k] or '').strip())
+    if 'title' in data:
+        e.title = (data['title'] or '').strip()
+    if 'description' in data:
+        new_desc = (data['description'] or '').strip()
+        # A: 仅当描述非空且真改了才归一(避免每次 PUT 重复调 AI)
+        if new_desc and new_desc != (e.description or ''):
+            new_desc = _normalize_region_text(new_desc)
+        e.description = new_desc
     # 不再同步调 AI; 前端会在保存成功后异步调 /auto-title 生成
     # 报销币种创建后锁定(按用户 settlement_currency), 不允许切换 — 静默忽略 currency 字段
     for k in ('customer_id', 'contact_id', 'project_id'):
@@ -531,7 +537,7 @@ def mobile_expense_add_line(expense_id):
         expense_id=e.id,
         expense_date=expense_date,
         expense_category=data.get('expense_category') or 'other',
-        description=(data.get('description') or '').strip(),
+        description=_normalize_region_text((data.get('description') or '').strip()),
         document_count=int(data.get('document_count') or 1),
         currency=line_currency,
         invoice_amount=invoice_amount,
@@ -583,9 +589,15 @@ def mobile_expense_update_line(expense_id, line_id):
         parsed = _parse_date(data['expense_date'])
         if parsed:
             d.expense_date = parsed
-    for k in ('expense_category', 'description'):
-        if k in data:
-            setattr(d, k, data[k])
+    if 'expense_category' in data:
+        d.expense_category = data['expense_category']
+    if 'description' in data:
+        s = (data['description'] or '').strip()
+        # A: 仅当明细描述非空且真改了才归一
+        if s and s != (d.description or ''):
+            d.description = _normalize_region_text(s)
+        else:
+            d.description = s
     if 'document_count' in data:
         d.document_count = int(data['document_count'] or 1)
     if 'invoice_amount' in data:
@@ -693,9 +705,29 @@ def mobile_expense_submit(expense_id):
         logger.error(f'mobile expense submit error: {exc}')
         return api_response(success=False, code=500, message='提交失败')
 
-    # 提交后异步把自由文本归一成区域系统语言(SG→en / CN→zh), 不阻塞用户
-    _translate_expense_async(expense_id)
+    # 提交时同步归一(SG→en/CN→zh): 多数已在保存时(A)归一, 这里 CJK 闸只兜
+    # 残留中文, 正常情况近 0 调用、不卡提交; 完成后响应即带最终文案
+    _translate_expense_sync(expense_id)
     return api_response(success=True, data=_expense_detail_dict(e, with_flow=True, current_user_id=user_id))
+
+
+def _normalize_region_text(text):
+    """把用户手输自由文本同步归一成区域系统语言(SG→en / CN→zh)。
+
+    保存时(A)调用 → 草稿一保存就是区域语言, detail 立刻显示, 无需提交/等待。
+    空/纯空白原样返回; CN 纯中文走 translate_to 内部短路零成本;
+    失败返回原文(绝不丢用户输入)。
+    """
+    if not text or not str(text).strip():
+        return text
+    try:
+        from app.services.translation_service import (
+            translate_to, normalize_lang_for_region,
+        )
+        return translate_to(str(text).strip(), normalize_lang_for_region())
+    except Exception as e:
+        logger.warning(f'normalize region text 失败: {e}')
+        return text
 
 
 def _translate_expense_sync(expense_id):
@@ -706,25 +738,31 @@ def _translate_expense_sync(expense_id):
     """
     try:
         from app.services.translation_service import (
-            translate_to, normalize_lang_for_region,
+            translate_to, normalize_lang_for_region, has_cjk,
         )
         target = normalize_lang_for_region()
+
+        # CJK 闸: en 目标时保存(A)已归一, 仅对"仍含中文"的字段调 AI →
+        # 正常提交近 0 次调用、不卡; zh 目标交给 translate_to 内部短路
+        def _need(txt):
+            return bool(txt) and (target != 'en' or has_cjk(txt))
+
         ex = Expense.query.get(expense_id)
         if not ex:
             return
         changed = False
-        if ex.title:
+        if _need(ex.title):
             t = translate_to(ex.title, target)
             if t and t != ex.title:
                 ex.title = t
                 changed = True
-        if ex.description:
+        if _need(ex.description):
             d = translate_to(ex.description, target)
             if d and d != ex.description:
                 ex.description = d
                 changed = True
         for det in (ex.details or []):
-            if det.description:
+            if _need(det.description):
                 nd = translate_to(det.description, target)
                 if nd and nd != det.description:
                     det.description = nd
@@ -737,23 +775,6 @@ def _translate_expense_sync(expense_id):
             db.session.rollback()
         except Exception:
             pass
-
-
-def _translate_expense_async(expense_id):
-    """提交后 fire-and-forget 异步执行 _translate_expense_sync。
-
-    与 mobile_chat._push_chat_message_async 同款范式(线程 + 独立
-    app_context), 不阻塞提交响应。
-    """
-    import threading
-    from flask import current_app
-    app = current_app._get_current_object()
-
-    def _worker():
-        with app.app_context():
-            _translate_expense_sync(expense_id)
-
-    threading.Thread(target=_worker, daemon=True).start()
 
 
 @api_v1_bp.route('/mobile/expense/<int:expense_id>/recall', methods=['POST'])

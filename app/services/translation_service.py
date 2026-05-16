@@ -28,6 +28,12 @@ _LATIN_RE = re.compile(r'[A-Za-z]')
 _TARGET_NAME = {'en': 'English', 'zh': 'Simplified Chinese'}
 
 
+def has_cjk(text: str) -> bool:
+    """文本是否含中日韩表意文字。提交兜底用: 已归一(无 CJK)则跳过翻译,
+    避免对已是英文的文本重复调 AI 造成提交延迟。"""
+    return bool(text) and bool(_CJK_RE.search(text))
+
+
 def normalize_lang_for_region() -> str:
     """区域 → 系统语言: ovs(海外)→'en', 其它(sp8d/默认)→'zh'。
 
