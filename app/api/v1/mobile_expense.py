@@ -190,6 +190,8 @@ def _approval_flow_nodes(expense_id: int, current_user_id=None) -> list:
             action = (getattr(record, 'action', '') or '').lower()
             if action in ('reject', 'rejected'):
                 state = 'rejected'
+            elif action == 'skipped':
+                state = 'skipped'  # 跳过步可见 (审计透明), 移动端与 web 一致
             else:
                 state = 'done'
         elif (current_step_value == step_id or current_step_value == step_order) and not is_finished:
