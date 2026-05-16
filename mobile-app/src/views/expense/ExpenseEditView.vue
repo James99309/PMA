@@ -14,7 +14,7 @@
 
     <!-- Nav 表头: 取消(左) / 标题(中) / 保存草稿(右) — 底部 CTA 只留"提交审批" -->
     <div class="flex items-center justify-between shrink-0" style="padding: 10px 20px 8px;">
-      <button @click="$router.back()"
+      <button @click="onCancel"
         class="active:opacity-60"
         style="font-size: 15px; color: #3A3A3A; font-weight: 500; background: none; border: none; padding: 0; min-width: 48px; text-align: left;">
         {{ t('common.cancel') }}
@@ -499,6 +499,9 @@ const auth = useAuthStore()
 
 const editingId = ref(parseInt(route.params.id) || null)
 const isNew = computed(() => !editingId.value)
+// 本次会话里因加明细/OCR 自动建出来的草稿(非从列表打开的旧草稿)
+// 用于"取消即丢弃": 取消时删掉它, 不留在列表
+const autoCreatedThisSession = ref(false)
 
 // 默认货币: 用户结算货币 → 当前区域默认 (cn=CNY, sg=SGD)。
 // 仅作初始值, 创建/编辑时可点头部货币行改 form.currency。
@@ -696,6 +699,7 @@ async function ensureExpenseExists() {
   })
   if (r.data?.success) {
     editingId.value = r.data.data.id
+    autoCreatedThisSession.value = true  // 取消时该删
     // 草稿建好即把当前表单暂存到新 id, 之后走 OCR 跳页返回不丢手输内容
     store.stashCompose(editingId.value, form.value)
     triggerAutoTitle()  // fire-and-forget AI 生成标题
@@ -850,6 +854,7 @@ async function saveDraft() {
     } else {
       await ensureExpenseExists()
     }
+    autoCreatedThisSession.value = false  // 已主动保存为草稿, 取消时不再删
     return true
   } catch (e) {
     alert(t('expense.saveFail') + ': ' + (e.response?.data?.message || e.message))
@@ -869,6 +874,22 @@ async function onTopSave() {
   }
 }
 
+// 顶栏左上"取消": 若本次会话自动建了草稿且未主动保存/提交 → 删掉它,
+// 不留在列表(软删 is_deleted)。从列表打开的旧草稿不受影响。
+const cancelling = ref(false)
+async function onCancel() {
+  if (cancelling.value) return
+  cancelling.value = true
+  try {
+    if (autoCreatedThisSession.value && editingId.value) {
+      try { await expApi.deleteExpense(editingId.value) } catch (e) { /* 删失败也不挡返回 */ }
+      store.clearCompose(editingId.value)
+    }
+  } finally {
+    router.back()
+  }
+}
+
 // 底部"提交审批": 保存最新数据 + 打开提交确认 sheet
 async function onSubmit() {
   if (!canSubmit.value) return
@@ -883,6 +904,7 @@ async function onConfirmSubmit() {
       ? await expApi.resubmitExpense(editingId.value)
       : await expApi.submitExpense(editingId.value)
     if (r.data?.success) {
+      autoCreatedThisSession.value = false  // 已提交, 取消时不再删
       store.clearCompose(editingId.value)  // 提交完成, 暂存作废
       submitSheetOpen.value = false
       router.replace(`/expense/${editingId.value}`)
