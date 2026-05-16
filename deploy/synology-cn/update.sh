@@ -13,6 +13,11 @@ fi
 
 set -e
 
+# 强制 umask 022：保证 git reset --hard 新建的目录是 755 而非继承受限 umask（如 077→700）
+# 背景：2026-05-15 mobile-api 大合并新增 components/user/ 目录，git 以 077 umask 新建成 700，
+#       容器 pma(1000) 用户无法遍历 → Jinja2 TemplateNotFound → 账户管理页 500
+umask 022
+
 # Synology 套件路径（Git、Docker 等）
 export PATH="/volume1/@appstore/Git/bin:/usr/local/bin:$PATH"
 
@@ -83,6 +88,9 @@ else
     git reset --hard origin/main
     # 修复文件权限：git 以 root 运行，但容器以 pma(1000) 用户运行
     chown -R 1000:1000 "$PROJECT_DIR"
+    # 兜底归一化目录权限：即使 git 遗留了受限目录(如 700)也强制 755，
+    # 确保容器内 pma 用户能遍历所有模板/静态目录（防 TemplateNotFound 500）
+    find "$PROJECT_DIR/app" -type d ! -perm -005 -exec chmod 755 {} + 2>/dev/null || true
 fi
 
 # 检查 requirements.txt 和 docker-compose.yml 是否变化
