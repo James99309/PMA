@@ -464,6 +464,24 @@ def set_subtask_status(actor, t, subtask, action):
     return subtask
 
 
+def delete_task(actor, t):
+    """彻底删除任务(含附件存储文件,忠实抽取 web delete_task)。
+    级联删除 attachments + replies。actor 由调用方做权限校验(_can_edit)。"""
+    from app.models.task import TaskAttachment
+    attachments = TaskAttachment.query.filter_by(task_id=t.id).all()
+    if attachments:
+        from app.utils.smart_storage_manager import get_smart_storage
+        storage = get_smart_storage()
+        for att in attachments:
+            if att.storage_path:
+                try:
+                    storage.delete_file(att.storage_path, bucket_type='task')
+                except Exception as e:
+                    logger.warning(f'删除附件文件失败: {e}')
+    db.session.delete(t)
+    db.session.commit()
+
+
 def attachment_dict(a, nas_ok=None):
     """附件序列化(与 web 任务详情一致)。"""
     return {

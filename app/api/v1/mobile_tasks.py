@@ -84,7 +84,7 @@ def _is_overdue(t):
     return due < date.today()
 
 
-def _task_row(t):
+def _task_row(t, uid=None):
     a = t.assignee
     a_name = (a.real_name or a.username) if a else ''
     return {
@@ -103,12 +103,47 @@ def _task_row(t):
         'project': (t.project.project_name if t.project else None),
         'customer': (t.customer.company_name if t.customer else None),
         'mention': 0,  # P1: @我 计数后续接(评论 mention 解析),先 0 不显示徽章
+        'can_delete': (uid is not None and t.creator_id == uid),
         'updated_at': t.updated_at.isoformat() if t.updated_at else None,
     }
 
 
 def _base_q():
     return Task.query.filter(Task.is_deleted == False)  # noqa: E712
+
+
+def _viewable_account_ids(user):
+    """当前用户有权限查看其任务的账户 id 集合:本人 + 归属下属 + 管辖部门;
+    若 task 权限级别为 company/department 再相应扩展。"""
+    from app.utils.access_control import (
+        get_personal_viewable_user_ids, get_company_user_ids,
+        get_department_user_ids)
+    ids = set(get_personal_viewable_user_ids(user))
+    ids.add(user.id)
+    try:
+        lvl = user.get_permission_level('task')
+    except Exception:
+        lvl = 'personal'
+    if lvl == 'company':
+        ids |= set(get_company_user_ids(user))
+    elif lvl == 'department':
+        ids |= set(get_department_user_ids(user))
+    return ids
+
+
+def _subordinate_ids(user):
+    """直接归属下属(Affiliation viewer→owner)。"""
+    from app.models.user import Affiliation
+    return {a.owner_id for a in Affiliation.query.filter_by(viewer_id=user.id).all()}
+
+
+def _acct_stat(aid):
+    """某账户进行中(未完成/取消)的任务数与逾期数。"""
+    rows = _base_q().filter(
+        Task.assignee_id == aid,
+        Task.status.notin_(['completed', 'cancelled'])
+    ).all()
+    return {'count': len(rows), 'overdue': sum(1 for t in rows if _is_overdue(t))}
 
 
 def _tab_query(uid, tab):
@@ -143,13 +178,25 @@ def mobile_tasks_list():
     page = max(1, request.args.get('page', 1, type=int))
     per = min(50, max(1, request.args.get('per', 20, type=int)))
 
+    # 切换视角:?owner_id=<uid> 查看他人任务(需在可见范围内)
+    owner_id = request.args.get('owner_id', type=int)
+    viewing_other = False
+    eff = uid
+    if owner_id and owner_id != uid:
+        if owner_id not in _viewable_account_ids(user):
+            return api_response(success=False, code=403, message='无权查看该账户的任务')
+        eff = owner_id
+        viewing_other = True
+        if tab == 'review':  # 他人视角无"待我审核"
+            tab = 'mine'
+
     if tab == 'shared':
         rows = _base_q().filter(
-            Task.assignee_id != uid, Task.creator_id != uid
+            Task.assignee_id != eff, Task.creator_id != eff
         ).all()
-        rows = [t for t in rows if uid in (t.shared_with_users or [])]
+        rows = [t for t in rows if eff in (t.shared_with_users or [])]
     else:
-        q = _tab_query(uid, tab)
+        q = _tab_query(eff, tab)
         rows = q.all()
 
     # 状态/逾期筛选
@@ -176,26 +223,31 @@ def mobile_tasks_list():
     start = (page - 1) * per
     page_rows = rows[start:start + per]
 
-    # 计数(tab badge + hero) — 轻量
-    mine_all = _base_q().filter(Task.assignee_id == uid).all()
-    created_n = _base_q().filter(Task.creator_id == uid).count()
+    # 计数(tab badge + hero) — 按 effective 账户;review 仅本人视角
+    mine_all = _base_q().filter(Task.assignee_id == eff).all()
+    created_n = _base_q().filter(Task.creator_id == eff).count()
     shared_cands = _base_q().filter(
-        Task.assignee_id != uid, Task.creator_id != uid
+        Task.assignee_id != eff, Task.creator_id != eff
     ).all()
-    shared_n = sum(1 for t in shared_cands if uid in (t.shared_with_users or []))
-    from app.models.task import TaskReviewer
-    review_n = _base_q().filter(
-        Task.status == 'pending_review',
-        Task.id.in_(db.session.query(TaskReviewer.task_id).filter(TaskReviewer.reviewer_id == uid)),
-    ).count()
+    shared_n = sum(1 for t in shared_cands if eff in (t.shared_with_users or []))
+    if viewing_other:
+        review_n = 0
+    else:
+        from app.models.task import TaskReviewer
+        review_n = _base_q().filter(
+            Task.status == 'pending_review',
+            Task.id.in_(db.session.query(TaskReviewer.task_id).filter(
+                TaskReviewer.reviewer_id == uid)),
+        ).count()
     in_progress_n = sum(1 for t in mine_all if t.status == 'in_progress')
     overdue_n = sum(1 for t in mine_all if _is_overdue(t))
 
-    return api_response(success=True, data={
-        'items': [_task_row(t) for t in page_rows],
+    data = {
+        'items': [_task_row(t, uid) for t in page_rows],
         'total': total,
         'page': page,
         'per': per,
+        'viewing_other': viewing_other,
         'counts': {
             'mine': len(mine_all),
             'created': created_n,
@@ -204,7 +256,16 @@ def mobile_tasks_list():
             'in_progress': in_progress_n,
             'overdue': overdue_n,
         },
-    })
+    }
+    if viewing_other:
+        ou = User.query.get(eff)
+        oname = (ou.real_name or ou.username) if ou else ''
+        data['owner'] = {
+            'id': eff, 'name': oname, 'short': _initials(oname),
+            'department': (ou.department or '') if ou else '',
+            'total': len(mine_all),
+        }
+    return api_response(success=True, data=data)
 
 
 # ─── P1④ 详情 / 新建 / 改状态 / 评论 / 审核 (写侧走 task_service) ──────
@@ -556,3 +617,60 @@ def mobile_subtask_status(tid, sid):
         logger.error(f'subtask status error: {e}')
         return api_response(success=False, code=500, message='操作失败')
     return api_response(success=True, data={'id': s.id, 'status': s.status})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>', methods=['DELETE'])
+@jwt_required()
+def mobile_task_delete(tid):
+    """薄壳:删除任务走共享 task_service.delete_task。权限同 web _can_edit:仅创建人。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t:
+        return api_response(success=False, code=404, message='任务不存在')
+    if t.creator_id != uid:
+        return api_response(success=False, code=403, message='仅创建人可删除此任务')
+    from app.services import task_service
+    try:
+        task_service.delete_task(user, t)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'task delete error: {e}')
+        return api_response(success=False, code=500, message='删除失败')
+    return api_response(success=True, data={'id': tid})
+
+
+@api_v1_bp.route('/mobile/tasks/perspectives', methods=['GET'])
+@jwt_required()
+def mobile_task_perspectives():
+    """切换视角:本人 + 直接下属(归属) + 其他可见账户,各含任务数/逾期数。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    viewable = _viewable_account_ids(user)
+    sub_ids = _subordinate_ids(user) & viewable
+    us = {u.id: u for u in User.query.filter(User.id.in_(list(viewable))).all()}
+
+    def _ent(u):
+        nm = u.real_name or u.username
+        st = _acct_stat(u.id)
+        return {'id': u.id, 'name': nm, 'short': _initials(nm),
+                'department': u.department or '',
+                'count': st['count'], 'overdue': st['overdue']}
+
+    me = _ent(user)
+    me['is_self'] = True
+    subs = [_ent(us[i]) for i in sub_ids if i in us and i != uid]
+    other_ids = [i for i in viewable if i != uid and i not in sub_ids]
+    others = [_ent(us[i]) for i in other_ids if i in us]
+    subs.sort(key=lambda e: (-e['overdue'], -e['count'], e['name']))
+    others.sort(key=lambda e: (-e['overdue'], -e['count'], e['name']))
+    return api_response(success=True, data={
+        'self': me,
+        'subordinates': subs,
+        'subordinate_total': sum(e['count'] for e in subs),
+        'others': others,
+    })

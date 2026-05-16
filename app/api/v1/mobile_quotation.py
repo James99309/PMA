@@ -10,6 +10,39 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+@api_v1_bp.route('/mobile/quotations', methods=['GET'])
+@jwt_required()
+def mobile_quotations_list():
+    """报价单搜索(供任务关联报价选择器)。q/search 匹配报价号或关联项目名;
+    数据范围复用 get_viewable_data(Quotation, user)。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+    from app import db
+    from sqlalchemy import or_
+    from app.utils.access_control import get_viewable_data
+    from app.models.project import Project
+    q = (request.args.get('q') or request.args.get('search') or '').strip()
+    per = min(50, max(1, request.args.get('per', 20, type=int)))
+    query = get_viewable_data(Quotation, user)
+    if hasattr(Quotation, 'is_deleted'):
+        query = query.filter(Quotation.is_deleted == False)  # noqa: E712
+    if q:
+        proj_ids = db.session.query(Project.id).filter(
+            Project.project_name.ilike(f'%{q}%'))
+        query = query.filter(or_(
+            Quotation.quotation_number.ilike(f'%{q}%'),
+            Quotation.project_id.in_(proj_ids)))
+    rows = query.order_by(Quotation.updated_at.desc()).limit(per).all()
+    items = [{
+        'id': x.id,
+        'label': x.quotation_number,
+        'sub': (x.project.project_name if getattr(x, 'project', None) else ''),
+    } for x in rows]
+    return api_response(success=True, data={'items': items})
+
+
 @api_v1_bp.route('/mobile/quotations/<int:quotation_id>', methods=['GET'])
 @jwt_required()
 def mobile_quotation_detail(quotation_id):

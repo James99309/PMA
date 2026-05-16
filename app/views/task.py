@@ -307,20 +307,8 @@ def delete_task(id):
         if not _can_edit(t):
             return jsonify({'success': False, 'message': '无权删除此任务'}), 403
 
-        # 删除 NAS/本地存储中的附件文件
-        attachments = TaskAttachment.query.filter_by(task_id=id).all()
-        if attachments:
-            from app.utils.smart_storage_manager import get_smart_storage
-            storage = get_smart_storage()
-            for att in attachments:
-                if att.storage_path:
-                    try:
-                        storage.delete_file(att.storage_path, bucket_type='task')
-                    except Exception as e:
-                        logger.warning(f"删除附件文件失败: {e}")
-
-        db.session.delete(t)  # cascade 删除 attachments + replies
-        db.session.commit()
+        from app.services import task_service
+        task_service.delete_task(current_user, t)
         return jsonify({'success': True, 'message': _('任务已删除')})
     except Exception as e:
         db.session.rollback()
