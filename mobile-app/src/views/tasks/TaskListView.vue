@@ -74,6 +74,7 @@
         color: TK.ink3, fontSize: '13px' }">{{ t('task.empty') }}</div>
       <div v-else :style="{ background: TK.card, borderTop: `1px solid ${TK.dividerSoft}` }">
         <div v-for="(it, i) in items" :key="it.id"
+          @click="router.push(`/tasks/${it.id}`)" class="active:opacity-60"
           :style="{ padding: '13px 20px', display: 'flex', alignItems: 'flex-start', gap: '11px',
             borderBottom: i === items.length - 1 ? 'none' : `1px solid ${TK.dividerSoft}` }">
           <!-- Status dot -->
@@ -213,7 +214,7 @@ async function load() {
 }
 function switchTab(k) { if (k !== activeTab.value) { activeTab.value = k; load() } }
 function toggleSort() { sort.value = sort.value === 'due_desc' ? 'due_asc' : 'due_desc'; load() }
-function onCreate() { /* P1 step 4: create-task screen, wired later */ }
+function onCreate() { router.push('/tasks/new') }
 
 import { watch } from 'vue'
 watch(statusF, load)
