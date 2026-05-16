@@ -1,6 +1,7 @@
 <!--
-  TaskCreateView - New task (P1 step 4 + P2 links/reviewers)
-  Uses shared TaskFormFields. All UI text via t() (i18n rule).
+  TaskEditView - Edit task (P1b + P2 links/reviewers)
+  Uses shared TaskFormFields, pre-filled from getTask, submits via PATCH
+  updateTask (shared task_service.update_task). All UI text via t().
 -->
 <template>
   <div :style="{ background: TK.bg, height: '100%', fontFamily: TK.sans, color: TK.ink,
@@ -11,13 +12,16 @@
       borderBottom: `1px solid ${TK.divider}` }">
       <span @click="router.back()" class="active:opacity-60"
         :style="{ fontSize: '14px', color: TK.ink3 }">{{ t('common.cancel') }}</span>
-      <span :style="{ fontSize: '15px', fontWeight: 600 }">{{ t('task.newTask') }}</span>
-      <span @click="canCreate && submit()"
+      <span :style="{ fontSize: '15px', fontWeight: 600 }">{{ t('task.editTitle') }}</span>
+      <span @click="canSave && submit()"
         :style="{ fontSize: '14px', fontWeight: 600,
-          color: canCreate ? TK.accent : TK.ink4 }">{{ t('task.create') }}</span>
+          color: canSave ? TK.accent : TK.ink4 }">{{ t('common.save') }}</span>
     </div>
 
-    <div :style="{ flex: 1, overflowY: 'auto', paddingBottom: '30px' }">
+    <div v-if="loading" :style="{ flex: 1, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', color: TK.ink4 }">···</div>
+
+    <div v-else :style="{ flex: 1, overflowY: 'auto', paddingBottom: '30px' }">
       <TaskFormFields :form="form" :people="people" />
     </div>
   </div>
@@ -25,12 +29,13 @@
 
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { createTask } from '@/api/tasks'
+import { getTask, updateTask } from '@/api/tasks'
 import { getAttributedCandidates } from '@/api/expense'
 import TaskFormFields from '@/components/tasks/TaskFormFields.vue'
 
+const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 
@@ -40,17 +45,19 @@ const TK = {
   sans: '-apple-system, "SF Pro Text", "PingFang SC", system-ui, sans-serif',
 }
 
+const id = computed(() => route.params.id)
+const loading = ref(true)
+const people = ref([])
 const form = reactive({
   title: '', assignee_id: null, priority: 'normal', start_date: '', due_date: '',
   description: '', project_id: null, project_name: '', customer_id: null,
   customer_name: '', reviewer_ids: [], shared_with_users: [],
 })
-const people = ref([])
-const canCreate = computed(() => !!form.title.trim() && !!form.assignee_id)
+const canSave = computed(() => !!form.title.trim() && !!form.assignee_id)
 
 async function submit() {
   try {
-    const r = await createTask({
+    await updateTask(id.value, {
       title: form.title.trim(),
       assignee_id: form.assignee_id,
       priority: form.priority,
@@ -62,9 +69,7 @@ async function submit() {
       reviewer_ids: form.reviewer_ids,
       shared_with_users: form.shared_with_users,
     })
-    const id = r.data?.data?.id
-    if (id) router.replace(`/tasks/${id}`)
-    else router.back()
+    router.replace(`/tasks/${id.value}`)
   } catch (e) { /* keep form on failure */ }
 }
 
@@ -77,5 +82,23 @@ onMounted(async () => {
       department: u.department || u.dept || '',
     }))
   } catch (e) { /* noop */ }
+  try {
+    const r = await getTask(id.value)
+    const d = r.data?.data || {}
+    form.title = d.title || ''
+    form.assignee_id = d.assignee_id || null
+    form.priority = d.priority || 'normal'
+    form.start_date = d.start_date ? String(d.start_date).slice(0, 10) : ''
+    form.due_date = d.due_date ? String(d.due_date).slice(0, 10) : ''
+    form.description = d.description || ''
+    form.project_id = d.project_id || null
+    form.project_name = d.project_name || ''
+    form.customer_id = d.customer_id || null
+    form.customer_name = d.customer_name || ''
+    form.reviewer_ids = (d.reviewers || []).map(rv => rv.reviewer_id).filter(Boolean)
+    form.shared_with_users = Array.isArray(d.shared_with_users) ? [...d.shared_with_users] : []
+  } catch (e) { /* noop */ } finally {
+    loading.value = false
+  }
 })
 </script>

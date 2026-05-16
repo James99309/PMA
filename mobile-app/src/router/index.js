@@ -62,6 +62,8 @@ const routes = [
         meta: { hideTabBar: true } },
       { path: 'tasks/new', component: () => import('@/views/tasks/TaskCreateView.vue'),
         meta: { hideTabBar: true } },
+      { path: 'tasks/:id/edit', component: () => import('@/views/tasks/TaskEditView.vue'),
+        meta: { hideTabBar: true } },
       { path: 'tasks/:id', component: () => import('@/views/tasks/TaskDetailView.vue'),
         meta: { hideTabBar: true } },
     ],

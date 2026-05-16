@@ -19,7 +19,9 @@
         <span>{{ t('task.navTasks') }}</span>
       </button>
       <span :style="{ fontSize: '15px', fontWeight: 600 }">{{ t('task.detailTitle') }}</span>
-      <span :style="{ minWidth: '40px', textAlign: 'right', fontSize: '13px',
+      <span @click="d?.can_edit && router.push(`/tasks/${id}/edit`)"
+        class="active:opacity-60"
+        :style="{ minWidth: '40px', textAlign: 'right', fontSize: '13px',
         color: TK.accent, fontWeight: 600 }">{{ d?.can_edit ? t('common.edit') : '' }}</span>
     </div>
 
@@ -93,11 +95,43 @@
         </div>
       </template>
 
+      <!-- attachments -->
+      <div :style="secTitle">{{ t('task.secAttachments', { n: (d.attachments || []).length }) }}</div>
+      <div :style="{ background: TK.card, borderTop: `1px solid ${TK.dividerSoft}`,
+        borderBottom: `1px solid ${TK.dividerSoft}` }">
+        <div v-for="(a, i) in (d.attachments || [])" :key="a.id"
+          :style="{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px',
+            borderBottom: `1px solid ${TK.dividerSoft}` }">
+          <span :style="{ width: '30px', height: '30px', borderRadius: '7px', flexShrink: 0,
+            background: TK.blueSoft, color: TK.blue, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: '10px', fontWeight: 700 }">
+            {{ extOf(a.filename) }}</span>
+          <div :style="{ flex: 1, minWidth: 0 }" @click="openAtt(a)">
+            <div :style="{ fontSize: '13.5px', fontWeight: 600, color: TK.ink,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">{{ a.filename }}</div>
+            <div :style="{ fontSize: '11px', color: TK.ink3, marginTop: '2px' }">
+              {{ fmtSize(a.file_size) }}<template v-if="a.uploader_name"> · {{ a.uploader_name }}</template></div>
+          </div>
+          <span v-if="auth.user && a.uploaded_by === auth.user.id" @click="delAtt(a)"
+            class="active:opacity-60"
+            :style="{ flexShrink: 0, color: TK.red, fontSize: '12px' }">✕</span>
+        </div>
+        <div @click="pickFile" class="active:opacity-60"
+          :style="{ padding: '13px 20px', display: 'flex', alignItems: 'center', gap: '8px',
+            color: TK.accent, fontSize: '13px', fontWeight: 600 }">
+          <span :style="{ fontSize: '16px', lineHeight: 1 }">＋</span>
+          {{ uploading ? t('task.uploading') : t('task.addAttachment') }}
+        </div>
+        <input ref="fileInput" type="file" style="display:none" @change="onFile" />
+      </div>
+
       <!-- subtasks -->
       <div :style="secTitle">{{ t('task.secSubtasks', { done: subDone, total: (d.subtasks || []).length }) }}</div>
       <div v-if="(d.subtasks || []).length" :style="{ background: TK.card,
         borderTop: `1px solid ${TK.dividerSoft}`, borderBottom: `1px solid ${TK.dividerSoft}` }">
-        <div v-for="(s, i) in d.subtasks" :key="s.id" :style="{ padding: '12px 20px',
+        <div v-for="(s, i) in d.subtasks" :key="s.id"
+          @click="openSub(s)" class="active:opacity-60"
+          :style="{ padding: '12px 20px',
           display: 'flex', alignItems: 'flex-start', gap: '12px',
           borderBottom: i < d.subtasks.length - 1 ? `1px solid ${TK.dividerSoft}` : 'none' }">
           <span :style="{ width: '20px', height: '20px', flexShrink: 0, marginTop: '1px',
@@ -257,6 +291,72 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Subtask drawer (#5) -->
+    <Teleport to="body">
+      <div v-if="subSheet && curSub" :style="ovl" @click.self="subSheet = false">
+        <div :style="sheet">
+          <div :style="grab" />
+          <div :style="{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }">
+            <span :style="{ fontSize: '11px', color: TK.ink3, letterSpacing: '0.6px',
+              fontWeight: 600, textTransform: 'uppercase' }">{{ t('task.subDetail') }}</span>
+            <span v-if="curSub.is_milestone" :style="{ fontSize: '9.5px', color: TK.purple,
+              background: TK.purpleSoft, padding: '1px 6px', borderRadius: '3px',
+              fontWeight: 700, textTransform: 'uppercase' }">{{ t('task.milestone') }}</span>
+            <span :style="{ marginLeft: 'auto', ...chip(stat(curSub.status), 'md') }">{{ curSub.status_label }}</span>
+          </div>
+          <div :style="{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600,
+            marginTop: '6px', lineHeight: 1.3 }">{{ curSub.title }}</div>
+          <div :style="{ fontSize: '12px', color: TK.ink3, marginTop: '6px' }">
+            {{ curSub.owner_name || '—' }} · {{ curSub.start || '—' }} – {{ curSub.due || '—' }}
+          </div>
+
+          <!-- progress notes -->
+          <div :style="{ marginTop: '16px', fontSize: '11px', color: TK.ink3,
+            fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }">
+            {{ t('task.tlUpdate') }}</div>
+          <div :style="{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px',
+            maxHeight: '34vh', overflowY: 'auto' }">
+            <div v-for="(r, i) in subProgress" :key="i"
+              :style="{ background: TK.blueSoft, borderRadius: '8px', padding: '8px 12px',
+                border: '1px solid #DCE6F2' }">
+              <div :style="{ fontSize: '12.5px', color: TK.ink, lineHeight: 1.5 }">{{ r.text }}</div>
+              <div :style="{ fontSize: '10px', color: TK.ink3, marginTop: '4px' }">{{ r.author }} · {{ r.at }}</div>
+            </div>
+            <div v-if="!subProgress.length" :style="{ fontSize: '12px', color: TK.ink4,
+              padding: '8px 0' }">{{ t('task.subNoProgress') }}</div>
+          </div>
+
+          <!-- add progress -->
+          <div :style="{ display: 'flex', gap: '8px', marginTop: '14px' }">
+            <input v-model="subText" :placeholder="t('task.subProgressPh')"
+              @keyup.enter="sendSubProgress"
+              :style="{ flex: 1, height: '40px', borderRadius: '20px', background: TK.card,
+                padding: '0 14px', fontSize: '13px', color: TK.ink, outline: 'none',
+                border: `1px solid ${TK.divider}` }" />
+            <button @click="sendSubProgress" :style="{ height: '40px', padding: '0 16px',
+              borderRadius: '20px', background: TK.ink, color: '#fff', border: 'none',
+              fontSize: '13px', fontWeight: 600 }">{{ t('task.send') }}</button>
+          </div>
+
+          <!-- actions -->
+          <div :style="{ display: 'flex', gap: '10px', marginTop: '16px' }">
+            <button v-if="curSub.status === 'pending'" @click="doSubStatus('start')"
+              :style="{ flex: 1, height: '46px', borderRadius: '23px', background: TK.card,
+                border: `1.5px solid ${TK.divider}`, color: TK.ink2, fontSize: '14px',
+                fontWeight: 600 }">{{ t('task.subStart') }}</button>
+            <button v-if="curSub.status !== 'completed'" @click="doSubStatus('complete')"
+              :style="{ flex: 2, height: '46px', borderRadius: '23px', background: TK.green,
+                color: '#fff', border: 'none', fontSize: '14px', fontWeight: 600 }">
+              {{ t('task.stComplete') }}</button>
+            <button v-else @click="subSheet = false"
+              :style="{ flex: 1, height: '46px', borderRadius: '23px', background: TK.card,
+                border: `1.5px solid ${TK.divider}`, color: TK.ink2, fontSize: '14px',
+                fontWeight: 600 }">{{ t('common.cancel') }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -264,11 +364,91 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getTask, changeTaskStatus, addTaskReply, reviewTask } from '@/api/tasks'
+import { Browser } from '@capacitor/browser'
+import { getTask, changeTaskStatus, addTaskReply, reviewTask,
+  uploadTaskAttachment, deleteTaskAttachment, setSubtaskStatus } from '@/api/tasks'
+import client from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const auth = useAuthStore()
+
+const fileInput = ref(null)
+const uploading = ref(false)
+const _fileHost = (client.defaults.baseURL || '').replace(/\/api\/v1\/?$/, '')
+
+function extOf(name) {
+  const m = (name || '').match(/\.([a-z0-9]{1,5})$/i)
+  return (m?.[1] || 'FILE').toUpperCase().slice(0, 4)
+}
+function fmtSize(b) {
+  if (!b) return ''
+  if (b < 1024) return b + 'B'
+  if (b < 1024 * 1024) return (b / 1024).toFixed(0) + 'KB'
+  return (b / 1024 / 1024).toFixed(1) + 'MB'
+}
+function openAtt(a) {
+  if (!a.url) return
+  const tok = localStorage.getItem('access_token') || ''
+  const sep = a.url.includes('?') ? '&' : '?'
+  Browser.open({ url: `${_fileHost}${a.url}${sep}token=${encodeURIComponent(tok)}` })
+}
+function pickFile() { if (!uploading.value) fileInput.value?.click() }
+async function onFile(e) {
+  const f = e.target.files?.[0]
+  e.target.value = ''
+  if (!f) return
+  uploading.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', f)
+    await uploadTaskAttachment(id.value, fd)
+    await load()
+  } catch (err) { /* noop */ } finally {
+    uploading.value = false
+  }
+}
+async function delAtt(a) {
+  if (!window.confirm(t('task.delAttachment'))) return
+  try {
+    await deleteTaskAttachment(id.value, a.id)
+    await load()
+  } catch (err) { /* noop */ }
+}
+
+const subSheet = ref(false)
+const curSub = ref(null)
+const subText = ref('')
+const subProgress = computed(() => {
+  if (!curSub.value) return []
+  return (d.value?.timeline || []).filter(r => r.sub && r.sub === curSub.value.title)
+})
+function openSub(s) { curSub.value = s; subText.value = ''; subSheet.value = true }
+function _refreshSub() {
+  if (!curSub.value) return
+  const found = (d.value?.subtasks || []).find(x => x.id === curSub.value.id)
+  if (found) curSub.value = found
+  else subSheet.value = false
+}
+async function doSubStatus(action) {
+  try {
+    await setSubtaskStatus(id.value, curSub.value.id, action)
+    await load()
+    _refreshSub()
+  } catch (e) { /* noop */ }
+}
+async function sendSubProgress() {
+  const c = subText.value.trim()
+  if (!c) return
+  try {
+    await addTaskReply(id.value, c, curSub.value.id)
+    subText.value = ''
+    await load()
+    _refreshSub()
+  } catch (e) { /* noop */ }
+}
 
 const TK = {
   bg: '#F7F5F2', card: '#FFFFFF', ink: '#1A1A1A', ink2: '#3A3A3A',

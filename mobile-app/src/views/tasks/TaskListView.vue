@@ -24,14 +24,40 @@
       <!-- hero -->
       <div :style="{ padding: '14px 20px 14px', display: 'flex', alignItems: 'flex-start',
         justifyContent: 'space-between', gap: '14px' }">
-        <div :style="{ flex: 1, minWidth: 0 }">
-          <div :style="{ display: 'inline-flex', alignItems: 'center', gap: '8px' }">
+        <div :style="{ flex: 1, minWidth: 0, position: 'relative' }">
+          <div @click="tabMenu = !tabMenu" class="active:opacity-70"
+            :style="{ display: 'inline-flex', alignItems: 'center', gap: '7px' }">
             <span :style="{ fontFamily: 'var(--font-serif)', fontSize: '26px', fontWeight: 600,
-              color: TK.ink, letterSpacing: '-0.3px' }">{{ t('task.title') }}</span>
+              color: TK.ink, letterSpacing: '-0.3px' }">{{ currentTabLabel }}</span>
+            <span :style="{ fontSize: '13px', color: TK.ink3,
+              transform: tabMenu ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }">▾</span>
           </div>
           <div :style="{ fontSize: '13px', color: TK.ink3, marginTop: '4px' }">
             {{ t('task.heroSub', { ip: counts.in_progress, rv: counts.review, od: counts.overdue }) }}
           </div>
+
+          <!-- tab dropdown switcher (#4) -->
+          <template v-if="tabMenu">
+            <div @click="tabMenu = false"
+              :style="{ position: 'fixed', inset: 0, zIndex: 40 }" />
+            <div :style="{ position: 'absolute', top: '40px', left: 0, zIndex: 41,
+              background: TK.card, borderRadius: '12px', minWidth: '190px',
+              border: `1px solid ${TK.divider}`, boxShadow: '0 8px 28px rgba(0,0,0,.16)',
+              overflow: 'hidden' }">
+              <div v-for="tb in tabs" :key="tb.k"
+                @click="tabMenu = false; switchTab(tb.k)" class="active:opacity-70"
+                :style="{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px',
+                  borderBottom: `1px solid ${TK.dividerSoft}`,
+                  background: activeTab === tb.k ? TK.bg : TK.card }">
+                <span :style="{ flex: 1, fontSize: '14px',
+                  fontWeight: activeTab === tb.k ? 600 : 500,
+                  color: activeTab === tb.k ? TK.ink : TK.ink2 }">{{ tb.l }}</span>
+                <span v-if="tb.n > 0" :style="{ fontSize: '12px', fontWeight: 600,
+                  color: tb.alert ? TK.warn : TK.ink3 }">{{ tb.n }}</span>
+                <span v-if="activeTab === tb.k" :style="{ color: TK.accent, fontSize: '13px' }">✓</span>
+              </div>
+            </div>
+          </template>
         </div>
         <div :style="{ width: '36px', height: '36px', borderRadius: '18px', background: TK.ink,
           color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -179,6 +205,7 @@ function avatarStyle(name, size) {
 }
 
 const activeTab = ref('mine')
+const tabMenu = ref(false)
 const statusF = ref('all')
 const sort = ref('due_desc')
 const loading = ref(false)
@@ -191,6 +218,8 @@ const tabs = computed(() => [
   { k: 'shared',  l: t('task.tabShared'),  n: counts.value.shared },
   { k: 'review',  l: t('task.tabReview'),  n: counts.value.review, alert: true },
 ])
+const currentTabLabel = computed(() =>
+  tabs.value.find(tb => tb.k === activeTab.value)?.l || t('task.title'))
 const statusFilters = computed(() => [
   { k: 'all',            l: t('task.fAll') },
   { k: 'in_progress',    l: t('task.fInProgress') },
