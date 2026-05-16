@@ -452,8 +452,8 @@ onMounted(() => {
       </button>
       <button v-if="project?.can_edit"
         @click="router.push(`/projects/${project.id}/edit`)"
-        class="text-[18px] font-bold active:opacity-60 px-2"
-        style="color: var(--color-ink);">···</button>
+        class="active:opacity-60 px-2"
+        style="font-size: 15px; font-weight: 500; color: var(--color-accent);">{{ t('common.edit') }}</button>
     </div>
 
     <div v-if="loading" class="flex justify-center items-center flex-1">

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useAuthStore } from '@/stores/auth'
 import { getCustomer, addCustomerNote, addContact } from '@/api/customers'
 import client      from '@/api/client'
 import NavBar      from '@/components/common/NavBar.vue'
@@ -14,6 +15,8 @@ import NoteSheet   from '@/components/common/NoteSheet.vue'
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const auth = useAuthStore()
+const curSymbol = computed(() => auth.regionId === 'sg' ? '$' : '¥')
 const company = ref(null)
 const loading = ref(true)
 
@@ -110,7 +113,11 @@ onMounted(load)
 
     <!-- Nav -->
     <NavBar :back-label="t('common.customer')" @back="router.back()"
-      @more="router.push(`/customers/${route.params.id}/edit`)" />
+      @more="router.push(`/customers/${route.params.id}/edit`)">
+      <template #right>
+        <span style="font-size: 15px; color: var(--color-accent); font-weight: 500;">{{ t('common.edit') }}</span>
+      </template>
+    </NavBar>
 
     <div v-if="loading" class="flex justify-center items-center flex-1">
       <div class="w-6 h-6 border-2 rounded-full animate-spin"
@@ -146,7 +153,7 @@ onMounted(load)
         <div class="mt-6 flex items-baseline gap-2">
           <span class="font-serif font-medium tabular"
             style="font-size: 44px; color: var(--color-ink);">
-            ¥{{ (company.value ?? 0).toFixed(2) }}
+            {{ curSymbol }}{{ (company.value ?? 0).toFixed(2) }}
           </span>
           <span class="text-[14px]" style="color: var(--color-ink-3);">{{ t('customer.cumulativeValue') }}</span>
         </div>
