@@ -8,6 +8,7 @@ import { REGIONS } from '@/api/client'
 import client from '@/api/client'
 import { setLocale } from '@/locales'
 import { getPendingApprovals } from '@/api/approval'
+import { getTasks } from '@/api/tasks'
 
 // 待审批数(显示在审批中心圆形图标里)
 const pendingCount = ref(0)
@@ -15,6 +16,15 @@ async function loadPendingCount() {
   try {
     const r = await getPendingApprovals()
     pendingCount.value = r.data?.data?.total || 0
+  } catch {}
+}
+
+// Overview counts for the Task Center entry card
+const taskCounts = ref({ mine: 0, created: 0, review: 0, overdue: 0 })
+async function loadTaskCounts() {
+  try {
+    const r = await getTasks({ tab: 'mine', per: 1 })
+    if (r.data?.data?.counts) taskCounts.value = r.data.data.counts
   } catch {}
 }
 
@@ -111,6 +121,7 @@ async function checkUpdate() {
 
 onMounted(async () => {
   loadPendingCount()
+  loadTaskCounts()
   try {
     const info = await CapacitorUpdater.current()
     bundleId.value = info?.bundle?.id || 'builtin'
@@ -186,6 +197,39 @@ const currentCurrency = computed(() => {
           <p class="text-[12px] mt-0.5 truncate" style="color: var(--color-ink-3);">
             {{ auth.user?.email || auth.user?.username || '' }}{{ auth.isAway ? t('profile.crossAccountSuffix') : '' }}
           </p>
+        </div>
+      </div>
+
+      <!-- Task Center entry card (Claude Design / MeWithTaskEntry) -->
+      <div class="bg-white rounded-2xl overflow-hidden" style="border: 1px solid var(--color-divider);">
+        <div class="px-4 py-3.5 flex items-center gap-3 active:bg-gray-50"
+          style="border-bottom: 1px solid var(--color-divider);"
+          @click="router.push('/tasks')">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+            style="background: var(--color-accent); color: #fff;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M5 10l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="10" cy="10" r="9" stroke="#fff" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-[15px] font-semibold" style="color: var(--color-ink);">{{ t('task.entryTitle') }}</div>
+            <div class="text-[11.5px] mt-0.5" style="color: var(--color-ink-3);">
+              {{ t('task.entrySub', { mine: taskCounts.mine, review: taskCounts.review, overdue: taskCounts.overdue }) }}
+            </div>
+          </div>
+          <span style="color: var(--color-ink-4);">›</span>
+        </div>
+        <div class="px-4 py-2.5 flex gap-3">
+          <div v-for="s in [
+              { l: t('task.entryStatMine'),    n: taskCounts.mine,    c: 'var(--color-blue)' },
+              { l: t('task.entryStatReview'),  n: taskCounts.review,  c: '#7B5BAC' },
+              { l: t('task.entryStatCreated'), n: taskCounts.created, c: 'var(--color-ink-2)' },
+              { l: t('task.entryStatOverdue'), n: taskCounts.overdue, c: 'var(--color-red)' },
+            ]" :key="s.l" class="flex-1 text-center">
+            <div class="font-serif text-[18px] font-semibold" :style="{ color: s.c }">{{ s.n }}</div>
+            <div class="text-[10px] mt-0.5" style="color: var(--color-ink-3);">{{ s.l }}</div>
+          </div>
         </div>
       </div>
 

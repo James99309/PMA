@@ -58,6 +58,8 @@ const routes = [
       { path: 'approval/:instanceId', component: () => import('@/views/approval/ApprovalDetailView.vue'),
         meta: { hideTabBar: true } },
       { path: 'profile', component: () => import('@/views/profile/ProfileView.vue') },
+      { path: 'tasks', component: () => import('@/views/tasks/TaskListView.vue'),
+        meta: { hideTabBar: true } },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/splash' },
