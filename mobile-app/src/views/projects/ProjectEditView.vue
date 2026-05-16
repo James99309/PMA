@@ -9,10 +9,13 @@ import PickerSheet from '@/components/common/PickerSheet.vue'
 import PersonPickerSheet from '@/components/common/PersonPickerSheet.vue'
 import AddressPickerSheet from '@/components/common/AddressPickerSheet.vue'
 import { useDictionariesStore } from '@/stores/dictionaries'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+// 键盘弹起时把聚焦输入滚进可视区 + 抬起底部(同 ProjectCreateView)
+const { kbStyle } = useKeyboardOffset()
 
 const loading = ref(true)
 const saving = ref(false)
@@ -157,7 +160,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full" style="background: var(--color-bg);">
+  <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
 
     <EditFormHeader
       :title="t('project.editTitle')"
