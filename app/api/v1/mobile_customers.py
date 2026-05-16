@@ -49,9 +49,13 @@ _STATUS_LABEL = {
     'churned':       {'zh': '流失',     'en': 'Churned'},
     'frozen':        {'zh': '已冻结',   'en': 'Frozen'},
 }
+# 历史数据 status 有的存英文 key 有的存中文 → 加中文别名, 两者都能映射
+_STATUS_LABEL.update({
+    v['zh']: v for v in list(_STATUS_LABEL.values())
+})
 
 def _status_label(key):
-    """按 Accept-Language 取 zh/en, 未知值原样返回。"""
+    """status 可能是英文 key 或中文(历史数据), 都按 _lang 归一; 未知原样。"""
     m = _STATUS_LABEL.get(key)
     if not m:
         return key or ('正常' if _lang() == 'zh' else 'Normal')
