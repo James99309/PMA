@@ -12,6 +12,9 @@ const router = useRouter()
 const projects = ref([])
 const total = ref(0)
 const totalAmount = ref(0)
+// backend-formatted total (single source: dictionary_helpers.format_money);
+// null/empty when result mixes currencies → hide total
+const totalAmountDisplay = ref('')
 const loading = ref(false)
 const search = ref('')
 const page = ref(1)
@@ -201,6 +204,7 @@ async function load(reset = false) {
     const data = res.data.data
     total.value = data.total
     totalAmount.value = data.total_amount || 0
+    totalAmountDisplay.value = data.total_amount_display || ''
     projects.value = reset ? data.items : [...projects.value, ...data.items]
   } finally {
     loading.value = false
@@ -260,7 +264,7 @@ onMounted(() => {
           style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
       </div>
       <div class="text-[12px] mt-1.5" style="color: var(--color-ink-3);">
-        {{ t('project.listTotal', { n: total }) }}<template v-if="totalAmount"> · {{ t('project.listTotalAmount', { amount: totalAmount.toFixed(2) }) }}</template>
+        {{ t('project.listTotal', { n: total }) }}<template v-if="totalAmountDisplay"> · {{ t('project.listTotalAmount', { amount: totalAmountDisplay }) }}</template>
       </div>
 
       <!-- 搜索 + 筛选 行 -->
@@ -353,9 +357,7 @@ onMounted(() => {
               {{ p.name }}
             </div>
             <div class="text-[15px] font-semibold tabular whitespace-nowrap">
-              <template v-if="p.amount">
-                {{ t('project.amountWan', { amount: p.amount.toFixed(2) }) }}
-              </template>
+              <template v-if="p.amount_display">{{ p.amount_display }}</template>
               <span v-else class="text-[13px]" style="color: var(--color-ink-3);">—</span>
             </div>
           </div>

@@ -998,7 +998,7 @@ export default {
       to_follow: 'To Follow', dormant: 'Dormant', churned: 'Churned', frozen: 'Frozen',
     },
     listTotal: '{n} project(s)',
-    listTotalAmount: 'Total ${amount}K',
+    listTotalAmount: 'Total {amount}',
     searchPh: 'Search project, customer, owner',
     sortAmountDesc: 'Amount High → Low',
     sortAmountAsc: 'Amount Low → High',

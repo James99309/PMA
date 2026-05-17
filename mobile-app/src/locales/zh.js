@@ -1013,7 +1013,7 @@ export default {
       to_follow: '待跟进', dormant: '休眠', churned: '流失', frozen: '已冻结',
     },
     listTotal: '共 {n} 项',
-    listTotalAmount: '总额 ¥{amount}万',
+    listTotalAmount: '总额 {amount}',
     searchPh: '搜索项目、客户、负责人',
     sortAmountDesc: '金额 高 → 低',
     sortAmountAsc: '金额 低 → 高',

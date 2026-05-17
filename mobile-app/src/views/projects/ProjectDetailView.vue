@@ -29,9 +29,9 @@ const route = useRoute()
 const router = useRouter()
 const { t, te } = useI18n()
 
-// 货币按数据区切: SP8D=¥...万 / OVS=$...K (与 i18n locale 无关)
-const amountSymbol = computed(() => auth.regionId === 'sg' ? '$' : '¥')
-const amountUnit = computed(() => auth.regionId === 'sg' ? 'K' : '万')
+// currency display now comes from the backend (project.amount_display),
+// single source = dictionary_helpers.format_money — respects per-project
+// quotation_currency, no more region-based hardcoding
 const project = ref(null)
 const loading = ref(true)
 
@@ -519,13 +519,13 @@ onMounted(() => {
           {{ [project.owner_name, project.industry_label || project.industry, project.city].filter(Boolean).join(' · ') }}
         </div>
 
-        <!-- Amount — 货币按数据区切 ¥...万 / $...K -->
+        <!-- Amount — backend-formatted per project's quotation_currency -->
         <div class="mt-7 flex items-baseline gap-2">
           <span class="font-serif font-medium tabular leading-none"
             :style="{ fontSize: '44px', color: 'var(--color-ink)' }">
-            {{ amountSymbol }}{{ project.amount ? project.amount.toFixed(2) : '—' }}
+            {{ project.amount_display || '—' }}
           </span>
-          <span class="text-[14px]" style="color: var(--color-ink-3);">{{ amountUnit }} · {{ t('project.detExpectedContract') }}</span>
+          <span class="text-[14px]" style="color: var(--color-ink-3);">{{ t('project.detExpectedContract') }}</span>
         </div>
       </div>
 
@@ -938,7 +938,7 @@ onMounted(() => {
       :project-type="project ? project.project_type : ''"
       :customer-name="project ? project.end_user : ''"
       :owner-name="project ? project.owner_name : ''"
-      :amount="project && project.amount ? `${amountSymbol}${project.amount.toFixed(2)} ${amountUnit}` : ''"
+      :amount="project ? (project.amount_display || '') : ''"
       :stage="project ? project.stage_label : ''"
       :submitting="submittingAuth"
       @confirm="submitAuthRequest"
