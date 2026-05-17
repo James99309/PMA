@@ -92,3 +92,23 @@ def translate_to(text: str, target_lang: str) -> str:
     except Exception as e:
         logger.warning(f'translate_to exception: {e}; 返回原文')
         return text
+
+
+def normalize_region_text(text):
+    """把用户手输自由文本同步归一成区域系统语言(SG→en / CN→zh)。
+
+    任何模块「保存那一刻」调用即可: 草稿/记录一保存就是区域语言,
+    详情/列表/报表立刻一致, 无需提交或异步等待。
+    - 空 / 纯空白 → 原样返回
+    - CN 纯中文 / 已是目标语言 → translate_to 内部短路, 零成本
+    - 失败 → 返回原文 (绝不丢用户输入)
+    expense 的 _normalize_region_text 即此逻辑; 这里作为标准复用入口,
+    日历(worklog_service) / 任务(task_service) 等共用单一来源。
+    """
+    if not text or not str(text).strip():
+        return text
+    try:
+        return translate_to(str(text).strip(), normalize_lang_for_region())
+    except Exception as e:
+        logger.warning(f'normalize_region_text 失败: {e}')
+        return text

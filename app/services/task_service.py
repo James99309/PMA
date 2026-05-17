@@ -20,6 +20,7 @@ from app import db
 from app.models.task import Task, TaskReply, TaskReviewer, get_local_time
 from app.models.user import User
 from app.services import notification_service as notif
+from app.services.translation_service import normalize_region_text
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def _award(user_id, code, t, source_type='task'):
 
 def create_task(actor, data):
     """创建任务(忠实抽取 web create_task)。actor=User。返回 Task。"""
-    title = (data.get('title') or '').strip()
+    title = normalize_region_text((data.get('title') or '').strip())
     if not title:
         raise ValueError('任务标题不能为空')
     assignee_id = data.get('assignee_id')
@@ -53,7 +54,7 @@ def create_task(actor, data):
 
     t = Task(
         title=title,
-        description=(data.get('description') or '').strip() or None,
+        description=normalize_region_text((data.get('description') or '').strip()) or None,
         creator_id=actor.id,
         assignee_id=int(assignee_id),
         priority=data.get('priority', 'normal'),
@@ -146,7 +147,7 @@ def cancel_task(actor, t):
 
 
 def pause_task(actor, t, reason):
-    reason = (reason or '').strip()
+    reason = normalize_region_text((reason or '').strip())
     if not reason:
         raise ValueError('请填写暂停理由')
     t.status = 'paused'
@@ -186,7 +187,7 @@ def change_status(actor, t, to, reason=''):
 
 def add_reply(actor, t, content, subtask_id=None, reply_type='comment'):
     """添加评论/进展(忠实抽取 add_reply)。返回 TaskReply。"""
-    content = (content or '').strip()
+    content = normalize_region_text((content or '').strip())
     if not content:
         raise ValueError('回复内容不能为空')
     if reply_type not in ('comment', 'update'):
@@ -208,7 +209,7 @@ def review_task(actor, t, action, comment=''):
         raise ValueError('任务不在待审核状态')
     if my.status != 'pending':
         raise ValueError('您已完成审核')
-    comment = (comment or '').strip()
+    comment = normalize_region_text((comment or '').strip())
 
     if action == 'approve':
         my.status = 'approved'
@@ -328,10 +329,14 @@ def update_task(actor, t, data):
         'quotation_number': t.quotation.quotation_number if t.quotation else None,
     }
 
-    for field in ['title', 'description', 'priority', 'external_link', 'external_link_label']:
+    if 'title' in data:
+        t.title = normalize_region_text((data['title'] or '').strip())
+    if 'description' in data:
+        t.description = normalize_region_text((data['description'] or '').strip()) or None
+    # priority=枚举, external_link=URL → 不翻译
+    for field in ['priority', 'external_link', 'external_link_label']:
         if field in data:
-            setattr(t, field, (data[field] or '').strip() or None
-                    if field != 'title' else (data[field] or '').strip())
+            setattr(t, field, (data[field] or '').strip() or None)
 
     for fk_field in ['assignee_id', 'project_id', 'quotation_id', 'customer_id']:
         if fk_field in data:
@@ -467,7 +472,7 @@ def set_subtask_status(actor, t, subtask, action):
 def create_subtask(actor, t, data):
     """创建子任务/节点(忠实抽取 web create_subtask)。返回 SubTask。"""
     from app.models.subtask import SubTask, MilestoneReviewer
-    title = (data.get('title') or '').strip()
+    title = normalize_region_text((data.get('title') or '').strip())
     if not title:
         raise ValueError(_('节点标题不能为空'))
     is_milestone = bool(data.get('is_milestone', False))
@@ -475,7 +480,7 @@ def create_subtask(actor, t, data):
         task_id=t.id, is_deleted=False).scalar() or 0
     s = SubTask(
         task_id=t.id, title=title,
-        description=(data.get('description') or '').strip() or None,
+        description=normalize_region_text((data.get('description') or '').strip()) or None,
         assignee_id=data.get('assignee_id') or None,
         is_milestone=is_milestone, sort_order=max_order + 1)
     if data.get('start_date'):
@@ -515,7 +520,7 @@ def update_subtask(actor, t, s, data):
     from app.models.subtask import MilestoneReviewer
     for field in ['title', 'description']:
         if field in data:
-            setattr(s, field, (data[field] or '').strip() or None)
+            setattr(s, field, normalize_region_text((data[field] or '').strip()) or None)
     if 'assignee_id' in data:
         s.assignee_id = data['assignee_id'] or None
     if 'start_date' in data:
@@ -531,7 +536,7 @@ def update_subtask(actor, t, s, data):
     if 'is_milestone' in data:
         s.is_milestone = bool(data['is_milestone'])
     if 'milestone_criteria' in data:
-        s.milestone_criteria = (data['milestone_criteria'] or '').strip() or None
+        s.milestone_criteria = normalize_region_text((data['milestone_criteria'] or '').strip()) or None
     if 'milestone_confirmer_ids' in data:
         new_ids = set(int(c) for c in (data['milestone_confirmer_ids'] or []) if c)
         old_ids = set(r.reviewer_id for r in s.milestone_reviewers)
@@ -562,7 +567,7 @@ def confirm_milestone(actor, t, s, action, comment=''):
         raise ValueError(_('里程碑不在待确认状态'))
     if my.status != 'pending':
         raise ValueError(_('您已完成确认'))
-    comment = (comment or '').strip()
+    comment = normalize_region_text((comment or '').strip())
     if action == 'confirm':
         my.status = 'confirmed'
         my.comment = comment or None

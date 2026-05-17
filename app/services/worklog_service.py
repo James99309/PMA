@@ -30,6 +30,7 @@ from app.models.quotation import Quotation
 from app.models.pricing_order import PricingOrder
 from app.models.action import Action
 from app.permissions import is_admin_or_ceo
+from app.services.translation_service import normalize_region_text
 from flask_babel import gettext as _
 from zoneinfo import ZoneInfo
 
@@ -684,7 +685,7 @@ def create_item(user, data):
     """创建工作项(忠实 create_item + 共享通知)。返回 WorkItem。"""
     if not data:
         raise WorklogItemError(_('无效的请求数据'), 400)
-    title = data.get('title', '').strip()
+    title = normalize_region_text(data.get('title', '').strip())
     if not title:
         raise WorklogItemError(_('标题不能为空'), 400)
     planned_date_str = data.get('planned_date')
@@ -735,7 +736,7 @@ def create_item(user, data):
 
     work_item = WorkItem(
         title=title,
-        description=data.get('description', '').strip() or None,
+        description=normalize_region_text(data.get('description', '').strip()) or None,
         planned_date=planned_date,
         end_date=end_date,
         start_time=start_time,
@@ -780,9 +781,9 @@ def update_item(user, item_id, data):
     old_shared_users = set(work_item.shared_with_users or [])
 
     if 'title' in data:
-        work_item.title = data['title'].strip()
+        work_item.title = normalize_region_text(data['title'].strip())
     if 'description' in data:
-        work_item.description = data['description'].strip() or None
+        work_item.description = normalize_region_text(data['description'].strip()) or None
     if 'planned_date' in data:
         try:
             work_item.planned_date = datetime.strptime(data['planned_date'], '%Y-%m-%d').date()
@@ -945,9 +946,9 @@ def complete_item(user, item_id, data):
     work_item.completed_at = _local_now()
     actual_hours = data.get('actual_hours')
     work_item.actual_hours = float(actual_hours) if actual_hours else work_item.estimated_hours
-    work_item.execution_notes = data.get('execution_notes', '').strip() or None
+    work_item.execution_notes = normalize_region_text(data.get('execution_notes', '').strip()) or None
 
-    description = data.get('description', '').strip()
+    description = normalize_region_text(data.get('description', '').strip())
     if description:
         work_item.description = description
 
@@ -996,7 +997,7 @@ def cancel_item(user, item_id, data):
 
     data = data or {}
     work_item.status = 'cancelled'
-    work_item.execution_notes = data.get('execution_notes', '').strip() or None
+    work_item.execution_notes = normalize_region_text(data.get('execution_notes', '').strip()) or None
     db.session.commit()
 
     if work_item.shared_with_users:
@@ -1057,7 +1058,7 @@ def update_log_draft(user, target_date, data):
     """更新日报补充内容(忠实 update_daily_log)。返回 WorkLog。"""
     data = data or {}
     worklog = WorkLog.get_or_create(user.id, target_date)
-    worklog.additional_notes = data.get('additional_notes', '').strip() or None
+    worklog.additional_notes = normalize_region_text(data.get('additional_notes', '').strip()) or None
 
     # 保存 @ 用户和 # 项目引用数据
     mentioned_users = data.get('mentioned_users', [])
@@ -1080,7 +1081,7 @@ def submit_daily_log(user, target_date, data):
 
     data = data or {}
     if 'additional_notes' in data:
-        worklog.additional_notes = data.get('additional_notes', '').strip() or None
+        worklog.additional_notes = normalize_region_text(data.get('additional_notes', '').strip()) or None
 
     # 保存 @ 用户和 # 项目引用数据
     mentioned_users = data.get('mentioned_users', [])

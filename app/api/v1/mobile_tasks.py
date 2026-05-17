@@ -376,6 +376,14 @@ def mobile_task_detail(tid):
     if not t or not _can_see(t, uid, user):
         return api_response(success=False, code=404, message='任务不存在或无权限')
     d = t.to_dict()
+    # 协助人(shared_with_users)显示名单(保持原 id 顺序),供详情顶部展示
+    _sids = t.shared_with_users or []
+    if _sids:
+        _su = {u.id: (u.real_name or u.username)
+               for u in User.query.filter(User.id.in_(_sids)).all()}
+        d['shared_names'] = [_su[i] for i in _sids if i in _su]
+    else:
+        d['shared_names'] = []
     d['status_label'] = _status_label(t.status)
     d['priority_label'] = _priority_label(t.priority)
     d['subtasks'] = _sub_rows(t, uid)
