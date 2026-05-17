@@ -53,3 +53,15 @@ export const confirmMilestone = (tid, sid, body) =>
 
 export const resubmitReview = tid =>
   client.post(`/mobile/tasks/${tid}/resubmit-review`, {})
+
+export const getNotifications = (params = {}) =>
+  client.get('/mobile/notifications', { params })
+
+export const getNotifUnread = () =>
+  client.get('/mobile/notifications/unread-count')
+
+export const markNotifRead = id =>
+  client.post(`/mobile/notifications/${id}/read`, {})
+
+export const markAllNotifRead = () =>
+  client.post('/mobile/notifications/read-all', {})
