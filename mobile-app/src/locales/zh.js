@@ -862,7 +862,6 @@ export default {
     heroSub: '{month} · 共 {n} 项',
     vMonth: '月',
     vWeek: '周',
-    vDay: '日',
     today: '今天',
     totalHours: '累计工时',
     dayHero: '{d} · {n} 项工作',

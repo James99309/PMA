@@ -72,7 +72,7 @@
         </div>
         <div :style="{ display: 'flex', background: CAL.dividerSoft, padding: '2px',
           borderRadius: '7px', fontSize: '11.5px', fontWeight: 600 }">
-          <span v-for="(v, i) in [t('calendar.vMonth'), t('calendar.vWeek'), t('calendar.vDay')]"
+          <span v-for="(v, i) in [t('calendar.vMonth'), t('calendar.vWeek')]"
             :key="v" @click="i === 0 && (monthSheet = true)"
             :class="i === 0 ? 'active:opacity-60' : ''"
             :style="{ padding: '5px 11px', borderRadius: '5px',
@@ -128,7 +128,7 @@
         <div v-for="(it, i) in dayItems" :key="it.id"
           :style="{ padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: '12px',
             borderBottom: i === dayItems.length - 1 ? 'none' : `1px solid ${CAL.dividerSoft}`,
-            opacity: it.status === 'completed' ? 0.55 : 1 }">
+            opacity: (it.status === 'completed' || it.status === 'cancelled' || it.is_invalidated) ? 0.55 : 1 }">
           <!-- time col -->
           <div :style="{ width: '46px', flexShrink: 0, textAlign: 'right', paddingTop: '1px' }">
             <div :style="{ fontSize: '12px', fontWeight: 600, color: CAL.ink,
@@ -157,7 +157,7 @@
                 borderRadius: '3px', fontWeight: 700 }">{{ t('calendar.cancelled') }}</span>
             </div>
             <div :style="{ fontSize: '14px', fontWeight: 600, marginTop: '4px', lineHeight: 1.35,
-              textDecoration: it.status === 'completed' ? 'line-through' : 'none' }">
+              textDecoration: (it.status === 'cancelled' || it.is_invalidated) ? 'line-through' : 'none' }">
               {{ it.title }}</div>
             <div v-if="it.description" :style="{ fontSize: '11.5px', color: CAL.ink3,
               marginTop: '3px', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box',
@@ -405,33 +405,60 @@ function statValStyle(color) {
 const sectionLabelStyle = { fontSize: '11px', color: CAL.ink3, marginBottom: '5px',
   letterSpacing: '0.4px', textTransform: 'uppercase', fontWeight: 600 }
 
+// perf: dedupe (skip refetch when key unchanged) + seq guard (drop stale
+// responses when user navigates faster than the network)
+let _monthSeq = 0
+let _monthKey = ''
+let _daySeq = 0
+let _dayKey = ''
+let _navTimer = null
+
 async function loadMonth() {
+  const key = `${anchorYM.value}|${ownerId.value}`
+  if (key === _monthKey) return
+  const seq = ++_monthSeq
   const params = { ym: anchorYM.value }
   if (ownerId.value != null) params.owner_id = ownerId.value
   try {
     const r = await getWorklogMonth(params)
+    if (seq !== _monthSeq) return            // superseded by a newer nav
     monthDays.value = r.data?.data?.days || {}
+    _monthKey = key
   } catch (e) {
-    monthDays.value = {}
+    if (seq === _monthSeq) monthDays.value = {}
   }
 }
 async function loadDay() {
+  const key = `${selectedDate.value}|${ownerId.value}`
+  if (key === _dayKey && day.value) return    // already showing this day
+  const seq = ++_daySeq
   loadingDay.value = true
   try {
     const params = { date: selectedDate.value }
     if (ownerId.value != null) params.owner_id = ownerId.value
     const r = await getWorklogDay(params)
+    if (seq !== _daySeq) return               // superseded by a newer nav
     day.value = r.data?.data || null
+    _dayKey = key
   } catch (e) {
-    day.value = null
+    if (seq === _daySeq) day.value = null
   } finally {
-    loadingDay.value = false
+    if (seq === _daySeq) loadingDay.value = false
   }
+}
+// debounce rapid ‹ › / week-strip taps: UI (label/strip/hero) updates
+// instantly via reactive state; only the heavy network load is coalesced
+function _scheduleLoad(withMonth) {
+  clearTimeout(_navTimer)
+  _navTimer = setTimeout(() => {
+    if (withMonth) loadMonth()
+    loadDay()
+  }, 220)
 }
 function selectDay(iso) {
   if (iso === selectedDate.value) return
   selectedDate.value = iso
-  loadDay()
+  _scheduleLoad(false)
 }
 function shiftMonth(delta) {
   const a = new Date(monthAnchor.value)
@@ -441,8 +468,7 @@ function shiftMonth(delta) {
   const sameAsToday = a.getFullYear() === today.getFullYear()
     && a.getMonth() === today.getMonth()
   selectedDate.value = sameAsToday ? todayIso : isoOf(a)
-  loadMonth()
-  loadDay()
+  _scheduleLoad(true)
 }
 
 function onPickAccount(e) {

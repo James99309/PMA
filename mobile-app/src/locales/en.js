@@ -847,7 +847,6 @@ export default {
     heroSub: '{n} items · {month}',
     vMonth: 'M',
     vWeek: 'W',
-    vDay: 'D',
     today: 'Today',
     totalHours: 'Total Hours',
     dayHero: '{d} · {n} items',
