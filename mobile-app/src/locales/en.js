@@ -925,6 +925,7 @@ export default {
     summaryEmpty: 'No auto summary yet (generated after work items are completed)',
     notesLogPh: 'Add notes, issues and reflections for today…',
     submitTip: 'After submit, the quality score is auto-computed from item completeness, description length and link completeness',
+    expand: 'Expand',
   },
   project: {
     title: 'Projects',

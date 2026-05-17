@@ -940,6 +940,7 @@ export default {
     summaryEmpty: '暂无自动摘要(完成工作项后系统自动生成)',
     notesLogPh: '补充今日工作说明、问题与思考…',
     submitTip: '提交后质量分将基于工作项完整度、描述长度、关联完整度等自动计算',
+    expand: '展开',
   },
   project: {
     title: '项目',

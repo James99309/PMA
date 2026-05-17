@@ -53,14 +53,24 @@
             color: CAL.ink, lineHeight: 1.65, whiteSpace: 'pre-wrap' }">
             {{ summary || t('calendar.summaryEmpty') }}</div>
 
-          <div :style="secWrap">{{ t('calendar.supplementary') }}</div>
+          <div :style="{ ...secWrap, display: 'flex', alignItems: 'baseline',
+            justifyContent: 'space-between' }">
+            <span>{{ t('calendar.supplementary') }}</span>
+            <span @click="editorOpen = true" class="active:opacity-60"
+              :style="{ fontSize: '12px', color: CAL.accent, fontWeight: 600,
+                textTransform: 'none', letterSpacing: '0' }">⤢ {{ t('calendar.expand') }}</span>
+          </div>
           <div :style="{ margin: '0 16px' }">
             <textarea v-model="notes" :placeholder="t('calendar.notesLogPh')"
+              @click="editorOpen = true" readonly
               :style="{ width: '100%', boxSizing: 'border-box', minHeight: '100px',
                 padding: '14px', background: CAL.card, borderRadius: '12px',
                 border: `1.5px solid ${CAL.accent}`, fontSize: '13px', color: CAL.ink,
                 lineHeight: 1.65, outline: 'none', resize: 'none' }" />
           </div>
+          <FullscreenTextEditor v-model="editorOpen" :value="notes"
+            :title="t('calendar.supplementary')" :placeholder="t('calendar.notesLogPh')"
+            @save="v => { notes = v }" />
 
           <div :style="{ margin: '20px 16px 0', padding: '11px 12px',
             background: CAL.warnSoft, borderRadius: '8px', fontSize: '12px',
@@ -75,6 +85,7 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { updateWorklogDayDraft, submitWorklogDay } from '@/api/worklog'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
 const { t } = useI18n()
 const props = defineProps({
@@ -96,6 +107,7 @@ const open = computed({
   set: v => emit('update:modelValue', v),
 })
 const saving = ref(false)
+const editorOpen = ref(false)
 const notes = ref('')
 let _seeded = ''
 
