@@ -37,9 +37,10 @@
 
           <!-- grid -->
           <div class="overflow-y-auto" style="padding: 0 12px 12px;">
-            <div v-if="loading" style="padding: 36px 0; text-align: center;
-              color: #B5AEA3; font-size: 13px;">···</div>
-            <div v-else style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;">
+            <!-- grid is pure client-side date math: always render instantly;
+                 only the colour dots depend on network → fade in, no skeleton -->
+            <div :style="{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+              gap: '2px', opacity: dotsDim ? 0.55 : 1, transition: 'opacity .15s' }">
               <div v-for="(c, i) in cells" :key="i"
                 @click="c.iso && pick(c.iso)"
                 :class="c.iso ? 'active:opacity-60' : ''"
@@ -84,6 +85,7 @@ const props = defineProps({
   ym: { type: String, default: '' },                 // 'YYYY-MM' parent anchor
   selected: { type: String, default: '' },           // selected iso 'YYYY-MM-DD'
   ownerId: { type: Number, default: null },
+  initialDays: { type: Object, default: () => ({}) }, // parent's already-loaded anchor-month days (seed → no skeleton on open)
 })
 const emit = defineEmits(['update:modelValue', 'pick'])
 
@@ -91,10 +93,14 @@ const open = computed({
   get: () => props.modelValue,
   set: v => emit('update:modelValue', v),
 })
-const loading = ref(false)
+const refreshing = ref(false)                        // SWR: keep old dots while fetching
 const days = ref({})                                 // { iso: { count, types:[{color,count}] } }
 const legend = ref([])
 const viewYM = ref('')                               // in-sheet month being viewed
+let _seq = 0
+let _key = ''                                        // dedupe: viewYM|ownerId already loaded
+// dim only when swapping with prior dots present (gentle); first load = no dim
+const dotsDim = computed(() => refreshing.value && Object.keys(days.value).length > 0)
 
 function pad2(n) { return String(n).padStart(2, '0') }
 function isoOf(y, m, d) { return `${y}-${pad2(m)}-${pad2(d)}` }
@@ -151,19 +157,26 @@ function cellStyle(c, i) {
   }
 }
 
-async function fetchData() {
-  loading.value = true
+async function fetchData(silent = false) {
+  const key = `${viewYM.value}|${props.ownerId}`
+  if (key === _key && Object.keys(days.value).length) return  // already loaded this month
+  const seq = ++_seq
+  // silent = seeded open (dots already correct from parent, just backfill legend)
+  if (!silent) refreshing.value = true                         // grid stays; dots SWR swap
   try {
     const params = { ym: viewYM.value }
     if (props.ownerId != null) params.owner_id = props.ownerId
     const r = await getWorklogMonth(params)
+    if (seq !== _seq) return                                    // superseded by newer nav
     const d = r.data?.data || {}
     days.value = d.days || {}
     legend.value = d.legend || []
+    _key = key
   } catch (e) {
-    days.value = {}; legend.value = []
+    // keep prior dots on error (no blank); only clear if never loaded
+    if (seq === _seq && !Object.keys(days.value).length) { days.value = {}; legend.value = [] }
   } finally {
-    loading.value = false
+    if (seq === _seq) refreshing.value = false
   }
 }
 function shift(delta) {
@@ -181,7 +194,12 @@ function close() { open.value = false }
 watch(() => props.modelValue, v => {
   if (v) {
     viewYM.value = props.ym || props.selected.slice(0, 7)
-    fetchData()
+    // seed from parent's already-loaded anchor month → dots show instantly,
+    // no skeleton/empty frame on open; fetchData then refreshes (SWR) for legend
+    const seeded = viewYM.value === props.ym && props.initialDays
+      && Object.keys(props.initialDays).length
+    if (seeded) days.value = { ...props.initialDays }
+    fetchData(seeded)   // seeded → silent backfill (no dim); else normal
   }
 })
 </script>

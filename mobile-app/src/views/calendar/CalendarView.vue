@@ -275,7 +275,7 @@
     <CalendarScopeSheet v-model="scopeSheet" :current-owner-id="ownerId"
       @pick="onPickAccount" />
     <CalendarMonthSheet v-model="monthSheet" :ym="anchorYM" :selected="selectedDate"
-      :owner-id="ownerId" @pick="onPickMonthDay" />
+      :owner-id="ownerId" :initial-days="monthDays" @pick="onPickMonthDay" />
   </div>
 </template>
 
