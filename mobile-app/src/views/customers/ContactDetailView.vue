@@ -10,8 +10,12 @@ import client from '@/api/client'
 import NavBar from '@/components/common/NavBar.vue'
 import { getContact, updateContact, deleteContact } from '@/api/customers'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
-const { kbStyle } = useKeyboardOffset()
+// side effects only; full-screen page shrinks with native keyboard resize —
+// do NOT pad root with kbStyle (double-offset → blank band over content)
+useKeyboardOffset()
+const notesEditorOpen = ref(false)
 const { t } = useI18n()
 
 const route = useRoute()
@@ -139,7 +143,7 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
+  <div class="flex flex-col h-full" :style="{ background: 'var(--color-bg)' }">
     <!-- 顶部 NavBar: 编辑模式时右侧改"保存", 默认 "..." 菜单 -->
     <NavBar :title="contact?.name || t('customer.contactHeader')" @back="editMode ? cancelEdit() : onBack()" @more="onMore">
       <template v-if="editMode" #left>
@@ -277,10 +281,16 @@ async function confirmDelete() {
         style="border: 1px solid var(--color-divider);">
         <div class="text-[11px] font-semibold uppercase mb-1"
           style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.notes') }}</div>
-        <textarea v-model="editForm.notes" :placeholder="t('customer.optional')" rows="3"
-          class="w-full text-[14px] outline-none bg-transparent resize-none"
-          style="color: var(--color-ink); line-height: 1.5;"></textarea>
+        <div @click="notesEditorOpen = true"
+          class="w-full text-[14px]"
+          style="min-height: 4.5em; max-height: 9em; overflow: hidden; line-height: 1.5;
+            white-space: pre-wrap; word-break: break-word;"
+          :style="{ color: editForm.notes ? 'var(--color-ink)' : 'var(--color-ink-3)' }">
+          {{ editForm.notes || t('customer.optional') }}</div>
       </div>
+      <FullscreenTextEditor v-model="notesEditorOpen" :value="editForm.notes || ''"
+        :title="t('customer.optional')" :placeholder="t('customer.optional')"
+        @save="v => { editForm.notes = v }" />
 
       <!-- 名片原图 (有就显示, 编辑模式也显示但只读) -->
       <div v-if="contact.business_card_image_url" class="bg-white rounded-2xl overflow-hidden"

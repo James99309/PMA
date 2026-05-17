@@ -5,9 +5,14 @@ import { useI18n } from 'vue-i18n'
 import { Geolocation } from '@capacitor/geolocation'
 import { checkCustomerName, reverseGeocode, searchAddress, getAddressDetail, createCustomer } from '@/api/customers'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
 const router = useRouter()
-const { kbStyle } = useKeyboardOffset()
+// side effects only; full-screen page shrinks with native keyboard resize —
+// do NOT pad root with kbStyle (double-offset → blank band over content)
+useKeyboardOffset()
+const notesEditorOpen = ref(false)
+function onNotesSave(v) { form.value.notes = v }
 const { t } = useI18n()
 
 const form = ref({
@@ -197,7 +202,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="na-root" :style="kbStyle">
+  <div class="na-root">
 
     <!-- Nav bar -->
     <div class="na-nav">
@@ -309,14 +314,15 @@ async function submit() {
         <span class="na-sec-label">{{ t('customer.secNotes') }}</span>
         <span style="font-size:11px; color:#7A7570;">{{ t('customer.optional') }}</span>
       </div>
-      <div class="na-bigfield">
-        <textarea
-          v-model="form.notes"
-          class="na-notes-textarea"
-          :placeholder="t('customer.fNotesPh')"
-          rows="4"
-        />
+      <div class="na-bigfield" @click="notesEditorOpen = true">
+        <div class="na-notes-textarea" :style="{ minHeight: '5.2em', maxHeight: '11em',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
+          color: form.notes ? '#1A1A1A' : '#B5AEA3' }">
+          {{ form.notes || t('customer.fNotesPh') }}</div>
       </div>
+      <FullscreenTextEditor v-model="notesEditorOpen" :value="form.notes || ''"
+        :title="t('customer.notes')" :placeholder="t('customer.fNotesPh')"
+        @save="onNotesSave" />
 
     </div><!-- /scroll -->
 

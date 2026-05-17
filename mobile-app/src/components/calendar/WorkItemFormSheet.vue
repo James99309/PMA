@@ -110,13 +110,17 @@
 
           <!-- notes -->
           <div :style="secWrap">{{ t('calendar.secNotes') }}</div>
-          <div :style="{ margin: '0 16px' }">
-            <textarea v-model="form.description" :placeholder="t('calendar.notesPh')"
-              :style="{ width: '100%', boxSizing: 'border-box', minHeight: '90px',
-                padding: '14px', background: CAL.card, borderRadius: '12px',
-                border: `1px solid ${CAL.divider}`, fontSize: '13px', color: CAL.ink,
-                lineHeight: 1.6, outline: 'none', resize: 'none' }" />
+          <div :style="{ margin: '0 16px' }" @click="notesEditorOpen = true">
+            <div :style="{ width: '100%', boxSizing: 'border-box', minHeight: '90px',
+              maxHeight: '11em', padding: '14px', background: CAL.card, borderRadius: '12px',
+              border: `1px solid ${CAL.divider}`, fontSize: '13px', lineHeight: 1.6,
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
+              color: form.description ? CAL.ink : CAL.ink4 }">
+              {{ form.description || t('calendar.notesPh') }}</div>
           </div>
+          <FullscreenTextEditor v-model="notesEditorOpen" :value="form.description || ''"
+            :title="t('calendar.secNotes')" :placeholder="t('calendar.notesPh')"
+            @save="v => { form.description = v }" />
         </div>
 
         <WorkItemTypePickerSheet v-model="typeSheet" :groups="groups"
@@ -139,6 +143,7 @@ import client from '@/api/client'
 import { createWorklogItem, updateWorklogItem } from '@/api/worklog'
 import WorkItemTypePickerSheet from './WorkItemTypePickerSheet.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
 const { t } = useI18n()
 const props = defineProps({
@@ -175,6 +180,7 @@ const open = computed({
 })
 const isEdit = computed(() => !!(props.item && props.item.id))
 const saving = ref(false)
+const notesEditorOpen = ref(false)
 const typeSheet = ref(false)
 const projectSheet = ref(false)
 const customerSheet = ref(false)

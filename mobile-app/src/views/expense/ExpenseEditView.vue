@@ -7,7 +7,7 @@
   根据 lines.length 切换 sub-title 和明细区域(空态卡 / 列表态)
 -->
 <template>
-  <div class="flex flex-col h-full" :style="[{ background: '#F7F5F2', color: 'var(--color-ink)', fontFamily: 'var(--font-sans)' }, kbStyle]">
+  <div class="flex flex-col h-full" :style="{ background: '#F7F5F2', color: 'var(--color-ink)', fontFamily: 'var(--font-sans)' }">
 
     <!-- 顶部安全区 -->
     <div style="height: env(safe-area-inset-top); background: #F7F5F2;" />
@@ -145,13 +145,16 @@
 
         <!-- 报销说明 -->
         <ExRow :label="t('expense.fDescription')" :multi="true">
-          <textarea
-            v-model="form.description"
-            rows="3"
-            :placeholder="t('expense.fDescriptionPh')"
-            :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%', resize: 'none', outline: 'none', lineHeight: 1.55 }"
-          />
+          <div @click="descEditorOpen = true"
+            :style="{ minHeight: '4.6em', maxHeight: '9em', overflow: 'hidden',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '14px',
+              width: '100%', lineHeight: 1.55,
+              color: form.description ? 'var(--color-ex-ink)' : 'var(--color-ex-ink3)' }">
+            {{ form.description || t('expense.fDescriptionPh') }}</div>
         </ExRow>
+        <FullscreenTextEditor v-model="descEditorOpen" :value="form.description || ''"
+          :title="t('expense.fDescription')" :placeholder="t('expense.fDescriptionPh')"
+          @save="onDescSave" />
 
         <!-- 申请人 -->
         <ExRow :label="t('expense.fApplicant')" :value="ownerName">
@@ -480,8 +483,13 @@ import { lineThumbUrl } from '@/api/expense'
 import { useExpenseStore } from '@/stores/expense'
 import { useAuthStore } from '@/stores/auth'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
-const { kbStyle } = useKeyboardOffset()
+// side effects only; full-screen page shrinks with native keyboard resize —
+// do NOT pad root with kbStyle (double-offset → blank band over content)
+useKeyboardOffset()
+const descEditorOpen = ref(false)
+function onDescSave(v) { form.value.description = v }
 import ExNav from '@/components/expense/ExNav.vue'
 import ExRow from '@/components/expense/ExRow.vue'
 import ExBottomBar from '@/components/expense/ExBottomBar.vue'

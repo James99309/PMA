@@ -9,7 +9,9 @@ const { t } = useI18n()
 import { createCustomer, addContact, checkContactDuplicate, mergeContactFromCard, checkCustomerName } from '@/api/customers'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
-const { kbStyle } = useKeyboardOffset()
+// side effects only; full-screen page shrinks with native keyboard resize —
+// do NOT pad root with kbStyle (double-offset → blank band over content)
+useKeyboardOffset()
 
 const router = useRouter()
 const scanStore = useCardScanStore()
@@ -316,7 +318,7 @@ function onCancel() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
+  <div class="flex flex-col h-full" :style="{ background: 'var(--color-bg)' }">
     <!-- Nav -->
     <div class="flex items-center justify-between px-4 py-3 shrink-0"
       style="background: var(--color-card); border-bottom: 1px solid var(--color-divider);">

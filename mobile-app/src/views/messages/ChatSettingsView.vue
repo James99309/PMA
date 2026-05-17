@@ -10,10 +10,12 @@ import Section from '@/components/common/Section.vue'
 import ProjectRefCard from '@/components/common/refs/ProjectRefCard.vue'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
-const { kbStyle } = useKeyboardOffset()
+// side effects only; full-screen page shrinks with native keyboard resize —
+// do NOT pad root with kbStyle (double-offset → blank band over content)
+useKeyboardOffset()
 import {
   getConversation, addParticipants, removeParticipant,
-  deleteConversation, searchUsers,
+  deleteConversation, searchUsers, renameConversation,
 } from '@/api/chat'
 
 const route = useRoute()
@@ -36,6 +38,38 @@ const addResults = ref([])
 const addLoading = ref(false)
 const adding = ref(false)
 let addSearchTimer = null
+
+// 重命名 sheet
+const showRenameSheet = ref(false)
+const renameInput = ref('')
+const renaming = ref(false)
+function openRename() {
+  renameInput.value = detail.value?.name || ''
+  showRenameSheet.value = true
+}
+async function confirmRename() {
+  const name = (renameInput.value || '').trim()
+  if (!name) return
+  if (name === (detail.value?.name || '')) {
+    showRenameSheet.value = false
+    return
+  }
+  renaming.value = true
+  try {
+    const r = await renameConversation(convId.value, name)
+    const ok = r?.data?.success !== false
+    if (ok) {
+      if (detail.value) detail.value.name = name
+      showRenameSheet.value = false
+    } else {
+      alert(r?.data?.message || t('chat.renameFailed') || '改名失败')
+    }
+  } catch (e) {
+    alert(e?.response?.data?.message || e?.message || '改名失败')
+  } finally {
+    renaming.value = false
+  }
+}
 
 async function load() {
   if (!isNumericConv.value) {
@@ -206,7 +240,7 @@ async function leaveGroup() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full overflow-y-auto" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
+  <div class="flex flex-col h-full overflow-y-auto" :style="{ background: 'var(--color-bg)' }">
 
     <NavBar :back-label="t('chat.settingsBack')" :title="t('chat.settingsTitle')" @back="router.back()" />
 
@@ -223,10 +257,15 @@ async function leaveGroup() {
           style="background: var(--color-accent-soft); color: var(--color-accent); font-size: 28px;">
           {{ initial }}
         </div>
-        <div class="font-serif text-center"
+        <button @click="openRename"
+          class="font-serif text-center inline-flex items-center gap-1.5 active:opacity-60"
           style="font-size: 19px; font-weight: 500; line-height: 1.3; color: var(--color-ink);">
-          {{ detail.name || t('chat.groupDefault') }}
-        </div>
+          <span>{{ detail.name || t('chat.groupDefault') }}</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="color: var(--color-ink-3);">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <div class="text-[12px]" style="color: var(--color-ink-3);">
           {{ t('chat.peopleCount', { n: memberCount }) }}<span v-if="formattedCreatedAt"> · {{ t('chat.createdAtSuffix', { at: formattedCreatedAt }) }}</span>
         </div>
@@ -369,6 +408,30 @@ async function leaveGroup() {
               </div>
               <span class="text-[12px] font-medium" style="color: var(--color-accent);">{{ t('chat.addBtn') }}</span>
             </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 重命名 sheet -->
+    <transition name="sheet">
+      <div v-if="showRenameSheet" class="fixed inset-0 z-50 flex flex-col"
+        style="background: rgba(0,0,0,0.32);" @click.self="showRenameSheet = false">
+        <div class="mt-auto rounded-t-3xl flex flex-col"
+          style="background: var(--color-bg);">
+          <div class="px-5 pt-4 pb-2 flex items-center justify-between shrink-0">
+            <button @click="showRenameSheet = false" class="text-[13px]"
+              style="color: var(--color-ink-3);">{{ t('common.cancel') }}</button>
+            <span class="font-serif" style="font-size: 16px; font-weight: 500;">{{ t('chat.renameTitle') || '修改名称' }}</span>
+            <button @click="confirmRename" :disabled="renaming || !renameInput.trim()"
+              class="text-[13px] font-medium disabled:opacity-40"
+              style="color: var(--color-accent);">{{ t('common.save') || '保存' }}</button>
+          </div>
+          <div class="px-5 pt-2 pb-6">
+            <input v-model="renameInput" type="text" maxlength="100"
+              :placeholder="t('chat.renamePlaceholder') || '请输入名称'"
+              class="w-full px-4 py-3 rounded-xl text-[15px]"
+              style="background: var(--color-card); border: 1px solid var(--color-divider); outline: none;" />
           </div>
         </div>
       </div>
