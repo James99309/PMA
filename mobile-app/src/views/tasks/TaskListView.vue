@@ -69,6 +69,14 @@
         </div>
       </div>
 
+      <!-- Search -->
+      <div :style="{ padding: '12px 20px 0', background: TK.bg }">
+        <input v-model="q" :placeholder="t('task.searchPh')" @input="onSearchInput"
+          :style="{ width: '100%', boxSizing: 'border-box', background: TK.card,
+            border: `1px solid ${TK.divider}`, borderRadius: '10px', padding: '9px 14px',
+            fontSize: '13px', color: TK.ink, outline: 'none' }" />
+      </div>
+
       <!-- Filter row + sort -->
       <div :style="{ display: 'flex', alignItems: 'center', padding: '14px 20px',
         background: TK.bg, gap: '16px', overflowX: 'auto' }" class="no-scrollbar">
@@ -145,6 +153,12 @@
         </div>
         </SwipeRowAction>
       </div>
+
+      <div v-if="!loading && hasMore" @click="loadMore" class="active:opacity-60"
+        :style="{ padding: '16px 0 24px', textAlign: 'center', color: TK.accent,
+          fontSize: '13px', fontWeight: 600 }">
+        {{ loadingMore ? '···' : t('task.loadMore') }}
+      </div>
     </div>
 
     <PerspectiveSheet v-model="perspSheet" @pick="onPickAccount" />
@@ -208,8 +222,15 @@ const viewingOwner = ref(null)  // {id,name,short,department,total} or null = se
 const statusF = ref('all')
 const sort = ref('due_desc')
 const loading = ref(false)
+const loadingMore = ref(false)
 const items = ref([])
 const counts = ref({ mine: 0, created: 0, shared: 0, review: 0, in_progress: 0, overdue: 0 })
+const q = ref('')
+const page = ref(1)
+const total = ref(0)
+const PER = 20
+const hasMore = computed(() => items.value.length < total.value)
+let _searchTimer = null
 
 const tabs = computed(() => {
   if (viewingOwner.value) {
@@ -248,23 +269,38 @@ const statusFilters = computed(() => [
   { k: 'overdue',        l: t('task.fOverdue') },
 ])
 
-async function load() {
-  loading.value = true
+async function load({ append = false } = {}) {
+  if (append) loadingMore.value = true
+  else { loading.value = true; page.value = 1 }
   try {
-    const params = { tab: activeTab.value, status: statusF.value, sort: sort.value }
+    const params = { tab: activeTab.value, status: statusF.value, sort: sort.value,
+      page: page.value, per: PER }
+    if (q.value.trim()) params.q = q.value.trim()
     if (viewingOwner.value) params.owner_id = viewingOwner.value.id
     const r = await getTasks(params)
     const d = r.data?.data || {}
-    items.value = d.items || []
+    const rows = d.items || []
+    items.value = append ? items.value.concat(rows) : rows
+    total.value = d.total || rows.length
     if (d.counts) counts.value = d.counts
     if (viewingOwner.value && d.owner) {
       viewingOwner.value = { ...viewingOwner.value, ...d.owner }
     }
   } catch (e) {
-    items.value = []
+    if (!append) items.value = []
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
+}
+function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  page.value += 1
+  load({ append: true })
+}
+function onSearchInput() {
+  clearTimeout(_searchTimer)
+  _searchTimer = setTimeout(() => load(), 300)
 }
 function switchTab(k) { if (k !== activeTab.value) { activeTab.value = k; load() } }
 function toggleSort() { sort.value = sort.value === 'due_desc' ? 'due_asc' : 'due_desc'; load() }

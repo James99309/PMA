@@ -126,7 +126,12 @@
       </div>
 
       <!-- subtasks -->
-      <div :style="secTitle">{{ t('task.secSubtasks', { done: subDone, total: (d.subtasks || []).length }) }}</div>
+      <div :style="{ ...secTitle, display: 'flex', alignItems: 'center' }">
+        <span :style="{ flex: 1 }">{{ t('task.secSubtasks', { done: subDone, total: (d.subtasks || []).length }) }}</span>
+        <span v-if="d.can_subtask" @click="openSubForm(null)" class="active:opacity-60"
+          :style="{ color: TK.accent, fontSize: '12px', fontWeight: 600,
+            textTransform: 'none', letterSpacing: 0 }">＋ {{ t('task.addSubtask') }}</span>
+      </div>
       <div v-if="(d.subtasks || []).length" :style="{ background: TK.card,
         borderTop: `1px solid ${TK.dividerSoft}`, borderBottom: `1px solid ${TK.dividerSoft}` }">
         <div v-for="(s, i) in d.subtasks" :key="s.id"
@@ -204,6 +209,11 @@
           fontWeight: 600 }">{{ t('task.reject') }}</button>
         <button @click="openReview('approve')" :style="{ flex: 2, height: '44px', borderRadius: '22px',
           background: TK.green, color: '#fff', border: 'none', fontSize: '14px', fontWeight: 600 }">{{ t('task.approve') }}</button>
+      </template>
+      <template v-else-if="d.can_resubmit">
+        <button @click="doResubmit" :style="{ flex: 1, height: '44px', borderRadius: '22px',
+          background: TK.purple, color: '#fff', border: 'none', fontSize: '14px',
+          fontWeight: 600 }">{{ t('task.resubmitReview') }}</button>
       </template>
       <template v-else>
         <input v-model="commentText" :placeholder="t('task.addComment')"
@@ -339,8 +349,22 @@
               fontSize: '13px', fontWeight: 600 }">{{ t('task.send') }}</button>
           </div>
 
-          <!-- actions -->
-          <div :style="{ display: 'flex', gap: '10px', marginTop: '16px' }">
+          <!-- milestone confirm (I'm a pending confirmer) -->
+          <div v-if="curSub.can_confirm_milestone"
+            :style="{ display: 'flex', gap: '10px', marginTop: '16px' }">
+            <button @click="openMs('reject')"
+              :style="{ flex: 1, height: '46px', borderRadius: '23px', background: TK.card,
+                color: TK.red, border: `1.5px solid ${TK.red}`, fontSize: '14px', fontWeight: 600 }">
+              {{ t('task.msReject') }}</button>
+            <button @click="openMs('confirm')"
+              :style="{ flex: 2, height: '46px', borderRadius: '23px', background: TK.purple,
+                color: '#fff', border: 'none', fontSize: '14px', fontWeight: 600 }">
+              {{ t('task.msConfirm') }}</button>
+          </div>
+
+          <!-- status actions -->
+          <div :style="{ display: 'flex', gap: '10px',
+            marginTop: curSub.can_confirm_milestone ? '10px' : '16px' }">
             <button v-if="curSub.status === 'pending'" @click="doSubStatus('start')"
               :style="{ flex: 1, height: '46px', borderRadius: '23px', background: TK.card,
                 border: `1.5px solid ${TK.divider}`, color: TK.ink2, fontSize: '14px',
@@ -354,21 +378,155 @@
                 border: `1.5px solid ${TK.divider}`, color: TK.ink2, fontSize: '14px',
                 fontWeight: 600 }">{{ t('common.cancel') }}</button>
           </div>
+
+          <!-- edit / delete subtask -->
+          <div v-if="d.can_subtask" :style="{ display: 'flex', gap: '10px', marginTop: '10px' }">
+            <button @click="openSubForm(curSub)"
+              :style="{ flex: 1, height: '42px', borderRadius: '21px', background: TK.card,
+                border: `1px solid ${TK.divider}`, color: TK.ink2, fontSize: '13px',
+                fontWeight: 600 }">{{ t('common.edit') }}</button>
+            <button @click="delSub(curSub)"
+              :style="{ flex: 1, height: '42px', borderRadius: '21px', background: TK.card,
+                border: `1px solid ${TK.redSoft}`, color: TK.red, fontSize: '13px',
+                fontWeight: 600 }">{{ t('common.delete') }}</button>
+          </div>
         </div>
       </div>
     </Teleport>
+
+    <!-- Subtask create/edit form sheet -->
+    <Teleport to="body">
+      <div v-if="subFormSheet" :style="ovl" @click.self="subFormSheet = false">
+        <div :style="sheet">
+          <div :style="grab" />
+          <div :style="{ fontFamily: 'var(--font-serif)', fontSize: '18px',
+            fontWeight: 600, marginBottom: '12px' }">
+            {{ subFormMode === 'edit' ? t('task.subFormEdit') : t('task.subFormNew') }}</div>
+
+          <input v-model="sf.title" :placeholder="t('task.fTitlePh')"
+            :style="{ width: '100%', boxSizing: 'border-box', padding: '12px 14px',
+              background: TK.card, border: `1px solid ${TK.divider}`, borderRadius: '10px',
+              fontSize: '15px', color: TK.ink, outline: 'none', marginBottom: '10px' }" />
+
+          <div @click="sfAssigneeSheet = true"
+            :style="{ display: 'flex', alignItems: 'center', padding: '11px 14px',
+              background: TK.card, border: `1px solid ${TK.divider}`, borderRadius: '10px',
+              marginBottom: '10px' }">
+            <span :style="{ fontSize: '13px', color: sfAssigneeName ? TK.ink : TK.ink4 }">
+              {{ sfAssigneeName || t('task.fAssigneePh') }}</span>
+            <span :style="{ marginLeft: 'auto', color: TK.ink4 }">›</span>
+          </div>
+
+          <div :style="{ display: 'flex', gap: '10px', marginBottom: '10px' }">
+            <input type="date" v-model="sf.start_date"
+              :style="{ flex: 1, padding: '10px 12px', background: TK.card,
+                border: `1px solid ${TK.divider}`, borderRadius: '10px', fontSize: '13px',
+                color: TK.ink, outline: 'none' }" />
+            <input type="date" v-model="sf.due_date"
+              :style="{ flex: 1, padding: '10px 12px', background: TK.card,
+                border: `1px solid ${TK.divider}`, borderRadius: '10px', fontSize: '13px',
+                color: TK.ink, outline: 'none' }" />
+          </div>
+
+          <div @click="sf.is_milestone = !sf.is_milestone"
+            :style="{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 0' }">
+            <span :style="{ width: '18px', height: '18px', borderRadius: '5px',
+              border: `1.5px solid ${sf.is_milestone ? TK.purple : TK.divider}`,
+              background: sf.is_milestone ? TK.purple : 'transparent', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '12px' }">{{ sf.is_milestone ? '✓' : '' }}</span>
+            <span :style="{ fontSize: '13.5px', color: TK.ink }">{{ t('task.subIsMilestone') }}</span>
+          </div>
+
+          <template v-if="sf.is_milestone">
+            <textarea v-model="sf.milestone_criteria" rows="2"
+              :placeholder="t('task.subMsCriteria')"
+              :style="{ width: '100%', boxSizing: 'border-box', padding: '10px 14px',
+                background: TK.card, border: `1px solid ${TK.divider}`, borderRadius: '10px',
+                fontSize: '13px', color: TK.ink, outline: 'none', resize: 'none',
+                margin: '6px 0 10px', fontFamily: TK.sans }" />
+            <div @click="sfConfirmerSheet = true"
+              :style="{ display: 'flex', alignItems: 'center', padding: '11px 14px',
+                background: TK.card, border: `1px solid ${TK.divider}`, borderRadius: '10px',
+                marginBottom: '10px' }">
+              <span :style="{ fontSize: '13px', color: sfConfirmerNames ? TK.ink : TK.ink4 }">
+                {{ sfConfirmerNames || t('task.subMsConfirmers') }}</span>
+              <span :style="{ marginLeft: 'auto', color: TK.ink4 }">›</span>
+            </div>
+          </template>
+
+          <div :style="{ display: 'flex', gap: '10px', marginTop: '8px' }">
+            <button @click="subFormSheet = false"
+              :style="{ flex: 1, height: '46px', borderRadius: '23px', background: TK.card,
+                border: `1.5px solid ${TK.divider}`, color: TK.ink2, fontSize: '14px',
+                fontWeight: 600 }">{{ t('common.cancel') }}</button>
+            <button @click="saveSubForm" :style="{ flex: 2, height: '46px', borderRadius: '23px',
+              background: sf.title.trim() ? TK.ink : TK.ink4, color: '#fff', border: 'none',
+              fontSize: '14px', fontWeight: 600 }">{{ t('common.save') }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Milestone confirm/reject sheet -->
+    <Teleport to="body">
+      <div v-if="msSheet && curSub" :style="ovl" @click.self="msSheet = false">
+        <div :style="sheet">
+          <div :style="grab" />
+          <div :style="{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.6px',
+            textTransform: 'uppercase', color: msAction === 'confirm' ? TK.purple : TK.red }">
+            {{ msAction === 'confirm' ? t('task.msConfirm') : t('task.msReject') }}
+          </div>
+          <div :style="{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600,
+            marginTop: '4px' }">
+            {{ msAction === 'confirm' ? t('task.msConfirmTitle') : t('task.msRejectTitle') }}
+          </div>
+          <div :style="{ marginTop: '14px', padding: '12px 14px', background: TK.card,
+            borderRadius: '10px', border: `1px solid ${TK.divider}` }">
+            <div :style="{ fontSize: '11px', color: TK.ink3, marginBottom: '6px',
+              textTransform: 'uppercase', letterSpacing: '0.4px' }">
+              {{ t('task.note') }}<span v-if="msAction === 'reject'" :style="{ color: TK.red }"> *</span>
+            </div>
+            <textarea v-model="msComment" rows="3"
+              :placeholder="msAction === 'reject' ? t('task.msNoteReject') : t('task.msNotePh')"
+              :style="{ width: '100%', border: 'none', outline: 'none', resize: 'none',
+                fontSize: '13px', color: TK.ink, background: 'transparent', fontFamily: TK.sans }" />
+          </div>
+          <div :style="{ display: 'flex', gap: '10px', marginTop: '18px' }">
+            <button @click="msSheet = false" :style="{ flex: 1, height: '46px',
+              borderRadius: '23px', background: TK.card, border: `1.5px solid ${TK.divider}`,
+              color: TK.ink2, fontSize: '14px', fontWeight: 600 }">{{ t('common.cancel') }}</button>
+            <button @click="doMs" :style="{ flex: 2, height: '46px', borderRadius: '23px',
+              background: msAction === 'confirm' ? TK.purple : TK.red, color: '#fff',
+              border: 'none', fontSize: '14px', fontWeight: 600 }">
+              {{ msAction === 'confirm' ? t('task.msConfirm') : t('task.msReject') }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <PersonPickerSheet v-model="sfAssigneeSheet" :title="t('task.fAssignee')" :options="people"
+      :selected="sf.assignee_id" @update:selected="v => { sf.assignee_id = v }" />
+    <MultiPersonPickerSheet v-model="sfConfirmerSheet" :title="t('task.subMsConfirmers')"
+      :options="people" :selected="sf.milestone_confirmer_ids"
+      @update:selected="v => { sf.milestone_confirmer_ids = v }" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Browser } from '@capacitor/browser'
 import { getTask, changeTaskStatus, addTaskReply, reviewTask,
-  uploadTaskAttachment, deleteTaskAttachment, setSubtaskStatus } from '@/api/tasks'
+  uploadTaskAttachment, deleteTaskAttachment, setSubtaskStatus,
+  createSubtask, updateSubtask, deleteSubtask, confirmMilestone,
+  resubmitReview } from '@/api/tasks'
+import { getAttributedCandidates } from '@/api/expense'
 import client from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import PersonPickerSheet from '@/components/common/PersonPickerSheet.vue'
+import MultiPersonPickerSheet from '@/components/common/MultiPersonPickerSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -447,6 +605,93 @@ async function sendSubProgress() {
     subText.value = ''
     await load()
     _refreshSub()
+  } catch (e) { /* noop */ }
+}
+
+// ── subtask create/edit/delete + milestone confirm + resubmit ──
+const people = ref([])
+const subFormSheet = ref(false)
+const subFormMode = ref('new')
+const sfAssigneeSheet = ref(false)
+const sfConfirmerSheet = ref(false)
+const sfEditId = ref(null)
+const sf = reactive({ title: '', assignee_id: null, start_date: '', due_date: '',
+  is_milestone: false, milestone_criteria: '', milestone_confirmer_ids: [] })
+const sfAssigneeName = computed(() =>
+  people.value.find(p => p.id === sf.assignee_id)?.name || '')
+const sfConfirmerNames = computed(() => {
+  const m = new Map(people.value.map(p => [p.id, p.name]))
+  return (sf.milestone_confirmer_ids || []).map(i => m.get(i)).filter(Boolean).join('、')
+})
+function openSubForm(s) {
+  if (s) {
+    subFormMode.value = 'edit'
+    sfEditId.value = s.id
+    sf.title = s.title || ''
+    sf.assignee_id = s.assignee_id || null
+    sf.start_date = s.start_date ? String(s.start_date).slice(0, 10) : ''
+    sf.due_date = s.due_date ? String(s.due_date).slice(0, 10) : ''
+    sf.is_milestone = !!s.is_milestone
+    sf.milestone_criteria = s.milestone_criteria || ''
+    sf.milestone_confirmer_ids = (s.milestone_reviewers || []).map(r => r.reviewer_id)
+  } else {
+    subFormMode.value = 'new'
+    sfEditId.value = null
+    sf.title = ''; sf.assignee_id = null; sf.start_date = ''; sf.due_date = ''
+    sf.is_milestone = false; sf.milestone_criteria = ''; sf.milestone_confirmer_ids = []
+  }
+  subFormSheet.value = true
+}
+async function saveSubForm() {
+  if (!sf.title.trim()) return
+  const payload = {
+    title: sf.title.trim(),
+    assignee_id: sf.assignee_id || null,
+    start_date: sf.start_date || null,
+    due_date: sf.due_date || null,
+    is_milestone: sf.is_milestone,
+    milestone_criteria: sf.is_milestone ? (sf.milestone_criteria || '') : '',
+    milestone_confirmer_ids: sf.is_milestone ? sf.milestone_confirmer_ids : [],
+  }
+  try {
+    if (subFormMode.value === 'edit') {
+      await updateSubtask(id.value, sfEditId.value, payload)
+    } else {
+      await createSubtask(id.value, payload)
+    }
+    subFormSheet.value = false
+    await load()
+    _refreshSub()
+  } catch (e) { /* noop */ }
+}
+async function delSub(s) {
+  if (!window.confirm(t('task.subDelConfirm'))) return
+  try {
+    await deleteSubtask(id.value, s.id)
+    subSheet.value = false
+    await load()
+  } catch (e) { /* noop */ }
+}
+
+const msSheet = ref(false)
+const msAction = ref('confirm')
+const msComment = ref('')
+function openMs(a) { msAction.value = a; msComment.value = ''; msSheet.value = true }
+async function doMs() {
+  if (msAction.value === 'reject' && !msComment.value.trim()) return
+  try {
+    await confirmMilestone(id.value, curSub.value.id,
+      { action: msAction.value, comment: msComment.value.trim() })
+    msSheet.value = false
+    await load()
+    _refreshSub()
+  } catch (e) { /* noop */ }
+}
+
+async function doResubmit() {
+  try {
+    await resubmitReview(id.value)
+    await load()
   } catch (e) { /* noop */ }
 }
 
@@ -587,5 +832,15 @@ async function doReview() {
   } catch (e) { /* noop */ }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  try {
+    const r = await getAttributedCandidates()
+    people.value = (r.data?.data || []).map(u => ({
+      id: u.id,
+      name: u.name || u.real_name || u.username,
+      department: u.department || u.dept || '',
+    }))
+  } catch (e) { /* noop */ }
+})
 </script>

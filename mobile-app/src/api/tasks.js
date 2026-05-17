@@ -38,3 +38,18 @@ export const getTaskPerspectives = () =>
 
 export const searchQuotations = q =>
   client.get('/mobile/quotations', { params: { q: q || '' } })
+
+export const createSubtask = (tid, payload) =>
+  client.post(`/mobile/tasks/${tid}/subtasks`, payload)
+
+export const updateSubtask = (tid, sid, payload) =>
+  client.patch(`/mobile/tasks/${tid}/subtasks/${sid}`, payload)
+
+export const deleteSubtask = (tid, sid) =>
+  client.delete(`/mobile/tasks/${tid}/subtasks/${sid}`)
+
+export const confirmMilestone = (tid, sid, body) =>
+  client.post(`/mobile/tasks/${tid}/subtasks/${sid}/milestone`, body)
+
+export const resubmitReview = tid =>
+  client.post(`/mobile/tasks/${tid}/resubmit-review`, {})
