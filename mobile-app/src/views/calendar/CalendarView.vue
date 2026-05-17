@@ -124,7 +124,8 @@
       <div v-else-if="!dayItems.length" :style="{ padding: '48px 20px', textAlign: 'center',
         color: CAL.ink3, fontSize: '13px' }">{{ t('calendar.emptyDay') }}</div>
       <div v-else :style="{ background: CAL.card, marginTop: '6px',
-        borderTop: `1px solid ${CAL.dividerSoft}`, borderBottom: `1px solid ${CAL.dividerSoft}` }">
+        borderTop: `1px solid ${CAL.dividerSoft}`, borderBottom: `1px solid ${CAL.dividerSoft}`,
+        opacity: refreshing ? 0.45 : 1, transition: 'opacity .15s' }">
         <div v-for="(it, i) in dayItems" :key="it.id"
           :style="{ padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: '12px',
             borderBottom: i === dayItems.length - 1 ? 'none' : `1px solid ${CAL.dividerSoft}`,
@@ -181,7 +182,8 @@
       </div>
 
       <!-- daily log card -->
-      <div v-if="!loadingDay && day" :style="{ padding: '18px 16px 0' }">
+      <div v-if="!loadingDay && day" :style="{ padding: '18px 16px 0',
+        opacity: refreshing ? 0.45 : 1, transition: 'opacity .15s' }">
         <div :style="{ background: CAL.card, borderRadius: '14px',
           border: `1px solid ${CAL.divider}`, padding: '16px' }">
           <div :style="{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }">
@@ -316,7 +318,8 @@ const todayIso = isoOf(today)
 const selectedDate = ref(todayIso)
 const monthAnchor = ref(new Date(today.getFullYear(), today.getMonth(), 1))
 
-const loadingDay = ref(false)
+const loadingDay = ref(false)        // first-ever load → skeleton
+const refreshing = ref(false)        // switching with prior content → dim, no blank
 const monthDays = ref({})            // { 'YYYY-MM-DD': { count, types } }
 const day = ref(null)                // /mobile/worklog/day data
 
@@ -411,7 +414,6 @@ let _monthSeq = 0
 let _monthKey = ''
 let _daySeq = 0
 let _dayKey = ''
-let _navTimer = null
 
 async function loadMonth() {
   const key = `${anchorYM.value}|${ownerId.value}`
@@ -425,14 +427,18 @@ async function loadMonth() {
     monthDays.value = r.data?.data?.days || {}
     _monthKey = key
   } catch (e) {
-    if (seq === _monthSeq) monthDays.value = {}
+    // keep prior month dots on error (no blank flash); only blank if never loaded
+    if (seq === _monthSeq && !Object.keys(monthDays.value).length) monthDays.value = {}
   }
 }
 async function loadDay() {
   const key = `${selectedDate.value}|${ownerId.value}`
   if (key === _dayKey && day.value) return    // already showing this day
   const seq = ++_daySeq
-  loadingDay.value = true
+  // stale-while-revalidate: skeleton only on first ever load; on subsequent
+  // switches keep old content visible (dimmed) until new arrives — no empty flash
+  if (!day.value) loadingDay.value = true
+  else refreshing.value = true
   try {
     const params = { date: selectedDate.value }
     if (ownerId.value != null) params.owner_id = ownerId.value
@@ -441,24 +447,18 @@ async function loadDay() {
     day.value = r.data?.data || null
     _dayKey = key
   } catch (e) {
-    if (seq === _daySeq) day.value = null
+    if (seq === _daySeq && !day.value) day.value = null  // keep prior on error
   } finally {
-    if (seq === _daySeq) loadingDay.value = false
+    if (seq === _daySeq) { loadingDay.value = false; refreshing.value = false }
   }
 }
-// debounce rapid ‹ › / week-strip taps: UI (label/strip/hero) updates
-// instantly via reactive state; only the heavy network load is coalesced
-function _scheduleLoad(withMonth) {
-  clearTimeout(_navTimer)
-  _navTimer = setTimeout(() => {
-    if (withMonth) loadMonth()
-    loadDay()
-  }, 220)
-}
+// No artificial debounce: fetch immediately so a single tap fills at once
+// (no empty→full double frame). Rapid taps are made safe by the _monthSeq/
+// _daySeq guards (stale responses dropped) + key dedupe (no redundant fetch).
 function selectDay(iso) {
   if (iso === selectedDate.value) return
   selectedDate.value = iso
-  _scheduleLoad(false)
+  loadDay()
 }
 function shiftMonth(delta) {
   const a = new Date(monthAnchor.value)
@@ -468,7 +468,8 @@ function shiftMonth(delta) {
   const sameAsToday = a.getFullYear() === today.getFullYear()
     && a.getMonth() === today.getMonth()
   selectedDate.value = sameAsToday ? todayIso : isoOf(a)
-  _scheduleLoad(true)
+  loadMonth()
+  loadDay()
 }
 
 function onPickAccount(e) {
