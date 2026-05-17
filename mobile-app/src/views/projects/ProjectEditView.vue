@@ -14,8 +14,11 @@ import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-// 键盘弹起时把聚焦输入滚进可视区 + 抬起底部(同 ProjectCreateView)
-const { kbStyle } = useKeyboardOffset()
+// keep only the side effects (scroll focused field into view / tap-outside to
+// dismiss). A full-screen page already shrinks with native keyboard resize, so
+// do NOT apply kbStyle to its root — that double-offsets and leaves a blank
+// band above the keyboard that covers content.
+useKeyboardOffset()
 
 const loading = ref(true)
 const saving = ref(false)
@@ -160,7 +163,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
+  <div class="flex flex-col h-full" :style="{ background: 'var(--color-bg)' }">
 
     <EditFormHeader
       :title="t('project.editTitle')"
@@ -234,9 +237,9 @@ onMounted(() => {
       <div class="mx-6 overflow-hidden"
         style="background: var(--color-card); border-radius: 14px; border: 1px solid var(--color-divider);">
         <EditField :label="t('project.fDesignIssues')" v-model="form.design_issues" :placeholder="t('project.designIssuesPh')"
-          @update:modelValue="onChange" />
+          editor @update:modelValue="onChange" />
         <EditField :label="t('project.fStageDesc')" v-model="form.stage_description"
-          :placeholder="t('project.stageDescPh')" multiline last
+          :placeholder="t('project.stageDescPh')" editor last
           @update:modelValue="onChange" />
       </div>
     </div>

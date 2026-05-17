@@ -57,6 +57,15 @@
         </div>
       </div>
 
+      <!-- collaborators — own full-width row, not mixed with the creator -->
+      <div v-if="sharedNames" :style="{ margin: '0 16px 12px', background: TK.card,
+        borderRadius: '12px', border: `1px solid ${TK.divider}`, padding: '10px 16px' }">
+        <div :style="{ fontSize: '10.5px', color: TK.ink3, letterSpacing: '0.4px',
+          textTransform: 'uppercase' }">{{ t('task.fShared') }}</div>
+        <div :style="{ fontSize: '14px', fontWeight: 600, marginTop: '3px',
+          color: TK.ink, lineHeight: 1.5 }">{{ sharedNames }}</div>
+      </div>
+
       <!-- description -->
       <div :style="secTitle">{{ t('task.secDescription') }}</div>
       <div :style="{ background: TK.card, padding: '14px 20px', fontSize: '13.5px',
@@ -777,6 +786,7 @@ const metaCells = computed(() => d.value ? [
   { l: t('task.mStart'), v: fmtDate(d.value.start_date) },
   { l: t('task.mDue'), v: fmtDate(d.value.due_date), accent: d.value.overdue },
 ] : [])
+const sharedNames = computed(() => (d.value?.shared_names || []).join('、'))
 const linkRows = computed(() => d.value ? [
   { l: t('task.lProject'), v: d.value.project_name },
   { l: t('task.lCustomer'), v: d.value.customer_name },

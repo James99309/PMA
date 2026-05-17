@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getProjects } from '@/api/projects'
+import { getProjects, getProjectOwners } from '@/api/projects'
 import FilterSheet from '@/components/FilterSheet.vue'
+import { saveListState, loadListState } from '@/utils/listStateCache'
 
 const { t } = useI18n()
 
@@ -21,6 +22,7 @@ const sortMenuTop = ref(0)
 const sortTabsEl = ref(null)
 const filters = ref({})
 const sortBy = ref('updated_at')
+const allOwners = ref([])
 
 const now = new Date()
 const quarter = `${now.getFullYear()} · Q${Math.ceil((now.getMonth() + 1) / 3)}`
@@ -142,16 +144,9 @@ const activeFilterChips = computed(() => {
 
 const activeFilterCount = computed(() => activeFilterChips.value.length)
 
-// Derive unique owner options from loaded projects (V1: from visible data only)
-const ownerOptions = computed(() => {
-  const map = new Map()
-  projects.value.forEach(p => {
-    if (p.owner_name && !map.has(p.owner_name)) {
-      map.set(p.owner_name, { name: p.owner_name })
-    }
-  })
-  return Array.from(map.values()).slice(0, 8)
-})
+// V2: owner options 来自后端 /mobile/projects/owners(复用 web _get_project_owner_options),
+// 覆盖当前用户全部可见项目的 owner,不再受首页加载数据所限。
+const ownerOptions = computed(() => allOwners.value)
 
 function removeChip(chip) {
   const f = { ...filters.value }
@@ -224,7 +219,28 @@ function applyFilters(f) {
   load(true)
 }
 
-onMounted(() => load(true))
+// restore last filter/search/sort so detail → back keeps the filtered list
+const _s = loadListState('projects')
+if (_s) {
+  search.value = _s.search || ''
+  filters.value = _s.filters || {}
+  sortBy.value = _s.sortBy || 'updated_at'
+}
+onBeforeUnmount(() => {
+  saveListState('projects', {
+    search: search.value, filters: filters.value, sortBy: sortBy.value,
+  })
+})
+
+onMounted(() => {
+  load(true)
+  getProjectOwners()
+    .then(res => {
+      const list = res?.data?.data || []
+      allOwners.value = list.map(o => ({ name: o.label }))
+    })
+    .catch(e => console.warn('load project owners failed', e))
+})
 </script>
 
 <template>

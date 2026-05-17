@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getCustomers } from '@/api/customers'
+import { getCustomers, getCustomerOwners } from '@/api/customers'
+import { saveListState, loadListState } from '@/utils/listStateCache'
 
 const { t } = useI18n()
 import FilterSheet from '@/components/FilterSheet.vue'
@@ -21,6 +22,7 @@ const showSortMenu = ref(false)
 const sortMenuTop = ref(0)
 const sortTabsEl = ref(null)
 const filters = ref({})
+const allOwners = ref([])
 const sortBy = ref('updated_at')
 
 const now = new Date()
@@ -114,21 +116,18 @@ const activeFilterChips = computed(() => {
   if (f.open_bucket) chips.push({ key: 'open_bucket', label: OPEN_BUCKET_LABEL.value[f.open_bucket] || f.open_bucket })
   if (f.region)      chips.push({ key: 'region',      label: f.region })
   if (f.industry)    chips.push({ key: 'industry',    label: INDUSTRY_LABEL_MAP.value[f.industry] || f.industry })
+  if (f.owner_names?.length) chips.push({
+    key: 'owner_names',
+    label: f.owner_names.length === 1 ? f.owner_names[0] : t('project.ownerN', { n: f.owner_names.length }),
+  })
   return chips
 })
 
 const activeFilterCount = computed(() => activeFilterChips.value.length)
 
-// Derive owners from loaded data
-const ownerOptions = computed(() => {
-  const map = new Map()
-  customers.value.forEach(c => {
-    if (c.owner_name && !map.has(c.owner_name)) {
-      map.set(c.owner_name, { name: c.owner_name })
-    }
-  })
-  return Array.from(map.values()).slice(0, 8)
-})
+// V2: owner options 来自后端 /mobile/customers/owners(复用 web _get_customer_owner_options),
+// 覆盖当前用户全部可见客户的 owner,不再受首页加载数据所限。
+const ownerOptions = computed(() => allOwners.value)
 
 function removeChip(chip) {
   const f = { ...filters.value }
@@ -218,9 +217,28 @@ function submitSearch() {
   load(true)
 }
 
+// restore last filter/search/sort so detail → back keeps the filtered list
+const _s = loadListState('customers')
+if (_s) {
+  search.value = _s.search || ''
+  filters.value = _s.filters || {}
+  sortBy.value = _s.sortBy || 'updated_at'
+}
+onBeforeUnmount(() => {
+  saveListState('customers', {
+    search: search.value, filters: filters.value, sortBy: sortBy.value,
+  })
+})
+
 onMounted(() => {
   loadRecent()
   load(true)
+  getCustomerOwners()
+    .then(res => {
+      const list = res?.data?.data || []
+      allOwners.value = list.map(o => ({ name: o.label }))
+    })
+    .catch(e => console.warn('load customer owners failed', e))
 })
 </script>
 

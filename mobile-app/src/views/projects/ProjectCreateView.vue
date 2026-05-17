@@ -6,11 +6,16 @@ import { Geolocation } from '@capacitor/geolocation'
 import { checkProjectName, createProject } from '@/api/projects'
 import { reverseGeocode, searchAddress, getAddressDetail } from '@/api/customers'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
 const { t } = useI18n()
-const { kbStyle } = useKeyboardOffset()
+// side effects only; full-screen page shrinks with native resize, do NOT pad
+// root with kbStyle (double-offset → blank band above keyboard covering content)
+useKeyboardOffset()
 
 const router = useRouter()
+const descEditorOpen = ref(false)
+function onDescSave(v) { form.value.description = v }
 
 const form = ref({
   name: '',
@@ -219,7 +224,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="na-root" :style="kbStyle">
+  <div class="na-root">
 
     <!-- Nav bar -->
     <div class="na-nav">
@@ -345,14 +350,15 @@ async function submit() {
         <span class="na-sec-label">{{ t('project.sectionDesc') }}</span>
         <span style="font-size:11px; color:#7A7570;">{{ t('project.requiredMark') }}</span>
       </div>
-      <div class="na-bigfield">
-        <textarea
-          v-model="form.description"
-          class="na-notes-textarea"
-          :placeholder="t('project.descPlaceholder')"
-          rows="4"
-        />
+      <div class="na-bigfield" @click="descEditorOpen = true">
+        <div class="na-notes-textarea" :style="{ minHeight: '5.2em',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
+          maxHeight: '11em', color: form.description ? '#1A1A1A' : '#B5AEA3' }">
+          {{ form.description || t('project.descPlaceholder') }}</div>
       </div>
+      <FullscreenTextEditor v-model="descEditorOpen" :value="form.description"
+        :title="t('project.sectionDesc')" :placeholder="t('project.descPlaceholder')"
+        @save="onDescSave" />
 
       <!-- 时间 -->
       <div class="na-sec-header"><span class="na-sec-label">{{ t('project.sectionTime') }}</span></div>
