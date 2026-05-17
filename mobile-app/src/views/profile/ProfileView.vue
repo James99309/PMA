@@ -243,6 +243,25 @@ const currentCurrency = computed(() => {
         </div>
       </div>
 
+      <!-- Work Calendar entry card -->
+      <div class="bg-white rounded-2xl overflow-hidden" style="border: 1px solid var(--color-divider);">
+        <div class="px-4 py-3.5 flex items-center gap-3 active:bg-gray-50"
+          @click="router.push('/calendar')">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+            style="background: var(--color-blue); color: #fff;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <rect x="3" y="4" width="14" height="13" rx="2" stroke="#fff" stroke-width="1.6"/>
+              <path d="M3 8h14M7 2.5v3M13 2.5v3" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-[15px] font-semibold" style="color: var(--color-ink);">{{ t('calendar.entryTitle') }}</div>
+            <div class="text-[11.5px] mt-0.5" style="color: var(--color-ink-3);">{{ t('calendar.entrySub') }}</div>
+          </div>
+          <span style="color: var(--color-ink-4);">›</span>
+        </div>
+      </div>
+
       <!-- 数据区域 (仅多区账户) -->
       <template v-if="auth.hasOtherRegionToken">
         <div class="px-2 pt-3 pb-1">

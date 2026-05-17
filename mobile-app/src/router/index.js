@@ -58,6 +58,8 @@ const routes = [
       { path: 'approval/:instanceId', component: () => import('@/views/approval/ApprovalDetailView.vue'),
         meta: { hideTabBar: true } },
       { path: 'profile', component: () => import('@/views/profile/ProfileView.vue') },
+      { path: 'calendar', component: () => import('@/views/calendar/CalendarView.vue'),
+        meta: { hideTabBar: true } },
       { path: 'tasks', component: () => import('@/views/tasks/TaskListView.vue'),
         meta: { hideTabBar: true } },
       { path: 'tasks/new', component: () => import('@/views/tasks/TaskCreateView.vue'),
