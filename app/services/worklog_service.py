@@ -1008,3 +1008,147 @@ def cancel_item(user, item_id, data):
         db.session.commit()
 
     return work_item
+
+
+# ===== 日报写侧(C4,忠实抽取 worklog.py 日报路由,保留行为与副作用顺序) =====
+
+def get_leader_ids(user):
+    """获取需要通知的领导ID列表（部门负责人、团队负责人、管理员）"""
+    leader_ids = set()
+
+    # 1. 部门负责人（同部门同公司的 is_department_manager=True）
+    if user.department and user.company_name:
+        dept_managers = User.query.filter(
+            User.department == user.department,
+            User.company_name == user.company_name,
+            User.is_department_manager == True,
+            User.id != user.id  # 排除自己
+        ).all()
+        for dm in dept_managers:
+            leader_ids.add(dm.id)
+
+    # 2. 团队负责人（通过 EmployeeSalaryConfig 和 SalesTeamConfig 表查询）
+    try:
+        from app.models.salary_config import EmployeeSalaryConfig, SalesTeamConfig
+        current_year = datetime.now().year
+        employee_config = EmployeeSalaryConfig.query.filter(
+            EmployeeSalaryConfig.user_id == user.id,
+            EmployeeSalaryConfig.year == current_year
+        ).first()
+        if employee_config and employee_config.team_id:
+            team = SalesTeamConfig.query.get(employee_config.team_id)
+            if team and team.team_leader_id and team.team_leader_id != user.id:
+                leader_ids.add(team.team_leader_id)
+    except Exception:
+        pass  # 薪资配置表可能不存在或查询失败，忽略
+
+    # 3. 管理员（admin/ceo 角色）
+    admins = User.query.filter(
+        User.role.in_(['admin', 'ceo']),
+        User.id != user.id
+    ).all()
+    for admin in admins:
+        leader_ids.add(admin.id)
+
+    return leader_ids
+
+
+def update_log_draft(user, target_date, data):
+    """更新日报补充内容(忠实 update_daily_log)。返回 WorkLog。"""
+    data = data or {}
+    worklog = WorkLog.get_or_create(user.id, target_date)
+    worklog.additional_notes = data.get('additional_notes', '').strip() or None
+
+    # 保存 @ 用户和 # 项目引用数据
+    mentioned_users = data.get('mentioned_users', [])
+    if isinstance(mentioned_users, list):
+        worklog.mentioned_users = mentioned_users if mentioned_users else None
+    mentioned_projects = data.get('mentioned_projects', [])
+    if isinstance(mentioned_projects, list):
+        worklog.mentioned_projects = mentioned_projects if mentioned_projects else None
+
+    db.session.commit()
+    return worklog
+
+
+def submit_daily_log(user, target_date, data):
+    """提交日报(忠实 submit_daily_log:@提及通知+智能工时+质量分+积分+领导通知)。返回 WorkLog。"""
+    worklog = WorkLog.get_or_create(user.id, target_date)
+
+    if worklog.status == 'submitted':
+        raise WorklogItemError(_('日志已提交'), 400)
+
+    data = data or {}
+    if 'additional_notes' in data:
+        worklog.additional_notes = data.get('additional_notes', '').strip() or None
+
+    # 保存 @ 用户和 # 项目引用数据
+    mentioned_users = data.get('mentioned_users', [])
+    if isinstance(mentioned_users, list):
+        worklog.mentioned_users = mentioned_users if mentioned_users else None
+        # 创建@消息通知
+        if mentioned_users:
+            from app.models.message import Message
+            for uid in mentioned_users:
+                if uid != user.id:  # 不给自己发消息
+                    db.session.add(Message.create_worklog_mention(
+                        sender_id=user.id, recipient_id=uid, worklog=worklog))
+
+    mentioned_projects = data.get('mentioned_projects', [])
+    if isinstance(mentioned_projects, list):
+        worklog.mentioned_projects = mentioned_projects if mentioned_projects else None
+
+    # 更新状态
+    worklog.status = 'submitted'
+    worklog.submitted_at = _local_now()
+
+    # 更新总工时（智能计算，含共享给当前用户的已完成工作项）
+    shared_items = WorkItem.query.filter(
+        WorkItem.planned_date == target_date,
+        WorkItem.status == 'completed',
+        WorkItem.is_deleted == False,
+        WorkItem.owner_id != user.id,  # 排除自己的（已在 worklog.work_items 中）
+        cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user.id}]'::jsonb"))
+    ).all()
+    worklog.total_hours = worklog.calculate_smart_hours(extra_items=shared_items)
+
+    # 计算并保存质量评分
+    daily_activities = get_daily_activities(user.id, target_date)
+    summary = daily_activities.get('summary', {})
+    system_activities = {
+        'new_customers': summary.get('customers_created', 0),
+        'updated_customers': summary.get('customers_updated', 0),
+        'new_contacts': summary.get('contacts_created', 0),
+        'new_projects': summary.get('projects_created', 0),
+        'updated_projects': summary.get('projects_updated', 0),
+        'new_actions': summary.get('actions_created', 0),
+        'new_quotations': summary.get('quotations_created', 0)
+    }
+    score_result = worklog.calculate_quality_score(system_activities=system_activities)
+    worklog.quality_score = score_result['total']
+    worklog.quality_issues = score_result['issues']
+
+    # 发放积分：提交工作日志
+    try:
+        from app.services.points_service import award_points
+        award_points(
+            user_id=user.id,
+            behavior_code='daily_log_submit',
+            source_type='worklog',
+            source_id=worklog.id,
+        )
+    except Exception as pts_err:
+        logger.warning(f"发放日志提交积分失败: {pts_err}")
+
+    db.session.commit()
+
+    # 发送日志提交通知给领导
+    leader_ids = get_leader_ids(user)
+    if leader_ids:
+        from app.models.message import Message
+        for leader_id in leader_ids:
+            db.session.add(Message.create_worklog_submitted(
+                sender_id=user.id, recipient_id=leader_id, worklog=worklog))
+        db.session.commit()
+
+    return worklog

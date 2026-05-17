@@ -509,3 +509,44 @@ def mobile_worklog_cancel(item_id):
         return api_response(success=False, code=e.code, message=e.message)
     return api_response(success=True, message='已取消',
                         data=_enrich_item(wi.to_dict(), _lang()))
+
+
+# ─── 日报写侧端点(C4:薄壳调 worklog_service,web/mobile 单一来源) ──────
+
+def _parse_date(s):
+    try:
+        return datetime.strptime((s or '').strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+@api_v1_bp.route('/mobile/worklog/day', methods=['PUT'])
+@jwt_required()
+def mobile_worklog_day_draft():
+    """更新日报补充内容(忠实 worklog_service.update_log_draft)"""
+    user, err = _wuser()
+    if err:
+        return err
+    d = _parse_date(request.args.get('date'))
+    if not d:
+        return api_response(success=False, code=400, message='日期格式无效')
+    wl = ws.update_log_draft(user, d, request.get_json() or {})
+    return api_response(success=True, message='更新成功', data=wl.to_dict())
+
+
+@api_v1_bp.route('/mobile/worklog/day/submit', methods=['POST'])
+@jwt_required()
+def mobile_worklog_day_submit():
+    """提交日报(忠实 worklog_service.submit_daily_log:@提及/智能工时/质量分/积分/领导通知)"""
+    user, err = _wuser()
+    if err:
+        return err
+    d = _parse_date(request.args.get('date'))
+    if not d:
+        return api_response(success=False, code=400, message='日期格式无效')
+    try:
+        wl = ws.submit_daily_log(user, d, request.get_json() or {})
+    except ws.WorklogItemError as e:
+        return api_response(success=False, code=e.code, message=e.message)
+    # 前端提交后重拉 GET /day 取本地化质量分/等级/建议
+    return api_response(success=True, message='提交成功', data=wl.to_dict())
