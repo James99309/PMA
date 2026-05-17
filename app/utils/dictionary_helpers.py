@@ -275,6 +275,49 @@ def format_amount_with_unit(amount, currency_symbol, language=None):
             'format_type': 'wan'
         }
 
+
+def format_money(amount_yuan, currency_code='CNY'):
+    """币种驱动的金额显示(单一来源,复用 get_currency_symbol)。
+
+    输入: amount_yuan = 主币种单位的金额(元/USD/MYR/...),currency_code = 货币代码。
+    输出: 已格式化的显示字符串。
+      - CNY: ≥10000 元 → '¥{n}万' (一位~两位小数,去尾零); 否则 '¥X,XXX.XX' 千位分隔
+      - USD/SGD/HKD/TWD/EUR/MYR/IDR/THB/VND 等: ≥1,000,000 → '{sym}{n}M';
+        ≥1,000 → '{sym}{n}K'; 否则 '{sym}X,XXX.XX' 千位分隔
+    任何输入异常 → 兜底 '{sym}{原值}' 不抛错(绝不丢/盖输入)。
+
+    用途: mobile_projects 等多模块「直接消费 display 字符串」的单一来源;
+    web 后续如需统一币种驱动展示也可调本函数。
+    """
+    try:
+        if amount_yuan in (None, '') :
+            return ''
+        v = float(amount_yuan)
+        sym = get_currency_symbol(currency_code or 'CNY')
+        if v == 0:
+            return f'{sym}0'
+        if (currency_code or 'CNY').upper() == 'CNY':
+            if abs(v) >= 10000:
+                w = v / 10000.0
+                # 万: 2 位小数, 去掉无意义尾零
+                s = f'{w:.2f}'.rstrip('0').rstrip('.')
+                return f'{sym}{s}万'
+            return f'{sym}{v:,.2f}'
+        # 非 CNY: K/M 紧凑(西式)
+        if abs(v) >= 1_000_000:
+            s = f'{v / 1_000_000:.2f}'.rstrip('0').rstrip('.')
+            return f'{sym}{s}M'
+        if abs(v) >= 1_000:
+            s = f'{v / 1_000:.2f}'.rstrip('0').rstrip('.')
+            return f'{sym}{s}K'
+        return f'{sym}{v:,.2f}'
+    except Exception:
+        try:
+            return f"{get_currency_symbol(currency_code or 'CNY')}{amount_yuan}"
+        except Exception:
+            return str(amount_yuan if amount_yuan is not None else '')
+
+
 def prepare_stats_card_amount(amount_yuan, language=None):
     """
     为统计卡片准备金额数据（从人民币元转换）

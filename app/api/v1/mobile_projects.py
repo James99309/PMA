@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # 实际使用的阶段值（来自 dictionary_helpers.py）
 from app.utils.dictionary_helpers import (
     PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS, PROJECT_TYPE_LABELS,
-    INDUSTRY_LABELS,
+    INDUSTRY_LABELS, format_money,
 )
 
 def _mobile_project_query(user):
@@ -91,14 +91,16 @@ STAGE_LABELS = {k: v['zh'] for k, v in PROJECT_STAGE_LABELS.items()}
 
 def _project_summary(p):
     amount = p.quotation_customer or 0
+    curr = getattr(p, 'quotation_currency', 'CNY') or 'CNY'
     return {
         'id': p.id,
         'name': p.project_name,
         'current_stage': p.current_stage,
         'stage_label': _stage_label(p.current_stage),
         'status': p.status,
-        'amount': round(amount / 10000, 2) if amount else 0,
-        'currency': getattr(p, 'quotation_currency', 'CNY') or 'CNY',
+        'amount': round(amount / 10000, 2) if amount else 0,  # legacy 万 单位(排序/筛选兼容)
+        'amount_display': format_money(amount, curr) if amount else '',
+        'currency': curr,
         'owner_name': p.owner.real_name or p.owner.username if p.owner else '',
         'city': p.city or '',
         'industry': p.industry or '',  # raw, 筛选用
@@ -357,6 +359,10 @@ def mobile_project_list():
     from sqlalchemy import func as sa_func
     total_amount_raw = query.with_entities(sa_func.sum(Project.quotation_customer)).scalar() or 0
     total_amount_wan = round(total_amount_raw / 10000, 2)
+    # 多币种 total 跨币种加和无意义 → 仅当全部同币种(NULL 视作 CNY)才出 display
+    _curs = query.with_entities(Project.quotation_currency).distinct().all()
+    _uniq = {(c[0] or 'CNY') for c in _curs}
+    total_amount_display = format_money(total_amount_raw, _uniq.pop()) if len(_uniq) == 1 else None
 
     sort = request.args.get('sort', 'updated_at')
     if sort == 'amount':
@@ -372,6 +378,7 @@ def mobile_project_list():
         'items': [_project_summary(p) for p in pagination.items],
         'total': pagination.total,
         'total_amount': total_amount_wan,
+        'total_amount_display': total_amount_display,  # 同币种才出,混币 None 前端隐藏
         'page': page,
         'per_page': per_page,
         'pages': pagination.pages,
