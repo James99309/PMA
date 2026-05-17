@@ -86,8 +86,8 @@
               class="active:opacity-70" :style="btnPrimary">{{ t('calendar.aComplete') }}</button>
             <button v-if="it.status === 'planned'" @click="onCancel" :disabled="busy"
               class="active:opacity-70" :style="btn(false)">{{ t('calendar.aCancel') }}</button>
-            <button @click="onDelete" :disabled="busy" class="active:opacity-70"
-              :style="btn(true)">{{ t('common.delete') }}</button>
+            <button v-if="it.status === 'planned'" @click="onDelete" :disabled="busy"
+              class="active:opacity-70" :style="btn(true)">{{ t('common.delete') }}</button>
           </div>
           <div v-if="it && readonly" :style="{ padding: '12px 20px 0', textAlign: 'center',
             fontSize: '12px', color: CAL.ink4 }">{{ t('calendar.readonlyHint') }}</div>

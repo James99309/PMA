@@ -127,10 +127,13 @@
       <div v-else :style="{ background: CAL.card, marginTop: '6px',
         borderTop: `1px solid ${CAL.dividerSoft}`, borderBottom: `1px solid ${CAL.dividerSoft}`,
         opacity: refreshing ? 0.45 : 1, transition: 'opacity .15s' }">
-        <div v-for="(it, i) in dayItems" :key="it.id"
-          @click="openDetail(it)" class="active:opacity-70"
+        <SwipeRowAction v-for="(it, i) in dayItems" :key="it.id"
+          :disabled="!!viewingOwner || it.status !== 'planned'"
+          :actions="[{ label: t('common.delete'), color: 'red', handler: () => swipeDelete(it) }]"
+          :style="{ borderBottom: i === dayItems.length - 1 ? 'none' : `1px solid ${CAL.dividerSoft}` }">
+        <div @click="openDetail(it)" class="active:opacity-70"
           :style="{ padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: '12px',
-            borderBottom: i === dayItems.length - 1 ? 'none' : `1px solid ${CAL.dividerSoft}`,
+            background: CAL.card,
             opacity: (it.status === 'completed' || it.status === 'cancelled' || it.is_invalidated) ? 0.55 : 1 }">
           <!-- time col -->
           <div :style="{ width: '46px', flexShrink: 0, textAlign: 'right', paddingTop: '1px' }">
@@ -181,6 +184,7 @@
             </div>
           </div>
         </div>
+        </SwipeRowAction>
       </div>
 
       <!-- daily log card -->
@@ -294,6 +298,8 @@ import CalendarScopeSheet from '@/components/calendar/CalendarScopeSheet.vue'
 import CalendarMonthSheet from '@/components/calendar/CalendarMonthSheet.vue'
 import WorkItemDetailSheet from '@/components/calendar/WorkItemDetailSheet.vue'
 import WorkItemFormSheet from '@/components/calendar/WorkItemFormSheet.vue'
+import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
+import { deleteWorklogItem } from '@/api/worklog'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -529,6 +535,17 @@ function onItemChanged() {
   _monthKey = ''
   loadMonth()
   loadDay()
+}
+async function swipeDelete(it) {
+  // only planned items are deletable (completed/cancelled cannot be deleted)
+  if (it.status !== 'planned') return
+  if (!window.confirm(t('calendar.confirmDelete', { title: it.title || '' }))) return
+  try {
+    await deleteWorklogItem(it.id)
+    onItemChanged()
+  } catch (e) {
+    window.alert(e.response?.data?.message || e.message)
+  }
 }
 
 onMounted(() => { loadMonth(); loadDay() })
