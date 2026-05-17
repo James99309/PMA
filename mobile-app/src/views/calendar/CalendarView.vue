@@ -131,9 +131,9 @@
           :disabled="!!viewingOwner || it.status !== 'planned'"
           :actions="[{ label: t('common.delete'), color: 'red', handler: () => swipeDelete(it) }]"
           :style="{ borderBottom: i === dayItems.length - 1 ? 'none' : `1px solid ${CAL.dividerSoft}` }">
-        <div @click="openDetail(it)" class="active:opacity-70"
+        <div @click="openDetail(it)" :style="{ background: CAL.card }">
+        <div class="active:opacity-70"
           :style="{ padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: '12px',
-            background: CAL.card,
             opacity: (it.status === 'completed' || it.status === 'cancelled' || it.is_invalidated) ? 0.55 : 1 }">
           <!-- time col -->
           <div :style="{ width: '46px', flexShrink: 0, textAlign: 'right', paddingTop: '1px' }">
@@ -183,6 +183,7 @@
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">{{ it.customer_name }}</span>
             </div>
           </div>
+        </div>
         </div>
         </SwipeRowAction>
       </div>
