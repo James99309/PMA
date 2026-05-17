@@ -941,6 +941,7 @@ export default {
     notesLogPh: '补充今日工作说明、问题与思考…',
     submitTip: '提交后质量分将基于工作项完整度、描述长度、关联完整度等自动计算',
     expand: '展开',
+    lockedHint: '已完成 / 已取消 · 仅查看,不可编辑',
   },
   project: {
     title: '项目',

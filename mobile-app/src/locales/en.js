@@ -926,6 +926,7 @@ export default {
     notesLogPh: 'Add notes, issues and reflections for today…',
     submitTip: 'After submit, the quality score is auto-computed from item completeness, description length and link completeness',
     expand: 'Expand',
+    lockedHint: 'Completed / Cancelled · view only, not editable',
   },
   project: {
     title: 'Projects',

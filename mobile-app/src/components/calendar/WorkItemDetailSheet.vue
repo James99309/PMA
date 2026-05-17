@@ -77,20 +77,24 @@
             <div style="height: 14px;" />
           </div>
 
-          <div v-if="it && !readonly" :style="{ padding: '14px 16px 0',
-            borderTop: `1px solid ${CAL.divider}`, display: 'flex', gap: '10px',
-            flexShrink: 0, flexWrap: 'wrap' }">
+          <!-- only a planned item is actionable; once completed/cancelled it is
+               locked → view only (edit/complete/cancel/delete all hidden) -->
+          <div v-if="it && !readonly && it.status === 'planned'"
+            :style="{ padding: '14px 16px 0', borderTop: `1px solid ${CAL.divider}`,
+              display: 'flex', gap: '10px', flexShrink: 0, flexWrap: 'wrap' }">
             <button @click="onEdit" :disabled="busy" class="active:opacity-70"
               :style="btn(false)">{{ t('common.edit') }}</button>
-            <button v-if="it.status === 'planned'" @click="onComplete" :disabled="busy"
+            <button @click="onComplete" :disabled="busy"
               class="active:opacity-70" :style="btnPrimary">{{ t('calendar.aComplete') }}</button>
-            <button v-if="it.status === 'planned'" @click="onCancel" :disabled="busy"
+            <button @click="onCancel" :disabled="busy"
               class="active:opacity-70" :style="btn(false)">{{ t('calendar.aCancel') }}</button>
-            <button v-if="it.status === 'planned'" @click="onDelete" :disabled="busy"
+            <button @click="onDelete" :disabled="busy"
               class="active:opacity-70" :style="btn(true)">{{ t('common.delete') }}</button>
           </div>
-          <div v-if="it && readonly" :style="{ padding: '12px 20px 0', textAlign: 'center',
+          <div v-else-if="it && readonly" :style="{ padding: '12px 20px 0', textAlign: 'center',
             fontSize: '12px', color: CAL.ink4 }">{{ t('calendar.readonlyHint') }}</div>
+          <div v-else-if="it" :style="{ padding: '12px 20px 0', textAlign: 'center',
+            fontSize: '12px', color: CAL.ink4 }">{{ t('calendar.lockedHint') }}</div>
         </div>
       </div>
     </transition>
