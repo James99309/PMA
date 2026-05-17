@@ -37,3 +37,10 @@ export const completeWorklogItem = (id, payload = {}) =>
 
 export const cancelWorklogItem = (id, payload = {}) =>
   client.post(`/mobile/worklog/items/${id}/cancel`, payload)
+
+// daily log write (C4)
+export const updateWorklogDayDraft = (date, payload = {}) =>
+  client.put('/mobile/worklog/day', payload, { params: { date } })
+
+export const submitWorklogDay = (date, payload = {}) =>
+  client.post('/mobile/worklog/day/submit', payload, { params: { date } })

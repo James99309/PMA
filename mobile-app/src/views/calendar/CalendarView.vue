@@ -227,9 +227,10 @@
                 paddingBottom: '14px', borderBottom: `1px solid ${CAL.dividerSoft}`,
                 marginBottom: '12px' }">{{ logSummary }}</div>
             </div>
-            <button :style="{ width: '100%', padding: '11px 0', borderRadius: '12px',
+            <button v-if="!viewingOwner" @click="logSheet = true" class="active:opacity-70"
+              :style="{ width: '100%', padding: '11px 0', borderRadius: '12px',
               background: CAL.accent, border: 'none', color: '#FFF', fontSize: '14px',
-              fontWeight: 600, opacity: 0.45 }">{{ t('calendar.writeSubmit') }} →</button>
+              fontWeight: 600 }">{{ t('calendar.writeSubmit') }} →</button>
           </template>
 
           <!-- submitted -->
@@ -287,6 +288,8 @@
       :readonly="!!viewingOwner" @edit="onEditItem" @changed="onItemChanged" />
     <WorkItemFormSheet v-model="formSheet" :item="editItem" :default-date="selectedDate"
       :groups="typeGroups" @saved="onItemChanged" />
+    <DailyLogSubmitSheet v-model="logSheet" :date="selectedDate" :day="day"
+      @submitted="onItemChanged" />
   </div>
 </template>
 
@@ -299,6 +302,7 @@ import CalendarScopeSheet from '@/components/calendar/CalendarScopeSheet.vue'
 import CalendarMonthSheet from '@/components/calendar/CalendarMonthSheet.vue'
 import WorkItemDetailSheet from '@/components/calendar/WorkItemDetailSheet.vue'
 import WorkItemFormSheet from '@/components/calendar/WorkItemFormSheet.vue'
+import DailyLogSubmitSheet from '@/components/calendar/DailyLogSubmitSheet.vue'
 import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 import { deleteWorklogItem } from '@/api/worklog'
 
@@ -342,6 +346,7 @@ const scopeSheet = ref(false)
 const monthSheet = ref(false)
 const detailSheet = ref(false)
 const formSheet = ref(false)
+const logSheet = ref(false)
 const activeItem = ref(null)         // item shown in detail sheet
 const editItem = ref(null)           // item edited in form sheet (null = create)
 const viewingOwner = ref(null)       // {id,name,short,department,week_count} or null = self

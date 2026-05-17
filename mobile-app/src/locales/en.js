@@ -919,6 +919,12 @@ export default {
     stCancelled: 'Cancelled',
     confirmCancel: 'Cancel this work item?',
     confirmDelete: 'Delete "{title}"? Future items are voided, past/today removed',
+    writeLogTitle: 'Write Daily Log',
+    submit: 'Submit',
+    submitting: 'Submitting…',
+    summaryEmpty: 'No auto summary yet (generated after work items are completed)',
+    notesLogPh: 'Add notes, issues and reflections for today…',
+    submitTip: 'After submit, the quality score is auto-computed from item completeness, description length and link completeness',
   },
   project: {
     title: 'Projects',
