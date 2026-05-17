@@ -324,7 +324,8 @@ def mobile_worklog_month():
 
     owner_id = request.args.get('owner_id', type=int)
     try:
-        result = ws.get_viewable_items(user, first, nxt, owner_id)
+        # 轻量聚合源(只取 planned_date+work_type,不构建全事件/不触关系 N+1)
+        result = ws.get_month_overview(user, first, nxt, owner_id)
     except ws.WorklogUserNotFound:
         return api_response(success=False, code=404, message='用户不存在')
     except ws.WorklogPermissionDenied:
@@ -332,12 +333,10 @@ def mobile_worklog_month():
 
     lang = _lang()
     days = {}
-    for ev in result.get('events', []):
-        d = (ev.get('start') or '')[:10]
+    for d, wt in result.get('items', []):
         if not d:
             continue
-        ep = ev.get('extendedProps') or {}
-        wt = ep.get('work_type') or 'other'
+        wt = wt or 'other'
         slot = days.setdefault(d, {'count': 0, 'types': {}})
         slot['count'] += 1
         t = slot['types'].setdefault(wt, {'type': wt, 'color': _type_color(wt),

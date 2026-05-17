@@ -342,53 +342,39 @@ def parse_calendar_range(start_str, end_str):
 
 # ===== 读侧主入口(自 get_items / get_daily_log 忠实抽取) =====
 
-def get_viewable_items(user, start_date, end_date, owner_id=None):
-    """获取日历事件列表（FullCalendar 数据源）忠实抽取 get_items
+def _scoped_item_query(user, owner_id, start_date, end_date, columns=None):
+    """统一「可见工作项」查询(忠实抽取 get_items 的权限+范围+日期过滤)。
 
-    owner_id 为空 → 自己+共享给自己的工作项
-    owner_id 非空 → 校验权限矩阵后返回该用户工作项 + 日志已读/未读状态
-    返回 dict: {events, datesWithItems, [datesWith{Submitted/Unread/Read}Logs]}
+    owner_id 非空 → can_view_user 权限校验(用户不存在抛 WorklogUserNotFound,
+    无权抛 WorklogPermissionDenied);否则 本人 + 共享给本人。
+    columns 为空 → 完整 ORM 查询(WorkItem.query,Agenda 事件用);
+    给定列 → 轻量列查询(月视图聚合用,不触发关系/N+1)。
     """
     if owner_id:
         # 校验权限：基于 worklog 模块权限配置(用户不存在抛 WorklogUserNotFound→404)
         if not can_view_user(user, owner_id):
             raise WorklogPermissionDenied()
-
-        # 查询指定用户的工作项
-        query = WorkItem.query.filter(
-            WorkItem.is_deleted == False,
-            WorkItem.planned_date >= start_date,
-            WorkItem.planned_date < end_date,
-            WorkItem.owner_id == owner_id
-        )
+        scope = (WorkItem.owner_id == owner_id,)
     else:
-        # 默认：查询当前用户的工作项 + 共享给当前用户的工作项
-        query = WorkItem.query.filter(
-            WorkItem.is_deleted == False,
-            WorkItem.planned_date >= start_date,
-            WorkItem.planned_date < end_date,
+        # 默认：当前用户的工作项 + 共享给当前用户的工作项
+        scope = (
             or_(
                 WorkItem.owner_id == user.id,
-                # 检查 shared_with_users JSON数组是否包含当前用户ID
-                # 使用 text() 包装JSONB字面量确保正确转换
+                # shared_with_users JSON 数组是否含当前用户ID(text() 包 JSONB 字面量)
                 cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user.id}]'::jsonb"))
-            )
+            ),
         )
+    base = db.session.query(*columns) if columns else WorkItem.query
+    return base.filter(
+        WorkItem.is_deleted == False,
+        WorkItem.planned_date >= start_date,
+        WorkItem.planned_date < end_date,
+        *scope
+    )
 
-    items = query.order_by(WorkItem.planned_date, WorkItem.start_time).all()
 
-    # 转换为 FullCalendar 事件格式，传入当前用户ID用于判断是否是所有者
-    events = [item.to_calendar_event(current_user_id=user.id) for item in items]
-
-    # 获取有工作项的日期集合（用于前端高亮）
-    dates_with_items = list(set(item.planned_date.isoformat() for item in items))
-
-    result = {
-        'events': events,
-        'datesWithItems': dates_with_items
-    }
-
-    # 如果查看他人日历，额外返回日志已读/未读状态
+def _log_status_dates(user, owner_id, start_date, end_date):
+    """日志已读/未读/已提交日期集合(忠实抽取 get_items 同段,web/mobile 单一来源)。"""
     if owner_id:
         # 查询指定用户在日期范围内的日志
         logs = WorkLog.query.filter(
@@ -414,23 +400,66 @@ def get_viewable_items(user, start_date, end_date, owner_id=None):
                 else:
                     dates_with_unread_logs.append(date_str)
 
-            result['datesWithUnreadLogs'] = list(set(dates_with_unread_logs))
-            result['datesWithReadLogs'] = list(set(dates_with_read_logs))
-        else:
-            result['datesWithUnreadLogs'] = []
-            result['datesWithReadLogs'] = []
-    else:
-        # 如果查看自己的日历，返回已提交日志的日期（显示绿点）
-        submitted_logs = WorkLog.query.filter(
-            WorkLog.owner_id == user.id,
-            WorkLog.log_date >= start_date,
-            WorkLog.log_date < end_date,
-            WorkLog.status == 'submitted'
-        ).all()
-        result['datesWithSubmittedLogs'] = list(set(
-            log.log_date.isoformat() for log in submitted_logs
-        ))
+            return {
+                'datesWithUnreadLogs': list(set(dates_with_unread_logs)),
+                'datesWithReadLogs': list(set(dates_with_read_logs)),
+            }
+        return {'datesWithUnreadLogs': [], 'datesWithReadLogs': []}
 
+    # 查看自己的日历：返回已提交日志的日期（显示绿点）
+    submitted_logs = WorkLog.query.filter(
+        WorkLog.owner_id == user.id,
+        WorkLog.log_date >= start_date,
+        WorkLog.log_date < end_date,
+        WorkLog.status == 'submitted'
+    ).all()
+    return {'datesWithSubmittedLogs': list(set(
+        log.log_date.isoformat() for log in submitted_logs
+    ))}
+
+
+def get_viewable_items(user, start_date, end_date, owner_id=None):
+    """获取日历事件列表（FullCalendar 数据源）忠实抽取 get_items
+
+    owner_id 为空 → 自己+共享给自己的工作项
+    owner_id 非空 → 校验权限矩阵后返回该用户工作项 + 日志已读/未读状态
+    返回 dict: {events, datesWithItems, [datesWith{Submitted/Unread/Read}Logs]}
+    """
+    query = _scoped_item_query(user, owner_id, start_date, end_date)
+    items = query.order_by(WorkItem.planned_date, WorkItem.start_time).all()
+
+    # 转换为 FullCalendar 事件格式，传入当前用户ID用于判断是否是所有者
+    events = [item.to_calendar_event(current_user_id=user.id) for item in items]
+
+    # 获取有工作项的日期集合（用于前端高亮）
+    dates_with_items = list(set(item.planned_date.isoformat() for item in items))
+
+    result = {
+        'events': events,
+        'datesWithItems': dates_with_items
+    }
+    result.update(_log_status_dates(user, owner_id, start_date, end_date))
+    return result
+
+
+def get_month_overview(user, start_date, end_date, owner_id=None):
+    """月视图轻量聚合源(C2 perf):仅取 planned_date+work_type,不构建事件/不触关系。
+
+    权限/范围/日志状态与 get_viewable_items 同一来源
+    (_scoped_item_query / _log_status_dates),仅把逐条 to_calendar_event
+    换成轻量列查询,大幅降月视图延迟。
+    返回 {items:[(date_iso, work_type)], datesWithItems, datesWith*Logs}
+    """
+    rows = _scoped_item_query(
+        user, owner_id, start_date, end_date,
+        columns=[WorkItem.planned_date, WorkItem.work_type]
+    ).all()
+    items = [(r[0].isoformat(), r[1]) for r in rows]
+    result = {
+        'items': items,
+        'datesWithItems': list({d for d, _wt in items}),
+    }
+    result.update(_log_status_dates(user, owner_id, start_date, end_date))
     return result
 
 
