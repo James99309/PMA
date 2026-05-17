@@ -138,11 +138,18 @@
     <!-- description -->
     <div :style="{ ...lab, padding: '6px 20px 8px' }">{{ t('task.secDescription') }}</div>
     <div :style="{ margin: '0 16px 14px' }">
-      <textarea v-model="form.description" rows="4" :placeholder="t('task.fDescPh')"
-        :style="{ width: '100%', padding: '14px', background: TK.card, borderRadius: '12px',
-          border: `1px solid ${TK.divider}`, fontSize: '13px', color: TK.ink, lineHeight: 1.6,
-          outline: 'none', resize: 'none', fontFamily: TK.sans, boxSizing: 'border-box' }" />
+      <!-- tap → global full-screen editor (keyboard never covers it) -->
+      <div @click="descEditorOpen = true" class="active:opacity-70"
+        :style="{ width: '100%', minHeight: '5.4em', maxHeight: '11em', padding: '14px',
+          background: TK.card, borderRadius: '12px', border: `1px solid ${TK.divider}`,
+          fontSize: '13px', lineHeight: 1.6, fontFamily: TK.sans, boxSizing: 'border-box',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
+          color: form.description ? TK.ink : TK.ink4 }">
+        {{ form.description || t('task.fDescPh') }}</div>
     </div>
+    <FullscreenTextEditor v-model="descEditorOpen" :value="form.description || ''"
+      :title="t('task.secDescription')" :placeholder="t('task.fDescPh')"
+      @save="v => { form.description = v }" />
 
     <PersonPickerSheet v-model="assigneeSheet" :title="t('task.fAssignee')" :options="people"
       :selected="form.assignee_id" @update:selected="v => { form.assignee_id = v }" />
@@ -171,6 +178,7 @@ import PersonPickerSheet from '@/components/common/PersonPickerSheet.vue'
 import PickerSheet from '@/components/common/PickerSheet.vue'
 import MultiPersonPickerSheet from '@/components/common/MultiPersonPickerSheet.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
 const props = defineProps({
   form:   { type: Object, required: true },
@@ -193,6 +201,7 @@ const dateBox = { width: '100%', boxSizing: 'border-box', padding: '8px 10px', b
   borderRadius: '8px', border: `1px solid ${TK.divider}`, fontSize: '13px', color: TK.ink,
   outline: 'none', fontFamily: TK.sans }
 
+const descEditorOpen = ref(false)
 const assigneeSheet = ref(false)
 const prioritySheet = ref(false)
 const reviewerSheet = ref(false)
