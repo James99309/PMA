@@ -914,3 +914,19 @@ def mobile_notifications_read_all():
         {Message.is_read: True}, synchronize_session=False)
     db.session.commit()
     return api_response(success=True, data={})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/notifications/read', methods=['POST'])
+@jwt_required()
+def mobile_task_notifs_read(tid):
+    """打开任务详情时,把该任务相关的未读站内通知标已读(数字随之减)。"""
+    uid = int(get_jwt_identity())
+    if not User.query.get(uid):
+        return api_response(success=False, code=401, message='用户不存在')
+    from app.models.message import Message
+    n = _notif_base(uid).filter(
+        Message.related_object_id == tid,
+        Message.is_read == False,  # noqa: E712
+    ).update({Message.is_read: True}, synchronize_session=False)
+    db.session.commit()
+    return api_response(success=True, data={'cleared': n})
