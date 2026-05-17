@@ -18,15 +18,6 @@
         <span :style="{ fontSize: '22px', lineHeight: 1, fontWeight: 300 }">‹</span>
         <span>{{ t('task.navBack') }}</span>
       </button>
-      <div @click="openNotif" class="active:opacity-60"
-        :style="{ marginLeft: 'auto', position: 'relative', padding: '4px 6px' }">
-        <span :style="{ fontSize: '19px', color: TK.ink2 }">🔔</span>
-        <span v-if="notifUnread > 0" :style="{ position: 'absolute', top: '-1px', right: '-2px',
-          minWidth: '16px', height: '16px', padding: '0 4px', borderRadius: '8px',
-          background: TK.red, color: '#fff', fontSize: '10px', fontWeight: 700,
-          display: 'flex', alignItems: 'center', justifyContent: 'center' }">
-          {{ notifUnread > 99 ? '99+' : notifUnread }}</span>
-      </div>
     </div>
 
     <!-- viewing-other amber banner -->
@@ -171,45 +162,6 @@
     </div>
 
     <PerspectiveSheet v-model="perspSheet" @pick="onPickAccount" />
-
-    <!-- Notifications sheet -->
-    <Teleport to="body">
-      <div v-if="notifSheet" class="fixed inset-0 z-50 flex flex-col"
-        style="background: rgba(20,20,20,0.36);" @click.self="notifSheet = false">
-        <div class="mt-auto flex flex-col"
-          :style="{ background: TK.bg, borderRadius: '24px 24px 0 0',
-            boxShadow: '0 -10px 40px rgba(0,0,0,0.18)', height: '78vh' }">
-          <div :style="{ display: 'flex', alignItems: 'center', padding: '16px 20px 10px' }">
-            <span :style="{ fontFamily: 'var(--font-serif)', fontSize: '18px',
-              fontWeight: 600, flex: 1 }">{{ t('task.notifTitle') }}</span>
-            <span v-if="notifUnread > 0" @click="readAll" class="active:opacity-60"
-              :style="{ fontSize: '13px', color: TK.accent, fontWeight: 600 }">
-              {{ t('task.notifReadAll') }}</span>
-          </div>
-          <div class="flex-1 overflow-y-auto"
-            :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }">
-            <div v-if="!notifItems.length" :style="{ padding: '48px 0', textAlign: 'center',
-              color: TK.ink4, fontSize: '13px' }">{{ t('task.notifEmpty') }}</div>
-            <div v-for="n in notifItems" :key="n.id" @click="openNotifItem(n)"
-              class="active:opacity-60"
-              :style="{ padding: '14px 20px', display: 'flex', gap: '10px',
-                background: n.is_read ? TK.bg : TK.card,
-                borderBottom: `1px solid ${TK.dividerSoft}` }">
-              <span :style="{ width: '7px', height: '7px', borderRadius: '4px', flexShrink: 0,
-                marginTop: '6px', background: n.is_read ? 'transparent' : TK.accent }" />
-              <div :style="{ flex: 1, minWidth: 0 }">
-                <div :style="{ fontSize: '13.5px', fontWeight: n.is_read ? 500 : 700,
-                  color: TK.ink }">{{ n.title }}</div>
-                <div v-if="n.content" :style="{ fontSize: '12px', color: TK.ink3,
-                  marginTop: '3px', overflow: 'hidden', display: '-webkit-box',
-                  '-webkit-line-clamp': 2, '-webkit-box-orient': 'vertical' }">{{ n.content }}</div>
-                <div :style="{ fontSize: '10.5px', color: TK.ink4, marginTop: '4px' }">{{ fmtNotif(n.created_at) }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -217,8 +169,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getTasks, deleteTask, getNotifications, getNotifUnread,
-  markNotifRead, markAllNotifRead } from '@/api/tasks'
+import { getTasks, deleteTask } from '@/api/tasks'
 import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 import PerspectiveSheet from '@/components/tasks/PerspectiveSheet.vue'
 
@@ -370,56 +321,19 @@ function backToMine() {
 }
 async function onDeleteTask(it) {
   if (!window.confirm(t('task.confirmDelete', { title: it.title }))) return
+  const idx = items.value.findIndex(x => x.id === it.id)
+  if (idx < 0) return
+  const removed = items.value[idx]
+  items.value.splice(idx, 1)          // optimistic: row disappears immediately
   try {
     await deleteTask(it.id)
-    items.value = items.value.filter(x => x.id !== it.id)
   } catch (e) {
+    items.value.splice(idx, 0, removed)   // rollback on failure
     window.alert(t('task.deleteFailed') + ': ' +
       (e.response?.data?.message || e.message))
   }
 }
 
-// ── notifications ──
-const notifUnread = ref(0)
-const notifSheet = ref(false)
-const notifItems = ref([])
-async function loadNotifUnread() {
-  try {
-    const r = await getNotifUnread()
-    notifUnread.value = r.data?.data?.count || 0
-  } catch (e) { /* noop */ }
-}
-async function openNotif() {
-  notifSheet.value = true
-  try {
-    const r = await getNotifications({ page: 1, per: 30 })
-    notifItems.value = r.data?.data?.items || []
-  } catch (e) { notifItems.value = [] }
-}
-async function openNotifItem(n) {
-  if (!n.is_read) {
-    try {
-      await markNotifRead(n.id)
-      n.is_read = true
-      notifUnread.value = Math.max(0, notifUnread.value - 1)
-    } catch (e) { /* noop */ }
-  }
-  notifSheet.value = false
-  if (n.task_id) router.push(`/tasks/${n.task_id}`)
-}
-async function readAll() {
-  try {
-    await markAllNotifRead()
-    notifItems.value.forEach(x => { x.is_read = true })
-    notifUnread.value = 0
-  } catch (e) { /* noop */ }
-}
-function fmtNotif(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 watch(statusF, load)
-onMounted(() => { load(); loadNotifUnread() })
+onMounted(load)
 </script>

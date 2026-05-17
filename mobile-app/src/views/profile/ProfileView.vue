@@ -208,20 +208,22 @@ const currentCurrency = computed(() => {
         <div class="px-4 py-3.5 flex items-center gap-3 active:bg-gray-50"
           style="border-bottom: 1px solid var(--color-divider);"
           @click="router.push('/tasks')">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 relative"
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
             style="background: var(--color-accent); color: #fff;">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M5 10l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <circle cx="10" cy="10" r="9" stroke="#fff" stroke-width="1.5"/>
             </svg>
-            <span v-if="notifUnread > 0"
-              style="position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;
-                padding:0 4px;border-radius:9px;background:#B5453A;color:#fff;font-size:10px;
-                font-weight:700;display:flex;align-items:center;justify-content:center;
-                border:1.5px solid #fff;">{{ notifUnread > 99 ? '99+' : notifUnread }}</span>
           </div>
           <div class="flex-1 min-w-0">
-            <div class="text-[15px] font-semibold" style="color: var(--color-ink);">{{ t('task.entryTitle') }}</div>
+            <div class="flex items-center gap-2">
+              <span class="text-[15px] font-semibold" style="color: var(--color-ink);">{{ t('task.entryTitle') }}</span>
+              <span v-if="notifUnread > 0"
+                style="min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+                  background:#B5453A;color:#fff;font-size:11px;font-weight:700;
+                  display:inline-flex;align-items:center;justify-content:center;">
+                {{ notifUnread > 99 ? '99+' : notifUnread }}</span>
+            </div>
             <div class="text-[11.5px] mt-0.5" style="color: var(--color-ink-3);">
               {{ t('task.entrySub', { mine: taskCounts.mine, review: taskCounts.review, overdue: taskCounts.overdue }) }}
             </div>

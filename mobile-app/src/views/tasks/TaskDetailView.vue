@@ -521,7 +521,7 @@ import { Browser } from '@capacitor/browser'
 import { getTask, changeTaskStatus, addTaskReply, reviewTask,
   uploadTaskAttachment, deleteTaskAttachment, setSubtaskStatus,
   createSubtask, updateSubtask, deleteSubtask, confirmMilestone,
-  resubmitReview } from '@/api/tasks'
+  resubmitReview, markTaskNotifsRead } from '@/api/tasks'
 import { getAttributedCandidates } from '@/api/expense'
 import client from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
@@ -849,6 +849,7 @@ async function doReview() {
 
 onMounted(async () => {
   await load()
+  markTaskNotifsRead(id.value).catch(() => {})  // opening task clears its unread
   try {
     const r = await getAttributedCandidates()
     people.value = (r.data?.data || []).map(u => ({
