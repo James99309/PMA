@@ -464,6 +464,153 @@ def set_subtask_status(actor, t, subtask, action):
     return subtask
 
 
+def create_subtask(actor, t, data):
+    """创建子任务/节点(忠实抽取 web create_subtask)。返回 SubTask。"""
+    from app.models.subtask import SubTask, MilestoneReviewer
+    title = (data.get('title') or '').strip()
+    if not title:
+        raise ValueError(_('节点标题不能为空'))
+    is_milestone = bool(data.get('is_milestone', False))
+    max_order = db.session.query(db.func.max(SubTask.sort_order)).filter_by(
+        task_id=t.id, is_deleted=False).scalar() or 0
+    s = SubTask(
+        task_id=t.id, title=title,
+        description=(data.get('description') or '').strip() or None,
+        assignee_id=data.get('assignee_id') or None,
+        is_milestone=is_milestone, sort_order=max_order + 1)
+    if data.get('start_date'):
+        try:
+            s.start_date = date.fromisoformat(data['start_date'][:10])
+            s.status = 'in_progress' if s.start_date <= date.today() else 'pending'
+        except (ValueError, TypeError):
+            pass
+    else:
+        s.status = 'in_progress'
+    if data.get('due_date'):
+        try:
+            s.due_date = date.fromisoformat(data['due_date'][:10])
+        except (ValueError, TypeError):
+            pass
+    if is_milestone:
+        s.milestone_criteria = (data.get('milestone_criteria') or '').strip() or None
+    db.session.add(s)
+    db.session.flush()
+    if is_milestone:
+        cids = data.get('milestone_confirmer_ids') or []
+        if not cids and data.get('milestone_confirmer_id'):
+            cids = [data['milestone_confirmer_id']]
+        for cid in cids:
+            db.session.add(MilestoneReviewer(subtask_id=s.id, reviewer_id=int(cid)))
+    db.session.commit()
+    _record_activity('subtask', t, actor)
+    return s
+
+
+def update_subtask(actor, t, s, data):
+    """更新子任务(忠实抽取 web update_subtask)。返回 SubTask。"""
+    from app.models.subtask import MilestoneReviewer
+    for field in ['title', 'description']:
+        if field in data:
+            setattr(s, field, (data[field] or '').strip() or None)
+    if 'assignee_id' in data:
+        s.assignee_id = data['assignee_id'] or None
+    if 'start_date' in data:
+        try:
+            s.start_date = date.fromisoformat(data['start_date'][:10]) if data['start_date'] else None
+        except (ValueError, TypeError):
+            pass
+    if 'due_date' in data:
+        try:
+            s.due_date = date.fromisoformat(data['due_date'][:10]) if data['due_date'] else None
+        except (ValueError, TypeError):
+            pass
+    if 'is_milestone' in data:
+        s.is_milestone = bool(data['is_milestone'])
+    if 'milestone_criteria' in data:
+        s.milestone_criteria = (data['milestone_criteria'] or '').strip() or None
+    if 'milestone_confirmer_ids' in data:
+        new_ids = set(int(c) for c in (data['milestone_confirmer_ids'] or []) if c)
+        old_ids = set(r.reviewer_id for r in s.milestone_reviewers)
+        for mr in list(s.milestone_reviewers):
+            if mr.reviewer_id not in new_ids:
+                db.session.delete(mr)
+        for cid in new_ids - old_ids:
+            db.session.add(MilestoneReviewer(subtask_id=s.id, reviewer_id=cid))
+    db.session.commit()
+    return s
+
+
+def delete_subtask(actor, s):
+    """软删除子任务(忠实抽取 web delete_subtask)。"""
+    s.is_deleted = True
+    db.session.commit()
+
+
+def confirm_milestone(actor, t, s, action, comment=''):
+    """里程碑确认/驳回(会审并行,忠实抽取 web confirm_milestone)。
+    返回 (SubTask, msg_text)。校验失败抛 ValueError。"""
+    if not s.is_milestone:
+        raise ValueError(_('此节点不是里程碑'))
+    my = next((r for r in s.milestone_reviewers if r.reviewer_id == actor.id), None)
+    if not my:
+        raise ValueError(_('您不是此里程碑的确认人'))
+    if s.milestone_status != 'pending_confirmation':
+        raise ValueError(_('里程碑不在待确认状态'))
+    if my.status != 'pending':
+        raise ValueError(_('您已完成确认'))
+    comment = (comment or '').strip()
+    if action == 'confirm':
+        my.status = 'confirmed'
+        my.comment = comment or None
+        my.reviewed_at = get_local_time()
+        if all(r.status == 'confirmed' for r in s.milestone_reviewers):
+            s.milestone_status = 'confirmed'
+            s.milestone_confirmed_at = get_local_time()
+            try:
+                from app.services.points_service import award_points
+                award_points(user_id=s.assignee_id or t.assignee_id,
+                             behavior_code='task_milestone_confirmed',
+                             source_type='subtask', source_id=s.id, context=s.title)
+            except Exception as e:
+                logger.warning(f'task_milestone_confirmed积分发放失败: {e}')
+            msg_text = _('里程碑已确认通过')
+        else:
+            msg_text = _('您已确认，等待其他确认人')
+    elif action == 'reject':
+        if not comment:
+            raise ValueError(_('驳回时必须填写意见'))
+        my.status = 'rejected'
+        my.comment = comment
+        my.reviewed_at = get_local_time()
+        s.milestone_status = 'rejected'
+        s.milestone_confirmed_at = get_local_time()
+        s.status = 'in_progress'
+        msg_text = _('里程碑已被驳回')
+    else:
+        raise ValueError(_('无效操作'))
+    if s.milestone_status in ('confirmed', 'rejected'):
+        notify_uid = s.assignee_id or t.assignee_id
+        notif.notify_task_assigned(actor.id, notify_uid, t)
+    db.session.commit()
+    return s, msg_text
+
+
+def resubmit_review(actor, t):
+    """被驳回后重新提交会审(忠实抽取 web resubmit_review)。返回 Task。"""
+    if t.review_status != 'rejected':
+        raise ValueError(_('任务不在被驳回状态'))
+    t.status = 'pending_review'
+    t.review_status = 'pending_review'
+    t.reviewed_at = None
+    for tr in t.task_reviewers:
+        tr.status = 'pending'
+        tr.comment = None
+        tr.reviewed_at = None
+        notif.notify_task_assigned(actor.id, tr.reviewer_id, t)
+    db.session.commit()
+    return t
+
+
 def delete_task(actor, t):
     """彻底删除任务(含附件存储文件,忠实抽取 web delete_task)。
     级联删除 attachments + replies。actor 由调用方做权限校验(_can_edit)。"""

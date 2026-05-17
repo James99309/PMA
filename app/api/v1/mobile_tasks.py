@@ -199,6 +199,12 @@ def mobile_tasks_list():
         q = _tab_query(eff, tab)
         rows = q.all()
 
+    # 关键词搜索(标题/描述)
+    kw = (request.args.get('q') or '').strip().lower()
+    if kw:
+        rows = [t for t in rows if kw in (t.title or '').lower()
+                or kw in (t.description or '').lower()]
+
     # 状态/逾期筛选
     if status_f and status_f != 'all':
         if status_f == 'overdue':
@@ -271,7 +277,7 @@ def mobile_tasks_list():
 # ─── P1④ 详情 / 新建 / 改状态 / 评论 / 审核 (写侧走 task_service) ──────
 
 
-def _sub_rows(task):
+def _sub_rows(task, uid=None):
     from app.models.task import TaskReply
     out = []
     for s in task.subtasks.filter_by(is_deleted=False):
@@ -280,13 +286,30 @@ def _sub_rows(task):
         notes = TaskReply.query.filter_by(
             subtask_id=s.id, is_deleted=False
         ).count()
+        mrs = list(s.milestone_reviewers) if s.is_milestone else []
+        my_mr = next((r for r in mrs if r.reviewer_id == uid), None) if uid else None
         out.append({
             'id': s.id, 'title': s.title,
+            'description': s.description or '',
+            'assignee_id': s.assignee_id,
             'owner_name': oname, 'owner_short': _initials(oname),
             'start': _due_disp(s.start_date), 'due': _due_disp(s.due_date),
+            'start_date': s.start_date.isoformat() if s.start_date else None,
+            'due_date': s.due_date.isoformat() if s.due_date else None,
             'status': s.status,
             'status_label': _status_label(s.status),
             'is_milestone': bool(s.is_milestone),
+            'milestone_status': s.milestone_status,
+            'milestone_criteria': s.milestone_criteria or '',
+            'milestone_reviewers': [{
+                'reviewer_id': r.reviewer_id,
+                'reviewer_name': (r.reviewer.real_name or r.reviewer.username) if r.reviewer else '',
+                'status': r.status,
+            } for r in mrs],
+            'my_milestone_state': my_mr.status if my_mr else None,
+            'can_confirm_milestone': bool(
+                my_mr and my_mr.status == 'pending'
+                and s.milestone_status == 'pending_confirmation'),
             'progress_notes': notes,
         })
     return out
@@ -355,7 +378,7 @@ def mobile_task_detail(tid):
     d = t.to_dict()
     d['status_label'] = _status_label(t.status)
     d['priority_label'] = _priority_label(t.priority)
-    d['subtasks'] = _sub_rows(t)
+    d['subtasks'] = _sub_rows(t, uid)
     d['timeline'] = _timeline(t)
     d['overdue'] = _is_overdue(t)
     d['attachments'] = _attachment_rows(t)
@@ -365,6 +388,11 @@ def mobile_task_detail(tid):
     d['can_edit'] = (t.creator_id == uid)
     d['can_review'] = bool(my_rv and my_rv.status == 'pending'
                            and t.status == 'pending_review')
+    # 子任务增改删:与 web _can_access 一致(可访问者)
+    d['can_subtask'] = _can_see(t, uid, user)
+    # 重新提交会审:创建人/负责人 且 被驳回
+    d['can_resubmit'] = ((t.creator_id == uid or t.assignee_id == uid)
+                         and t.review_status == 'rejected')
     return api_response(success=True, data=d)
 
 
@@ -674,3 +702,135 @@ def mobile_task_perspectives():
         'subordinate_total': sum(e['count'] for e in subs),
         'others': others,
     })
+
+
+def _task_uo(tid):
+    """取 (uid, user, task);返回 (None, err_resp) 表示失败。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return None, api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t or not _can_see(t, uid, user):
+        return None, api_response(success=False, code=404, message='任务不存在或无权限')
+    return (uid, user, t), None
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/subtasks', methods=['POST'])
+@jwt_required()
+def mobile_subtask_create(tid):
+    """薄壳:创建子任务走共享 task_service.create_subtask。"""
+    ctx, err = _task_uo(tid)
+    if err:
+        return err
+    _uid, user, t = ctx
+    from app.services import task_service
+    try:
+        s = task_service.create_subtask(user, t, request.get_json() or {})
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'subtask create error: {e}')
+        return api_response(success=False, code=500, message='创建失败')
+    return api_response(success=True, data={'id': s.id})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/subtasks/<int:sid>', methods=['PATCH'])
+@jwt_required()
+def mobile_subtask_update(tid, sid):
+    """薄壳:更新子任务走共享 task_service.update_subtask。"""
+    ctx, err = _task_uo(tid)
+    if err:
+        return err
+    _uid, user, t = ctx
+    s = SubTask.query.filter_by(id=sid, task_id=tid, is_deleted=False).first()
+    if not s:
+        return api_response(success=False, code=404, message='子任务不存在')
+    from app.services import task_service
+    try:
+        task_service.update_subtask(user, t, s, request.get_json() or {})
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'subtask update error: {e}')
+        return api_response(success=False, code=500, message='更新失败')
+    return api_response(success=True, data={'id': s.id})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/subtasks/<int:sid>', methods=['DELETE'])
+@jwt_required()
+def mobile_subtask_delete(tid, sid):
+    """薄壳:删除子任务走共享 task_service.delete_subtask。"""
+    ctx, err = _task_uo(tid)
+    if err:
+        return err
+    _uid, user, t = ctx
+    s = SubTask.query.filter_by(id=sid, task_id=tid, is_deleted=False).first()
+    if not s:
+        return api_response(success=False, code=404, message='子任务不存在')
+    from app.services import task_service
+    try:
+        task_service.delete_subtask(user, s)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'subtask delete error: {e}')
+        return api_response(success=False, code=500, message='删除失败')
+    return api_response(success=True, data={'id': sid})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/subtasks/<int:sid>/milestone', methods=['POST'])
+@jwt_required()
+def mobile_subtask_milestone(tid, sid):
+    """薄壳:里程碑确认/驳回走共享 task_service.confirm_milestone。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t:
+        return api_response(success=False, code=404, message='任务不存在')
+    s = SubTask.query.filter_by(id=sid, task_id=tid, is_deleted=False).first()
+    if not s:
+        return api_response(success=False, code=404, message='子任务不存在')
+    data = request.get_json() or {}
+    from app.services import task_service
+    try:
+        s, msg = task_service.confirm_milestone(
+            user, t, s, data.get('action'), data.get('comment') or '')
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'milestone confirm error: {e}')
+        return api_response(success=False, code=500, message='操作失败')
+    return api_response(success=True, data={
+        'id': s.id, 'milestone_status': s.milestone_status, 'message': msg})
+
+
+@api_v1_bp.route('/mobile/tasks/<int:tid>/resubmit-review', methods=['POST'])
+@jwt_required()
+def mobile_task_resubmit(tid):
+    """薄壳:被驳回后重新提交会审走共享 task_service.resubmit_review。
+    权限同 web:创建人或负责人。"""
+    uid = int(get_jwt_identity())
+    user = User.query.get(uid)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    t = Task.query.filter_by(id=tid, is_deleted=False).first()
+    if not t:
+        return api_response(success=False, code=404, message='任务不存在')
+    if t.creator_id != uid and t.assignee_id != uid:
+        return api_response(success=False, code=403, message='仅创建人或负责人可重新提交')
+    from app.services import task_service
+    try:
+        task_service.resubmit_review(user, t)
+    except ValueError as ve:
+        return api_response(success=False, code=400, message=str(ve))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'resubmit review error: {e}')
+        return api_response(success=False, code=500, message='操作失败')
+    return api_response(success=True, data={
+        'status': t.status, 'status_label': _status_label(t.status)})

@@ -870,30 +870,11 @@ def resubmit_review(id):
             return jsonify({'success': False, 'message': '任务不存在'}), 404
         if t.assignee_id != current_user.id and t.creator_id != current_user.id:
             return jsonify({'success': False, 'message': '无权操作'}), 403
-        if t.review_status != 'rejected':
-            return jsonify({'success': False, 'message': _('任务不在被驳回状态')}), 400
-
-        t.status = 'pending_review'
-        t.review_status = 'pending_review'
-        t.reviewed_at = None
-
-        # 重置所有审计人状态并通知
+        from app.services import task_service
         try:
-            from app.models.message import Message
-            for tr in t.task_reviewers:
-                tr.status = 'pending'
-                tr.comment = None
-                tr.reviewed_at = None
-                msg = Message.create_task_assigned(
-                    sender_id=current_user.id,
-                    recipient_id=tr.reviewer_id,
-                    task=t
-                )
-                db.session.add(msg)
-        except Exception as e:
-            logger.warning(f"发送重新提交通知失败: {e}")
-
-        db.session.commit()
+            task_service.resubmit_review(current_user, t)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('已重新提交审核'), 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -944,72 +925,11 @@ def create_subtask(task_id):
         if not data:
             return jsonify({'success': False, 'message': '无效的请求数据'}), 400
 
-        title = (data.get('title') or '').strip()
-        if not title:
-            return jsonify({'success': False, 'message': '节点标题不能为空'}), 400
-
-        is_milestone = bool(data.get('is_milestone', False))
-
-        # 计算排序
-        max_order = db.session.query(db.func.max(SubTask.sort_order)).filter_by(
-            task_id=task_id, is_deleted=False
-        ).scalar() or 0
-
-        subtask = SubTask(
-            task_id=task_id,
-            title=title,
-            description=(data.get('description') or '').strip() or None,
-            assignee_id=data.get('assignee_id') or None,
-            is_milestone=is_milestone,
-            sort_order=max_order + 1,
-        )
-
-        # 日期 + 根据开始日期设初始状态
-        if data.get('start_date'):
-            try:
-                subtask.start_date = date.fromisoformat(data['start_date'])
-                if subtask.start_date <= date.today():
-                    subtask.status = 'in_progress'
-                else:
-                    subtask.status = 'pending'
-            except (ValueError, TypeError):
-                pass
-        else:
-            subtask.status = 'in_progress'
-
-        if data.get('due_date'):
-            try:
-                subtask.due_date = date.fromisoformat(data['due_date'])
-            except (ValueError, TypeError):
-                pass
-
-        # 里程碑专属字段
-        if is_milestone:
-            subtask.milestone_criteria = (data.get('milestone_criteria') or '').strip() or None
-
-        db.session.add(subtask)
-        db.session.flush()
-
-        # 里程碑确认人（会审，支持多人）
-        if is_milestone:
-            confirmer_ids = data.get('milestone_confirmer_ids') or []
-            if not confirmer_ids and data.get('milestone_confirmer_id'):
-                confirmer_ids = [data['milestone_confirmer_id']]
-            for cid in confirmer_ids:
-                mr = MilestoneReviewer(subtask_id=subtask.id, reviewer_id=int(cid))
-                db.session.add(mr)
-
-        db.session.commit()
-
+        from app.services import task_service
         try:
-            from app.utils.work_item_recorder import record_task_activity
-            record_task_activity(
-                'subtask', t.id, t.title, current_user,
-                project_id=t.project_id, customer_id=t.customer_id
-            )
-        except Exception as _log_err:
-            logger.warning(f'task日志记录失败: {_log_err}')
-
+            subtask = task_service.create_subtask(current_user, t, data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('节点已创建'), 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -1034,41 +954,11 @@ def update_subtask(task_id, subtask_id):
             return jsonify({'success': False, 'message': '节点不存在'}), 404
 
         data = request.get_json() or {}
-
-        for field in ['title', 'description']:
-            if field in data:
-                setattr(subtask, field, (data[field] or '').strip() or None)
-
-        if 'assignee_id' in data:
-            subtask.assignee_id = data['assignee_id'] or None
-
-        if 'start_date' in data:
-            try:
-                subtask.start_date = date.fromisoformat(data['start_date']) if data['start_date'] else None
-            except (ValueError, TypeError):
-                pass
-        if 'due_date' in data:
-            try:
-                subtask.due_date = date.fromisoformat(data['due_date']) if data['due_date'] else None
-            except (ValueError, TypeError):
-                pass
-
-        if 'is_milestone' in data:
-            subtask.is_milestone = bool(data['is_milestone'])
-        if 'milestone_criteria' in data:
-            subtask.milestone_criteria = (data['milestone_criteria'] or '').strip() or None
-
-        # 里程碑确认人更新（会审）
-        if 'milestone_confirmer_ids' in data:
-            new_ids = set(int(cid) for cid in (data['milestone_confirmer_ids'] or []) if cid)
-            old_ids = set(r.reviewer_id for r in subtask.milestone_reviewers)
-            for mr in list(subtask.milestone_reviewers):
-                if mr.reviewer_id not in new_ids:
-                    db.session.delete(mr)
-            for cid in new_ids - old_ids:
-                db.session.add(MilestoneReviewer(subtask_id=subtask.id, reviewer_id=cid))
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            task_service.update_subtask(current_user, t, subtask, data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('节点已更新'), 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -1092,8 +982,8 @@ def delete_subtask(task_id, subtask_id):
         if not subtask:
             return jsonify({'success': False, 'message': '节点不存在'}), 404
 
-        subtask.is_deleted = True
-        db.session.commit()
+        from app.services import task_service
+        task_service.delete_subtask(current_user, subtask)
         return jsonify({'success': True, 'message': _('节点已删除')})
     except Exception as e:
         db.session.rollback()
@@ -1146,71 +1036,14 @@ def confirm_milestone(task_id, subtask_id):
         if not subtask.is_milestone:
             return jsonify({'success': False, 'message': _('此节点不是里程碑')}), 400
 
-        # 找到当前用户的确认记录
-        my_review = next((r for r in subtask.milestone_reviewers if r.reviewer_id == current_user.id), None)
-        if not my_review:
-            return jsonify({'success': False, 'message': _('您不是此里程碑的确认人')}), 403
-        if subtask.milestone_status != 'pending_confirmation':
-            return jsonify({'success': False, 'message': _('里程碑不在待确认状态')}), 400
-        if my_review.status != 'pending':
-            return jsonify({'success': False, 'message': _('您已完成确认')}), 400
-
         data = request.get_json() or {}
-        action = data.get('action')  # 'confirm' or 'reject'
-        comment = (data.get('comment') or '').strip()
-
-        if action == 'confirm':
-            my_review.status = 'confirmed'
-            my_review.comment = comment or None
-            my_review.reviewed_at = get_local_time()
-
-            # 检查是否所有人都已确认
-            all_confirmed = all(r.status == 'confirmed' for r in subtask.milestone_reviewers)
-            if all_confirmed:
-                subtask.milestone_status = 'confirmed'
-                subtask.milestone_confirmed_at = get_local_time()
-                try:
-                    from app.services.points_service import award_points
-                    uid = subtask.assignee_id or t.assignee_id
-                    award_points(user_id=uid, behavior_code='task_milestone_confirmed',
-                                 source_type='subtask', source_id=subtask.id,
-                                 context=subtask.title)
-                except Exception as _pts_err:
-                    logger.warning(f'task_milestone_confirmed积分发放失败: {_pts_err}')
-                msg_text = _('里程碑已确认通过')
-            else:
-                msg_text = _('您已确认，等待其他确认人')
-
-        elif action == 'reject':
-            if not comment:
-                return jsonify({'success': False, 'message': _('驳回时必须填写意见')}), 400
-            my_review.status = 'rejected'
-            my_review.comment = comment
-            my_review.reviewed_at = get_local_time()
-            # 任一驳回 → 整体驳回
-            subtask.milestone_status = 'rejected'
-            subtask.milestone_confirmed_at = get_local_time()
-            subtask.status = 'in_progress'
-            msg_text = _('里程碑已被驳回')
-        else:
-            return jsonify({'success': False, 'message': _('无效操作')}), 400
-
-        # 通知任务执行人（全部确认或被驳回时）
-        if subtask.milestone_status in ('confirmed', 'rejected'):
-            notify_uid = subtask.assignee_id or t.assignee_id
-            if notify_uid != current_user.id:
-                try:
-                    from app.models.message import Message
-                    msg = Message.create_task_assigned(
-                        sender_id=current_user.id,
-                        recipient_id=notify_uid,
-                        task=t
-                    )
-                    db.session.add(msg)
-                except Exception as e:
-                    logger.warning(f"发送里程碑结果通知失败: {e}")
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            subtask, msg_text = task_service.confirm_milestone(
+                current_user, t, subtask, data.get('action'),
+                data.get('comment') or '')
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': msg_text, 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()
