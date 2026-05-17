@@ -503,6 +503,10 @@ def create_subtask(actor, t, data):
             db.session.add(MilestoneReviewer(subtask_id=s.id, reviewer_id=int(cid)))
     db.session.commit()
     _record_activity('subtask', t, actor)
+    # 派子任务 → 通知子任务执行人(站内+站外,与派任务一致)
+    if s.assignee_id and s.assignee_id != actor.id:
+        notif.notify_task_assigned(actor.id, s.assignee_id, t)
+        db.session.commit()
     return s
 
 

@@ -834,3 +834,83 @@ def mobile_task_resubmit(tid):
         return api_response(success=False, code=500, message='操作失败')
     return api_response(success=True, data={
         'status': t.status, 'status_label': _status_label(t.status)})
+
+
+# ─── 通知中心(站内 Message,任务类)──────────────────────────────
+
+def _notif_base(uid):
+    from app.models.message import Message
+    return Message.query.filter(
+        Message.recipient_id == uid,
+        Message.related_object_type == 'task',
+    )
+
+
+def _notif_row(m):
+    return {
+        'id': m.id,
+        'type': m.message_type,
+        'title': m.title or '',
+        'content': m.content or '',
+        'task_id': m.related_object_id,
+        'is_read': bool(m.is_read),
+        'created_at': m.created_at.isoformat() if m.created_at else None,
+    }
+
+
+@api_v1_bp.route('/mobile/notifications', methods=['GET'])
+@jwt_required()
+def mobile_notifications():
+    uid = int(get_jwt_identity())
+    if not User.query.get(uid):
+        return api_response(success=False, code=401, message='用户不存在')
+    from app.models.message import Message
+    page = max(1, request.args.get('page', 1, type=int))
+    per = min(50, max(1, request.args.get('per', 20, type=int)))
+    q = _notif_base(uid).order_by(Message.created_at.desc())
+    total = q.count()
+    rows = q.offset((page - 1) * per).limit(per).all()
+    return api_response(success=True, data={
+        'items': [_notif_row(m) for m in rows],
+        'total': total, 'page': page, 'per': per,
+    })
+
+
+@api_v1_bp.route('/mobile/notifications/unread-count', methods=['GET'])
+@jwt_required()
+def mobile_notifications_unread():
+    uid = int(get_jwt_identity())
+    if not User.query.get(uid):
+        return api_response(success=False, code=401, message='用户不存在')
+    from app.models.message import Message
+    n = _notif_base(uid).filter(Message.is_read == False).count()  # noqa: E712
+    return api_response(success=True, data={'count': n})
+
+
+@api_v1_bp.route('/mobile/notifications/<int:mid>/read', methods=['POST'])
+@jwt_required()
+def mobile_notification_read(mid):
+    uid = int(get_jwt_identity())
+    if not User.query.get(uid):
+        return api_response(success=False, code=401, message='用户不存在')
+    from app.models.message import Message
+    m = Message.query.filter_by(id=mid, recipient_id=uid).first()
+    if not m:
+        return api_response(success=False, code=404, message='通知不存在')
+    if not m.is_read:
+        m.is_read = True
+        db.session.commit()
+    return api_response(success=True, data={'id': mid})
+
+
+@api_v1_bp.route('/mobile/notifications/read-all', methods=['POST'])
+@jwt_required()
+def mobile_notifications_read_all():
+    uid = int(get_jwt_identity())
+    if not User.query.get(uid):
+        return api_response(success=False, code=401, message='用户不存在')
+    from app.models.message import Message
+    _notif_base(uid).filter(Message.is_read == False).update(  # noqa: E712
+        {Message.is_read: True}, synchronize_session=False)
+    db.session.commit()
+    return api_response(success=True, data={})
