@@ -13,9 +13,10 @@
       <span @click="router.back()" class="active:opacity-60"
         :style="{ fontSize: '14px', color: TK.ink3 }">{{ t('common.cancel') }}</span>
       <span :style="{ fontSize: '15px', fontWeight: 600 }">{{ t('task.editTitle') }}</span>
-      <span @click="canSave && submit()"
+      <span @click="!submitting && canSave && submit()"
         :style="{ fontSize: '14px', fontWeight: 600,
-          color: canSave ? TK.accent : TK.ink4 }">{{ t('common.save') }}</span>
+          color: (canSave && !submitting) ? TK.accent : TK.ink4 }">
+        {{ submitting ? t('task.saving') : t('common.save') }}</span>
     </div>
 
     <div v-if="loading" :style="{ flex: 1, display: 'flex', alignItems: 'center',
@@ -54,9 +55,12 @@ const form = reactive({
   customer_name: '', quotation_id: null, quotation_name: '',
   reviewer_ids: [], shared_with_users: [], pending_files: [], attachments: [],
 })
+const submitting = ref(false)
 const canSave = computed(() => !!form.title.trim() && !!form.assignee_id)
 
 async function submit() {
+  if (submitting.value) return
+  submitting.value = true
   try {
     await updateTask(id.value, {
       title: form.title.trim(),

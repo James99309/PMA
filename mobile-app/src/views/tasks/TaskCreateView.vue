@@ -12,9 +12,10 @@
       <span @click="router.back()" class="active:opacity-60"
         :style="{ fontSize: '14px', color: TK.ink3 }">{{ t('common.cancel') }}</span>
       <span :style="{ fontSize: '15px', fontWeight: 600 }">{{ t('task.newTask') }}</span>
-      <span @click="canCreate && submit()"
+      <span @click="!submitting && canCreate && submit()"
         :style="{ fontSize: '14px', fontWeight: 600,
-          color: canCreate ? TK.accent : TK.ink4 }">{{ t('task.create') }}</span>
+          color: (canCreate && !submitting) ? TK.accent : TK.ink4 }">
+        {{ submitting ? t('task.saving') : t('task.create') }}</span>
     </div>
 
     <div :style="{ flex: 1, overflowY: 'auto', paddingBottom: '30px' }">
@@ -47,9 +48,12 @@ const form = reactive({
   reviewer_ids: [], shared_with_users: [], pending_files: [], attachments: [],
 })
 const people = ref([])
+const submitting = ref(false)
 const canCreate = computed(() => !!form.title.trim() && !!form.assignee_id)
 
 async function submit() {
+  if (submitting.value) return          // guard: block double-tap duplicate create
+  submitting.value = true
   try {
     const r = await createTask({
       title: form.title.trim(),
@@ -66,18 +70,21 @@ async function submit() {
     })
     const id = r.data?.data?.id
     if (id) {
-      for (const f of form.pending_files) {
-        try {
-          const fd = new FormData()
-          fd.append('file', f)
-          await uploadTaskAttachment(id, fd)
-        } catch (e) { /* skip failed file, continue */ }
-      }
+      // upload attachments in background (no await); enter detail right away
+      const files = [...form.pending_files]
       router.replace(`/tasks/${id}`)
+      files.forEach(f => {
+        const fd = new FormData()
+        fd.append('file', f)
+        uploadTaskAttachment(id, fd).catch(() => { /* ignore single-file failure */ })
+      })
     } else {
+      submitting.value = false
       router.back()
     }
-  } catch (e) { /* keep form on failure */ }
+  } catch (e) {
+    submitting.value = false          // reset on failure so user can retry
+  }
 }
 
 onMounted(async () => {

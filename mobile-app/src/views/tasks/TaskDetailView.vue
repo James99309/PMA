@@ -591,24 +591,28 @@ function _refreshSub() {
   else subSheet.value = false
 }
 async function doSubStatus(action) {
+  if (_busy.value) return
+  _busy.value = true
   try {
     await setSubtaskStatus(id.value, curSub.value.id, action)
     await load()
     _refreshSub()
-  } catch (e) { /* noop */ }
+  } catch (e) { /* noop */ } finally { _busy.value = false }
 }
 async function sendSubProgress() {
   const c = subText.value.trim()
-  if (!c) return
+  if (!c || _busy.value) return
+  _busy.value = true
   try {
     await addTaskReply(id.value, c, curSub.value.id)
     subText.value = ''
     await load()
     _refreshSub()
-  } catch (e) { /* noop */ }
+  } catch (e) { /* noop */ } finally { _busy.value = false }
 }
 
 // ── subtask create/edit/delete + milestone confirm + resubmit ──
+const _busy = ref(false)  // write-action re-entrancy guard (no dup create/submit)
 const people = ref([])
 const subFormSheet = ref(false)
 const subFormMode = ref('new')
@@ -643,7 +647,8 @@ function openSubForm(s) {
   subFormSheet.value = true
 }
 async function saveSubForm() {
-  if (!sf.title.trim()) return
+  if (!sf.title.trim() || _busy.value) return
+  _busy.value = true
   const payload = {
     title: sf.title.trim(),
     assignee_id: sf.assignee_id || null,
@@ -662,15 +667,16 @@ async function saveSubForm() {
     subFormSheet.value = false
     await load()
     _refreshSub()
-  } catch (e) { /* noop */ }
+  } catch (e) { /* noop */ } finally { _busy.value = false }
 }
 async function delSub(s) {
-  if (!window.confirm(t('task.subDelConfirm'))) return
+  if (_busy.value || !window.confirm(t('task.subDelConfirm'))) return
+  _busy.value = true
   try {
     await deleteSubtask(id.value, s.id)
     subSheet.value = false
     await load()
-  } catch (e) { /* noop */ }
+  } catch (e) { /* noop */ } finally { _busy.value = false }
 }
 
 const msSheet = ref(false)
@@ -679,20 +685,24 @@ const msComment = ref('')
 function openMs(a) { msAction.value = a; msComment.value = ''; msSheet.value = true }
 async function doMs() {
   if (msAction.value === 'reject' && !msComment.value.trim()) return
+  if (_busy.value) return
+  _busy.value = true
   try {
     await confirmMilestone(id.value, curSub.value.id,
       { action: msAction.value, comment: msComment.value.trim() })
     msSheet.value = false
     await load()
     _refreshSub()
-  } catch (e) { /* noop */ }
+  } catch (e) { /* noop */ } finally { _busy.value = false }
 }
 
 async function doResubmit() {
+  if (_busy.value) return
+  _busy.value = true
   try {
     await resubmitReview(id.value)
     await load()
-  } catch (e) { /* noop */ }
+  } catch (e) { /* noop */ } finally { _busy.value = false }
 }
 
 const TK = {
@@ -803,33 +813,38 @@ async function load() {
 }
 async function sendComment() {
   const c = commentText.value.trim()
-  if (!c) return
+  if (!c || _busy.value) return
+  _busy.value = true
   try {
     const r = await addTaskReply(id.value, c)
     if (r.data?.data?.timeline) d.value.timeline = r.data.data.timeline
     commentText.value = ''
-  } catch (e) { /* keep text on failure */ }
+  } catch (e) { /* keep text on failure */ } finally { _busy.value = false }
 }
 async function doStatus(op) {
+  if (_busy.value) return
   let reason = ''
   if (op.needReason) {
     reason = (window.prompt(t('task.pausePrompt')) || '').trim()
     if (!reason) return
   }
+  _busy.value = true
   try {
     await changeTaskStatus(id.value, { to: op.to, reason })
     statusSheet.value = false
     await load()
-  } catch (e) { /* noop */ }
+  } catch (e) { /* noop */ } finally { _busy.value = false }
 }
 function openReview(a) { reviewAction.value = a; reviewComment.value = ''; reviewSheet.value = true }
 async function doReview() {
   if (reviewAction.value === 'reject' && !reviewComment.value.trim()) return
+  if (_busy.value) return
+  _busy.value = true
   try {
     await reviewTask(id.value, { action: reviewAction.value, comment: reviewComment.value.trim() })
     reviewSheet.value = false
     await load()
-  } catch (e) { /* noop */ }
+  } catch (e) { /* noop */ } finally { _busy.value = false }
 }
 
 onMounted(async () => {

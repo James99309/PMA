@@ -822,6 +822,7 @@ export default {
     notifTitle: '通知',
     notifEmpty: '暂无通知',
     notifReadAll: '全部已读',
+    saving: '保存中…',
     perspTitle: '切换视角',
     perspSub: '查看权限范围内任意成员的任务',
     perspSearch: '搜索姓名 / 部门',

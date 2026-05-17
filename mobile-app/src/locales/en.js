@@ -807,6 +807,7 @@ export default {
     notifTitle: 'Notifications',
     notifEmpty: 'No notifications',
     notifReadAll: 'Mark all read',
+    saving: 'Saving…',
     perspTitle: 'Switch Perspective',
     perspSub: "View any member's tasks within your permission",
     perspSearch: 'Search name / department',
