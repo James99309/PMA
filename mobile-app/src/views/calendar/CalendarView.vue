@@ -53,9 +53,10 @@
             {{ heroSub }}
           </div>
         </div>
-        <div :style="{ width: '36px', height: '36px', borderRadius: '18px', background: CAL.ink,
+        <div v-if="!viewingOwner" @click="openCreate" class="active:opacity-60"
+          :style="{ width: '36px', height: '36px', borderRadius: '18px', background: CAL.ink,
           color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '22px', fontWeight: 300, lineHeight: 1, flexShrink: 0, opacity: 0.4 }">+</div>
+          fontSize: '22px', fontWeight: 300, lineHeight: 1, flexShrink: 0 }">+</div>
       </div>
       <div :style="{ height: '1px', background: CAL.divider }" />
 
@@ -127,6 +128,7 @@
         borderTop: `1px solid ${CAL.dividerSoft}`, borderBottom: `1px solid ${CAL.dividerSoft}`,
         opacity: refreshing ? 0.45 : 1, transition: 'opacity .15s' }">
         <div v-for="(it, i) in dayItems" :key="it.id"
+          @click="openDetail(it)" class="active:opacity-70"
           :style="{ padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: '12px',
             borderBottom: i === dayItems.length - 1 ? 'none' : `1px solid ${CAL.dividerSoft}`,
             opacity: (it.status === 'completed' || it.status === 'cancelled' || it.is_invalidated) ? 0.55 : 1 }">
@@ -276,6 +278,10 @@
       @pick="onPickAccount" />
     <CalendarMonthSheet v-model="monthSheet" :ym="anchorYM" :selected="selectedDate"
       :owner-id="ownerId" :initial-days="monthDays" @pick="onPickMonthDay" />
+    <WorkItemDetailSheet v-model="detailSheet" :item="activeItem"
+      :readonly="!!viewingOwner" @edit="onEditItem" @changed="onItemChanged" />
+    <WorkItemFormSheet v-model="formSheet" :item="editItem" :default-date="selectedDate"
+      :groups="typeGroups" @saved="onItemChanged" />
   </div>
 </template>
 
@@ -286,6 +292,8 @@ import { useI18n } from 'vue-i18n'
 import { getWorklogMonth, getWorklogDay } from '@/api/worklog'
 import CalendarScopeSheet from '@/components/calendar/CalendarScopeSheet.vue'
 import CalendarMonthSheet from '@/components/calendar/CalendarMonthSheet.vue'
+import WorkItemDetailSheet from '@/components/calendar/WorkItemDetailSheet.vue'
+import WorkItemFormSheet from '@/components/calendar/WorkItemFormSheet.vue'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -325,7 +333,12 @@ const day = ref(null)                // /mobile/worklog/day data
 
 const scopeSheet = ref(false)
 const monthSheet = ref(false)
+const detailSheet = ref(false)
+const formSheet = ref(false)
+const activeItem = ref(null)         // item shown in detail sheet
+const editItem = ref(null)           // item edited in form sheet (null = create)
 const viewingOwner = ref(null)       // {id,name,short,department,week_count} or null = self
+const typeGroups = computed(() => day.value?.meta?.type_groups || [])
 const ownerId = computed(() => viewingOwner.value ? viewingOwner.value.id : null)
 const anchorYM = computed(() =>
   `${monthAnchor.value.getFullYear()}-${pad2(monthAnchor.value.getMonth() + 1)}`)
@@ -491,6 +504,29 @@ function onPickMonthDay({ date, ym }) {
   const [y, m] = ym.split('-').map(Number)
   monthAnchor.value = new Date(y, m - 1, 1)
   selectedDate.value = date
+  loadMonth()
+  loadDay()
+}
+
+// ── C3: create / detail / edit wiring ──
+function openCreate() {
+  if (viewingOwner.value) return       // can't create on a colleague's calendar
+  editItem.value = null
+  formSheet.value = true
+}
+function openDetail(it) {
+  activeItem.value = it
+  detailSheet.value = true
+}
+function onEditItem(it) {
+  editItem.value = it
+  formSheet.value = true
+}
+function onItemChanged() {
+  // item created/edited/completed/cancelled/deleted → data changed:
+  // bypass dedupe so the day + month strip actually refetch
+  _dayKey = ''
+  _monthKey = ''
   loadMonth()
   loadDay()
 }

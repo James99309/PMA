@@ -18,3 +18,22 @@ export const getWorklogMonth = (params = {}) =>
 // Switchable accounts: self / subordinates / others with this-week item count
 export const getWorklogAccounts = () =>
   client.get('/mobile/worklog/accounts')
+
+// ── write side (C3): single source = backend worklog_service ──
+export const createWorklogItem = payload =>
+  client.post('/mobile/worklog/items', payload)
+
+export const getWorklogItem = id =>
+  client.get(`/mobile/worklog/items/${id}`)
+
+export const updateWorklogItem = (id, payload) =>
+  client.put(`/mobile/worklog/items/${id}`, payload)
+
+export const deleteWorklogItem = id =>
+  client.delete(`/mobile/worklog/items/${id}`)
+
+export const completeWorklogItem = (id, payload = {}) =>
+  client.post(`/mobile/worklog/items/${id}/complete`, payload)
+
+export const cancelWorklogItem = (id, payload = {}) =>
+  client.post(`/mobile/worklog/items/${id}/cancel`, payload)
