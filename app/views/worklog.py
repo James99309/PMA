@@ -299,500 +299,74 @@ def get_items():
 @worklog.route('/api/items', methods=['POST'])
 @login_required
 def create_item():
-    """创建工作项"""
-    data = request.get_json()
-
-    if not data:
-        return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
-
-    # 验证必填字段
-    title = data.get('title', '').strip()
-    if not title:
-        return jsonify({'success': False, 'message': _('标题不能为空')}), 400
-
-    planned_date_str = data.get('planned_date')
-    if not planned_date_str:
-        return jsonify({'success': False, 'message': _('计划日期不能为空')}), 400
-
+    """创建工作项(薄壳:逻辑+共享通知见 worklog_service.create_item)"""
+    from app.services import worklog_service
     try:
-        planned_date = datetime.strptime(planned_date_str, '%Y-%m-%d').date()
-    except ValueError:
-        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
-
-    # 解析结束日期（可选）
-    end_date = None
-    end_date_str = data.get('end_date')
-    if end_date_str:
-        try:
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            # 确保结束日期不早于开始日期
-            if end_date < planned_date:
-                end_date = None
-        except ValueError:
-            end_date = None
-
-    # 解析时间（可选）
-    start_time = None
-    end_time = None
-    if data.get('start_time'):
-        try:
-            start_time = datetime.strptime(data['start_time'], '%H:%M').time()
-        except ValueError:
-            pass
-    if data.get('end_time'):
-        try:
-            end_time = datetime.strptime(data['end_time'], '%H:%M').time()
-        except ValueError:
-            pass
-
-    # 处理可选字段（空字符串转为 None）
-    estimated_hours = data.get('estimated_hours')
-    if estimated_hours == '' or estimated_hours is None:
-        estimated_hours = None
-    else:
-        try:
-            estimated_hours = float(estimated_hours)
-        except (ValueError, TypeError):
-            estimated_hours = None
-
-    project_id = data.get('project_id')
-    if project_id == '' or project_id is None:
-        project_id = None
-    else:
-        try:
-            project_id = int(project_id)
-        except (ValueError, TypeError):
-            project_id = None
-
-    customer_id = data.get('customer_id')
-    if customer_id == '' or customer_id is None:
-        customer_id = None
-    else:
-        try:
-            customer_id = int(customer_id)
-        except (ValueError, TypeError):
-            customer_id = None
-
-    contact_id = data.get('contact_id')
-    if contact_id == '' or contact_id is None:
-        contact_id = None
-    else:
-        try:
-            contact_id = int(contact_id)
-        except (ValueError, TypeError):
-            contact_id = None
-
-    # 处理共享用户
-    shared_with_users = data.get('shared_with_users', [])
-    if isinstance(shared_with_users, list):
-        # 过滤无效值，确保都是整数
-        shared_with_users = [int(uid) for uid in shared_with_users if uid and str(uid).isdigit()]
-    else:
-        shared_with_users = []
-
-    # 创建工作项
-    work_item = WorkItem(
-        title=title,
-        description=data.get('description', '').strip() or None,
-        planned_date=planned_date,
-        end_date=end_date,
-        start_time=start_time,
-        end_time=end_time,
-        is_all_day=data.get('is_all_day', True),
-        is_business_trip=data.get('is_business_trip', False),
-        estimated_hours=estimated_hours,
-        project_id=project_id,
-        customer_id=customer_id,
-        contact_id=contact_id,
-        work_type=data.get('work_type', 'other'),
-        owner_id=current_user.id,
-        shared_with_users=shared_with_users if shared_with_users else None
-    )
-
-    db.session.add(work_item)
-    db.session.commit()
-
-    # 发送共享通知给被共享的用户
-    if shared_with_users:
-        from app.models.message import Message
-        for user_id in shared_with_users:
-            if user_id != current_user.id:  # 不通知自己
-                msg = Message.create_workitem_shared(
-                    sender_id=current_user.id,
-                    recipient_id=user_id,
-                    work_item=work_item
-                )
-                db.session.add(msg)
-        db.session.commit()
-
-    return jsonify({
-        'success': True,
-        'message': _('创建成功'),
-        'data': work_item.to_dict()
-    })
+        wi = worklog_service.create_item(current_user, request.get_json())
+    except worklog_service.WorklogItemError as e:
+        return jsonify({'success': False, 'message': e.message}), e.code
+    return jsonify({'success': True, 'message': _('创建成功'), 'data': wi.to_dict()})
 
 
 @worklog.route('/api/items/<int:item_id>', methods=['GET'])
 @login_required
 def get_item(item_id):
-    """获取单个工作项详情"""
-    work_item = WorkItem.query.get(item_id)
-
-    if not work_item or work_item.is_deleted:
-        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
-
-    if not can_view_work_item(current_user, work_item):
-        return jsonify({'success': False, 'message': _('无权查看此工作项')}), 403
-
-    return jsonify({
-        'success': True,
-        'data': work_item.to_dict()
-    })
+    """获取单个工作项详情(薄壳)"""
+    from app.services import worklog_service
+    try:
+        data = worklog_service.get_item_detail(current_user, item_id)
+    except worklog_service.WorklogItemError as e:
+        return jsonify({'success': False, 'message': e.message}), e.code
+    return jsonify({'success': True, 'data': data})
 
 
 @worklog.route('/api/items/<int:item_id>', methods=['PUT'])
 @login_required
 def update_item(item_id):
-    """更新工作项"""
-    work_item = WorkItem.query.get(item_id)
-
-    if not work_item or work_item.is_deleted:
-        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
-
-    # 只有所有者可以编辑（共享用户不能编辑）
-    if work_item.owner_id != current_user.id:
-        return jsonify({'success': False, 'message': _('只有创建人可以修改此行程')}), 403
-
-    # 钉钉来源不允许在 PMA 侧编辑
-    if work_item.sync_source == 'dingtalk':
-        return jsonify({'success': False, 'message': _('钉钉日程请到钉钉 App 编辑')}), 403
-
-    data = request.get_json()
-    if not data:
-        return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
-
-    # 记录更新前的值，用于发送通知
-    old_planned_date = work_item.planned_date
-    old_shared_users = set(work_item.shared_with_users or [])
-
-    # 更新字段
-    if 'title' in data:
-        work_item.title = data['title'].strip()
-    if 'description' in data:
-        work_item.description = data['description'].strip() or None
-    if 'planned_date' in data:
-        try:
-            work_item.planned_date = datetime.strptime(data['planned_date'], '%Y-%m-%d').date()
-        except ValueError:
-            return jsonify({'success': False, 'message': _('日期格式无效')}), 400
-    if 'end_date' in data:
-        if data['end_date']:
-            try:
-                end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-                # 确保结束日期不早于开始日期
-                if end_date >= work_item.planned_date:
-                    work_item.end_date = end_date
-                else:
-                    work_item.end_date = None
-            except ValueError:
-                work_item.end_date = None
-        else:
-            work_item.end_date = None
-    if 'start_time' in data:
-        if data['start_time']:
-            try:
-                work_item.start_time = datetime.strptime(data['start_time'], '%H:%M').time()
-            except ValueError:
-                pass
-        else:
-            work_item.start_time = None
-    if 'end_time' in data:
-        if data['end_time']:
-            try:
-                work_item.end_time = datetime.strptime(data['end_time'], '%H:%M').time()
-            except ValueError:
-                pass
-        else:
-            work_item.end_time = None
-    if 'is_all_day' in data:
-        work_item.is_all_day = data['is_all_day']
-    if 'is_business_trip' in data:
-        work_item.is_business_trip = data['is_business_trip']
-    if 'estimated_hours' in data:
-        val = data['estimated_hours']
-        if val == '' or val is None:
-            work_item.estimated_hours = None
-        else:
-            try:
-                work_item.estimated_hours = float(val)
-            except (ValueError, TypeError):
-                work_item.estimated_hours = None
-    if 'project_id' in data:
-        val = data['project_id']
-        if val == '' or val is None:
-            work_item.project_id = None
-        else:
-            try:
-                work_item.project_id = int(val)
-            except (ValueError, TypeError):
-                work_item.project_id = None
-    if 'customer_id' in data:
-        val = data['customer_id']
-        if val == '' or val is None:
-            work_item.customer_id = None
-            work_item.contact_id = None  # 清空客户时也清空联系人
-        else:
-            try:
-                work_item.customer_id = int(val)
-            except (ValueError, TypeError):
-                work_item.customer_id = None
-    if 'contact_id' in data:
-        val = data['contact_id']
-        if val == '' or val is None:
-            work_item.contact_id = None
-        else:
-            try:
-                work_item.contact_id = int(val)
-            except (ValueError, TypeError):
-                work_item.contact_id = None
-    if 'work_type' in data:
-        work_item.work_type = data['work_type']
-
-    # 处理共享用户
-    if 'shared_with_users' in data:
-        shared_with_users = data['shared_with_users']
-        if isinstance(shared_with_users, list):
-            # 过滤无效值，确保都是整数
-            shared_with_users = [int(uid) for uid in shared_with_users if uid and str(uid).isdigit()]
-            work_item.shared_with_users = shared_with_users if shared_with_users else None
-        else:
-            work_item.shared_with_users = None
-
-    db.session.commit()
-
-    # 发送通知
-    from app.models.message import Message
-    new_shared_users = set(work_item.shared_with_users or [])
-
-    # 1. 时间变更通知 - 通知所有共享用户（包括新增和原有的）
-    if work_item.planned_date != old_planned_date:
-        all_shared_users = old_shared_users | new_shared_users
-        for user_id in all_shared_users:
-            if user_id != current_user.id:
-                msg = Message.create_workitem_time_changed(
-                    sender_id=current_user.id,
-                    recipient_id=user_id,
-                    work_item=work_item,
-                    old_date=old_planned_date,
-                    new_date=work_item.planned_date
-                )
-                db.session.add(msg)
-
-    # 2. 共享用户变更通知
-    # 被移除的用户
-    removed_users = old_shared_users - new_shared_users
-    for user_id in removed_users:
-        if user_id != current_user.id:
-            msg = Message.create_workitem_unshared(
-                sender_id=current_user.id,
-                recipient_id=user_id,
-                work_item=work_item
-            )
-            db.session.add(msg)
-
-    # 新增的用户（如果时间没变更，才发送共享通知；时间变更时已经发送了时间变更通知）
-    if work_item.planned_date == old_planned_date:
-        added_users = new_shared_users - old_shared_users
-        for user_id in added_users:
-            if user_id != current_user.id:
-                msg = Message.create_workitem_shared(
-                    sender_id=current_user.id,
-                    recipient_id=user_id,
-                    work_item=work_item
-                )
-                db.session.add(msg)
-
-    db.session.commit()
-
-    return jsonify({
-        'success': True,
-        'message': _('更新成功'),
-        'data': work_item.to_dict()
-    })
+    """更新工作项(薄壳:逻辑+时间变更/共享通知见 worklog_service.update_item)"""
+    from app.services import worklog_service
+    try:
+        wi = worklog_service.update_item(current_user, item_id, request.get_json())
+    except worklog_service.WorklogItemError as e:
+        return jsonify({'success': False, 'message': e.message}), e.code
+    return jsonify({'success': True, 'message': _('更新成功'), 'data': wi.to_dict()})
 
 
 @worklog.route('/api/items/<int:item_id>', methods=['DELETE'])
 @login_required
 def delete_item(item_id):
-    """删除工作项（软删除或作废）"""
-    work_item = WorkItem.query.get(item_id)
-
-    if not work_item or work_item.is_deleted:
-        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
-
-    # 只有所有者可以删除
-    if work_item.owner_id != current_user.id:
-        return jsonify({'success': False, 'message': _('只有创建人可以删除此行程')}), 403
-
-    # 钉钉来源不允许在 PMA 侧删除
-    if work_item.sync_source == 'dingtalk':
-        return jsonify({'success': False, 'message': _('钉钉日程请到钉钉 App 删除')}), 403
-
-    from datetime import date as date_type
-    today = date_type.today()
-
-    if work_item.planned_date > today:
-        # 未来行程：标记为无效（中划线显示），保留记录
-        work_item.is_invalidated = True
-        db.session.commit()
-
-        # 通知共享用户
-        if work_item.shared_with_users:
-            from app.models.message import Message
-            for user_id in work_item.shared_with_users:
-                if user_id != current_user.id:
-                    msg = Message.create_workitem_invalidated(
-                        sender_id=current_user.id,
-                        recipient_id=user_id,
-                        work_item=work_item
-                    )
-                    db.session.add(msg)
-            db.session.commit()
-
-        return jsonify({
-            'success': True,
-            'message': _('已作废')
-        })
-    else:
-        # 当天或过去的行程：软删除
-        work_item.is_deleted = True
-        db.session.commit()
-
-        return jsonify({
-            'success': True,
-            'message': _('删除成功')
-        })
+    """删除工作项(薄壳:未来作废+通知 / 过去软删见 worklog_service.delete_item)"""
+    from app.services import worklog_service
+    try:
+        action = worklog_service.delete_item(current_user, item_id)
+    except worklog_service.WorklogItemError as e:
+        return jsonify({'success': False, 'message': e.message}), e.code
+    return jsonify({'success': True,
+                    'message': _('已作废') if action == 'invalidated' else _('删除成功')})
 
 
 @worklog.route('/api/items/<int:item_id>/complete', methods=['POST'])
 @login_required
 def complete_item(item_id):
-    """标记工作项完成"""
-    work_item = WorkItem.query.get(item_id)
-
-    if not work_item or work_item.is_deleted:
-        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
-
-    # 只有所有者可以标记完成
-    if work_item.owner_id != current_user.id:
-        return jsonify({'success': False, 'message': _('只有创建人可以标记此行程完成')}), 403
-
-    # 钉钉来源不允许在 PMA 侧修改状态
-    if work_item.sync_source == 'dingtalk':
-        return jsonify({'success': False, 'message': _('钉钉日程请到钉钉 App 操作')}), 403
-
-    data = request.get_json() or {}
-
-    work_item.status = 'completed'
-    work_item.completed_at = get_local_time()
-    actual_hours = data.get('actual_hours')
-    work_item.actual_hours = float(actual_hours) if actual_hours else work_item.estimated_hours
-    work_item.execution_notes = data.get('execution_notes', '').strip() or None
-
-    # 更新行动记录内容（如果传入）
-    description = data.get('description', '').strip()
-    if description:
-        work_item.description = description
-
-    # 关联到当天的日志
-    worklog = WorkLog.get_or_create(current_user.id, work_item.planned_date)
-    work_item.worklog_id = worklog.id
-
-    # 更新日志总工时（使用智能计算：去重、扣除午休、上限8小时）
-    worklog.total_hours = worklog.calculate_smart_hours()
-
-    # 如果关联了客户或项目，且有行动记录内容，则同步创建 Action 记录
-    sync_action = data.get('sync_action', False)
-    action_content = description or work_item.description
-    if sync_action and action_content and (work_item.customer_id or work_item.project_id):
-        # 获取结束日期（跨天任务用 end_date，否则用 planned_date）
-        action_date = work_item.end_date or work_item.planned_date
-
-        action = Action(
-            date=action_date,
-            contact_id=work_item.contact_id,  # 可选，可以为空
-            company_id=work_item.customer_id,
-            project_id=work_item.project_id,
-            communication=action_content,
-            owner_id=current_user.id,
-            is_shared=True
-        )
-        db.session.add(action)
-
-    db.session.commit()
-
-    # 发送完成通知给被共享的用户
-    if work_item.shared_with_users:
-        from app.models.message import Message
-        for user_id in work_item.shared_with_users:
-            if user_id != current_user.id:  # 不通知自己
-                msg = Message.create_workitem_completed(
-                    sender_id=current_user.id,
-                    recipient_id=user_id,
-                    work_item=work_item
-                )
-                db.session.add(msg)
-        db.session.commit()
-
-    return jsonify({
-        'success': True,
-        'message': _('标记完成'),
-        'data': work_item.to_dict()
-    })
+    """标记工作项完成(薄壳:状态/智能工时/Action同步/通知见 worklog_service.complete_item)"""
+    from app.services import worklog_service
+    try:
+        wi = worklog_service.complete_item(current_user, item_id, request.get_json() or {})
+    except worklog_service.WorklogItemError as e:
+        return jsonify({'success': False, 'message': e.message}), e.code
+    return jsonify({'success': True, 'message': _('标记完成'), 'data': wi.to_dict()})
 
 
 @worklog.route('/api/items/<int:item_id>/cancel', methods=['POST'])
 @login_required
 def cancel_item(item_id):
-    """标记工作项取消"""
-    work_item = WorkItem.query.get(item_id)
-
-    if not work_item or work_item.is_deleted:
-        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
-
-    # 只有所有者可以取消
-    if work_item.owner_id != current_user.id:
-        return jsonify({'success': False, 'message': _('只有创建人可以取消此行程')}), 403
-
-    # 钉钉来源不允许在 PMA 侧取消
-    if work_item.sync_source == 'dingtalk':
-        return jsonify({'success': False, 'message': _('钉钉日程请到钉钉 App 取消')}), 403
-
-    data = request.get_json() or {}
-
-    work_item.status = 'cancelled'
-    work_item.execution_notes = data.get('execution_notes', '').strip() or None
-
-    db.session.commit()
-
-    # 发送取消通知给被共享的用户
-    if work_item.shared_with_users:
-        from app.models.message import Message
-        for user_id in work_item.shared_with_users:
-            if user_id != current_user.id:  # 不通知自己
-                msg = Message.create_workitem_cancelled(
-                    sender_id=current_user.id,
-                    recipient_id=user_id,
-                    work_item=work_item
-                )
-                db.session.add(msg)
-        db.session.commit()
-
-    return jsonify({
-        'success': True,
-        'message': _('已取消'),
-        'data': work_item.to_dict()
-    })
+    """标记工作项取消(薄壳:状态+取消通知见 worklog_service.cancel_item)"""
+    from app.services import worklog_service
+    try:
+        wi = worklog_service.cancel_item(current_user, item_id, request.get_json() or {})
+    except worklog_service.WorklogItemError as e:
+        return jsonify({'success': False, 'message': e.message}), e.code
+    return jsonify({'success': True, 'message': _('已取消'), 'data': wi.to_dict()})
 
 
 @worklog.route('/api/daily/<log_date>', methods=['GET'])

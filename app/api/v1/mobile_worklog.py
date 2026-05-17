@@ -400,3 +400,112 @@ def mobile_worklog_accounts():
         'others': others,
         'week_range': {'start': monday.isoformat(), 'end': sunday.isoformat()},
     })
+
+
+# ─── 写侧端点(C3:薄壳调 worklog_service,web/mobile 单一来源) ──────────
+
+def _enrich_item(d, lang):
+    """给返回的工作项 dict 补本地化 work_type_label(与 day/items 一致)"""
+    if isinstance(d, dict):
+        d['work_type_label'] = _type_label(d.get('work_type'), lang)
+    return d
+
+
+def _wuser():
+    """取 (uid, user) 或 (None, err_resp)"""
+    uid = int(get_jwt_identity())
+    u = User.query.get(uid)
+    if not u:
+        return None, api_response(success=False, code=401, message='用户不存在')
+    return u, None
+
+
+@api_v1_bp.route('/mobile/worklog/items', methods=['POST'])
+@jwt_required()
+def mobile_worklog_create():
+    """创建工作项(忠实 worklog_service.create_item,含共享通知)"""
+    user, err = _wuser()
+    if err:
+        return err
+    try:
+        wi = ws.create_item(user, request.get_json())
+    except ws.WorklogItemError as e:
+        return api_response(success=False, code=e.code, message=e.message)
+    return api_response(success=True, message='创建成功',
+                        data=_enrich_item(wi.to_dict(), _lang()))
+
+
+@api_v1_bp.route('/mobile/worklog/items/<int:item_id>', methods=['GET'])
+@jwt_required()
+def mobile_worklog_item_detail(item_id):
+    """工作项详情(忠实 worklog_service.get_item_detail)"""
+    user, err = _wuser()
+    if err:
+        return err
+    try:
+        d = ws.get_item_detail(user, item_id)
+    except ws.WorklogItemError as e:
+        return api_response(success=False, code=e.code, message=e.message)
+    return api_response(success=True, message='获取成功',
+                        data=_enrich_item(d, _lang()))
+
+
+@api_v1_bp.route('/mobile/worklog/items/<int:item_id>', methods=['PUT'])
+@jwt_required()
+def mobile_worklog_update(item_id):
+    """更新工作项(忠实 worklog_service.update_item,含时间变更/共享通知)"""
+    user, err = _wuser()
+    if err:
+        return err
+    try:
+        wi = ws.update_item(user, item_id, request.get_json())
+    except ws.WorklogItemError as e:
+        return api_response(success=False, code=e.code, message=e.message)
+    return api_response(success=True, message='更新成功',
+                        data=_enrich_item(wi.to_dict(), _lang()))
+
+
+@api_v1_bp.route('/mobile/worklog/items/<int:item_id>', methods=['DELETE'])
+@jwt_required()
+def mobile_worklog_delete(item_id):
+    """删除工作项(忠实 worklog_service.delete_item:未来作废 / 过去软删)"""
+    user, err = _wuser()
+    if err:
+        return err
+    try:
+        action = ws.delete_item(user, item_id)
+    except ws.WorklogItemError as e:
+        return api_response(success=False, code=e.code, message=e.message)
+    return api_response(success=True,
+                        message=('已作废' if action == 'invalidated' else '删除成功'),
+                        data={'action': action})
+
+
+@api_v1_bp.route('/mobile/worklog/items/<int:item_id>/complete', methods=['POST'])
+@jwt_required()
+def mobile_worklog_complete(item_id):
+    """标记完成(忠实 worklog_service.complete_item:智能工时/Action同步/通知)"""
+    user, err = _wuser()
+    if err:
+        return err
+    try:
+        wi = ws.complete_item(user, item_id, request.get_json() or {})
+    except ws.WorklogItemError as e:
+        return api_response(success=False, code=e.code, message=e.message)
+    return api_response(success=True, message='标记完成',
+                        data=_enrich_item(wi.to_dict(), _lang()))
+
+
+@api_v1_bp.route('/mobile/worklog/items/<int:item_id>/cancel', methods=['POST'])
+@jwt_required()
+def mobile_worklog_cancel(item_id):
+    """标记取消(忠实 worklog_service.cancel_item:状态+取消通知)"""
+    user, err = _wuser()
+    if err:
+        return err
+    try:
+        wi = ws.cancel_item(user, item_id, request.get_json() or {})
+    except ws.WorklogItemError as e:
+        return api_response(success=False, code=e.code, message=e.message)
+    return api_response(success=True, message='已取消',
+                        data=_enrich_item(wi.to_dict(), _lang()))

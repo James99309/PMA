@@ -30,6 +30,8 @@ from app.models.quotation import Quotation
 from app.models.pricing_order import PricingOrder
 from app.models.action import Action
 from app.permissions import is_admin_or_ceo
+from flask_babel import gettext as _
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -629,3 +631,380 @@ def list_viewable_account_ids(user):
             }
 
     return ids
+
+
+# ===== 写侧(C3,忠实抽取 worklog.py 写路由,保留行为与副作用顺序) =====
+
+class WorklogItemError(Exception):
+    """工作项写操作错误,携带消息+HTTP码;调用方按 code 映射,消息与 web 原文一致。"""
+    def __init__(self, message, code=400):
+        super().__init__(message)
+        self.message = message
+        self.code = code
+
+
+def _local_now():
+    """北京时区当前时间(忠实 worklog.get_local_time)。"""
+    return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+
+
+def _int_or_none(v):
+    if v == '' or v is None:
+        return None
+    try:
+        return int(v)
+    except (ValueError, TypeError):
+        return None
+
+
+def can_view_item(user, work_item):
+    """忠实 can_view_work_item:本人 / admin·ceo / 下属 / 被共享。"""
+    if work_item.owner_id == user.id:
+        return True
+    if user.role in ['admin', 'ceo']:
+        return True
+    if work_item.owner_id in get_subordinate_user_ids(user):
+        return True
+    if work_item.shared_with_users and user.id in work_item.shared_with_users:
+        return True
+    return False
+
+
+def get_item_detail(user, item_id):
+    """单个工作项详情(忠实 get_item)。返回 to_dict()。"""
+    work_item = WorkItem.query.get(item_id)
+    if not work_item or work_item.is_deleted:
+        raise WorklogItemError(_('工作项不存在'), 404)
+    if not can_view_item(user, work_item):
+        raise WorklogItemError(_('无权查看此工作项'), 403)
+    return work_item.to_dict()
+
+
+def create_item(user, data):
+    """创建工作项(忠实 create_item + 共享通知)。返回 WorkItem。"""
+    if not data:
+        raise WorklogItemError(_('无效的请求数据'), 400)
+    title = data.get('title', '').strip()
+    if not title:
+        raise WorklogItemError(_('标题不能为空'), 400)
+    planned_date_str = data.get('planned_date')
+    if not planned_date_str:
+        raise WorklogItemError(_('计划日期不能为空'), 400)
+    try:
+        planned_date = datetime.strptime(planned_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        raise WorklogItemError(_('日期格式无效'), 400)
+
+    end_date = None
+    end_date_str = data.get('end_date')
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            if end_date < planned_date:
+                end_date = None
+        except ValueError:
+            end_date = None
+
+    start_time = None
+    end_time = None
+    if data.get('start_time'):
+        try:
+            start_time = datetime.strptime(data['start_time'], '%H:%M').time()
+        except ValueError:
+            pass
+    if data.get('end_time'):
+        try:
+            end_time = datetime.strptime(data['end_time'], '%H:%M').time()
+        except ValueError:
+            pass
+
+    estimated_hours = data.get('estimated_hours')
+    if estimated_hours == '' or estimated_hours is None:
+        estimated_hours = None
+    else:
+        try:
+            estimated_hours = float(estimated_hours)
+        except (ValueError, TypeError):
+            estimated_hours = None
+
+    shared_with_users = data.get('shared_with_users', [])
+    if isinstance(shared_with_users, list):
+        shared_with_users = [int(uid) for uid in shared_with_users if uid and str(uid).isdigit()]
+    else:
+        shared_with_users = []
+
+    work_item = WorkItem(
+        title=title,
+        description=data.get('description', '').strip() or None,
+        planned_date=planned_date,
+        end_date=end_date,
+        start_time=start_time,
+        end_time=end_time,
+        is_all_day=data.get('is_all_day', True),
+        is_business_trip=data.get('is_business_trip', False),
+        estimated_hours=estimated_hours,
+        project_id=_int_or_none(data.get('project_id')),
+        customer_id=_int_or_none(data.get('customer_id')),
+        contact_id=_int_or_none(data.get('contact_id')),
+        work_type=data.get('work_type', 'other'),
+        owner_id=user.id,
+        shared_with_users=shared_with_users if shared_with_users else None
+    )
+    db.session.add(work_item)
+    db.session.commit()
+
+    if shared_with_users:
+        from app.models.message import Message
+        for uid in shared_with_users:
+            if uid != user.id:
+                db.session.add(Message.create_workitem_shared(
+                    sender_id=user.id, recipient_id=uid, work_item=work_item))
+        db.session.commit()
+
+    return work_item
+
+
+def update_item(user, item_id, data):
+    """更新工作项(忠实 update_item + 时间变更/取消共享/新增共享通知)。返回 WorkItem。"""
+    work_item = WorkItem.query.get(item_id)
+    if not work_item or work_item.is_deleted:
+        raise WorklogItemError(_('工作项不存在'), 404)
+    if work_item.owner_id != user.id:
+        raise WorklogItemError(_('只有创建人可以修改此行程'), 403)
+    if work_item.sync_source == 'dingtalk':
+        raise WorklogItemError(_('钉钉日程请到钉钉 App 编辑'), 403)
+    if not data:
+        raise WorklogItemError(_('无效的请求数据'), 400)
+
+    old_planned_date = work_item.planned_date
+    old_shared_users = set(work_item.shared_with_users or [])
+
+    if 'title' in data:
+        work_item.title = data['title'].strip()
+    if 'description' in data:
+        work_item.description = data['description'].strip() or None
+    if 'planned_date' in data:
+        try:
+            work_item.planned_date = datetime.strptime(data['planned_date'], '%Y-%m-%d').date()
+        except ValueError:
+            raise WorklogItemError(_('日期格式无效'), 400)
+    if 'end_date' in data:
+        if data['end_date']:
+            try:
+                end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
+                if end_date >= work_item.planned_date:
+                    work_item.end_date = end_date
+                else:
+                    work_item.end_date = None
+            except ValueError:
+                work_item.end_date = None
+        else:
+            work_item.end_date = None
+    if 'start_time' in data:
+        if data['start_time']:
+            try:
+                work_item.start_time = datetime.strptime(data['start_time'], '%H:%M').time()
+            except ValueError:
+                pass
+        else:
+            work_item.start_time = None
+    if 'end_time' in data:
+        if data['end_time']:
+            try:
+                work_item.end_time = datetime.strptime(data['end_time'], '%H:%M').time()
+            except ValueError:
+                pass
+        else:
+            work_item.end_time = None
+    if 'is_all_day' in data:
+        work_item.is_all_day = data['is_all_day']
+    if 'is_business_trip' in data:
+        work_item.is_business_trip = data['is_business_trip']
+    if 'estimated_hours' in data:
+        val = data['estimated_hours']
+        if val == '' or val is None:
+            work_item.estimated_hours = None
+        else:
+            try:
+                work_item.estimated_hours = float(val)
+            except (ValueError, TypeError):
+                work_item.estimated_hours = None
+    if 'project_id' in data:
+        val = data['project_id']
+        if val == '' or val is None:
+            work_item.project_id = None
+        else:
+            try:
+                work_item.project_id = int(val)
+            except (ValueError, TypeError):
+                work_item.project_id = None
+    if 'customer_id' in data:
+        val = data['customer_id']
+        if val == '' or val is None:
+            work_item.customer_id = None
+            work_item.contact_id = None  # 清空客户时也清空联系人
+        else:
+            try:
+                work_item.customer_id = int(val)
+            except (ValueError, TypeError):
+                work_item.customer_id = None
+    if 'contact_id' in data:
+        val = data['contact_id']
+        if val == '' or val is None:
+            work_item.contact_id = None
+        else:
+            try:
+                work_item.contact_id = int(val)
+            except (ValueError, TypeError):
+                work_item.contact_id = None
+    if 'work_type' in data:
+        work_item.work_type = data['work_type']
+
+    if 'shared_with_users' in data:
+        shared_with_users = data['shared_with_users']
+        if isinstance(shared_with_users, list):
+            shared_with_users = [int(uid) for uid in shared_with_users if uid and str(uid).isdigit()]
+            work_item.shared_with_users = shared_with_users if shared_with_users else None
+        else:
+            work_item.shared_with_users = None
+
+    db.session.commit()
+
+    from app.models.message import Message
+    new_shared_users = set(work_item.shared_with_users or [])
+
+    # 1. 时间变更通知 - 通知所有共享用户(新增+原有)
+    if work_item.planned_date != old_planned_date:
+        for uid in (old_shared_users | new_shared_users):
+            if uid != user.id:
+                db.session.add(Message.create_workitem_time_changed(
+                    sender_id=user.id, recipient_id=uid, work_item=work_item,
+                    old_date=old_planned_date, new_date=work_item.planned_date))
+
+    # 2. 被移除的共享用户
+    for uid in (old_shared_users - new_shared_users):
+        if uid != user.id:
+            db.session.add(Message.create_workitem_unshared(
+                sender_id=user.id, recipient_id=uid, work_item=work_item))
+
+    # 3. 新增共享用户(时间未变更才发,时间变更已发时间变更通知)
+    if work_item.planned_date == old_planned_date:
+        for uid in (new_shared_users - old_shared_users):
+            if uid != user.id:
+                db.session.add(Message.create_workitem_shared(
+                    sender_id=user.id, recipient_id=uid, work_item=work_item))
+
+    db.session.commit()
+    return work_item
+
+
+def delete_item(user, item_id):
+    """删除工作项(忠实 delete_item:未来作废+通知 / 过去软删)。返回 'invalidated'|'deleted'。"""
+    work_item = WorkItem.query.get(item_id)
+    if not work_item or work_item.is_deleted:
+        raise WorklogItemError(_('工作项不存在'), 404)
+    if work_item.owner_id != user.id:
+        raise WorklogItemError(_('只有创建人可以删除此行程'), 403)
+    if work_item.sync_source == 'dingtalk':
+        raise WorklogItemError(_('钉钉日程请到钉钉 App 删除'), 403)
+
+    from datetime import date as date_type
+    today = date_type.today()
+
+    if work_item.planned_date > today:
+        # 未来行程:标记无效(中划线显示),保留记录
+        work_item.is_invalidated = True
+        db.session.commit()
+        if work_item.shared_with_users:
+            from app.models.message import Message
+            for uid in work_item.shared_with_users:
+                if uid != user.id:
+                    db.session.add(Message.create_workitem_invalidated(
+                        sender_id=user.id, recipient_id=uid, work_item=work_item))
+            db.session.commit()
+        return 'invalidated'
+    else:
+        # 当天或过去:软删除
+        work_item.is_deleted = True
+        db.session.commit()
+        return 'deleted'
+
+
+def complete_item(user, item_id, data):
+    """标记完成(忠实 complete_item:状态+智能工时+worklog关联+可选Action同步+完成通知)。返回 WorkItem。"""
+    work_item = WorkItem.query.get(item_id)
+    if not work_item or work_item.is_deleted:
+        raise WorklogItemError(_('工作项不存在'), 404)
+    if work_item.owner_id != user.id:
+        raise WorklogItemError(_('只有创建人可以标记此行程完成'), 403)
+    if work_item.sync_source == 'dingtalk':
+        raise WorklogItemError(_('钉钉日程请到钉钉 App 操作'), 403)
+
+    data = data or {}
+    work_item.status = 'completed'
+    work_item.completed_at = _local_now()
+    actual_hours = data.get('actual_hours')
+    work_item.actual_hours = float(actual_hours) if actual_hours else work_item.estimated_hours
+    work_item.execution_notes = data.get('execution_notes', '').strip() or None
+
+    description = data.get('description', '').strip()
+    if description:
+        work_item.description = description
+
+    # 关联当天日志 + 智能工时(去重/扣午休/上限8h)
+    worklog = WorkLog.get_or_create(user.id, work_item.planned_date)
+    work_item.worklog_id = worklog.id
+    worklog.total_hours = worklog.calculate_smart_hours()
+
+    # 同步行动记录(关联客户/项目且有内容)
+    sync_action = data.get('sync_action', False)
+    action_content = description or work_item.description
+    if sync_action and action_content and (work_item.customer_id or work_item.project_id):
+        action_date = work_item.end_date or work_item.planned_date
+        db.session.add(Action(
+            date=action_date,
+            contact_id=work_item.contact_id,
+            company_id=work_item.customer_id,
+            project_id=work_item.project_id,
+            communication=action_content,
+            owner_id=user.id,
+            is_shared=True
+        ))
+
+    db.session.commit()
+
+    if work_item.shared_with_users:
+        from app.models.message import Message
+        for uid in work_item.shared_with_users:
+            if uid != user.id:
+                db.session.add(Message.create_workitem_completed(
+                    sender_id=user.id, recipient_id=uid, work_item=work_item))
+        db.session.commit()
+
+    return work_item
+
+
+def cancel_item(user, item_id, data):
+    """标记取消(忠实 cancel_item:状态+取消通知)。返回 WorkItem。"""
+    work_item = WorkItem.query.get(item_id)
+    if not work_item or work_item.is_deleted:
+        raise WorklogItemError(_('工作项不存在'), 404)
+    if work_item.owner_id != user.id:
+        raise WorklogItemError(_('只有创建人可以取消此行程'), 403)
+    if work_item.sync_source == 'dingtalk':
+        raise WorklogItemError(_('钉钉日程请到钉钉 App 取消'), 403)
+
+    data = data or {}
+    work_item.status = 'cancelled'
+    work_item.execution_notes = data.get('execution_notes', '').strip() or None
+    db.session.commit()
+
+    if work_item.shared_with_users:
+        from app.models.message import Message
+        for uid in work_item.shared_with_users:
+            if uid != user.id:
+                db.session.add(Message.create_workitem_cancelled(
+                    sender_id=user.id, recipient_id=uid, work_item=work_item))
+        db.session.commit()
+
+    return work_item
