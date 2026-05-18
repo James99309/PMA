@@ -89,9 +89,60 @@ AUTH_STATUS_LABELS = {
 STAGE_LABELS = {k: v['zh'] for k, v in PROJECT_STAGE_LABELS.items()}
 
 
-def _project_summary(p):
-    amount = p.quotation_customer or 0
+def _latest_quotations_for(project_ids):
+    """Map project_id -> (amount, currency) for the most recently updated quotation per project.
+
+    Project amount on mobile mirrors the quotation row the user most recently
+    edited on web (Q with max updated_at). projects.quotation_customer is a
+    seeded initial value and is not kept in sync with quotation edits, so we
+    bypass it whenever a quotation row exists.
+    """
+    if not project_ids:
+        return {}
+    from app.models.quotation import Quotation
+    rows = (
+        db.session.query(
+            Quotation.project_id, Quotation.amount, Quotation.currency
+        )
+        .filter(Quotation.project_id.in_(list(project_ids)))
+        .order_by(Quotation.project_id, Quotation.updated_at.desc().nullslast())
+        .distinct(Quotation.project_id)
+        .all()
+    )
+    return {r[0]: (r[1] or 0, r[2] or None) for r in rows}
+
+
+def _resolve_project_amount(p, latest_qmap=None):
+    """Return (amount, currency) for a single project.
+
+    Prefers the most recently updated quotation. Falls back to the project's
+    seeded quotation_customer/quotation_currency when no quotation row exists
+    (typical for brand-new projects that haven't had a quotation drafted yet).
+    """
+    info = None
+    if latest_qmap is not None:
+        info = latest_qmap.get(p.id)
+    else:
+        # Single-call path: one extra small query, fine for detail endpoints.
+        from app.models.quotation import Quotation
+        q = (
+            Quotation.query.filter(Quotation.project_id == p.id)
+            .order_by(Quotation.updated_at.desc().nullslast())
+            .first()
+        )
+        if q is not None:
+            info = (q.amount or 0, q.currency or None)
+    if info is not None:
+        amt, curr = info[0] or 0, info[1] or 'CNY'
+        return amt, curr
+    # Fallback to seeded project amount when no quotations exist yet
+    amt = p.quotation_customer or 0
     curr = getattr(p, 'quotation_currency', 'CNY') or 'CNY'
+    return amt, curr
+
+
+def _project_summary(p, latest_qmap=None):
+    amount, curr = _resolve_project_amount(p, latest_qmap=latest_qmap)
     return {
         'id': p.id,
         'name': p.project_name,
@@ -110,7 +161,7 @@ def _project_summary(p):
 
 
 def _project_detail(p, current_user_id=None):
-    d = _project_summary(p)
+    d = _project_summary(p)  # latest_qmap=None → per-call quotation lookup
     # 通用审批引擎中是否有进行中实例(走模板9)
     from app.helpers.approval_helpers import get_object_approval_instance
     from app.models.approval import ApprovalStatus
@@ -236,23 +287,29 @@ def _project_detail(p, current_user_id=None):
     except Exception:
         d['customers'] = []
 
-    # 报价单（最近5条，Quotation 无 is_deleted 字段）
+    # Quotation list (up to 10, no is_deleted on Quotation table).
+    # Sort by updated_at DESC to mirror the project-level "latest" semantic
+    # used by _resolve_project_amount; amount_display flows through the same
+    # format_money(amount, currency) path so all amounts on the detail page
+    # are formatted from one source of truth.
     try:
         from app.models.quotation import Quotation
         quotations = (
             Quotation.query
             .filter_by(project_id=p.id)
-            .order_by(Quotation.created_at.desc())
-            .limit(5).all()
+            .order_by(Quotation.updated_at.desc().nullslast())
+            .limit(10).all()
         )
         d['quotations'] = [
             {
                 'id': q.id,
                 'number': q.quotation_number,
-                'total': round((q.amount or 0) / 10000, 2),
+                'amount': float(q.amount or 0),  # raw major-unit, for any downstream calc
                 'currency': q.currency or 'CNY',
+                'amount_display': format_money(q.amount or 0, q.currency or 'CNY'),
                 'status': q.approval_status,
                 'created_at': q.created_at.strftime('%Y-%m-%d') if q.created_at else None,
+                'updated_at': q.updated_at.strftime('%Y-%m-%d') if q.updated_at else None,
             }
             for q in quotations
         ]
@@ -355,17 +412,36 @@ def mobile_project_list():
     if amount_max is not None and amount_max > 0:
         query = query.filter(Project.quotation_customer <= amount_max * 10000)
 
-    # 汇总金额必须在 ORDER BY 之前计算，否则 PostgreSQL 报 GroupingError
-    from sqlalchemy import func as sa_func
-    total_amount_raw = query.with_entities(sa_func.sum(Project.quotation_customer)).scalar() or 0
+    # Aggregate totals from the SAME source as displayed per-project amount:
+    # the most-recently-updated quotation per project (fall back to the seeded
+    # project.quotation_customer when a project has no quotations yet).
+    _proj_rows = query.with_entities(
+        Project.id, Project.quotation_customer, Project.quotation_currency
+    ).all()
+    _all_ids = [r[0] for r in _proj_rows]
+    _all_qmap = _latest_quotations_for(_all_ids)
+    sums_by_curr = {}
+    for _pid, _qc, _qcurr in _proj_rows:
+        _info = _all_qmap.get(_pid)
+        if _info is not None:
+            _amt, _curr = _info[0] or 0, _info[1] or 'CNY'
+        else:
+            _amt, _curr = (_qc or 0), (_qcurr or 'CNY')
+        if _amt:
+            sums_by_curr[_curr] = sums_by_curr.get(_curr, 0) + _amt
+    total_amount_raw = sum(sums_by_curr.values())
     total_amount_wan = round(total_amount_raw / 10000, 2)
-    # 多币种 total 跨币种加和无意义 → 仅当全部同币种(NULL 视作 CNY)才出 display
-    _curs = query.with_entities(Project.quotation_currency).distinct().all()
-    _uniq = {(c[0] or 'CNY') for c in _curs}
-    total_amount_display = format_money(total_amount_raw, _uniq.pop()) if len(_uniq) == 1 else None
+    # 同币种(NULL 视作 CNY)才出 display，混币 → None 前端隐藏
+    if len(sums_by_curr) == 1:
+        _only_curr, _only_sum = next(iter(sums_by_curr.items()))
+        total_amount_display = format_money(_only_sum, _only_curr)
+    else:
+        total_amount_display = None
 
     sort = request.args.get('sort', 'updated_at')
     if sort == 'amount':
+        # NOTE: sort keys remain on Project.quotation_customer (seeded) for now;
+        # consistent re-sort by latest-quotation amount would need a join/subquery.
         query = query.order_by(Project.quotation_customer.desc().nullslast())
     elif sort == 'amount_asc':
         query = query.order_by(Project.quotation_customer.asc().nullslast())
@@ -373,9 +449,11 @@ def mobile_project_list():
         query = query.order_by(Project.updated_at.desc())
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    # Reuse the already-fetched qmap for items on this page (no extra query).
+    _page_qmap = {pid: _all_qmap[pid] for pid in (it.id for it in pagination.items) if pid in _all_qmap}
 
     return api_response(success=True, data={
-        'items': [_project_summary(p) for p in pagination.items],
+        'items': [_project_summary(p, latest_qmap=_page_qmap) for p in pagination.items],
         'total': pagination.total,
         'total_amount': total_amount_wan,
         'total_amount_display': total_amount_display,  # 同币种才出,混币 None 前端隐藏
