@@ -1054,14 +1054,6 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
 
     extra_fields = (getattr(quotation, 'extra_fields', None) if quotation else None) or {}
     today_str = datetime.now().strftime('%Y%m%d')
-    # 新建时默认货币 = 默认主体(entity)的 currency_code；编辑时沿用报价单已有货币
-    # Why: NAS 类型决定的 Config.DEFAULT_CURRENCY 与 entity 实际开票币种可能不一致
-    # （如 SG NAS 默认 USD，但 MY_DEFAULT 主体应为 MYR），需以 entity 为准
-    if quotation:
-        default_currency_value = quotation.currency
-    else:
-        default_entity = next((e for e in entities if e.id == default_entity_id), None)
-        default_currency_value = (default_entity.currency_code if default_entity and default_entity.currency_code else Config.DEFAULT_CURRENCY)
     return render_template(
         'quotation/tw_quotation_edit.html',
         today_str=today_str,
@@ -1069,7 +1061,7 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
         preset_project=preset_project,
         quotation_details_json=quotation_details_json,
         currency_options=get_available_quotation_currencies(),
-        default_currency=default_currency_value,
+        default_currency=(quotation.currency if quotation else Config.DEFAULT_CURRENCY),
         user_letterhead=getattr(current_user, 'quotation_letterhead', None) or {},
         user_signature=getattr(current_user, 'quotation_signature', None) or {},
         can_edit_this_quotation=can_edit_this_quotation,

@@ -1530,9 +1530,9 @@ window.QuotationEditor = (function() {
       const inp = document.querySelector(`.company-${n===1?'name':'info'} input[data-field="letterhead.line${n}"]`);
       if (inp) { inp.value = e[lineMap[n]] || ''; inp.dataset.default = e[lineMap[n]] || ''; inp.closest('.editable-field')?.classList.remove('is-dirty'); }
     });
-    // 货币
-    const cur = document.getElementById('currencySelect');
-    if (cur && e.currency_code) cur.value = e.currency_code;
+    // 货币：与主体解耦，新建走数据库默认货币(Config.DEFAULT_CURRENCY)，
+    // 编辑沿用已有 quotation.currency；主体切换不再改写货币
+
     // 标题（QUOTATION / 报价单）
     document.querySelector('.title-cell').textContent = t('title');
     // 合计区显示形态：价内只显示一行；价外保持三行

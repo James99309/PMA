@@ -438,7 +438,6 @@ def get_available_quotation_currencies():
     try:
         from app.utils.i18n import get_current_language
         from app.models.product import ProductRegionPrice
-        from app.models.company_entity import CompanyEntity
         from config import Config
         from app import db
 
@@ -453,16 +452,6 @@ def get_available_quotation_currencies():
                     available_codes.add(cur.upper())
         except Exception:
             # 表不存在或查询失败时，降级为只返回默认货币
-            pass
-
-        # 纳入所有公司主体配置的开票币种 —— 即使该币种在产品库尚无面价，
-        # 主体默认币种也必须出现在下拉里，否则前端 entity 切换时 select 无匹配项
-        try:
-            entity_rows = db.session.query(CompanyEntity.currency_code).distinct().all()
-            for (cur,) in entity_rows:
-                if cur:
-                    available_codes.add(cur.upper())
-        except Exception:
             pass
 
         # 按 CURRENCY_TYPE_LABELS 的顺序返回，过滤掉不可用的
