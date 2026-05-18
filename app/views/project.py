@@ -3780,66 +3780,15 @@ def get_customer_associations(project_id):
 @project.route('/api/add_customer_association', methods=['POST'])
 @permission_required('project', 'view')
 def add_customer_association():
-    """添加项目-客户关联"""
+    """添加项目-客户关联（薄壳，调 project_customer_link_service）"""
+    from app.services.project_customer_link_service import add_link, LinkError
     try:
-        data = request.get_json()
-        project_id = data.get('project_id')
-        company_id = data.get('company_id')
-
-        if not all([project_id, company_id]):
-            return jsonify({
-                'success': False,
-                'message': '缺少必要参数'
-            }), 400
-
-        # 获取项目对象
-        project_obj = Project.query.get_or_404(project_id)
-
-        # 添加客户关联只需要查看项目的权限（不需要编辑项目权限）
-        # 这与添加行动记录、删除客户关联的权限设计保持一致
-        if not can_view_project(current_user, project_obj):
-            return jsonify({
-                'success': False,
-                'message': '没有权限访问此项目'
-            }), 403
-
-        # 验证客户是否存在
-        from app.models.customer import Company
-        company = Company.query.filter_by(id=company_id, is_deleted=False).first()
-        if not company:
-            return jsonify({
-                'success': False,
-                'message': '指定的客户不存在'
-            }), 404
-
-        # 验证用户是否有权限查看该客户
-        from app.utils.access_control import can_view_company
-        if not can_view_company(current_user, company):
-            return jsonify({
-                'success': False,
-                'message': '没有权限访问此客户'
-            }), 403
-
-        # 添加关联
-        from app.models.project_customer_association import ProjectCustomerAssociation
-        success, result = ProjectCustomerAssociation.add_association(
-            project_id,
-            company_id,
-            created_by=current_user.id
-        )
-
-        if success:
-            db.session.commit()
-            return jsonify({
-                'success': True,
-                'message': '客户关联添加成功'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': result
-            }), 400
-
+        data = request.get_json() or {}
+        add_link(current_user, data.get('project_id'), data.get('company_id'))
+        db.session.commit()
+        return jsonify({'success': True, 'message': '客户关联添加成功'})
+    except LinkError as e:
+        return jsonify({'success': False, 'message': e.message}), e.status
     except Exception as e:
         db.session.rollback()
         logger.error(f"添加客户关联失败: {e}")
@@ -3851,46 +3800,14 @@ def add_customer_association():
 @project.route('/api/remove_customer_association/<int:association_id>', methods=['POST'])
 @permission_required('project', 'view')
 def remove_customer_association(association_id):
-    """移除项目-客户关联"""
+    """移除项目-客户关联（薄壳，调 project_customer_link_service）"""
+    from app.services.project_customer_link_service import remove_link, LinkError
     try:
-        from app.models.project_customer_association import ProjectCustomerAssociation
-        
-        # 获取关联记录
-        association = ProjectCustomerAssociation.query.get_or_404(association_id)
-        
-        # 验证移除权限
-        # 严格遵循"谁关联谁删除"原则
-        can_remove = False
-        
-        # 只有管理员有完全权限
-        if current_user.role == 'admin':
-            can_remove = True
-        # 只有创建者可以移除自己创建的关联
-        elif (hasattr(association, 'created_by') and
-              association.created_by == current_user.id):
-            can_remove = True
-        
-        if not can_remove:
-            return jsonify({
-                'success': False,
-                'message': '您只能移除自己添加的客户关联'
-            }), 403
-        
-        # 移除关联
-        success, message = ProjectCustomerAssociation.remove_association(association_id)
-        
-        if success:
-            db.session.commit()
-            return jsonify({
-                'success': True,
-                'message': message
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': message
-            }), 400
-            
+        remove_link(current_user, association_id)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '关联已移除'})
+    except LinkError as e:
+        return jsonify({'success': False, 'message': e.message}), e.status
     except Exception as e:
         db.session.rollback()
         logger.error(f"移除客户关联失败: {e}")

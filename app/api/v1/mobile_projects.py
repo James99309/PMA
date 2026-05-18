@@ -276,11 +276,26 @@ def _project_detail(p, current_user_id=None):
 
     try:
         assocs = p.customer_associations.all() if hasattr(p, 'customer_associations') else []
+        # association_id required by mobile delete endpoint
+        # DELETE /mobile/projects/{id}/customers/{association_id}.
+        # company.company_type is the source of truth for badge display
+        # (customer_type column is DEPRECATED).
+        # can_remove mirrors project_customer_link_service.remove_link: admin
+        # can unlink anything, others can only unlink what they created.
+        _is_admin = False
+        if current_user_id is not None:
+            _cu = User.query.get(current_user_id)
+            _is_admin = bool(_cu and getattr(_cu, 'role', None) == 'admin')
         d['customers'] = [
             {
                 'id': a.company.id,
+                'association_id': a.id,
                 'name': a.company.company_name,
-                'type': a.customer_type,
+                'company_type': getattr(a.company, 'company_type', None),
+                'can_remove': (
+                    _is_admin
+                    or (current_user_id is not None and a.created_by == current_user_id)
+                ),
             }
             for a in assocs if a.company
         ]
@@ -745,6 +760,69 @@ def mobile_project_recall(project_id):
         db.session.rollback()
         logger.exception(f"项目召回失败: {e}")
         return api_response(success=False, code=500, message=f"召回失败: {e}")
+
+
+@api_v1_bp.route('/mobile/projects/<int:project_id>/customers', methods=['POST'])
+@jwt_required()
+def mobile_project_add_customer(project_id):
+    """Link a company to a project (mobile detail page "+ 添加客户").
+
+    Body: {"company_id": int}. Permissions + duplicate handling delegated
+    to project_customer_link_service so the same rules apply across web
+    and mobile.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    data = request.get_json() or {}
+    company_id = data.get('company_id')
+
+    from app.services.project_customer_link_service import add_link, LinkError
+    try:
+        assoc = add_link(user, project_id, company_id)
+        db.session.commit()
+        return api_response(success=True, message='客户已关联', data={
+            'association_id': assoc.id,
+            'company_id': assoc.company_id,
+        })
+    except LinkError as e:
+        return api_response(success=False, code=e.status, message=e.message)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'mobile add customer link error: {e}')
+        return api_response(success=False, code=500, message='关联失败，请重试')
+
+
+@api_v1_bp.route(
+    '/mobile/projects/<int:project_id>/customers/<int:association_id>',
+    methods=['DELETE'],
+)
+@jwt_required()
+def mobile_project_remove_customer(project_id, association_id):
+    """Unlink a company from a project (mobile detail page swipe-delete).
+
+    project_id is only used to make the URL self-describing; the
+    association row alone is enough to identify what to delete. The service
+    enforces the "creator or admin" rule.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    from app.services.project_customer_link_service import remove_link, LinkError
+    try:
+        remove_link(user, association_id)
+        db.session.commit()
+        return api_response(success=True, message='关联已移除')
+    except LinkError as e:
+        return api_response(success=False, code=e.status, message=e.message)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'mobile remove customer link error: {e}')
+        return api_response(success=False, code=500, message='移除失败，请重试')
 
 
 @api_v1_bp.route('/mobile/projects/<int:project_id>/notes', methods=['POST'])
