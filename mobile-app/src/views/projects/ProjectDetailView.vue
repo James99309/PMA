@@ -16,6 +16,8 @@ import MessageRefs from '@/components/common/MessageRefs.vue'
 import PendingRefsPreview from '@/components/common/PendingRefsPreview.vue'
 import StageAdvanceCard from '@/components/common/StageAdvanceCard.vue'
 import NoteSheet from '@/components/common/NoteSheet.vue'
+import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
+import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 import { useChatStore } from '@/stores/chat'
 import { useDictionariesStore } from '@/stores/dictionaries'
 import { useAuthStore } from '@/stores/auth'
@@ -170,6 +172,55 @@ const selectedStage = ref(null)
 
 const showAllQuotations = ref(false)
 const showAuthModal = ref(false)
+
+// Project ↔ customer link sheet (detail page customers section)
+const customerPickerOpen = ref(false)
+const addingCustomer = ref(false)
+const removingAssocId = ref(null)
+async function searchCompaniesForLink(q) {
+  // Reuse the same endpoint other pickers use (Expense/WorkItem/Task).
+  const r = await client.get('/mobile/customers', { params: { q: q || '', search: q || '', per_page: 20 } })
+  return (r.data?.data?.items || []).map(c => ({
+    id: c.id,
+    label: c.name || c.company_name,
+    sub: c.primary_contact_name || c.industry || '',
+  }))
+}
+async function pickCompanyForLink(item) {
+  if (!item || addingCustomer.value) return
+  addingCustomer.value = true
+  try {
+    const r = await client.post(
+      `/mobile/projects/${route.params.id}/customers`,
+      { company_id: item.id },
+    )
+    if (r.data?.success === false) {
+      // surface 409 duplicate / 403 access denied without throwing
+      alert(r.data?.message || t('project.detLinkedCustomerAddFail'))
+    } else {
+      await load()
+    }
+  } catch (e) {
+    alert(e?.response?.data?.message || t('project.detLinkedCustomerAddFail'))
+  } finally {
+    addingCustomer.value = false
+    customerPickerOpen.value = false
+  }
+}
+async function removeLinkedCustomer(c) {
+  if (!c?.association_id || removingAssocId.value) return
+  if (!c.can_remove) return
+  if (!confirm(t('project.detLinkedCustomerRemoveConfirm', { name: c.name }))) return
+  removingAssocId.value = c.association_id
+  try {
+    await client.delete(`/mobile/projects/${route.params.id}/customers/${c.association_id}`)
+    await load()
+  } catch (e) {
+    alert(e?.response?.data?.message || t('project.detLinkedCustomerRemoveFail'))
+  } finally {
+    removingAssocId.value = null
+  }
+}
 
 // 审批流程 sheet (顶部 chip 点击展开) — 走通用 ApprovalInstance
 const flowSheetOpen = ref(false)
@@ -650,20 +701,35 @@ onMounted(() => {
       </div>
 
       <!-- 关联客户 -->
-      <div v-if="project.customers?.length" class="px-7 pt-5">
-        <div class="text-[11px] font-semibold uppercase mb-3"
-          style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.detLinkedCustomer') }}</div>
-        <div class="rounded-2xl overflow-hidden"
-          style="background: var(--color-card); border: 1px solid var(--color-divider);">
-          <button v-for="(c, i) in project.customers" :key="c.id"
-            @click="router.push(`/customers/${c.id}`)"
-            class="w-full px-4 py-3 flex items-center justify-between active:bg-bg"
-            :style="i < project.customers.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
-            <span class="text-[14px]" style="color: var(--color-ink);">{{ c.name }}</span>
-            <svg width="7" height="11" viewBox="0 0 7 11" fill="none">
-              <path d="M1 1l4 4.5L1 10" stroke="var(--color-ink-3)" stroke-width="1.4" stroke-linecap="round" />
-            </svg>
+      <div class="px-7 pt-5">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-[11px] font-semibold uppercase"
+            style="color: var(--color-ink-3); letter-spacing: 1px;">
+            {{ t('project.detLinkedCustomer') }}<span v-if="project.customers?.length" style="opacity: 0.7;"> · {{ project.customers.length }}</span>
+          </div>
+          <button @click="customerPickerOpen = true"
+            class="text-[12px] font-medium active:opacity-60"
+            style="color: var(--color-accent);">
+            + {{ t('project.detLinkedCustomerAdd') }}
           </button>
+        </div>
+        <div v-if="project.customers?.length" class="rounded-2xl overflow-hidden"
+          style="background: var(--color-card); border: 1px solid var(--color-divider);">
+          <SwipeRowAction v-for="(c, i) in project.customers" :key="c.association_id || c.id"
+            :disabled="!c.can_remove"
+            :actions="[{ label: t('common.delete'), color: 'red', handler: () => removeLinkedCustomer(c) }]">
+            <button @click="router.push(`/customers/${c.id}`)"
+              class="w-full px-4 py-3 flex items-center justify-between active:bg-bg"
+              :style="i < project.customers.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
+              <span class="text-[14px]" style="color: var(--color-ink);">{{ c.name }}</span>
+              <svg width="7" height="11" viewBox="0 0 7 11" fill="none">
+                <path d="M1 1l4 4.5L1 10" stroke="var(--color-ink-3)" stroke-width="1.4" stroke-linecap="round" />
+              </svg>
+            </button>
+          </SwipeRowAction>
+        </div>
+        <div v-else class="text-center text-[13px] py-3" style="color: var(--color-ink-3);">
+          {{ t('project.detLinkedCustomerEmpty') }}
         </div>
       </div>
 
@@ -929,6 +995,13 @@ onMounted(() => {
 
     <!-- ── Note box bottom sheet（公用组件，与 CustomerDetailView 共用） ── -->
     <NoteSheet v-model="showNoteBox" :submit="submitNote" />
+
+    <!-- Customer picker for linking a company to this project (opened by the Add button in the customers section header) -->
+    <ExSearchPickerSheet v-model="customerPickerOpen"
+      :title="t('project.detLinkedCustomerPickTitle')"
+      :placeholder="t('project.detLinkedCustomerPickPh')"
+      :search-fn="searchCompaniesForLink"
+      @pick="pickCompanyForLink" />
 
 
     <!-- 项目提交审批确认 sheet -->
