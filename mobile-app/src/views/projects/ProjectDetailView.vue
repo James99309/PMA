@@ -674,7 +674,7 @@ onMounted(() => {
             style="color: var(--color-ink-3); letter-spacing: 1px;">
             {{ t('project.detQuotation') }} <span v-if="project.quotation_count" style="opacity: 0.7;">· {{ project.quotation_count }}</span>
           </div>
-          <button v-if="project.quotations?.length > 1"
+          <button v-if="project.quotations?.length > 2"
             @click="showAllQuotations = !showAllQuotations"
             class="text-[12px] font-medium active:opacity-60"
             style="color: var(--color-accent);">
@@ -683,17 +683,17 @@ onMounted(() => {
         </div>
         <div v-if="project.quotations?.length" class="rounded-2xl overflow-hidden"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
-          <div v-for="(q, i) in (showAllQuotations ? project.quotations : project.quotations.slice(0, 1))" :key="q.id"
+          <div v-for="(q, i) in (showAllQuotations ? project.quotations : project.quotations.slice(0, 2))" :key="q.id"
             @click="openQuotation(q.id)"
             class="px-4 py-3 flex items-center justify-between cursor-pointer active:bg-bg"
-            :style="i < (showAllQuotations ? project.quotations.length : 1) - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
+            :style="i < (showAllQuotations ? project.quotations.length : Math.min(2, project.quotations.length)) - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
             <div class="min-w-0 flex-1">
               <div class="text-[14px] font-medium truncate"
                 style="color: var(--color-accent);">{{ q.number }}</div>
               <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">{{ q.created_at }}</div>
             </div>
             <div class="text-right shrink-0">
-              <div class="text-[14px] font-semibold tabular">{{ q.total }}<span class="text-[10px] ml-0.5" style="color: var(--color-ink-3);">{{ t('project.detUnitWan') }}</span></div>
+              <div class="text-[14px] font-semibold tabular">{{ q.amount_display || '—' }}</div>
               <div class="text-[11px] mt-0.5"
                 :style="{ color: q.status?.includes('approved') ? 'var(--color-green)' : q.status === 'pending' ? '#B45309' : 'var(--color-ink-3)' }">
                 {{ q.status?.includes('approved') ? t('project.detQuotApproved') : q.status === 'pending' ? t('project.detQuotPending') : t('project.detQuotDraft') }}
