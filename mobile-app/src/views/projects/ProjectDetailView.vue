@@ -720,7 +720,10 @@ onMounted(() => {
             :actions="[{ label: t('common.delete'), color: 'red', handler: () => removeLinkedCustomer(c) }]">
             <button @click="router.push(`/customers/${c.id}`)"
               class="w-full px-4 py-3 flex items-center justify-between active:bg-bg"
-              :style="i < project.customers.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
+              :style="[
+                i < project.customers.length - 1 ? { borderBottom: '1px solid var(--color-divider)' } : {},
+                { background: 'var(--color-card)' },
+              ]">
               <span class="text-[14px]" style="color: var(--color-ink);">{{ c.name }}</span>
               <svg width="7" height="11" viewBox="0 0 7 11" fill="none">
                 <path d="M1 1l4 4.5L1 10" stroke="var(--color-ink-3)" stroke-width="1.4" stroke-linecap="round" />
