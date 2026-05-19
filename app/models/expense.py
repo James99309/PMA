@@ -204,10 +204,12 @@ class ExpenseDetail(db.Model):
     
     @property
     def formatted_exchange_rate(self):
-        """格式化汇率显示"""
-        if self.exchange_rate == 1.0:
+        """汇率显示: 1.0 → '1:1'; 其它保留 4 位精度但去掉尾随 0,
+        例如 1.2 → '1.2',0.5795 → '0.5795',1.2000 → '1.2'。"""
+        if self.exchange_rate is None or self.exchange_rate == 1.0:
             return '1:1'
-        return f'{self.exchange_rate:.4f}'
+        s = f'{round(self.exchange_rate, 4):.4f}'.rstrip('0').rstrip('.')
+        return s or '1:1'
     
     @property
     def invoice_images_list(self):
