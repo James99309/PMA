@@ -284,7 +284,7 @@
               <span>·</span>
               <span>{{ t('expense.docCountN', { n: d.document_count }) }}</span>
               <span>·</span>
-              <span>{{ t('expense.rateAt', { r: (d.exchange_rate || 1).toFixed(4) }) }}</span>
+              <span>{{ t('expense.rateAt', { r: formatRate(d.exchange_rate) }) }}</span>
             </div>
           </div>
         </div>
@@ -614,6 +614,13 @@ function categoryLabel(key) { return store.categoryLabel(key) }
 function currencySymbolFor(code) { return store.currencySymbol(code) }
 function formatAmount(n) {
   return (n || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+// Exchange rate display: 4-decimal cap, strip trailing zeros so
+// 1.2 stays '1.2', 1.0000 → '1', 0.5795 stays '0.5795'.
+function formatRate(n) {
+  const v = parseFloat(n)
+  if (!isFinite(v) || v <= 0) return '1'
+  return (Math.round(v * 10000) / 10000).toString()
 }
 
 // canSubmit: 底部"提交审批"按钮启用条件 — 必须有明细 + 说明 + (关联客户/项目 或 不关联模式)
