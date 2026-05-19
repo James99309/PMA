@@ -1685,19 +1685,33 @@ def edit_expense(id):
                 ]
 
                 existing_details = ExpenseDetail.query.filter_by(expense_id=expense_obj.id).order_by(ExpenseDetail.id).all()
+                # 关键修复: 前端表单的数组顺序 != 数据库 ORDER BY id 的顺序,
+                # 旧代码用 existing_details[index] 按位置匹配会把汇率写到错行
+                # (i.e. expense 91 上 312/313 被写错). 改用每条明细前端附带的 id
+                # 字段 (frontend expense-modal.js 已 append details[i][id]) 精准匹配。
+                existing_by_id = {d.id: d for d in existing_details}
+
+                def _resolve_detail_obj(idx, detail):
+                    """根据前端 detail['id'] 匹配现有明细; 缺/不在集合内→视为新增。"""
+                    raw_id = detail.get('id')
+                    if raw_id in (None, '', 0, '0'):
+                        return None
+                    try:
+                        did = int(raw_id)
+                    except (TypeError, ValueError):
+                        return None
+                    return existing_by_id.get(did)
 
                 # 验证每条明细提交的字段
                 for index, detail in detail_data.items():
-                    if index >= len(existing_details):
+                    detail_obj = _resolve_detail_obj(index, detail)
+                    if detail_obj is None:
                         # 审核阶段不允许新增明细
-                        logger.warning(f"[安全警告] 用户 {current_user.id} 尝试在审核阶段新增明细 {index}")
+                        logger.warning(f"[安全警告] 用户 {current_user.id} 尝试在审核阶段新增明细 idx={index} id={detail.get('id')}")
                         return jsonify({
                             'success': False,
                             'message': f'审核阶段不允许新增明细条目'
                         }), 403
-
-                    # 获取现有明细对象
-                    detail_obj = existing_details[index]
 
                     # 检查提交的字段是否有未授权的修改
                     submitted_detail_fields = set()
@@ -1759,10 +1773,17 @@ def edit_expense(id):
 
                 total_amount = 0.0
 
-                for index, detail_obj in enumerate(existing_details):
-                    if index in detail_data:
-                        detail = detail_data[index]
-
+                # 用 id 精准匹配; 旧代码 enumerate(existing_details) + index in detail_data
+                # 在 detail_data 顺序 != ORDER BY id 顺序时会把字段写到错行。
+                touched_ids = set()
+                for index in sorted(detail_data.keys()):
+                    detail = detail_data[index]
+                    detail_obj = _resolve_detail_obj(index, detail)
+                    if detail_obj is None:
+                        # 已在上面的安全检查里 403 出去, 这里防御性 skip
+                        continue
+                    touched_ids.add(detail_obj.id)
+                    if True:  # 保持原缩进, 减少 diff
                         # 🔥 动态更新可编辑的字段
                         if 'expense_category' in editable_fields and 'expense_category' in detail:
                             detail_obj.expense_category = detail['expense_category']
@@ -1807,7 +1828,11 @@ def edit_expense(id):
                         # 不更新 invoice_images 字段，确保发票图片在审核阶段不被篡改
                         logger.info(f"审核编辑模式：明细 {detail_obj.id} 的发票图片已锁定，不允许修改")
 
-                    total_amount += detail_obj.current_amount or detail_obj.amount or 0
+                # 汇总: 用 ALL existing_details (即包含未提交触碰的行),
+                # 与旧 enumerate 路径行为对齐
+                total_amount = sum(
+                    (d.current_amount or d.amount or 0) for d in existing_details
+                )
 
                 # 更新报销单总金额
                 expense_obj.total_amount = total_amount
