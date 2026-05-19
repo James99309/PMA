@@ -10,6 +10,16 @@
 (function(window) {
     'use strict';
 
+    /**
+     * 汇率显示: 4 位精度,去掉尾随 0。1.0000→'1', 1.2→'1.2', 0.5795→'0.5795'。
+     * 用户反馈: 输入 1.2 不要被改成 1.2000。
+     */
+    function fmtRate(v) {
+        const n = parseFloat(v);
+        if (!isFinite(n) || n <= 0) return '1';
+        return (Math.round(n * 10000) / 10000).toString();
+    }
+
     // 默认配置
     const defaultConfig = {
         modalId: 'expenseFormModal',
@@ -523,13 +533,13 @@
                 row.querySelector('[name="detail_description"]').value = data.description || '';
                 row.querySelector('[name="document_count"]').value = data.document_count || 1;
                 row.querySelector('[name="invoice_amount"]').value = data.invoice_amount || '';
-                // 汇率保持4位小数精度
-                const exchangeRate = parseFloat(data.exchange_rate || 1).toFixed(4);
-                row.querySelector('[name="exchange_rate"]').value = exchangeRate;
+                // 汇率显示去掉尾随 0,但内部计算用 4 位精度
+                const rateDisplay = fmtRate(data.exchange_rate);
+                const rateNum = parseFloat(rateDisplay) || 1;
+                row.querySelector('[name="exchange_rate"]').value = rateDisplay;
 
-                // 使用4位精度汇率计算金额，保持与后端一致
                 const invoiceAmount = parseFloat(data.invoice_amount) || 0;
-                const currentAmount = invoiceAmount * parseFloat(exchangeRate);
+                const currentAmount = invoiceAmount * rateNum;
                 row.querySelector('.expense-current-amount').textContent = currentAmount.toFixed(2);
 
                 // 显示现有发票
@@ -613,7 +623,13 @@
 
             // 金额/汇率变化时计算报销额
             row.querySelector('[name="invoice_amount"]').addEventListener('input', () => this.calculateCurrentAmount(row));
+            // 输入时只重新计算金额(不格式化,否则中途输 "1." 会被打回 "1" 没法继续打小数);
+            // 失焦再去掉尾随 0
             row.querySelector('[name="exchange_rate"]').addEventListener('input', () => this.calculateCurrentAmount(row));
+            row.querySelector('[name="exchange_rate"]').addEventListener('blur', (e) => {
+                e.target.value = fmtRate(e.target.value);
+                this.calculateCurrentAmount(row);
+            });
 
             // 发票上传
             row.querySelector('.expense-invoice-input').addEventListener('change', (e) => this.handleInvoiceUpload(row, e.target.files));
@@ -651,7 +667,7 @@
             const toCurrency = currencyEl ? currencyEl.value : config.defaultCurrency;
 
             if (fromCurrency === toCurrency) {
-                row.querySelector('[name="exchange_rate"]').value = '1.0000';
+                row.querySelector('[name="exchange_rate"]').value = '1';
                 this.calculateCurrentAmount(row);
                 return;
             }
@@ -660,9 +676,7 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.success && data.rate) {
-                        // 限制汇率为4位小数
-                        const rate = parseFloat(data.rate).toFixed(4);
-                        row.querySelector('[name="exchange_rate"]').value = rate;
+                        row.querySelector('[name="exchange_rate"]').value = fmtRate(data.rate);
                         this.calculateCurrentAmount(row);
                     }
                 })
@@ -674,13 +688,11 @@
          * @param {HTMLElement} row - 行元素
          */
         calculateCurrentAmount: function(row) {
+            // 只算金额展示,不动汇率字段(否则边打字边重写,光标会跳/小数没法打完)。
+            // 字段格式化在 blur 事件里做。
             const invoiceAmount = parseFloat(row.querySelector('[name="invoice_amount"]').value) || 0;
-            // 获取汇率并限制为4位小数精度，确保与后端计算一致
             let exchangeRate = parseFloat(row.querySelector('[name="exchange_rate"]').value) || 1;
-            exchangeRate = parseFloat(exchangeRate.toFixed(4));
-            // 更新汇率输入框显示为4位小数
-            row.querySelector('[name="exchange_rate"]').value = exchangeRate.toFixed(4);
-            // 使用4位精度汇率计算金额
+            exchangeRate = Math.round(exchangeRate * 10000) / 10000;
             const currentAmount = invoiceAmount * exchangeRate;
             row.querySelector('.expense-current-amount').textContent = currentAmount.toFixed(2);
             this.updateDetailStats();
