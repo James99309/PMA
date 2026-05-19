@@ -265,6 +265,10 @@ export default {
     aiSugSummarize: '/总结群消息',
     aiSugContract: '/查合同',
     aiSugContacts: '/找联系人',
+    // Empty-state seed chips (shown when AI conversation is empty)
+    aiSeedNextStep: '这个项目下一步该做什么?',
+    aiSeedDraftMeeting: '帮我起草约见短信',
+    aiSeedCompare: '其他客户对比一下',
     // MessageActions
     msgCopy: '复制',
     msgFwd: '转发',

@@ -260,6 +260,10 @@ export default {
     aiSugSummarize: '/summarise',
     aiSugContract: '/contracts',
     aiSugContacts: '/contacts',
+    // Empty-state seed chips (shown when AI conversation is empty)
+    aiSeedNextStep: 'What should be the next step for this project?',
+    aiSeedDraftMeeting: 'Draft a short message to schedule a meeting',
+    aiSeedCompare: 'Compare this with other customers',
     // MessageActions
     msgCopy: 'Copy',
     msgFwd: 'Forward',

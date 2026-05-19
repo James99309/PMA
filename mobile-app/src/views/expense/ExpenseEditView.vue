@@ -882,19 +882,18 @@ async function onTopSave() {
   }
 }
 
-// 顶栏左上"取消": 若本次会话自动建了草稿且未主动保存/提交 → 删掉它,
-// 不留在列表(软删 is_deleted)。从列表打开的旧草稿不受影响。
-const cancelling = ref(false)
-async function onCancel() {
-  if (cancelling.value) return
-  cancelling.value = true
-  try {
-    if (autoCreatedThisSession.value && editingId.value) {
-      try { await expApi.deleteExpense(editingId.value) } catch (e) { /* 删失败也不挡返回 */ }
-      store.clearCompose(editingId.value)
-    }
-  } finally {
-    router.back()
+// Cancel: navigate back immediately so the user sees a response; the
+// auto-created draft cleanup runs in the background. Awaiting the DELETE
+// here on CN Cloudflare Tunnel adds 1-2s where the button looks frozen.
+function onCancel() {
+  const id = editingId.value
+  const auto = autoCreatedThisSession.value
+  // Navigate first — no await on network work.
+  router.back()
+  // Background cleanup: only when this session auto-created a fresh draft.
+  if (auto && id) {
+    expApi.deleteExpense(id).catch(() => {/* ignore: not worth blocking UX */})
+    store.clearCompose(id)
   }
 }
 

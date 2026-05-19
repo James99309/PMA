@@ -8,7 +8,18 @@ import PixelP from '@/components/common/PixelP.vue'
 import { streamAi, getMessages, markAsRead } from '@/api/chat'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
-const { kbStyle } = useKeyboardOffset()
+const { onKeyboardWillShow, onKeyboardDidShow, onKeyboardWillHide } = useKeyboardOffset()
+function _smoothScrollDuringTransition(duration = 280) {
+  const start = performance.now()
+  const tick = () => {
+    if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+    if (performance.now() - start < duration) requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+onKeyboardWillShow(() => _smoothScrollDuringTransition())
+onKeyboardWillHide(() => _smoothScrollDuringTransition())
+onKeyboardDidShow(() => scrollToBottom())
 
 const route = useRoute()
 const router = useRouter()
@@ -17,17 +28,11 @@ const { t } = useI18n()
 // 现有 AI 会话 id（从 ChatListView 跳过来时带 query.id；否则首次发消息时由后端创建）
 const conversationId = ref(route.query.id ? Number(route.query.id) : null)
 
-const messages = ref([
-  // 设计稿初始 demo 对话（line 169-194）
-  { id: 1, kind: 'user', time: '14:21', text: '帮我分析一下宝山节能这个客户的赢率怎么样？最近的项目有几个有戏？' },
-  {
-    id: 2, kind: 'ai', time: '14:21', thinking: false,
-    body: 'rich-1',
-    showActions: true,
-  },
-])
+// Start empty; loadHistory() (onMounted) replaces with real messages when
+// conversationId is present. Empty-state suggestion chips below (v-if on
+// messages.length===0) cover the "fresh AI chat" UX without any seed demo.
+const messages = ref([])
 
-const showSuggest1 = ref(true)
 const inputText = ref('')
 const sending = ref(false)
 const scrollEl = ref(null)
@@ -36,8 +41,10 @@ const QUICK_CMDS = computed(() => [
   t('chat.aiSugDraft'), t('chat.aiSugWinrate'), t('chat.aiSugSummarize'),
   t('chat.aiSugContract'), t('chat.aiSugContacts'),
 ])
-// SUGGEST_TAGS_1 是 demo seed 提示, 暂保留中文(只在没有 backend mock 时显示)
-const SUGGEST_TAGS_1 = ['这个项目下一步该做什么？', '帮我起草约见短信', '其他客户对比一下']
+// Seed prompt chips shown only when the conversation is empty (i18n driven)
+const SUGGEST_TAGS_1 = computed(() => [
+  t('chat.aiSeedNextStep'), t('chat.aiSeedDraftMeeting'), t('chat.aiSeedCompare'),
+])
 
 async function scrollToBottom() {
   await nextTick()
@@ -74,46 +81,10 @@ function replaceAiResponse(id, body) {
   }
 }
 
-// Mock 回复内容（不同 query 显示不同内容）
-function mockReply(query) {
-  if (query.includes('约见') || query.includes('短信')) {
-    return {
-      type: 'draft',
-      label: '建议回复 · 已结合客户偏好与历史互动',
-      text: '李经理您好，关于您说的方案，我希望本周能登门拜访 30 分钟，把更新版当面对一遍，您看周三或周四下午方便吗？',
-    }
-  }
-  if (query.includes('对比')) {
-    return {
-      type: 'compare',
-      title: '已为你对比 3 家客户（按累计价值倒序）',
-      items: [
-        { name: '深圳明远半导体', value: '620.00 万', tag: 'A 类活跃' },
-        { name: '上海宝山节能科技', value: '380.50 万', tag: 'A 类活跃' },
-        { name: '南京数据港集团', value: '256.00 万', tag: 'A 类活跃' },
-      ],
-    }
-  }
-  // 默认
-  return {
-    type: 'analysis',
-    intro: '结合我看到的数据，宝山节能整体赢率较高（约 72%），主要原因有三点：',
-    points: [
-      '是老客户，过往合作 2 个签约项目',
-      '主要联系人 李华（采购部经理）对你信任度高',
-      '名下进行中 3 个项目，其中 1 个已到「招标中」',
-    ],
-    cardLead: '名下项目中，「宝山节能改造项目」最值得重点跟进：',
-    refCard: { name: '宝山节能改造项目', stage: '招标中', amount: '42.50' },
-    footer: '数据来源：6 个名下项目 · 12 条跟进记录 · 上次拜访 04 · 22',
-  }
-}
-
 async function send(text) {
   const t = (text ?? inputText.value).trim()
   if (!t || sending.value) return
   sending.value = true
-  showSuggest1.value = false
   pushUser(t)
   inputText.value = ''
   await scrollToBottom()
@@ -206,7 +177,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
+  <div class="flex flex-col h-full chat-kb-root" :style="{ background: 'var(--color-bg)' }">
 
     <!-- Nav -->
     <div class="flex items-center gap-2.5 px-4 py-2 shrink-0"
@@ -357,8 +328,8 @@ onMounted(async () => {
         </div>
       </template>
 
-      <!-- 第一轮回复后的建议追问 chip -->
-      <div v-if="showSuggest1" class="px-4 pl-[54px] py-1.5 flex flex-wrap gap-1.5">
+      <!-- Seed prompt chips: visible only when conversation is empty -->
+      <div v-if="messages.length === 0" class="px-4 pl-[54px] py-1.5 flex flex-wrap gap-1.5">
         <button v-for="t in SUGGEST_TAGS_1" :key="t"
           @click="pickSuggest(t)"
           class="text-[12px] font-serif italic px-3 py-1.5 rounded-full active:opacity-70"
