@@ -195,6 +195,10 @@ def add_reply(actor, t, content, subtask_id=None, reply_type='comment'):
     r = TaskReply(task_id=t.id, subtask_id=subtask_id, author_id=actor.id,
                   content=content, reply_type=reply_type)
     db.session.add(r)
+    sub = None
+    if subtask_id:
+        sub = next((s for s in (t.subtasks or []) if s.id == subtask_id), None)
+    notif.notify_task_reply(actor.id, t, content, subtask=sub)
     db.session.commit()
     _record_activity('reply', t, actor)
     return r

@@ -73,6 +73,43 @@ def notify_task_completed(actor_id, recipient_id, task):
         logger.warning(f"notify_task_completed 失败: {e}")
 
 
+def notify_task_reply(actor_id, task, content, subtask=None):
+    """任务/子任务被评论 → 通知相关方(站内 Message + 站外推送)。
+
+    - 主任务评论(subtask=None): creator + assignee + shared_with_users
+    - 子任务评论(subtask 非空): subtask.assignee + task.creator + task.assignee
+    自动去重并排除评论作者本人。失败只 log 不抛。
+    """
+    try:
+        if subtask is not None:
+            recipients = {
+                getattr(subtask, 'assignee_id', None),
+                getattr(task, 'creator_id', None),
+                getattr(task, 'assignee_id', None),
+            }
+        else:
+            recipients = {
+                getattr(task, 'creator_id', None),
+                getattr(task, 'assignee_id', None),
+            }
+            for uid in (getattr(task, 'shared_with_users', None) or []):
+                recipients.add(uid)
+        recipients.discard(actor_id)
+        recipients.discard(None)
+        if not recipients:
+            return
+
+        from app.models.message import Message
+        for rid in recipients:
+            msg = Message.create_task_reply(
+                sender_id=actor_id, recipient_id=rid,
+                task=task, comment_content=content, subtask=subtask)
+            db.session.add(msg)
+            _push(rid, msg.title, msg.content, getattr(task, 'id', None))
+    except Exception as e:
+        logger.warning(f"notify_task_reply 失败: {e}")
+
+
 def notify_task_custom(actor_id, recipient_id, title, content,
                        obj_id, message_type='task_notification'):
     """自定义任务通知(如暂停)。原 web 在 pause 里内联 Message(...)。"""
