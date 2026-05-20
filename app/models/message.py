@@ -687,6 +687,37 @@ class Message(db.Model):
         )
 
     @classmethod
+    def create_task_reply(cls, sender_id, recipient_id, task, comment_content,
+                          subtask=None):
+        """任务/子任务评论通知(站内 Message,APNs 推送在调用方异步发)。
+
+        subtask 非空 → 子任务评论;为空 → 主任务评论。
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = (sender.real_name or sender.username) if sender else '未知用户'
+        preview = (comment_content or '')[:100] + ('...' if len(comment_content or '') > 100 else '')
+        if subtask is not None:
+            sub_title = (subtask.title or '')[:40]
+            title = f'{sender_name} 评论了子任务「{sub_title}」'
+        else:
+            t_title = (task.title or '')[:40]
+            title = f'{sender_name} 评论了「{t_title}」'
+        return cls(
+            message_type='task_reply',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=title,
+            content=preview,
+            related_object_type='task',
+            related_object_id=task.id,
+            extra_data={
+                'task_id': task.id,
+                'subtask_id': getattr(subtask, 'id', None),
+            },
+        )
+
+    @classmethod
     def create_task_completed(cls, sender_id, recipient_id, task):
         """创建任务完成通知
 

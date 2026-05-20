@@ -19,6 +19,41 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
+
+def _push_task_async(recipient_id, title, body, task_id=None, subtask_id=None):
+    """任务相关 APNs 推送 — fire-and-forget,后台线程,与主流程异步解耦。
+    失败只 log,iOS 之外/未注册 token 的用户自动跳过(由 send_push 处理)。"""
+    if not recipient_id:
+        return
+    try:
+        import threading
+        from flask import current_app
+        app = current_app._get_current_object()
+    except Exception:
+        return
+
+    def _w():
+        with app.app_context():
+            try:
+                from app.services.apns_service import send_push
+                data = {'type': 'task'}
+                if task_id is not None:
+                    data['task_id'] = task_id
+                if subtask_id is not None:
+                    data['subtask_id'] = subtask_id
+                send_push(
+                    user_ids=[recipient_id],
+                    title=(title or '')[:80] or '任务通知',
+                    body=(body or '')[:120],
+                    data=data,
+                )
+            except Exception as e:
+                logger.warning(f'task push 失败: {e}')
+    try:
+        threading.Thread(target=_w, daemon=True).start()
+    except Exception as e:
+        logger.warning(f'task push 线程启动失败: {e}')
+
 task = Blueprint('task', __name__, url_prefix='/task')
 csrf.exempt(task)
 
@@ -749,6 +784,37 @@ def add_reply(id):
             reply_type=reply_type,
         )
         db.session.add(reply)
+
+        # 评论通知(站内 Message + APNs 推送)
+        # 主任务评论 → creator + assignee + 协助人
+        # 子任务评论 → subtask.assignee + task.creator + task.assignee
+        sub_obj = None
+        try:
+            if subtask_id:
+                sub_obj = SubTask.query.get(subtask_id)
+                recipients = {
+                    getattr(sub_obj, 'assignee_id', None),
+                    t.creator_id,
+                    t.assignee_id,
+                }
+            else:
+                recipients = {t.creator_id, t.assignee_id}
+                for uid in (t.shared_with_users or []):
+                    recipients.add(uid)
+            recipients.discard(current_user.id)
+            recipients.discard(None)
+            if recipients:
+                from app.models.message import Message
+                for rid in recipients:
+                    msg = Message.create_task_reply(
+                        sender_id=current_user.id, recipient_id=rid,
+                        task=t, comment_content=content, subtask=sub_obj)
+                    db.session.add(msg)
+                    _push_task_async(rid, msg.title, msg.content,
+                                     task_id=t.id, subtask_id=subtask_id)
+        except Exception as _nf:
+            logger.warning(f'task reply 通知失败: {_nf}')
+
         db.session.commit()
 
         try:
@@ -762,7 +828,7 @@ def add_reply(id):
 
         subtask_title = None
         if reply.subtask_id:
-            st = SubTask.query.get(reply.subtask_id)
+            st = sub_obj or SubTask.query.get(reply.subtask_id)
             subtask_title = st.title if st else None
 
         return jsonify({
