@@ -277,7 +277,7 @@
 
     <!-- Review approve/reject sheet -->
     <Teleport to="body">
-      <div v-if="reviewSheet" :style="ovl" @click.self="reviewSheet = false">
+      <div v-if="reviewSheet && !reviewCommentEditorOpen" :style="ovl" @click.self="reviewSheet = false">
         <div :style="sheet">
           <div :style="grab" />
           <div :style="{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.6px',
@@ -315,7 +315,7 @@
 
     <!-- Subtask drawer (#5) -->
     <Teleport to="body">
-      <div v-if="subSheet && curSub" :style="ovl" @click.self="subSheet = false">
+      <div v-if="subSheet && curSub && !subTextEditorOpen" :style="ovl" @click.self="subSheet = false">
         <div :style="sheet">
           <div :style="grab" />
           <div :style="{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }">
@@ -482,7 +482,7 @@
 
     <!-- Milestone confirm/reject sheet -->
     <Teleport to="body">
-      <div v-if="msSheet && curSub" :style="ovl" @click.self="msSheet = false">
+      <div v-if="msSheet && curSub && !msCommentEditorOpen" :style="ovl" @click.self="msSheet = false">
         <div :style="sheet">
           <div :style="grab" />
           <div :style="{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.6px',
