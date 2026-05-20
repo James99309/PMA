@@ -37,12 +37,15 @@
       </div>
     </div>
 
-    <!-- 主滚动区(整页可滚动, 包括缩略图和字段表单) -->
-    <div class="flex-1 overflow-y-auto no-scrollbar" style="padding-bottom: 100px;">
+    <!-- 主滚动区(整页可滚动, 包括缩略图和字段表单).
+         键盘弹起时 --kb-height 由 main.js 写入, 这里加到 padding 让最后一行也能滚到键盘上方 -->
+    <div class="flex-1 overflow-y-auto no-scrollbar"
+      :style="{ paddingBottom: `calc(${mergeable.length > 0 && !kbOpen ? 190 : 100}px + var(--kb-height, 0px))` }">
       <!-- 缩略 + 元信息 (点击放大查看原图) -->
       <div class="flex items-start" :style="{ padding: '12px 20px 16px', gap: '12px' }">
         <div
-          @click="receipt?.dataUrl && (showFullImage = true)"
+          @click="openFullView"
+          class="flex items-center justify-center"
           :style="{
             width: '92px', height: '64px', borderRadius: '4px',
             backgroundImage: receipt?.dataUrl ? `url(${receipt.dataUrl})` : 'none',
@@ -50,9 +53,23 @@
             flexShrink: 0,
             cursor: 'pointer',
             position: 'relative',
+            color: '#7A7570',
+            fontSize: '11px',
+            fontWeight: 600,
           }"
         >
-          <!-- 放大镜角标 -->
+          <!-- 渲染失败 / 没 thumbnail 的 fallback -->
+          <span v-if="!receipt?.dataUrl && receipt?.isPdf">📄 PDF</span>
+          <span v-else-if="!receipt?.dataUrl">📎</span>
+          <!-- PDF 角标 -->
+          <div v-if="receipt?.isPdf && receipt?.dataUrl"
+            :style="{
+              position: 'absolute', top: '2px', left: '2px',
+              padding: '1px 4px', borderRadius: '3px',
+              background: 'rgba(217,119,87,0.95)', color: '#fff',
+              fontSize: '9px', fontWeight: 600, letterSpacing: '0.5px',
+            }">PDF</div>
+          <!-- 放大镜角标 (图片 + PDF 都有) -->
           <div v-if="receipt?.dataUrl"
             :style="{
               position: 'absolute', bottom: '-4px', right: '-4px',
@@ -86,11 +103,11 @@
               {{ confidenceLabel.text }}
             </span>
           </div>
-          <div v-if="receipt?.dataUrl"
+          <div v-if="receipt?.dataUrl || receipt?.isPdf"
             class="text-[11px] mt-1.5 active:opacity-60"
             style="color: var(--color-accent);"
-            @click="showFullImage = true">
-            {{ t('receiptScan.tapToZoom') }}
+            @click="openFullView">
+            {{ receipt?.isPdf ? t('receiptScan.tapToOpenPdf') : t('receiptScan.tapToZoom') }}
           </div>
         </div>
       </div>
@@ -101,35 +118,71 @@
         :label="t('receiptScan.fCategory')"
         :value="categoryLabel(form.expense_category)"
         :warn="lowConfidence('category')"
-        :note="lowConfidence('category') ? t('receiptScan.confidencePct', { pct: pct('category') }) : ''"
         @click="onPickCategory"
       />
       <ExFieldRow
         :label="t('receiptScan.fDate')"
-        :value="form.expense_date || '—'"
         :warn="lowConfidence('date')"
-        :note="lowConfidence('date') ? t('receiptScan.confidencePct', { pct: pct('date') }) : ''"
-      />
+      >
+        <div class="relative" :style="{ width: '100%' }">
+          <span :style="{ fontSize: '14px', fontWeight: 500, color: 'var(--color-ex-ink)' }">
+            {{ form.expense_date || '—' }}
+          </span>
+          <input
+            v-model="form.expense_date"
+            type="date"
+            @focus="onInputFocus"
+            :style="{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', border: 'none', padding: 0, background: 'transparent', fontSize: '14px' }"
+          />
+        </div>
+      </ExFieldRow>
       <ExFieldRow
         :label="t('receiptScan.fDesc')"
-        :value="form.description || '—'"
         :warn="lowConfidence('description')"
-      />
+      >
+        <input
+          v-model="form.description"
+          type="text"
+          :placeholder="t('receiptScan.fDesc')"
+          @focus="onInputFocus"
+          :style="{ background: 'transparent', border: 'none', outline: 'none', padding: 0, fontSize: '14px', fontWeight: 500, color: 'var(--color-ex-ink)', width: '100%' }"
+        />
+      </ExFieldRow>
       <ExFieldRow
         :label="t('receiptScan.fInvoiceAmt')"
-        :value="`${currencySymbol(form.currency)} ${formatAmount(form.invoice_amount)}`"
         :warn="lowConfidence('invoice_amount')"
-        :note="lowConfidence('invoice_amount') ? t('receiptScan.pleaseCheckAmount') : ''"
-      />
+      >
+        <div class="flex items-center" :style="{ gap: '6px' }">
+          <span :style="{ fontSize: '14px', color: 'var(--color-ex-ink3)' }">{{ currencySymbol(form.currency) }}</span>
+          <input
+            v-model.number="form.invoice_amount"
+            type="number"
+            step="0.01"
+            min="0"
+            inputmode="decimal"
+            @focus="onInputFocus"
+            :style="{ background: 'transparent', border: 'none', outline: 'none', padding: 0, fontSize: '14px', fontWeight: 500, color: 'var(--color-ex-ink)', width: '100%' }"
+          />
+        </div>
+      </ExFieldRow>
       <ExFieldRow
         :label="t('receiptScan.fCurrency')"
         :value="`${currencyLabel(form.currency)} (${form.currency})`"
+        @click="currencyPickerOpen = true"
       />
       <ExFieldRow
         :label="t('receiptScan.fRate')"
-        :value="(form.exchange_rate || 1).toFixed(4)"
-        :lock="true"
-      />
+      >
+        <input
+          v-model.number="form.exchange_rate"
+          type="number"
+          step="0.0001"
+          min="0"
+          inputmode="decimal"
+          @focus="onInputFocus"
+          :style="{ background: 'transparent', border: 'none', outline: 'none', padding: 0, fontSize: '14px', fontWeight: 500, color: 'var(--color-ex-ink)', width: '100%' }"
+        />
+      </ExFieldRow>
       <ExFieldRow
         :label="t('receiptScan.fAmount')"
         :value="`${currencySymbol(expenseCurrency)} ${formatAmount(currentAmount)}`"
@@ -146,47 +199,47 @@
         :value="form.tax_amount ? `${currencySymbol(form.currency)} ${formatAmount(form.tax_amount)}` : '—'"
       />
 
-      <!-- 合并模式 -->
-      <ExSectionHeader v-if="mergeable.length > 0">{{ t('receiptScan.secMerge') }}</ExSectionHeader>
-      <div
-        v-if="mergeable.length > 0"
-        :style="{
-          background: 'var(--color-ex-card)',
-          padding: '12px 20px',
-          borderTop: '1px solid var(--color-ex-divider-soft)',
-          borderBottom: '1px solid var(--color-ex-divider-soft)',
-        }"
-      >
-        <div class="flex" :style="{ gap: '10px', marginBottom: '10px' }">
-          <div
-            class="flex-1"
-            :style="{
-              padding: '10px',
-              border: mergeMode === 'separate' ? '1.5px solid var(--color-ex-ink)' : '1px solid var(--color-ex-divider)',
-              borderRadius: '8px',
-              background: mergeMode === 'separate' ? 'var(--color-ex-divider-soft)' : 'var(--color-ex-card)',
-            }"
-            @click="mergeMode = 'separate'"
-          >
-            <div :style="{ fontSize: '12px', fontWeight: 600 }">{{ t('receiptScan.mergeStandalone') }}</div>
-            <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">{{ t('receiptScan.mergeStandaloneDesc') }}</div>
+    </div>
+
+    <!-- 合并/独立: 移出滚动区, 与底部按钮同处固定底部容器 (顶边+同卡片底色视觉一体);
+         键盘弹起(输入字段)时隐藏, 避免在滚动区外造成偏移 -->
+    <div
+      v-if="mergeable.length > 0 && !kbOpen"
+      :style="{
+        padding: '10px 20px 0',
+        background: 'var(--color-ex-card)',
+        borderTop: '1px solid var(--color-ex-divider-soft)',
+      }"
+    >
+      <div class="flex" :style="{ gap: '10px' }">
+        <div
+          class="flex-1"
+          :style="{
+            padding: '10px',
+            border: mergeMode === 'separate' ? '1.5px solid var(--color-ex-ink)' : '1px solid var(--color-ex-divider)',
+            borderRadius: '8px',
+            background: mergeMode === 'separate' ? 'var(--color-ex-divider-soft)' : 'var(--color-ex-card)',
+          }"
+          @click="mergeMode = 'separate'"
+        >
+          <div :style="{ fontSize: '12px', fontWeight: 600 }">{{ t('receiptScan.mergeStandalone') }}</div>
+          <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">{{ t('receiptScan.mergeStandaloneDesc') }}</div>
+        </div>
+        <div
+          class="flex-1"
+          :style="{
+            padding: '10px',
+            border: mergeMode === 'merge' ? '1.5px solid var(--color-ex-ink)' : '1px solid var(--color-ex-divider)',
+            borderRadius: '8px',
+            background: mergeMode === 'merge' ? 'var(--color-ex-divider-soft)' : 'var(--color-ex-card)',
+          }"
+          @click="mergeMode = 'merge'"
+        >
+          <div :style="{ fontSize: '12px', fontWeight: 600 }">
+            {{ t('receiptScan.mergeMergeN', { n: mergeable.length + 1 }) }}
           </div>
-          <div
-            class="flex-1"
-            :style="{
-              padding: '10px',
-              border: mergeMode === 'merge' ? '1.5px solid var(--color-ex-ink)' : '1px solid var(--color-ex-divider)',
-              borderRadius: '8px',
-              background: mergeMode === 'merge' ? 'var(--color-ex-divider-soft)' : 'var(--color-ex-card)',
-            }"
-            @click="mergeMode = 'merge'"
-          >
-            <div :style="{ fontSize: '12px', fontWeight: 600 }">
-              {{ t('receiptScan.mergeMergeN', { n: mergeable.length + 1 }) }}
-            </div>
-            <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">
-              {{ t('receiptScan.mergeMergeDesc') }}
-            </div>
+          <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">
+            {{ t('receiptScan.mergeMergeDesc') }}
           </div>
         </div>
       </div>
@@ -209,23 +262,32 @@
       @pick="(v) => { form.expense_category = v; categoryPickerOpen = false }"
     />
 
-    <!-- 全屏图片预览 (核对原图清晰度) -->
+    <!-- 币种选择 -->
+    <ExPickerSheet
+      v-model="currencyPickerOpen"
+      :title="t('receiptScan.fCurrency')"
+      :options="store.currencies.map(c => ({ value: c.code, label: `${c.label || c.code} ${c.symbol || ''} (${c.code})` }))"
+      :selected="form.currency"
+      @pick="(v) => { form.currency = v; currencyPickerOpen = false; fetchRate() }"
+    />
+
+    <!-- 全屏图片预览 (PDF 走 Capacitor Browser, 不在这层) -->
     <Teleport to="body">
-      <div v-if="showFullImage && receipt?.dataUrl"
+      <div v-if="showFullImage && receipt?.dataUrl && !receipt?.isPdf"
         class="fixed inset-0 z-50 flex items-center justify-center"
         style="background: rgba(0,0,0,0.92);"
-        @click="showFullImage = false">
+        @click="closeFullView">
         <img :src="receipt.dataUrl"
           class="block"
           style="max-width: 100%; max-height: 100%; object-fit: contain;"
           @click.stop />
-        <button @click="showFullImage = false"
+        <button @click="closeFullView"
           class="absolute flex items-center justify-center rounded-full active:opacity-70"
           style="
             top: calc(env(safe-area-inset-top) + 12px);
             right: 16px;
             width: 36px; height: 36px;
-            background: rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.4);
             color: #fff; font-size: 18px;
           ">×</button>
         <div class="absolute text-white text-[12px] opacity-70"
@@ -238,7 +300,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import * as expApi from '@/api/expense'
@@ -247,6 +309,14 @@ import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExFieldRow from '@/components/expense/ExFieldRow.vue'
 import ExBottomBar from '@/components/expense/ExBottomBar.vue'
 import ExPickerSheet from '@/components/expense/ExPickerSheet.vue'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+// 启用全局键盘 offset 跟踪 + 点击空白处自动收键盘 (iOS 中文输入法没有 Done 按钮, 必须靠这个退出)
+const { onKeyboardWillShow, onKeyboardWillHide } = useKeyboardOffset()
+// 输入(键盘弹起)时隐藏 合并/独立 选项, 避免它在滚动区外造成视觉偏移
+const kbOpen = ref(false)
+onKeyboardWillShow(() => { kbOpen.value = true })
+onKeyboardWillHide(() => { kbOpen.value = false })
 
 const route = useRoute()
 const router = useRouter()
@@ -270,7 +340,52 @@ const expenseCurrency = ref('CNY')
 const saving = ref(false)
 const mergeMode = ref('separate')
 const categoryPickerOpen = ref(false)
+const currencyPickerOpen = ref(false)
 const showFullImage = ref(false)
+
+function openFullView() {
+  if (!receipt.value) return
+  // PDF: 直接走 iOS Safari (Capacitor Browser), 完整 pinch zoom / 翻页 / 分享
+  if (receipt.value.isPdf) {
+    openPdfInBrowser()
+    return
+  }
+  // 图片: 内嵌 overlay
+  if (receipt.value.dataUrl) {
+    showFullImage.value = true
+  }
+}
+
+function closeFullView() {
+  showFullImage.value = false
+}
+
+// 用 iOS in-app Safari 打开 PDF (Capacitor Browser, 完整 pinch zoom)
+async function openPdfInBrowser() {
+  if (!receipt.value) return
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    // 优先用已上传的 server URL (有 ?token), 退化用本地 blob URL
+    let url = ''
+    if (receipt.value.file_url) {
+      const { imageUrl } = await import('@/api/expense')
+      url = imageUrl(receipt.value.file_url)
+    } else if (receipt.value.blob) {
+      url = URL.createObjectURL(receipt.value.blob)
+    } else {
+      return
+    }
+    if (Capacitor.isNativePlatform?.()) {
+      const { Browser } = await import('@capacitor/browser')
+      await Browser.open({ url, presentationStyle: 'fullscreen' })
+    } else {
+      window.open(url, '_blank')
+    }
+  } catch (e) {
+    console.warn('open PDF in browser failed:', e?.message)
+  }
+}
+
 
 const form = ref({
   seller: '',
@@ -343,6 +458,14 @@ async function fetchRate() {
 
 const currentAmount = computed(() => (form.value.invoice_amount || 0) * (form.value.exchange_rate || 1))
 
+// 输入框聚焦时, 延迟 300ms 等键盘弹起完成, 把当前 input 滚动到屏幕中部, 避免被键盘遮住
+function onInputFocus(e) {
+  const el = e.target
+  setTimeout(() => {
+    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }) } catch {}
+  }, 300)
+}
+
 const mergeable = computed(() => {
   // 当前及之前的同 category + 同 currency 的 receipts
   const cur = receipt.value
@@ -408,7 +531,9 @@ async function onSave() {
       description: form.value.description,
       document_count: 1,
       invoice_images: receipt.value?.file_url ? [{
-        filename: `invoice-${idx.value}.jpg`,
+        // 保留原文件名(含正确扩展名), 用户从相册/文件选的 PDF 显示真实名字;
+        // 拍照路径 receipt.filename undefined → 落回 invoice-N.jpg (拍照永远是 jpeg)
+        filename: receipt.value.filename || `invoice-${idx.value}.jpg`,
         url: receipt.value.file_url,
         invoice_no: form.value.invoice_no,
         seller: form.value.seller,
