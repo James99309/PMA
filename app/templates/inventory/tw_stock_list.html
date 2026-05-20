@@ -32,6 +32,13 @@
         [x-cloak] { display: none !important; }
         {{ render_tw_fixed_header_styles() }}
     </style>
+    <script>
+      // 自动清理可能残留的首次登录引导 flag,避免本页加载时触发顶栏按钮误点
+      try {
+        sessionStorage.removeItem('justLoggedIn');
+        localStorage.setItem('pma_onboarding_completed', 'true');
+      } catch(e) {}
+    </script>
 </head>
 <body class="bg-background-light dark:bg-background-dark">
 {% call(slot) render_tw_layout(active_page='inventory', show_search=false) %}

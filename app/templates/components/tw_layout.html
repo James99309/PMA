@@ -730,6 +730,7 @@ function quickUpload() {
     };
 }
 </script>
-{# 新手引导脚本 #}
-{{ render_onboarding_script() }}
+{# 新手引导脚本 — auto_start 关闭,避免每次登录后 driver.js 自动点击顶栏按钮误触发任务/上传/消息面板。
+   用户仍可通过 window.startOnboardingManually() 主动触发(例如在 help 菜单里加入口)。#}
+{{ render_onboarding_script(auto_start=false) }}
 {% endmacro %}
