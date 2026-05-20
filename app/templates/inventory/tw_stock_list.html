@@ -153,7 +153,7 @@
                 <span class="material-symbols-outlined text-base align-middle mr-1">inventory_2</span>{{ _('库存') }} ({{ stats.products }})
             </button>
             <button @click="tab = 'transactions'" :class="tab === 'transactions' ? 'text-primary border-primary' : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-700 dark:hover:text-slate-200'" class="px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap">
-                <span class="material-symbols-outlined text-base align-middle mr-1">timeline</span>{{ _('流水') }}
+                <span class="material-symbols-outlined text-base align-middle mr-1">timeline</span>{{ _('流水') }} ({{ tx_rows|length if tx_rows else 0 }})
             </button>
         </nav>
         <div class="pr-3 flex items-center gap-2">
@@ -227,9 +227,85 @@
         {% endif %}
     </div>
 
-    <!-- Transactions Tab(placeholder; full implementation in Task 3) -->
-    <div x-show="tab === 'transactions'" x-cloak class="p-8 text-center">
-        <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('流水视图开发中(Task 3)') }}</p>
+    <!-- Transactions Tab -->
+    <div x-show="tab === 'transactions'" x-cloak>
+        {% if tx_rows %}
+        <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('时间') }}</th>
+                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('产品') }}</th>
+                    <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('类型') }}</th>
+                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('变动') }}</th>
+                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('变化') }}</th>
+                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('关联/备注') }}</th>
+                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('操作人') }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                {% for r in tx_rows %}
+                {% set tx = r.tx %}
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <td class="p-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {{ tx.transaction_date.strftime('%Y-%m-%d %H:%M') if tx.transaction_date else '-' }}
+                    </td>
+                    <td class="p-3 text-sm text-slate-900 dark:text-white">
+                        {{ r.product.product_name if r.product else '-' }}
+                        {% if r.product and r.product.product_mn %}
+                        <span class="block text-xs text-slate-400 font-mono">{{ r.product.product_mn }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-3 text-center">
+                        {% set type_config = {
+                            'in': ('bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', _('入库')),
+                            'out': ('bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', _('出库')),
+                            'adjustment': ('bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-200', _('调整')),
+                            'settlement': ('bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', _('结算出库'))
+                        } %}
+                        {% set cfg = type_config.get(tx.transaction_type, ('bg-slate-100 text-slate-600', tx.transaction_type)) %}
+                        <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap {{ cfg[0] }}">{{ cfg[1] }}</span>
+                    </td>
+                    <td class="p-3 text-right text-sm font-bold whitespace-nowrap {{ 'text-emerald-600 dark:text-emerald-400' if tx.transaction_type == 'in' else ('text-rose-600 dark:text-rose-400' if tx.transaction_type in ['out','settlement'] else 'text-slate-700 dark:text-slate-200') }}">
+                        {% if tx.transaction_type == 'in' %}+{{ tx.quantity }}
+                        {% elif tx.transaction_type in ['out','settlement'] %}{{ tx.quantity }}
+                        {% elif tx.transaction_type == 'adjustment' %}→ {{ tx.quantity_after }}
+                        {% else %}{{ tx.quantity }}{% endif %}
+                    </td>
+                    <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {{ tx.quantity_before }} → {{ tx.quantity_after }}
+                    </td>
+                    <td class="p-3 text-xs">
+                        {% if r.ref_url %}
+                            <a href="{{ r.ref_url }}" class="text-primary hover:underline font-mono">{{ tx.reference_type }}#{{ tx.reference_id }}</a>
+                        {% elif tx.reference_type == 'manual' %}
+                            <span class="text-slate-500 dark:text-slate-400">{{ _('手动') }}</span>
+                        {% elif tx.reference_type == 'import' %}
+                            <span class="text-purple-600 dark:text-purple-400">{{ _('期初导入') }} #{{ tx.reference_id or '-' }}</span>
+                        {% else %}
+                            <span class="text-slate-400">—</span>
+                        {% endif %}
+                        {% if tx.description %}
+                        <div class="text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-xs" title="{{ tx.description }}">{{ tx.description }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="p-3 text-xs text-slate-500 dark:text-slate-400">{{ tx.created_by.username if tx.created_by else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% if tx_rows|length >= 100 %}
+        <div class="p-3 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700">
+            {{ _('仅显示最近 100 条 · 完整流水请用') }} <a href="{{ url_for('inventory.tw_transactions_list', company_id=current_company.id) }}" class="text-primary hover:underline">{{ _('全局流水(已筛选本公司)') }}</a>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="p-12 text-center">
+            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600">inbox</span>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-3">{{ _('该公司暂无流水记录') }}</p>
+        </div>
+        {% endif %}
     </div>
 </div>
 

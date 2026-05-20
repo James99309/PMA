@@ -5989,6 +5989,22 @@ def tw_stock_list(company_id=None):
     # 4. Switchable companies (only if not locked)
     switchable = _switchable_companies() if not locked else []
 
+    # 5. 当前公司的流水(供"流水" Tab 用),最多展示最近 100 条
+    tx_rows = []
+    if inv_ids:
+        recent_txs = db.session.query(InventoryTransaction).filter(
+            InventoryTransaction.inventory_id.in_(inv_ids)
+        ).order_by(InventoryTransaction.id.desc()).limit(100).all()
+        # 把 inventory.product 预加载到字典
+        inv_by_id = {i.id: i for i in inventories}
+        for tx in recent_txs:
+            inv = inv_by_id.get(tx.inventory_id)
+            tx_rows.append({
+                'tx': tx,
+                'product': inv.product if inv else None,
+                'ref_url': _build_ref_url(tx.reference_type, tx.reference_id),
+            })
+
     return render_template('inventory/tw_stock_list.html',
                            current_company=company,
                            inventories=inventories,
@@ -5996,6 +6012,7 @@ def tw_stock_list(company_id=None):
                            switchable=switchable,
                            locked=locked,
                            stats=stats,
+                           tx_rows=tx_rows,
                            is_vendor_admin=(current_user.linked_company_id is None))
 
 
