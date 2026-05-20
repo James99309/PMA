@@ -225,11 +225,14 @@
           fontWeight: 600 }">{{ t('task.resubmitReview') }}</button>
       </template>
       <template v-else>
-        <input v-model="commentText" :placeholder="t('task.addComment')"
-          @keyup.enter="sendComment"
-          :style="{ flex: 1, height: '40px', borderRadius: '20px', background: TK.bg,
-            padding: '0 14px', fontSize: '13px', color: TK.ink, outline: 'none',
-            border: `1px solid ${TK.dividerSoft}` }" />
+        <div @click="commentEditorOpen = true"
+          :style="{ flex: 1, height: '40px', lineHeight: '40px', borderRadius: '20px',
+            background: TK.bg, padding: '0 14px', fontSize: '13px',
+            color: commentText.trim() ? TK.ink : TK.ink4, outline: 'none',
+            border: `1px solid ${TK.dividerSoft}`, overflow: 'hidden',
+            textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">
+          {{ commentText.trim() || t('task.addComment') }}
+        </div>
         <button @click="commentText.trim() ? sendComment() : (statusSheet = true)"
           :style="{ height: '40px', padding: '0 14px', borderRadius: '20px', background: TK.ink,
             color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '6px',
@@ -287,16 +290,18 @@
           <div :style="{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, marginTop: '4px' }">
             {{ reviewAction === 'approve' ? t('task.approveTitle') : t('task.rejectTitle') }}
           </div>
-          <div :style="{ marginTop: '14px', padding: '12px 14px', background: TK.card,
-            borderRadius: '10px', border: `1px solid ${TK.divider}` }">
+          <div @click="reviewCommentEditorOpen = true"
+            :style="{ marginTop: '14px', padding: '12px 14px', background: TK.card,
+              borderRadius: '10px', border: `1px solid ${TK.divider}` }">
             <div :style="{ fontSize: '11px', color: TK.ink3, marginBottom: '6px',
               textTransform: 'uppercase', letterSpacing: '0.4px' }">
               {{ t('task.note') }}<span v-if="reviewAction === 'reject'" :style="{ color: TK.red }"> *</span>
             </div>
-            <textarea v-model="reviewComment" rows="3"
-              :placeholder="reviewAction === 'reject' ? t('task.notePhReject') : t('task.notePhApprove')"
-              :style="{ width: '100%', border: 'none', outline: 'none', resize: 'none',
-                fontSize: '13px', color: TK.ink, background: 'transparent', fontFamily: TK.sans }" />
+            <div :style="{ width: '100%', minHeight: '54px', fontSize: '13px',
+              color: reviewComment.trim() ? TK.ink : TK.ink4, lineHeight: 1.55,
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: TK.sans }">
+              {{ reviewComment.trim() || (reviewAction === 'reject' ? t('task.notePhReject') : t('task.notePhApprove')) }}
+            </div>
           </div>
           <div :style="{ display: 'flex', gap: '10px', marginTop: '18px' }">
             <button @click="reviewSheet = false" :style="{ flex: 1, height: '46px',
@@ -348,11 +353,14 @@
 
           <!-- add progress -->
           <div :style="{ display: 'flex', gap: '8px', marginTop: '14px' }">
-            <input v-model="subText" :placeholder="t('task.subProgressPh')"
-              @keyup.enter="sendSubProgress"
-              :style="{ flex: 1, height: '40px', borderRadius: '20px', background: TK.card,
-                padding: '0 14px', fontSize: '13px', color: TK.ink, outline: 'none',
-                border: `1px solid ${TK.divider}` }" />
+            <div @click="subTextEditorOpen = true"
+              :style="{ flex: 1, height: '40px', lineHeight: '40px', borderRadius: '20px',
+                background: TK.card, padding: '0 14px', fontSize: '13px',
+                color: subText.trim() ? TK.ink : TK.ink4, outline: 'none',
+                border: `1px solid ${TK.divider}`, overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">
+              {{ subText.trim() || t('task.subProgressPh') }}
+            </div>
             <button @click="sendSubProgress" :style="{ height: '40px', padding: '0 16px',
               borderRadius: '20px', background: TK.ink, color: '#fff', border: 'none',
               fontSize: '13px', fontWeight: 600 }">{{ t('task.send') }}</button>
@@ -490,16 +498,18 @@
             marginTop: '4px' }">
             {{ msAction === 'confirm' ? t('task.msConfirmTitle') : t('task.msRejectTitle') }}
           </div>
-          <div :style="{ marginTop: '14px', padding: '12px 14px', background: TK.card,
-            borderRadius: '10px', border: `1px solid ${TK.divider}` }">
+          <div @click="msCommentEditorOpen = true"
+            :style="{ marginTop: '14px', padding: '12px 14px', background: TK.card,
+              borderRadius: '10px', border: `1px solid ${TK.divider}` }">
             <div :style="{ fontSize: '11px', color: TK.ink3, marginBottom: '6px',
               textTransform: 'uppercase', letterSpacing: '0.4px' }">
               {{ t('task.note') }}<span v-if="msAction === 'reject'" :style="{ color: TK.red }"> *</span>
             </div>
-            <textarea v-model="msComment" rows="3"
-              :placeholder="msAction === 'reject' ? t('task.msNoteReject') : t('task.msNotePh')"
-              :style="{ width: '100%', border: 'none', outline: 'none', resize: 'none',
-                fontSize: '13px', color: TK.ink, background: 'transparent', fontFamily: TK.sans }" />
+            <div :style="{ width: '100%', minHeight: '54px', fontSize: '13px',
+              color: msComment.trim() ? TK.ink : TK.ink4, lineHeight: 1.55,
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: TK.sans }">
+              {{ msComment.trim() || (msAction === 'reject' ? t('task.msNoteReject') : t('task.msNotePh')) }}
+            </div>
           </div>
           <div :style="{ display: 'flex', gap: '10px', marginTop: '18px' }">
             <button @click="msSheet = false" :style="{ flex: 1, height: '46px',
@@ -519,6 +529,21 @@
     <MultiPersonPickerSheet v-model="sfConfirmerSheet" :title="t('task.subMsConfirmers')"
       :options="people" :selected="sf.milestone_confirmer_ids"
       @update:selected="v => { sf.milestone_confirmer_ids = v }" />
+
+    <FullscreenTextEditor v-model="commentEditorOpen" :value="commentText"
+      :title="t('task.addComment')" :placeholder="t('task.addComment')"
+      @save="v => { commentText = v }" />
+    <FullscreenTextEditor v-model="subTextEditorOpen" :value="subText"
+      :title="t('task.tlUpdate')" :placeholder="t('task.subProgressPh')"
+      @save="v => { subText = v }" />
+    <FullscreenTextEditor v-model="reviewCommentEditorOpen" :value="reviewComment"
+      :title="t('task.note')"
+      :placeholder="reviewAction === 'reject' ? t('task.notePhReject') : t('task.notePhApprove')"
+      @save="v => { reviewComment = v }" />
+    <FullscreenTextEditor v-model="msCommentEditorOpen" :value="msComment"
+      :title="t('task.note')"
+      :placeholder="msAction === 'reject' ? t('task.msNoteReject') : t('task.msNotePh')"
+      @save="v => { msComment = v }" />
   </div>
 </template>
 
@@ -536,6 +561,7 @@ import client from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import PersonPickerSheet from '@/components/common/PersonPickerSheet.vue'
 import MultiPersonPickerSheet from '@/components/common/MultiPersonPickerSheet.vue'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -764,6 +790,10 @@ const id = computed(() => route.params.id)
 const d = ref(null)
 const loading = ref(true)
 const commentText = ref('')
+const commentEditorOpen = ref(false)
+const subTextEditorOpen = ref(false)
+const reviewCommentEditorOpen = ref(false)
+const msCommentEditorOpen = ref(false)
 const statusSheet = ref(false)
 const reviewSheet = ref(false)
 const reviewAction = ref('approve')
