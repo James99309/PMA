@@ -3,6 +3,9 @@ import client from './client'
 export const getCustomers = (params = {}) =>
   client.get('/mobile/customers', { params })
 
+export const getCustomerOwners = () =>
+  client.get('/mobile/customers/owners')
+
 export const getCustomer = id =>
   client.get(`/mobile/customers/${id}`)
 

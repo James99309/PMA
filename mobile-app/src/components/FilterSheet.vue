@@ -121,6 +121,7 @@ function initLocal() {
       open_bucket: f.open_bucket || '',
       region:      f.region      || '',
       industry:    f.industry    || '',
+      owner_names: Array.isArray(f.owner_names) ? [...f.owner_names] : [],
     }
   }
   return { stage: f.stage || '', owner_names: Array.isArray(f.owner_names) ? [...f.owner_names] : [], amount_min: f.amount_min ?? 0, amount_max: f.amount_max ?? AMOUNT_MAX, activity: f.activity || '', region: f.region || '', industry: f.industry || '' }
@@ -139,6 +140,7 @@ const pendingCount = computed(() => {
     if (local.value.open_bucket) n++
     if (local.value.region)      n++
     if (local.value.industry)    n++
+    if (local.value.owner_names?.length) n++
   } else {
     if (local.value.stage) n++
     if (local.value.owner_names?.length) n++
@@ -154,7 +156,7 @@ function blankState() {
   if (props.variant === 'customer') {
     return {
       status: '', value_min: 0, value_max: VALUE_MAX,
-      open_bucket: '', region: '', industry: '',
+      open_bucket: '', region: '', industry: '', owner_names: [],
     }
   }
   return { stage: '', owner_names: [], amount_min: 0, amount_max: AMOUNT_MAX, activity: '', region: '', industry: '' }
@@ -179,6 +181,7 @@ function apply() {
   if (props.variant === 'customer') {
     if ((r.value_min ?? 0) <= 0) delete r.value_min
     if ((r.value_max ?? VALUE_MAX) >= VALUE_MAX) delete r.value_max
+    if (!r.owner_names?.length) delete r.owner_names
   } else {
     if ((r.amount_min ?? 0) <= 0) delete r.amount_min
     if ((r.amount_max ?? AMOUNT_MAX) >= AMOUNT_MAX) delete r.amount_max
@@ -330,8 +333,8 @@ function close() { emit('update:modelValue', false) }
               </div>
             </div>
 
-            <!-- ── 负责人 (project only) ── -->
-            <div v-if="variant === 'project' && ownerOptions.length > 0">
+            <!-- ── 负责人 (project + customer) ── -->
+            <div v-if="(variant === 'project' || variant === 'customer') && ownerOptions.length > 0">
               <div class="flex items-center justify-between mb-3">
                 <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">{{ t('filter.owner') }}</p>
                 <p class="text-[11px] text-[#7A7570]">

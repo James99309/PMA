@@ -23,3 +23,6 @@ export const updateProject = (id, data) =>
 
 export const getVendorSalesManagers = () =>
   client.get('/mobile/projects/vendor-sales-managers')
+
+export const getProjectOwners = () =>
+  client.get('/mobile/projects/owners')

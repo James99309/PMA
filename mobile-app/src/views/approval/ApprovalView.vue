@@ -254,10 +254,11 @@ async function loadPending() {
   const r = await approvalApi.getPendingApprovals()
   const items = r.data?.data?.items || []
   pending.value = items.map(i => {
-    const t = i.object_type
-    const isProject = t === 'project'
-    const isPO      = t === 'pricing_order'
-    const isQuot    = t === 'quotation'
+    // 不可命名为 t, 会 shadow useI18n 的 t() 函数, 导致下方 t('approval.suffixWan') 把字符串当函数调用 → TypeError → map 崩溃 → 列表空
+    const objType = i.object_type
+    const isProject = objType === 'project'
+    const isPO      = objType === 'pricing_order'
+    const isQuot    = objType === 'quotation'
     // 副信息按对象类型
     let subtitle
     if (isProject) {
@@ -286,7 +287,7 @@ async function loadPending() {
       tag: `${i.object_type_label || t('approval.pendingDefault')}${i.current_step_name ? ' · ' + i.current_step_name : ''}`,
       tag_color: TAG_PENDING.color,
       tag_bg: TAG_PENDING.bg,
-      object_type: t,
+      object_type: objType,
     }
   })
 }

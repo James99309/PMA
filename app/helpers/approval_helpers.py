@@ -3592,11 +3592,16 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
         first_step = all_steps[0] if all_steps else None
         if first_step:
             target_object = _get_target_object_by_type(instance)
-            should_execute = _check_step_execution_condition(first_step, target_object)
+            should_execute = _check_step_execution_condition(first_step, target_object, instance)
             if should_execute is False:
-                # 第一步条件不满足，跳过并寻找下一个可执行步骤
-                _create_skip_record(instance, first_step)
-                next_executable = _advance_to_next_executable_step(instance, 0, all_steps, target_object)
+                # 第一步条件不满足/自审 → 跳过并寻找下一个可执行步骤
+                _create_skip_record(instance, first_step,
+                    "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(first_step, instance)
+                    else "条件不满足，自动跳过")
+                # 从首步序号(而非写死0)之后找下一可执行步, 否则 advance 会从 order=1
+                # 重新评估并二次记录同一首步 → skipped 记录重复 (引擎原有 quirk, 修正为单条)
+                _fs_order = first_step.get('step_order') if isinstance(first_step, dict) else first_step.step_order
+                next_executable = _advance_to_next_executable_step(instance, _fs_order, all_steps, target_object)
                 if next_executable:
                     next_order = next_executable.get('step_order') if isinstance(next_executable, dict) else next_executable.step_order
                     instance.current_step = next_order
@@ -4161,18 +4166,49 @@ def _handle_project_authorization(instance, project_type, preview_only=False, br
         return None
 
 
-def _check_step_execution_condition(step, target_object):
+def _is_self_review_auto_skip(step, instance):
+    """是否应"自审自动跳过": 纯审核步(无 action_type 且非分支) 且 该步实际审批人
+    == 审批发起人。 发起人提交即认可, 自己审自己无意义 → 跳过。
+
+    白名单语义: 仅无 action_type 的纯审核步适用; 带 action_type 的步骤
+    (付款 payment_processing / 各类授权 authorization / 分支决策 branch_decision
+    / 入库 product_warehousing / 批价结算 pricing_settlement_approval / 表单确认
+    form_confirm 等执行或控制动作) 一律不适用 —— 新增动作类型默认不跳, 安全。
+    """
+    if instance is None:
+        return False
+    if isinstance(step, dict):
+        _act = step.get('action_type')
+        _stype = step.get('step_type')
+    else:
+        _act = getattr(step, 'action_type', None)
+        _stype = getattr(step, 'step_type', None)
+    if _act or _stype == 'branch':
+        return False
+    try:
+        _actual = get_step_actual_approver(step, instance)
+        return _actual is not None and getattr(_actual, 'id', None) == instance.created_by
+    except Exception:
+        return False  # 解析审批人失败 → 不跳, 不影响原有逻辑
+
+
+def _check_step_execution_condition(step, target_object, instance=None):
     """检查步骤的执行条件
 
     Args:
         step: 步骤对象（ApprovalStep对象或快照字典）
         target_object: 目标业务对象
+        instance: 审批实例 (用于自审跳过判定; None 时退回原有纯条件逻辑)
 
     Returns:
         True  → 条件满足，执行此步骤
-        False → 条件不满足，跳过此步骤
+        False → 条件不满足/自审应跳过，跳过此步骤
         None  → 无条件（未设置条件），正常执行
     """
+    # 发起人审自己的纯审核步 → 自动跳过 (详见 _is_self_review_auto_skip)
+    if _is_self_review_auto_skip(step, instance):
+        return False
+
     if isinstance(step, dict):
         condition = step.get('execution_condition')
     else:
@@ -4256,12 +4292,14 @@ def _advance_to_next_executable_step(instance, current_step_order, steps, target
     next_step = _find_step_by_order(steps, next_order)
 
     while next_step:
-        should_execute = _check_step_execution_condition(next_step, target_object)
+        should_execute = _check_step_execution_condition(next_step, target_object, instance)
         if should_execute is not False:
             # 条件满足或无条件 → 执行此步骤
             return next_step
-        # 条件不满足 → 创建跳过记录，继续找下一步
-        _create_skip_record(instance, next_step)
+        # 条件不满足/自审 → 创建跳过记录，继续找下一步
+        _create_skip_record(instance, next_step,
+            "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(next_step, instance)
+            else "条件不满足，自动跳过")
         next_order += 1
         next_step = _find_step_by_order(steps, next_order)
 

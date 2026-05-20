@@ -17,6 +17,7 @@
     }"
   >
     <div
+      v-if="secondary"
       class="flex-1 flex items-center justify-center"
       :style="{
         height: '46px',
@@ -34,7 +35,7 @@
     <div
       class="flex items-center justify-center"
       :style="{
-        flex: 2,
+        flex: secondary ? 2 : 1,
         height: '46px',
         borderRadius: '23px',
         background: disabled ? 'var(--color-ex-divider)' : 'var(--color-ex-ink)',
@@ -52,7 +53,7 @@
 <script setup>
 defineProps({
   primary: { type: String, required: true },
-  secondary: { type: String, required: true },
+  secondary: { type: String, default: '' },  // 空字符串 → 不渲染次按钮, primary 撑满
   disabled: { type: Boolean, default: false },
 })
 defineEmits(['primary', 'secondary'])

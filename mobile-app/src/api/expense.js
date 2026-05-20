@@ -2,17 +2,22 @@
 import client from './client'
 
 // 把后端返回的 invoice_image 相对 URL 转成可被 <img> 直接 src 的全 URL
-// (附 ?token=JWT 让 chat 文件端点直通鉴权; 同 MessageAttachment.fullUrl)
-let _baseHost = null
+// (附 ?token=JWT 让文件端点直通鉴权; 同 MessageAttachment.fullUrl)
+//
+// 必须区域感知: client.defaults.baseURL 由 setCurrentRegion() 同步为当前区域,
+// 不能缓存 (否则切到 SG 仍指 CN host → 附件 404 占位符); token 取区域专属
+// access_token_<region> (旧统一 access_token 是 winner 区的, SG 视图会 401 →
+// 错误页当图片渲染就是乱码), 与 client.js 拦截器同口径。
 function getBaseHost() {
-  if (_baseHost == null) _baseHost = (client.defaults.baseURL || '').replace(/\/api\/v1\/?$/, '')
-  return _baseHost
+  return (client.defaults.baseURL || '').replace(/\/api\/v1\/?$/, '')
 }
 export function imageUrl(url) {
   if (!url) return ''
   if (/^https?:\/\//.test(url)) return url
   const sep = url.includes('?') ? '&' : '?'
-  const token = localStorage.getItem('access_token') || ''
+  const region = localStorage.getItem('region') || 'cn'
+  const token = localStorage.getItem(`access_token_${region}`)
+    || localStorage.getItem('access_token') || ''
   return `${getBaseHost()}${url}${sep}token=${encodeURIComponent(token)}`
 }
 
@@ -26,6 +31,7 @@ export const getExpense = (id) => client.get(`/mobile/expense/${id}`)
 export const createExpense = (payload) => client.post('/mobile/expense', payload)
 export const updateExpense = (id, payload) => client.put(`/mobile/expense/${id}`, payload)
 export const deleteExpense = (id) => client.delete(`/mobile/expense/${id}`)
+export const getAttributedCandidates = () => client.get('/mobile/expense/attributed-to-candidates')
 
 export const addLine = (id, payload) => client.post(`/mobile/expense/${id}/lines`, payload)
 export const updateLine = (id, lid, payload) => client.put(`/mobile/expense/${id}/lines/${lid}`, payload)

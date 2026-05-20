@@ -178,12 +178,17 @@ async function onSaveMerge() {
       invoice_amount: totalAmount.value,
       description: form.value.description,
       document_count: included.value.length,
-      invoice_images: included.value.map(r => ({
-        filename: `invoice-${r.idx}.jpg`,
-        url: r.file_url,
-        invoice_no: r.fields?.invoice_no || '',
-        seller: r.fields?.seller || '',
-      })).filter(im => im.url),
+      invoice_images: included.value.map(r => {
+        // filename 后缀必须反映真实类型: 查看器/后端靠 .pdf 后缀判 PDF。
+        // 之前写死 .jpg → 合并后 PDF 被当图片渲染 (PDF 变图片 bug)
+        const isPdf = r.isPdf || (r.file_url || '').toLowerCase().includes('.pdf')
+        return {
+          filename: `invoice-${r.idx}.${isPdf ? 'pdf' : 'jpg'}`,
+          url: r.file_url,
+          invoice_no: r.fields?.invoice_no || '',
+          seller: r.fields?.seller || '',
+        }
+      }).filter(im => im.url),
     }
     await expApi.addLine(expenseId.value, payload)
     // 标记所有合并的票为已保存

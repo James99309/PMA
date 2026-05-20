@@ -237,9 +237,9 @@ def mobile_chat_file():
     try:
         from app.utils.smart_storage_manager import get_smart_storage
         storage = get_smart_storage()
-        nas_subdir = storage.bucket_mapping.get(bucket_type, bucket_type)
-        full_path = f'{nas_subdir}/{rel_path}'
-        data = storage.download_file(full_path, bucket_type=bucket_type)
+        # download_file 内部已按 bucket_type 拼 'chat_files/' 前缀, 此处不能再拼,
+        # 否则 chat_files/chat_files/... 双前缀 → 404 (rel_path 已是去桶相对路径)
+        data = storage.download_file(rel_path, bucket_type=bucket_type)
         if not data:
             return api_response(success=False, code=404, message="文件不存在")
         # 推断 content type

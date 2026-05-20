@@ -2,7 +2,7 @@
 // 群聊 + @AI —— 严格对齐 ai-chat.jsx GroupAtAI (line 309-381)
 // + 引用项目卡用 components/common/refs/ProjectRefCard.vue
 // + 共享 chat store：与 ProjectDetailView 项目讨论卡同源
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PixelP from '@/components/common/PixelP.vue'
@@ -193,7 +193,18 @@ async function send() {
 // ── 附件上传 / + 面板 / 录音 / 位置 ──
 const showPlusPanel = ref(false)
 const inputFocused = ref(false)
-const { kbOffset } = useKeyboardOffset()
+const { onKeyboardWillShow, onKeyboardDidShow, onKeyboardWillHide } = useKeyboardOffset()
+function _smoothScrollDuringTransition(duration = 280) {
+  const start = performance.now()
+  const tick = () => {
+    if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+    if (performance.now() - start < duration) requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+onKeyboardWillShow(() => _smoothScrollDuringTransition())
+onKeyboardWillHide(() => _smoothScrollDuringTransition())
+onKeyboardDidShow(() => scrollToBottom())
 function blurInput() {
   if (inputRef.value) inputRef.value.blur()
   showPlusPanel.value = false
@@ -525,12 +536,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full"
-    :style="{
-      background: 'var(--color-bg)',
-      paddingBottom: kbOffset + 'px',
-      transition: 'padding-bottom 0.25s cubic-bezier(.25,.46,.45,.94)',
-    }">
+  <div class="flex flex-col h-full chat-kb-root"
+    :style="{ background: 'var(--color-bg)' }">
 
     <!-- Nav -->
     <div class="flex items-center gap-2.5 px-4 py-2 shrink-0"

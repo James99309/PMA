@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PMA 自托管 OTA 独立服务 launchd 配置 (Mac mini)
+     部署: cp 到 ~/Library/LaunchAgents/ → launchctl bootstrap gui/$(id -u) <plist>
+     开机自起 + 崩溃自动重启, 与测试环境完全无关 -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>win.jamesgpone.pma-ota</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/jing/pma-ota/ota_server.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/jing/pma-ota</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/jing/pma-ota/ota.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/jing/pma-ota/ota.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

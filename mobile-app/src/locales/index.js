@@ -5,15 +5,14 @@ import zh from './zh'
 import en from './en'
 
 function detectInitialLocale() {
-  // 1. 用户上次手动选过的
+  // 1. 用户上次手动选过的 / 登录后 sync 的 user.language_preference (持久化在 localStorage)
   const saved = localStorage.getItem('lang')
   if (saved === 'zh' || saved === 'en') return saved
-  // 2. 设备 locale
-  try {
-    const nav = (navigator.language || 'zh').toLowerCase()
-    if (nav.startsWith('zh')) return 'zh'
-    if (nav.startsWith('en')) return 'en'
-  } catch {}
+  // 2. 首次 (无 localStorage) 一律默认 zh。
+  //    不读 navigator.language —— iOS WKWebView 首次启动它不可靠 (常误返回
+  //    en-US, 跟设备实际语言无关), 导致首次登录页闪英文、退出重进才正常。
+  //    PMA 主用户为中文; 英文用户登录后 user.language_preference 会 setLocale
+  //    并持久化, 第二步的 saved 分支即命中, 后续启动正确。
   return 'zh'
 }
 

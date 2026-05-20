@@ -3306,8 +3306,15 @@ def get_expense_approval_flow(expense_id):
                 # 使用最新的记录
                 latest_record = step_records[-1]
                 if latest_record.action == 'skipped':
-                    # 已跳过的步骤也不显示
-                    continue
+                    # 跳过的步骤也要显示 (审计透明: 让"发起人本人审核步自动跳过"
+                    # 等可见), 保留该步原审批人, 标 skipped + 原因; 前端按
+                    # status='skipped' 渲染灰色节点
+                    stage_data.update({
+                        'status': 'skipped',
+                        'processed_at': latest_record.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                        'comment': latest_record.comment,
+                        'action': 'skipped',
+                    })
                 else:
                     stage_data.update({
                         'status': 'approved' if latest_record.action == 'approve' else 'rejected',

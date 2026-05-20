@@ -48,6 +48,7 @@ const photoBlob = ref(null)
 const previewDataUrl = ref('')
 const previewBlob = ref(null)
 const cameraInputEl = ref(null)
+const galleryInputEl = ref(null)
 const error = ref('')
 const visionKitDebug = ref('')
 
@@ -131,13 +132,44 @@ async function startManualCamera() {
     } catch (e) {
       const msg = e?.message || String(e || '')
       if (msg.includes('cancelled') || msg.includes('canceled') || msg.includes('User cancelled')) {
-        finalizeOrCancel()
+        // 不再立刻 finalize, 让用户在 capture 屏看到 "从相册" / "重拍" 按钮
         return
       }
       error.value = t('scan.cameraFail', { msg: msg.slice(0, 80) })
     }
   } else {
     cameraInputEl.value?.click()
+  }
+}
+
+// 从相册/文件 picker 选已有照片 (跳过 VisionKit; 选完直接走 crop → preview 流程)
+async function startFromGallery() {
+  error.value = ''
+  if (Capacitor.isNativePlatform?.()) {
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Photos,  // 强制从相册选, 不走相机
+        saveToGallery: false,
+      })
+      const res = await fetch(photo.webPath)
+      const blob = await res.blob()
+      photoBlob.value = blob
+      photoUrl.value = URL.createObjectURL(blob)
+      step.value = 'crop'
+    } catch (e) {
+      const msg = e?.message || String(e || '')
+      if (msg.includes('cancelled') || msg.includes('canceled') || msg.includes('User cancelled')) {
+        return
+      }
+      error.value = t('scan.galleryFail', { msg: msg.slice(0, 80) })
+    }
+  } else {
+    // web 退化方案: 同 input file 但不带 capture, 让浏览器开"文件选择"
+    galleryInputEl.value?.click()
   }
 }
 
@@ -245,6 +277,8 @@ onBeforeUnmount(() => {
   <div class="flex flex-col h-full" style="background: #000;">
     <input ref="cameraInputEl" type="file" accept="image/*" capture="environment"
       @change="onWebPhoto" style="display: none;" />
+    <input ref="galleryInputEl" type="file" accept="image/*"
+      @change="onWebPhoto" style="display: none;" />
 
     <!-- step: capture -->
     <div v-if="step === 'capture'"
@@ -255,9 +289,25 @@ onBeforeUnmount(() => {
         {{ t('scan.shotsN', { n: accumulatedCount }) }}
       </div>
       <div v-if="error" class="mt-4 text-[13px]" style="color: #FF6B6B;">{{ error }}</div>
-      <button v-if="error" @click="finalizeOrCancel"
-        class="mt-6 px-5 py-2 rounded-full text-[13px]"
-        style="background: rgba(255,255,255,0.15); color: #fff;">{{ t('scan.back') }}</button>
+
+      <!-- 主备入口: 用户如果意外关掉了相机弹窗, 还能从这里选相册 / 重拍 -->
+      <div class="mt-8 flex flex-col items-center gap-3">
+        <button @click="startManualCamera"
+          class="px-6 py-2.5 rounded-full text-[14px] font-medium active:opacity-70"
+          style="background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.3);">
+          📷 {{ t('scan.retake') }}
+        </button>
+        <button @click="startFromGallery"
+          class="text-[13px] active:opacity-70"
+          style="color: var(--color-accent); padding: 6px 12px;">
+          🖼 {{ t('scan.fromGallery') }}
+        </button>
+        <button @click="finalizeOrCancel"
+          class="text-[12px] active:opacity-70 mt-1"
+          style="color: rgba(255,255,255,0.5);">
+          {{ t('scan.back') }}
+        </button>
+      </div>
     </div>
 
     <!-- step: crop (fallback 手动 4 角) -->

@@ -62,6 +62,23 @@
 }
 
 @layer base {
+  /* 把 safe-area-inset-bottom 抓到 CSS variable, JS 能 read */
+  :root {
+    --sab: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 聊天 root padding-bottom 跟键盘动画同节奏 (iOS keyboard animation 0.25s)。 chat view
+     在 willShow/willHide 期间用 rAF 持续 scrollToBottom, 让最新消息整个动画都贴 composer 上方。 */
+  .chat-kb-root {
+    padding-bottom: var(--kb-height, 0px);
+    transition: padding-bottom 0.25s cubic-bezier(.25, .46, .45, .94);
+  }
+
+  /* 键盘弹起时 home indicator 被键盘覆盖, composer 内部的 safe-bottom 留白多余 */
+  html.kb-open .chat-kb-root .safe-bottom {
+    padding-bottom: 0 !important;
+  }
+
   html, body, #app {
     height: 100%;
     width: 100%;

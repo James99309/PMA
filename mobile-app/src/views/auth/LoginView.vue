@@ -1,13 +1,47 @@
 <script setup>
 // 严格对齐 splash-login.jsx Login 组件（line 188-314）
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import PixelP from '@/components/common/PixelP.vue'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+import { setLocale } from '@/locales'
 
-const { kbOffset } = useKeyboardOffset()
+// SG 区: 上次登录是 SG (region 持久化) → 登录页一律英文 + SG logo。
+// 登录成功后 auth.js 会按 winner 区再次校正 (SG 强制 en)。
+const isSG = localStorage.getItem('region') === 'sg'
+if (isSG) setLocale('en')
+
+// 键盘抬升: login-form{flex:1} 让 flex 列永远自撑满容器, padding/scroll 路线天生
+// 无效 (诊断条实证 sh==ch 永不溢出)。改为键盘弹起时直接 translateY 整个 root, 让
+// focus 的输入框抬到键盘上方 —— 与是否可滚无关, 必定生效。kb 高取 main.js 设的
+// --kb-height (335px 实证可靠), focus 切换(键盘不收)时也重算。
+const liftY = ref(0)
+const { onKeyboardDidShow, onKeyboardWillHide } = useKeyboardOffset()
+
+function _kbPx() {
+  const v = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--kb-height'))
+  return Number.isFinite(v) ? v : 0
+}
+function recomputeLift() {
+  const el = document.activeElement
+  const tag = (el?.tagName || '').toLowerCase()
+  if (tag !== 'input' && tag !== 'textarea') return
+  const kb = _kbPx()
+  if (!kb) { liftY.value = 0; return }
+  const rect = el.getBoundingClientRect()
+  // rect.bottom 含当前 transform → 加回 liftY 还原真实位置, 算绝对目标 (幂等,
+  // didShow+focusin 多次调用收敛到同一值, 不会叠加过冲)
+  const untransformedBottom = rect.bottom + liftY.value
+  const target = untransformedBottom - (window.innerHeight - kb) + 24
+  liftY.value = target > 0 ? Math.ceil(target) : 0
+}
+onKeyboardDidShow(() => setTimeout(recomputeLift, 40))
+onKeyboardWillHide(() => { liftY.value = 0 })
+function _onFocusIn() { setTimeout(recomputeLift, 60) }
+onMounted(() => document.addEventListener('focusin', _onFocusIn))
+onBeforeUnmount(() => document.removeEventListener('focusin', _onFocusIn))
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -60,11 +94,10 @@ const SCATTER_GAP = 6
 </script>
 
 <template>
-  <div class="login-root safe-top safe-bottom"
+  <div class="login-root safe-top"
     :style="{
-      // 键盘弹起 → 内容整体上移, 让登录表单保持在键盘上方可见; 上移量不超过 hero 高度 ~280px
-      transform: kbOffset > 0 ? `translateY(-${Math.min(kbOffset, 240)}px)` : 'translateY(0)',
-      transition: 'transform 0.25s cubic-bezier(.25,.46,.45,.94)',
+      transform: liftY ? `translateY(-${liftY}px)` : 'none',
+      transition: 'transform 0.28s cubic-bezier(.25,.46,.45,.94)',
     }">
     <!-- 装饰用散落像素 (上右角) -->
     <div class="scattered-pixels">
@@ -143,7 +176,8 @@ const SCATTER_GAP = 6
     <!-- 公司归属：用真 logo 图 (设计包 assets/evertac-logo.png) -->
     <div class="login-attribution">
       <div class="attr-label">{{ t('auth.attrBy') }}</div>
-      <img src="/images/evertac-logo.png" :alt="t('auth.attrAlt')" class="attr-logo" />
+      <img :src="isSG ? '/images/evertac-solutions-logo.png' : '/images/evertac-logo.png'"
+        :alt="t('auth.attrAlt')" class="attr-logo" />
       <div class="attr-italic">{{ t('auth.attrFooter') }}</div>
     </div>
   </div>

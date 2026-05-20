@@ -29,7 +29,7 @@
             <ExRow :label="t('expense.lineFormFCategory')">
               <select
                 v-model="form.expense_category"
-                :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
+                :style="{ background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
               >
                 <option v-for="c in categories" :key="c.key" :value="c.key">{{ c.label }}</option>
               </select>
@@ -39,7 +39,7 @@
               <input
                 v-model="form.expense_date"
                 type="date"
-                :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
+                :style="{ background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
               />
             </ExRow>
 
@@ -49,14 +49,14 @@
                 type="number"
                 step="0.01"
                 placeholder="0.00"
-                :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
+                :style="{ background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
               />
             </ExRow>
 
             <ExRow :label="t('expense.lineFormFCurrency')">
               <select
                 v-model="form.currency"
-                :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
+                :style="{ background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
               >
                 <option v-for="c in currencies" :key="c.code" :value="c.code">
                   {{ c.label }} {{ c.symbol }} ({{ c.code }})
@@ -69,7 +69,7 @@
                 v-model="form.description"
                 rows="2"
                 :placeholder="t('expense.lineFormFDescPh')"
-                :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%', resize: 'none' }"
+                :style="{ background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%', resize: 'none' }"
               />
             </ExRow>
 
@@ -78,7 +78,7 @@
                 v-model.number="form.document_count"
                 type="number"
                 min="1"
-                :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
+                :style="{ background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
               />
             </ExRow>
           </div>

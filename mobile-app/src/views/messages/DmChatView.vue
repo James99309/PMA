@@ -1,6 +1,6 @@
 <script setup>
 // 私聊 + AI 草稿区 —— 严格对齐 ai-chat.jsx DMAIDraft (line 383-459)
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PixelP from '@/components/common/PixelP.vue'
@@ -217,7 +217,19 @@ async function send() {
 // ── 附件上传 / + 面板 / 录音 / 位置 ──
 const showPlusPanel = ref(false)
 const inputFocused = ref(false)
-const { kbOffset } = useKeyboardOffset()
+const { onKeyboardWillShow, onKeyboardDidShow, onKeyboardWillHide } = useKeyboardOffset()
+// 键盘弹起/收回的 250ms 动画期间, 用 rAF 持续 scrollToBottom, 让最新消息整个动画都贴 composer 上方
+function _smoothScrollDuringTransition(duration = 280) {
+  const start = performance.now()
+  const tick = () => {
+    if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+    if (performance.now() - start < duration) requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+onKeyboardWillShow(() => _smoothScrollDuringTransition())
+onKeyboardWillHide(() => _smoothScrollDuringTransition())  // 键盘收回时聊天下浮也保持流畅
+onKeyboardDidShow(() => scrollToBottom())
 function blurInput() {
   if (inputRef.value) inputRef.value.blur()
   showPlusPanel.value = false
@@ -532,12 +544,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full"
-    :style="{
-      background: 'var(--color-bg)',
-      paddingBottom: kbOffset + 'px',
-      transition: 'padding-bottom 0.25s cubic-bezier(.25,.46,.45,.94)',
-    }">
+  <div class="flex flex-col h-full chat-kb-root"
+    :style="{ background: 'var(--color-bg)' }">
 
     <!-- Nav -->
     <div class="flex items-center gap-2.5 px-4 py-2 shrink-0"
@@ -556,7 +564,11 @@ onUnmounted(() => {
           {{ [peer.role, peer.company].filter(Boolean).join(' · ') }}
         </div>
       </div>
-      <span class="text-[18px]" style="color: var(--color-ink-3);">···</span>
+      <button v-if="isRealDm"
+        @click="router.push({ path: `/messages/group/${route.params.id}/settings`, query: { name: peer.name } })"
+        class="text-[18px] active:opacity-60 px-1"
+        style="color: var(--color-ink-3);">···</button>
+      <span v-else class="text-[18px]" style="color: var(--color-ink-3);">···</span>
     </div>
 
     <!-- Messages -->

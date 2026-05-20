@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { login as apiLogin, loginToRegion, logout as apiLogout } from '@/api/auth'
 import { REGIONS, getCurrentRegion, setCurrentRegion } from '@/api/client'
 import { setLocale } from '@/locales'
+import { setupPushNotifications, unregisterPushNotifications } from '@/utils/push'
 
 // 多区域 token / user 存储 (Federation Lite)
 //   localStorage:
@@ -132,14 +133,22 @@ export const useAuthStore = defineStore('auth', {
       // 兼容旧 key
       localStorage.setItem('access_token', winner.token)
       localStorage.setItem('user', JSON.stringify(winner.user))
-      // i18n: 同步用户语言偏好 (user.language_preference 来自 User.to_dict)
-      const pref = winner.user?.language_preference
-      if (pref === 'zh' || pref === 'en') setLocale(pref)
+      // i18n: SG 区一律英文 (覆盖个人 language_preference); 其它区按用户偏好
+      if (winner.id === 'sg') {
+        setLocale('en')
+      } else {
+        const pref = winner.user?.language_preference
+        if (pref === 'zh' || pref === 'en') setLocale(pref)
+      }
+      // iOS push notifications: 拿 device token 并上报后端 (失败不影响登录)
+      setupPushNotifications().catch(e => console.warn('[push] setup failed:', e?.message))
       return { activeRegion: winner.id, available: ok.map(x => x.id) }
     },
 
     async logout() {
       try { await apiLogout() } catch {}
+      // 清 APNs push token (后端 & 本地 listener)
+      try { await unregisterPushNotifications() } catch {}
       // 安全: 退出时必须清两区全部 token —— 防止下个用户继承上个用户的另一区会话
       const ids = ['cn', 'sg']
       ids.forEach(id => {
