@@ -5867,12 +5867,26 @@ def _resolve_default_company(user):
 
     Rules:
     - 外部用户(linked_company_id 不为空) → 只能看自己 linked 的公司
-    - 内部用户(linked_company_id 为空) → 默认第一家有库存的公司
+    - 内部用户(厂商管理员) → 优先 supplier/vendor 类型的公司,其次按公司名字母
     """
     if user.linked_company_id:
         return user.linked_company_id, True  # locked
-    first = db.session.query(Inventory.company_id).distinct().first()
-    return (first[0] if first else None), False
+
+    # 厂商类型优先(supplier 或 vendor),没有就 fall back 到任意有库存的
+    vendor_priority = db.session.query(Company.id).join(
+        Inventory, Inventory.company_id == Company.id
+    ).filter(
+        Company.is_deleted == False,
+        Company.company_type.in_(['supplier', 'vendor'])
+    ).order_by(Company.company_name).first()
+    if vendor_priority:
+        return vendor_priority[0], False
+
+    # Fallback:按字母选第一家有库存的
+    fallback = db.session.query(Company.id).join(
+        Inventory, Inventory.company_id == Company.id
+    ).filter(Company.is_deleted == False).order_by(Company.company_name).first()
+    return (fallback[0] if fallback else None), False
 
 
 def _user_can_view_company(user, company_id):
@@ -5883,7 +5897,15 @@ def _user_can_view_company(user, company_id):
 
 
 def _switchable_companies():
-    """返回当前所有有库存的公司(供 switcher 下拉用)。"""
+    """返回当前所有有库存的公司(供 switcher 下拉用)。
+
+    排序:厂商类型(supplier/vendor)优先,然后按公司名字母。
+    """
+    # SQL CASE 让 supplier/vendor 排序值为 0,其他为 1
+    is_vendor_order = db.case(
+        (Company.company_type.in_(['supplier', 'vendor']), 0),
+        else_=1
+    )
     rows = db.session.query(
         Company.id, Company.company_name, Company.company_type,
         func.count(Inventory.id).label('inv_count'),
@@ -5891,7 +5913,7 @@ def _switchable_companies():
     ).join(Inventory, Inventory.company_id == Company.id).filter(
         Company.is_deleted == False
     ).group_by(Company.id, Company.company_name, Company.company_type).order_by(
-        Company.company_name
+        is_vendor_order, Company.company_name
     ).all()
     return [{
         'id': r.id,
