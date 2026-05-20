@@ -6079,3 +6079,169 @@ def tw_stock_adjust():
         db.session.rollback()
         logger.error(f"tw_stock_adjust failed: {e}")
         return jsonify({'success': False, 'message': f'操作失败: {e}'}), 500
+
+
+# =============================================================================
+# Task 3: 全局流水(厂商管理员专属)
+# =============================================================================
+
+def _is_vendor_admin(user):
+    """厂商管理员 = 内部用户(无 linked_company_id)且有 inventory.view 权限。"""
+    return user.linked_company_id is None
+
+
+@inventory.route('/transactions')
+@login_required
+@permission_required('inventory', 'view')
+def tw_transactions_list():
+    """全局库存流水审计页 - 仅厂商管理员可见。"""
+    if not _is_vendor_admin(current_user):
+        flash('您没有权限查看全局流水', 'danger')
+        return redirect(url_for('inventory.tw_stock_list'))
+
+    # Filter params
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    company_id = request.args.get('company_id', '').strip()
+    tx_type = request.args.get('type', '').strip()
+    ref_type = request.args.get('ref_type', '').strip()
+    search = request.args.get('search', '').strip()
+    page = int(request.args.get('page', 1) or 1)
+    per_page = 50
+
+    # Base query
+    q = db.session.query(InventoryTransaction).join(
+        Inventory, InventoryTransaction.inventory_id == Inventory.id
+    ).join(
+        Company, Inventory.company_id == Company.id
+    ).join(
+        Product, Inventory.product_id == Product.id
+    )
+
+    if date_from:
+        try:
+            q = q.filter(InventoryTransaction.transaction_date >= datetime.strptime(date_from, '%Y-%m-%d'))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            end = datetime.strptime(date_to, '%Y-%m-%d')
+            end = end.replace(hour=23, minute=59, second=59)
+            q = q.filter(InventoryTransaction.transaction_date <= end)
+        except ValueError:
+            pass
+    if company_id:
+        try:
+            q = q.filter(Inventory.company_id == int(company_id))
+        except ValueError:
+            pass
+    if tx_type:
+        q = q.filter(InventoryTransaction.transaction_type == tx_type)
+    if ref_type:
+        q = q.filter(InventoryTransaction.reference_type == ref_type)
+    if search:
+        like = f'%{search}%'
+        q = q.filter(or_(
+            Product.product_name.ilike(like),
+            Product.product_mn.ilike(like),
+            Company.company_name.ilike(like),
+            InventoryTransaction.description.ilike(like),
+        ))
+
+    total = q.count()
+    transactions = q.order_by(InventoryTransaction.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
+
+    # Stats (over filtered set or full?) - use full month
+    from datetime import datetime as _dt
+    month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_q = db.session.query(InventoryTransaction).filter(InventoryTransaction.transaction_date >= month_start)
+    month_total = month_q.count()
+    month_in = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+        InventoryTransaction.transaction_date >= month_start,
+        InventoryTransaction.transaction_type == 'in',
+    ).scalar() or 0
+    month_out = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+        InventoryTransaction.transaction_date >= month_start,
+        InventoryTransaction.transaction_type.in_(['out', 'settlement']),
+    ).scalar() or 0
+    active_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).join(
+        InventoryTransaction, InventoryTransaction.inventory_id == Inventory.id
+    ).filter(InventoryTransaction.transaction_date >= month_start).scalar() or 0
+    total_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).scalar() or 0
+
+    stats = {
+        'month_total': month_total,
+        'month_in': int(month_in),
+        'month_out': abs(int(month_out)),
+        'active': f'{active_companies} / {total_companies}',
+    }
+
+    # Filter dropdowns
+    companies_with_inv = _switchable_companies()
+
+    # Build per-row metadata: company, product, ref URL
+    rows = []
+    for tx in transactions:
+        inv = tx.inventory
+        rows.append({
+            'tx': tx,
+            'company': inv.company if inv else None,
+            'product': inv.product if inv else None,
+            'ref_url': _build_ref_url(tx.reference_type, tx.reference_id),
+        })
+
+    pagination = {
+        'page': page,
+        'per_page': per_page,
+        'total': total,
+        'pages': (total + per_page - 1) // per_page,
+        'has_prev': page > 1,
+        'has_next': page * per_page < total,
+    }
+
+    current_filters = {
+        'date_from': date_from, 'date_to': date_to,
+        'company_id': company_id, 'type': tx_type,
+        'ref_type': ref_type, 'search': search,
+    }
+    # 仅保留非空过滤参数,供分页 URL 构造用
+    filter_qs = {k: v for k, v in current_filters.items() if v}
+
+    return render_template('inventory/tw_inventory_transactions.html',
+                           rows=rows, stats=stats, pagination=pagination,
+                           companies_with_inv=companies_with_inv,
+                           current_filters=current_filters,
+                           filter_qs=filter_qs)
+
+
+def _build_ref_url(ref_type, ref_id):
+    """流水关联单据 → 可点击 URL。"""
+    if not ref_id:
+        return None
+    if ref_type == 'order':
+        # PurchaseOrder
+        try:
+            return url_for('purchase_order.detail_view', order_id=ref_id)
+        except Exception:
+            return None
+    if ref_type == 'shipment':
+        try:
+            return url_for('shipment.detail_view', shipment_id=ref_id)
+        except Exception:
+            return None
+    if ref_type == 'settlement':
+        # 跳到批价单(settlement_order.id → 找其 pricing_order_id)
+        try:
+            from app.models.pricing_order import SettlementOrderDetail
+            d = SettlementOrderDetail.query.get(ref_id)
+            if d and d.settlement_order_id:
+                so = d.settlement_order
+                if so and so.pricing_order_id:
+                    try:
+                        return url_for('pricing_order.detail_view', order_id=so.pricing_order_id, _anchor='settlement')
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return None
+    return None

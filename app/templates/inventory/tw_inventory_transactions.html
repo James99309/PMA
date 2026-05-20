@@ -1,0 +1,221 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('全局流水') }} - {{ _('库存管理') }}</title>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='inventory', show_search=false) %}
+{% if slot == 'content' %}
+{% call(page_slot) render_tw_fixed_page() %}
+
+{% if page_slot == 'header' %}
+    <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('全局库存流水') }}</h1>
+        <span class="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap">
+            <span class="material-symbols-outlined text-sm">admin_panel_settings</span>{{ _('厂商管理员') }}
+        </span>
+    </div>
+{% elif page_slot == 'content' %}
+
+<p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ _('跨公司库存变动审计视图,经销商/客户用户不可见 · 用于异常监测、月度统计') }}</p>
+
+<!-- Stats -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+        <div class="text-xs text-slate-500 dark:text-slate-400">{{ _('本月流水笔数') }}</div>
+        <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.month_total }}</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+        <div class="text-xs text-emerald-700 dark:text-emerald-400">{{ _('本月入库') }}</div>
+        <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">+ {{ stats.month_in }}</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+        <div class="text-xs text-rose-700 dark:text-rose-400">{{ _('本月出库') }}</div>
+        <div class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">- {{ stats.month_out }}</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+        <div class="text-xs text-slate-500 dark:text-slate-400">{{ _('活跃公司') }}</div>
+        <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.active }}</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<form method="GET" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 mb-4">
+    <div class="flex flex-wrap items-center gap-3">
+        <input type="date" name="date_from" value="{{ current_filters.date_from }}"
+               class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm" />
+        <span class="text-slate-400">{{ _('至') }}</span>
+        <input type="date" name="date_to" value="{{ current_filters.date_to }}"
+               class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm" />
+
+        <select name="company_id" class="h-10 px-3 rounded-lg border-2 border-primary bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm w-60">
+            <option value="">{{ _('全部公司') }}</option>
+            {% for c in companies_with_inv %}
+            <option value="{{ c.id }}" {{ 'selected' if current_filters.company_id == c.id|string }}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="type" class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+            <option value="">{{ _('全部类型') }}</option>
+            <option value="in" {{ 'selected' if current_filters.type == 'in' }}>{{ _('入库') }}</option>
+            <option value="out" {{ 'selected' if current_filters.type == 'out' }}>{{ _('出库') }}</option>
+            <option value="adjustment" {{ 'selected' if current_filters.type == 'adjustment' }}>{{ _('调整') }}</option>
+            <option value="settlement" {{ 'selected' if current_filters.type == 'settlement' }}>{{ _('结算出库') }}</option>
+        </select>
+
+        <select name="ref_type" class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+            <option value="">{{ _('全部来源') }}</option>
+            <option value="order" {{ 'selected' if current_filters.ref_type == 'order' }}>{{ _('采购订单') }}</option>
+            <option value="shipment" {{ 'selected' if current_filters.ref_type == 'shipment' }}>{{ _('发货签收') }}</option>
+            <option value="settlement" {{ 'selected' if current_filters.ref_type == 'settlement' }}>{{ _('批价结算') }}</option>
+            <option value="import" {{ 'selected' if current_filters.ref_type == 'import' }}>{{ _('期初导入') }}</option>
+            <option value="manual" {{ 'selected' if current_filters.ref_type == 'manual' }}>{{ _('手动调整') }}</option>
+        </select>
+
+        <input type="text" name="search" value="{{ current_filters.search }}" placeholder="{{ _('搜产品/单据/备注...') }}"
+               class="flex-1 min-w-[200px] h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm" />
+
+        <button type="submit" class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium whitespace-nowrap">{{ _('应用') }}</button>
+        {% if current_filters.date_from or current_filters.date_to or current_filters.company_id or current_filters.type or current_filters.ref_type or current_filters.search %}
+        <a href="{{ url_for('inventory.tw_transactions_list') }}" class="h-10 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium inline-flex items-center whitespace-nowrap">
+            {{ _('重置') }}
+        </a>
+        {% endif %}
+    </div>
+</form>
+
+<!-- Table -->
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    {% if rows %}
+    <div class="overflow-x-auto">
+    <table class="w-full">
+        <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+            <tr>
+                <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('时间') }}</th>
+                <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('公司') }}</th>
+                <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('产品') }}</th>
+                <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('类型') }}</th>
+                <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('变动') }}</th>
+                <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('变化') }}</th>
+                <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('关联/备注') }}</th>
+                <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('操作人') }}</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+            {% for r in rows %}
+            {% set tx = r.tx %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                <td class="p-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    {{ tx.transaction_date.strftime('%Y-%m-%d %H:%M') if tx.transaction_date else '-' }}
+                </td>
+                <td class="p-3 text-sm">
+                    {% set is_vendor = r.company and r.company.company_type == 'vendor' %}
+                    <span class="inline-flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-sm {{ 'text-blue-500' if is_vendor else 'text-purple-500' }}">{{ 'factory' if is_vendor else 'store' }}</span>
+                        <span class="text-slate-700 dark:text-slate-300">{{ r.company.company_name if r.company else '-' }}</span>
+                    </span>
+                </td>
+                <td class="p-3 text-sm text-slate-900 dark:text-white">
+                    {{ r.product.product_name if r.product else '-' }}
+                    {% if r.product and r.product.product_mn %}
+                    <span class="block text-xs text-slate-400 font-mono">{{ r.product.product_mn }}</span>
+                    {% endif %}
+                </td>
+                <td class="p-3 text-center">
+                    {% set type_config = {
+                        'in': ('bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', _('入库')),
+                        'out': ('bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', _('出库')),
+                        'adjustment': ('bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-200', _('调整')),
+                        'settlement': ('bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', _('结算出库'))
+                    } %}
+                    {% set cfg = type_config.get(tx.transaction_type, ('bg-slate-100 text-slate-600', tx.transaction_type)) %}
+                    <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap {{ cfg[0] }}">{{ cfg[1] }}</span>
+                </td>
+                <td class="p-3 text-right text-sm font-bold whitespace-nowrap {{ 'text-emerald-600 dark:text-emerald-400' if tx.transaction_type == 'in' else ('text-rose-600 dark:text-rose-400' if tx.transaction_type in ['out','settlement'] else 'text-slate-700 dark:text-slate-200') }}">
+                    {% if tx.transaction_type == 'in' %}+{{ tx.quantity }}
+                    {% elif tx.transaction_type in ['out','settlement'] %}{{ tx.quantity }}
+                    {% elif tx.transaction_type == 'adjustment' %}→ {{ tx.quantity_after }}
+                    {% else %}{{ tx.quantity }}
+                    {% endif %}
+                </td>
+                <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    {{ tx.quantity_before }} → {{ tx.quantity_after }}
+                </td>
+                <td class="p-3 text-xs">
+                    {% if r.ref_url %}
+                        <a href="{{ r.ref_url }}" class="text-primary hover:underline font-mono">{{ tx.reference_type }}#{{ tx.reference_id }}</a>
+                    {% elif tx.reference_type == 'manual' %}
+                        <span class="text-slate-500 dark:text-slate-400">{{ _('手动') }}</span>
+                    {% elif tx.reference_type == 'import' %}
+                        <span class="text-purple-600 dark:text-purple-400">{{ _('期初导入') }} #{{ tx.reference_id or '-' }}</span>
+                    {% else %}
+                        <span class="text-slate-400">—</span>
+                    {% endif %}
+                    {% if tx.description %}
+                    <div class="text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-xs" title="{{ tx.description }}">{{ tx.description }}</div>
+                    {% endif %}
+                </td>
+                <td class="p-3 text-xs text-slate-500 dark:text-slate-400">
+                    {{ tx.created_by.username if tx.created_by else '-' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <div class="p-3 flex items-center justify-between border-t border-slate-200 dark:border-slate-700 text-sm">
+        <div class="text-slate-500 dark:text-slate-400">
+            {{ _('显示') }} {{ (pagination.page - 1) * pagination.per_page + 1 }} - {{ [pagination.page * pagination.per_page, pagination.total]|min }} / {{ _('共') }} {{ pagination.total }} {{ _('条') }}
+        </div>
+        <div class="flex items-center gap-1">
+            {% if pagination.has_prev %}
+            <a href="{{ url_for('inventory.tw_transactions_list', page=pagination.page-1, **filter_qs) }}"
+               class="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 inline-flex items-center"><span class="material-symbols-outlined text-base">chevron_left</span></a>
+            {% endif %}
+            <span class="px-3 text-slate-700 dark:text-slate-300">{{ pagination.page }} / {{ pagination.pages }}</span>
+            {% if pagination.has_next %}
+            <a href="{{ url_for('inventory.tw_transactions_list', page=pagination.page+1, **filter_qs) }}"
+               class="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 inline-flex items-center"><span class="material-symbols-outlined text-base">chevron_right</span></a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="p-12 text-center">
+        <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600">inbox</span>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-3">{{ _('没有符合条件的流水记录') }}</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endif %}
+{% endcall %}
+{% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+</body>
+</html>
