@@ -379,30 +379,14 @@ def trigger_ingest(raw_id):
 
 
 def _can_access_raw_file(user, raw_id):
-    """raw_file 可访问性 = 直接 scope 可见 OR 被某篇可见文章引用
+    """raw_file 内容访问权限 = 严格 scope 可见
 
-    语义：能看到文章 ⇒ 能看到文章的源头（合理的知识追溯权）
+    设计取舍：
+    - 「查看来源」入口只展示元数据（标题/owner/topic/scope），不放行内容下载
+    - 拿到内容必须直接 scope 可见；否则需线下联系 owner
     """
-    from app.services.wiki.scope import visible_raw_files_query, visible_articles_query
-    from sqlalchemy import cast
-    from sqlalchemy.dialects.postgresql import JSONB
-
-    # 路径 1：直接 scope 可见
-    direct = visible_raw_files_query(user).filter(KnowledgeRawFile.id == raw_id).first()
-    if direct:
-        return direct
-
-    # 路径 2：被某篇可见文章引用
-    raw = KnowledgeRawFile.query.get(raw_id)
-    if not raw:
-        return None
-    # source_raw_ids 是 JSON 数组，PG 用 @> 包含查询
-    referenced = visible_articles_query(user).filter(
-        cast(KnowledgeWikiArticle.source_raw_ids, JSONB).contains([raw_id])
-    ).first()
-    if referenced:
-        return raw
-    return None
+    from app.services.wiki.scope import visible_raw_files_query
+    return visible_raw_files_query(user).filter(KnowledgeRawFile.id == raw_id).first()
 
 
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/sources', methods=['GET'])
