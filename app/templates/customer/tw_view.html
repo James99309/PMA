@@ -666,7 +666,7 @@
                             <!-- 采购订单列表 (供应商) -->
                             {% call render_tw_table_card(
                                 title=_('采购订单'),
-                                view_all_url=url_for('inventory.order_list') ~ '?company_id=' ~ company.id,
+                                view_all_url=url_for('purchase_order.list_view') ~ '?company_id=' ~ company.id,
                                 view_all_text=_('查看全部'),
                                 max_height='350px',
                                 headers=[
