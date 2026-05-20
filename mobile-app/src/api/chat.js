@@ -72,6 +72,10 @@ export const forwardMessage = (msgId, targetConvIds = [], userIds = [], note = n
 // 未读
 export const getUnreadCount = () => client.get('/mobile/chat/unread-count')
 
+// 重命名对话 (1对1 / 群聊都支持)
+export const renameConversation = (convId, name) =>
+  client.patch(`/mobile/chat/conversations/${convId}`, { name })
+
 // 群成员
 export const addParticipants = (convId, userIds) =>
   client.post(`/mobile/chat/conversations/${convId}/participants`, { user_ids: userIds })
