@@ -378,15 +378,62 @@ def trigger_ingest(raw_id):
     return jsonify({'success': True, 'data': result})
 
 
+def _can_access_raw_file(user, raw_id):
+    """raw_file 可访问性 = 直接 scope 可见 OR 被某篇可见文章引用
+
+    语义：能看到文章 ⇒ 能看到文章的源头（合理的知识追溯权）
+    """
+    from app.services.wiki.scope import visible_raw_files_query, visible_articles_query
+    from sqlalchemy import cast
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    # 路径 1：直接 scope 可见
+    direct = visible_raw_files_query(user).filter(KnowledgeRawFile.id == raw_id).first()
+    if direct:
+        return direct
+
+    # 路径 2：被某篇可见文章引用
+    raw = KnowledgeRawFile.query.get(raw_id)
+    if not raw:
+        return None
+    # source_raw_ids 是 JSON 数组，PG 用 @> 包含查询
+    referenced = visible_articles_query(user).filter(
+        cast(KnowledgeWikiArticle.source_raw_ids, JSONB).contains([raw_id])
+    ).first()
+    if referenced:
+        return raw
+    return None
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/sources', methods=['GET'])
+@login_required
+def list_article_sources(article_id):
+    """列出文章的所有源文件（按文章可见性鉴权 - 能看到文章就能看到源头）"""
+    from app.services.wiki.scope import visible_articles_query
+
+    art = visible_articles_query(current_user).filter(KnowledgeWikiArticle.id == article_id).first()
+    if not art:
+        return jsonify({'success': False, 'message': '无权访问或文章不存在'}), 403
+
+    source_ids = art.source_raw_ids or []
+    if not source_ids:
+        return jsonify({'success': True, 'data': []})
+
+    raws = KnowledgeRawFile.query.filter(KnowledgeRawFile.id.in_(source_ids)).all()
+    # 保持 source_raw_ids 顺序
+    raws_by_id = {r.id: r for r in raws}
+    ordered = [raws_by_id[i].to_dict() for i in source_ids if i in raws_by_id]
+    return jsonify({'success': True, 'data': ordered})
+
+
 @knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>/preview', methods=['GET'])
 @login_required
 def preview_raw_file(raw_id):
-    """预览 Wiki 原始文件（按 scope 鉴权 - 所有可见此文章的用户均可访问）"""
+    """预览 Wiki 原始文件（直接 scope 可见 OR 被某篇可见文章引用 均放行）"""
     from flask import Response
-    from app.services.wiki.scope import visible_raw_files_query
     from urllib.parse import quote
 
-    raw = visible_raw_files_query(current_user).filter(KnowledgeRawFile.id == raw_id).first()
+    raw = _can_access_raw_file(current_user, raw_id)
     if not raw:
         return jsonify({'success': False, 'message': '无权访问或文件不存在'}), 403
 
@@ -414,12 +461,11 @@ def preview_raw_file(raw_id):
 @knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>/download', methods=['GET'])
 @login_required
 def download_raw_file(raw_id):
-    """下载 Wiki 原始文件（按 scope 鉴权）"""
+    """下载 Wiki 原始文件（直接 scope 可见 OR 被某篇可见文章引用 均放行）"""
     from flask import Response
-    from app.services.wiki.scope import visible_raw_files_query
     from urllib.parse import quote
 
-    raw = visible_raw_files_query(current_user).filter(KnowledgeRawFile.id == raw_id).first()
+    raw = _can_access_raw_file(current_user, raw_id)
     if not raw:
         return jsonify({'success': False, 'message': '无权访问或文件不存在'}), 403
 

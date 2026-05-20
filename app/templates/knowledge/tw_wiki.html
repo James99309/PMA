@@ -271,7 +271,7 @@
                                         <template x-if="art.source_raw_ids && art.source_raw_ids.length > 0">
                                             <div>
                                                 <div x-show="art.can_manage" class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
-                                                <button @click.stop="menuOpen = false; viewSource(art.source_raw_ids)"
+                                                <button @click.stop="menuOpen = false; viewSource(art.id)"
                                                         class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                                                     <span class="material-symbols-outlined text-sm">description</span> {{ _('查看来源') }}
                                                 </button>
@@ -1706,26 +1706,32 @@ function wikiApp() {
             }
         },
 
-        viewSource(sourceRawIds) {
-            if (!sourceRawIds || sourceRawIds.length === 0) {
+        async viewSource(articleId) {
+            // 按文章可见性反查源文件 —— 能看到文章就能看到源头
+            let sources = [];
+            try {
+                const r = await fetch(`/api/wiki/articles/${articleId}/sources`);
+                const j = await r.json();
+                if (!j.success) {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('获取来源失败') }}', message: j.message || '' });
+                    return;
+                }
+                sources = j.data || [];
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('获取来源失败') }}', message: String(e) });
+                return;
+            }
+            if (sources.length === 0) {
                 openConfirmModal('wikiConfirmModal', { title: '{{ _('提示') }}', message: '{{ _('该文章没有关联的原始文件。') }}' });
                 return;
             }
-            // 富格式：文件标题 + 上传人 + scope + topic + 下载/预览按钮
             const scopeLabel = {
                 system: '系统', company: '公司', department: '部门', personal: '个人'
             };
-            const rows = sourceRawIds.map(id => {
-                const raw = this.rawFiles.find(r => r.id === id);
-                if (!raw) {
-                    return `<div class="py-2 text-xs text-slate-400">
-                        <span class="material-symbols-outlined align-middle" style="font-size:14px">help_outline</span>
-                        {{ _('来源 #') }}${id} · {{ _('您无权访问此原始文件') }}
-                    </div>`;
-                }
+            const escName = (s) => String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+            const rows = sources.map(raw => {
                 const sLabel = scopeLabel[raw.scope] || raw.scope || '';
                 const fileName = raw.file_name || raw.title || '';
-                const escName = (s) => String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
                 const previewUrl = `/api/wiki/raw-files/${raw.id}/preview`;
                 const downloadUrl = `/api/wiki/raw-files/${raw.id}/download`;
                 return `<div class="py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-b-0">
@@ -1749,18 +1755,18 @@ function wikiApp() {
                             ${fileName !== raw.title ? `<div class="text-[11px] text-slate-400 mt-0.5 truncate">${escName(fileName)}</div>` : ''}
                         </div>
                         <div class="flex items-center gap-1 flex-shrink-0">
-                            ${previewUrl ? `<a href="${previewUrl}" target="_blank" rel="noopener" class="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('预览') }}">
+                            <a href="${previewUrl}" target="_blank" rel="noopener" class="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('预览') }}">
                                 <span class="material-symbols-outlined" style="font-size:16px">visibility</span>
-                            </a>` : ''}
-                            ${downloadUrl ? `<a href="${downloadUrl}" class="p-1 rounded text-primary hover:bg-primary/10" title="{{ _('下载') }}">
+                            </a>
+                            <a href="${downloadUrl}" class="p-1 rounded text-primary hover:bg-primary/10" title="{{ _('下载') }}">
                                 <span class="material-symbols-outlined" style="font-size:16px">download</span>
-                            </a>` : ''}
+                            </a>
                         </div>
                     </div>
                 </div>`;
             });
             openConfirmModal('wikiConfirmModal', {
-                title: '{{ _('文章来源') }}（' + sourceRawIds.length + ' {{ _('个原始文件') }}）',
+                title: '{{ _('文章来源') }}（' + sources.length + ' {{ _('个原始文件') }}）',
                 message: '<div class="max-h-[60vh] overflow-y-auto -mx-1 px-1">' + rows.join('') + '</div>',
             });
         },
