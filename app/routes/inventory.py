@@ -6290,3 +6290,211 @@ def _build_ref_url(ref_type, ref_id):
             pass
         return None
     return None
+
+
+# =============================================================================
+# Task 4: Excel 导入工具
+# =============================================================================
+
+@inventory.route('/api/import/template', methods=['GET'])
+@login_required
+@permission_required('inventory', 'create')
+def tw_import_template():
+    """下载 Excel 导入模板(带示例行)。仅厂商管理员。"""
+    if not _is_vendor_admin(current_user):
+        flash('没有权限', 'danger')
+        return redirect(url_for('inventory.tw_stock_list'))
+    bio = io.BytesIO()
+    example_data = [
+        {'MN号': 'PNR2100-001', '公司名': '北京 ABC 经销商', '数量': 100, '单位': '台', '存储位置': 'A 区 1 排', '最低库存': 10, '最高库存': 500, '备注': '示例行,可删除'},
+        {'MN号': 'CMP2600-002', '公司名': '上海 XYZ 经销商', '数量': 50, '单位': '台', '存储位置': '', '最低库存': '', '最高库存': '', '备注': ''},
+    ]
+    df = pd.DataFrame(example_data, columns=['MN号', '公司名', '数量', '单位', '存储位置', '最低库存', '最高库存', '备注'])
+    with pd.ExcelWriter(bio, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='库存')
+    bio.seek(0)
+    from flask import send_file as _send
+    return _send(bio,
+                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                 as_attachment=True,
+                 download_name='库存导入模板.xlsx')
+
+
+@inventory.route('/api/import/preview', methods=['POST'])
+@login_required
+@permission_required('inventory', 'create')
+def tw_import_preview():
+    """上传 Excel,解析并返回预览 JSON,不写库。"""
+    if not _is_vendor_admin(current_user):
+        return jsonify({'success': False, 'message': '没有权限'}), 403
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': '请选择文件'}), 400
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'message': '请上传 .xlsx 或 .xls 文件'}), 400
+
+    try:
+        df = pd.read_excel(file, dtype={'MN号': str, '公司名': str})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'文件解析失败: {e}'}), 400
+
+    required = ['MN号', '公司名', '数量']
+    for col in required:
+        if col not in df.columns:
+            return jsonify({'success': False, 'message': f'缺少必需列: {col}'}), 400
+
+    # 预加载 lookups,避免 N+1
+    product_map = {p.product_mn: p for p in Product.query.filter(Product.product_mn.isnot(None)).all()}
+    company_map = {c.company_name: c for c in Company.query.filter(Company.is_deleted == False).all()}
+
+    rows = []
+    counts = {'success': 0, 'warning': 0, 'failed': 0}
+
+    for idx, r in df.iterrows():
+        line_no = int(idx) + 2  # Excel 行号(表头是 1)
+        mn = str(r.get('MN号', '') or '').strip()
+        company_name = str(r.get('公司名', '') or '').strip()
+        qty_raw = r.get('数量')
+        try:
+            qty = int(qty_raw) if pd.notna(qty_raw) else None
+        except (ValueError, TypeError):
+            qty = None
+
+        product = product_map.get(mn) if mn else None
+        company = company_map.get(company_name) if company_name else None
+
+        # 分类
+        status = None
+        reason = ''
+        current_qty = None
+        if not mn:
+            status, reason = 'failed', 'MN号为空'
+        elif not product:
+            status, reason = 'failed', f'MN号 {mn} 在产品库找不到'
+        elif not company_name:
+            status, reason = 'failed', '公司名为空'
+        elif not company:
+            status, reason = 'failed', f'公司 {company_name} 找不到'
+        elif qty is None or qty < 0:
+            status, reason = 'failed', '数量非法'
+        else:
+            existing = Inventory.query.filter_by(company_id=company.id, product_id=product.id).first()
+            if existing:
+                status = 'warning'
+                current_qty = existing.quantity
+                reason = f'覆盖 {existing.quantity} → {qty}'
+            else:
+                status = 'success'
+                reason = '新建'
+
+        counts[status] += 1
+        rows.append({
+            'line_no': line_no,
+            'mn': mn,
+            'company_name': company_name,
+            'product_name': product.product_name if product else '',
+            'product_id': product.id if product else None,
+            'company_id': company.id if company else None,
+            'quantity': qty,
+            'unit': str(r.get('单位') or '').strip(),
+            'location': str(r.get('存储位置') or '').strip(),
+            'min_stock': (int(r['最低库存']) if pd.notna(r.get('最低库存')) else None),
+            'max_stock': (int(r['最高库存']) if pd.notna(r.get('最高库存')) else None),
+            'current_qty': current_qty,
+            'status': status,
+            'reason': reason,
+        })
+
+    return jsonify({
+        'success': True,
+        'rows': rows,
+        'summary': {
+            'total': len(rows),
+            **counts,
+        },
+    })
+
+
+@inventory.route('/api/import/commit', methods=['POST'])
+@login_required
+@permission_required('inventory', 'create')
+def tw_import_commit():
+    """提交导入:对每行非 failed 状态调 update_inventory 写入。单事务。"""
+    if not _is_vendor_admin(current_user):
+        return jsonify({'success': False, 'message': '没有权限'}), 403
+
+    data = request.get_json() or {}
+    rows = data.get('rows') or []
+    if not rows:
+        return jsonify({'success': False, 'message': '没有可导入的行'}), 400
+
+    batch_id = int(datetime.now().timestamp())
+    written = 0
+    skipped = 0
+    errors = []
+
+    try:
+        for row in rows:
+            if row.get('status') == 'failed':
+                skipped += 1
+                continue
+            company_id = row.get('company_id')
+            product_id = row.get('product_id')
+            target_qty = row.get('quantity')
+
+            if not company_id or not product_id or target_qty is None:
+                skipped += 1
+                errors.append(f"第 {row.get('line_no')} 行: 缺少字段")
+                continue
+
+            inv = Inventory.query.filter_by(company_id=company_id, product_id=product_id).first()
+            current = inv.quantity if inv else 0
+            delta = int(target_qty) - current
+            if delta == 0:
+                # 数量没变,但更新元数据(unit/location)如果填了
+                if inv and (row.get('unit') or row.get('location')):
+                    if row.get('unit'):
+                        inv.unit = row.get('unit')
+                    if row.get('location'):
+                        inv.location = row.get('location')
+                continue
+
+            success, msg, updated_inv = update_inventory(
+                company_id=company_id,
+                product_id=product_id,
+                quantity_change=delta,
+                transaction_type='adjustment',
+                description=f'期初导入 batch #{batch_id}',
+                reference_type='import',
+                reference_id=batch_id,
+                user_id=current_user.id,
+            )
+            if success:
+                # 元数据补充
+                if updated_inv:
+                    if row.get('unit'):
+                        updated_inv.unit = row.get('unit')
+                    if row.get('location'):
+                        updated_inv.location = row.get('location')
+                    if row.get('min_stock') is not None:
+                        updated_inv.min_stock = row.get('min_stock')
+                    if row.get('max_stock') is not None:
+                        updated_inv.max_stock = row.get('max_stock')
+                written += 1
+            else:
+                skipped += 1
+                errors.append(f"第 {row.get('line_no')} 行: {msg}")
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"导入提交失败: {e}")
+        return jsonify({'success': False, 'message': f'导入失败: {e}'}), 500
+
+    return jsonify({
+        'success': True,
+        'batch_id': batch_id,
+        'written': written,
+        'skipped': skipped,
+        'errors': errors[:10],
+    })
