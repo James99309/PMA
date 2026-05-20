@@ -158,14 +158,19 @@
             {# 可点击推进的阶段 #}
             {% set can_click = is_future and can_edit and order.status in ['approved', 'confirmed', 'producing', 'tested'] %}
 
-            {# 待发货阶段：判断是否还有未发完的明细 #}
+            {# 待发货阶段：判断已发/未发分布 #}
             {% set has_undispatched = order.details|selectattr('remaining_to_dispatch', 'gt', 0)|list|length > 0 %}
+            {% set has_dispatched = order.details|selectattr('dispatched_quantity', 'gt', 0)|list|length > 0 %}
 
             {# 待发货阶段标题和状态覆盖 #}
             {% set ready_title = _(stage.label) %}
             {% set ready_status = node_status %}
-            {% if stage.key == 'ready' and is_current and not has_undispatched %}
-                {% set ready_title = _('发货中') %}
+            {% if stage.key == 'ready' and is_current %}
+                {% if not has_undispatched %}
+                    {% set ready_title = _('已发货') %}
+                {% elif has_dispatched %}
+                    {% set ready_title = _('部分已发货') %}
+                {% endif %}
             {% endif %}
 
             {{ render_production_stage_node(

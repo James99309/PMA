@@ -188,8 +188,9 @@ def upload_file_to_storage(order, file_content, filename, content_type, subfolde
         order_number = order.order_number.replace('/', '-').replace('\\', '-')
 
         # 判断是否使用云端存储
-        use_cloud = os.environ.get('FORCE_CLOUD_UPLOAD', '').lower() == 'true' or \
-                    'supabase' in os.environ.get('DATABASE_URL', '').lower()
+        use_cloud = (os.environ.get('FORCE_CLOUD_UPLOAD', '').lower() == 'true' or
+                     'supabase' in os.environ.get('DATABASE_URL', '').lower()) and \
+                    os.environ.get('FORCE_LOCAL_STORAGE', '').lower() != 'true'
 
         if use_cloud:
             return _upload_to_cloud(order_number, file_content, filename, content_type, subfolder)
