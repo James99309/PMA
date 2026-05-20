@@ -6151,28 +6151,56 @@ def tw_transactions_list():
     total = q.count()
     transactions = q.order_by(InventoryTransaction.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
 
-    # Stats (over filtered set or full?) - use full month
-    from datetime import datetime as _dt
-    month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    month_q = db.session.query(InventoryTransaction).filter(InventoryTransaction.transaction_date >= month_start)
-    month_total = month_q.count()
-    month_in = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
-        InventoryTransaction.transaction_date >= month_start,
-        InventoryTransaction.transaction_type == 'in',
-    ).scalar() or 0
-    month_out = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
-        InventoryTransaction.transaction_date >= month_start,
-        InventoryTransaction.transaction_type.in_(['out', 'settlement']),
-    ).scalar() or 0
-    active_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).join(
-        InventoryTransaction, InventoryTransaction.inventory_id == Inventory.id
-    ).filter(InventoryTransaction.transaction_date >= month_start).scalar() or 0
-    total_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).scalar() or 0
+    # Stats 跟随当前筛选实时变化
+    from flask_babel import gettext as _
+    any_filter = any([date_from, date_to, company_id, tx_type, ref_type, search])
+    stats_label_total = _('筛选结果总数') if any_filter else _('本月流水笔数')
+    stats_label_in = _('筛选入库') if any_filter else _('本月入库')
+    stats_label_out = _('筛选出库') if any_filter else _('本月出库')
+    stats_label_active = _('涉及公司') if any_filter else _('活跃公司')
 
+    if any_filter:
+        # 用当前筛选 q 算聚合
+        stats_in = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery()),
+            InventoryTransaction.transaction_type == 'in',
+        ).scalar() or 0
+        stats_out = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery()),
+            InventoryTransaction.transaction_type.in_(['out', 'settlement']),
+        ).scalar() or 0
+        active_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).join(
+            InventoryTransaction, InventoryTransaction.inventory_id == Inventory.id
+        ).filter(InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery())).scalar() or 0
+        stats_total_value = total
+    else:
+        # 无筛选 → 默认显示本月
+        from datetime import datetime as _dt
+        month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        stats_total_value = db.session.query(func.count(InventoryTransaction.id)).filter(
+            InventoryTransaction.transaction_date >= month_start
+        ).scalar() or 0
+        stats_in = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.transaction_date >= month_start,
+            InventoryTransaction.transaction_type == 'in',
+        ).scalar() or 0
+        stats_out = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.transaction_date >= month_start,
+            InventoryTransaction.transaction_type.in_(['out', 'settlement']),
+        ).scalar() or 0
+        active_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).join(
+            InventoryTransaction, InventoryTransaction.inventory_id == Inventory.id
+        ).filter(InventoryTransaction.transaction_date >= month_start).scalar() or 0
+
+    total_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).scalar() or 0
     stats = {
-        'month_total': month_total,
-        'month_in': int(month_in),
-        'month_out': abs(int(month_out)),
+        'label_total': stats_label_total,
+        'label_in': stats_label_in,
+        'label_out': stats_label_out,
+        'label_active': stats_label_active,
+        'total': int(stats_total_value),
+        'in_sum': int(stats_in),
+        'out_sum': abs(int(stats_out)),
         'active': f'{active_companies} / {total_companies}',
     }
 

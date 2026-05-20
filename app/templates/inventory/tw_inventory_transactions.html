@@ -29,8 +29,12 @@
 {% call(page_slot) render_tw_fixed_page() %}
 
 {% if page_slot == 'header' %}
-    <div class="flex items-center gap-3">
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('全局库存流水') }}</h1>
+    <div class="flex items-center gap-3 flex-wrap">
+        <a href="{{ url_for('inventory.tw_stock_list') }}" class="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-primary">
+            <span class="material-symbols-outlined text-lg">arrow_back</span>{{ _('库存管理') }}
+        </a>
+        <span class="text-slate-300 dark:text-slate-600">/</span>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('全局流水') }}</h1>
         <span class="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap">
             <span class="material-symbols-outlined text-sm">admin_panel_settings</span>{{ _('厂商管理员') }}
         </span>
@@ -39,22 +43,22 @@
 
 <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ _('跨公司库存变动审计视图,经销商/客户用户不可见 · 用于异常监测、月度统计') }}</p>
 
-<!-- Stats -->
+<!-- Stats — 跟随当前筛选实时更新 -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-        <div class="text-xs text-slate-500 dark:text-slate-400">{{ _('本月流水笔数') }}</div>
-        <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.month_total }}</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400">{{ stats.label_total }}</div>
+        <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.total }}</div>
     </div>
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-        <div class="text-xs text-emerald-700 dark:text-emerald-400">{{ _('本月入库') }}</div>
-        <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">+ {{ stats.month_in }}</div>
+        <div class="text-xs text-emerald-700 dark:text-emerald-400">{{ stats.label_in }}</div>
+        <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">+ {{ stats.in_sum }}</div>
     </div>
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-        <div class="text-xs text-rose-700 dark:text-rose-400">{{ _('本月出库') }}</div>
-        <div class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">- {{ stats.month_out }}</div>
+        <div class="text-xs text-rose-700 dark:text-rose-400">{{ stats.label_out }}</div>
+        <div class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">- {{ stats.out_sum }}</div>
     </div>
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-        <div class="text-xs text-slate-500 dark:text-slate-400">{{ _('活跃公司') }}</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400">{{ stats.label_active }}</div>
         <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.active }}</div>
     </div>
 </div>
