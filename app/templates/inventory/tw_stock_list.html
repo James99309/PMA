@@ -1,4 +1,4 @@
-{% from 'components/tw_layout.html' import render_tw_layout with context %}
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
 {% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
 <!DOCTYPE html>
@@ -369,5 +369,8 @@ async function submitAdjust(e) {
 {% endcall %}
 {% endif %}
 {% endcall %}
+
+{# layout 的 JS 工厂函数(taskCreateModal / chatPanel / quickUpload 等 Alpine 组件) #}
+{{ render_tw_layout_script() }}
 </body>
 </html>
