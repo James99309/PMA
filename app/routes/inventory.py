@@ -5856,3 +5856,203 @@ def confirm_order_ship(order_id):
         db.session.rollback()
         logger.error(f"确认发货失败：{str(e)}")
         return jsonify({'success': False, 'message': f'确认失败：{str(e)}'})
+
+
+# =============================================================================
+# Task 2: Tailwind 库存基础页 — 权限感知单公司视图
+# =============================================================================
+
+def _resolve_default_company(user):
+    """决定当前用户默认看哪家公司的库存。
+
+    Rules:
+    - 外部用户(linked_company_id 不为空) → 只能看自己 linked 的公司
+    - 内部用户(linked_company_id 为空) → 默认第一家有库存的公司
+    """
+    if user.linked_company_id:
+        return user.linked_company_id, True  # locked
+    first = db.session.query(Inventory.company_id).distinct().first()
+    return (first[0] if first else None), False
+
+
+def _user_can_view_company(user, company_id):
+    """非厂商用户只能看自己 linked 的公司。"""
+    if user.linked_company_id is None:
+        return True  # 内部/厂商用户全开
+    return user.linked_company_id == company_id
+
+
+def _switchable_companies():
+    """返回当前所有有库存的公司(供 switcher 下拉用)。"""
+    rows = db.session.query(
+        Company.id, Company.company_name, Company.company_type,
+        func.count(Inventory.id).label('inv_count'),
+        func.sum(Inventory.quantity).label('total_qty')
+    ).join(Inventory, Inventory.company_id == Company.id).filter(
+        Company.is_deleted == False
+    ).group_by(Company.id, Company.company_name, Company.company_type).order_by(
+        Company.company_name
+    ).all()
+    return [{
+        'id': r.id,
+        'name': r.company_name,
+        'type': r.company_type or 'user',
+        'inv_count': r.inv_count or 0,
+        'total_qty': int(r.total_qty or 0),
+    } for r in rows]
+
+
+@inventory.route('/tw_stock')
+@inventory.route('/tw_stock/<int:company_id>')
+@login_required
+@permission_required('inventory', 'view')
+def tw_stock_list(company_id=None):
+    """新版 Tailwind 库存管理页 - 权限感知单公司视图。"""
+    # 1. Resolve target company
+    locked = False
+    if company_id is None:
+        company_id, locked = _resolve_default_company(current_user)
+        if company_id is None:
+            return render_template('inventory/tw_stock_list.html',
+                                   current_company=None, inventories=[],
+                                   switchable=[], locked=False,
+                                   stats={'products': 0, 'total_qty': 0, 'monthly_tx': 0})
+    else:
+        # External users can only access their own company
+        if not _user_can_view_company(current_user, company_id):
+            flash('您没有权限查看该公司的库存', 'danger')
+            return redirect(url_for('inventory.tw_stock_list'))
+        locked = current_user.linked_company_id is not None
+
+    company = Company.query.get_or_404(company_id)
+
+    # 2. Inventory rows + last transaction (eager loaded)
+    inventories = Inventory.query.filter_by(company_id=company_id).join(
+        Product, Product.id == Inventory.product_id
+    ).order_by(Product.product_name).all()
+
+    # Attach last transaction to each inventory item for "Last change" column
+    inv_ids = [i.id for i in inventories]
+    last_tx_map = {}
+    if inv_ids:
+        # Get latest transaction per inventory using subquery
+        subq = db.session.query(
+            InventoryTransaction.inventory_id,
+            func.max(InventoryTransaction.transaction_date).label('max_date')
+        ).filter(InventoryTransaction.inventory_id.in_(inv_ids)).group_by(
+            InventoryTransaction.inventory_id
+        ).subquery()
+        latest_txs = db.session.query(InventoryTransaction).join(
+            subq,
+            (InventoryTransaction.inventory_id == subq.c.inventory_id) &
+            (InventoryTransaction.transaction_date == subq.c.max_date)
+        ).all()
+        last_tx_map = {tx.inventory_id: tx for tx in latest_txs}
+
+    # 3. Stats for this company
+    from datetime import datetime as _dt
+    month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_tx = db.session.query(func.count(InventoryTransaction.id)).filter(
+        InventoryTransaction.inventory_id.in_(inv_ids) if inv_ids else False,
+        InventoryTransaction.transaction_date >= month_start
+    ).scalar() or 0
+
+    stats = {
+        'products': len(inventories),
+        'total_qty': sum(i.quantity for i in inventories),
+        'monthly_tx': int(monthly_tx),
+    }
+
+    # 4. Switchable companies (only if not locked)
+    switchable = _switchable_companies() if not locked else []
+
+    return render_template('inventory/tw_stock_list.html',
+                           current_company=company,
+                           inventories=inventories,
+                           last_tx_map=last_tx_map,
+                           switchable=switchable,
+                           locked=locked,
+                           stats=stats,
+                           is_vendor_admin=(current_user.linked_company_id is None))
+
+
+@inventory.route('/api/tw_stock_adjust', methods=['POST'])
+@login_required
+@permission_required('inventory', 'edit')
+def tw_stock_adjust():
+    """Tailwind 调整模态的后端 API.
+
+    Accepts: inventory_id (required for 'out'/'set'; for 'in' on new product handled separately later)
+             action_type ('in' | 'out' | 'set')
+             quantity (positive integer)
+             reason (label string, mandatory)
+             notes (free text, optional)
+    """
+    try:
+        data = request.get_json() or request.form
+        inventory_id = data.get('inventory_id')
+        action_type = data.get('action_type')
+        quantity = data.get('quantity')
+        reason = (data.get('reason') or '').strip()
+        notes = (data.get('notes') or '').strip()
+
+        if not inventory_id or not action_type or not quantity:
+            return jsonify({'success': False, 'message': '缺少必要参数'}), 400
+        if not reason:
+            return jsonify({'success': False, 'message': '原因必填'}), 400
+        try:
+            qty = int(quantity)
+            if qty <= 0:
+                return jsonify({'success': False, 'message': '数量必须大于 0'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': '数量必须是有效整数'}), 400
+
+        inv = Inventory.query.get_or_404(int(inventory_id))
+
+        # Permission check: external user can only adjust own company's inventory
+        if not _user_can_view_company(current_user, inv.company_id):
+            return jsonify({'success': False, 'message': '没有权限'}), 403
+
+        # Resolve quantity_change and transaction_type
+        if action_type == 'in':
+            quantity_change = qty
+            trans_type = 'in'
+        elif action_type == 'out':
+            quantity_change = -qty
+            trans_type = 'out'
+        elif action_type == 'set':
+            quantity_change = qty - inv.quantity
+            trans_type = 'adjustment'
+        else:
+            return jsonify({'success': False, 'message': '无效的操作类型'}), 400
+
+        # Reject out-of-stock
+        if quantity_change < 0 and inv.quantity + quantity_change < 0:
+            return jsonify({'success': False, 'message': f'库存不足,当前 {inv.quantity}'}), 400
+
+        # Build description: reason · notes
+        description = reason if not notes else f'{reason} · {notes}'
+
+        success, message, updated = update_inventory(
+            company_id=inv.company_id,
+            product_id=inv.product_id,
+            quantity_change=quantity_change,
+            transaction_type=trans_type,
+            description=description,
+            reference_type='manual',
+            user_id=current_user.id,
+        )
+        if not success:
+            return jsonify({'success': False, 'message': message}), 400
+
+        return jsonify({
+            'success': True,
+            'message': '调整成功',
+            'new_quantity': updated.quantity,
+            'change': quantity_change,
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"tw_stock_adjust failed: {e}")
+        return jsonify({'success': False, 'message': f'操作失败: {e}'}), 500
