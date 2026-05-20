@@ -166,7 +166,11 @@ defineExpose({ close })
 .swipe-inner {
   position: relative;
   z-index: 1;
-  background: inherit;
+  /* Must be opaque: if slot uses active:opacity-* press feedback the slot
+     becomes semi-transparent and the red delete button underneath flashes
+     through. Provide a tokenised card background as a safety net; the slot
+     can still override it. */
+  background: var(--color-card, #fff);
   will-change: transform;
 }
 </style>
