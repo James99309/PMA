@@ -1089,20 +1089,11 @@ render_tw_expense_status_badge with context %}
                         {% if project_diagrams|length > 0 %}
                         {% for diag in project_diagrams %}
                         <div class="diagram-card-item {% if not loop.first %}hidden{% endif %}" data-diagram-idx="{{ loop.index0 }}" data-diagram-id="{{ diag.id }}" data-diagram-name="{{ diag.name|e }}">
-                            {% if diag.thumbnail_svg %}
-                            <div class="cursor-pointer rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                            <div class="cursor-pointer flex flex-col items-center justify-center py-6 text-slate-400 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:text-blue-500 dark:hover:border-blue-600 transition-colors"
                                  onclick="openDiagramViewer({{ loop.index0 }})">
-                                <div class="diagram-thumbnail bg-slate-50 dark:bg-slate-800 p-2" style="max-height:200px;overflow:hidden;">
-                                    {{ diag.thumbnail_svg|safe }}
-                                </div>
-                            </div>
-                            {% else %}
-                            <div class="cursor-pointer flex flex-col items-center justify-center py-4 text-slate-400 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 transition-colors"
-                                 onclick="openDiagramViewer({{ loop.index0 }})">
-                                <span class="material-symbols-outlined text-2xl mb-1">schema</span>
+                                <span class="material-symbols-outlined text-3xl mb-2">schema</span>
                                 <span class="text-xs">{{ _('点击预览') }}</span>
                             </div>
-                            {% endif %}
                             <p class="text-xs text-slate-400 mt-2 truncate">{{ diag.name }}</p>
                         </div>
                         {% endfor %}

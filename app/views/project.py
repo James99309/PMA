@@ -1324,11 +1324,16 @@ def view_project(project_id):
         exclude_ids.append(project.vendor_sales_manager_id)
     project_contributors = get_project_contributors(project.id, exclude_ids)
 
-    # 获取项目关联的系统图（所有）
+    # 获取项目关联的系统图（仅入口字段，不取 thumbnail_svg/diagram_data 大列）
+    # 详情页只需要 id/name 用于跳转和点击预览（预览走 iframe 二次加载）
     from app.models.system_diagram import SystemDiagram
     project_diagrams = SystemDiagram.query.filter(
         SystemDiagram.project_id == project.id,
         SystemDiagram.is_deleted == False
+    ).with_entities(
+        SystemDiagram.id,
+        SystemDiagram.name,
+        SystemDiagram.updated_at
     ).order_by(SystemDiagram.updated_at.desc()).all()
     project_diagram = project_diagrams[0] if project_diagrams else None
 
