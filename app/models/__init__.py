@@ -54,7 +54,7 @@ from app.models.meeting import (
     MeetingMinutes, MeetingActionItem
 )
 # 文件管理模块
-from app.models.file_manager import FileLibrary, UserFolder, UserFileRef
+from app.models.file_manager import FileLibrary, UserFolder, UserFileRef, UserFolderShare
 # 知识库模块（Karpathy LLM Wiki 方案）
 from app.models.knowledge import KnowledgeTag, KnowledgeRawFile, KnowledgeWikiArticle
 # 资源池访问请求
@@ -107,7 +107,7 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'QuotationConfirmationTask',
            'Task', 'TaskAttachment', 'TaskReply', 'TaskReviewer',
            'SubTask', 'SubTaskUpdate', 'SubTaskAttachment', 'MilestoneReviewer',
-           'FileLibrary', 'UserFolder', 'UserFileRef',
+           'FileLibrary', 'UserFolder', 'UserFileRef', 'UserFolderShare',
            'KnowledgeTag', 'KnowledgeRawFile', 'KnowledgeWikiArticle',
            'AccessRequest',
            'SystemDiagram', 'DiagramShareToken', 'DiagramExternalSession',

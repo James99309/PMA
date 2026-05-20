@@ -344,12 +344,8 @@ def _read_file_content(lib):
 def download_file(file_id):
     """下载文件"""
     from flask import Response
-    from app.models.file_manager import UserFileRef
 
-    ref = UserFileRef.query.filter_by(
-        id=file_id, user_id=current_user.id
-    ).first()
-
+    ref = FileManagerService.get_accessible_file_ref(current_user, file_id)
     if not ref:
         abort(404)
 
@@ -381,11 +377,8 @@ def download_file(file_id):
 def preview_file(file_id):
     """预览文件（返回内联内容）"""
     from flask import Response
-    from app.models.file_manager import UserFileRef
 
-    ref = UserFileRef.query.filter_by(
-        id=file_id, user_id=current_user.id
-    ).first()
+    ref = FileManagerService.get_accessible_file_ref(current_user, file_id)
     if not ref:
         abort(404)
 
@@ -416,12 +409,11 @@ def preview_file(file_id):
 def preview_file_as_pdf(file_id):
     """Office 文档（doc/docx/ppt/pptx）转 PDF 后返回。"""
     from flask import send_file
-    from app.models.file_manager import UserFileRef
     from app.services.office_preview_service import (
         is_office_file, get_or_convert_pdf, hash_content,
     )
 
-    ref = UserFileRef.query.filter_by(id=file_id, user_id=current_user.id).first()
+    ref = FileManagerService.get_accessible_file_ref(current_user, file_id)
     if not ref:
         abort(404)
     lib = ref.file_library
@@ -583,3 +575,113 @@ def admin_compress_inactive():
     days = data.get('days', 90)
     count = FileManagerService.archive_inactive_files(days=days)
     return jsonify({'success': True, 'message': f'已归档 {count} 个不活跃文件'})
+
+
+# ==================================================================
+# 文件夹共享 API
+# ==================================================================
+
+@file_manager_bp.route('/api/folders/<int:folder_id>/shares', methods=['GET'])
+@login_required
+def list_folder_shares(folder_id):
+    """列出文件夹的共享对象（仅拥有者）"""
+    ok, result = FileManagerService.list_folder_shares(current_user, folder_id)
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 403
+    return jsonify({'success': True, 'data': result})
+
+
+@file_manager_bp.route('/api/folders/<int:folder_id>/shares', methods=['POST'])
+@login_required
+def add_folder_shares(folder_id):
+    """新增/更新共享对象（批量）"""
+    data = request.get_json(silent=True) or {}
+    target_user_ids = data.get('user_ids', [])
+    permission = data.get('permission', 'read')
+    message = (data.get('message') or '').strip() or None
+
+    if not isinstance(target_user_ids, list):
+        return jsonify({'success': False, 'message': 'user_ids 必须是数组'}), 400
+
+    ok, result = FileManagerService.share_folder(
+        current_user, folder_id, target_user_ids, permission, message
+    )
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 400
+    return jsonify({'success': True, 'data': result})
+
+
+@file_manager_bp.route('/api/folders/<int:folder_id>/shares/<int:user_id>', methods=['PUT'])
+@login_required
+def update_folder_share(folder_id, user_id):
+    """更新某共享对象的权限"""
+    data = request.get_json(silent=True) or {}
+    permission = data.get('permission', 'read')
+
+    ok, result = FileManagerService.update_share_permission(
+        current_user, folder_id, user_id, permission
+    )
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 400
+    return jsonify({'success': True, 'data': result})
+
+
+@file_manager_bp.route('/api/folders/<int:folder_id>/shares/<int:user_id>', methods=['DELETE'])
+@login_required
+def remove_folder_share(folder_id, user_id):
+    """移除某共享对象"""
+    ok, result = FileManagerService.unshare_folder(current_user, folder_id, user_id)
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 400
+    return jsonify({'success': True, 'message': result})
+
+
+@file_manager_bp.route('/api/folders/<int:folder_id>/shares', methods=['DELETE'])
+@login_required
+def remove_all_folder_shares(folder_id):
+    """收回该文件夹的所有共享"""
+    ok, result = FileManagerService.unshare_all(current_user, folder_id)
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 400
+    return jsonify({'success': True, 'data': result})
+
+
+@file_manager_bp.route('/api/folders/shares-summary', methods=['POST'])
+@login_required
+def folder_shares_summary():
+    """批量查询多个文件夹的共享摘要（用于卡片角标 + 头像组）"""
+    data = request.get_json(silent=True) or {}
+    folder_ids = data.get('folder_ids', [])
+    if not isinstance(folder_ids, list):
+        return jsonify({'success': False, 'message': 'folder_ids 必须是数组'}), 400
+
+    summary = FileManagerService.get_folder_shares_summary(current_user, folder_ids)
+    return jsonify({'success': True, 'data': summary})
+
+
+@file_manager_bp.route('/api/shared-with-me', methods=['GET'])
+@login_required
+def list_shared_with_me():
+    """列出共享给当前用户的文件夹"""
+    data = FileManagerService.list_shared_with_me(current_user)
+    return jsonify({'success': True, 'data': data})
+
+
+@file_manager_bp.route('/api/shared-with-me/<int:folder_id>/content', methods=['GET'])
+@login_required
+def shared_folder_content(folder_id):
+    """查看共享文件夹的内容"""
+    ok, result = FileManagerService.list_shared_folder_content(current_user, folder_id)
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 403
+    return jsonify({'success': True, 'data': result})
+
+
+@file_manager_bp.route('/api/shared-with-me/<int:folder_id>/leave', methods=['POST'])
+@login_required
+def leave_folder_share(folder_id):
+    """主动离开某共享"""
+    ok, result = FileManagerService.leave_share(current_user, folder_id)
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 400
+    return jsonify({'success': True, 'message': result})

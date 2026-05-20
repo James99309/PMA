@@ -5,7 +5,7 @@
 
 可见性规则：
 - system: 所有人可见
-- company: 所有人可见
+- company: 同公司成员可见（按 owner.company_name 比对 user.company_name）
 - department: 同部门成员可见（部门经理看本部门所有）
 - personal: 仅自己可见（部门经理额外看本部门成员的）
 - 分享授权: KnowledgeShareGrant 扩展的可见范围
@@ -29,8 +29,19 @@ def visible_articles_query(user):
 
     conditions = [
         KnowledgeWikiArticle.scope == 'system',
-        KnowledgeWikiArticle.scope == 'company',
     ]
+
+    # 同公司的 company 级文章（按 owner.company_name 比对 user.company_name）
+    user_company = getattr(user, 'company_name', None)
+    if user_company:
+        same_company_user_ids = _get_company_user_ids(user_company)
+        if same_company_user_ids:
+            conditions.append(
+                and_(
+                    KnowledgeWikiArticle.scope == 'company',
+                    KnowledgeWikiArticle.owner_id.in_(same_company_user_ids),
+                )
+            )
 
     # 同部门的 department 文章
     if user.department:
@@ -75,8 +86,19 @@ def visible_raw_files_query(user):
 
     conditions = [
         KnowledgeRawFile.scope == 'system',
-        KnowledgeRawFile.scope == 'company',
     ]
+
+    # 同公司的 company 级原始文件
+    user_company = getattr(user, 'company_name', None)
+    if user_company:
+        same_company_user_ids = _get_company_user_ids(user_company)
+        if same_company_user_ids:
+            conditions.append(
+                and_(
+                    KnowledgeRawFile.scope == 'company',
+                    KnowledgeRawFile.owner_id.in_(same_company_user_ids),
+                )
+            )
 
     if user.department:
         conditions.append(
@@ -140,6 +162,14 @@ def can_manage_article(user, article) -> bool:
 def _get_department_user_ids(department: str) -> list[int]:
     """获取同部门所有用户 ID。"""
     users = User.query.filter_by(department=department).with_entities(User.id).all()
+    return [u.id for u in users]
+
+
+def _get_company_user_ids(company_name: str) -> list[int]:
+    """获取同公司所有用户 ID。"""
+    if not company_name:
+        return []
+    users = User.query.filter_by(company_name=company_name).with_entities(User.id).all()
     return [u.id for u in users]
 
 

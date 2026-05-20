@@ -265,6 +265,12 @@
                                                         class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                                                     <span class="material-symbols-outlined text-sm">refresh</span> {{ _('重新编译') }}
                                                 </button>
+                                            </div>
+                                        </template>
+                                        {# 查看来源：所有可见 wiki 文章的用户都可用，定位文章源头 #}
+                                        <template x-if="art.source_raw_ids && art.source_raw_ids.length > 0">
+                                            <div>
+                                                <div x-show="art.can_manage" class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
                                                 <button @click.stop="menuOpen = false; viewSource(art.source_raw_ids)"
                                                         class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                                                     <span class="material-symbols-outlined text-sm">description</span> {{ _('查看来源') }}
@@ -1705,13 +1711,57 @@ function wikiApp() {
                 openConfirmModal('wikiConfirmModal', { title: '{{ _('提示') }}', message: '{{ _('该文章没有关联的原始文件。') }}' });
                 return;
             }
-            const names = sourceRawIds.map(id => {
+            // 富格式：文件标题 + 上传人 + scope + topic + 下载/预览按钮
+            const scopeLabel = {
+                system: '系统', company: '公司', department: '部门', personal: '个人'
+            };
+            const rows = sourceRawIds.map(id => {
                 const raw = this.rawFiles.find(r => r.id === id);
-                return raw ? raw.title : `raw_id=${id}`;
+                if (!raw) {
+                    return `<div class="py-2 text-xs text-slate-400">
+                        <span class="material-symbols-outlined align-middle" style="font-size:14px">help_outline</span>
+                        {{ _('来源 #') }}${id} · {{ _('您无权访问此原始文件') }}
+                    </div>`;
+                }
+                const sLabel = scopeLabel[raw.scope] || raw.scope || '';
+                const fileName = raw.file_name || raw.title || '';
+                const escName = (s) => String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+                const previewUrl = `/api/wiki/raw-files/${raw.id}/preview`;
+                const downloadUrl = `/api/wiki/raw-files/${raw.id}/download`;
+                return `<div class="py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-b-0">
+                    <div class="flex items-start gap-2">
+                        <span class="material-symbols-outlined text-base text-slate-400 mt-0.5">description</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium text-slate-900 dark:text-white truncate">${escName(raw.title)}</div>
+                            <div class="text-[11px] text-slate-500 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                                <span class="inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined" style="font-size:11px">topic</span>
+                                    ${escName(raw.topic || '—')}
+                                </span>
+                                <span class="inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined" style="font-size:11px">person</span>
+                                    ${escName(raw.owner_name || raw.adder_name || '—')}
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                    ${escName(sLabel)}
+                                </span>
+                            </div>
+                            ${fileName !== raw.title ? `<div class="text-[11px] text-slate-400 mt-0.5 truncate">${escName(fileName)}</div>` : ''}
+                        </div>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            ${previewUrl ? `<a href="${previewUrl}" target="_blank" rel="noopener" class="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('预览') }}">
+                                <span class="material-symbols-outlined" style="font-size:16px">visibility</span>
+                            </a>` : ''}
+                            ${downloadUrl ? `<a href="${downloadUrl}" class="p-1 rounded text-primary hover:bg-primary/10" title="{{ _('下载') }}">
+                                <span class="material-symbols-outlined" style="font-size:16px">download</span>
+                            </a>` : ''}
+                        </div>
+                    </div>
+                </div>`;
             });
             openConfirmModal('wikiConfirmModal', {
-                title: '{{ _('来源文件') }}',
-                message: names.map(n => `• ${n}`).join('<br>'),
+                title: '{{ _('文章来源') }}（' + sourceRawIds.length + ' {{ _('个原始文件') }}）',
+                message: '<div class="max-h-[60vh] overflow-y-auto -mx-1 px-1">' + rows.join('') + '</div>',
             });
         },
 

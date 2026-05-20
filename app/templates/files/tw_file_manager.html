@@ -120,6 +120,18 @@
 
                 <hr class="my-3 border-slate-200 dark:border-slate-700">
 
+                {# 共享给我 #}
+                <button @click="activeView='shared'; loadSharedWithMe()"
+                        :class="activeView==='shared' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 ring-1 ring-emerald-200 dark:ring-emerald-800' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left mb-1">
+                    <span class="material-symbols-outlined text-lg"
+                          :class="activeView==='shared' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'">group</span>
+                    {{ _('共享给我') }}
+                    <span x-show="sharedWithMe.length > 0"
+                          class="ml-auto text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-semibold"
+                          x-text="sharedWithMe.length"></span>
+                </button>
+
                 {# 回收站 #}
                 <button @click="activeView='trash'; loadTrash()"
                         :class="activeView==='trash' ? 'bg-primary/10 text-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
@@ -225,16 +237,35 @@
 
             {# 操作按钮栏 #}
             <div class="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0" x-show="activeView === 'files'">
-                <button @click="showNewFolderInput = true"
-                        class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-                    <span class="material-symbols-outlined text-base">create_new_folder</span>
-                    {{ _('新建文件夹') }}
-                </button>
-                <label class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 cursor-pointer">
-                    <span class="material-symbols-outlined text-base">upload_file</span>
-                    {{ _('上传文件') }}
-                    <input type="file" multiple class="hidden" @change="handleFileUpload($event)">
-                </label>
+                {# 被共享文件夹下的只读提示 #}
+                <template x-if="isInSharedFolder()">
+                    <div class="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+                        <span class="material-symbols-outlined" style="font-size:14px">lock</span>
+                        <span>
+                            {{ _('共享文件夹 · 只读') }}
+                            <template x-if="currentSharedContext && currentSharedContext.shared_by">
+                                <span class="text-emerald-600 dark:text-emerald-400 ml-1">
+                                    · {{ _('来自') }} <span x-text="currentSharedContext.shared_by.display_name"></span>
+                                </span>
+                            </template>
+                        </span>
+                    </div>
+                </template>
+                {# 自己的文件夹才显示创建/上传 #}
+                <template x-if="!isInSharedFolder()">
+                    <div class="flex items-center gap-2">
+                        <button @click="showNewFolderInput = true"
+                                class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <span class="material-symbols-outlined text-base">create_new_folder</span>
+                            {{ _('新建文件夹') }}
+                        </button>
+                        <label class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 cursor-pointer">
+                            <span class="material-symbols-outlined text-base">upload_file</span>
+                            {{ _('上传文件') }}
+                            <input type="file" multiple class="hidden" @change="handleFileUpload($event)">
+                        </label>
+                    </div>
+                </template>
 
                 {% if current_user.role in ('admin', 'ceo') %}
                 <a href="{{ url_for('file_manager_admin.admin_page') }}"
@@ -248,16 +279,21 @@
                 <template x-if="selectedFiles.length > 0">
                     <div class="flex items-center gap-2 ml-2 pl-2 border-l border-slate-300 dark:border-slate-600">
                         <span class="text-xs text-slate-500" x-text="'{{ _('已选') }} ' + selectedFiles.length + ' {{ _('项') }}'"></span>
-                        <button @click="batchDelete()"
-                                class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
-                            <span class="material-symbols-outlined" style="font-size:14px">delete</span>
-                            {{ _('删除') }}
-                        </button>
-                        <button @click="showMoveModal = true"
-                                class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
-                            <span class="material-symbols-outlined" style="font-size:14px">drive_file_move</span>
-                            {{ _('移动') }}
-                        </button>
+                        {# 写入操作：仅自己的文件夹显示 #}
+                        <template x-if="canWriteCurrentFolder()">
+                            <div class="flex items-center gap-2">
+                                <button @click="batchDelete()"
+                                        class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                    <span class="material-symbols-outlined" style="font-size:14px">delete</span>
+                                    {{ _('删除') }}
+                                </button>
+                                <button @click="showMoveModal = true"
+                                        class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                    <span class="material-symbols-outlined" style="font-size:14px">drive_file_move</span>
+                                    {{ _('移动') }}
+                                </button>
+                            </div>
+                        </template>
                         <button @click="shareFilesToChat(getSelectedFileObjects())"
                                 class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20">
                             <span class="material-symbols-outlined" style="font-size:14px">chat</span>
@@ -392,7 +428,7 @@
                             <div x-show="folders.length === 0 && files.length === 0 && !loading" class="flex flex-col items-center justify-center py-20 text-slate-400">
                                 <span class="material-symbols-outlined text-5xl mb-3">folder_off</span>
                                 <p class="text-sm">{{ _('此文件夹为空') }}</p>
-                                <p class="text-xs mt-1">{{ _('拖拽文件到此处上传，或点击"上传文件"按钮') }}</p>
+                                <p x-show="canWriteCurrentFolder()" class="text-xs mt-1">{{ _('拖拽文件到此处上传，或点击"上传文件"按钮') }}</p>
                             </div>
 
                             {# 文件夹 #}
@@ -405,8 +441,31 @@
                                      @dragleave="onFolderDragLeave(folder.id)"
                                      @drop="onFolderDrop($event, folder.id)">
                                     <div class="w-4"></div>
-                                    <span class="material-symbols-outlined text-lg text-amber-500">folder</span>
-                                    <div class="flex-1 text-sm text-slate-900 dark:text-white truncate" x-text="folder.name"></div>
+                                    <div class="relative">
+                                        <span class="material-symbols-outlined text-lg text-amber-500">folder</span>
+                                        {# 共享角标 ↗ #}
+                                        <span x-show="getFolderShareCount(folder.id) > 0"
+                                              class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-900"
+                                              :title="getFolderShareCount(folder.id) + ' {{ _('人') }}'">
+                                            <span class="material-symbols-outlined text-white" style="font-size:8px; font-variation-settings: 'wght' 700;">arrow_outward</span>
+                                        </span>
+                                    </div>
+                                    <div class="flex-1 min-w-0 flex items-center gap-2">
+                                        <span class="text-sm text-slate-900 dark:text-white truncate" x-text="folder.name"></span>
+                                        {# 头像组（共享给谁） #}
+                                        <div x-show="getFolderShareCount(folder.id) > 0" class="flex items-center -space-x-1.5 flex-shrink-0"
+                                             @click.stop="openShareModal(folder)">
+                                            <template x-for="r in getFolderShareRecipients(folder.id)" :key="'fsa-' + folder.id + '-' + r.id">
+                                                <div class="w-5 h-5 rounded-full ring-2 ring-white dark:ring-slate-900 flex items-center justify-center text-[9px] font-semibold text-white"
+                                                     :style="'background: linear-gradient(135deg, ' + avatarColor(r.id) + ')'"
+                                                     :title="r.display_name"
+                                                     x-text="(r.display_name || '?')[0]"></div>
+                                            </template>
+                                            <div x-show="getFolderShareCount(folder.id) > getFolderShareRecipients(folder.id).length"
+                                                 class="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 ring-2 ring-white dark:ring-slate-900 flex items-center justify-center text-[9px] font-semibold text-emerald-700 dark:text-emerald-300"
+                                                 x-text="'+' + (getFolderShareCount(folder.id) - getFolderShareRecipients(folder.id).length)"></div>
+                                        </div>
+                                    </div>
                                     <div class="w-20 text-right text-xs text-slate-400 hidden sm:block">—</div>
                                     <div class="w-28 text-right text-xs text-slate-400 hidden md:block" x-text="formatDate(folder.updated_at)"></div>
                                     <div class="w-20 flex justify-end">
@@ -470,15 +529,39 @@
                         <div x-show="viewMode === 'grid'" class="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                             {# 文件夹卡片 #}
                             <template x-for="folder in folders" :key="'gf-' + folder.id">
-                                <div class="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:shadow-sm cursor-pointer transition-all"
-                                     :class="dropTargetFolderId === folder.id ? 'border-primary bg-primary/10 ring-2 ring-primary/40' : ''"
+                                <div class="relative flex flex-col items-center gap-2 p-4 rounded-xl border hover:shadow-sm cursor-pointer transition-all"
+                                     :class="[
+                                         dropTargetFolderId === folder.id ? 'border-primary bg-primary/10 ring-2 ring-primary/40' : '',
+                                         getFolderShareCount(folder.id) > 0 ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/10 hover:border-emerald-400' : 'border-slate-200 dark:border-slate-700 hover:border-primary/50'
+                                     ]"
                                      @dblclick="navigateTo(folder.id)"
                                      @contextmenu.prevent="showFolderMenu($event, folder)"
                                      @dragover.prevent="onFolderDragOver($event, folder.id)"
                                      @dragleave="onFolderDragLeave(folder.id)"
                                      @drop="onFolderDrop($event, folder.id)">
-                                    <span class="material-symbols-outlined text-4xl text-amber-500">folder</span>
+                                    <div class="relative">
+                                        <span class="material-symbols-outlined text-4xl text-amber-500">folder</span>
+                                        {# 共享角标 #}
+                                        <span x-show="getFolderShareCount(folder.id) > 0"
+                                              class="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-900">
+                                            <span class="material-symbols-outlined text-white" style="font-size:11px; font-variation-settings: 'wght' 700;">arrow_outward</span>
+                                        </span>
+                                    </div>
                                     <span class="text-xs text-slate-700 dark:text-slate-300 text-center truncate w-full" x-text="folder.name"></span>
+                                    {# 头像组 #}
+                                    <div x-show="getFolderShareCount(folder.id) > 0"
+                                         class="flex items-center -space-x-1"
+                                         @click.stop="openShareModal(folder)">
+                                        <template x-for="r in getFolderShareRecipients(folder.id)" :key="'gsa-' + folder.id + '-' + r.id">
+                                            <div class="w-4 h-4 rounded-full ring-2 ring-white dark:ring-slate-900 flex items-center justify-center text-[8px] font-semibold text-white"
+                                                 :style="'background: linear-gradient(135deg, ' + avatarColor(r.id) + ')'"
+                                                 :title="r.display_name"
+                                                 x-text="(r.display_name || '?')[0]"></div>
+                                        </template>
+                                        <div x-show="getFolderShareCount(folder.id) > getFolderShareRecipients(folder.id).length"
+                                             class="w-4 h-4 rounded-full bg-emerald-100 dark:bg-emerald-900/40 ring-2 ring-white dark:ring-slate-900 flex items-center justify-center text-[8px] font-semibold text-emerald-700 dark:text-emerald-300"
+                                             x-text="'+' + (getFolderShareCount(folder.id) - getFolderShareRecipients(folder.id).length)"></div>
+                                    </div>
                                 </div>
                             </template>
                             {# 文件卡片 #}
@@ -506,8 +589,9 @@
                             </template>
                         </div>
 
-                        {# 拖拽上传区域 #}
-                        <div class="mx-4 mb-4 mt-2 p-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-center transition-colors"
+                        {# 拖拽上传区域（仅自己的文件夹显示） #}
+                        <div x-show="canWriteCurrentFolder()"
+                             class="mx-4 mb-4 mt-2 p-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-center transition-colors"
                              :class="isDragging ? 'drag-over border-primary' : ''"
                              @dragover.prevent="if (!dragFileId) isDragging = true"
                              @dragleave.prevent="isDragging = false"
@@ -556,6 +640,90 @@
                         <span class="text-xs text-slate-400" x-text="formatDate(file.deleted_at)"></span>
                         <button @click="restoreFile(file.id)" class="px-2 py-1 text-xs rounded-md text-primary hover:bg-primary/10">{{ _('恢复') }}</button>
                         <button @click="permanentDelete(file.id)" class="px-2 py-1 text-xs rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">{{ _('永久删除') }}</button>
+                    </div>
+                </template>
+            </div>
+
+            {# ============ 共享给我视图 ============ #}
+            <div class="flex-1 overflow-y-auto" x-show="activeView === 'shared'">
+                {# 顶部 Banner #}
+                <div class="flex items-center gap-3 px-4 py-2.5 bg-emerald-50/60 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-800/50 text-sm">
+                    <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400">info</span>
+                    <div class="flex-1 text-emerald-800 dark:text-emerald-300">
+                        {{ _('此区域显示其他同事共享给你的文件夹。') }}
+                        <strong>{{ _('无法移动到「我的文件」') }}</strong>
+                        {{ _('，权限由共享人控制。') }}
+                    </div>
+                </div>
+
+                {# 空状态 #}
+                <div x-show="sharedWithMe.length === 0 && !loading"
+                     class="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <span class="material-symbols-outlined text-5xl mb-3">group_off</span>
+                    <p class="text-sm">{{ _('暂无共享给你的文件夹') }}</p>
+                </div>
+
+                {# 列表头 #}
+                <div x-show="sharedWithMe.length > 0"
+                     class="flex items-center gap-3 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
+                    <div class="flex-1">{{ _('名称') }}</div>
+                    <div class="w-32 hidden sm:block">{{ _('共享人') }}</div>
+                    <div class="w-24 hidden md:block">{{ _('权限') }}</div>
+                    <div class="w-28 hidden lg:block">{{ _('共享时间') }}</div>
+                    <div class="w-20 text-right">{{ _('操作') }}</div>
+                </div>
+
+                <template x-for="item in sharedWithMe" :key="'sw-' + item.share_id">
+                    <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+                         @dblclick="openSharedFolder(item.folder_id)">
+                        <div class="relative flex-shrink-0">
+                            <span class="material-symbols-outlined text-3xl text-amber-500">folder</span>
+                            {# 入射角标 ↙ #}
+                            <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-900">
+                                <span class="material-symbols-outlined text-white" style="font-size:11px; font-variation-settings: 'wght' 700;">south_west</span>
+                            </span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="item.name"></span>
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                                    <span class="material-symbols-outlined" style="font-size:11px">group</span> {{ _('共享') }}
+                                </span>
+                                <span x-show="item.permission === 'write'"
+                                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary">
+                                    <span class="material-symbols-outlined" style="font-size:11px">edit</span> {{ _('可编辑') }}
+                                </span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-0.5">
+                                <span x-text="item.item_count"></span> {{ _('项') }}
+                                <template x-if="item.message">
+                                    <span> · "<span x-text="item.message"></span>"</span>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="w-32 hidden sm:flex items-center gap-2">
+                            <div x-show="item.shared_by"
+                                 class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white flex-shrink-0"
+                                 :style="item.shared_by ? 'background: linear-gradient(135deg, ' + avatarColor(item.shared_by.id) + ')' : ''"
+                                 x-text="item.shared_by ? (item.shared_by.display_name || '?')[0] : ''"></div>
+                            <span class="text-sm text-slate-700 dark:text-slate-300 truncate" x-text="item.shared_by ? item.shared_by.display_name : ''"></span>
+                        </div>
+                        <div class="w-24 hidden md:block">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+                                  :class="item.permission === 'write' ? 'bg-primary/10 text-primary' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'">
+                                <span class="material-symbols-outlined" style="font-size:12px"
+                                      x-text="item.permission === 'write' ? 'edit' : 'visibility'"></span>
+                                <span x-text="item.permission === 'write' ? '{{ _('可编辑') }}' : '{{ _('只读') }}'"></span>
+                            </span>
+                        </div>
+                        <div class="w-28 hidden lg:block text-xs text-slate-500" x-text="formatDate(item.shared_at)"></div>
+                        <div class="w-20 text-right">
+                            <button @click.stop="leaveShare(item.folder_id)"
+                                    class="text-slate-400 hover:text-red-500 p-1"
+                                    :title="'{{ _('离开此共享') }}'">
+                                <span class="material-symbols-outlined text-base">logout</span>
+                            </button>
+                        </div>
                     </div>
                 </template>
             </div>
@@ -715,42 +883,56 @@
                             class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
                         <span class="material-symbols-outlined text-base">visibility</span> {{ _('预览') }}
                     </button>
-                    <hr class="my-1 border-slate-200 dark:border-slate-700">
-                    <button @click="startRename('file', contextMenu.item); contextMenu.show = false"
-                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
-                        <span class="material-symbols-outlined text-base">edit</span> {{ _('重命名') }}
-                    </button>
-                    <button @click="showMoveModal = true; selectedFiles = [contextMenu.item.id]; contextMenu.show = false"
-                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
-                        <span class="material-symbols-outlined text-base">drive_file_move</span> {{ _('移动到...') }}
-                    </button>
+                    {# 写入操作：仅在可写文件夹中显示 #}
+                    <template x-if="canWriteCurrentFolder()">
+                        <div>
+                            <hr class="my-1 border-slate-200 dark:border-slate-700">
+                            <button @click="startRename('file', contextMenu.item); contextMenu.show = false"
+                                    class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                <span class="material-symbols-outlined text-base">edit</span> {{ _('重命名') }}
+                            </button>
+                            <button @click="showMoveModal = true; selectedFiles = [contextMenu.item.id]; contextMenu.show = false"
+                                    class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                <span class="material-symbols-outlined text-base">drive_file_move</span> {{ _('移动到...') }}
+                            </button>
+                        </div>
+                    </template>
                     <button @click="shareFilesToChat([contextMenu.item]); contextMenu.show = false"
                             class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
                         <span class="material-symbols-outlined text-base">chat</span> {{ _('分享到聊天') }}
                     </button>
-                    <hr class="my-1 border-slate-200 dark:border-slate-700">
-                    {# 加入 Wiki 知识库 / 已在 Wiki 标记 #}
-                    <template x-if="contextMenu.item && !isFileInWiki(contextMenu.item) && !isFileCompiling(contextMenu.item)">
-                        <button @click="addContextFileToWiki(); contextMenu.show = false"
-                                class="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20">
-                            <span class="material-symbols-outlined text-base">auto_stories</span> {{ _('加入 Wiki 知识库') }}
-                        </button>
-                    </template>
-                    <template x-if="contextMenu.item && isFileCompiling(contextMenu.item)">
-                        <div class="flex items-center gap-2 px-3 py-2 text-sm text-violet-400">
-                            <span class="material-symbols-outlined text-base animate-spin">progress_activity</span> {{ _('Wiki 编译中...') }}
+                    {# Wiki 操作：仅自己的文件可加入 Wiki #}
+                    <template x-if="canWriteCurrentFolder()">
+                        <div>
+                            <hr class="my-1 border-slate-200 dark:border-slate-700">
+                            <template x-if="contextMenu.item && !isFileInWiki(contextMenu.item) && !isFileCompiling(contextMenu.item)">
+                                <button @click="addContextFileToWiki(); contextMenu.show = false"
+                                        class="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20">
+                                    <span class="material-symbols-outlined text-base">auto_stories</span> {{ _('加入 Wiki 知识库') }}
+                                </button>
+                            </template>
+                            <template x-if="contextMenu.item && isFileCompiling(contextMenu.item)">
+                                <div class="flex items-center gap-2 px-3 py-2 text-sm text-violet-400">
+                                    <span class="material-symbols-outlined text-base animate-spin">progress_activity</span> {{ _('Wiki 编译中...') }}
+                                </div>
+                            </template>
+                            <template x-if="contextMenu.item && isFileInWiki(contextMenu.item) && !isFileCompiling(contextMenu.item)">
+                                <div class="flex items-center gap-2 px-3 py-2 text-sm text-green-600 dark:text-green-400">
+                                    <span class="material-symbols-outlined text-base">check_circle</span> {{ _('已在 Wiki 知识库') }}
+                                </div>
+                            </template>
                         </div>
                     </template>
-                    <template x-if="contextMenu.item && isFileInWiki(contextMenu.item) && !isFileCompiling(contextMenu.item)">
-                        <div class="flex items-center gap-2 px-3 py-2 text-sm text-green-600 dark:text-green-400">
-                            <span class="material-symbols-outlined text-base">check_circle</span> {{ _('已在 Wiki 知识库') }}
+                    {# 删除：仅在可写文件夹中显示 #}
+                    <template x-if="canWriteCurrentFolder()">
+                        <div>
+                            <hr class="my-1 border-slate-200 dark:border-slate-700">
+                            <button @click="deleteFile(contextMenu.item.id); contextMenu.show = false"
+                                    class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                <span class="material-symbols-outlined text-base">delete</span> {{ _('删除') }}
+                            </button>
                         </div>
                     </template>
-                    <hr class="my-1 border-slate-200 dark:border-slate-700">
-                    <button @click="deleteFile(contextMenu.item.id); contextMenu.show = false"
-                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
-                        <span class="material-symbols-outlined text-base">delete</span> {{ _('删除') }}
-                    </button>
                 </div>
             </template>
 
@@ -761,15 +943,30 @@
                             class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
                         <span class="material-symbols-outlined text-base">folder_open</span> {{ _('打开') }}
                     </button>
-                    <button @click="startRename('folder', contextMenu.item); contextMenu.show = false"
-                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
-                        <span class="material-symbols-outlined text-base">edit</span> {{ _('重命名') }}
-                    </button>
-                    <hr class="my-1 border-slate-200 dark:border-slate-700">
-                    <button @click="deleteFolder(contextMenu.item.id); contextMenu.show = false"
-                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
-                        <span class="material-symbols-outlined text-base">delete</span> {{ _('删除') }}
-                    </button>
+                    {# 写入操作：仅在可写文件夹中显示 #}
+                    <template x-if="canWriteCurrentFolder()">
+                        <div>
+                            <button @click="startRename('folder', contextMenu.item); contextMenu.show = false"
+                                    class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                <span class="material-symbols-outlined text-base">edit</span> {{ _('重命名') }}
+                            </button>
+                            {# 共享给…（只有自己的文件夹可以共享给别人） #}
+                            <button @click="openShareModal(contextMenu.item); contextMenu.show = false"
+                                    class="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                                    :class="getFolderShareCount(contextMenu.item.id) > 0 ? 'text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50/40 dark:bg-emerald-900/10' : 'text-slate-700 dark:text-slate-300'">
+                                <span class="material-symbols-outlined text-base">group_add</span>
+                                <span class="flex-1 text-left">{{ _('共享给…') }}</span>
+                                <span x-show="getFolderShareCount(contextMenu.item.id) > 0"
+                                      class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+                                      x-text="getFolderShareCount(contextMenu.item.id)"></span>
+                            </button>
+                            <hr class="my-1 border-slate-200 dark:border-slate-700">
+                            <button @click="deleteFolder(contextMenu.item.id); contextMenu.show = false"
+                                    class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                <span class="material-symbols-outlined text-base">delete</span> {{ _('删除') }}
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </template>
         </div>
@@ -1242,6 +1439,8 @@
         </div>
     </div>
 
+    {# 文件夹共享 Modal（必须在 x-data="fileManager()" 范围内） #}
+    {% include 'components/tw_folder_share_modal.html' %}
     </div>
     {{ render_share_to_chat_modal() }}
     {% endif %}

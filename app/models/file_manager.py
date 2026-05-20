@@ -154,3 +154,67 @@ class UserFileRef(db.Model):
             'is_archived': lib.is_archived if lib else False,
             'original_size': lib.original_size if lib else None,
         }
+
+
+class UserFolderShare(db.Model):
+    """文件夹共享关系 - 文件夹拥有者将文件夹共享给其他用户"""
+    __tablename__ = 'user_folder_shares'
+
+    id = Column(Integer, primary_key=True)
+    folder_id = Column(Integer, ForeignKey('user_folders.id', ondelete='CASCADE'), nullable=False, index=True)
+    shared_with_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    shared_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    permission = Column(String(10), nullable=False, default='read')  # 'read' | 'write'
+    message = Column(String(500), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default='true')
+    created_at = Column(DateTime, default=get_local_time)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
+
+    # 关系
+    folder = relationship('UserFolder', backref=backref('shares', lazy='dynamic', cascade='all, delete-orphan'))
+    shared_with = relationship('User', foreign_keys=[shared_with_user_id],
+                               backref=backref('received_folder_shares', lazy='dynamic'))
+    shared_by = relationship('User', foreign_keys=[shared_by_user_id],
+                             backref=backref('sent_folder_shares', lazy='dynamic'))
+
+    __table_args__ = (
+        Index('ix_user_folder_shares_folder_user', 'folder_id', 'shared_with_user_id', unique=True),
+        Index('ix_user_folder_shares_user_active', 'shared_with_user_id', 'is_active'),
+    )
+
+    def to_dict(self, include_user=True, include_folder=False):
+        result = {
+            'id': self.id,
+            'folder_id': self.folder_id,
+            'shared_with_user_id': self.shared_with_user_id,
+            'shared_by_user_id': self.shared_by_user_id,
+            'permission': self.permission,
+            'message': self.message,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_user and self.shared_with:
+            u = self.shared_with
+            result['shared_with'] = {
+                'id': u.id,
+                'username': u.username,
+                'real_name': u.real_name,
+                'display_name': u.real_name or u.username,
+                'department': u.department,
+            }
+        if include_user and self.shared_by:
+            u = self.shared_by
+            result['shared_by'] = {
+                'id': u.id,
+                'username': u.username,
+                'real_name': u.real_name,
+                'display_name': u.real_name or u.username,
+            }
+        if include_folder and self.folder:
+            result['folder'] = {
+                'id': self.folder.id,
+                'name': self.folder.name,
+                'parent_id': self.folder.parent_id,
+            }
+        return result

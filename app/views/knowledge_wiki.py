@@ -378,6 +378,73 @@ def trigger_ingest(raw_id):
     return jsonify({'success': True, 'data': result})
 
 
+@knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>/preview', methods=['GET'])
+@login_required
+def preview_raw_file(raw_id):
+    """预览 Wiki 原始文件（按 scope 鉴权 - 所有可见此文章的用户均可访问）"""
+    from flask import Response
+    from app.services.wiki.scope import visible_raw_files_query
+    from urllib.parse import quote
+
+    raw = visible_raw_files_query(current_user).filter(KnowledgeRawFile.id == raw_id).first()
+    if not raw:
+        return jsonify({'success': False, 'message': '无权访问或文件不存在'}), 403
+
+    fl = FileLibrary.query.get(raw.file_library_id)
+    if not fl:
+        return jsonify({'success': False, 'message': '原始文件已删除'}), 404
+
+    try:
+        content = FileManagerService.read_file_content_auto_decompress(fl)
+        if content:
+            encoded_name = quote(raw.title or fl.original_filename or 'file')
+            return Response(
+                content,
+                mimetype=fl.mime_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f"inline; filename*=UTF-8''{encoded_name}",
+                }
+            )
+    except Exception as e:
+        logger.error(f'[Wiki] 预览原始文件失败: {e}')
+
+    return jsonify({'success': False, 'message': '读取文件失败'}), 500
+
+
+@knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>/download', methods=['GET'])
+@login_required
+def download_raw_file(raw_id):
+    """下载 Wiki 原始文件（按 scope 鉴权）"""
+    from flask import Response
+    from app.services.wiki.scope import visible_raw_files_query
+    from urllib.parse import quote
+
+    raw = visible_raw_files_query(current_user).filter(KnowledgeRawFile.id == raw_id).first()
+    if not raw:
+        return jsonify({'success': False, 'message': '无权访问或文件不存在'}), 403
+
+    fl = FileLibrary.query.get(raw.file_library_id)
+    if not fl:
+        return jsonify({'success': False, 'message': '原始文件已删除'}), 404
+
+    try:
+        content = FileManagerService.read_file_content_auto_decompress(fl)
+        if content:
+            encoded_name = quote(raw.title or fl.original_filename or 'file')
+            return Response(
+                content,
+                mimetype=fl.mime_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_name}",
+                    'Content-Length': str(len(content)),
+                }
+            )
+    except Exception as e:
+        logger.error(f'[Wiki] 下载原始文件失败: {e}')
+
+    return jsonify({'success': False, 'message': '读取文件失败'}), 500
+
+
 @knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>', methods=['DELETE'])
 @login_required
 def delete_raw_file(raw_id):

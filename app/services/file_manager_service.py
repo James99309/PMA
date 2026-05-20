@@ -15,7 +15,9 @@ from zoneinfo import ZoneInfo
 
 from flask import current_app
 from app import db
-from app.models.file_manager import FileLibrary, UserFolder, UserFileRef
+from app.models.file_manager import FileLibrary, UserFolder, UserFileRef, UserFolderShare
+from app.models.user import User
+from sqlalchemy import or_, and_
 
 logger = logging.getLogger(__name__)
 
@@ -366,15 +368,46 @@ class FileManagerService:
     # ------------------------------------------------------------------
     @staticmethod
     def list_files(user, folder_id=None, include_deleted=False):
-        """列出文件夹内容"""
-        # 文件夹列表
+        """列出文件夹内容
+
+        权限规则：
+        - folder_id 为 None（根目录）：列出当前用户的根文件夹和文件
+        - folder_id 属于当前用户：列出该文件夹内容
+        - folder_id 属于他人但已共享给当前用户：以 owner 视角列出
+        - 否则：返回空（视图层会拦截）
+        """
+        owner_id = user.id
+        shared_context = None
+
+        if folder_id is not None:
+            folder = UserFolder.query.filter_by(id=folder_id, is_deleted=False).first()
+            if not folder:
+                return {'folders': [], 'files': [], 'shared_context': None}
+            if folder.user_id != user.id:
+                # 不是自己的文件夹 - 检查是否有共享
+                share = FileManagerService._resolve_active_share(user.id, folder)
+                if not share:
+                    return {'folders': [], 'files': [], 'shared_context': None}
+                owner_id = folder.user_id
+                shared_context = {
+                    'is_shared': True,
+                    'owner_id': folder.user_id,
+                    'permission': share.permission,
+                    'shared_by': {
+                        'id': share.shared_by.id,
+                        'display_name': share.shared_by.real_name or share.shared_by.username,
+                    } if share.shared_by else None,
+                    'root_share_folder_id': share.folder_id,
+                }
+
+        # 文件夹列表（基于实际归属人）
         folders = UserFolder.query.filter_by(
-            user_id=user.id, parent_id=folder_id, is_deleted=False
+            user_id=owner_id, parent_id=folder_id, is_deleted=False
         ).order_by(UserFolder.sort_order, UserFolder.name).all()
 
         # 文件列表
         query = UserFileRef.query.filter_by(
-            user_id=user.id, folder_id=folder_id
+            user_id=owner_id, folder_id=folder_id
         )
         if not include_deleted:
             query = query.filter_by(is_deleted=False)
@@ -383,18 +416,34 @@ class FileManagerService:
         return {
             'folders': [f.to_dict() for f in folders],
             'files': [f.to_dict() for f in files],
+            'shared_context': shared_context,
         }
 
     @staticmethod
     def get_breadcrumbs(user, folder_id):
-        """获取面包屑导航路径"""
+        """获取面包屑导航路径（支持共享文件夹的路径）
+
+        - 自己的文件夹：完整链到根
+        - 被共享的文件夹：链到 share 的 root_folder_id 即停（被共享方不应看到拥有者的祖先）
+        """
         crumbs = []
-        current = UserFolder.query.filter_by(
-            id=folder_id, user_id=user.id
-        ).first() if folder_id else None
+        if not folder_id:
+            return crumbs
+        current = UserFolder.query.filter_by(id=folder_id, is_deleted=False).first()
+        if not current:
+            return crumbs
+
+        stop_at_folder_id = None
+        if current.user_id != user.id:
+            share = FileManagerService._resolve_active_share(user.id, current)
+            if not share:
+                return crumbs
+            stop_at_folder_id = share.folder_id  # 共享起点
 
         while current:
             crumbs.insert(0, {'id': current.id, 'name': current.name})
+            if stop_at_folder_id and current.id == stop_at_folder_id:
+                break
             current = current.parent if current.parent_id else None
 
         return crumbs
@@ -961,3 +1010,298 @@ class FileManagerService:
     # 知识库状态查询方法已在 2026-04-09 迁移期间移除。
     # 旧 KnowledgeDocument 已下线，新的 Wiki 方案不通过文件引用来标记"是否在知识库"。
     # 如果前端需要知识库状态，改走 /api/knowledge/documents/file-status（返回空）。
+
+    # ==================================================================
+    # 文件夹共享
+    # ==================================================================
+
+    @staticmethod
+    def _get_owned_folder(user, folder_id):
+        """获取用户拥有的文件夹（用于共享操作的所有权校验）"""
+        return UserFolder.query.filter_by(
+            id=folder_id, user_id=user.id, is_deleted=False
+        ).first()
+
+    @staticmethod
+    def can_view_folder(user, folder):
+        """判断 user 是否可查看 folder（拥有者或被共享方）"""
+        if folder is None or folder.is_deleted:
+            return False
+        if folder.user_id == user.id:
+            return True
+        # 检查是否有共享（含祖先）
+        return FileManagerService._has_active_share(user.id, folder)
+
+    @staticmethod
+    def can_write_folder(user, folder):
+        """判断 user 是否可写入 folder（拥有者或 write 权限的被共享方）"""
+        if folder is None or folder.is_deleted:
+            return False
+        if folder.user_id == user.id:
+            return True
+        share = FileManagerService._resolve_active_share(user.id, folder)
+        return bool(share and share.permission == 'write')
+
+    @staticmethod
+    def get_accessible_file_ref(user, file_ref_id, require_write=False):
+        """获取用户可访问的文件引用（自己的 或 被共享文件夹里的）
+
+        - 自己的文件：直接返回
+        - 共享文件夹里的：检查 view / write 权限
+        - 否则返回 None
+        """
+        ref = UserFileRef.query.filter_by(id=file_ref_id, is_deleted=False).first()
+        if not ref:
+            return None
+        if ref.user_id == user.id:
+            return ref
+        # 检查所在文件夹是否被共享
+        folder = ref.folder if ref.folder_id else None
+        if not folder:
+            return None
+        share = FileManagerService._resolve_active_share(user.id, folder)
+        if not share:
+            return None
+        if require_write and share.permission != 'write':
+            return None
+        return ref
+
+    @staticmethod
+    def _resolve_active_share(user_id, folder):
+        """沿祖先链找到该用户对此 folder 的有效共享记录（最近一条）"""
+        current = folder
+        while current is not None:
+            share = UserFolderShare.query.filter_by(
+                folder_id=current.id,
+                shared_with_user_id=user_id,
+                is_active=True,
+            ).first()
+            if share:
+                return share
+            if not current.parent_id:
+                return None
+            current = current.parent
+        return None
+
+    @staticmethod
+    def _has_active_share(user_id, folder):
+        return FileManagerService._resolve_active_share(user_id, folder) is not None
+
+    @staticmethod
+    def share_folder(owner, folder_id, target_user_ids, permission='read', message=None):
+        """共享文件夹给指定用户列表
+
+        - 重复共享：更新 permission/message/is_active
+        - 不允许共享给自己
+        - 仅文件夹拥有者可操作
+        """
+        if permission not in ('read', 'write'):
+            return False, '权限值无效'
+
+        folder = FileManagerService._get_owned_folder(owner, folder_id)
+        if not folder:
+            return False, '文件夹不存在或无权限'
+
+        if not target_user_ids:
+            return False, '请选择共享对象'
+
+        # 过滤：去掉自己 / 去重 / 仅活跃用户
+        target_user_ids = list({uid for uid in target_user_ids if uid and uid != owner.id})
+        if not target_user_ids:
+            return False, '请选择共享对象'
+
+        valid_users = User.query.filter(User.id.in_(target_user_ids)).all()
+        valid_ids = {u.id for u in valid_users}
+
+        created, updated = [], []
+        for uid in valid_ids:
+            existing = UserFolderShare.query.filter_by(
+                folder_id=folder.id, shared_with_user_id=uid
+            ).first()
+            if existing:
+                existing.permission = permission
+                existing.message = message
+                existing.is_active = True
+                existing.shared_by_user_id = owner.id
+                updated.append(existing)
+            else:
+                share = UserFolderShare(
+                    folder_id=folder.id,
+                    shared_with_user_id=uid,
+                    shared_by_user_id=owner.id,
+                    permission=permission,
+                    message=message,
+                    is_active=True,
+                )
+                db.session.add(share)
+                created.append(share)
+
+        db.session.commit()
+        return True, {
+            'created': len(created),
+            'updated': len(updated),
+            'total_active': UserFolderShare.query.filter_by(
+                folder_id=folder.id, is_active=True
+            ).count(),
+        }
+
+    @staticmethod
+    def update_share_permission(owner, folder_id, target_user_id, permission):
+        """改变某个共享对象的权限"""
+        if permission not in ('read', 'write'):
+            return False, '权限值无效'
+        folder = FileManagerService._get_owned_folder(owner, folder_id)
+        if not folder:
+            return False, '文件夹不存在或无权限'
+        share = UserFolderShare.query.filter_by(
+            folder_id=folder.id, shared_with_user_id=target_user_id
+        ).first()
+        if not share:
+            return False, '共享关系不存在'
+        share.permission = permission
+        share.is_active = True
+        db.session.commit()
+        return True, share.to_dict()
+
+    @staticmethod
+    def unshare_folder(owner, folder_id, target_user_id):
+        """移除指定用户的共享"""
+        folder = FileManagerService._get_owned_folder(owner, folder_id)
+        if not folder:
+            return False, '文件夹不存在或无权限'
+        share = UserFolderShare.query.filter_by(
+            folder_id=folder.id, shared_with_user_id=target_user_id
+        ).first()
+        if not share:
+            return False, '共享关系不存在'
+        db.session.delete(share)
+        db.session.commit()
+        return True, '已移除'
+
+    @staticmethod
+    def unshare_all(owner, folder_id):
+        """收回该文件夹的所有共享"""
+        folder = FileManagerService._get_owned_folder(owner, folder_id)
+        if not folder:
+            return False, '文件夹不存在或无权限'
+        count = UserFolderShare.query.filter_by(folder_id=folder.id).delete()
+        db.session.commit()
+        return True, {'removed': count}
+
+    @staticmethod
+    def list_folder_shares(owner, folder_id):
+        """列出文件夹的所有共享对象（仅拥有者可见）"""
+        folder = FileManagerService._get_owned_folder(owner, folder_id)
+        if not folder:
+            return False, '文件夹不存在或无权限'
+        shares = UserFolderShare.query.filter_by(folder_id=folder.id)\
+            .order_by(UserFolderShare.created_at.desc()).all()
+        return True, [s.to_dict() for s in shares]
+
+    @staticmethod
+    def get_folder_shares_summary(owner, folder_ids):
+        """批量获取多个文件夹的共享统计（用于卡片角标+头像组）
+
+        返回 dict: {folder_id: {'count': N, 'recipients': [{id, display_name, ...}]}}
+        每个文件夹最多返回前 3 个 recipient 用于头像展示
+        """
+        if not folder_ids:
+            return {}
+        shares = UserFolderShare.query.filter(
+            UserFolderShare.folder_id.in_(folder_ids),
+            UserFolderShare.is_active.is_(True),
+        ).join(User, User.id == UserFolderShare.shared_with_user_id)\
+         .order_by(UserFolderShare.folder_id, UserFolderShare.created_at).all()
+
+        summary = {}
+        for s in shares:
+            entry = summary.setdefault(s.folder_id, {'count': 0, 'recipients': []})
+            entry['count'] += 1
+            if len(entry['recipients']) < 3 and s.shared_with:
+                entry['recipients'].append({
+                    'id': s.shared_with.id,
+                    'display_name': s.shared_with.real_name or s.shared_with.username,
+                })
+        return summary
+
+    @staticmethod
+    def list_shared_with_me(user):
+        """列出共享给当前用户的根级文件夹"""
+        shares = UserFolderShare.query.filter_by(
+            shared_with_user_id=user.id, is_active=True
+        ).join(UserFolder, UserFolder.id == UserFolderShare.folder_id)\
+         .filter(UserFolder.is_deleted.is_(False))\
+         .order_by(UserFolderShare.created_at.desc()).all()
+
+        result = []
+        for s in shares:
+            folder = s.folder
+            if not folder:
+                continue
+            # 统计子项数：文件夹的直接子文件夹 + 文件
+            sub_folder_count = UserFolder.query.filter_by(
+                parent_id=folder.id, is_deleted=False
+            ).count()
+            file_count = UserFileRef.query.filter_by(
+                folder_id=folder.id, is_deleted=False
+            ).count()
+            item = {
+                'share_id': s.id,
+                'folder_id': folder.id,
+                'name': folder.name,
+                'permission': s.permission,
+                'message': s.message,
+                'shared_at': s.created_at.isoformat() if s.created_at else None,
+                'item_count': sub_folder_count + file_count,
+                'shared_by': {
+                    'id': s.shared_by.id,
+                    'display_name': s.shared_by.real_name or s.shared_by.username,
+                } if s.shared_by else None,
+            }
+            result.append(item)
+        return result
+
+    @staticmethod
+    def list_shared_folder_content(viewer, folder_id):
+        """被共享方查看共享文件夹内容（按 folder 拥有者的视角列出）"""
+        folder = UserFolder.query.filter_by(id=folder_id, is_deleted=False).first()
+        if not folder:
+            return False, '文件夹不存在'
+        if not FileManagerService.can_view_folder(viewer, folder):
+            return False, '无权访问此文件夹'
+
+        # 列出此文件夹的子文件夹（属于 folder.user_id）
+        sub_folders = UserFolder.query.filter_by(
+            user_id=folder.user_id, parent_id=folder.id, is_deleted=False
+        ).order_by(UserFolder.sort_order, UserFolder.name).all()
+
+        files = UserFileRef.query.filter_by(
+            user_id=folder.user_id, folder_id=folder.id, is_deleted=False
+        ).order_by(UserFileRef.created_at.desc()).all()
+
+        # 标注权限信息
+        share = FileManagerService._resolve_active_share(viewer.id, folder)
+        return True, {
+            'folders': [f.to_dict() for f in sub_folders],
+            'files': [f.to_dict() for f in files],
+            'shared_context': {
+                'root_folder_id': share.folder_id if share else folder.id,
+                'permission': share.permission if share else 'read',
+                'shared_by': {
+                    'id': share.shared_by.id,
+                    'display_name': share.shared_by.real_name or share.shared_by.username,
+                } if share and share.shared_by else None,
+            },
+        }
+
+    @staticmethod
+    def leave_share(user, folder_id):
+        """被共享方主动离开共享（仅删除自己的共享记录）"""
+        share = UserFolderShare.query.filter_by(
+            folder_id=folder_id, shared_with_user_id=user.id
+        ).first()
+        if not share:
+            return False, '共享关系不存在'
+        db.session.delete(share)
+        db.session.commit()
+        return True, '已离开共享'
