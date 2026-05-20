@@ -873,18 +873,43 @@ def api_create_from_po():
 
             # shipped_quantity 在确认发货(confirm_ship)时才更新，创建时不更新
 
-            # 更新 ProductSerialNumber 记录（如果提供了SN）
+            # 创建/更新 ProductSerialNumber 记录(发货时是 SN 的唯一登记入口)
+            # 规则:
+            #   - 已存在的 SN 字符串 → 拒绝(整张发货单 rollback,提醒用户改)
+            #   - 不存在的 SN 字符串 → 创建新记录,登记到发货上下文
+            #   - SN 仅记入库,出库不追踪;后续状态保持 in_stock 不再更新
             if serial_numbers:
-                try:
-                    from app.models.product_serial_number import ProductSerialNumber
-                    for sn_str in serial_numbers:
-                        sn_record = ProductSerialNumber.query.filter_by(serial_number=sn_str).first()
-                        if sn_record:
-                            sn_record.shipment_id = shipment.id
-                            sn_record.status = 'shipped'
-                            sn_record.ship_out_date = datetime.now()
-                except Exception as sn_err:
-                    logger.warning(f"更新序列号记录失败（非致命）: {sn_err}")
+                from app.models.product_serial_number import ProductSerialNumber
+
+                # 派生关联上下文
+                so = shipment.sales_order
+                customer_id = so.customer_id if so else None
+                po_id = po_detail.order_id if po_detail else None
+
+                for sn_str in serial_numbers:
+                    sn_str = (sn_str or '').strip()
+                    if not sn_str:
+                        continue
+                    existing = ProductSerialNumber.query.filter_by(serial_number=sn_str).first()
+                    if existing:
+                        db.session.rollback()
+                        return jsonify({
+                            'success': False,
+                            'message': f'序列号 {sn_str} 已存在(归属:{existing.shipment_id or "—"}),不能重复使用'
+                        }), 400
+                    sn_record = ProductSerialNumber(
+                        serial_number=sn_str,
+                        product_id=po_detail.product_id,
+                        purchase_order_id=po_id,
+                        purchase_detail_id=po_detail.id,
+                        sales_order_id=shipment.sales_order_id,
+                        shipment_id=shipment.id,
+                        customer_id=customer_id,
+                        status='in_stock',
+                        warehouse_in_date=datetime.now(),
+                        created_by_id=current_user.id,
+                    )
+                    db.session.add(sn_record)
 
         db.session.commit()
 
