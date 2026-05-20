@@ -201,7 +201,7 @@ Tailwind 共享导航菜单组件
         </a>
         {% endif %}
         {% if has_permission('inventory', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'inventory' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.stock_list') }}">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'inventory' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.tw_stock_list') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'inventory' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">warehouse</span>
             <span class="{% if active_page == 'inventory' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('库存管理') }}</span>
         </a>
