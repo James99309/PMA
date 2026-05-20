@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>Pricing Order · Settlement Tab · PMA UX Mockup</title>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<script>if (localStorage.getItem('lang') === 'en') document.documentElement.classList.add('en')</script>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }</script>
+<style>body { font-family: 'Inter', sans-serif; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; } html.en .lang-zh { display: none !important; } html:not(.en) .lang-en { display: none !important; }</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+
+<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+  <div class="max-w-[1600px] mx-auto px-6 h-14 flex items-center gap-3">
+    <a href="index.html" class="flex items-center gap-2 text-primary"><span class="material-symbols-outlined">arrow_back</span><span class="text-sm"><span class="lang-zh">索引</span><span class="lang-en">Index</span></span></a>
+    <span class="ml-auto"><button onclick="toggleLang()" class="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">language</span><span class="lang-zh">EN</span><span class="lang-en">中</span></button></span>
+  </div>
+</header>
+
+<!-- 批价单页头(沿用 PMA 真实结构) -->
+<div class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+  <div class="max-w-[1600px] mx-auto px-6 py-4 flex items-start justify-between">
+    <div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <a class="text-slate-400 hover:text-primary"><span class="material-symbols-outlined">arrow_back</span></a>
+        <h1 class="text-lg font-bold text-slate-900 dark:text-white whitespace-nowrap"><span class="lang-zh">批价单 · PO202604-002</span><span class="lang-en">Pricing Order · PO202604-002</span></h1>
+        <span class="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded whitespace-nowrap"><span class="lang-zh">已批准</span><span class="lang-en">Approved</span></span>
+      </div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 ml-7"><span class="lang-zh">上海那份</span><span class="lang-en">Shanghai · sample</span></p>
+    </div>
+    <div class="flex items-center gap-3 text-sm flex-wrap">
+      <span class="text-slate-500 dark:text-slate-400 whitespace-nowrap"><span class="lang-zh">总折扣</span><span class="lang-en">Discount</span> <span class="text-slate-900 dark:text-white font-medium">100.0%</span></span>
+      <span class="text-slate-500 dark:text-slate-400 whitespace-nowrap"><span class="lang-zh">毛利润</span><span class="lang-en">Profit</span> <span class="text-slate-900 dark:text-white font-medium">¥ 0.00</span></span>
+      <span class="text-slate-500 dark:text-slate-400 whitespace-nowrap"><span class="lang-zh">毛利率</span><span class="lang-en">Margin</span> <span class="text-slate-900 dark:text-white font-medium">0.0%</span></span>
+      <button class="h-9 px-3 bg-primary/10 text-primary rounded-lg text-sm font-medium inline-flex items-center gap-1 whitespace-nowrap"><span class="material-symbols-outlined text-base">verified</span><span class="lang-zh">审批流程</span><span class="lang-en">Approval</span></button>
+      <button class="h-9 px-3 border border-slate-300 dark:border-slate-600 rounded-lg text-sm inline-flex items-center gap-1 whitespace-nowrap"><span class="material-symbols-outlined text-base">print</span><span class="lang-zh">打印</span><span class="lang-en">Print</span></button>
+      <button class="h-9 px-3 text-slate-500 rounded-lg text-sm"><span class="lang-zh">取消</span><span class="lang-en">Cancel</span></button>
+    </div>
+  </div>
+
+  <!-- Tab -->
+  <div class="max-w-[1600px] mx-auto px-6 -mb-px flex">
+    <button class="px-4 py-2.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent inline-flex items-center gap-1.5 whitespace-nowrap"><span class="material-symbols-outlined text-base">description</span><span class="lang-zh">批价单</span><span class="lang-en">Pricing</span></button>
+    <button class="px-4 py-2.5 text-sm font-medium text-primary border-b-2 border-primary inline-flex items-center gap-1.5 whitespace-nowrap"><span class="material-symbols-outlined text-base">request_quote</span><span class="lang-zh">结算单</span><span class="lang-en">Settlement</span></button>
+  </div>
+</div>
+
+<main class="max-w-[1600px] mx-auto p-6">
+
+  <!-- 结算进度 -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 mb-4 flex items-center gap-6">
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap"><span class="lang-zh">结算单</span><span class="lang-en">Settlement</span> SO202604-002</span>
+          <span class="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded whitespace-nowrap"><span class="lang-zh">部分结算</span><span class="lang-en">Partial</span></span>
+          <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap"><span class="lang-zh">结算到</span><span class="lang-en">To</span> · <span class="lang-zh">上海某经销商</span><span class="lang-en">Shanghai Dealer</span></span>
+        </div>
+        <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap"><span class="lang-zh">2 / 6 行已结算 · </span><span class="lang-en">2 / 6 rows settled · </span><span class="text-primary font-semibold">33%</span></span>
+      </div>
+      <div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-primary rounded-full" style="width: 33%"></div></div>
+    </div>
+  </div>
+
+  <!-- 结算单明细表 -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <h2 class="text-base font-semibold text-slate-900 dark:text-white"><span class="lang-zh">结算单明细</span><span class="lang-en">Settlement Details</span></h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"><span class="lang-zh">点击每行 Settle 发起结算 · 目标公司由结算单已定,系统直接扣减目标公司库存</span><span class="lang-en">Click Settle on each row · Target company is fixed by the Settlement; stock is auto-deducted from that company's warehouse</span></p>
+      </div>
+      <div class="text-xs text-slate-400 whitespace-nowrap"><span class="lang-zh">货币 · CNY · 交货日期 04/30/2026</span><span class="lang-en">Currency · CNY · Delivery 04/30/2026</span></div>
+    </div>
+    <table class="w-full">
+      <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+        <tr>
+          <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-12">S/N</th>
+          <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">编码</span><span class="lang-en">Code</span></th>
+          <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">品牌</span><span class="lang-en">Brand</span></th>
+          <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">型号规格</span><span class="lang-en">Model & Spec</span></th>
+          <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">数量</span><span class="lang-en">Qty</span></th>
+          <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap"><span class="lang-zh">结算价</span><span class="lang-en">Price</span></th>
+          <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">小计</span><span class="lang-en">Subtotal</span></th>
+          <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">状态</span><span class="lang-en">Status</span></th>
+          <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-28"><span class="lang-zh">操作</span><span class="lang-en">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-3 text-center text-sm text-slate-500">1</td>
+          <td class="p-3 text-sm font-mono text-slate-700 dark:text-slate-300">EBSHNJMWXNT</td>
+          <td class="p-3 text-sm text-slate-700 dark:text-slate-300"><span class="lang-zh">和源通信</span><span class="lang-en">EVERTAC</span></td>
+          <td class="p-3 text-sm"><div class="font-medium text-slate-900 dark:text-white"><span class="lang-zh">数字基站</span><span class="lang-en">Digital Base Station</span> DRFT-400TR</div></td>
+          <td class="p-3 text-center text-sm font-medium text-slate-900 dark:text-white">1</td>
+          <td class="p-3 text-right text-sm text-slate-700 dark:text-slate-300">21,000.00</td>
+          <td class="p-3 text-right text-sm font-medium text-slate-900 dark:text-white">21,000.00</td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 whitespace-nowrap"><span class="lang-zh">待结算</span><span class="lang-en">Pending</span></span></td>
+          <td class="p-3 text-center"><button onclick="showSettle('Digital Base Station', 1, 21000)" class="px-3 py-1.5 text-xs font-medium text-white bg-primary hover:bg-primary/90 rounded-lg inline-flex items-center gap-1 whitespace-nowrap"><span class="material-symbols-outlined text-sm">check_circle</span><span class="lang-zh">结算</span><span class="lang-en">Settle</span></button></td>
+        </tr>
+
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-3 text-center text-sm text-slate-500">2</td>
+          <td class="p-3 text-sm font-mono text-slate-700 dark:text-slate-300">MCFFMM53N</td>
+          <td class="p-3 text-sm text-slate-700 dark:text-slate-300"><span class="lang-zh">和源通信</span><span class="lang-en">EVERTAC</span></td>
+          <td class="p-3 text-sm"><div class="font-medium text-slate-900 dark:text-white"><span class="lang-zh">多信道分合路器</span><span class="lang-en">Multi-channel Combiner</span> FHJ400-4</div></td>
+          <td class="p-3 text-center text-sm font-medium text-slate-900 dark:text-white">1</td>
+          <td class="p-3 text-right text-sm text-slate-700 dark:text-slate-300">9,100.00</td>
+          <td class="p-3 text-right text-sm font-medium text-slate-900 dark:text-white">9,100.00</td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 whitespace-nowrap"><span class="lang-zh">待结算</span><span class="lang-en">Pending</span></span></td>
+          <td class="p-3 text-center"><button onclick="showSettle('Multi-channel Combiner', 1, 9100)" class="px-3 py-1.5 text-xs font-medium text-white bg-primary hover:bg-primary/90 rounded-lg inline-flex items-center gap-1 whitespace-nowrap"><span class="material-symbols-outlined text-sm">check_circle</span><span class="lang-zh">结算</span><span class="lang-en">Settle</span></button></td>
+        </tr>
+
+        <tr class="bg-emerald-50/40 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+          <td class="p-3 text-center text-sm text-slate-500">3</td>
+          <td class="p-3 text-sm font-mono text-slate-700 dark:text-slate-300">PNR2100-001</td>
+          <td class="p-3 text-sm text-slate-700 dark:text-slate-300"><span class="lang-zh">和源通信</span><span class="lang-en">EVERTAC</span></td>
+          <td class="p-3 text-sm"><div class="font-medium text-slate-900 dark:text-white">PNR2100 <span class="lang-zh">双向对讲机</span><span class="lang-en">Two-way Radio</span></div></td>
+          <td class="p-3 text-center text-sm font-medium text-slate-900 dark:text-white">5</td>
+          <td class="p-3 text-right text-sm text-slate-700 dark:text-slate-300">3,200.00</td>
+          <td class="p-3 text-right text-sm font-medium text-slate-900 dark:text-white">16,000.00</td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 whitespace-nowrap"><span class="lang-zh">已结算</span><span class="lang-en">Settled</span></span><div class="text-xs text-slate-400 mt-0.5">5-19</div></td>
+          <td class="p-3 text-center text-sm text-slate-400">—</td>
+        </tr>
+
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-3 text-center text-sm text-slate-500">4</td>
+          <td class="p-3 text-sm font-mono text-slate-700 dark:text-slate-300">ANT-002</td>
+          <td class="p-3 text-sm text-slate-700 dark:text-slate-300"><span class="lang-zh">和源通信</span><span class="lang-en">EVERTAC</span></td>
+          <td class="p-3 text-sm"><div class="font-medium text-slate-900 dark:text-white"><span class="lang-zh">天线</span><span class="lang-en">Antenna</span> ANT-2.4G</div></td>
+          <td class="p-3 text-center text-sm font-medium text-slate-900 dark:text-white">10</td>
+          <td class="p-3 text-right text-sm text-slate-700 dark:text-slate-300">450.00</td>
+          <td class="p-3 text-right text-sm font-medium text-slate-900 dark:text-white">4,500.00</td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 whitespace-nowrap"><span class="lang-zh">待结算</span><span class="lang-en">Pending</span></span></td>
+          <td class="p-3 text-center"><button disabled class="px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-100 dark:bg-slate-700 rounded-lg inline-flex items-center gap-1 cursor-not-allowed whitespace-nowrap"><span class="material-symbols-outlined text-sm">block</span><span class="lang-zh">库存不足</span><span class="lang-en">Out of stock</span></button></td>
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 结算确认模态 -->
+  <div id="settleModal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this)hideSettle()">
+    <div class="fixed inset-0 bg-black/50"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white inline-flex items-center gap-2"><span class="material-symbols-outlined">check_circle</span><span class="lang-zh">发起结算</span><span class="lang-en">Settle Item</span></h3>
+          <button onclick="hideSettle()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="p-5 space-y-4">
+          <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 space-y-1.5 text-sm">
+            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400"><span class="lang-zh">产品</span><span class="lang-en">Product</span></span><span class="font-medium text-slate-900 dark:text-white" id="modal_product">Digital Base Station</span></div>
+            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400"><span class="lang-zh">单价</span><span class="lang-en">Unit price</span></span><span class="text-slate-900 dark:text-white">¥<span id="modal_price">21,000.00</span></span></div>
+            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400"><span class="lang-zh">结算总量</span><span class="lang-en">Total</span></span><span class="text-slate-900 dark:text-white"><span id="modal_total">1</span> <span class="lang-zh">件</span><span class="lang-en">pcs</span></span></div>
+            <div class="border-t border-slate-200 dark:border-slate-600 pt-1.5 flex justify-between"><span class="text-slate-500 dark:text-slate-400"><span class="lang-zh">结算到</span><span class="lang-en">Settle to</span></span><span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-base text-purple-500">store</span><span class="font-medium text-slate-900 dark:text-white"><span class="lang-zh">上海某经销商</span><span class="lang-en">Shanghai Dealer</span></span></span></div>
+            <div class="flex justify-between text-xs"><span class="text-slate-500 dark:text-slate-400"><span class="lang-zh">该公司当前库存</span><span class="lang-en">Current stock at target</span></span><span class="text-emerald-600 dark:text-emerald-400 font-semibold"><span class="lang-zh">5 件 · ✓ 足够</span><span class="lang-en">5 pcs · ✓ Sufficient</span></span></div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"><span class="lang-zh">本次结算数量</span><span class="lang-en">Settlement quantity</span> <span class="text-red-500">*</span></label>
+            <div class="flex items-center gap-2">
+              <input type="number" value="1" min="1" max="1" class="flex-1 h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
+              <button class="h-10 px-3 text-xs text-primary bg-primary/10 hover:bg-primary/20 rounded-lg whitespace-nowrap"><span class="lang-zh">全部</span><span class="lang-en">All</span></button>
+            </div>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400"><span class="lang-zh">默认全部结算;可输入更少做部分结算</span><span class="lang-en">Defaults to all; enter less for partial</span></p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"><span class="lang-zh">备注</span><span class="lang-en">Notes</span></label>
+            <textarea rows="2" data-placeholder-zh="可选说明..." data-placeholder-en="Optional notes..." placeholder="可选说明..." class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+          </div>
+
+          <div class="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 leading-relaxed"><span class="lang-zh">ⓘ 结算后 · 上海某经销商库存将由 <b>5 → 4</b> · 写入流水关联本结算单</span><span class="lang-en">ⓘ After settlement · Shanghai Dealer stock <b>5 → 4</b> · A transaction will be logged linked to this Settlement</span></div>
+        </div>
+        <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+          <button onclick="hideSettle()" class="h-10 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium"><span class="lang-zh">取消</span><span class="lang-en">Cancel</span></button>
+          <button class="h-10 px-5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium whitespace-nowrap"><span class="lang-zh">确认结算</span><span class="lang-en">Confirm</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+function syncDataLang() { const isEn = document.documentElement.classList.contains('en'); document.querySelectorAll('[data-placeholder-zh]').forEach(el => { el.placeholder = isEn ? el.dataset.placeholderEn : el.dataset.placeholderZh; }); }
+function toggleLang() { const isEn = document.documentElement.classList.toggle('en'); localStorage.setItem('lang', isEn ? 'en' : 'zh'); syncDataLang(); }
+window.addEventListener('DOMContentLoaded', syncDataLang);
+function showSettle(product, qty, price) { document.getElementById('modal_product').textContent = product; document.getElementById('modal_total').textContent = qty; document.getElementById('modal_price').textContent = price.toLocaleString(); document.getElementById('settleModal').classList.remove('hidden'); }
+function hideSettle() { document.getElementById('settleModal').classList.add('hidden'); }
+</script>
+</body>
+</html>

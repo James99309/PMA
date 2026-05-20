@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>库存管理 · Inventory · PMA UX Mockup</title>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<script>if (localStorage.getItem('lang') === 'en') document.documentElement.classList.add('en')</script>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }</script>
+<style>
+body { font-family: 'Inter', sans-serif; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+html.en .lang-zh { display: none !important; }
+html:not(.en) .lang-en { display: none !important; }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+
+<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+  <div class="max-w-[1600px] mx-auto px-6 h-14 flex items-center gap-6">
+    <a href="index.html" class="flex items-center gap-2 text-primary"><span class="material-symbols-outlined">arrow_back</span>
+      <span class="text-sm"><span class="lang-zh">Mockup 索引</span><span class="lang-en">Mockup index</span></span></a>
+    <div class="ml-auto">
+      <button onclick="toggleLang()" class="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1">
+        <span class="material-symbols-outlined text-sm">language</span><span class="lang-zh">EN</span><span class="lang-en">中</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1600px] mx-auto p-6">
+
+  <!-- Company Switcher -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 mb-4">
+    <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center gap-4 flex-1 min-w-0">
+        <div class="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 text-3xl">factory</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+            <span class="lang-zh">当前查看库存</span><span class="lang-en">Current warehouse</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="relative">
+              <button onclick="document.getElementById('companyDropdown').classList.toggle('hidden')"
+                      class="flex items-center gap-2 px-3 py-2 -ml-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 group">
+                <span class="text-2xl font-bold text-slate-900 dark:text-white whitespace-nowrap">EVERTAC <span class="lang-zh">自有仓库</span><span class="lang-en">Warehouse</span></span>
+                <span class="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded whitespace-nowrap">
+                  <span class="lang-zh">厂商</span><span class="lang-en">Vendor</span>
+                </span>
+                <span class="material-symbols-outlined text-slate-400 group-hover:text-primary">expand_more</span>
+              </button>
+              <div id="companyDropdown" class="hidden absolute top-full left-0 mt-1 w-96 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl z-10 max-h-96 overflow-y-auto">
+                <div class="p-3 border-b border-slate-200 dark:border-slate-700">
+                  <input type="text" data-placeholder-zh="搜索公司..." data-placeholder-en="Search company..." placeholder="搜索公司..." class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm" />
+                </div>
+                <div class="py-1">
+                  <div class="px-3 py-1 text-xs text-slate-400 uppercase"><span class="lang-zh">厂商</span><span class="lang-en">Vendor</span></div>
+                  <button class="w-full flex items-center justify-between px-3 py-2 bg-primary/10 text-primary text-sm">
+                    <span class="flex items-center gap-2 min-w-0"><span class="material-symbols-outlined text-base shrink-0">factory</span><span class="truncate">EVERTAC <span class="lang-zh">自有仓库</span><span class="lang-en">Warehouse</span></span></span>
+                    <span class="material-symbols-outlined text-base shrink-0">check</span>
+                  </button>
+                  <div class="px-3 py-1 mt-1 text-xs text-slate-400 uppercase">
+                    <span class="lang-zh">客户公司 · 11 家有库存</span><span class="lang-en">Customer companies · 11 with stock</span>
+                  </div>
+                  <button class="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-300">
+                    <span class="flex items-center gap-2 min-w-0"><span class="material-symbols-outlined text-base text-purple-500 shrink-0">store</span><span class="truncate"><span class="lang-zh">北京 ABC 经销商</span><span class="lang-en">Beijing ABC Dealer</span></span></span>
+                    <span class="text-xs text-slate-500 shrink-0 whitespace-nowrap">65 <span class="lang-zh">件</span><span class="lang-en">pcs</span></span>
+                  </button>
+                  <button class="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-300">
+                    <span class="flex items-center gap-2 min-w-0"><span class="material-symbols-outlined text-base text-purple-500 shrink-0">store</span><span class="truncate"><span class="lang-zh">上海 XYZ 经销商</span><span class="lang-en">Shanghai XYZ Dealer</span></span></span>
+                    <span class="text-xs text-slate-500 shrink-0 whitespace-nowrap">42 <span class="lang-zh">件</span><span class="lang-en">pcs</span></span>
+                  </button>
+                  <button class="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-300">
+                    <span class="flex items-center gap-2"><span class="material-symbols-outlined text-base text-purple-500">store</span><span class="lang-zh">… 其他 9 家</span><span class="lang-en">… 9 more</span></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <a href="03-stock-transactions.html" class="h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap">
+          <span class="material-symbols-outlined text-lg">public</span><span class="lang-zh">全局流水</span><span class="lang-en">All Warehouses</span>
+        </a>
+        <a href="04-import-preview.html" class="h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap">
+          <span class="material-symbols-outlined text-lg">upload_file</span><span class="lang-zh">导入</span><span class="lang-en">Import</span>
+        </a>
+        <button class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap">
+          <span class="material-symbols-outlined text-lg">file_download</span><span class="lang-zh">导出</span><span class="lang-en">Export</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-3 gap-3 mb-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <span class="material-symbols-outlined text-slate-400">view_in_ar</span>
+      <div class="text-2xl font-bold text-slate-900 dark:text-white mt-2">5</div>
+      <div class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">在册产品</span><span class="lang-en">Active products</span></div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <span class="material-symbols-outlined text-slate-400">inventory_2</span>
+      <div class="text-2xl font-bold text-slate-900 dark:text-white mt-2">487</div>
+      <div class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">总数量</span><span class="lang-en">Total quantity</span></div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <span class="material-symbols-outlined text-slate-400">timeline</span>
+      <div class="text-2xl font-bold text-slate-900 dark:text-white mt-2">28</div>
+      <div class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">本月流水</span><span class="lang-en">Activity this month</span></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
+    <div class="border-b border-slate-200 dark:border-slate-700 px-2 flex items-center">
+      <nav class="flex gap-1 flex-1">
+        <button class="px-4 py-3 text-sm font-medium text-primary border-b-2 border-primary whitespace-nowrap">
+          <span class="material-symbols-outlined text-base align-middle mr-1">inventory_2</span>
+          <span class="lang-zh">库存</span><span class="lang-en">Inventory</span> (5)
+        </button>
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent whitespace-nowrap">
+          <span class="material-symbols-outlined text-base align-middle mr-1">timeline</span>
+          <span class="lang-zh">流水</span><span class="lang-en">Activity log</span> (243)
+        </button>
+      </nav>
+      <div class="pr-3 flex items-center gap-2">
+        <input type="text" data-placeholder-zh="搜产品/MN号..." data-placeholder-en="Search product / MN..." placeholder="搜产品/MN号..." class="h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm w-64" />
+      </div>
+    </div>
+
+    <table class="w-full">
+      <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+        <tr>
+          <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">产品</span><span class="lang-en">Product</span></th>
+          <th class="p-4 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">数量</span><span class="lang-en">Quantity</span></th>
+          <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap"><span class="lang-zh">最后变动</span><span class="lang-en">Last change</span></th>
+          <th class="p-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-32"><span class="lang-zh">操作</span><span class="lang-en">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-4">
+            <div class="text-sm font-medium text-slate-900 dark:text-white">PNR2100 <span class="lang-zh">双向对讲机</span><span class="lang-en">Two-way Radio</span></div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">PNR2100-001</div>
+          </td>
+          <td class="p-4 text-right whitespace-nowrap"><span class="text-base font-bold text-slate-900 dark:text-white">120</span> <span class="text-xs text-slate-500"><span class="lang-zh">台</span><span class="lang-en">pcs</span></span></td>
+          <td class="p-4 text-xs">
+            <div class="text-slate-500 dark:text-slate-400 whitespace-nowrap"><span class="lang-zh">5-19 入库 +50</span><span class="lang-en">May 19 · Stock in +50</span></div>
+            <a class="text-primary hover:underline font-mono">CG-2605-001</a>
+          </td>
+          <td class="p-4 text-center">
+            <button onclick="showAdjust()" class="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-lg inline-flex items-center gap-1 whitespace-nowrap">
+              <span class="material-symbols-outlined text-sm">tune</span><span class="lang-zh">调整</span><span class="lang-en">Adjust</span>
+            </button>
+          </td>
+        </tr>
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-4">
+            <div class="text-sm font-medium text-slate-900 dark:text-white">CMP2600 <span class="lang-zh">通讯模块</span><span class="lang-en">Comm Module</span></div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">CMP2600-002</div>
+          </td>
+          <td class="p-4 text-right whitespace-nowrap"><span class="text-base font-bold text-slate-900 dark:text-white">85</span> <span class="text-xs text-slate-500"><span class="lang-zh">台</span><span class="lang-en">pcs</span></span></td>
+          <td class="p-4 text-xs">
+            <div class="text-slate-500 dark:text-slate-400 whitespace-nowrap"><span class="lang-zh">5-17 出库 -30</span><span class="lang-en">May 17 · Stock out -30</span></div>
+            <a class="text-primary hover:underline font-mono">SH-2605-002</a>
+          </td>
+          <td class="p-4 text-center">
+            <button onclick="showAdjust()" class="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-lg inline-flex items-center gap-1 whitespace-nowrap">
+              <span class="material-symbols-outlined text-sm">tune</span><span class="lang-zh">调整</span><span class="lang-en">Adjust</span>
+            </button>
+          </td>
+        </tr>
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-4">
+            <div class="text-sm font-medium text-slate-900 dark:text-white"><span class="lang-zh">耦合器</span><span class="lang-en">Coupler</span> CP-201</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">CP-201</div>
+          </td>
+          <td class="p-4 text-right whitespace-nowrap"><span class="text-base font-bold text-slate-900 dark:text-white">5</span> <span class="text-xs text-slate-500"><span class="lang-zh">个</span><span class="lang-en">pcs</span></span></td>
+          <td class="p-4 text-xs">
+            <div class="text-slate-500 dark:text-slate-400 whitespace-nowrap"><span class="lang-zh">5-15 设值 5</span><span class="lang-en">May 15 · Set to 5</span></div>
+            <span class="text-slate-400"><span class="lang-zh">手动 · 盘点损耗</span><span class="lang-en">Manual · Count loss</span></span>
+          </td>
+          <td class="p-4 text-center">
+            <button onclick="showAdjust()" class="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-lg inline-flex items-center gap-1 whitespace-nowrap">
+              <span class="material-symbols-outlined text-sm">tune</span><span class="lang-zh">调整</span><span class="lang-en">Adjust</span>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 调整模态 -->
+  <div id="adjustModal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this)hideAdjust()">
+    <div class="fixed inset-0 bg-black/50"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white inline-flex items-center gap-2">
+            <span class="material-symbols-outlined">tune</span><span class="lang-zh">调整库存</span><span class="lang-en">Adjust Stock</span>
+          </h3>
+          <button onclick="hideAdjust()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="p-5 space-y-4">
+          <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+            <div class="text-xs text-slate-500 dark:text-slate-400"><span class="lang-zh">产品 · 当前公司</span><span class="lang-en">Product · Current company</span></div>
+            <div class="text-sm font-medium text-slate-900 dark:text-white mt-1">PNR2100 <span class="lang-zh">双向对讲机 · EVERTAC 自有仓库</span><span class="lang-en">Two-way Radio · EVERTAC Warehouse</span></div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white mt-2">
+              <span class="lang-zh">当前库存 <span class="text-primary">120</span> 台</span>
+              <span class="lang-en">Current stock <span class="text-primary">120</span> pcs</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"><span class="lang-zh">调整方式</span><span class="lang-en">Adjustment type</span></label>
+            <div class="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
+              <button onclick="setMode('in', this)" class="mode-btn px-2 py-2 text-xs font-medium rounded text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 whitespace-nowrap"><span class="lang-zh">入库 (+)</span><span class="lang-en">Stock in (+)</span></button>
+              <button onclick="setMode('out', this)" class="mode-btn px-2 py-2 text-xs font-medium rounded text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 whitespace-nowrap"><span class="lang-zh">出库 (-)</span><span class="lang-en">Stock out (-)</span></button>
+              <button onclick="setMode('set', this)" class="mode-btn px-2 py-2 text-xs font-medium rounded bg-white dark:bg-slate-600 text-primary shadow-sm whitespace-nowrap"><span class="lang-zh">设值 (=)</span><span class="lang-en">Set (=)</span></button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"><span class="lang-zh">目标值</span><span class="lang-en">Target value</span> <span class="text-red-500">*</span></label>
+            <input type="number" placeholder="0" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400"><span class="lang-zh">直接设为该绝对值,系统记录差异</span><span class="lang-en">Sets absolute value; system records the delta</span></p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"><span class="lang-zh">原因</span><span class="lang-en">Reason</span> <span class="text-red-500">*</span></label>
+            <select class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+              <option value="" data-zh="请选择..." data-en="Please select...">请选择...</option>
+              <option data-zh="盘点损耗" data-en="Count loss">盘点损耗</option>
+              <option data-zh="报损" data-en="Damaged">报损</option>
+              <option data-zh="内部使用" data-en="Internal use">内部使用</option>
+              <option data-zh="客户退货" data-en="Customer return">客户退货</option>
+              <option data-zh="跨仓调拨" data-en="Transfer">跨仓调拨</option>
+              <option data-zh="期初补录" data-en="Opening balance">期初补录</option>
+              <option data-zh="其他" data-en="Other">其他</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"><span class="lang-zh">备注</span><span class="lang-en">Notes</span></label>
+            <textarea rows="2" data-placeholder-zh="补充说明(可选)" data-placeholder-en="Optional notes" placeholder="补充说明(可选)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+          <button onclick="hideAdjust()" class="h-10 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium"><span class="lang-zh">取消</span><span class="lang-en">Cancel</span></button>
+          <button class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium whitespace-nowrap"><span class="lang-zh">确认调整</span><span class="lang-en">Confirm</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设计说明 -->
+  <div class="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-sm text-blue-900 dark:text-blue-200 leading-relaxed">
+    <div class="font-semibold mb-2 flex items-center gap-2"><span class="material-symbols-outlined">language</span><span class="lang-zh">双语版 v4 · 点右上 EN/中 切换</span><span class="lang-en">Bilingual v4 · Toggle EN/中 in header</span></div>
+    <div class="text-xs">
+      <span class="lang-zh">用 PMA 现有翻译:库存=Inventory、厂商=Vendor、经销商=Dealer、入库=Stock in、出库=Stock out。布局已加 whitespace-nowrap + min-w-0,英文版无溢出。</span>
+      <span class="lang-en">Uses PMA's existing terminology: 库存=Inventory, 厂商=Vendor, 经销商=Dealer. Layout uses whitespace-nowrap + min-w-0 — no overflow in EN mode.</span>
+    </div>
+    <div class="mt-3"><button onclick="showAdjust()" class="px-3 py-1 bg-primary text-white rounded text-xs"><span class="lang-zh">演示调整模态</span><span class="lang-en">Demo adjust modal</span></button></div>
+  </div>
+
+</main>
+
+<script>
+function syncDataLang() {
+  const isEn = document.documentElement.classList.contains('en');
+  document.querySelectorAll('[data-placeholder-zh]').forEach(el => { el.placeholder = isEn ? el.dataset.placeholderEn : el.dataset.placeholderZh; });
+  document.querySelectorAll('option[data-zh]').forEach(el => { el.textContent = isEn ? el.dataset.en : el.dataset.zh; });
+}
+function toggleLang() {
+  const isEn = document.documentElement.classList.toggle('en');
+  localStorage.setItem('lang', isEn ? 'en' : 'zh');
+  syncDataLang();
+}
+window.addEventListener('DOMContentLoaded', syncDataLang);
+function setMode(mode, btn) {
+  document.querySelectorAll('.mode-btn').forEach(b => { b.className = 'mode-btn px-2 py-2 text-xs font-medium rounded text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 whitespace-nowrap'; });
+  btn.className = 'mode-btn px-2 py-2 text-xs font-medium rounded bg-white dark:bg-slate-600 text-primary shadow-sm whitespace-nowrap';
+}
+function showAdjust() { document.getElementById('adjustModal').classList.remove('hidden'); }
+function hideAdjust() { document.getElementById('adjustModal').classList.add('hidden'); }
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('companyDropdown'); if (!dd) return;
+  const trigger = e.target.closest('button[onclick*="companyDropdown"]');
+  if (!trigger && !dd.contains(e.target)) dd.classList.add('hidden');
+});
+</script>
+</body>
+</html>

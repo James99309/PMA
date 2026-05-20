@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>公司库存详情 · PMA UX Mockup</title>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }</script>
+<style>
+body { font-family: 'Inter', sans-serif; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+
+<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+  <div class="max-w-[1600px] mx-auto px-6 h-14 flex items-center gap-6">
+    <a href="index.html" class="flex items-center gap-2 text-primary"><span class="material-symbols-outlined">arrow_back</span><span class="text-sm">Mockup 索引</span></a>
+    <span class="text-xs text-slate-400">/</span>
+    <a href="01-inventory-list.html" class="text-sm text-slate-500 hover:text-primary">库存管理</a>
+    <span class="text-xs text-slate-400">/</span>
+    <span class="text-sm text-slate-900 dark:text-white">EVERTAC 自有仓库</span>
+  </div>
+</header>
+
+<main class="max-w-[1600px] mx-auto p-6">
+
+  <!-- 公司信息 Header -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-4">
+    <div class="flex items-start justify-between">
+      <div class="flex items-start gap-4">
+        <div class="w-16 h-16 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+          <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 text-4xl">factory</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">EVERTAC 自有仓库</h1>
+            <span class="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded">厂商</span>
+          </div>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">深圳市南山区科技园南区 · 联系人:王工(13800138000)</p>
+          <div class="flex items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-400">
+            <span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">inventory_2</span> 5 种产品</span>
+            <span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">view_in_ar</span> 487 件总数</span>
+            <span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">payments</span> ¥ 1,243,500 价值</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+          <span class="material-symbols-outlined text-lg">file_download</span>导出库存
+        </button>
+        <button class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2">
+          <span class="material-symbols-outlined text-lg">add</span>添加库存
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
+    <div class="border-b border-slate-200 dark:border-slate-700 px-2">
+      <nav class="flex gap-1">
+        <button class="px-4 py-3 text-sm font-medium text-primary border-b-2 border-primary">
+          <span class="material-symbols-outlined text-base align-middle mr-1">inventory_2</span>库存 (5)
+        </button>
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent">
+          <span class="material-symbols-outlined text-base align-middle mr-1">timeline</span>流水 (243)
+        </button>
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent">
+          <span class="material-symbols-outlined text-base align-middle mr-1">qr_code_2</span>SN 清单 (205)
+        </button>
+      </nav>
+    </div>
+
+    <!-- 表格 -->
+    <table class="w-full">
+      <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+        <tr>
+          <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">MN号</th>
+          <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">产品</th>
+          <th class="p-4 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">数量</th>
+          <th class="p-4 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">最低</th>
+          <th class="p-4 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">最高</th>
+          <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">存储位置</th>
+          <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">最后变动</th>
+          <th class="p-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">操作</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+          <td class="p-4 font-mono text-sm text-slate-700 dark:text-slate-300">PNR2100-001</td>
+          <td class="p-4">
+            <div class="text-sm font-medium text-slate-900 dark:text-white">PNR2100 双向对讲机</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">对讲设备 · 按 SN 管理</div>
+          </td>
+          <td class="p-4 text-right"><span class="text-base font-bold text-slate-900 dark:text-white">120</span> <span class="text-xs text-slate-500">台</span></td>
+          <td class="p-4 text-right text-xs text-slate-500 dark:text-slate-400">10</td>
+          <td class="p-4 text-right text-xs text-slate-500 dark:text-slate-400">500</td>
+          <td class="p-4 text-xs text-slate-500 dark:text-slate-400">A 区 1 排</td>
+          <td class="p-4 text-xs">
+            <div class="text-slate-500 dark:text-slate-400">5-19 入库 +50</div>
+            <a class="text-primary hover:underline">CG-2605-001</a>
+          </td>
+          <td class="p-4">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="showModal('in')" class="px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded">入库</button>
+              <button onclick="showModal('out')" class="px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded">出库</button>
+              <button onclick="showModal('adjust')" class="px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">设值</button>
+              <button class="px-2.5 py-1 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">qr_code_2</span>120</button>
+            </div>
+          </td>
+        </tr>
+        <tr class="bg-amber-50/30 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+          <td class="p-4 font-mono text-sm text-slate-700 dark:text-slate-300">CP-201</td>
+          <td class="p-4">
+            <div class="text-sm font-medium text-slate-900 dark:text-white">耦合器 CP-201</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">耦合器 · 无 SN</div>
+          </td>
+          <td class="p-4 text-right">
+            <span class="text-base font-bold text-amber-600 dark:text-amber-400">5</span> <span class="text-xs text-slate-500">个</span>
+            <span class="material-symbols-outlined text-xs text-amber-500 ml-1 align-middle" title="低于最低库存">warning</span>
+          </td>
+          <td class="p-4 text-right text-xs text-amber-600 dark:text-amber-400">10</td>
+          <td class="p-4 text-right text-xs text-slate-500 dark:text-slate-400">100</td>
+          <td class="p-4 text-xs text-slate-500 dark:text-slate-400">A 区 3 排</td>
+          <td class="p-4 text-xs text-slate-500 dark:text-slate-400">
+            <div>5-15 设值 5</div>
+            <span class="text-slate-400">手动调整</span>
+          </td>
+          <td class="p-4">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="showModal('in')" class="px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded">入库</button>
+              <button onclick="showModal('out')" class="px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded">出库</button>
+              <button onclick="showModal('adjust')" class="px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">设值</button>
+              <span class="px-2.5 py-1 text-xs text-slate-300 dark:text-slate-600">—</span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 操作模态(默认显示 = 演示) -->
+  <div id="modal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this)hideModal()">
+    <div class="fixed inset-0 bg-black/50"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 id="modalTitle" class="text-lg font-semibold text-slate-900 dark:text-white">入库</h3>
+          <button onclick="hideModal()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="p-5 space-y-4">
+          <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+            <div class="text-xs text-slate-500 dark:text-slate-400">PNR2100 双向对讲机 · EVERTAC 自有仓库</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">当前库存 <span class="text-primary">120</span> 台</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+              <span id="qtyLabel">入库数量</span> <span class="text-red-500">*</span>
+            </label>
+            <input type="number" placeholder="0" min="1"
+                   class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
+            <p id="qtyHelp" class="mt-1 text-xs text-slate-500 dark:text-slate-400">入库后总数将增加</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">备注 <span class="text-red-500">*</span></label>
+            <textarea rows="2" placeholder="说明本次操作的原因(必填,会写入流水)"
+                      class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+          <button onclick="hideModal()" class="h-10 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium">取消</button>
+          <button id="confirmBtn" class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">确认入库</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设计说明 -->
+  <div class="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-sm text-blue-900 dark:text-blue-200 leading-relaxed">
+    <div class="font-semibold mb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined">lightbulb</span>设计说明
+    </div>
+    <ul class="space-y-1 ml-4 list-disc">
+      <li><b>Tab 切换</b>:库存(主)/ 流水 / SN 清单 — 同一公司视角下的三视图</li>
+      <li><b>SN 按钮显示 SN 数量</b>:如"SN 120",点击进 SN 列表(已筛选)</li>
+      <li><b>无 SN 产品</b>:右侧操作区显示"—" 占位,保持表格对齐</li>
+      <li><b>调整 modal</b>:三种操作复用同一框架,只换标题/按钮文案 — 点上面"入库 / 出库 / 设值"试试</li>
+      <li><b>备注必填</b>:写入 InventoryTransaction.description,流水可读性的关键</li>
+    </ul>
+    <div class="mt-3 flex gap-2">
+      <button onclick="showModal('in')" class="px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 rounded text-xs">演示入库模态</button>
+      <button onclick="showModal('out')" class="px-3 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 rounded text-xs">演示出库模态</button>
+      <button onclick="showModal('adjust')" class="px-3 py-1 bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 rounded text-xs">演示设值模态</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+function showModal(type) {
+  const title = document.getElementById('modalTitle');
+  const lab = document.getElementById('qtyLabel');
+  const help = document.getElementById('qtyHelp');
+  const btn = document.getElementById('confirmBtn');
+  if (type === 'in') { title.textContent = '入库'; lab.textContent = '入库数量'; help.textContent = '入库后总数将增加'; btn.textContent = '确认入库'; btn.className = 'h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium'; }
+  else if (type === 'out') { title.textContent = '出库'; lab.textContent = '出库数量'; help.textContent = '出库不能超过当前库存 120'; btn.textContent = '确认出库'; btn.className = 'h-10 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium'; }
+  else { title.textContent = '调整库存'; lab.textContent = '目标库存数量(绝对值)'; help.textContent = '系统将自动计算变动数:目标值 - 当前值 120'; btn.textContent = '确认调整'; btn.className = 'h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium'; }
+  document.getElementById('modal').classList.remove('hidden');
+}
+function hideModal() { document.getElementById('modal').classList.add('hidden'); }
+</script>
+</body>
+</html>

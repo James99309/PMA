@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>PMA 库存重构 UX Mockups · Inventory Revamp</title>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<script>if (localStorage.getItem('lang') === 'en') document.documentElement.classList.add('en')</script>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }</script>
+<style>
+body { font-family: 'Inter', sans-serif; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+html.en .lang-zh { display: none !important; }
+html:not(.en) .lang-en { display: none !important; }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen p-8">
+<div class="max-w-5xl mx-auto">
+
+  <div class="flex items-start justify-between mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-900 dark:text-white">
+        <span class="lang-zh">PMA 库存与结算重构 — UX Mockups</span>
+        <span class="lang-en">PMA Inventory & Settlement Revamp — UX Mockups</span>
+      </h1>
+      <p class="text-slate-500 dark:text-slate-400 mt-2">2026-05-20 · feature/order-shipment-chain · <b><span class="lang-zh">双语版 v4</span><span class="lang-en">Bilingual v4</span></b></p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="toggleLang()" class="h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-2">
+        <span class="material-symbols-outlined text-base">language</span><span class="lang-zh">EN</span><span class="lang-en">中</span>
+      </button>
+      <button onclick="toggleTheme()" class="h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-2">
+        <span class="material-symbols-outlined text-base">contrast</span><span class="lang-zh">主题</span><span class="lang-en">Theme</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-3"><span class="lang-zh">v4 设计原则 + 双语布局</span><span class="lang-en">v4 Design principles + Bilingual layout</span></h2>
+    <ul class="text-sm text-slate-600 dark:text-slate-300 space-y-2 leading-relaxed">
+      <li><span class="lang-zh">• 沿用 PMA 现有 Tailwind 设计系统(primary <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">#137fec</code> + 卡片 <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">rounded-xl border</code>)</span>
+          <span class="lang-en">• Uses PMA's existing Tailwind design system (primary <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">#137fec</code> + cards <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">rounded-xl border</code>)</span></li>
+      <li><span class="lang-zh">• <b>极简优先</b>:库存页只保留必要列;一个调整按钮 + 原因下拉强制结构化</span>
+          <span class="lang-en">• <b>Minimalism first</b>: only essential columns; single Adjust button with mandatory reason dropdown</span></li>
+      <li><span class="lang-zh">• <b>权限感知单公司视图</b>:库存页始终显示一家公司,顶部 switcher 切换(权限决定可切性)</span>
+          <span class="lang-en">• <b>Permission-aware single-company view</b>: inventory page always shows one company; switcher in header (gated by permission)</span></li>
+      <li><span class="lang-zh">• <b>数量账与 SN 账分离</b>:库存按数量管理,SN 仅作售后追溯,互不联动</span>
+          <span class="lang-en">• <b>Quantity ledger ≠ SN ledger</b>: stock tracked by quantity; SNs only for warranty/repair lookup</span></li>
+      <li><span class="lang-zh">• <b>结算入口在批价单页的"结算单 Tab"里</b>,行级按钮 + 弹窗模态,不新建路由</span>
+          <span class="lang-en">• <b>Settlement triggered from "Settlement" tab</b> inside the Pricing Order page — row-level button + modal, no new route</span></li>
+      <li><span class="lang-zh">• <b>客户公司详情页不加库存 Tab</b>;库存只从库存管理模块访问</span>
+          <span class="lang-en">• <b>Customer company detail page does NOT include inventory tab</b>; inventory is only accessed from Inventory module</span></li>
+      <li><span class="lang-zh">• 全局流水(All Warehouses)仅厂商管理员可见</span>
+          <span class="lang-en">• All Warehouses transactions log is visible to Vendor admin only</span></li>
+    </ul>
+  </div>
+
+  <!-- Terminology -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-3"><span class="lang-zh">术语统一(沿用 PMA 现有翻译)</span><span class="lang-en">Terminology (matches PMA's existing translations)</span></h2>
+    <div class="grid md:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">库存</span><span class="font-medium text-slate-900 dark:text-white">Inventory</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">流水(Tab)</span><span class="font-medium text-slate-900 dark:text-white">Transactions</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">全局流水(按钮)</span><span class="font-medium text-slate-900 dark:text-white">All Warehouses</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">本月流水</span><span class="font-medium text-slate-900 dark:text-white">Activity this month</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">厂商</span><span class="font-medium text-slate-900 dark:text-white">Vendor</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">经销商</span><span class="font-medium text-slate-900 dark:text-white">Dealer</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">入库 / 出库 / 设值</span><span class="font-medium text-slate-900 dark:text-white">Stock in / Stock out / Set value</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">调整</span><span class="font-medium text-slate-900 dark:text-white">Adjust</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">批价单</span><span class="font-medium text-slate-900 dark:text-white">Pricing Order</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">结算单</span><span class="font-medium text-slate-900 dark:text-white">Settlement</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">发起结算</span><span class="font-medium text-slate-900 dark:text-white">Settle</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">采购订单</span><span class="font-medium text-slate-900 dark:text-white">Purchase Order</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">发货单</span><span class="font-medium text-slate-900 dark:text-white">Shipment</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">序号管理器</span><span class="font-medium text-slate-900 dark:text-white">Serial Number Registry</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">期初导入</span><span class="font-medium text-slate-900 dark:text-white">Initial import</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">在册产品</span><span class="font-medium text-slate-900 dark:text-white">Active products</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">盘点损耗</span><span class="font-medium text-slate-900 dark:text-white">Count loss</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">报损</span><span class="font-medium text-slate-900 dark:text-white">Damaged</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">客户退货</span><span class="font-medium text-slate-900 dark:text-white">Customer return</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">跨仓调拨</span><span class="font-medium text-slate-900 dark:text-white">Transfer</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">期初补录</span><span class="font-medium text-slate-900 dark:text-white">Opening balance</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">待结算</span><span class="font-medium text-slate-900 dark:text-white">Pending</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">部分结算</span><span class="font-medium text-slate-900 dark:text-white">Partial</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">已结算</span><span class="font-medium text-slate-900 dark:text-white">Settled</span></div>
+      <div class="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1.5"><span class="text-slate-700 dark:text-slate-300">库存不足</span><span class="font-medium text-slate-900 dark:text-white">Out of stock</span></div>
+    </div>
+  </div>
+
+  <div class="grid gap-3">
+
+    <a href="01-inventory-list.html" class="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:border-primary hover:shadow-md cursor-pointer">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><span class="material-symbols-outlined">inventory_2</span></div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">01 · <span class="lang-zh">库存管理 · 单公司视图</span><span class="lang-en">Inventory · Single company view</span></span>
+            <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">Task 2</span>
+            <span class="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded">v4 双语</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">Company Switcher + 3 卡 + 2 Tab + 4 列表 + 1 个调整按钮 + 原因必选模态</span><span class="lang-en">Company Switcher + 3 stats + 2 Tabs + 4 columns + Adjust button with mandatory reason modal</span></p>
+        </div>
+        <span class="material-symbols-outlined text-slate-400">arrow_forward</span>
+      </div>
+    </a>
+
+    <div class="block bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-5 opacity-50">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 flex items-center justify-center"><span class="material-symbols-outlined">warehouse</span></div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-slate-500 line-through">02</span>
+            <span class="text-xs px-2 py-0.5 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded"><span class="lang-zh">已删除</span><span class="lang-en">Deleted</span></span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">原"单公司详情页"功能已合并入 01(通过 Switcher 切换不同公司)</span><span class="lang-en">Merged into 01 (switch companies via the company switcher)</span></p>
+        </div>
+      </div>
+    </div>
+
+    <a href="03-stock-transactions.html" class="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:border-primary hover:shadow-md cursor-pointer">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><span class="material-symbols-outlined">public</span></div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">03 · <span class="lang-zh">全局流水 · 厂商管理员专属</span><span class="lang-en">All Warehouses · Vendor admin only</span></span>
+            <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">Task 3</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">跨公司库存变动审计视图 · 经销商/客户用户不可见</span><span class="lang-en">Cross-company audit view of inventory transactions · Hidden from dealers/customers</span></p>
+        </div>
+        <span class="material-symbols-outlined text-slate-400">arrow_forward</span>
+      </div>
+    </a>
+
+    <a href="04-import-preview.html" class="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:border-primary hover:shadow-md cursor-pointer">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><span class="material-symbols-outlined">upload_file</span></div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">04 · <span class="lang-zh">Excel 导入(模态)</span><span class="lang-en">Excel Import (modal)</span></span>
+            <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">Task 4</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">大模态 · 上传 → 预览 → 确认 · 三色分组高亮失败行</span><span class="lang-en">Large modal · Upload → Preview → Confirm · 3-color grouping; failed rows highlighted</span></p>
+        </div>
+        <span class="material-symbols-outlined text-slate-400">arrow_forward</span>
+      </div>
+    </a>
+
+    <a href="05-pricing-settlement-card.html" class="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:border-primary hover:shadow-md cursor-pointer">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><span class="material-symbols-outlined">receipt_long</span></div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">05 · <span class="lang-zh">批价单 · 结算单 Tab · 行级模态</span><span class="lang-en">Pricing Order · Settlement Tab · Row-level modal</span></span>
+            <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">Task 6</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">沿用现有"批价单→结算单"Tab · 每行加 Settle 按钮 · 弹窗确认 · 目标公司由结算单自动确定</span><span class="lang-en">Reuses existing "Pricing → Settlement" tab · Settle button per row · Modal confirm · Target company derived from settlement</span></p>
+        </div>
+        <span class="material-symbols-outlined text-slate-400">arrow_forward</span>
+      </div>
+    </a>
+
+    <a href="06-sn-list-and-detail.html" class="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:border-primary hover:shadow-md cursor-pointer">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><span class="material-symbols-outlined">qr_code_2</span></div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">06 · <span class="lang-zh">序号管理器 · 列表 + 详情</span><span class="lang-en">Serial Number Registry · List + Detail</span></span>
+            <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">Task 11+12</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">售后追溯入口 · 整页 master-detail(左列表 + 右 sticky 详情面板)</span><span class="lang-en">Warranty/repair lookup · Full-page master-detail (list on left + sticky detail on right)</span></p>
+        </div>
+        <span class="material-symbols-outlined text-slate-400">arrow_forward</span>
+      </div>
+    </a>
+
+    <div class="block bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-5 opacity-50">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 flex items-center justify-center"><span class="material-symbols-outlined">business</span></div>
+        <div class="flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-slate-500 line-through">07</span>
+            <span class="text-xs px-2 py-0.5 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded"><span class="lang-zh">已删除 · Task 5 取消</span><span class="lang-en">Deleted · Task 5 cancelled</span></span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">库存只从库存管理模块访问,不在客户公司详情页里加 Tab</span><span class="lang-en">Inventory accessed only from Inventory module; no tab on customer detail page</span></p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function toggleLang() { const isEn = document.documentElement.classList.toggle('en'); localStorage.setItem('lang', isEn ? 'en' : 'zh'); }
+function toggleTheme() {
+  const html = document.documentElement;
+  const cur = html.classList.contains('dark') ? 'dark' : 'light';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  html.classList.remove(cur); html.classList.add(next); localStorage.setItem('theme', next);
+}
+</script>
+</body>
+</html>

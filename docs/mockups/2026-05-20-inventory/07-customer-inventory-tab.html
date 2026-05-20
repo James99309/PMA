@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>客户公司库存 Tab · PMA UX Mockup</title>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }</script>
+<style>body { font-family: 'Inter', sans-serif; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+
+<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+  <div class="max-w-[1400px] mx-auto px-6 h-14 flex items-center gap-6">
+    <a href="index.html" class="flex items-center gap-2 text-primary"><span class="material-symbols-outlined">arrow_back</span><span class="text-sm">Mockup 索引</span></a>
+    <span class="text-xs text-slate-400">/</span>
+    <span class="text-sm text-slate-500">客户公司</span>
+    <span class="text-xs text-slate-400">/</span>
+    <span class="text-sm text-slate-900 dark:text-white">北京 ABC 经销商</span>
+  </div>
+</header>
+
+<main class="max-w-[1400px] mx-auto p-6">
+
+  <!-- 公司头(简版) -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 mb-4">
+    <div class="flex items-center gap-4">
+      <div class="w-16 h-16 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+        <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 text-4xl">store</span>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-bold text-slate-900 dark:text-white">北京 ABC 经销商</h1>
+          <span class="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-2 py-0.5 rounded">经销商</span>
+        </div>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">北京市朝阳区某街道 · 主联系人:张总(13900000000)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 横条 — 关键:新增"库存"项 -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div class="border-b border-slate-200 dark:border-slate-700 px-2 flex items-center">
+      <nav class="flex gap-1 flex-1">
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent">公司信息</button>
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent">联系人 (5)</button>
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent">项目 (3)</button>
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent">报价 (8)</button>
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent">订单 (2)</button>
+        <button class="px-4 py-3 text-sm font-medium text-primary border-b-2 border-primary">
+          <span class="material-symbols-outlined text-base align-middle mr-1">inventory_2</span>库存 (3)
+          <span class="ml-1 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full">NEW</span>
+        </button>
+        <button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-b-2 border-transparent">结算单 (4)</button>
+      </nav>
+    </div>
+
+    <!-- 库存 Tab 内容 — 沿用 02 单公司库存的表格组件 -->
+    <div class="p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <div class="text-sm font-medium text-slate-900 dark:text-white">该公司的库存</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">沿用 02 单公司库存详情的组件,作为 partial 嵌入</div>
+        </div>
+        <div class="flex gap-2">
+          <a href="03-stock-transactions.html" class="h-9 px-3 text-sm text-primary hover:bg-primary/10 rounded-lg inline-flex items-center gap-1">
+            <span class="material-symbols-outlined text-base">timeline</span>该公司流水
+          </a>
+          <a href="02-company-inventory.html" class="h-9 px-3 text-sm text-primary hover:bg-primary/10 rounded-lg inline-flex items-center gap-1">
+            <span class="material-symbols-outlined text-base">open_in_new</span>独立页面
+          </a>
+        </div>
+      </div>
+
+      <table class="w-full border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+        <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+          <tr>
+            <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">产品</th>
+            <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">数量</th>
+            <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">最低/最高</th>
+            <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">最后变动</th>
+            <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">操作</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+            <td class="p-3">
+              <div class="text-sm font-medium text-slate-900 dark:text-white">PNR2100 双向对讲机</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 font-mono">PNR2100-001 · 按 SN 管理</div>
+            </td>
+            <td class="p-3 text-right"><span class="text-base font-bold text-slate-900 dark:text-white">30</span> <span class="text-xs text-slate-500">台</span></td>
+            <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400">5 / 100</td>
+            <td class="p-3 text-xs">
+              <div class="text-slate-500 dark:text-slate-400">5-17 入库 +30</div>
+              <a class="text-primary hover:underline">SH-2605-002</a>
+            </td>
+            <td class="p-3">
+              <div class="flex items-center justify-center gap-1">
+                <button class="px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded">入库</button>
+                <button class="px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded">出库</button>
+                <button class="px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">设值</button>
+                <button class="px-2.5 py-1 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">qr_code_2</span>30</button>
+              </div>
+            </td>
+          </tr>
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+            <td class="p-3">
+              <div class="text-sm font-medium text-slate-900 dark:text-white">CMP2600 通讯模块</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 font-mono">CMP2600-002 · 按 SN 管理</div>
+            </td>
+            <td class="p-3 text-right"><span class="text-base font-bold text-slate-900 dark:text-white">25</span> <span class="text-xs text-slate-500">台</span></td>
+            <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400">10 / 100</td>
+            <td class="p-3 text-xs">
+              <div class="text-slate-500 dark:text-slate-400">5-19 结算 -30</div>
+              <a class="text-primary hover:underline">PA-2605-008</a>
+            </td>
+            <td class="p-3">
+              <div class="flex items-center justify-center gap-1">
+                <button class="px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded">入库</button>
+                <button class="px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded">出库</button>
+                <button class="px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">设值</button>
+                <button class="px-2.5 py-1 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">qr_code_2</span>25</button>
+              </div>
+            </td>
+          </tr>
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+            <td class="p-3">
+              <div class="text-sm font-medium text-slate-900 dark:text-white">耦合器 CP-201</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 font-mono">CP-201 · 无 SN</div>
+            </td>
+            <td class="p-3 text-right"><span class="text-base font-bold text-slate-900 dark:text-white">10</span> <span class="text-xs text-slate-500">个</span></td>
+            <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400">5 / 50</td>
+            <td class="p-3 text-xs">
+              <div class="text-slate-500 dark:text-slate-400">5-10 期初导入 →10</div>
+              <span class="text-purple-600 dark:text-purple-400">导入批次 #3</span>
+            </td>
+            <td class="p-3">
+              <div class="flex items-center justify-center gap-1">
+                <button class="px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded">入库</button>
+                <button class="px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded">出库</button>
+                <button class="px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">设值</button>
+                <span class="px-2.5 py-1 text-xs text-slate-300 dark:text-slate-600">—</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 设计说明 -->
+  <div class="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-sm text-blue-900 dark:text-blue-200 leading-relaxed">
+    <div class="font-semibold mb-2 flex items-center gap-2"><span class="material-symbols-outlined">lightbulb</span>设计说明</div>
+    <ul class="space-y-1 ml-4 list-disc">
+      <li><b>新增 Tab 项</b>:在公司信息/联系人/项目/报价/订单/<b>库存(NEW)</b>/结算单 之间插入</li>
+      <li><b>组件复用</b>:Tab 内容就是 02 公司库存详情页表格的 partial,代码不重写</li>
+      <li><b>"独立页面"链接</b>:右上角小按钮,跳到 02 全屏页(更适合大批量操作)</li>
+      <li><b>"该公司流水"链接</b>:跳到 03 流水页,自动加 ?company_id= 过滤</li>
+      <li><b>NEW 标记</b>:库存 tab 旁的"NEW"小徽章,30 天后自动去掉(可选)</li>
+    </ul>
+  </div>
+
+</main>
+</body>
+</html>
