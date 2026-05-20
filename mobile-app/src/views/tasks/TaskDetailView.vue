@@ -233,16 +233,13 @@
             textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">
           {{ commentText.trim() || t('task.addComment') }}
         </div>
-        <button @click="commentText.trim() ? sendComment() : (statusSheet = true)"
+        <button @click="statusSheet = true"
           :style="{ height: '40px', padding: '0 14px', borderRadius: '20px', background: TK.ink,
             color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '6px',
             fontSize: '13px', fontWeight: 600 }">
-          <span v-if="commentText.trim()">{{ t('task.send') }}</span>
-          <template v-else>
-            <span :style="{ width: '6px', height: '6px', borderRadius: '3px',
-              background: stat(d.status).color }" />
-            {{ d.status_label }} <span :style="{ fontSize: '10px', opacity: 0.7 }">›</span>
-          </template>
+          <span :style="{ width: '6px', height: '6px', borderRadius: '3px',
+            background: stat(d.status).color }" />
+          {{ d.status_label }} <span :style="{ fontSize: '10px', opacity: 0.7 }">›</span>
         </button>
       </template>
     </div>
@@ -352,18 +349,16 @@
           </div>
 
           <!-- add progress -->
-          <div :style="{ display: 'flex', gap: '8px', marginTop: '14px' }">
+          <div :style="{ marginTop: '14px' }">
             <div @click="subTextEditorOpen = true"
-              :style="{ flex: 1, height: '40px', lineHeight: '40px', borderRadius: '20px',
-                background: TK.card, padding: '0 14px', fontSize: '13px',
+              :style="{ width: '100%', boxSizing: 'border-box', height: '40px',
+                lineHeight: '40px', borderRadius: '20px', background: TK.card,
+                padding: '0 14px', fontSize: '13px',
                 color: subText.trim() ? TK.ink : TK.ink4, outline: 'none',
                 border: `1px solid ${TK.divider}`, overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap' }">
               {{ subText.trim() || t('task.subProgressPh') }}
             </div>
-            <button @click="sendSubProgress" :style="{ height: '40px', padding: '0 16px',
-              borderRadius: '20px', background: TK.ink, color: '#fff', border: 'none',
-              fontSize: '13px', fontWeight: 600 }">{{ t('task.send') }}</button>
           </div>
 
           <!-- milestone confirm (I'm a pending confirmer) -->
@@ -532,10 +527,10 @@
 
     <FullscreenTextEditor v-model="commentEditorOpen" :value="commentText"
       :title="t('task.addComment')" :placeholder="t('task.addComment')"
-      @save="v => { commentText = v }" />
+      :save-label="t('task.send')" @save="v => sendComment(v)" />
     <FullscreenTextEditor v-model="subTextEditorOpen" :value="subText"
       :title="t('task.tlUpdate')" :placeholder="t('task.subProgressPh')"
-      @save="v => { subText = v }" />
+      :save-label="t('task.send')" @save="v => sendSubProgress(v)" />
     <FullscreenTextEditor v-model="reviewCommentEditorOpen" :value="reviewComment"
       :title="t('task.note')"
       :placeholder="reviewAction === 'reject' ? t('task.notePhReject') : t('task.notePhApprove')"
@@ -634,16 +629,16 @@ async function doSubStatus(action) {
     _refreshSub()
   } catch (e) { /* noop */ } finally { _busy.value = false }
 }
-async function sendSubProgress() {
-  const c = subText.value.trim()
+async function sendSubProgress(text) {
+  const c = (text ?? subText.value).trim()
   if (!c || _busy.value) return
   _busy.value = true
+  subText.value = ''
   try {
     await addTaskReply(id.value, c, curSub.value.id)
-    subText.value = ''
     await load()
     _refreshSub()
-  } catch (e) { /* noop */ } finally { _busy.value = false }
+  } catch (e) { subText.value = c } finally { _busy.value = false }
 }
 
 // ── subtask create/edit/delete + milestone confirm + resubmit ──
@@ -851,15 +846,15 @@ async function load() {
     loading.value = false
   }
 }
-async function sendComment() {
-  const c = commentText.value.trim()
+async function sendComment(text) {
+  const c = (text ?? commentText.value).trim()
   if (!c || _busy.value) return
   _busy.value = true
+  commentText.value = ''
   try {
     const r = await addTaskReply(id.value, c)
     if (r.data?.data?.timeline) d.value.timeline = r.data.data.timeline
-    commentText.value = ''
-  } catch (e) { /* keep text on failure */ } finally { _busy.value = false }
+  } catch (e) { commentText.value = c } finally { _busy.value = false }
 }
 async function doStatus(op) {
   if (_busy.value) return

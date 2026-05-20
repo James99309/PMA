@@ -20,7 +20,7 @@
             {{ title }}</span>
           <span @click="save" class="active:opacity-60"
             :style="{ fontSize: '14px', fontWeight: 600, color: '#D97757' }">
-            {{ t('common.save') }}</span>
+            {{ saveLabel || t('common.save') }}</span>
         </div>
         <textarea ref="ta" v-model="draft" :placeholder="placeholder"
           :style="{ flex: 1, width: '100%', boxSizing: 'border-box', padding: '18px 18px',
@@ -42,6 +42,7 @@ const props = defineProps({
   value: { type: String, default: '' },
   title: { type: String, default: '' },
   placeholder: { type: String, default: '' },
+  saveLabel: { type: String, default: '' },  // override "Save" label, e.g. "Send"
 })
 const emit = defineEmits(['update:modelValue', 'save'])
 
