@@ -20,6 +20,7 @@ from app.utils.access_control import get_viewable_data, can_edit_data
 from app.utils.dictionary_helpers import get_currency_type_options
 from types import SimpleNamespace
 import os
+from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 from app.utils.file_url_helper import normalize_file_url
 from app.helpers.approval_helpers import (
@@ -3567,6 +3568,52 @@ def download_invoice(detail_id, invoice_index):
         force_download = (request.args.get('download') == '1' or
                          request.args.get('as_attachment') == 'true')
 
+        # 处理移动端上传的发票 URL
+        #   /api/v1/mobile/chat/file?path=...      → bucket 'chat'（移动 App 新单走 handle_image_ocr_upload）
+        #   /api/v1/mobile/expense/invoice-file?path=... → bucket 'invoice'（_normalize_invoice_images 改写的老单兼容）
+        # 这些 URL 是 JWT 鉴权的移动 API，App 能用 Bearer 直访，但 Web 端预览（iframe/<img>）
+        # 不带 JWT，所以必须 web 这边代理读 NAS 同一份文件。
+        if file_url.startswith('/api/v1/mobile/chat/file?path=') or \
+                file_url.startswith('/api/v1/mobile/expense/invoice-file?path='):
+            from app.views.storage import _get_file_with_fallback
+            from urllib.parse import urlparse, parse_qs, unquote
+            from io import BytesIO
+
+            parsed = urlparse(file_url)
+            query_params = parse_qs(parsed.query)
+            nas_path = unquote(query_params.get('path', [''])[0])
+            bucket_type = 'chat' if '/mobile/chat/file' in file_url else 'invoice'
+
+            if nas_path:
+                file_content, source = _get_file_with_fallback(nas_path, bucket_type)
+                if file_content:
+                    file_ext = os.path.splitext(filename)[1].lower()
+                    mime_types = {
+                        '.jpg': 'image/jpeg',
+                        '.jpeg': 'image/jpeg',
+                        '.png': 'image/png',
+                        '.gif': 'image/gif',
+                        '.pdf': 'application/pdf',
+                        '.heic': 'image/heic',
+                        '.heif': 'image/heif',
+                    }
+                    mimetype = mime_types.get(file_ext, 'application/octet-stream')
+                    current_app.logger.info(
+                        f"移动端发票文件获取成功，bucket={bucket_type}，来源={source}，"
+                        f"大小={len(file_content)} bytes"
+                    )
+                    return send_file(
+                        BytesIO(file_content),
+                        as_attachment=force_download,
+                        download_name=filename if force_download else None,
+                        mimetype=mimetype,
+                    )
+                current_app.logger.error(
+                    f"移动端发票文件不存在: bucket={bucket_type} path={nas_path}"
+                )
+                flash(_('发票文件不存在'), 'danger')
+                abort(404)
+
         # 处理 NAS 智能存储路径（/storage/nas/...）
         if file_url.startswith('/storage/nas/'):
             from app.views.storage import _get_file_with_fallback
@@ -3720,6 +3767,10 @@ def download_invoice(detail_id, invoice_index):
             mimetype=mimetype
         )
         
+    except HTTPException:
+        # abort(404)/abort(403) 等显式抛出的 HTTP 异常照原状返回，
+        # 不要降级成 500 ("Internal Server Error") 掩盖真实状态码
+        raise
     except Exception as e:
         current_app.logger.error(f"下载发票文件失败: {str(e)}")
         flash(_('下载发票文件失败'), 'danger')
