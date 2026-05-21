@@ -147,8 +147,6 @@
       #pageScroll { height: auto; padding: 0; overflow: visible; }
       .excel-paper { box-shadow: none !important; margin: 0 !important; padding: 20px !important; width: 100% !important; max-width: none !important; }
       td.sign-blank { height: 40px !important; }
-      /* 打印时隐藏结算操作列(屏幕显示,纸面不出现)*/
-      .col-settle-action, td.col-settle-action { display: none !important; }
     }
   </style>
 </head>
@@ -207,6 +205,15 @@
       class="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
       <span class="material-symbols-outlined text-base">approval</span>
       <span id="drawerBtnText">审批流程 ›</span>
+    </button>
+    {% endif %}
+
+    {% if pricing_order.status == 'approved' and has_permission('settlement', 'create') %}
+    {# 结算按钮:仅当批价单已批准且用户有结算权限时显示 — 仅在结算单 Tab 可见 #}
+    <button id="settleBtn" type="button" onclick="SettleModal.open()"
+      class="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 hidden"
+      data-only-on-tab="settlement">
+      <span class="material-symbols-outlined text-base">receipt_long</span>结算
     </button>
     {% endif %}
 
@@ -547,7 +554,6 @@
           <col style="width:10%">{# 结算价 #}
           <col style="width:10%">{# 小计 #}
           <col class="col-note" style="width:10%">{# 行备注 #}
-          <col class="col-settle-action" style="width:7%">{# 结算操作(打印时隐藏)#}
           <col style="width:22px">{# 右边距 #}
         </colgroup>
 
@@ -612,7 +618,6 @@
             <td class="product-th">结算价</td>
             <td class="product-th">小计</td>
             <td class="product-th col-note">行备注</td>
-            <td class="product-th col-settle-action">结算</td>
             <td style="border:none;background:transparent"></td>
           </tr>
         </tbody>
@@ -662,24 +667,6 @@
                 {% if not can_edit_settlement %}disabled{% endif %}
                 onchange="PricingEditor.updateSettlementNote(this)">
             </td>
-            {# ── 结算操作单元 ── #}
-            <td class="readonly col-settle-action" style="text-align:center;padding:4px">
-              {% if detail.settlement_status == 'settled' %}
-                <span style="display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:9999px;background:#d1fae5;color:#047857;font-size:10px;white-space:nowrap"
-                      title="结算到 {{ detail.settlement_company.company_name if detail.settlement_company else '-' }} · {{ detail.settlement_date.strftime('%m-%d') if detail.settlement_date else '' }}">
-                  ✓ 已结算
-                </span>
-              {% elif pricing_order.status == 'approved' and has_permission('settlement', 'create') %}
-                <button type="button"
-                        onclick="SettleModal.open({{ detail.id }}, {{ detail.quantity }}, '{{ (detail.product_name or '')|e }}', '{{ (detail.product_mn or '')|e }}', '{{ '%.2f' % detail.unit_price }}')"
-                        style="padding:3px 10px;border:none;border-radius:6px;background:#137fec;color:#fff;font-size:11px;cursor:pointer;white-space:nowrap"
-                        title="发起结算到目标公司">
-                  结算
-                </button>
-              {% else %}
-                <span style="color:#94a3b8;font-size:11px">—</span>
-              {% endif %}
-            </td>
             <td style="border:none;background:transparent"></td>
           </tr>
           {% endfor %}
@@ -692,13 +679,12 @@
             <td colspan="8" class="total-label" style="text-align:right;padding-right:12px">结算合计</td>
             <td class="total-value" style="text-align:right;font-weight:700" id="settlementTotal">{{ currency_symbol }} {{ pricing_order.formatted_settlement_total_amount }}</td>
             <td class="total-value col-note"></td>
-            <td class="col-settle-action"></td>
             <td style="border:none;background:transparent"></td>
           </tr>
           <tr>
             <td style="border:none;background:transparent"></td>
             <td class="label" colspan="2" style="vertical-align:top">备注</td>
-            <td class="{% if can_edit_settlement %}editable{% else %}readonly{% endif %}" colspan="9" style="vertical-align:top">
+            <td class="{% if can_edit_settlement %}editable{% else %}readonly{% endif %}" colspan="8" style="vertical-align:top">
               <textarea id="settlementNotes" rows="3" {% if not can_edit_settlement %}disabled{% endif %}>{{ (so.notes if so and so.notes) or notes_body or quotation_notes }}</textarea>
             </td>
             <td style="border:none;background:transparent"></td>
@@ -818,15 +804,23 @@ const PricingEditor = (() => {
   }
 
   ExcelEditorBase.initTabs('[data-tab]', '[data-panel]');
+  function _syncTabBoundButtons() {
+    const activeTab = document.querySelector('[data-tab].active')?.dataset.tab || 'pricing';
+    document.querySelectorAll('[data-only-on-tab]').forEach(btn => {
+      btn.classList.toggle('hidden', btn.dataset.onlyOnTab !== activeTab);
+    });
+  }
   document.querySelectorAll('[data-tab]').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       _updatePrintTitle();
       _syncTotalDiscountInput();
+      _syncTabBoundButtons();
     });
   });
   _updatePrintTitle(); // 初始化
+  _syncTabBoundButtons(); // 初始化:确保 [data-only-on-tab] 按钮跟随当前 active tab
 
   /* ── 顶栏总折扣框：随 tab 切换显示对应值与可编辑性 ── */
   function _syncTotalDiscountInput() {
@@ -1557,52 +1551,117 @@ const PricingEditor = (() => {
 </script>
 
 {# ════════════════════════════════════════════════════════
-   Task 6: 结算单 Tab 行级结算模态
+   Task 6: 批价单 → 结算单 一站式结算模态(从工具栏打开)
    ════════════════════════════════════════════════════════ #}
 {% if pricing_order.status == 'approved' and has_permission('settlement', 'create') %}
 <div id="settleModal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this)SettleModal.close()">
   <div class="fixed inset-0" style="background:rgba(0,0,0,0.5)"></div>
   <div class="fixed inset-0 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl w-full" style="max-width:480px" onclick="event.stopPropagation()">
+    <div class="bg-white rounded-xl shadow-2xl w-full flex flex-col" style="max-width:1024px;max-height:90vh" onclick="event.stopPropagation()">
+      <!-- Header -->
       <div class="flex items-center justify-between p-4 border-b border-slate-200">
-        <h3 class="text-lg font-semibold text-slate-900 inline-flex items-center gap-2">
-          <span class="material-symbols-outlined">check_circle</span>发起结算
-        </h3>
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-2xl" style="color:#137fec">receipt_long</span>
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900">结算到目标公司</h3>
+            <p class="text-xs text-slate-500">批价单 {{ pricing_order.order_number }} · 结算单 {{ so.order_number if so else '—' }}</p>
+          </div>
+        </div>
         <button onclick="SettleModal.close()" class="p-1 rounded hover:bg-slate-100 text-slate-500"><span class="material-symbols-outlined">close</span></button>
       </div>
-      <div class="p-5 space-y-4">
-        <div class="bg-slate-50 rounded-lg p-3 text-sm space-y-1.5">
-          <div class="flex justify-between"><span class="text-slate-500">产品</span><span class="font-medium text-slate-900" id="sm_product">-</span></div>
-          <div class="flex justify-between"><span class="text-slate-500">编码</span><span class="text-slate-900 font-mono text-xs" id="sm_mn">-</span></div>
-          <div class="flex justify-between"><span class="text-slate-500">结算价</span><span class="text-slate-900">¥<span id="sm_price">-</span></span></div>
-          <div class="flex justify-between"><span class="text-slate-500">本次结算数量</span><span class="text-slate-900 font-semibold"><span id="sm_qty">-</span> 件</span></div>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1.5">目标公司 <span class="text-red-500">*</span></label>
-          <select id="sm_company" class="w-full h-10 px-3 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+
+      <!-- 目标公司 + 概览 -->
+      <div class="px-5 py-4 border-b border-slate-200 bg-slate-50 space-y-3">
+        <div class="flex items-center gap-3 flex-wrap">
+          <label class="text-sm font-medium text-slate-700 whitespace-nowrap">目标公司:</label>
+          <select id="sm_target_company" onchange="SettleModal.onCompanyChange()"
+            class="flex-1 min-w-[200px] h-10 px-3 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">请选择...</option>
-            {# 默认填批价单的 distributor / dealer #}
-            {% if pricing_order.distributor %}<option value="{{ pricing_order.distributor_id }}">{{ pricing_order.distributor.company_name }}(分销商)</option>{% endif %}
-            {% if pricing_order.dealer %}<option value="{{ pricing_order.dealer_id }}">{{ pricing_order.dealer.company_name }}(经销商)</option>{% endif %}
+            {% if pricing_order.distributor %}<option value="{{ pricing_order.distributor_id }}" selected>{{ pricing_order.distributor.company_name }}(分销商)</option>{% endif %}
+            {% if pricing_order.dealer and pricing_order.dealer_id != pricing_order.distributor_id %}<option value="{{ pricing_order.dealer_id }}">{{ pricing_order.dealer.company_name }}(经销商)</option>{% endif %}
             {% for c in dealers %}
               {% if (not pricing_order.distributor or c.id != pricing_order.distributor_id) and (not pricing_order.dealer or c.id != pricing_order.dealer_id) %}
               <option value="{{ c.id }}">{{ c.company_name }}</option>
               {% endif %}
             {% endfor %}
           </select>
-          <p class="mt-1 text-xs text-slate-500">结算将扣减该公司的库存(需要该公司有该产品的库存)</p>
+          <button onclick="SettleModal.checkInventory()" class="h-10 px-4 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium inline-flex items-center gap-1.5 whitespace-nowrap">
+            <span class="material-symbols-outlined text-base">inventory_2</span>查库存
+          </button>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1.5">备注</label>
-          <textarea id="sm_notes" rows="2" placeholder="可选说明..." class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"></textarea>
+        <div id="sm_summary" class="flex items-center gap-4 text-xs text-slate-600">
+          <span><span class="font-semibold text-slate-900" id="sm_total_rows">{{ pricing_order.settlement_details|length }}</span> 行明细</span>
+          <span class="text-emerald-700">已结算 <span class="font-semibold" id="sm_done_count">0</span></span>
+          <span class="text-slate-500">待结算 <span class="font-semibold" id="sm_pending_count">0</span></span>
+          <span class="text-red-600 hidden" id="sm_oos_wrap">库存不足 <span class="font-semibold" id="sm_oos_count">0</span></span>
         </div>
-        <div id="sm_message" class="hidden text-xs rounded-lg p-2"></div>
       </div>
-      <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200">
-        <button onclick="SettleModal.close()" class="h-10 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">取消</button>
-        <button id="sm_submit" onclick="SettleModal.submit()" class="h-10 px-5 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap" style="background:#137fec">
-          <span class="material-symbols-outlined text-base">check</span>确认结算
+
+      <!-- 明细表 -->
+      <div class="flex-1 overflow-y-auto px-5 py-3">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 sticky top-0 z-10">
+            <tr class="text-xs text-slate-500 uppercase">
+              <th class="p-2 text-left">产品</th>
+              <th class="p-2 text-right">数量</th>
+              <th class="p-2 text-right">结算价</th>
+              <th class="p-2 text-right">小计</th>
+              <th class="p-2 text-center">目标库存</th>
+              <th class="p-2 text-center">状态</th>
+              <th class="p-2 text-center w-24">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200">
+            {% for detail in pricing_order.settlement_details %}
+            <tr data-detail-id="{{ detail.id }}" data-product-mn="{{ detail.product_mn or '' }}" data-status="{{ detail.settlement_status or 'draft' }}">
+              <td class="p-2">
+                <div class="font-medium text-slate-900">{{ detail.product_name }}</div>
+                <div class="text-xs text-slate-500 font-mono">{{ detail.product_mn or '' }}{% if detail.product_model %} · {{ detail.product_model }}{% endif %}</div>
+              </td>
+              <td class="p-2 text-right font-medium text-slate-900">{{ detail.quantity }}</td>
+              <td class="p-2 text-right text-slate-700">{{ '%.2f' % detail.unit_price }}</td>
+              <td class="p-2 text-right font-medium text-slate-900">{{ '{:,.2f}'.format(detail.total_price) }}</td>
+              <td class="p-2 text-center text-xs" data-stock-cell>
+                <span class="text-slate-400">—</span>
+              </td>
+              <td class="p-2 text-center">
+                {% if detail.settlement_status == 'settled' %}
+                  <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap"
+                        title="结算到 {{ detail.settlement_company.company_name if detail.settlement_company else '-' }} · {{ detail.settlement_date.strftime('%m-%d') if detail.settlement_date else '' }}">
+                    ✓ 已结算
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">待结算</span>
+                {% endif %}
+              </td>
+              <td class="p-2 text-center" data-action-cell>
+                {% if detail.settlement_status == 'settled' %}
+                  <span class="text-xs text-slate-400">—</span>
+                {% else %}
+                  <button onclick="SettleModal.settleRow({{ detail.id }}, this)"
+                    class="px-3 py-1 text-xs font-medium text-white rounded inline-flex items-center gap-1 whitespace-nowrap"
+                    style="background:#137fec" data-settle-btn>
+                    结算
+                  </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div id="sm_message" class="hidden mt-3 text-xs rounded-lg p-2"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="flex items-center justify-between gap-3 p-4 border-t border-slate-200 bg-slate-50">
+        <button onclick="SettleModal.settleAll()" id="sm_settle_all_btn"
+          class="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium inline-flex items-center gap-1.5 whitespace-nowrap">
+          <span class="material-symbols-outlined text-base">done_all</span>全部结算
         </button>
+        <div class="flex gap-2">
+          <button onclick="SettleModal.close()" class="h-10 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">关闭</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1610,49 +1669,111 @@ const PricingEditor = (() => {
 
 <script>
 window.SettleModal = (function() {
-  let _detailId = null;
-  function open(detailId, qty, productName, mn, price) {
-    _detailId = detailId;
-    document.getElementById('sm_product').textContent = productName || '-';
-    document.getElementById('sm_mn').textContent = mn || '-';
-    document.getElementById('sm_price').textContent = price || '-';
-    document.getElementById('sm_qty').textContent = qty;
-    document.getElementById('sm_company').value = '';
-    document.getElementById('sm_notes').value = '';
-    document.getElementById('sm_message').classList.add('hidden');
+  const CSRF = document.querySelector('meta[name=csrf-token]')?.content || '';
+
+  function open() {
     document.getElementById('settleModal').classList.remove('hidden');
+    _updateCounters();
+    checkInventory(); // 自动查库存
   }
   function close() { document.getElementById('settleModal').classList.add('hidden'); }
-  function showMsg(text, kind) {
-    const el = document.getElementById('sm_message');
-    el.textContent = text;
-    el.className = 'text-xs rounded-lg p-2 ' + (kind === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200');
-    el.classList.remove('hidden');
+
+  function onCompanyChange() {
+    // 切目标公司后,清空库存列并自动重查
+    document.querySelectorAll('#settleModal [data-stock-cell]').forEach(td => {
+      td.innerHTML = '<span class="text-slate-400">—</span>';
+    });
+    checkInventory();
   }
-  async function submit() {
-    const companyId = document.getElementById('sm_company').value;
-    const notes = document.getElementById('sm_notes').value;
-    if (!companyId) { showMsg('请选择目标公司', 'error'); return; }
-    const btn = document.getElementById('sm_submit');
+
+  async function checkInventory() {
+    const companyId = document.getElementById('sm_target_company').value;
+    if (!companyId) {
+      showMsg('请先选择目标公司', 'error');
+      return;
+    }
+    // 拉公司库存
+    try {
+      const resp = await fetch(`/inventory/api/company_inventory/${companyId}`, {
+        headers: { 'X-CSRFToken': CSRF }
+      });
+      const data = await resp.json();
+      const stockByMn = {};
+      // API 返回:可能是 array,也可能是 {inventory: [...]} 包装
+      const items = Array.isArray(data) ? data : (data.inventory || []);
+      items.forEach(item => {
+        if (item.product_mn) stockByMn[item.product_mn] = item.quantity;
+      });
+      // 把库存量填到每行
+      let oos = 0;
+      document.querySelectorAll('#settleModal tbody tr').forEach(tr => {
+        const status = tr.dataset.status;
+        const mn = tr.dataset.productMn;
+        const qty = parseInt(tr.querySelector('td:nth-child(2)').textContent.trim()) || 0;
+        const stockCell = tr.querySelector('[data-stock-cell]');
+        const actionCell = tr.querySelector('[data-action-cell]');
+        if (status === 'settled') return;
+        const have = stockByMn[mn] ?? 0;
+        const enough = have >= qty;
+        stockCell.innerHTML = `<span class="${enough ? 'text-emerald-700' : 'text-red-600 font-semibold'}">${have}</span>` +
+                              (enough ? '' : ' ✗');
+        // 库存不足 → disable 该行 settle 按钮
+        const btn = actionCell.querySelector('[data-settle-btn]');
+        if (btn) {
+          if (!enough) {
+            btn.disabled = true;
+            btn.title = `库存不足,目标公司只有 ${have} 件`;
+            btn.style.background = '#cbd5e1';
+            btn.style.cursor = 'not-allowed';
+            btn.textContent = '不足';
+            oos++;
+          } else {
+            btn.disabled = false;
+            btn.style.background = '#137fec';
+            btn.style.cursor = 'pointer';
+            btn.title = '';
+            btn.textContent = '结算';
+          }
+        }
+      });
+      _updateCounters();
+      if (oos > 0) {
+        document.getElementById('sm_oos_wrap').classList.remove('hidden');
+        document.getElementById('sm_oos_count').textContent = oos;
+      } else {
+        document.getElementById('sm_oos_wrap').classList.add('hidden');
+      }
+    } catch (e) {
+      showMsg('查询库存失败: ' + e.message, 'error');
+    }
+  }
+
+  async function settleRow(detailId, btn) {
+    const companyId = document.getElementById('sm_target_company').value;
+    if (!companyId) { showMsg('请先选择目标公司', 'error'); return; }
+    if (btn.disabled) return;
     const orig = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-base">progress_activity</span>提交中...';
+    btn.innerHTML = '...';
     try {
-      const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
       const resp = await fetch('/inventory/api/settle_product_to_company', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf,
-        },
-        body: JSON.stringify({ detail_id: _detailId, company_id: parseInt(companyId), notes: notes }),
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ detail_id: detailId, company_id: parseInt(companyId), notes: '' })
       });
       const result = await resp.json();
       if (result.success) {
-        showMsg(result.message || '结算成功', 'ok');
-        setTimeout(() => location.reload(), 800);
+        // 标记该行已结算
+        const tr = btn.closest('tr');
+        tr.dataset.status = 'settled';
+        // 更新状态徽章
+        const stCell = tr.querySelector('td:nth-child(6)');
+        stCell.innerHTML = '<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap">✓ 已结算</span>';
+        // 替换操作单元
+        tr.querySelector('[data-action-cell]').innerHTML = '<span class="text-xs text-slate-400">—</span>';
+        _updateCounters();
       } else {
-        showMsg(result.message || '结算失败', 'error');
+        showMsg('结算失败: ' + (result.message || ''), 'error');
         btn.disabled = false;
         btn.innerHTML = orig;
       }
@@ -1662,7 +1783,66 @@ window.SettleModal = (function() {
       btn.innerHTML = orig;
     }
   }
-  return { open, close, submit };
+
+  async function settleAll() {
+    const companyId = document.getElementById('sm_target_company').value;
+    if (!companyId) { showMsg('请先选择目标公司', 'error'); return; }
+    const rows = Array.from(document.querySelectorAll('#settleModal tbody tr'))
+      .filter(tr => tr.dataset.status !== 'settled');
+    const pending = rows.filter(tr => {
+      const btn = tr.querySelector('[data-settle-btn]');
+      return btn && !btn.disabled;
+    });
+    if (pending.length === 0) { showMsg('没有可批量结算的行', 'error'); return; }
+    if (!confirm(`即将一键结算 ${pending.length} 行,确认?`)) return;
+    showMsg(`正在结算 ${pending.length} 行...`, 'info');
+    let done = 0, failed = 0;
+    for (const tr of pending) {
+      const btn = tr.querySelector('[data-settle-btn]');
+      const detailId = parseInt(tr.dataset.detailId);
+      try {
+        const resp = await fetch('/inventory/api/settle_product_to_company', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+          body: JSON.stringify({ detail_id: detailId, company_id: parseInt(companyId), notes: '' })
+        });
+        const result = await resp.json();
+        if (result.success) {
+          tr.dataset.status = 'settled';
+          tr.querySelector('td:nth-child(6)').innerHTML = '<span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap">✓ 已结算</span>';
+          tr.querySelector('[data-action-cell]').innerHTML = '<span class="text-xs text-slate-400">—</span>';
+          done++;
+        } else {
+          failed++;
+        }
+      } catch (e) { failed++; }
+    }
+    _updateCounters();
+    showMsg(`完成:${done} 行成功${failed > 0 ? `,${failed} 失败` : ''}`, failed > 0 ? 'error' : 'ok');
+  }
+
+  function _updateCounters() {
+    const rows = document.querySelectorAll('#settleModal tbody tr');
+    let done = 0, pending = 0;
+    rows.forEach(tr => {
+      if (tr.dataset.status === 'settled') done++;
+      else pending++;
+    });
+    document.getElementById('sm_done_count').textContent = done;
+    document.getElementById('sm_pending_count').textContent = pending;
+  }
+
+  function showMsg(text, kind) {
+    const el = document.getElementById('sm_message');
+    el.textContent = text;
+    let bg = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (kind === 'error') bg = 'bg-red-50 text-red-700 border-red-200';
+    else if (kind === 'info') bg = 'bg-blue-50 text-blue-700 border-blue-200';
+    el.className = 'mt-3 text-xs rounded-lg p-2 border ' + bg;
+    el.classList.remove('hidden');
+  }
+
+  return { open, close, onCompanyChange, checkInventory, settleRow, settleAll };
 })();
 </script>
 {% endif %}
