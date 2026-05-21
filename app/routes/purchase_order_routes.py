@@ -941,20 +941,29 @@ def api_accept_delivery(order_id):
         order.actual_arrival_date = datetime.now()
         order.status = 'stored'
 
-        # 备货型明细（无关联客户订单）自动入公司仓库
+        # 备货型明细（无关联客户订单）自动入"厂商"自有仓库
+        # 注意:order.company_id 是【供应商】(我们从那家采购),不是入库目标!
+        # 入库目标应该是 PMA 平台所属公司(companies.company_type='vendor')
         from app.utils.inventory_helpers import update_inventory
-        for detail in order.details:
-            if not detail.sales_order_detail_id and (detail.received_quantity or 0) > 0:
-                update_inventory(
-                    company_id=order.company_id,
-                    product_id=detail.product_id,
-                    quantity_change=detail.received_quantity,
-                    transaction_type='in',
-                    reference_type='order',
-                    reference_id=order.id,
-                    description=f'采购订单 {order.order_number} 备货入库',
-                    user_id=current_user.id
-                )
+        from app.models.customer import Company as _Company
+        vendor_co = _Company.query.filter_by(
+            company_type='vendor', is_deleted=False
+        ).order_by(_Company.id).first()
+        if vendor_co:
+            for detail in order.details:
+                if not detail.sales_order_detail_id and (detail.received_quantity or 0) > 0:
+                    update_inventory(
+                        company_id=vendor_co.id,
+                        product_id=detail.product_id,
+                        quantity_change=detail.received_quantity,
+                        transaction_type='in',
+                        reference_type='order',
+                        reference_id=order.id,
+                        description=f'采购订单 {order.order_number} 备货入库',
+                        user_id=current_user.id
+                    )
+        else:
+            logger.warning(f"未配置厂商公司(company_type='vendor'),采购订单 {order.order_number} 备货入库已跳过")
 
         db.session.commit()
         return jsonify({'success': True, 'message': '验收入库完成'})

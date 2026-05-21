@@ -466,22 +466,30 @@ def _check_auto_acceptance(shipment):
         po.acceptance_date = datetime.now()
         po.actual_arrival_date = datetime.now()
 
-        # 备货型明细自动入库
+        # 备货型明细自动入"厂商"自有仓库
+        # 注意:po.company_id 是【供应商】,不是入库目标!入库目标 = company_type='vendor'
         from app.utils.inventory_helpers import update_inventory
-        for detail in po.details:
-            if not detail.sales_order_detail_id:
-                qty = detail.dispatched_quantity or detail.quantity or 0
-                if qty > 0:
-                    update_inventory(
-                        company_id=po.company_id,
-                        product_id=detail.product_id,
-                        quantity_change=qty,
-                        transaction_type='in',
-                        reference_type='order',
-                        reference_id=po.id,
-                        description=f'采购订单 {po.order_number} 全部签收自动入库',
-                        user_id=shipment.created_by_id
-                    )
+        from app.models.customer import Company as _Company
+        vendor_co = _Company.query.filter_by(
+            company_type='vendor', is_deleted=False
+        ).order_by(_Company.id).first()
+        if vendor_co:
+            for detail in po.details:
+                if not detail.sales_order_detail_id:
+                    qty = detail.dispatched_quantity or detail.quantity or 0
+                    if qty > 0:
+                        update_inventory(
+                            company_id=vendor_co.id,
+                            product_id=detail.product_id,
+                            quantity_change=qty,
+                            transaction_type='in',
+                            reference_type='order',
+                            reference_id=po.id,
+                            description=f'采购订单 {po.order_number} 全部签收自动入库',
+                            user_id=shipment.created_by_id
+                        )
+        else:
+            logger.warning(f"未配置厂商公司(company_type='vendor'),采购订单 {po.order_number} 全部签收自动入库已跳过")
 
         db.session.commit()
         logger.info(f"采购订单 {po.order_number} 所有发货单已签收，自动推进验收入库")
