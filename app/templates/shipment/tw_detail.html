@@ -1,6 +1,6 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
-{% from 'components/tw_info_card.html' import tw_info_card, tw_info_row %}
-{% from 'components/tw_table_card.html' import render_tw_table_card %}
+{% from 'components/tw_info_card.html' import tw_info_card, tw_info_row with context %}
+{% from 'components/tw_table_card.html' import render_tw_table_card with context %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 <!DOCTYPE html>
@@ -24,8 +24,8 @@
         <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     </noscript>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
-    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: "class",
@@ -53,7 +53,7 @@
             <!-- 面包屑 + 标题 -->
             <div class="mb-6">
                 <nav class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
-                    <a href="{{ url_for('shipment.list_view') }}" class="hover:text-primary transition-colors">{{ _('发货管理') }}</a>
+                    <a href="{{ url_for('shipment.list_view') }}" class="hover:text-primary transition-colors">{{ _('发货记录') }}</a>
                     <span class="material-symbols-outlined text-lg">chevron_right</span>
                     <span class="text-slate-700 dark:text-slate-300">{{ shipment.shipment_number }}</span>
                 </nav>
@@ -74,18 +74,6 @@
                         </span>
                     </div>
                     <div class="flex items-center gap-2">
-                        {% if shipment.status == 'pending' %}
-                        <button onclick="confirmShip()" class="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
-                            <span class="material-symbols-outlined text-lg">local_shipping</span>
-                            {{ _('确认发货') }}
-                        </button>
-                        {% endif %}
-                        {% if shipment.status in ['shipped', 'in_transit', 'delivered'] %}
-                        <button onclick="showReceiveModal()" class="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-medium transition-colors">
-                            <span class="material-symbols-outlined text-lg">check_circle</span>
-                            {{ _('确认签收') }}
-                        </button>
-                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -95,43 +83,154 @@
                 <!-- 左侧主内容 -->
                 <div class="lg:col-span-2 space-y-6">
                     <!-- 物流信息 -->
-                    {% call tw_info_card(title=_('物流信息'), icon='local_shipping') %}
-                        {{ tw_info_row(_('承运商'), shipment.carrier or '-') }}
-                        {{ tw_info_row(_('运单号'), shipment.tracking_number or '-') }}
-                        {{ tw_info_row(_('运输方式'), {
-                            'truck': '陆运',
-                            'air': '空运',
-                            'express': '快递',
-                            'self_pickup': '自提'
-                        }.get(shipment.shipping_method, shipment.shipping_method or '-')) }}
-                        {{ tw_info_row(_('发货日期'), shipment.formatted_ship_date or '-') }}
-                        {{ tw_info_row(_('预计到达'), shipment.formatted_expected_arrival or '-') }}
-                        {% if shipment.actual_arrival %}
-                        {{ tw_info_row(_('实际到达'), shipment.actual_arrival.strftime('%Y-%m-%d') if shipment.actual_arrival else '-') }}
-                        {% endif %}
-                    {% endcall %}
+                    {{ tw_info_card(
+                        title=_('物流信息'),
+                        columns=2,
+                        items=[
+                            {'label': _('承运商'), 'value': shipment.carrier or '-'},
+                            {'label': _('运单号'), 'value': shipment.tracking_number or '-'},
+                            {'label': _('运输方式'), 'value': {'truck': '陆运', 'air': '空运', 'express': '快递', 'self_pickup': '自提'}.get(shipment.shipping_method, shipment.shipping_method or '-')},
+                            {'label': _('发货日期'), 'value': shipment.formatted_ship_date or '-'},
+                            {'label': _('预计到达'), 'value': shipment.formatted_expected_arrival or '-'},
+                            {'label': _('实际到达'), 'value': shipment.actual_arrival.strftime('%Y-%m-%d') if shipment.actual_arrival else '-'}
+                        ]
+                    ) }}
 
                     <!-- 收发货地址 -->
-                    {% call tw_info_card(title=_('收发货信息'), icon='location_on') %}
-                        {% if shipment.ship_from %}
-                        {{ tw_info_row(_('发货地址'), shipment.ship_from) }}
-                        {% endif %}
-                        {{ tw_info_row(_('收货地址'), shipment.ship_to or '-') }}
-                        {{ tw_info_row(_('收货人'), shipment.contact_name or '-') }}
-                        {{ tw_info_row(_('联系电话'), shipment.contact_phone or '-') }}
-                    {% endcall %}
+                    {{ tw_info_card(
+                        title=_('收发货信息'),
+                        columns=2,
+                        items=[
+                            {'label': _('发货地址'), 'value': shipment.ship_from or '-'},
+                            {'label': _('收货地址'), 'value': shipment.ship_to or '-'},
+                            {'label': _('收货人'), 'value': shipment.contact_name or '-'},
+                            {'label': _('联系电话'), 'value': shipment.contact_phone or '-'}
+                        ]
+                    ) }}
 
-                    <!-- 签收信息 -->
-                    {% if shipment.status == 'received' %}
-                    {% call tw_info_card(title=_('签收信息'), icon='check_circle') %}
-                        {{ tw_info_row(_('签收人'), shipment.received_by or '-') }}
-                        {{ tw_info_row(_('签收日期'), shipment.received_date.strftime('%Y-%m-%d %H:%M') if shipment.received_date else '-') }}
-                        {{ tw_info_row(_('签收备注'), shipment.received_notes or '-') }}
-                    {% endcall %}
+                    <!-- 快递单（只读显示：文件+上传日期） -->
+                    {% if courier_docs %}
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">description</span>
+                            {{ _('快递单') }}
+                        </h3>
+                        {% for doc in courier_docs %}
+                        <div class="flex items-center justify-between py-1.5">
+                            <a href="{{ doc.url }}" target="_blank"
+                               class="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline" title="{{ doc.name }}">
+                                <span class="material-symbols-outlined text-base">description</span>
+                                <span class="truncate max-w-[250px]">{{ doc.name or _('快递单') }}</span>
+                            </a>
+                            <span class="text-xs text-slate-400">{{ shipment.ship_date.strftime('%Y-%m-%d') if shipment.ship_date else '' }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- 签收回执（只读显示：文件+签收日期，无签收人） -->
+                    {% if shipment.status == 'received' and receipt_docs %}
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-green-200 dark:border-green-800 p-4">
+                        <h3 class="text-base font-semibold text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined">verified</span>
+                            {{ _('签收回执') }}
+                        </h3>
+                        {% for doc in receipt_docs %}
+                        <div class="flex items-center justify-between py-1.5">
+                            <a href="{{ doc.url }}" target="_blank"
+                               class="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-400 hover:underline" title="{{ doc.name }}">
+                                <span class="material-symbols-outlined text-base">description</span>
+                                <span class="truncate max-w-[250px]">{{ doc.name or _('签收单') }}</span>
+                            </a>
+                            <span class="text-xs text-slate-400">{{ shipment.received_date.strftime('%Y-%m-%d') if shipment.received_date else '' }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- pending: 上传快递单 + 确认发货 -->
+                    {% if shipment.status == 'pending' %}
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">upload_file</span>
+                            {{ _('上传快递单') }}
+                        </h3>
+                        {% if courier_docs %}
+                        <div class="flex flex-wrap gap-2 mb-3">
+                            {% for doc in courier_docs %}
+                            <a href="{{ doc.url }}" target="_blank"
+                               class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg border border-primary/20 transition-colors max-w-full" title="{{ doc.name }}">
+                                <span class="material-symbols-outlined text-base shrink-0">description</span>
+                                <span class="truncate max-w-[250px]">{{ doc.name or _('快递单') }}</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div id="courierDropArea"
+                             class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
+                             onclick="document.getElementById('courierFileInput').click()"
+                             ondragover="event.preventDefault(); this.classList.add('border-primary', 'bg-primary/5')"
+                             ondragleave="this.classList.remove('border-primary', 'bg-primary/5')"
+                             ondrop="event.preventDefault(); this.classList.remove('border-primary', 'bg-primary/5'); handleCourierDrop(event)">
+                            <input type="file" id="courierFileInput" accept=".pdf,.jpg,.jpeg,.png" class="hidden"
+                                   onchange="handleCourierSelect(this)">
+                            <span class="material-symbols-outlined text-3xl text-slate-400 dark:text-slate-500">upload_file</span>
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ _('点击或拖拽上传快递单（PDF/JPG/PNG）') }}</p>
+                        </div>
+                        <div id="courierFilePreview" class="hidden mt-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-sm">description</span>
+                                <span id="courierFileName" class="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[280px]"></span>
+                            </div>
+                            <button type="button" onclick="removeCourierFile()" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
+                                <span class="material-symbols-outlined text-slate-500 text-sm">close</span>
+                            </button>
+                        </div>
+                        <button id="confirmShipBtn" onclick="confirmShipWithFile()"
+                                class="mt-4 w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span class="material-symbols-outlined text-base">local_shipping</span>
+                            {{ _('确认发货') }}
+                        </button>
+                    </div>
+                    {% endif %}
+
+                    <!-- shipped: 上传签收单 + 确认签收 -->
+                    {% if shipment.status in ['shipped', 'in_transit', 'delivered'] %}
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-green-600">receipt_long</span>
+                            {{ _('上传签收单') }}
+                        </h3>
+                        <div id="receiptDropArea"
+                             class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 text-center hover:border-green-500 transition-colors cursor-pointer"
+                             onclick="document.getElementById('receiptFileInput').click()"
+                             ondragover="event.preventDefault(); this.classList.add('border-green-500', 'bg-green-50')"
+                             ondragleave="this.classList.remove('border-green-500', 'bg-green-50')"
+                             ondrop="event.preventDefault(); this.classList.remove('border-green-500', 'bg-green-50'); handleReceiptDrop(event)">
+                            <input type="file" id="receiptFileInput" accept=".pdf,.jpg,.jpeg,.png" class="hidden"
+                                   onchange="handleReceiptSelect(this)">
+                            <span class="material-symbols-outlined text-3xl text-slate-400 dark:text-slate-500">receipt_long</span>
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ _('点击或拖拽上传签收回执单（PDF/JPG/PNG）') }}</p>
+                        </div>
+                        <div id="receiptFilePreview" class="hidden mt-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-green-600 text-sm">description</span>
+                                <span id="receiptFileName" class="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[280px]"></span>
+                            </div>
+                            <button type="button" onclick="removeReceiptFile()" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
+                                <span class="material-symbols-outlined text-slate-500 text-sm">close</span>
+                            </button>
+                        </div>
+                        <button id="confirmReceiveBtn" onclick="confirmReceiveWithFile()"
+                                class="mt-4 w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span class="material-symbols-outlined text-base">check_circle</span>
+                            {{ _('确认签收') }}
+                        </button>
+                    </div>
                     {% endif %}
 
                     <!-- 发货明细 -->
-                    {% call render_tw_table_card(title=_('发货明细')) %}
+                    {% call render_tw_table_card(title=_('发货明细') ~ ' (' ~ shipment.details|length ~ ')') %}
                     <table class="w-full">
                         <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                             <tr>
@@ -221,13 +320,14 @@
                         {% if shipment.sales_order %}
                         <a href="{{ url_for('sales_order.detail_view', order_id=shipment.sales_order.id) }}"
                            class="block p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                            <div class="text-xs text-slate-400 mb-0.5">{{ _('客户订单') }}</div>
                             <div class="text-sm font-medium text-primary">{{ shipment.sales_order.order_number }}</div>
                             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                 {{ shipment.sales_order.customer.company_name if shipment.sales_order.customer else '-' }}
                             </div>
                         </a>
                         {% else %}
-                        <div class="text-center py-4 text-slate-400">{{ _('无关联订单') }}</div>
+                        <div class="text-center py-4 text-slate-400">{{ _('入公司仓库') }}</div>
                         {% endif %}
                     </div>
 
@@ -243,40 +343,8 @@
     {% endif %}
     {% endcall %}
 
-    <!-- 签收模态框 -->
-    <div id="receiveModal" class="fixed inset-0 z-50 hidden">
-        <div class="absolute inset-0 bg-black/50" onclick="closeReceiveModal()"></div>
-        <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[480px] bg-white dark:bg-slate-800 rounded-xl shadow-xl overflow-hidden">
-            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('确认签收') }}</h3>
-                <button onclick="closeReceiveModal()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-            <div class="p-4 space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('签收人') }} *</label>
-                    <input type="text" id="receivedBy" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('签收日期') }}</label>
-                    <input type="date" id="receivedDate" value="{{ now().strftime('%Y-%m-%d') }}" class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('签收备注') }}</label>
-                    <textarea id="receivedNotes" rows="3" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white resize-none"></textarea>
-                </div>
-            </div>
-            <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
-                <button onclick="closeReceiveModal()" class="h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium transition-colors">
-                    {{ _('取消') }}
-                </button>
-                <button onclick="confirmReceive()" class="h-10 px-4 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-medium transition-colors">
-                    {{ _('确认签收') }}
-                </button>
-            </div>
-        </div>
-    </div>
+    <!-- 通知组件 -->
+    <script src="{{ url_for('static', filename='js/common/tw-notification.js') }}"></script>
 
     {{ render_tw_layout_script() }}
     {{ tw_confirm_modal_script() }}
@@ -285,71 +353,150 @@
     const shipmentId = {{ shipment.id }};
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-    // 确认发货
-    function confirmShip() {
-        if (!confirm('确定要确认发货吗？')) return;
-
-        fetch(`/shipment/api/${shipmentId}/ship`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({
-                ship_date: new Date().toISOString().split('T')[0]
-            })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.message || '操作失败');
-            }
-        })
-        .catch(err => alert('操作失败: ' + err));
-    }
-
-    // 签收模态框
-    function showReceiveModal() {
-        document.getElementById('receiveModal').classList.remove('hidden');
-    }
-
-    function closeReceiveModal() {
-        document.getElementById('receiveModal').classList.add('hidden');
-    }
-
-    // 确认签收
-    function confirmReceive() {
-        const receivedBy = document.getElementById('receivedBy').value.trim();
-        if (!receivedBy) {
-            alert('请填写签收人');
-            return;
+    // ========== 文件验证 ==========
+    function _validateFile(file) {
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+        if (!allowedTypes.includes(file.type)) {
+            showToast('{{ _("请上传 PDF、JPG 或 PNG 格式的文件") }}', 'warning');
+            return false;
         }
+        if (file.size > 10 * 1024 * 1024) {
+            showToast('{{ _("文件大小不能超过 10MB") }}', 'warning');
+            return false;
+        }
+        return true;
+    }
 
-        const data = {
-            received_by: receivedBy,
-            received_date: document.getElementById('receivedDate').value,
-            received_notes: document.getElementById('receivedNotes').value.trim()
-        };
+    // ========== 快递单文件处理（pending 状态） ==========
+    let _courierFile = null;
 
-        fetch(`/shipment/api/${shipmentId}/receive`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify(data)
-        })
-        .then(r => r.json())
-        .then(result => {
-            if (result.success) {
-                location.reload();
-            } else {
-                alert(result.message || '操作失败');
+    function handleCourierSelect(input) {
+        const file = input.files[0];
+        if (!file || !_validateFile(file)) { input.value = ''; return; }
+        _courierFile = file;
+        document.getElementById('courierDropArea').classList.add('hidden');
+        document.getElementById('courierFilePreview').classList.remove('hidden');
+        document.getElementById('courierFileName').textContent = file.name;
+    }
+
+    function handleCourierDrop(event) {
+        const file = event.dataTransfer.files[0];
+        if (!file || !_validateFile(file)) return;
+        _courierFile = file;
+        document.getElementById('courierDropArea').classList.add('hidden');
+        document.getElementById('courierFilePreview').classList.remove('hidden');
+        document.getElementById('courierFileName').textContent = file.name;
+    }
+
+    function removeCourierFile() {
+        _courierFile = null;
+        const input = document.getElementById('courierFileInput');
+        if (input) input.value = '';
+        document.getElementById('courierDropArea').classList.remove('hidden');
+        document.getElementById('courierFilePreview').classList.add('hidden');
+    }
+
+    // ========== 确认发货（上传快递单 + 状态变更） ==========
+    async function confirmShipWithFile() {
+        const btn = document.getElementById('confirmShipBtn');
+        if (!btn) return;
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="material-symbols-outlined animate-spin text-base">progress_activity</span> {{ _('处理中...') }}`;
+
+        try {
+            const formData = new FormData();
+            formData.append('ship_date', new Date().toISOString().split('T')[0]);
+            if (_courierFile) {
+                formData.append('file', _courierFile);
             }
-        })
-        .catch(err => alert('操作失败: ' + err));
+
+            const response = await fetch(`/shipment/api/${shipmentId}/ship`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast(result.message || '{{ _("发货成功") }}', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(result.message || '{{ _("操作失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('确认发货失败:', error);
+            showToast('{{ _("操作失败") }}', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    // ========== 签收回执文件处理（shipped 状态） ==========
+    let _receiptFile = null;
+
+    function handleReceiptSelect(input) {
+        const file = input.files[0];
+        if (!file || !_validateFile(file)) { input.value = ''; return; }
+        _receiptFile = file;
+        document.getElementById('receiptDropArea').classList.add('hidden');
+        document.getElementById('receiptFilePreview').classList.remove('hidden');
+        document.getElementById('receiptFileName').textContent = file.name;
+    }
+
+    function handleReceiptDrop(event) {
+        const file = event.dataTransfer.files[0];
+        if (!file || !_validateFile(file)) return;
+        _receiptFile = file;
+        document.getElementById('receiptDropArea').classList.add('hidden');
+        document.getElementById('receiptFilePreview').classList.remove('hidden');
+        document.getElementById('receiptFileName').textContent = file.name;
+    }
+
+    function removeReceiptFile() {
+        _receiptFile = null;
+        const input = document.getElementById('receiptFileInput');
+        if (input) input.value = '';
+        document.getElementById('receiptDropArea').classList.remove('hidden');
+        document.getElementById('receiptFilePreview').classList.add('hidden');
+    }
+
+    // ========== 确认签收（上传签收单 + 状态变更） ==========
+    async function confirmReceiveWithFile() {
+        const btn = document.getElementById('confirmReceiveBtn');
+        if (!btn) return;
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="material-symbols-outlined animate-spin text-base">progress_activity</span> {{ _('处理中...') }}`;
+
+        try {
+            const formData = new FormData();
+            formData.append('received_by', '{{ current_user.real_name or current_user.username }}');
+            if (_receiptFile) {
+                formData.append('file', _receiptFile);
+            }
+
+            const response = await fetch(`/shipment/api/${shipmentId}/receive-with-file`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast(result.message || '{{ _("签收成功") }}', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(result.message || '{{ _("操作失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('确认签收失败:', error);
+            showToast('{{ _("操作失败") }}', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     }
     </script>
 </body>

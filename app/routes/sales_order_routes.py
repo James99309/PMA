@@ -69,6 +69,7 @@ def list_view():
         Company.company_type.in_(['customer', 'dealer', 'distributor'])
     ).order_by(Company.company_name).all()
 
+    from app.utils.dictionary_helpers import get_currency_type_options
     return render_template(
         'sales_order/tw_list.html',
         orders=orders,
@@ -77,7 +78,8 @@ def list_view():
         customers=customers,
         current_status=status,
         current_customer_id=customer_id,
-        search=search
+        search=search,
+        currency_options=get_currency_type_options()
     )
 
 
@@ -194,6 +196,8 @@ def api_get_order(order_id):
                 'unit': d.unit,
                 'unit_price': float(d.unit_price or 0),
                 'total_price': float(d.total_price or 0),
+                'procured_quantity': d.procured_quantity or 0,
+                'remaining_to_procure': d.remaining_to_procure,
                 'shipped_quantity': d.shipped_quantity,
                 'received_quantity': d.received_quantity,
                 'remaining_to_ship': d.remaining_to_ship,
@@ -258,6 +262,137 @@ def api_update_delivery_info(order_id):
     except Exception as e:
         logger.error(f"更新交付信息失败: {str(e)}")
         return jsonify({'success': False, 'message': f'更新失败: {str(e)}'})
+
+
+@sales_order_bp.route('/api/create-direct', methods=['POST'])
+@login_required
+@permission_required('sales_order', 'create')
+def api_create_direct():
+    """直接创建客户订单（不通过批价单）"""
+    try:
+        data = request.get_json()
+
+        # 验证必填字段
+        customer_id = data.get('customer_id')
+        if not customer_id:
+            return jsonify({'success': False, 'message': '请选择客户'})
+
+        # 验证客户存在
+        customer = Company.query.filter_by(id=customer_id, is_deleted=False).first()
+        if not customer:
+            return jsonify({'success': False, 'message': '客户不存在'})
+
+        # 验证明细
+        details_data = data.get('details', [])
+        if not details_data:
+            return jsonify({'success': False, 'message': '请至少添加一个产品'})
+
+        # 处理交付日期
+        delivery_date = None
+        if data.get('delivery_date'):
+            try:
+                delivery_date = datetime.strptime(data['delivery_date'], '%Y-%m-%d')
+            except ValueError:
+                pass
+
+        # 创建订单
+        sales_order = SalesOrder(
+            order_number=SalesOrderService.generate_order_number(),
+            customer_id=int(customer_id),
+            status='draft',
+            created_by_id=current_user.id,
+            delivery_date=delivery_date,
+            delivery_address=data.get('delivery_address'),
+            delivery_contact=data.get('delivery_contact'),
+            delivery_phone=data.get('delivery_phone'),
+            delivery_email=data.get('delivery_email'),
+            shipping_method=data.get('shipping_method'),
+            freight_terms=data.get('freight_terms'),
+            incoterms=data.get('incoterms'),
+            notes=data.get('notes'),
+            currency='CNY'
+        )
+
+        db.session.add(sales_order)
+        db.session.flush()  # 获取ID
+
+        # 创建订单明细
+        from decimal import Decimal
+        total_amount = Decimal('0')
+        total_quantity = 0
+
+        for idx, item in enumerate(details_data):
+            product_name = (item.get('product_name') or '').strip()
+            if not product_name:
+                return jsonify({'success': False, 'message': f'第 {idx + 1} 行产品名称不能为空'})
+
+            quantity = item.get('quantity')
+            try:
+                quantity = int(quantity)
+                if quantity <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'message': f'第 {idx + 1} 行数量无效'})
+
+            unit_price = Decimal(str(item.get('unit_price') or 0))
+            discount = Decimal(str(item.get('discount') or 1))
+            line_total = unit_price * quantity * discount
+
+            # 查找产品ID
+            product_id = item.get('product_id')
+            if not product_id:
+                # 尝试通过产品名称+型号查找
+                from app.models.product import Product
+                product_model = (item.get('product_model') or '').strip()
+                q = Product.query.filter_by(name=product_name)
+                if product_model:
+                    q = q.filter_by(model=product_model)
+                product = q.first()
+                product_id = product.id if product else None
+
+            if not product_id:
+                db.session.rollback()
+                return jsonify({
+                    'success': False,
+                    'message': f'第 {idx + 1} 行产品 "{product_name}" 在产品库中未找到，请确认产品名称和型号'
+                })
+
+            detail = SalesOrderDetail(
+                sales_order_id=sales_order.id,
+                product_id=int(product_id),
+                product_name=product_name,
+                product_model=(item.get('product_model') or '').strip(),
+                quantity=quantity,
+                unit=(item.get('unit') or '个').strip(),
+                unit_price=unit_price,
+                discount=discount,
+                total_price=line_total,
+                status='pending'
+            )
+            db.session.add(detail)
+
+            total_amount += line_total
+            total_quantity += quantity
+
+        # 更新订单汇总
+        sales_order.total_amount = total_amount
+        sales_order.total_quantity = total_quantity
+
+        db.session.commit()
+        logger.info(f"直接创建客户订单 {sales_order.order_number}, 客户: {customer.company_name}")
+
+        return jsonify({
+            'success': True,
+            'message': f'客户订单 {sales_order.order_number} 创建成功',
+            'order_id': sales_order.id,
+            'order_number': sales_order.order_number,
+            'redirect_url': url_for('sales_order.detail_view', order_id=sales_order.id)
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"直接创建客户订单失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'创建失败: {str(e)}'})
 
 
 @sales_order_bp.route('/api/list', methods=['GET'])

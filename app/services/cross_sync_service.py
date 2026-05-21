@@ -556,6 +556,38 @@ def push_task_to_peer(assignee_email, creator_name, task_title, due_date_str=Non
     push_message_to_peer(assignee_email, creator_name, content, msg_type='task')
 
 
+def fetch_peer_procurement_demands():
+    """
+    从对端 NAS 拉取待采购需求（同步调用，用于需求池聚合）。
+
+    Returns:
+        list: 需求列表，每项包含 order_number, product_name, remaining_to_procure 等
+              失败时返回空列表
+    """
+    if not is_cross_sync_enabled():
+        return []
+
+    peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+
+    import requests
+    try:
+        resp = requests.get(
+            f'{peer_url}/cross-sync/procurement-demands',
+            headers={'X-API-Key': api_key},
+            timeout=10
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get('demands', [])
+        else:
+            logger.warning(f"拉取对端需求失败: status={resp.status_code}")
+            return []
+    except Exception as e:
+        logger.warning(f"拉取对端需求异常: {e}")
+        return []
+
+
 def notify_peer_refresh_cache():
     """通知对等端刷新物化视图缓存（CN 分类变更后调用，异步不阻塞）"""
     if not is_cross_sync_enabled():

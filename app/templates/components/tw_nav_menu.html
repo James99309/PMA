@@ -123,22 +123,12 @@ Tailwind 共享导航菜单组件
         {% if has_permission('shipment', 'view') %}
         <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'shipment' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('shipment.list_view') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'shipment' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">local_shipping</span>
-            <span class="{% if active_page == 'shipment' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('发货管理') }}</span>
+            <span class="{% if active_page == 'shipment' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('发货记录') }}</span>
         </a>
         {% endif %}
-        <div class="my-1 mx-3 h-px bg-slate-200 dark:bg-slate-700"></div>
-        {% if has_permission('order', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.order_list') }}">
-            <span class="material-symbols-outlined text-base {% if active_page == 'order' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">list_alt</span>
-            <span class="{% if active_page == 'order' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('订单管理') }}</span>
-        </a>
-        {% endif %}
-        {% if has_permission('settlement', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'settlement' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.settlement_order_list') }}">
-            <span class="material-symbols-outlined text-base {% if active_page == 'settlement' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">payments</span>
-            <span class="{% if active_page == 'settlement' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('结算管理') }}</span>
-        </a>
-        {% endif %}
+        {# 老 Bootstrap "订单管理" + "结算管理" 菜单已删除
+           - 订单管理(inventory.order_list)→ 已被新的 purchase_order.list_view 替代
+           - 结算管理(inventory.settlement_order_list)→ 结算将在批价单详情页(main 上的 Excel 编辑页)内完成 #}
     </div>
 </div>
 {% endif %}
@@ -218,7 +208,7 @@ Tailwind 共享导航菜单组件
         </a>
         {% endif %}
         {% if has_permission('inventory', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'inventory' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.stock_list') }}">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'inventory' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('inventory.tw_stock_list') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'inventory' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">warehouse</span>
             <span class="{% if active_page == 'inventory' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('库存管理') }}</span>
         </a>

@@ -4048,16 +4048,7 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
                 elif instance.object_type == 'expense':
                     unlock_expense(instance.object_id, user_id)
     
-    # 🚨 新增：提交前最终验证
     try:
-        # 验证实例状态的一致性
-        if instance.current_step:
-            final_step_obj = ApprovalStep.query.filter_by(id=instance.current_step).first()
-            if final_step_obj and final_step_obj.process_id != instance.process_id:
-                current_app.logger.error(f"提交前发现跨进程引用错误，回滚操作")
-                db.session.rollback()
-                return False
-        
         db.session.commit()
         current_app.logger.info(f"审批操作成功提交: 实例{instance_id}, 当前步骤{instance.current_step}")
 
@@ -5935,7 +5926,7 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
             # 处理枚举类型状态
             status_map = {
                 'PENDING': 'pending',
-                'APPROVED': 'approved', 
+                'APPROVED': 'approved',
                 'REJECTED': 'rejected',
                 'DRAFT': 'draft'
             }

@@ -359,6 +359,17 @@
                                         {{ _('厂商产品') }}
                                     </label>
                                 </div>
+                                <div class="form-check mt-2">
+                                    <input type="checkbox"
+                                           class="form-check-input"
+                                           id="has_serial_number"
+                                           name="has_serial_number"
+                                           {% if (not product) or product.has_serial_number %}checked{% endif %}>
+                                    <label for="has_serial_number" class="form-check-label">
+                                        {{ _('按序列号管理') }}
+                                    </label>
+                                    <small class="form-text text-muted d-block">{{ _('开启:发货时需要输入 SN(对讲机、模块等主设备)。关闭:不需要(耦合器、功分器、线缆等)') }}</small>
+                                </div>
                             </div>
                         </div>
                         {% endif %}

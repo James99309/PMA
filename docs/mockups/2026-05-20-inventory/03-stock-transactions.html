@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>All Warehouses · 全局流水 · PMA UX Mockup</title>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<script>if (localStorage.getItem('lang') === 'en') document.documentElement.classList.add('en')</script>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }</script>
+<style>body { font-family: 'Inter', sans-serif; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; } html.en .lang-zh { display: none !important; } html:not(.en) .lang-en { display: none !important; }</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+
+<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+  <div class="max-w-[1600px] mx-auto px-6 h-14 flex items-center gap-3">
+    <a href="index.html" class="flex items-center gap-2 text-primary"><span class="material-symbols-outlined">arrow_back</span><span class="text-sm"><span class="lang-zh">索引</span><span class="lang-en">Index</span></span></a>
+    <span class="text-xs text-slate-400">/</span>
+    <a href="01-inventory-list.html" class="text-sm text-slate-500 hover:text-primary"><span class="lang-zh">库存管理</span><span class="lang-en">Inventory</span></a>
+    <span class="text-xs text-slate-400">/</span>
+    <span class="text-sm text-slate-900 dark:text-white"><span class="lang-zh">全局流水</span><span class="lang-en">All Warehouses</span></span>
+    <div class="ml-auto">
+      <button onclick="toggleLang()" class="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">language</span><span class="lang-zh">EN</span><span class="lang-en">中</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1600px] mx-auto p-6">
+
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white"><span class="lang-zh">全局库存流水</span><span class="lang-en">Inventory Transactions · All Warehouses</span></h1>
+        <span class="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap"><span class="material-symbols-outlined text-sm">admin_panel_settings</span><span class="lang-zh">厂商管理员</span><span class="lang-en">Vendor admin</span></span>
+      </div>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1"><span class="lang-zh">跨公司库存变动审计视图,经销商/客户用户不可见 · 用于异常监测与月度统计</span><span class="lang-en">Cross-company audit view for inventory transactions · Hidden from dealers/customers · For anomaly monitoring & monthly reporting</span></p>
+    </div>
+    <button class="h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap"><span class="material-symbols-outlined text-lg">file_download</span><span class="lang-zh">导出 CSV</span><span class="lang-en">Export CSV</span></button>
+  </div>
+
+  <div class="grid grid-cols-4 gap-3 mb-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <div class="text-xs text-slate-500 dark:text-slate-400"><span class="lang-zh">本月流水笔数</span><span class="lang-en">Transactions this month</span></div>
+      <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">1,243</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <div class="text-xs text-emerald-700 dark:text-emerald-400"><span class="lang-zh">本月入库</span><span class="lang-en">Inbound this month</span></div>
+      <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">+ 5,481</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <div class="text-xs text-rose-700 dark:text-rose-400"><span class="lang-zh">本月出库</span><span class="lang-en">Outbound this month</span></div>
+      <div class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">- 4,127</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <div class="text-xs text-slate-500 dark:text-slate-400"><span class="lang-zh">活跃公司</span><span class="lang-en">Active companies</span></div>
+      <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">9 / 12</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 mb-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <input type="date" class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm" />
+      <span class="text-slate-400"><span class="lang-zh">至</span><span class="lang-en">to</span></span>
+      <input type="date" class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm" />
+      <select class="h-10 px-3 rounded-lg border-2 border-primary bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm w-60">
+        <option><span class="lang-zh">全部公司</span><span class="lang-en">All companies</span></option>
+      </select>
+      <select class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm w-48">
+        <option data-zh="全部类型" data-en="All types">全部类型</option>
+        <option data-zh="入库" data-en="Stock in">入库</option>
+        <option data-zh="出库" data-en="Stock out">出库</option>
+        <option data-zh="调整" data-en="Adjustment">调整</option>
+        <option data-zh="结算出库" data-en="Settlement out">结算出库</option>
+      </select>
+      <select class="h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm w-48">
+        <option data-zh="全部来源" data-en="All sources">全部来源</option>
+        <option data-zh="采购订单" data-en="Purchase order">采购订单</option>
+        <option data-zh="发货签收" data-en="Shipment receipt">发货签收</option>
+        <option data-zh="批价结算" data-en="Settlement">批价结算</option>
+        <option data-zh="期初导入" data-en="Initial import">期初导入</option>
+        <option data-zh="手动调整" data-en="Manual adjust">手动调整</option>
+      </select>
+      <input type="text" data-placeholder-zh="搜产品/单据号..." data-placeholder-en="Search product / doc number..." placeholder="搜产品/单据号..." class="flex-1 min-w-[200px] h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm" />
+      <button class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium whitespace-nowrap"><span class="lang-zh">应用</span><span class="lang-en">Apply</span></button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+        <tr>
+          <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap"><span class="lang-zh">时间</span><span class="lang-en">Time</span></th>
+          <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">公司</span><span class="lang-en">Company</span></th>
+          <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">产品</span><span class="lang-en">Product</span></th>
+          <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">类型</span><span class="lang-en">Type</span></th>
+          <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">变动</span><span class="lang-en">Delta</span></th>
+          <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">变化</span><span class="lang-en">Before → After</span></th>
+          <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">关联单据</span><span class="lang-en">Reference</span></th>
+          <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"><span class="lang-zh">操作人</span><span class="lang-en">By</span></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">2026-05-19 14:23</td>
+          <td class="p-3 text-sm"><span class="inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-sm text-blue-500">factory</span><span class="text-slate-700 dark:text-slate-300">EVERTAC <span class="lang-zh">自有仓库</span><span class="lang-en">Warehouse</span></span></span></td>
+          <td class="p-3 text-sm text-slate-900 dark:text-white">PNR2100 <span class="lang-zh">双向对讲机</span><span class="lang-en">Two-way Radio</span></td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 whitespace-nowrap"><span class="lang-zh">入库</span><span class="lang-en">Stock in</span></span></td>
+          <td class="p-3 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">+50</td>
+          <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">70 → 120</td>
+          <td class="p-3 text-sm"><a class="text-primary hover:underline font-mono">CG-2605-001</a></td>
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400">admin</td>
+        </tr>
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">2026-05-19 10:15</td>
+          <td class="p-3 text-sm"><span class="inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-sm text-purple-500">store</span><span class="text-slate-700 dark:text-slate-300"><span class="lang-zh">北京 ABC 经销商</span><span class="lang-en">Beijing ABC Dealer</span></span></span></td>
+          <td class="p-3 text-sm text-slate-900 dark:text-white">CMP2600 <span class="lang-zh">通讯模块</span><span class="lang-en">Comm Module</span></td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 whitespace-nowrap"><span class="lang-zh">结算出库</span><span class="lang-en">Settlement</span></span></td>
+          <td class="p-3 text-right text-sm font-bold text-rose-600 dark:text-rose-400">-30</td>
+          <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">30 → 0</td>
+          <td class="p-3 text-sm"><a class="text-primary hover:underline font-mono">SO202604-002</a></td>
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400"><span class="lang-zh">王经理</span><span class="lang-en">Wang</span></td>
+        </tr>
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">2026-05-17 16:42</td>
+          <td class="p-3 text-sm"><span class="inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-sm text-purple-500">store</span><span class="text-slate-700 dark:text-slate-300"><span class="lang-zh">北京 ABC 经销商</span><span class="lang-en">Beijing ABC Dealer</span></span></span></td>
+          <td class="p-3 text-sm text-slate-900 dark:text-white">PNR2100 <span class="lang-zh">双向对讲机</span><span class="lang-en">Two-way Radio</span></td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 whitespace-nowrap"><span class="lang-zh">入库</span><span class="lang-en">Stock in</span></span></td>
+          <td class="p-3 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">+30</td>
+          <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">0 → 30</td>
+          <td class="p-3 text-sm"><a class="text-primary hover:underline font-mono">SH-2605-002</a></td>
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400">admin</td>
+        </tr>
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">2026-05-15 09:08</td>
+          <td class="p-3 text-sm"><span class="inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-sm text-blue-500">factory</span><span class="text-slate-700 dark:text-slate-300">EVERTAC <span class="lang-zh">自有仓库</span><span class="lang-en">Warehouse</span></span></span></td>
+          <td class="p-3 text-sm text-slate-900 dark:text-white"><span class="lang-zh">耦合器</span><span class="lang-en">Coupler</span> CP-201</td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-200 whitespace-nowrap"><span class="lang-zh">调整</span><span class="lang-en">Adjustment</span></span></td>
+          <td class="p-3 text-right text-sm font-bold text-slate-700 dark:text-slate-200">→5</td>
+          <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">15 → 5</td>
+          <td class="p-3 text-sm text-slate-400"><span class="lang-zh">手动 · 盘点损耗</span><span class="lang-en">Manual · Count loss</span></td>
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400"><span class="lang-zh">王经理</span><span class="lang-en">Wang</span></td>
+        </tr>
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">2026-05-10 11:20</td>
+          <td class="p-3 text-sm"><span class="inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-sm text-purple-500">store</span><span class="text-slate-700 dark:text-slate-300"><span class="lang-zh">北京 ABC 经销商</span><span class="lang-en">Beijing ABC Dealer</span></span></span></td>
+          <td class="p-3 text-sm text-slate-900 dark:text-white"><span class="lang-zh">耦合器</span><span class="lang-en">Coupler</span> CP-201</td>
+          <td class="p-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 whitespace-nowrap"><span class="lang-zh">期初导入</span><span class="lang-en">Initial import</span></span></td>
+          <td class="p-3 text-right text-sm font-bold text-purple-600 dark:text-purple-400">→8</td>
+          <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">0 → 8</td>
+          <td class="p-3 text-sm"><span class="text-purple-600 dark:text-purple-400 whitespace-nowrap"><span class="lang-zh">导入批次 #3</span><span class="lang-en">Import batch #3</span></span></td>
+          <td class="p-3 text-xs text-slate-500 dark:text-slate-400">admin</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="p-3 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700"><span class="lang-zh">显示前 5 条 · 共 1,243 条 ·</span><span class="lang-en">Showing 5 of 1,243 ·</span> <button class="text-primary hover:underline"><span class="lang-zh">加载更多</span><span class="lang-en">Load more</span></button></div>
+  </div>
+
+</main>
+
+<script>
+function syncDataLang() { const isEn = document.documentElement.classList.contains('en'); document.querySelectorAll('[data-placeholder-zh]').forEach(el => { el.placeholder = isEn ? el.dataset.placeholderEn : el.dataset.placeholderZh; }); document.querySelectorAll('option[data-zh]').forEach(el => { el.textContent = isEn ? el.dataset.en : el.dataset.zh; }); }
+function toggleLang() { const isEn = document.documentElement.classList.toggle('en'); localStorage.setItem('lang', isEn ? 'en' : 'zh'); syncDataLang(); }
+window.addEventListener('DOMContentLoaded', syncDataLang);
+</script>
+</body>
+</html>

@@ -1324,6 +1324,18 @@ def create_app(config_class=Config):
             logger.error(f"服务本地存储文件失败: {str(e)}")
             abort(500)
 
+    # 本地开发：为 /uploads/ 目录提供文件访问（NAS部署时由WebDAV处理）
+    @app.route('/uploads/<path:filename>')
+    def serve_uploads_file(filename):
+        import os
+        from flask import send_from_directory, abort
+        uploads_dir = os.path.join(app.root_path, '..', 'uploads')
+        uploads_dir = os.path.abspath(uploads_dir)
+        requested_path = os.path.abspath(os.path.join(uploads_dir, filename))
+        if not requested_path.startswith(uploads_dir) or not os.path.exists(requested_path):
+            abort(404)
+        return send_from_directory(os.path.dirname(requested_path), os.path.basename(requested_path))
+
     # 注册统一中文映射功能到Jinja2模板环境
     try:
         from app.utils.chinese_mapping_manager import mapping_manager

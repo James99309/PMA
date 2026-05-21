@@ -540,7 +540,7 @@ def _get_approval_detail_url(object_type, object_id):
         elif object_type == 'quotation':
             return url_for('quotation.view_quotation', id=object_id)
         elif object_type == 'pricing_order':
-            return url_for('pricing_order.list_pricing_orders') + f'?open={object_id}'
+            return url_for('pricing_order.edit_pricing_order', order_id=object_id)
         elif object_type == 'purchase_order':
             return url_for('purchase_order.detail_view', order_id=object_id)
         elif object_type == 'customer':

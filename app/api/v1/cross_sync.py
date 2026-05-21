@@ -81,6 +81,39 @@ def cross_sync_refresh_cache():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@api_v1_bp.route('/cross-sync/procurement-demands', methods=['GET'])
+@require_api_key_or_jwt
+def cross_sync_procurement_demands():
+    """供对端采购需求池拉取本地待采购的客户订单需求"""
+    try:
+        from app.models.sales_order import SalesOrder, SalesOrderDetail
+        details = db.session.query(SalesOrderDetail).join(
+            SalesOrder, SalesOrderDetail.sales_order_id == SalesOrder.id
+        ).filter(
+            SalesOrder.status.in_(['confirmed', 'preparing']),
+            SalesOrderDetail.quantity > db.func.coalesce(SalesOrderDetail.procured_quantity, 0)
+        ).all()
+
+        demands = [{
+            'sales_order_detail_id': d.id,
+            'order_number': d.sales_order.order_number if d.sales_order else '',
+            'customer_name': d.sales_order.customer.company_name if d.sales_order and d.sales_order.customer else '',
+            'product_id': d.product_id,
+            'product_name': d.product_name,
+            'product_model': d.product_model,
+            'quantity': d.quantity,
+            'procured_quantity': d.procured_quantity or 0,
+            'remaining_to_procure': d.remaining_to_procure,
+            'unit': d.unit,
+            'source': 'SG'
+        } for d in details]
+
+        return jsonify({'success': True, 'demands': demands})
+    except Exception as e:
+        logger.error(f"导出采购需求失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @api_v1_bp.route('/cross-sync/sync-product-specs', methods=['POST'])
 @require_api_key_or_jwt
 def cross_sync_product_specs():

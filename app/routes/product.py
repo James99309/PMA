@@ -668,6 +668,7 @@ def create():
         currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
         description = request.form.get('description')
         is_vendor_product = request.form.get('is_vendor_product') == 'on'
+        has_serial_number = request.form.get('has_serial_number') == 'on'
 
         # 验证必填字段
         if not all([category_id, subcategory_id, region_id, product_model, product_mn]):
@@ -714,7 +715,8 @@ def create():
             specification=description,  # 使用旧字段存储描述
             source_type='manual',  # 手动创建
             owner_id=current_user.id,
-            is_vendor_product=is_vendor_product
+            is_vendor_product=is_vendor_product,
+            has_serial_number=has_serial_number
         )
 
         # 保存产品以获取ID
@@ -1946,6 +1948,7 @@ def create_product():
         
         # 获取厂商产品标记
         is_vendor_product = request.form.get('is_vendor_product') == 'on'
+        has_serial_number = request.form.get('has_serial_number') == 'on'
 
         # 获取配置来源信息（从配置引入产品时设置）
         source_configuration_id = request.form.get('source_configuration_id')
@@ -2104,6 +2107,7 @@ def create_product():
             currency=product_data['currency'],
             status=product_data['status'],
             is_vendor_product=is_vendor_product,
+            has_serial_number=has_serial_number,
             owner_id=current_user.id,
             # 分类体系字段
             category_id=category_id,
@@ -2278,6 +2282,13 @@ def update_product(id):
         if product.is_vendor_product != is_vendor_product:
             product.is_vendor_product = is_vendor_product
             logger.debug(f'厂商产品标记从 {product.is_vendor_product} 更新为 {is_vendor_product}')
+
+        # 更新 SN 管理标记(只在表单包含该字段时更新)
+        if 'has_serial_number' in request.form or request.method == 'POST':
+            has_serial_number = request.form.get('has_serial_number') == 'on'
+            if product.has_serial_number != has_serial_number:
+                product.has_serial_number = has_serial_number
+                logger.debug(f'SN 管理标记从 {not has_serial_number} 更新为 {has_serial_number}')
 
         # 更新分类字段（允许补充空值，管理员可以修改已有值）
         # 记录旧的分类ID，用于检测分类是否改变

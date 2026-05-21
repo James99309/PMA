@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from app import db
 from app.models.inventory import PurchaseOrder, PurchaseOrderDetail
+from app.models.sales_order import SalesOrder, SalesOrderDetail
 from app.models.customer import Company
 from app.models.product import Product
 from app.models.user import User
@@ -95,6 +96,7 @@ def list_view():
         Company.company_type == 'supplier'
     ).order_by(Company.company_name).all()
 
+    from app.utils.dictionary_helpers import get_currency_type_options
     return render_template(
         'inventory/tw_purchase_order_list.html',
         orders=orders,
@@ -105,7 +107,8 @@ def list_view():
         current_supplier_id=supplier_id,
         current_test_status=test_status,
         current_overdue=(overdue == '1'),
-        search=search
+        search=search,
+        currency_options=get_currency_type_options()
     )
 
 
@@ -126,12 +129,14 @@ def detail_view(order_id):
     # 判断是否为供应链用户（可以调整交期）
     is_supply_chain = is_supply_chain_user(current_user)
 
+    from app.utils.dictionary_helpers import get_currency_type_options
     return render_template(
         'inventory/tw_purchase_order_detail.html',
         order=order,
         suppliers=suppliers,
         is_supply_chain=is_supply_chain,
-        today=date.today()
+        today=date.today(),
+        currency_options=get_currency_type_options()
     )
 
 
@@ -199,6 +204,50 @@ def api_create():
         return jsonify({'success': False, 'message': f'创建失败: {str(e)}'})
 
 
+@purchase_order_bp.route('/api/<int:order_id>/delete', methods=['DELETE'])
+@login_required
+@permission_required('order', 'edit')
+def api_delete_order(order_id):
+    """删除采购订单（仅草稿状态）"""
+    try:
+        order = PurchaseOrder.query.get_or_404(order_id)
+
+        if order.status != 'draft':
+            return jsonify({'success': False, 'message': '只能删除草稿状态的订单'})
+
+        # 收集关联的 SO 明细 ID（删除后需要刷新 procured_quantity）
+        linked_so_detail_ids = set()
+        for detail in order.details:
+            if detail.sales_order_detail_id:
+                linked_so_detail_ids.add(detail.sales_order_detail_id)
+            db.session.delete(detail)
+
+        db.session.delete(order)
+        db.session.flush()
+
+        # 释放已扣除的采购量：重新计算关联 SO 明细的 procured_quantity
+        if linked_so_detail_ids:
+            for so_detail_id in linked_so_detail_ids:
+                so_detail = SalesOrderDetail.query.get(so_detail_id)
+                if so_detail:
+                    total_procured = db.session.query(
+                        db.func.coalesce(db.func.sum(PurchaseOrderDetail.quantity), 0)
+                    ).filter(
+                        PurchaseOrderDetail.sales_order_detail_id == so_detail_id
+                    ).scalar()
+                    so_detail.procured_quantity = total_procured
+
+        db.session.commit()
+        logger.info(f"删除采购订单 {order.order_number}")
+
+        return jsonify({'success': True, 'message': f'采购订单 {order.order_number} 已删除'})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除采购订单失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'})
+
+
 @purchase_order_bp.route('/api/<int:order_id>/update', methods=['PUT'])
 @login_required
 @permission_required('order', 'edit')
@@ -261,13 +310,10 @@ def api_supplier_confirm(order_id):
         if order.status != 'approved':
             return jsonify({'success': False, 'message': '订单尚未内部审批通过，无法进行供应商确认'})
 
-        # 检查是否有文件上传
-        if 'confirmation_file' not in request.files:
+        # 检查是否有文件上传（兼容通用组件的 'file' 和旧的 'confirmation_file'）
+        file = request.files.get('file') or request.files.get('confirmation_file')
+        if not file or file.filename == '':
             return jsonify({'success': False, 'message': '请上传供应商确认回执文件'})
-
-        file = request.files['confirmation_file']
-        if file.filename == '':
-            return jsonify({'success': False, 'message': '请选择文件'})
 
         # 验证文件类型
         allowed_extensions = {'pdf', 'jpg', 'jpeg', 'png'}
@@ -337,6 +383,85 @@ def api_supplier_confirm(order_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"记录供应商确认失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
+
+
+@purchase_order_bp.route('/api/<int:order_id>/shipments', methods=['GET'])
+@login_required
+@permission_required('order', 'view')
+def api_get_shipments(order_id):
+    """获取采购订单关联的发货记录"""
+    try:
+        from app.models.shipment import Shipment
+        import json
+
+        order = PurchaseOrder.query.get_or_404(order_id)
+        shipments = Shipment.query.filter_by(
+            purchase_order_id=order_id
+        ).order_by(Shipment.created_at.desc()).all()
+
+        data = []
+        for s in shipments:
+            # 目标显示
+            if s.sales_order:
+                target = s.sales_order.order_number
+                target_label = f'SO: {target}'
+            else:
+                target_label = '公司仓库'
+
+            # 解析文档
+            documents = []
+            if s.documents:
+                try:
+                    documents = json.loads(s.documents)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            delivery_proof_list = []
+            if s.delivery_proof:
+                try:
+                    delivery_proof_list = json.loads(s.delivery_proof)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            data.append({
+                'id': s.id,
+                'shipment_number': s.shipment_number,
+                'target': target_label,
+                'customer_name': s.sales_order.customer.company_name if s.sales_order and s.sales_order.customer else '',
+                'sales_order_number': s.sales_order.order_number if s.sales_order else '',
+                'total_quantity': s.total_quantity,
+                'status': s.status,
+                'status_label': s.status_label,
+                'ship_date': s.formatted_ship_date,
+                'carrier': s.carrier or '',
+                'tracking_number': s.tracking_number or '',
+                'expected_arrival': s.formatted_expected_arrival,
+                'received_date': s.received_date.strftime('%Y-%m-%d') if s.received_date else '',
+                'received_by': s.received_by or '',
+                'documents': documents,
+                'delivery_proof': delivery_proof_list,
+                'notes': s.notes or '',
+                'details': [{
+                    'id': d.id,
+                    'product_name': d.product_name,
+                    'product_model': d.product_model or '',
+                    'quantity': d.quantity,
+                    'unit': d.unit or '',
+                    'serial_numbers': json.loads(d.serial_numbers) if d.serial_numbers else [],
+                    'status': d.status,
+                    'received_quantity': d.received_quantity or 0
+                } for d in s.details]
+            })
+
+        return jsonify({
+            'success': True,
+            'shipments': data,
+            'total': len(data)
+        })
+
+    except Exception as e:
+        logger.error(f"获取发货记录失败: {str(e)}")
         return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
 
 
@@ -729,22 +854,46 @@ def api_upload_test_report(order_id):
     """上传测试报告"""
     try:
         order = PurchaseOrder.query.get_or_404(order_id)
-        data = request.get_json()
 
-        test_type = data.get('test_type')  # factory / site_fat / incoming
-        test_result = data.get('test_result')  # passed / failed / conditional
+        # 支持 FormData（从通用上传组件）和 JSON
+        test_category = request.form.get('test_category') or (request.get_json() or {}).get('test_type', 'factory')
+        test_status = request.form.get('test_status') or (request.get_json() or {}).get('test_result', 'passed')
 
-        if test_type == 'factory':
-            order.factory_test_status = test_result
-        elif test_type in ['site_fat', 'incoming']:
-            order.verification_test_status = test_result
+        # 上传文件
+        report_file = request.files.get('file')
+        if report_file:
+            from app.helpers.purchase_order_helpers import upload_file_to_storage
+            file_url = upload_file_to_storage(
+                order, report_file.read(), report_file.filename,
+                report_file.content_type, subfolder='test-reports'
+            )
+            if file_url:
+                order.factory_test_report_url = file_url
 
-        # 如果两个测试都通过，更新状态为tested
-        if order.factory_test_status == 'passed' and order.verification_test_status in ['passed', 'not_required']:
+        if test_category == 'factory':
+            order.factory_test_status = test_status
+            if test_status == 'passed':
+                order.factory_test_signed_at = datetime.now()
+        elif test_category in ['site_fat', 'incoming', 'verification']:
+            order.verification_test_status = test_status
+
+        # 工厂测试通过即可推进（验证测试在到货后单独处理）
+        if order.factory_test_status == 'passed':
             order.status = 'tested'
+            # 自动推进 production_status: testing → packaging
+            if order.production_status == 'testing':
+                from app.services.po_progress_service import PurchaseOrderProgressService
+                PurchaseOrderProgressService.advance_stage(
+                    order_id=order.id,
+                    new_stage='ready',
+                    operator_info={
+                        'user_id': current_user.id,
+                        'reason': '测试报告上传通过，自动推进'
+                    }
+                )
 
         db.session.commit()
-        return jsonify({'success': True, 'message': '测试报告已上传'})
+        return jsonify({'success': True, 'message': '测试报告已上传，阶段已推进'})
 
     except Exception as e:
         db.session.rollback()
@@ -791,6 +940,21 @@ def api_accept_delivery(order_id):
         order.acceptance_notes = data.get('acceptance_notes')
         order.actual_arrival_date = datetime.now()
         order.status = 'stored'
+
+        # 备货型明细（无关联客户订单）自动入公司仓库
+        from app.utils.inventory_helpers import update_inventory
+        for detail in order.details:
+            if not detail.sales_order_detail_id and (detail.received_quantity or 0) > 0:
+                update_inventory(
+                    company_id=order.company_id,
+                    product_id=detail.product_id,
+                    quantity_change=detail.received_quantity,
+                    transaction_type='in',
+                    reference_type='order',
+                    reference_id=order.id,
+                    description=f'采购订单 {order.order_number} 备货入库',
+                    user_id=current_user.id
+                )
 
         db.session.commit()
         return jsonify({'success': True, 'message': '验收入库完成'})
@@ -1201,6 +1365,70 @@ def api_get_delivery_changes(order_id):
             'created_at': c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else None
         } for c in changes]
     })
+
+
+# ============== 需求池 API ==============
+
+@purchase_order_bp.route('/api/procurement-demands', methods=['GET'])
+@login_required
+@permission_required('order', 'view')
+def api_procurement_demands():
+    """获取待采购需求池（本地SO中 remaining_to_procure > 0 的明细）"""
+    try:
+        search = request.args.get('search', '').strip()
+
+        query = db.session.query(SalesOrderDetail).join(
+            SalesOrder, SalesOrderDetail.sales_order_id == SalesOrder.id
+        ).filter(
+            SalesOrder.status.in_(['confirmed', 'preparing', 'shipped', 'delivered']),
+            SalesOrderDetail.quantity > db.func.coalesce(SalesOrderDetail.procured_quantity, 0)
+        )
+
+        if search:
+            query = query.filter(db.or_(
+                SalesOrderDetail.product_name.ilike(f'%{search}%'),
+                SalesOrderDetail.product_model.ilike(f'%{search}%'),
+                SalesOrder.order_number.ilike(f'%{search}%')
+            ))
+
+        details = query.order_by(SalesOrder.created_at.desc()).all()
+
+        demands = []
+        for d in details:
+            # 获取产品描述（从SO明细的specification或产品库）
+            product_desc = d.specification or ''
+            if not product_desc and d.product:
+                product_desc = d.product.specification or ''
+
+            demands.append({
+                'sales_order_detail_id': d.id,
+                'sales_order_id': d.sales_order_id,
+                'order_number': d.sales_order.order_number if d.sales_order else '',
+                'customer_name': d.sales_order.customer.company_name if d.sales_order and d.sales_order.customer else '',
+                'product_id': d.product_id,
+                'product_name': d.product_name,
+                'product_model': d.product_model,
+                'product_desc': product_desc,
+                'quantity': d.quantity,
+                'procured_quantity': d.procured_quantity or 0,
+                'remaining_to_procure': d.remaining_to_procure,
+                'unit': d.unit,
+                'source': 'CN'
+            })
+
+        # 尝试拉取对端NAS（SG）的需求，失败不影响本地
+        from app.services.cross_sync_service import fetch_peer_procurement_demands
+        try:
+            sg_demands = fetch_peer_procurement_demands()
+            if sg_demands:
+                demands.extend(sg_demands)
+        except Exception as sg_e:
+            logger.warning(f"拉取SG需求失败（不影响本地）: {sg_e}")
+
+        return jsonify({'success': True, 'demands': demands})
+    except Exception as e:
+        logger.error(f"获取需求池失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
 
 
 # 辅助函数已移至 app/helpers/purchase_order_helpers.py

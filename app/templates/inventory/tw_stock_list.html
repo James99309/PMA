@@ -1,0 +1,734 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('库存管理') }}</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" } } }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <script>
+      // 自动清理可能残留的首次登录引导 flag,避免本页加载时触发顶栏按钮误点
+      try {
+        sessionStorage.removeItem('justLoggedIn');
+        localStorage.setItem('pma_onboarding_completed', 'true');
+      } catch(e) {}
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='inventory', show_search=false) %}
+{% if slot == 'content' %}
+{% call(page_slot) render_tw_fixed_page() %}
+
+{% if page_slot == 'header' %}
+    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('库存管理') }}</h1>
+{% elif page_slot == 'content' %}
+
+{% if not current_company %}
+    <!-- 空状态:用户没有任何可见库存 -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
+        <span class="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600">inventory_2</span>
+        <h2 class="text-lg font-semibold text-slate-700 dark:text-slate-300 mt-4">{{ _('暂无库存数据') }}</h2>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">{{ _('当前账户尚无可查看的库存记录') }}</p>
+    </div>
+{% else %}
+
+<!-- Company Switcher -->
+<div x-data="{ openDropdown: false, query: '' }" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 mb-4">
+    <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4 flex-1 min-w-0">
+            {% set is_vendor = current_company.company_type == 'vendor' %}
+            <div class="w-12 h-12 rounded-xl {% if is_vendor %}bg-blue-100 dark:bg-blue-900/30{% else %}bg-purple-100 dark:bg-purple-900/30{% endif %} flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined {% if is_vendor %}text-blue-600 dark:text-blue-400{% else %}text-purple-600 dark:text-purple-400{% endif %} text-3xl">{% if is_vendor %}factory{% else %}store{% endif %}</span>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{{ _('当前查看库存') }}</div>
+                <div class="relative">
+                    {% if locked %}
+                        <div class="flex items-center gap-2 px-3 py-2 -ml-3">
+                            <span class="text-2xl font-bold text-slate-900 dark:text-white whitespace-nowrap truncate">{{ current_company.company_name }}</span>
+                            {% if is_vendor %}
+                                <span class="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded whitespace-nowrap">{{ _('厂商') }}</span>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <button @click="openDropdown = !openDropdown" class="flex items-center gap-2 px-3 py-2 -ml-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 group">
+                            <span class="text-2xl font-bold text-slate-900 dark:text-white whitespace-nowrap truncate">{{ current_company.company_name }}</span>
+                            {% if is_vendor %}
+                                <span class="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded whitespace-nowrap">{{ _('厂商') }}</span>
+                            {% endif %}
+                            <span class="material-symbols-outlined text-slate-400 group-hover:text-primary">expand_more</span>
+                        </button>
+                        <div x-show="openDropdown" @click.away="openDropdown = false" x-cloak class="absolute top-full left-0 mt-1 w-96 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl z-20 max-h-96 overflow-y-auto">
+                            <div class="p-3 border-b border-slate-200 dark:border-slate-700">
+                                <input type="text" x-model="query" placeholder="{{ _('搜索公司...') }}" class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm" />
+                            </div>
+                            <div class="py-1">
+                                {% for c in switchable %}
+                                    <a href="{{ url_for('inventory.tw_stock_list', company_id=c.id) }}"
+                                       x-show="!query || '{{ c.name|e }}'.toLowerCase().includes(query.toLowerCase())"
+                                       class="flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm {% if c.id == current_company.id %}bg-primary/10 text-primary{% else %}text-slate-700 dark:text-slate-300{% endif %}">
+                                        <span class="flex items-center gap-2 min-w-0">
+                                            <span class="material-symbols-outlined text-base shrink-0 {% if c.type == 'vendor' %}text-blue-500{% else %}text-purple-500{% endif %}">{% if c.type == 'vendor' %}factory{% else %}store{% endif %}</span>
+                                            <span class="truncate">{{ c.name }}</span>
+                                        </span>
+                                        <span class="text-xs text-slate-500 shrink-0 whitespace-nowrap">{{ c.total_qty }} {{ _('件') }}</span>
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-2 shrink-0">
+            {% if is_vendor_admin %}
+            <a href="{{ url_for('inventory.tw_transactions_list') }}" class="h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap">
+                <span class="material-symbols-outlined text-lg">public</span>{{ _('全局流水') }}
+            </a>
+            {% endif %}
+            {% if is_vendor_admin %}
+            <button onclick="openImportModal()" class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap">
+                <span class="material-symbols-outlined text-lg">upload_file</span>{{ _('Excel 导入') }}
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if locked %}
+<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 mb-4 text-sm text-blue-900 dark:text-blue-200">
+    <span class="material-symbols-outlined text-base align-middle mr-1">info</span>
+    {{ _('您正在查看本公司的库存。如需查看其他公司库存,请联系厂商管理员。') }}
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="grid grid-cols-3 gap-3 mb-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+        <span class="material-symbols-outlined text-slate-400">view_in_ar</span>
+        <div class="text-2xl font-bold text-slate-900 dark:text-white mt-2">{{ stats.products }}</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('在册产品') }}</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+        <span class="material-symbols-outlined text-slate-400">inventory_2</span>
+        <div class="text-2xl font-bold text-slate-900 dark:text-white mt-2">{{ stats.total_qty }}</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('总数量') }}</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+        <span class="material-symbols-outlined text-slate-400">timeline</span>
+        <div class="text-2xl font-bold text-slate-900 dark:text-white mt-2">{{ stats.monthly_tx }}</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('本月流水') }}</div>
+    </div>
+</div>
+
+<!-- Tabs + Table -->
+<div x-data="{ tab: 'inventory', search: '' }" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
+    <div class="border-b border-slate-200 dark:border-slate-700 px-2 flex items-center">
+        <nav class="flex gap-1 flex-1">
+            <button @click="tab = 'inventory'" :class="tab === 'inventory' ? 'text-primary border-primary' : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-700 dark:hover:text-slate-200'" class="px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap">
+                <span class="material-symbols-outlined text-base align-middle mr-1">inventory_2</span>{{ _('库存') }} ({{ stats.products }})
+            </button>
+            <button @click="tab = 'transactions'" :class="tab === 'transactions' ? 'text-primary border-primary' : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-700 dark:hover:text-slate-200'" class="px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap">
+                <span class="material-symbols-outlined text-base align-middle mr-1">timeline</span>{{ _('流水') }} ({{ tx_rows|length if tx_rows else 0 }})
+            </button>
+        </nav>
+        <div class="pr-3 flex items-center gap-2">
+            <input type="text" x-model="search" placeholder="{{ _('搜产品/MN号...') }}" class="h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm w-64" />
+        </div>
+    </div>
+
+    <!-- Inventory Tab -->
+    <div x-show="tab === 'inventory'">
+        {% if inventories %}
+        <table class="w-full">
+            <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                    <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('产品') }}</th>
+                    <th class="p-4 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('数量') }}</th>
+                    <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('最后变动') }}</th>
+                    <th class="p-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase w-32">{{ _('操作') }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                {% for inv in inventories %}
+                {% set tx = last_tx_map.get(inv.id) %}
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                    x-show="!search || '{{ inv.product.product_name|e if inv.product else '' }}'.toLowerCase().includes(search.toLowerCase()) || '{{ inv.product.product_mn|e if inv.product else '' }}'.toLowerCase().includes(search.toLowerCase())">
+                    <td class="p-4">
+                        <div class="text-sm font-medium text-slate-900 dark:text-white">{{ inv.product.product_name if inv.product else '-' }}</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">{{ inv.product.product_mn if inv.product else '' }}</div>
+                    </td>
+                    <td class="p-4 text-right whitespace-nowrap">
+                        <span class="text-base font-bold text-slate-900 dark:text-white">{{ inv.quantity }}</span>
+                        <span class="text-xs text-slate-500">{{ inv.unit or _('件') }}</span>
+                    </td>
+                    <td class="p-4 text-xs">
+                        {% if tx %}
+                            {% set delta = tx.quantity_after - tx.quantity_before %}
+                            <div class="text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                {{ tx.transaction_date.strftime('%m-%d') }}
+                                {% if tx.transaction_type == 'in' %}{{ _('入库') }} +{{ delta }}
+                                {% elif tx.transaction_type == 'out' %}{{ _('出库') }} {{ delta }}
+                                {% elif tx.transaction_type == 'adjustment' %}{{ _('设值') }} {{ tx.quantity_after }}
+                                {% elif tx.transaction_type == 'settlement' %}{{ _('结算') }} {{ delta }}
+                                {% else %}{{ delta }}
+                                {% endif %}
+                            </div>
+                            {% if tx.description %}
+                                <div class="text-slate-400 truncate max-w-xs" title="{{ tx.description }}">{{ tx.description }}</div>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-slate-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-4 text-center">
+                        {% if has_permission('inventory', 'edit') %}
+                        <button onclick="openAdjust({{ inv.id }}, '{{ (inv.product.product_name if inv.product else '')|e }}', {{ inv.quantity }}, '{{ (inv.unit or _('件'))|e }}')"
+                                class="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-lg inline-flex items-center gap-1 whitespace-nowrap">
+                            <span class="material-symbols-outlined text-sm">tune</span>{{ _('调整') }}
+                        </button>
+                        {% else %}
+                            <span class="text-xs text-slate-300 dark:text-slate-600">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-12 text-center">
+            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600">inbox</span>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-3">{{ _('该公司暂无库存记录') }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Transactions Tab -->
+    <div x-show="tab === 'transactions'" x-cloak>
+        {% if tx_rows %}
+        <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('时间') }}</th>
+                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('产品') }}</th>
+                    <th class="p-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('类型') }}</th>
+                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('变动') }}</th>
+                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('变化') }}</th>
+                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('关联/备注') }}</th>
+                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('操作人') }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                {% for r in tx_rows %}
+                {% set tx = r.tx %}
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <td class="p-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {{ tx.transaction_date.strftime('%Y-%m-%d %H:%M') if tx.transaction_date else '-' }}
+                    </td>
+                    <td class="p-3 text-sm text-slate-900 dark:text-white">
+                        {{ r.product.product_name if r.product else '-' }}
+                        {% if r.product and r.product.product_mn %}
+                        <span class="block text-xs text-slate-400 font-mono">{{ r.product.product_mn }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-3 text-center">
+                        {% set type_config = {
+                            'in': ('bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', _('入库')),
+                            'out': ('bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', _('出库')),
+                            'adjustment': ('bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-200', _('调整')),
+                            'settlement': ('bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', _('结算出库'))
+                        } %}
+                        {% set cfg = type_config.get(tx.transaction_type, ('bg-slate-100 text-slate-600', tx.transaction_type)) %}
+                        <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap {{ cfg[0] }}">{{ cfg[1] }}</span>
+                    </td>
+                    <td class="p-3 text-right text-sm font-bold whitespace-nowrap {{ 'text-emerald-600 dark:text-emerald-400' if tx.transaction_type == 'in' else ('text-rose-600 dark:text-rose-400' if tx.transaction_type in ['out','settlement'] else 'text-slate-700 dark:text-slate-200') }}">
+                        {% if tx.transaction_type == 'in' %}+{{ tx.quantity }}
+                        {% elif tx.transaction_type in ['out','settlement'] %}{{ tx.quantity }}
+                        {% elif tx.transaction_type == 'adjustment' %}→ {{ tx.quantity_after }}
+                        {% else %}{{ tx.quantity }}{% endif %}
+                    </td>
+                    <td class="p-3 text-right text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {{ tx.quantity_before }} → {{ tx.quantity_after }}
+                    </td>
+                    <td class="p-3 text-xs">
+                        {% if r.ref_url %}
+                            <a href="{{ r.ref_url }}" class="text-primary hover:underline font-mono">{{ tx.reference_type }}#{{ tx.reference_id }}</a>
+                        {% elif tx.reference_type == 'manual' %}
+                            <span class="text-slate-500 dark:text-slate-400">{{ _('手动') }}</span>
+                        {% elif tx.reference_type == 'import' %}
+                            <span class="text-purple-600 dark:text-purple-400">{{ _('期初导入') }} #{{ tx.reference_id or '-' }}</span>
+                        {% else %}
+                            <span class="text-slate-400">—</span>
+                        {% endif %}
+                        {% if tx.description %}
+                        <div class="text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-xs" title="{{ tx.description }}">{{ tx.description }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="p-3 text-xs text-slate-500 dark:text-slate-400">{{ tx.created_by.username if tx.created_by else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% if tx_rows|length >= 100 %}
+        <div class="p-3 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700">
+            {{ _('仅显示最近 100 条 · 完整流水请用') }} <a href="{{ url_for('inventory.tw_transactions_list', company_id=current_company.id) }}" class="text-primary hover:underline">{{ _('全局流水(已筛选本公司)') }}</a>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="p-12 text-center">
+            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600">inbox</span>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-3">{{ _('该公司暂无流水记录') }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 调整 Modal -->
+<div id="adjustModal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this)closeAdjust()">
+    <div class="fixed inset-0 bg-black/50"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <form id="adjustForm" class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md" onclick="event.stopPropagation()" onsubmit="submitAdjust(event)">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white inline-flex items-center gap-2">
+                    <span class="material-symbols-outlined">tune</span>{{ _('调整库存') }}
+                </h3>
+                <button type="button" onclick="closeAdjust()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <input type="hidden" id="adj_inv_id" name="inventory_id" value="" />
+                <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                    <div class="text-xs text-slate-500 dark:text-slate-400">{{ _('产品 · 当前公司') }}</div>
+                    <div class="text-sm font-medium text-slate-900 dark:text-white mt-1">
+                        <span id="adj_product"></span> · {{ current_company.company_name if current_company else '' }}
+                    </div>
+                    <div class="text-2xl font-bold text-slate-900 dark:text-white mt-2">
+                        {{ _('当前库存') }} <span class="text-primary" id="adj_current_qty">0</span> <span id="adj_unit" class="text-base text-slate-500"></span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('调整方式') }}</label>
+                    <div class="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                        <button type="button" onclick="setMode('in', this)" class="adj-mode-btn px-2 py-2 text-xs font-medium rounded text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 whitespace-nowrap">{{ _('入库') }} (+)</button>
+                        <button type="button" onclick="setMode('out', this)" class="adj-mode-btn px-2 py-2 text-xs font-medium rounded text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 whitespace-nowrap">{{ _('出库') }} (-)</button>
+                        <button type="button" onclick="setMode('set', this)" class="adj-mode-btn px-2 py-2 text-xs font-medium rounded bg-white dark:bg-slate-600 text-primary shadow-sm whitespace-nowrap">{{ _('设值') }} (=)</button>
+                    </div>
+                    <input type="hidden" id="adj_mode" name="action_type" value="set" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        <span id="adj_qty_label">{{ _('目标值') }}</span> <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" name="quantity" min="1" required class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
+                    <p id="adj_qty_help" class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ _('直接设为该绝对值,系统记录差异') }}</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('原因') }} <span class="text-red-500">*</span></label>
+                    <select name="reason" required class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                        <option value="">{{ _('请选择...') }}</option>
+                        <option value="{{ _('盘点损耗') }}">{{ _('盘点损耗') }}</option>
+                        <option value="{{ _('报损') }}">{{ _('报损') }}</option>
+                        <option value="{{ _('内部使用') }}">{{ _('内部使用') }}</option>
+                        <option value="{{ _('客户退货') }}">{{ _('客户退货') }}</option>
+                        <option value="{{ _('跨仓调拨') }}">{{ _('跨仓调拨') }}</option>
+                        <option value="{{ _('期初补录') }}">{{ _('期初补录') }}</option>
+                        <option value="{{ _('其他') }}">{{ _('其他') }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('备注') }}</label>
+                    <textarea name="notes" rows="2" placeholder="{{ _('补充说明(可选)') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"></textarea>
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+                <button type="button" onclick="closeAdjust()" class="h-10 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium">{{ _('取消') }}</button>
+                <button type="submit" id="adj_submit" class="h-10 px-4 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium whitespace-nowrap">{{ _('确认调整') }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if is_vendor_admin %}
+<!-- Excel 导入大模态(两步:上传 → 预览)-->
+<div id="importModal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this)closeImport()">
+    <div class="fixed inset-0 bg-black/50"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+            <!-- 头 -->
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white inline-flex items-center gap-2">
+                    <span class="material-symbols-outlined">upload_file</span>{{ _('Excel 导入') }}
+                </h3>
+                <button onclick="closeImport()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><span class="material-symbols-outlined">close</span></button>
+            </div>
+
+            <!-- 步骤进度 -->
+            <div class="px-5 pt-4 pb-2">
+                <div class="flex items-center justify-between max-w-3xl mx-auto">
+                    <div class="flex items-center gap-3">
+                        <div id="step1Indicator" class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-sm">1</div>
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('上传文件') }}</span>
+                    </div>
+                    <div id="stepConnector" class="flex-1 h-px bg-slate-200 dark:bg-slate-700 mx-3"></div>
+                    <div class="flex items-center gap-3">
+                        <div id="step2Indicator" class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 flex items-center justify-center font-semibold text-sm">2</div>
+                        <span class="text-sm text-slate-500 dark:text-slate-400">{{ _('预览校验') }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 内容区(可滚动)-->
+            <div class="px-5 py-3 overflow-y-auto flex-1">
+                <!-- Step 1: 上传 -->
+                <div id="importStep1">
+                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 text-sm text-blue-900 dark:text-blue-200">
+                        <span class="material-symbols-outlined text-base align-middle mr-1">info</span>
+                        {{ _('Excel 必含列:MN号 / 公司名 / 数量(可选:单位、存储位置、最低库存、最高库存、备注)。导入语义=设值,会覆盖现有库存。') }}
+                    </div>
+
+                    <label for="importFileInput" class="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer hover:border-primary transition-colors">
+                        <span class="material-symbols-outlined text-5xl text-slate-400 mb-3">cloud_upload</span>
+                        <span class="text-base font-medium text-slate-700 dark:text-slate-300">{{ _('点击选择文件 或 拖拽到此处') }}</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ _('支持 .xlsx / .xls 格式') }}</span>
+                        <input id="importFileInput" type="file" accept=".xlsx,.xls" class="hidden" onchange="onFileSelected(this)" />
+                    </label>
+
+                    <div class="mt-4 text-center">
+                        <a href="{{ url_for('inventory.tw_import_template') }}" class="text-sm text-primary hover:underline inline-flex items-center gap-1">
+                            <span class="material-symbols-outlined text-base">download</span>{{ _('下载导入模板') }}
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Step 2: 预览 -->
+                <div id="importStep2" class="hidden">
+                    <!-- 文件信息 -->
+                    <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg mb-3">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400">description</span>
+                            <div>
+                                <div id="importFileName" class="text-sm font-medium text-slate-900 dark:text-white"></div>
+                                <div id="importFileMeta" class="text-xs text-slate-500 dark:text-slate-400"></div>
+                            </div>
+                        </div>
+                        <button onclick="backToUpload()" class="text-sm text-primary hover:underline">{{ _('重新上传') }}</button>
+                    </div>
+
+                    <!-- 概览卡 -->
+                    <div class="grid grid-cols-4 gap-3 mb-3">
+                        <div class="bg-white dark:bg-slate-800 rounded-xl border-2 border-primary p-3">
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('全部') }}</div>
+                            <div id="sumTotal" class="text-2xl font-bold text-slate-900 dark:text-white">0</div>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                            <div class="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400 mb-1"><span class="material-symbols-outlined text-sm">check_circle</span>{{ _('新建') }}</div>
+                            <div id="sumSuccess" class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">0</div>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                            <div class="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 mb-1"><span class="material-symbols-outlined text-sm">warning</span>{{ _('覆盖') }}</div>
+                            <div id="sumWarning" class="text-2xl font-bold text-amber-600 dark:text-amber-400">0</div>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                            <div class="flex items-center gap-1 text-xs text-red-700 dark:text-red-400 mb-1"><span class="material-symbols-outlined text-sm">error</span>{{ _('失败') }}</div>
+                            <div id="sumFailed" class="text-2xl font-bold text-red-600 dark:text-red-400">0</div>
+                        </div>
+                    </div>
+
+                    <!-- 预览表 -->
+                    <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden max-h-[40vh] overflow-y-auto">
+                        <table class="w-full">
+                            <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 sticky top-0">
+                                <tr>
+                                    <th class="p-2 text-center text-xs font-semibold text-slate-500 uppercase">{{ _('行') }}</th>
+                                    <th class="p-2 text-left text-xs font-semibold text-slate-500 uppercase">MN号</th>
+                                    <th class="p-2 text-left text-xs font-semibold text-slate-500 uppercase">{{ _('公司') }}</th>
+                                    <th class="p-2 text-left text-xs font-semibold text-slate-500 uppercase">{{ _('产品') }}</th>
+                                    <th class="p-2 text-right text-xs font-semibold text-slate-500 uppercase">{{ _('目标') }}</th>
+                                    <th class="p-2 text-right text-xs font-semibold text-slate-500 uppercase">{{ _('当前') }}</th>
+                                    <th class="p-2 text-left text-xs font-semibold text-slate-500 uppercase">{{ _('状态') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="importRows" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部 -->
+            <div id="importFooter" class="hidden flex items-center justify-between p-4 border-t border-slate-200 dark:border-slate-700">
+                <div id="importSummary" class="text-sm text-slate-600 dark:text-slate-300"></div>
+                <div class="flex gap-2">
+                    <button onclick="closeImport()" class="h-10 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium">{{ _('取消') }}</button>
+                    <button id="importCommitBtn" onclick="commitImport()" class="h-10 px-5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap">
+                        <span class="material-symbols-outlined text-lg">check</span><span id="importCommitText">{{ _('确认导入') }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+let currentInvQty = 0;
+let importPreviewData = null;
+
+function openImportModal() {
+    document.getElementById('importStep1').classList.remove('hidden');
+    document.getElementById('importStep2').classList.add('hidden');
+    document.getElementById('importFooter').classList.add('hidden');
+    document.getElementById('step2Indicator').className = 'w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 flex items-center justify-center font-semibold text-sm';
+    document.getElementById('importFileInput').value = '';
+    importPreviewData = null;
+    document.getElementById('importModal').classList.remove('hidden');
+}
+function closeImport() {
+    document.getElementById('importModal').classList.add('hidden');
+}
+function backToUpload() {
+    document.getElementById('importStep1').classList.remove('hidden');
+    document.getElementById('importStep2').classList.add('hidden');
+    document.getElementById('importFooter').classList.add('hidden');
+    document.getElementById('step2Indicator').className = 'w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 flex items-center justify-center font-semibold text-sm';
+}
+
+async function onFileSelected(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const resp = await fetch('{{ url_for("inventory.tw_import_preview") }}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content },
+            body: formData,
+        });
+        const result = await resp.json();
+        if (!result.success) {
+            alert(result.message || '{{ _("文件解析失败") }}');
+            return;
+        }
+        importPreviewData = result;
+        renderPreview(file, result);
+    } catch (err) {
+        alert('{{ _("上传出错") }}: ' + err.message);
+    }
+}
+
+function renderPreview(file, data) {
+    document.getElementById('importStep1').classList.add('hidden');
+    document.getElementById('importStep2').classList.remove('hidden');
+    document.getElementById('importFooter').classList.remove('hidden');
+    document.getElementById('step2Indicator').className = 'w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-sm';
+    document.getElementById('importFileName').textContent = file.name;
+    document.getElementById('importFileMeta').textContent = `${data.summary.total} {{ _('行') }} · ${(file.size/1024).toFixed(0)} KB`;
+    document.getElementById('sumTotal').textContent = data.summary.total;
+    document.getElementById('sumSuccess').textContent = data.summary.success;
+    document.getElementById('sumWarning').textContent = data.summary.warning;
+    document.getElementById('sumFailed').textContent = data.summary.failed;
+
+    const tbody = document.getElementById('importRows');
+    tbody.innerHTML = '';
+    const colorMap = {
+        'success': '',
+        'warning': 'bg-amber-50/40 dark:bg-amber-900/10',
+        'failed': 'bg-red-50/40 dark:bg-red-900/10',
+    };
+    const badgeMap = {
+        'success': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+        'warning': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+        'failed': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    };
+    const iconMap = {'success':'check_circle','warning':'warning','failed':'error'};
+    data.rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = (colorMap[r.status] || '') + ' hover:bg-slate-50 dark:hover:bg-slate-700/50';
+        tr.innerHTML = `
+            <td class="p-2 text-center text-xs text-slate-500">${r.line_no}</td>
+            <td class="p-2 text-xs font-mono text-slate-700 dark:text-slate-300">${escapeHtml(r.mn)}</td>
+            <td class="p-2 text-xs text-slate-700 dark:text-slate-300">${escapeHtml(r.company_name)}</td>
+            <td class="p-2 text-xs text-slate-900 dark:text-white">${escapeHtml(r.product_name || '-')}</td>
+            <td class="p-2 text-right text-xs font-medium text-slate-900 dark:text-white">${r.quantity ?? '—'}</td>
+            <td class="p-2 text-right text-xs text-slate-500">${r.current_qty ?? '—'}</td>
+            <td class="p-2"><span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${badgeMap[r.status]}">
+                <span class="material-symbols-outlined text-sm">${iconMap[r.status]}</span>${escapeHtml(r.reason)}</span></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Summary text + button
+    const will = data.summary.success + data.summary.warning;
+    document.getElementById('importSummary').innerHTML = `
+        <span class="text-emerald-600 dark:text-emerald-400 font-semibold">${will} {{ _('行') }}</span> {{ _('将被导入') }}
+        (${data.summary.success} {{ _('新建') }} + ${data.summary.warning} {{ _('覆盖') }}) ·
+        <span class="text-red-600 dark:text-red-400 font-semibold">${data.summary.failed} {{ _('行') }}</span> {{ _('失败将跳过') }}
+    `;
+    document.getElementById('importCommitText').textContent = `{{ _('确认导入') }} ${will} {{ _('行') }}`;
+    const btn = document.getElementById('importCommitBtn');
+    if (will === 0) {
+        btn.disabled = true;
+        btn.className = 'h-10 px-5 bg-slate-300 dark:bg-slate-600 text-slate-500 dark:text-slate-400 rounded-lg text-sm font-medium inline-flex items-center gap-2 cursor-not-allowed whitespace-nowrap';
+    } else {
+        btn.disabled = false;
+        btn.className = 'h-10 px-5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap';
+    }
+}
+
+async function commitImport() {
+    if (!importPreviewData) return;
+    const btn = document.getElementById('importCommitBtn');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-lg">progress_activity</span>{{ _("提交中...") }}';
+    try {
+        const resp = await fetch('{{ url_for("inventory.tw_import_commit") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content,
+            },
+            body: JSON.stringify({ rows: importPreviewData.rows }),
+        });
+        const result = await resp.json();
+        if (result.success) {
+            alert(`{{ _("导入成功") }}: ${result.written} {{ _("行") }}, ${result.skipped} {{ _("行跳过") }}`);
+            location.reload();
+        } else {
+            alert(result.message || '{{ _("导入失败") }}');
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    } catch (err) {
+        alert('{{ _("网络错误") }}: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = original;
+    }
+}
+
+function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// drag and drop support
+const dropZone = document.querySelector('label[for=importFileInput]');
+if (dropZone) {
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-primary'); });
+    dropZone.addEventListener('dragleave', e => { dropZone.classList.remove('border-primary'); });
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('border-primary');
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            const input = document.getElementById('importFileInput');
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            input.files = dt.files;
+            onFileSelected(input);
+        }
+    });
+}
+
+function openAdjust(invId, productName, qty, unit) {
+    document.getElementById('adj_inv_id').value = invId;
+    document.getElementById('adj_product').textContent = productName;
+    document.getElementById('adj_current_qty').textContent = qty;
+    document.getElementById('adj_unit').textContent = unit;
+    currentInvQty = qty;
+    setMode('set', document.querySelectorAll('.adj-mode-btn')[2]);
+    document.getElementById('adjustForm').reset();
+    document.getElementById('adj_inv_id').value = invId;
+    document.getElementById('adjustModal').classList.remove('hidden');
+}
+function closeAdjust() {
+    document.getElementById('adjustModal').classList.add('hidden');
+}
+function setMode(mode, btn) {
+    document.querySelectorAll('.adj-mode-btn').forEach(b => b.className = 'adj-mode-btn px-2 py-2 text-xs font-medium rounded text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600 whitespace-nowrap');
+    btn.className = 'adj-mode-btn px-2 py-2 text-xs font-medium rounded bg-white dark:bg-slate-600 text-primary shadow-sm whitespace-nowrap';
+    document.getElementById('adj_mode').value = mode;
+    const lab = document.getElementById('adj_qty_label');
+    const help = document.getElementById('adj_qty_help');
+    if (mode === 'in') {
+        lab.textContent = '{{ _("入库数量") }}';
+        help.textContent = '{{ _("增量;库存将变为当前 + 该值") }}';
+    } else if (mode === 'out') {
+        lab.textContent = '{{ _("出库数量") }}';
+        help.textContent = '{{ _("减量;不能超过当前库存") }} ' + currentInvQty;
+    } else {
+        lab.textContent = '{{ _("目标值") }}';
+        help.textContent = '{{ _("直接设为该绝对值,系统记录差异") }}';
+    }
+}
+async function submitAdjust(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('adj_submit');
+    submitBtn.disabled = true;
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '{{ _("提交中...") }}';
+    try {
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
+        const resp = await fetch('{{ url_for("inventory.tw_stock_adjust") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content,
+            },
+            body: JSON.stringify(data),
+        });
+        const result = await resp.json();
+        if (result.success) {
+            location.reload();
+        } else {
+            alert(result.message || '{{ _("操作失败") }}');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    } catch (err) {
+        alert('{{ _("网络错误") }}: ' + err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
+}
+</script>
+
+{% endif %}
+
+{% endif %}
+{% endcall %}
+{% endif %}
+{% endcall %}
+
+{# layout 的 JS 工厂函数(taskCreateModal / chatPanel / quickUpload 等 Alpine 组件) #}
+{{ render_tw_layout_script() }}
+</body>
+</html>

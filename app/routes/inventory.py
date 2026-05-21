@@ -5856,3 +5856,645 @@ def confirm_order_ship(order_id):
         db.session.rollback()
         logger.error(f"确认发货失败：{str(e)}")
         return jsonify({'success': False, 'message': f'确认失败：{str(e)}'})
+
+
+# =============================================================================
+# Task 2: Tailwind 库存基础页 — 权限感知单公司视图
+# =============================================================================
+
+def _resolve_default_company(user):
+    """决定当前用户默认看哪家公司的库存。
+
+    Rules:
+    - 外部用户(linked_company_id 不为空) → 只能看自己 linked 的公司
+    - 内部用户(linked_company_id 为空,EVERTAC 员工) → 默认 PMA 平台所属公司
+      平台所属公司 = 在 companies 表里被打上 company_type='vendor' 的那一条
+      (注意:'supplier' 是上游供应商,不算平台自己;不要混淆)
+    - 都不满足 → fall back 到第一家有库存的公司(只是不显示厂商徽章)
+    """
+    if user.linked_company_id:
+        return user.linked_company_id, True  # locked
+
+    # 内部用户:优先平台所属(vendor)公司
+    vendor_co = db.session.query(Company.id).filter(
+        Company.is_deleted == False,
+        Company.company_type == 'vendor'
+    ).order_by(Company.id).first()
+    if vendor_co:
+        return vendor_co[0], False
+
+    # Fallback:按字母选第一家有库存的
+    fallback = db.session.query(Company.id).join(
+        Inventory, Inventory.company_id == Company.id
+    ).filter(Company.is_deleted == False).order_by(Company.company_name).first()
+    return (fallback[0] if fallback else None), False
+
+
+def _user_can_view_company(user, company_id):
+    """非厂商用户只能看自己 linked 的公司。"""
+    if user.linked_company_id is None:
+        return True  # 内部/厂商用户全开
+    return user.linked_company_id == company_id
+
+
+def _switchable_companies():
+    """返回当前所有有库存的公司(供 switcher 下拉用)。
+
+    排序:平台所属公司(vendor)优先,然后按公司名字母。
+    """
+    # SQL CASE 让 vendor 排序值为 0,其他为 1
+    is_vendor_order = db.case(
+        (Company.company_type == 'vendor', 0),
+        else_=1
+    )
+    rows = db.session.query(
+        Company.id, Company.company_name, Company.company_type,
+        func.count(Inventory.id).label('inv_count'),
+        func.sum(Inventory.quantity).label('total_qty')
+    ).join(Inventory, Inventory.company_id == Company.id).filter(
+        Company.is_deleted == False
+    ).group_by(Company.id, Company.company_name, Company.company_type).order_by(
+        is_vendor_order, Company.company_name
+    ).all()
+    return [{
+        'id': r.id,
+        'name': r.company_name,
+        'type': r.company_type or 'user',
+        'inv_count': r.inv_count or 0,
+        'total_qty': int(r.total_qty or 0),
+    } for r in rows]
+
+
+@inventory.route('/tw_stock')
+@inventory.route('/tw_stock/<int:company_id>')
+@login_required
+@permission_required('inventory', 'view')
+def tw_stock_list(company_id=None):
+    """新版 Tailwind 库存管理页 - 权限感知单公司视图。"""
+    # 1. Resolve target company
+    locked = False
+    if company_id is None:
+        company_id, locked = _resolve_default_company(current_user)
+        if company_id is None:
+            return render_template('inventory/tw_stock_list.html',
+                                   current_company=None, inventories=[],
+                                   switchable=[], locked=False,
+                                   stats={'products': 0, 'total_qty': 0, 'monthly_tx': 0})
+    else:
+        # External users can only access their own company
+        if not _user_can_view_company(current_user, company_id):
+            flash('您没有权限查看该公司的库存', 'danger')
+            return redirect(url_for('inventory.tw_stock_list'))
+        locked = current_user.linked_company_id is not None
+
+    company = Company.query.get_or_404(company_id)
+
+    # 2. Inventory rows + last transaction (eager loaded)
+    inventories = Inventory.query.filter_by(company_id=company_id).join(
+        Product, Product.id == Inventory.product_id
+    ).order_by(Product.product_name).all()
+
+    # Attach last transaction to each inventory item for "Last change" column
+    inv_ids = [i.id for i in inventories]
+    last_tx_map = {}
+    if inv_ids:
+        # Get latest transaction per inventory using subquery
+        subq = db.session.query(
+            InventoryTransaction.inventory_id,
+            func.max(InventoryTransaction.transaction_date).label('max_date')
+        ).filter(InventoryTransaction.inventory_id.in_(inv_ids)).group_by(
+            InventoryTransaction.inventory_id
+        ).subquery()
+        latest_txs = db.session.query(InventoryTransaction).join(
+            subq,
+            (InventoryTransaction.inventory_id == subq.c.inventory_id) &
+            (InventoryTransaction.transaction_date == subq.c.max_date)
+        ).all()
+        last_tx_map = {tx.inventory_id: tx for tx in latest_txs}
+
+    # 3. Stats for this company
+    from datetime import datetime as _dt
+    month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_tx = db.session.query(func.count(InventoryTransaction.id)).filter(
+        InventoryTransaction.inventory_id.in_(inv_ids) if inv_ids else False,
+        InventoryTransaction.transaction_date >= month_start
+    ).scalar() or 0
+
+    stats = {
+        'products': len(inventories),
+        'total_qty': sum(i.quantity for i in inventories),
+        'monthly_tx': int(monthly_tx),
+    }
+
+    # 4. Switchable companies (only if not locked)
+    switchable = _switchable_companies() if not locked else []
+
+    # 5. 当前公司的流水(供"流水" Tab 用),最多展示最近 100 条
+    tx_rows = []
+    if inv_ids:
+        recent_txs = db.session.query(InventoryTransaction).filter(
+            InventoryTransaction.inventory_id.in_(inv_ids)
+        ).order_by(InventoryTransaction.id.desc()).limit(100).all()
+        # 把 inventory.product 预加载到字典
+        inv_by_id = {i.id: i for i in inventories}
+        for tx in recent_txs:
+            inv = inv_by_id.get(tx.inventory_id)
+            tx_rows.append({
+                'tx': tx,
+                'product': inv.product if inv else None,
+                'ref_url': _build_ref_url(tx.reference_type, tx.reference_id),
+            })
+
+    return render_template('inventory/tw_stock_list.html',
+                           current_company=company,
+                           inventories=inventories,
+                           last_tx_map=last_tx_map,
+                           switchable=switchable,
+                           locked=locked,
+                           stats=stats,
+                           tx_rows=tx_rows,
+                           is_vendor_admin=(current_user.linked_company_id is None))
+
+
+@inventory.route('/api/tw_stock_adjust', methods=['POST'])
+@login_required
+@permission_required('inventory', 'edit')
+def tw_stock_adjust():
+    """Tailwind 调整模态的后端 API.
+
+    Accepts: inventory_id (required for 'out'/'set'; for 'in' on new product handled separately later)
+             action_type ('in' | 'out' | 'set')
+             quantity (positive integer)
+             reason (label string, mandatory)
+             notes (free text, optional)
+    """
+    try:
+        data = request.get_json() or request.form
+        inventory_id = data.get('inventory_id')
+        action_type = data.get('action_type')
+        quantity = data.get('quantity')
+        reason = (data.get('reason') or '').strip()
+        notes = (data.get('notes') or '').strip()
+
+        if not inventory_id or not action_type or not quantity:
+            return jsonify({'success': False, 'message': '缺少必要参数'}), 400
+        if not reason:
+            return jsonify({'success': False, 'message': '原因必填'}), 400
+        try:
+            qty = int(quantity)
+            if qty <= 0:
+                return jsonify({'success': False, 'message': '数量必须大于 0'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': '数量必须是有效整数'}), 400
+
+        inv = Inventory.query.get_or_404(int(inventory_id))
+
+        # Permission check: external user can only adjust own company's inventory
+        if not _user_can_view_company(current_user, inv.company_id):
+            return jsonify({'success': False, 'message': '没有权限'}), 403
+
+        # Resolve quantity_change and transaction_type
+        if action_type == 'in':
+            quantity_change = qty
+            trans_type = 'in'
+        elif action_type == 'out':
+            quantity_change = -qty
+            trans_type = 'out'
+        elif action_type == 'set':
+            quantity_change = qty - inv.quantity
+            trans_type = 'adjustment'
+        else:
+            return jsonify({'success': False, 'message': '无效的操作类型'}), 400
+
+        # Reject out-of-stock
+        if quantity_change < 0 and inv.quantity + quantity_change < 0:
+            return jsonify({'success': False, 'message': f'库存不足,当前 {inv.quantity}'}), 400
+
+        # Build description: reason · notes
+        description = reason if not notes else f'{reason} · {notes}'
+
+        success, message, updated = update_inventory(
+            company_id=inv.company_id,
+            product_id=inv.product_id,
+            quantity_change=quantity_change,
+            transaction_type=trans_type,
+            description=description,
+            reference_type='manual',
+            user_id=current_user.id,
+        )
+        if not success:
+            return jsonify({'success': False, 'message': message}), 400
+
+        return jsonify({
+            'success': True,
+            'message': '调整成功',
+            'new_quantity': updated.quantity,
+            'change': quantity_change,
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"tw_stock_adjust failed: {e}")
+        return jsonify({'success': False, 'message': f'操作失败: {e}'}), 500
+
+
+# =============================================================================
+# Task 3: 全局流水(厂商管理员专属)
+# =============================================================================
+
+def _is_vendor_admin(user):
+    """厂商管理员 = 内部用户(无 linked_company_id)且有 inventory.view 权限。"""
+    return user.linked_company_id is None
+
+
+@inventory.route('/transactions')
+@login_required
+@permission_required('inventory', 'view')
+def tw_transactions_list():
+    """全局库存流水审计页 - 仅厂商管理员可见。"""
+    if not _is_vendor_admin(current_user):
+        flash('您没有权限查看全局流水', 'danger')
+        return redirect(url_for('inventory.tw_stock_list'))
+
+    # Filter params
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    company_id = request.args.get('company_id', '').strip()
+    tx_type = request.args.get('type', '').strip()
+    ref_type = request.args.get('ref_type', '').strip()
+    search = request.args.get('search', '').strip()
+    page = int(request.args.get('page', 1) or 1)
+    per_page = 50
+
+    # Base query
+    q = db.session.query(InventoryTransaction).join(
+        Inventory, InventoryTransaction.inventory_id == Inventory.id
+    ).join(
+        Company, Inventory.company_id == Company.id
+    ).join(
+        Product, Inventory.product_id == Product.id
+    )
+
+    if date_from:
+        try:
+            q = q.filter(InventoryTransaction.transaction_date >= datetime.strptime(date_from, '%Y-%m-%d'))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            end = datetime.strptime(date_to, '%Y-%m-%d')
+            end = end.replace(hour=23, minute=59, second=59)
+            q = q.filter(InventoryTransaction.transaction_date <= end)
+        except ValueError:
+            pass
+    if company_id:
+        try:
+            q = q.filter(Inventory.company_id == int(company_id))
+        except ValueError:
+            pass
+    if tx_type:
+        q = q.filter(InventoryTransaction.transaction_type == tx_type)
+    if ref_type:
+        q = q.filter(InventoryTransaction.reference_type == ref_type)
+    if search:
+        like = f'%{search}%'
+        q = q.filter(or_(
+            Product.product_name.ilike(like),
+            Product.product_mn.ilike(like),
+            Company.company_name.ilike(like),
+            InventoryTransaction.description.ilike(like),
+        ))
+
+    total = q.count()
+    transactions = q.order_by(InventoryTransaction.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
+
+    # Stats 跟随当前筛选实时变化
+    from flask_babel import gettext as _
+    any_filter = any([date_from, date_to, company_id, tx_type, ref_type, search])
+    stats_label_total = _('筛选结果总数') if any_filter else _('本月流水笔数')
+    stats_label_in = _('筛选入库') if any_filter else _('本月入库')
+    stats_label_out = _('筛选出库') if any_filter else _('本月出库')
+    stats_label_active = _('涉及公司') if any_filter else _('活跃公司')
+
+    if any_filter:
+        # 用当前筛选 q 算聚合
+        stats_in = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery()),
+            InventoryTransaction.transaction_type == 'in',
+        ).scalar() or 0
+        stats_out = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery()),
+            InventoryTransaction.transaction_type.in_(['out', 'settlement']),
+        ).scalar() or 0
+        active_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).join(
+            InventoryTransaction, InventoryTransaction.inventory_id == Inventory.id
+        ).filter(InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery())).scalar() or 0
+        stats_total_value = total
+    else:
+        # 无筛选 → 默认显示本月
+        from datetime import datetime as _dt
+        month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        stats_total_value = db.session.query(func.count(InventoryTransaction.id)).filter(
+            InventoryTransaction.transaction_date >= month_start
+        ).scalar() or 0
+        stats_in = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.transaction_date >= month_start,
+            InventoryTransaction.transaction_type == 'in',
+        ).scalar() or 0
+        stats_out = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.transaction_date >= month_start,
+            InventoryTransaction.transaction_type.in_(['out', 'settlement']),
+        ).scalar() or 0
+        active_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).join(
+            InventoryTransaction, InventoryTransaction.inventory_id == Inventory.id
+        ).filter(InventoryTransaction.transaction_date >= month_start).scalar() or 0
+
+    total_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).scalar() or 0
+    stats = {
+        'label_total': stats_label_total,
+        'label_in': stats_label_in,
+        'label_out': stats_label_out,
+        'label_active': stats_label_active,
+        'total': int(stats_total_value),
+        'in_sum': int(stats_in),
+        'out_sum': abs(int(stats_out)),
+        'active': f'{active_companies} / {total_companies}',
+    }
+
+    # Filter dropdowns
+    companies_with_inv = _switchable_companies()
+
+    # Build per-row metadata: company, product, ref URL
+    rows = []
+    for tx in transactions:
+        inv = tx.inventory
+        rows.append({
+            'tx': tx,
+            'company': inv.company if inv else None,
+            'product': inv.product if inv else None,
+            'ref_url': _build_ref_url(tx.reference_type, tx.reference_id),
+        })
+
+    pagination = {
+        'page': page,
+        'per_page': per_page,
+        'total': total,
+        'pages': (total + per_page - 1) // per_page,
+        'has_prev': page > 1,
+        'has_next': page * per_page < total,
+    }
+
+    current_filters = {
+        'date_from': date_from, 'date_to': date_to,
+        'company_id': company_id, 'type': tx_type,
+        'ref_type': ref_type, 'search': search,
+    }
+    # 仅保留非空过滤参数,供分页 URL 构造用
+    filter_qs = {k: v for k, v in current_filters.items() if v}
+
+    return render_template('inventory/tw_inventory_transactions.html',
+                           rows=rows, stats=stats, pagination=pagination,
+                           companies_with_inv=companies_with_inv,
+                           current_filters=current_filters,
+                           filter_qs=filter_qs)
+
+
+def _build_ref_url(ref_type, ref_id):
+    """流水关联单据 → 可点击 URL。"""
+    if not ref_id:
+        return None
+    if ref_type == 'order':
+        # PurchaseOrder
+        try:
+            return url_for('purchase_order.detail_view', order_id=ref_id)
+        except Exception:
+            return None
+    if ref_type == 'shipment':
+        try:
+            return url_for('shipment.detail_view', shipment_id=ref_id)
+        except Exception:
+            return None
+    if ref_type == 'settlement':
+        # 跳到批价单(settlement_order.id → 找其 pricing_order_id)
+        try:
+            from app.models.pricing_order import SettlementOrderDetail
+            d = SettlementOrderDetail.query.get(ref_id)
+            if d and d.settlement_order_id:
+                so = d.settlement_order
+                if so and so.pricing_order_id:
+                    try:
+                        return url_for('pricing_order.detail_view', order_id=so.pricing_order_id, _anchor='settlement')
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return None
+    return None
+
+
+# =============================================================================
+# Task 4: Excel 导入工具
+# =============================================================================
+
+@inventory.route('/api/import/template', methods=['GET'])
+@login_required
+@permission_required('inventory', 'create')
+def tw_import_template():
+    """下载 Excel 导入模板(带示例行)。仅厂商管理员。"""
+    if not _is_vendor_admin(current_user):
+        flash('没有权限', 'danger')
+        return redirect(url_for('inventory.tw_stock_list'))
+    bio = io.BytesIO()
+    example_data = [
+        {'MN号': 'PNR2100-001', '公司名': '北京 ABC 经销商', '数量': 100, '单位': '台', '存储位置': 'A 区 1 排', '最低库存': 10, '最高库存': 500, '备注': '示例行,可删除'},
+        {'MN号': 'CMP2600-002', '公司名': '上海 XYZ 经销商', '数量': 50, '单位': '台', '存储位置': '', '最低库存': '', '最高库存': '', '备注': ''},
+    ]
+    df = pd.DataFrame(example_data, columns=['MN号', '公司名', '数量', '单位', '存储位置', '最低库存', '最高库存', '备注'])
+    with pd.ExcelWriter(bio, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='库存')
+    bio.seek(0)
+    from flask import send_file as _send
+    return _send(bio,
+                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                 as_attachment=True,
+                 download_name='库存导入模板.xlsx')
+
+
+@inventory.route('/api/import/preview', methods=['POST'])
+@login_required
+@permission_required('inventory', 'create')
+def tw_import_preview():
+    """上传 Excel,解析并返回预览 JSON,不写库。"""
+    if not _is_vendor_admin(current_user):
+        return jsonify({'success': False, 'message': '没有权限'}), 403
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': '请选择文件'}), 400
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'message': '请上传 .xlsx 或 .xls 文件'}), 400
+
+    try:
+        df = pd.read_excel(file, dtype={'MN号': str, '公司名': str})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'文件解析失败: {e}'}), 400
+
+    required = ['MN号', '公司名', '数量']
+    for col in required:
+        if col not in df.columns:
+            return jsonify({'success': False, 'message': f'缺少必需列: {col}'}), 400
+
+    # 预加载 lookups,避免 N+1
+    product_map = {p.product_mn: p for p in Product.query.filter(Product.product_mn.isnot(None)).all()}
+    company_map = {c.company_name: c for c in Company.query.filter(Company.is_deleted == False).all()}
+
+    rows = []
+    counts = {'success': 0, 'warning': 0, 'failed': 0}
+
+    for idx, r in df.iterrows():
+        line_no = int(idx) + 2  # Excel 行号(表头是 1)
+        mn = str(r.get('MN号', '') or '').strip()
+        company_name = str(r.get('公司名', '') or '').strip()
+        qty_raw = r.get('数量')
+        try:
+            qty = int(qty_raw) if pd.notna(qty_raw) else None
+        except (ValueError, TypeError):
+            qty = None
+
+        product = product_map.get(mn) if mn else None
+        company = company_map.get(company_name) if company_name else None
+
+        # 分类
+        status = None
+        reason = ''
+        current_qty = None
+        if not mn:
+            status, reason = 'failed', 'MN号为空'
+        elif not product:
+            status, reason = 'failed', f'MN号 {mn} 在产品库找不到'
+        elif not company_name:
+            status, reason = 'failed', '公司名为空'
+        elif not company:
+            status, reason = 'failed', f'公司 {company_name} 找不到'
+        elif qty is None or qty < 0:
+            status, reason = 'failed', '数量非法'
+        else:
+            existing = Inventory.query.filter_by(company_id=company.id, product_id=product.id).first()
+            if existing:
+                status = 'warning'
+                current_qty = existing.quantity
+                reason = f'覆盖 {existing.quantity} → {qty}'
+            else:
+                status = 'success'
+                reason = '新建'
+
+        counts[status] += 1
+        rows.append({
+            'line_no': line_no,
+            'mn': mn,
+            'company_name': company_name,
+            'product_name': product.product_name if product else '',
+            'product_id': product.id if product else None,
+            'company_id': company.id if company else None,
+            'quantity': qty,
+            'unit': str(r.get('单位') or '').strip(),
+            'location': str(r.get('存储位置') or '').strip(),
+            'min_stock': (int(r['最低库存']) if pd.notna(r.get('最低库存')) else None),
+            'max_stock': (int(r['最高库存']) if pd.notna(r.get('最高库存')) else None),
+            'current_qty': current_qty,
+            'status': status,
+            'reason': reason,
+        })
+
+    return jsonify({
+        'success': True,
+        'rows': rows,
+        'summary': {
+            'total': len(rows),
+            **counts,
+        },
+    })
+
+
+@inventory.route('/api/import/commit', methods=['POST'])
+@login_required
+@permission_required('inventory', 'create')
+def tw_import_commit():
+    """提交导入:对每行非 failed 状态调 update_inventory 写入。单事务。"""
+    if not _is_vendor_admin(current_user):
+        return jsonify({'success': False, 'message': '没有权限'}), 403
+
+    data = request.get_json() or {}
+    rows = data.get('rows') or []
+    if not rows:
+        return jsonify({'success': False, 'message': '没有可导入的行'}), 400
+
+    batch_id = int(datetime.now().timestamp())
+    written = 0
+    skipped = 0
+    errors = []
+
+    try:
+        for row in rows:
+            if row.get('status') == 'failed':
+                skipped += 1
+                continue
+            company_id = row.get('company_id')
+            product_id = row.get('product_id')
+            target_qty = row.get('quantity')
+
+            if not company_id or not product_id or target_qty is None:
+                skipped += 1
+                errors.append(f"第 {row.get('line_no')} 行: 缺少字段")
+                continue
+
+            inv = Inventory.query.filter_by(company_id=company_id, product_id=product_id).first()
+            current = inv.quantity if inv else 0
+            delta = int(target_qty) - current
+            if delta == 0:
+                # 数量没变,但更新元数据(unit/location)如果填了
+                if inv and (row.get('unit') or row.get('location')):
+                    if row.get('unit'):
+                        inv.unit = row.get('unit')
+                    if row.get('location'):
+                        inv.location = row.get('location')
+                continue
+
+            success, msg, updated_inv = update_inventory(
+                company_id=company_id,
+                product_id=product_id,
+                quantity_change=delta,
+                transaction_type='adjustment',
+                description=f'期初导入 batch #{batch_id}',
+                reference_type='import',
+                reference_id=batch_id,
+                user_id=current_user.id,
+            )
+            if success:
+                # 元数据补充
+                if updated_inv:
+                    if row.get('unit'):
+                        updated_inv.unit = row.get('unit')
+                    if row.get('location'):
+                        updated_inv.location = row.get('location')
+                    if row.get('min_stock') is not None:
+                        updated_inv.min_stock = row.get('min_stock')
+                    if row.get('max_stock') is not None:
+                        updated_inv.max_stock = row.get('max_stock')
+                written += 1
+            else:
+                skipped += 1
+                errors.append(f"第 {row.get('line_no')} 行: {msg}")
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"导入提交失败: {e}")
+        return jsonify({'success': False, 'message': f'导入失败: {e}'}), 500
+
+    return jsonify({
+        'success': True,
+        'batch_id': batch_id,
+        'written': written,
+        'skipped': skipped,
+        'errors': errors[:10],
+    })

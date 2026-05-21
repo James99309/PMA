@@ -1,0 +1,217 @@
+{#
+=============================================================================
+客户订单模态框表单字段组件
+=============================================================================
+用于新建和编辑客户订单的共享表单内容（模态框版本）
+
+使用方式：
+新建模式：{% include 'sales_order/partials/_so_modal_fields.html' %}
+编辑模式：{% with sales_order=sales_order %}{% include 'sales_order/partials/_so_modal_fields.html' %}{% endwith %}
+
+参数:
+- sales_order: 编辑时传入订单对象，新建时不传
+- so_product_columns: 产品明细表格列配置（由父模板定义）
+- customers: 客户列表（由路由传入）
+=============================================================================
+#}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea, tw_form_row %}
+{% from 'components/tw_editable_table.html' import tw_editable_table %}
+
+{# 编辑模式时的隐藏字段 #}
+{% if sales_order and sales_order.id %}
+<input type="hidden" id="soFormId" name="sales_order_id" value="{{ sales_order.id }}">
+{% endif %}
+
+<!-- 客户选择（搜索式） -->
+<div class="relative">
+    <label for="soCustomerSearch" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+        {{ _('客户') }} <span class="text-red-500">*</span>
+    </label>
+    <div class="relative">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+        <input type="text" id="soCustomerSearch"
+               class="form-input block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary text-sm pl-10 pr-10"
+               placeholder="{{ _('搜索客户名称...') }}"
+               {% if sales_order and sales_order.customer %}value="{{ sales_order.customer.company_name }}"{% endif %}
+               autocomplete="off">
+        <input type="hidden" id="soCustomerId" name="customer_id" value="{{ sales_order.customer_id if sales_order else '' }}">
+        <button type="button" id="soClearCustomerBtn"
+                onclick="clearSOCustomer()"
+                class="{% if not (sales_order and sales_order.customer) %}hidden{% endif %} absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+            <span class="material-symbols-outlined text-lg">close</span>
+        </button>
+        <div id="soCustomerDropdown" class="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            <div id="soCustomerResults" class="py-1"></div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    const customers = {{ customers|map(attribute='id')|list|tojson }};
+    const customerNames = {{ customers|map(attribute='company_name')|list|tojson }};
+    const searchInput = document.getElementById('soCustomerSearch');
+    const hiddenInput = document.getElementById('soCustomerId');
+    const dropdown = document.getElementById('soCustomerDropdown');
+    const results = document.getElementById('soCustomerResults');
+    const clearBtn = document.getElementById('soClearCustomerBtn');
+    let debounceTimer;
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            const q = this.value.trim().toLowerCase();
+            if (q.length === 0) { dropdown.classList.add('hidden'); return; }
+            const matches = [];
+            for (let i = 0; i < customers.length; i++) {
+                if (customerNames[i].toLowerCase().includes(q)) {
+                    matches.push({ id: customers[i], name: customerNames[i] });
+                }
+                if (matches.length >= 10) break;
+            }
+            if (matches.length === 0) {
+                results.innerHTML = '<div class="px-4 py-2 text-sm text-slate-400">{{ _("无匹配客户") }}</div>';
+            } else {
+                results.innerHTML = matches.map(m =>
+                    `<div class="px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-primary/10 cursor-pointer" onclick="selectSOCustomer(${m.id}, '${m.name.replace(/'/g, "\\'")}')">${m.name}</div>`
+                ).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }, 200);
+    });
+
+    searchInput.addEventListener('focus', function() {
+        if (this.value.trim() && !hiddenInput.value) {
+            this.dispatchEvent(new Event('input'));
+        }
+    });
+
+    document.addEventListener('mousedown', function(e) {
+        if (!dropdown.contains(e.target) && e.target !== searchInput) {
+            dropdown.classList.add('hidden');
+        }
+    }, true);
+})();
+
+function selectSOCustomer(id, name) {
+    document.getElementById('soCustomerId').value = id;
+    document.getElementById('soCustomerSearch').value = name;
+    document.getElementById('soCustomerDropdown').classList.add('hidden');
+    document.getElementById('soClearCustomerBtn').classList.remove('hidden');
+}
+
+function clearSOCustomer() {
+    document.getElementById('soCustomerId').value = '';
+    document.getElementById('soCustomerSearch').value = '';
+    document.getElementById('soClearCustomerBtn').classList.add('hidden');
+}
+</script>
+
+<!-- 交付信息 -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+        <label for="soDeliveryDate" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('期望交付日期') }}</label>
+        <input type="date" id="soDeliveryDate" name="delivery_date"
+               data-field-code="delivery_date"
+               class="form-input block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
+               value="{{ sales_order.delivery_date.strftime('%Y-%m-%d') if sales_order and sales_order.delivery_date else (now()|default(none) and ''  ) }}">
+        <script>
+            // 默认交付日期：今天+20天
+            (function() {
+                var el = document.getElementById('soDeliveryDate');
+                if (el && !el.value) {
+                    var d = new Date();
+                    d.setDate(d.getDate() + 20);
+                    el.value = d.toISOString().split('T')[0];
+                }
+            })();
+        </script>
+    </div>
+    <div>
+        <label for="soShippingMethod" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('运输方式') }}</label>
+        <select id="soShippingMethod" name="shipping_method"
+                data-field-code="shipping_method"
+                class="form-select block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm">
+            <option value="">{{ _('请选择') }}</option>
+            <option value="truck" {% if sales_order and sales_order.shipping_method == 'truck' %}selected{% endif %}>{{ _('陆运') }}</option>
+            <option value="air" {% if sales_order and sales_order.shipping_method == 'air' %}selected{% endif %}>{{ _('空运') }}</option>
+            <option value="express" {% if sales_order and sales_order.shipping_method == 'express' %}selected{% endif %}>{{ _('快递') }}</option>
+            <option value="self_pickup" {% if sales_order and sales_order.shipping_method == 'self_pickup' %}selected{% endif %}>{{ _('自提') }}</option>
+        </select>
+    </div>
+    <div>
+        <label for="soDeliveryContact" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('收货联系人') }}</label>
+        <input type="text" id="soDeliveryContact" name="delivery_contact"
+               data-field-code="delivery_contact"
+               class="form-input block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
+               placeholder="{{ _('联系人姓名') }}"
+               value="{{ sales_order.delivery_contact or '' if sales_order else '' }}">
+    </div>
+    <div>
+        <label for="soDeliveryPhone" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('收货电话') }}</label>
+        <input type="text" id="soDeliveryPhone" name="delivery_phone"
+               data-field-code="delivery_phone"
+               class="form-input block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
+               placeholder="{{ _('联系电话') }}"
+               value="{{ sales_order.delivery_phone or '' if sales_order else '' }}">
+    </div>
+    <div class="md:col-span-2">
+        <label for="soDeliveryAddress" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('交付地址') }}</label>
+        <input type="text" id="soDeliveryAddress" name="delivery_address"
+               data-field-code="delivery_address"
+               class="form-input block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
+               placeholder="{{ _('详细地址') }}"
+               value="{{ sales_order.delivery_address or '' if sales_order else '' }}">
+    </div>
+    <div>
+        <label for="soFreightTerms" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('运费承担') }}</label>
+        <select id="soFreightTerms" name="freight_terms"
+                data-field-code="freight_terms"
+                class="form-select block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm">
+            <option value="">{{ _('请选择') }}</option>
+            <option value="seller" {% if sales_order and sales_order.freight_terms == 'seller' %}selected{% endif %}>{{ _('卖方承担') }}</option>
+            <option value="buyer" {% if sales_order and sales_order.freight_terms == 'buyer' %}selected{% endif %}>{{ _('买方承担') }}</option>
+        </select>
+    </div>
+</div>
+
+<!-- 产品明细表格区域 -->
+<div class="mt-2">
+    {{ tw_editable_table(
+        table_id='soProductTable',
+        columns=so_product_columns,
+        data=[],
+        show_add_btn=false,
+        show_delete_btn=true,
+        currency=default_currency|default('CNY')
+    ) }}
+</div>
+
+<!-- 底部操作区：添加按钮（左） + 总计（右） -->
+<div class="flex items-center justify-between mt-4">
+    <!-- 左侧：添加产品按钮 -->
+    <button type="button" class="add-row-btn" data-field-code="__add_row__" onclick="window.EditableTable.addRow('soProductTable')">
+        <span class="material-symbols-outlined text-base">add</span>
+        {{ _('添加产品') }}
+    </button>
+    <!-- 右侧：货币选择和总计 -->
+    <div class="flex items-baseline gap-3">
+        <select id="soCurrency" name="currency" data-field-code="currency" class="form-select rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm w-auto">
+            {% for code, name in currency_options %}
+            <option value="{{ code }}" {% if code == (sales_order.currency if sales_order else default_currency|default('CNY')) %}selected{% endif %}>
+                {{ name }}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('总计金额') }}:</span>
+        <span id="soTotalAmount" class="text-2xl font-bold text-primary">{{ '{:,.2f}'.format(sales_order.total_amount or 0) if sales_order else '0.00' }}</span>
+    </div>
+</div>
+
+<!-- 备注 -->
+<div class="mt-6">
+    <label for="soNotes" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('备注') }}</label>
+    <textarea id="soNotes" name="notes" rows="2"
+              data-field-code="notes"
+              class="form-textarea block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
+              placeholder="{{ _('订单备注信息') }}">{{ sales_order.notes if sales_order else '' }}</textarea>
+</div>

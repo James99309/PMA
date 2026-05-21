@@ -13,6 +13,7 @@ from flask import current_app
 
 from app import db
 from app.models.inventory import PurchaseOrderDetail
+from app.models.sales_order import SalesOrderDetail
 from app.models.product import Product
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,8 @@ def process_order_detail_item(order_id, item, existing_detail=None):
             product_model = product.model or product_model
             brand = product.brand or brand
 
+    sales_order_detail_id = item.get('sales_order_detail_id')
+
     if existing_detail:
         # 更新现有明细
         existing_detail.product_id = product_id
@@ -68,6 +71,7 @@ def process_order_detail_item(order_id, item, existing_detail=None):
         existing_detail.discount = discount
         existing_detail.total_price = total_price
         existing_detail.notes = item.get('notes')
+        existing_detail.sales_order_detail_id = sales_order_detail_id
         return existing_detail
     else:
         # 创建新明细
@@ -83,7 +87,8 @@ def process_order_detail_item(order_id, item, existing_detail=None):
             unit_price=unit_price,
             discount=discount,
             total_price=total_price,
-            notes=item.get('notes')
+            notes=item.get('notes'),
+            sales_order_detail_id=sales_order_detail_id
         )
 
 
@@ -135,7 +140,33 @@ def process_order_details(order, details_data, is_update=False):
     order.total_quantity = sum(d.quantity for d in order.details) if order.details else 0
     order.total_amount = sum(float(d.total_price or 0) for d in order.details) if order.details else 0
 
+    # 同步更新关联的客户订单需求的 procured_quantity
+    refresh_procured_quantities(order)
+
     return processed_count
+
+
+def refresh_procured_quantities(order):
+    """
+    刷新与该采购订单关联的所有客户订单明细的 procured_quantity。
+    通过聚合所有关联的PO明细数量来计算。
+    """
+    # 收集本PO所有关联的SO明细ID
+    so_detail_ids = set()
+    for d in order.details:
+        if d.sales_order_detail_id:
+            so_detail_ids.add(d.sales_order_detail_id)
+
+    # 对每个关联的SO明细，重新计算所有PO关联的总采购量
+    for so_detail_id in so_detail_ids:
+        so_detail = SalesOrderDetail.query.get(so_detail_id)
+        if so_detail:
+            total_procured = db.session.query(
+                db.func.coalesce(db.func.sum(PurchaseOrderDetail.quantity), 0)
+            ).filter(
+                PurchaseOrderDetail.sales_order_detail_id == so_detail_id
+            ).scalar()
+            so_detail.procured_quantity = total_procured
 
 
 def upload_file_to_storage(order, file_content, filename, content_type, subfolder=''):
@@ -157,8 +188,9 @@ def upload_file_to_storage(order, file_content, filename, content_type, subfolde
         order_number = order.order_number.replace('/', '-').replace('\\', '-')
 
         # 判断是否使用云端存储
-        use_cloud = os.environ.get('FORCE_CLOUD_UPLOAD', '').lower() == 'true' or \
-                    'supabase' in os.environ.get('DATABASE_URL', '').lower()
+        use_cloud = (os.environ.get('FORCE_CLOUD_UPLOAD', '').lower() == 'true' or
+                     'supabase' in os.environ.get('DATABASE_URL', '').lower()) and \
+                    os.environ.get('FORCE_LOCAL_STORAGE', '').lower() != 'true'
 
         if use_cloud:
             return _upload_to_cloud(order_number, file_content, filename, content_type, subfolder)

@@ -1,0 +1,205 @@
+{#
+=============================================================================
+通用文件上传确认模态框组件
+=============================================================================
+可复用于：供应商确认、测试报告上传等需要上传文件+备注的场景
+
+用法:
+{% from 'components/tw_upload_confirm_modal.html' import tw_upload_confirm_modal, tw_upload_confirm_modal_script %}
+
+{{ tw_upload_confirm_modal(
+    modal_id='supplierConfirmModal',
+    title='供应商确认',
+    file_label='确认回执',
+    file_hint='点击或拖拽上传供应商盖章确认单',
+    submit_text='确认',
+    summary_items=[
+        {'label': 'PO单号', 'value': order.order_number},
+        {'label': '供应商', 'value': order.company.company_name}
+    ]
+) }}
+
+{{ tw_upload_confirm_modal_script(modal_id='supplierConfirmModal', submit_url='/api/...', on_success='location.reload()') }}
+=============================================================================
+#}
+
+{% macro tw_upload_confirm_modal(
+    modal_id='uploadConfirmModal',
+    title='确认',
+    file_label='上传文件',
+    file_hint='点击或拖拽上传文件',
+    file_accept='.pdf,.jpg,.jpeg,.png',
+    file_max_size='10MB',
+    submit_text='确认提交',
+    cancel_text='取消',
+    summary_items=[],
+    show_notes=true
+) %}
+<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden">
+    <div class="fixed inset-0 bg-black/50" onclick="closeUploadModal('{{ modal_id }}')"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between p-4">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+                <button onclick="closeUploadModal('{{ modal_id }}')" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="p-4 space-y-4 overflow-y-auto flex-1">
+                {% if summary_items %}
+                <div class="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-1.5">
+                    {% for item in summary_items %}
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-slate-500 dark:text-slate-400">{{ item.label }}</span>
+                        <span class="font-medium text-slate-900 dark:text-white">{{ item.value }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- 文件上传 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                        {{ file_label }} <span class="text-red-500">*</span>
+                    </label>
+                    <div id="{{ modal_id }}_fileArea"
+                         class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
+                         onclick="document.getElementById('{{ modal_id }}_fileInput').click()">
+                        <input type="file" id="{{ modal_id }}_fileInput" accept="{{ file_accept }}" class="hidden"
+                               onchange="handleUploadModalFile('{{ modal_id }}', this)">
+                        <span class="material-symbols-outlined text-4xl text-slate-400 dark:text-slate-500">upload_file</span>
+                        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">{{ file_hint }}</p>
+                        <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">{{ _('支持 PDF、JPG、PNG 格式，最大') }} {{ file_max_size }}</p>
+                    </div>
+                    <div id="{{ modal_id }}_filePreview" class="hidden mt-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">description</span>
+                            <span id="{{ modal_id }}_fileName" class="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[300px]"></span>
+                        </div>
+                        <button type="button" onclick="removeUploadModalFile('{{ modal_id }}')" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
+                            <span class="material-symbols-outlined text-slate-500 text-sm">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                {% if show_notes %}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('备注') }}</label>
+                    <textarea id="{{ modal_id }}_notes" rows="2" placeholder="{{ _('可选备注信息') }}"
+                              class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm resize-none"></textarea>
+                </div>
+                {% endif %}
+            </div>
+            <div class="flex items-center justify-end gap-3 p-4">
+                <button onclick="closeUploadModal('{{ modal_id }}')" class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg">{{ cancel_text }}</button>
+                <button id="{{ modal_id }}_submitBtn" onclick="submitUploadModal('{{ modal_id }}')" class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    {{ submit_text }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro tw_upload_confirm_modal_script() %}
+<script>
+// 通用上传确认模态框逻辑
+window._uploadModalFiles = {};
+window._uploadModalCallbacks = {};
+
+function openUploadModal(modalId, options) {
+    options = options || {};
+    window._uploadModalFiles[modalId] = null;
+    window._uploadModalCallbacks[modalId] = options;
+    const modal = document.getElementById(modalId);
+    // 重置
+    const fileArea = document.getElementById(modalId + '_fileArea');
+    const filePreview = document.getElementById(modalId + '_filePreview');
+    const fileInput = document.getElementById(modalId + '_fileInput');
+    const notes = document.getElementById(modalId + '_notes');
+    if (fileArea) fileArea.classList.remove('hidden');
+    if (filePreview) filePreview.classList.add('hidden');
+    if (fileInput) fileInput.value = '';
+    if (notes) notes.value = '';
+    modal.classList.remove('hidden');
+}
+
+function closeUploadModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+}
+
+function handleUploadModalFile(modalId, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+        if (typeof showToast === 'function') showToast('请上传 PDF、JPG 或 PNG 格式的文件', 'warning');
+        input.value = '';
+        return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        if (typeof showToast === 'function') showToast('文件大小不能超过 10MB', 'warning');
+        input.value = '';
+        return;
+    }
+    window._uploadModalFiles[modalId] = file;
+    document.getElementById(modalId + '_fileArea').classList.add('hidden');
+    document.getElementById(modalId + '_filePreview').classList.remove('hidden');
+    document.getElementById(modalId + '_fileName').textContent = file.name;
+}
+
+function removeUploadModalFile(modalId) {
+    window._uploadModalFiles[modalId] = null;
+    document.getElementById(modalId + '_fileInput').value = '';
+    document.getElementById(modalId + '_fileArea').classList.remove('hidden');
+    document.getElementById(modalId + '_filePreview').classList.add('hidden');
+}
+
+async function submitUploadModal(modalId) {
+    const file = window._uploadModalFiles[modalId];
+    if (!file) {
+        if (typeof showToast === 'function') showToast('请上传文件', 'warning');
+        return;
+    }
+    const options = window._uploadModalCallbacks[modalId] || {};
+    const submitBtn = document.getElementById(modalId + '_submitBtn');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = '上传中...';
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const notes = document.getElementById(modalId + '_notes');
+        if (notes) formData.append('notes', notes.value);
+        // 附加额外数据
+        if (options.extraData) {
+            Object.entries(options.extraData).forEach(([k, v]) => formData.append(k, v));
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const response = await fetch(options.submitUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+            body: formData
+        });
+        const result = await response.json();
+        if (result.success) {
+            if (typeof showToast === 'function') showToast(result.message || '操作成功', 'success');
+            closeUploadModal(modalId);
+            if (options.onSuccess) options.onSuccess(result);
+            else setTimeout(() => location.reload(), 500);
+        } else {
+            if (typeof showToast === 'function') showToast(result.message || '操作失败', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        if (typeof showToast === 'function') showToast('操作失败', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+}
+</script>
+{% endmacro %}

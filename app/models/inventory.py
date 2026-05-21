@@ -265,11 +265,14 @@ class PurchaseOrderDetail(db.Model):
     discount = Column(db.Numeric(5, 4), default=1.0000)  # 折扣率 (0.8000 = 80%)
     total_price = Column(db.Numeric(15, 2), default=0)  # 总价
     received_quantity = Column(Integer, default=0)  # 已收货数量
+    sales_order_detail_id = Column(Integer, ForeignKey('sales_order_details.id'), nullable=True)  # 关联客户订单需求
+    dispatched_quantity = Column(Integer, default=0)  # 已分配发货的数量
     notes = Column(Text, nullable=True)  # 备注
-    
+
     # 关系
     order = relationship('PurchaseOrder', backref='details')
     product = relationship('Product', backref='order_details')
+    sales_order_detail = relationship('SalesOrderDetail', backref='purchase_details')
     
     def __repr__(self):
         return f'<PurchaseOrderDetail {self.product_name}: {self.quantity}>'
@@ -295,6 +298,19 @@ class PurchaseOrderDetail(db.Model):
     def remaining_quantity(self):
         """剩余未入库数量"""
         return max(0, self.quantity - self.received_quantity)
+
+    @property
+    def remaining_to_dispatch(self):
+        """剩余可发数量（总量 - 已发出量）"""
+        return max(0, self.quantity - (self.dispatched_quantity or 0))
+
+    @property
+    def source_label(self):
+        """需求来源标签"""
+        if self.sales_order_detail_id and self.sales_order_detail:
+            so = self.sales_order_detail.sales_order
+            return f"{so.order_number} {so.customer.company_name if so.customer else ''}"
+        return "备货"
 
 
 class PurchaseOrderStageHistory(db.Model):
