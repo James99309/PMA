@@ -401,6 +401,18 @@ def excel_edit_pricing_order(order_id):
         else:
             back_url = url_for('pricing_order.list_pricing_orders')
 
+        # 结算目标公司 — 业务规则:
+        # - 厂商直签(is_direct_contract=True) → 厂商自有公司(companies.company_type='vendor')
+        # - 渠道(否则) → distributor 优先,fallback 到 dealer
+        # 不允许 user 切换 —— 业务上是固定的
+        target_settle_company = None
+        if pricing_order.is_direct_contract:
+            target_settle_company = Company.query.filter_by(
+                company_type='vendor', is_deleted=False
+            ).order_by(Company.id).first()
+        else:
+            target_settle_company = pricing_order.distributor or pricing_order.dealer
+
         return render_template(
             'pricing_order/tw_edit.html',
             pricing_order=pricing_order,
@@ -417,6 +429,7 @@ def excel_edit_pricing_order(order_id):
             gp=gp,
             gm=gm,
             back_url=back_url,
+            target_settle_company=target_settle_company,
         )
     except Exception as e:
         logger.error(f"访问批价单 Excel 编辑页失败: {str(e)}")

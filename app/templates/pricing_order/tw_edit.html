@@ -1570,25 +1570,38 @@ const PricingEditor = (() => {
         <button onclick="SettleModal.close()" class="p-1 rounded hover:bg-slate-100 text-slate-500"><span class="material-symbols-outlined">close</span></button>
       </div>
 
-      <!-- 目标公司 + 概览 -->
+      <!-- 目标公司(自动确定,不可切换)+ 概览 -->
       <div class="px-5 py-4 border-b border-slate-200 bg-slate-50 space-y-3">
-        <div class="flex items-center gap-3 flex-wrap">
-          <label class="text-sm font-medium text-slate-700 whitespace-nowrap">目标公司:</label>
-          <select id="sm_target_company" onchange="SettleModal.onCompanyChange()"
-            class="flex-1 min-w-[200px] h-10 px-3 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option value="">请选择...</option>
-            {% if pricing_order.distributor %}<option value="{{ pricing_order.distributor_id }}" selected>{{ pricing_order.distributor.company_name }}(分销商)</option>{% endif %}
-            {% if pricing_order.dealer and pricing_order.dealer_id != pricing_order.distributor_id %}<option value="{{ pricing_order.dealer_id }}">{{ pricing_order.dealer.company_name }}(经销商)</option>{% endif %}
-            {% for c in dealers %}
-              {% if (not pricing_order.distributor or c.id != pricing_order.distributor_id) and (not pricing_order.dealer or c.id != pricing_order.dealer_id) %}
-              <option value="{{ c.id }}">{{ c.company_name }}</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-          <button onclick="SettleModal.checkInventory()" class="h-10 px-4 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span class="material-symbols-outlined text-base">inventory_2</span>查库存
+        {% if target_settle_company %}
+        {# 把 target company 信息嵌入 DOM,JS 读取 #}
+        <div id="sm_target_company_info"
+             data-target-id="{{ target_settle_company.id }}"
+             data-target-name="{{ target_settle_company.company_name|e }}"
+             data-is-vendor="{{ 'true' if pricing_order.is_direct_contract else 'false' }}"
+             class="flex items-center gap-3 flex-wrap">
+          <span class="text-sm text-slate-500 whitespace-nowrap">结算到:</span>
+          <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 bg-white">
+            <span class="material-symbols-outlined text-base {{ 'text-blue-500' if pricing_order.is_direct_contract else 'text-purple-500' }}">{{ 'factory' if pricing_order.is_direct_contract else 'store' }}</span>
+            <span class="font-medium text-slate-900">{{ target_settle_company.company_name }}</span>
+            <span class="text-xs px-2 py-0.5 rounded-full {{ 'bg-blue-100 text-blue-700' if pricing_order.is_direct_contract else 'bg-purple-100 text-purple-700' }}">
+              {% if pricing_order.is_direct_contract %}厂商直签 · 厂商库存{% else %}{{ '分销商' if pricing_order.distributor and target_settle_company.id == pricing_order.distributor_id else '经销商' }}{% endif %}
+            </span>
+          </span>
+          <button onclick="SettleModal.checkInventory()" class="ml-auto h-9 px-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-medium inline-flex items-center gap-1 whitespace-nowrap">
+            <span class="material-symbols-outlined text-sm">refresh</span>刷新库存
           </button>
         </div>
+        {% else %}
+        <div class="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          <span class="material-symbols-outlined text-base align-middle mr-1">error</span>
+          {% if pricing_order.is_direct_contract %}
+            未配置厂商所属公司(companies 表里没有 company_type='vendor' 的记录),无法结算。请先建厂商公司。
+          {% else %}
+            该批价单没有指定分销商或经销商,无法确定结算目标公司。
+          {% endif %}
+        </div>
+        {% endif %}
+
         <div id="sm_summary" class="flex items-center gap-4 text-xs text-slate-600">
           <span><span class="font-semibold text-slate-900" id="sm_total_rows">{{ pricing_order.settlement_details|length }}</span> 行明细</span>
           <span class="text-emerald-700">已结算 <span class="font-semibold" id="sm_done_count">0</span></span>
@@ -1671,25 +1684,22 @@ const PricingEditor = (() => {
 window.SettleModal = (function() {
   const CSRF = document.querySelector('meta[name=csrf-token]')?.content || '';
 
+  function _targetCompanyId() {
+    const el = document.getElementById('sm_target_company_info');
+    return el ? parseInt(el.dataset.targetId) : null;
+  }
+
   function open() {
     document.getElementById('settleModal').classList.remove('hidden');
     _updateCounters();
-    checkInventory(); // 自动查库存
+    if (_targetCompanyId()) checkInventory();
   }
   function close() { document.getElementById('settleModal').classList.add('hidden'); }
 
-  function onCompanyChange() {
-    // 切目标公司后,清空库存列并自动重查
-    document.querySelectorAll('#settleModal [data-stock-cell]').forEach(td => {
-      td.innerHTML = '<span class="text-slate-400">—</span>';
-    });
-    checkInventory();
-  }
-
   async function checkInventory() {
-    const companyId = document.getElementById('sm_target_company').value;
+    const companyId = _targetCompanyId();
     if (!companyId) {
-      showMsg('请先选择目标公司', 'error');
+      showMsg('未配置结算目标公司,无法查库存', 'error');
       return;
     }
     // 拉公司库存
@@ -1749,8 +1759,8 @@ window.SettleModal = (function() {
   }
 
   async function settleRow(detailId, btn) {
-    const companyId = document.getElementById('sm_target_company').value;
-    if (!companyId) { showMsg('请先选择目标公司', 'error'); return; }
+    const companyId = _targetCompanyId();
+    if (!companyId) { showMsg('未配置结算目标公司', 'error'); return; }
     if (btn.disabled) return;
     const orig = btn.innerHTML;
     btn.disabled = true;
@@ -1785,8 +1795,8 @@ window.SettleModal = (function() {
   }
 
   async function settleAll() {
-    const companyId = document.getElementById('sm_target_company').value;
-    if (!companyId) { showMsg('请先选择目标公司', 'error'); return; }
+    const companyId = _targetCompanyId();
+    if (!companyId) { showMsg('未配置结算目标公司', 'error'); return; }
     const rows = Array.from(document.querySelectorAll('#settleModal tbody tr'))
       .filter(tr => tr.dataset.status !== 'settled');
     const pending = rows.filter(tr => {
@@ -1842,7 +1852,7 @@ window.SettleModal = (function() {
     el.classList.remove('hidden');
   }
 
-  return { open, close, onCompanyChange, checkInventory, settleRow, settleAll };
+  return { open, close, checkInventory, settleRow, settleAll };
 })();
 </script>
 {% endif %}
