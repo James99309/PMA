@@ -490,8 +490,10 @@ def task_management():
 
     is_admin = current_user.role in ('admin', 'ceo')
     is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+    # 公司级 task 权限（如 HR）：可查看本公司全部成员的任务
+    is_company_viewer = current_user.get_permission_level('task') in ('company', 'system')
 
-    if is_admin or is_dept_mgr:
+    if is_admin or is_dept_mgr or is_company_viewer:
         can_view_team = True
 
         # 先把有活跃任务的 assignee_id 取成 Python list，避免 ORM 子查询兼容性问题
@@ -510,7 +512,14 @@ def task_management():
                 User.id.in_(active_ids),
                 User._is_active == True,
             ).order_by(User.real_name).all()
-        elif current_user.department and current_user.company_name:
+        elif is_company_viewer and current_user.company_name:
+            # 公司级：本公司全部成员（不限部门）
+            users = User.query.filter(
+                User.id.in_(active_ids),
+                User.company_name == current_user.company_name,
+                User._is_active == True,
+            ).order_by(User.real_name).all()
+        elif is_dept_mgr and current_user.department and current_user.company_name:
             users = User.query.filter(
                 User.id.in_(active_ids),
                 User.department == current_user.department,
@@ -554,13 +563,20 @@ def management_list():
 
         uid = current_user.id
 
-        # 代理查看：管理员或部门负责人可查看他人任务
+        # 代理查看：管理员、公司级 task 权限（如 HR）或部门负责人可查看他人任务
         view_user_id = request.args.get('view_user_id', type=int)
         if view_user_id and view_user_id != uid:
             is_admin = current_user.role in ('admin', 'ceo')
             is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+            is_company_viewer = current_user.get_permission_level('task') in ('company', 'system')
             if is_admin:
                 uid = view_user_id
+            elif is_company_viewer and current_user.company_name:
+                # 公司级：仅限本公司成员
+                target = User.query.get(view_user_id)
+                if target and target._is_active \
+                        and target.company_name == current_user.company_name:
+                    uid = view_user_id
             elif is_dept_mgr and current_user.department and current_user.company_name:
                 target = User.query.get(view_user_id)
                 if target and target._is_active \
