@@ -799,20 +799,13 @@ def _apply_scope_filter(query, scope):
     """根据角色视角过滤查询
 
     admin  → 无过滤
-    se     → 仅关联项目（ProjectMember role=solution_engineer）
     pm     → 仅管理分类下的产品型号
-    sales  → 权限层过滤（自己/下属/vendor_sales_manager）
+    sales  → 权限层过滤（按 product_analysis 权限级别 + 归属/SM）
     """
     level = scope.get('level', 'sales')
 
     if level == 'admin':
         return query
-
-    elif level == 'se':
-        pids = scope.get('associated_project_ids', [])
-        if pids:
-            return query.filter(Project.id.in_(pids))
-        return query.filter(False)
 
     elif level == 'pm':
         cat_ids = scope.get('managed_category_ids', [])
