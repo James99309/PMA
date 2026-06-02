@@ -244,509 +244,123 @@ def _get_customer_owner_options(current_user):
 @customer.route('/')
 @permission_required('customer', 'view')
 def list_companies():
-    # 使用公共筛选工具提取参数
-    from app.utils.query_filters import apply_default_owner_filter
-    filters = extract_filter_params(request.args, CUSTOMER_FILTER_CONFIG)
-    offset, limit = extract_pagination_params(request.args, default_limit=20, max_limit=50)
+    """旧 TW 客户列表 — 已重定向到 AT 风格列表"""
+    return redirect(url_for('customer.at_list_view', **request.args))
 
-    # 提取变量（用于模板显示和配置构建）
-    search = filters.get('search', '')
+@customer.route('/<int:company_id>/at_view')
+@login_required
+@permission_required('customer', 'view')
+def at_view_company(company_id):
+    """AT 风格客户详情页 — 用 RelatedDataService 自动按权限+归属过滤关联数据"""
+    from app.utils.related_data import RelatedDataService
+    from app.models.action import Action
 
-    # 默认筛选：首次加载时只显示当前用户的客户
-    # 注意：system/company级别权限用户不应用默认过滤
-    owner_filter = apply_default_owner_filter(
-        request.args, filters, current_user.id,
-        owner_field='owner_filter',
-        filter_keys=['search', 'company_type', 'industry', 'country', 'status_filter'],
-        module_id='customer',
-        model_class=Company
-    )
-    company_type_filter = filters.get('company_type', '')
-    industry_filter = filters.get('industry', '')
-    country_filter = filters.get('country', '')
-    status_filter = filters.get('status_filter', '')
+    company = Company.query.get_or_404(company_id)
+    if not can_view_company(current_user, company):
+        from flask import abort
+        abort(403)
 
-    # 资源池搜索：有搜索时查全部客户，标记权限；无搜索保持原逻辑
-    viewable_query = get_viewable_data(Company, current_user)
-    restricted_ids = None  # None 表示未进入资源池搜索模式
-    pending_request_ids = set()
+    # 关联数据(按权限+归属自动过滤,无权限模块自动跳过)
+    related = RelatedDataService.fetch_all('company', company_id, current_user, limit=5)
+
+    # 联系人(直接查,无需走 service — 联系人权限继承客户访问权)
+    contacts = Contact.query.filter_by(company_id=company_id).order_by(
+        Contact.is_primary.desc(), Contact.id.asc()
+    ).all()
+
+    # 行动记录(客户跟进,按 owner_id viewable 过滤)
+    actions = get_viewable_data(Action, current_user,
+        [Action.company_id == company_id]
+    ).order_by(Action.created_at.desc()).limit(20).all()
+
+    # 头部操作按钮的权限判断
+    perms = {
+        'can_edit':           can_edit_company_info(current_user, company),
+        'can_delete':         can_delete_company(current_user, company),
+        'can_share':          can_edit_company_sharing(current_user, company),
+        'can_change_owner':   can_change_company_owner(current_user, company),
+        'can_create_contact': current_user.has_permission('customer', 'create'),
+        'can_create_action':  True,  # 有访问权即可加 Action
+    }
+
+    # 共享设置数据(perms.can_share 时传给 AT 共享 modal)
+    shareable_users_tree = None
+    if perms['can_share']:
+        from app.utils.sharing import get_shareable_users_tree
+        shareable_users_tree = get_shareable_users_tree(current_user, 'customer')
+
+    # 已共享用户(展开成 User 对象供右栏卡片渲染)
+    shared_users = []
+    if getattr(company, 'share_enabled', False) and getattr(company, 'shared_with_users', None):
+        shared_users = User.query.filter(User.id.in_(company.shared_with_users)).all()
+
+    return render_template('customer/at_view.html',
+                           company=company,
+                           related=related,
+                           contacts=contacts,
+                           actions=actions,
+                           perms=perms,
+                           shareable_users_tree=shareable_users_tree,
+                           shared_users=shared_users)
+
+
+@customer.route('/at_list')
+@login_required
+@permission_required('customer', 'view')
+def at_list_view():
+    """AT 风格客户列表 — 全新前端,不复用 tw_list 数据格式"""
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 30
+    tab = request.args.get('tab', 'all')
+    search = request.args.get('search', '').strip()
+    country = request.args.get('country', '').strip()
+
+    base = get_viewable_data(Company, current_user).filter(Company.is_deleted == False)
+
+    # tab → company_type 映射(基于实际数据分布)
+    TAB_TYPE_MAP = {
+        'user':       ['user'],
+        'integrator': ['integrator'],
+        'designer':   ['designer'],
+        'channel':    ['dealer', 'distributor', 'partner'],
+    }
+
+    # 各 tab 计数
+    tab_counts = {'all': base.count()}
+    for k, types in TAB_TYPE_MAP.items():
+        tab_counts[k] = base.filter(Company.company_type.in_(types)).count()
+
+    # 当前 tab 过滤
+    q = base
+    if tab in TAB_TYPE_MAP:
+        q = q.filter(Company.company_type.in_(TAB_TYPE_MAP[tab]))
 
     if search:
-        # 搜索时查全部客户（排除已删除），标记哪些是无权限的
-        base_query = Company.query.filter(Company.is_deleted == False)
-        viewable_id_set = set(
-            r[0] for r in viewable_query.with_entities(Company.id).all()
-        )
-        restricted_ids = viewable_id_set  # 用于模板判断
+        like = f'%{search}%'
+        q = q.filter(or_(
+            Company.company_name.ilike(like),
+            Company.company_code.ilike(like),
+        ))
 
-        # 查询当前用户对搜索结果中的 pending 请求
-        from app.models.access_request import AccessRequest
-        pending_request_ids = set(
-            r.entity_id for r in AccessRequest.query.filter_by(
-                requester_id=current_user.id, entity_type='customer', status='pending'
-            ).all()
-        )
-    else:
-        base_query = viewable_query
+    if country:
+        q = q.filter(Company.country == country)
 
-    # 使用公共工具应用筛选
-    query = apply_filters_to_query(base_query, Company, filters, CUSTOMER_FILTER_CONFIG)
-
-    # 获取排序参数
-    valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry',
-                         'country', 'region', 'address', 'status', 'owner_id',
-                         'updated_at', 'created_at']
-    sort_field, sort_order = extract_sort_params(
-        request.args, default_sort='updated_at', default_order='desc',
-        allowed_fields=valid_sort_fields
+    pagination = q.order_by(Company.updated_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False,
     )
 
-    # 添加排序
-    if hasattr(Company, sort_field):
-        order_attr = getattr(Company, sort_field)
-        if sort_order == 'desc':
-            query = query.order_by(order_attr.desc())
-        else:
-            query = query.order_by(order_attr.asc())
+    # 国家选项(从字典)
+    country_options = get_country_options() or []
 
-    # 获取总记录数
-    total_count = query.count()
+    return render_template('customer/at_list.html',
+                           companies=pagination.items,
+                           pagination=pagination,
+                           tab_counts=tab_counts,
+                           current_tab=tab,
+                           search=search,
+                           current_country=country,
+                           country_options=country_options)
 
-    # 滚动加载查询
-    companies = query.offset(offset).limit(limit).all()
-    
-    # 计算是否还有更多数据
-    has_more = (offset + limit) < total_count
-    
-    # 预加载所有企业的所有者信息（优化：只加载当前页的数据）
-    owner_ids = [company.owner_id for company in companies if company.owner_id]
-    if owner_ids:
-        owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
-        for company in companies:
-            if company.owner_id and company.owner_id in owners:
-                company.owner = owners[company.owner_id]
-
-    # 标记受限行和请求中状态（资源池搜索模式）
-    for company in companies:
-        company._is_restricted = (restricted_ids is not None and company.id not in restricted_ids)
-        company._is_pending = (company.id in pending_request_ids)
-        if company._is_restricted and company.owner:
-            company._owner_name = company.owner.real_name or company.owner.username
-        else:
-            company._owner_name = ''
-    
-    # 为每个公司添加联系人创建者ID列表（优化：只处理当前页的数据）
-    company_ids = [company.id for company in companies]
-    company_contact_owners = {}
-    if company_ids:
-        contact_owners = db.session.query(Contact.company_id, Contact.owner_id).filter(
-            Contact.company_id.in_(company_ids)
-        ).distinct().all()
-        
-        for company_id, owner_id in contact_owners:
-            if company_id not in company_contact_owners:
-                company_contact_owners[company_id] = []
-            company_contact_owners[company_id].append(owner_id)
-    
-    # 将映射添加到公司对象
-    for company in companies:
-        company.contact_owner_ids = company_contact_owners.get(company.id, [])
-    
-    # 获取国际化的国家名称映射
-    from app.utils.i18n import get_current_language
-    country_code_to_name = get_country_names(get_current_language())
-    
-    # 获取所有用户和唯一的owner_ids用于筛选
-    # 移除活跃状态过滤，确保所有实际拥有客户的用户都出现在筛选选项中
-    all_users = User.query.order_by(User.real_name, User.username).all()
-
-    # 复用 base_query（无需额外 get_viewable_data）
-    unique_owner_ids = {r[0] for r in base_query.with_entities(Company.owner_id).distinct().all() if r[0]}
-
-    # 获取实际存在的筛选器选项（传入查询对象，内部用 SQL DISTINCT）
-    company_type_options, industry_options, status_options, country_options = get_existing_filter_options(base_query)
-
-    # 计算统计数据（复用已筛选的 query，清除 ORDER BY 避免与聚合冲突）
-    from sqlalchemy import case
-    stats_result = query.order_by(None).with_entities(
-        func.count(Company.id).label('total'),
-        func.count(case(
-            (Company.status.in_(['highly_active', 'active', 'normal']), Company.id)
-        )).label('active'),
-        func.count(case(
-            (Company.company_type == 'user', Company.id)
-        )).label('direct_customer'),
-    ).first()
-
-    total_companies = stats_result.total or 0
-    active_companies = stats_result.active or 0
-    direct_customers = stats_result.direct_customer or 0
-
-    # 项目客户统计（涉及 UNION 子查询，保持独立 count）
-    from app.models.project import Project
-
-    linked_companies_subquery = db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
-        db.session.query(Project.design_issues).filter(Project.design_issues.isnot(None))
-    ).union(
-        db.session.query(Project.dealer).filter(Project.dealer.isnot(None))
-    ).union(
-        db.session.query(Project.contractor).filter(Project.contractor.isnot(None))
-    ).union(
-        db.session.query(Project.system_integrator).filter(Project.system_integrator.isnot(None))
-    )
-
-    project_customers = query.filter(
-        Company.company_name.in_(linked_companies_subquery)
-    ).count()
-    
-    # 构建标准化筛选配置
-    filter_config = {
-        'action_url': url_for('customer.list_companies'),
-        'form_id': 'customerFilterForm',
-        'reset_url': url_for('customer.list_companies'),
-        
-        'search_field': {
-            'name': 'search',
-            'label': _(mapping_manager.get_field_display_name('common', 'search')),
-            'placeholder': _('企业名称或客户信息'),
-            'value': search,
-            'col_width': 4
-        },
-        
-        'filter_fields': [
-            {
-                'name': 'owner_filter',
-                'label': _(mapping_manager.get_field_display_name('company', 'owner_id')), 
-                'all_option_text': _('全部负责人'),
-                'current_value': owner_filter,
-                'col_width': 2,
-                'options': [
-                    {
-                        'value': str(user.id), 
-                        'label': user.real_name or user.username,
-                        'translate': False
-                    }
-                    for user in all_users if user.id in unique_owner_ids
-                ]
-            },
-            {
-                'name': 'company_type',
-                'label': _(mapping_manager.get_field_display_name('company', 'company_type')),
-                'all_option_text': _('全部类型'),
-                'current_value': company_type_filter,
-                'col_width': 2,
-                'options': [
-                    {
-                        'value': value,
-                        'label': label,
-                        'translate': False
-                    }
-                    for value, label in company_type_options
-                ]
-            },
-            {
-                'name': 'industry',
-                'label': _(mapping_manager.get_field_display_name('company', 'industry')),
-                'all_option_text': _('全部行业'),
-                'current_value': industry_filter,
-                'col_width': 2,
-                'options': [
-                    {
-                        'value': value,
-                        'label': label,
-                        'translate': False
-                    }
-                    for value, label in industry_options
-                ]
-            },
-            {
-                'name': 'country',
-                'label': _(mapping_manager.get_field_display_name('company', 'country')),
-                'all_option_text': _('全部国家'),
-                'current_value': country_filter,
-                'col_width': 2,
-                'options': [
-                    {
-                        'value': value,
-                        'label': label,
-                        'translate': False
-                    }
-                    for value, label in country_options
-                ]
-            },
-            {
-                'name': 'status_filter',
-                'label': _('活跃度'),
-                'all_option_text': _('全部状态'),
-                'current_value': status_filter,
-                'col_width': 2,
-                'options': [
-                    {
-                        'value': value,
-                        'label': label,
-                        'translate': False
-                    }
-                    for value, label in status_options
-                ]
-            }
-        ],
-        
-        'search_button_text': _('搜索'),
-        'reset_button_text': _('重置'),
-        
-        # 筛选行为配置
-        'auto_submit': True,                    # 启用自动筛选
-        'ajax_mode': True,                      # 启用AJAX模式
-        'dynamic_reset_button': True,           # 启用动态重置按钮
-        'adaptive_width': True,                 # 启用自适应宽度
-        'adaptive_button_layout': True,         # 启用自适应按钮布局
-        'search_delay': 300                     # 搜索延迟时间
-    }
-    
-    # 通用列表组件配置
-    list_config = {
-        'module_name': 'customer',
-        'title': None,  # 页面级标题由模板控制，此处不显示
-        'ajax_mode': True,
-        
-        # 无限滚动配置
-        'infinite_scroll': {
-            'enabled': True,
-            'page_size': 20,
-            'scroll_threshold': 100  # 距离底部100px时开始加载
-        },
-        
-        # 统计卡片配置
-        'stats': {
-            'cards': [
-                {
-                    'id': 'total',
-                    'title': _('全部企业'),
-                    'icon': 'fas fa-building',
-                    'value': total_companies,
-                    'unit': _('家'),
-                    'color': 'primary',
-                    'clickable': False,
-                    'data_key': 'total'
-                },
-                {
-                    'id': 'active',
-                    'title': _('活跃企业'),
-                    'icon': 'fas fa-check-circle',
-                    'value': active_companies,
-                    'unit': _('家'),
-                    'color': 'success',
-                    'clickable': False,
-                    'data_key': 'active'
-                },
-                {
-                    'id': 'direct_customer',
-                    'title': _('直接客户'),
-                    'icon': 'fas fa-user-tie',
-                    'value': direct_customers,
-                    'unit': _('家'),
-                    'color': 'info',
-                    'clickable': False,
-                    'data_key': 'direct_customer'
-                },
-                {
-                    'id': 'project_customers',
-                    'title': _('项目客户'),
-                    'icon': 'fas fa-project-diagram',
-                    'value': project_customers,
-                    'unit': _('家'),
-                    'color': 'warning',
-                    'clickable': False,
-                    'data_key': 'project_customers'
-                }
-            ]
-        },
-        
-        # 筛选配置  
-        'filter': filter_config,
-        
-        # 表格配置
-        'table': {
-            'ajax_endpoint': url_for('customer.companies_list_ajax'),
-            'ajax_target': 'customerTableBody',
-            'title': _('企业列表'),
-            'icon': 'fas fa-table',
-            'enhanced_striping': True,      # 启用增强斑马线效果
-            'fixed_height_scroll': True,    # 启用固定高度滚动
-            'table_name': 'company',        # 指定数据库表名用于动态映射
-            'columns': [
-                {
-                    'key': 'owner',
-                    'field': 'owner_id',
-                    'label': _('负责人'),
-                    'type': 'badge',
-                    'render': 'render_owner',
-                    'width': '120px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'company_name',
-                    'field': 'company_name',
-                    'label': _(mapping_manager.get_field_display_name('company', 'company_name')),
-                    'type': 'link',
-                    'url_template': '/customer/{id}/view',
-                    'width': '240px',
-                    'min_width': '200px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'company_type',
-                    'field': 'company_type',
-                    'label': _(mapping_manager.get_field_display_name('company', 'company_type')),
-                    'type': 'badge',
-                    'render': 'render_company_type_badge',
-                    'width': '120px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'industry',
-                    'field': 'industry',
-                    'label': _(mapping_manager.get_field_display_name('company', 'industry')),
-                    'type': 'badge',
-                    'render': 'render_industry_badge',
-                    'width': '120px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'source',
-                    'field': 'source',
-                    'label': _(mapping_manager.get_field_display_name('company', 'source')),
-                    'type': 'badge',
-                    'render': 'render_report_source_badge',
-                    'width': '120px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'status',
-                    'field': 'status',
-                    'label': _('活跃度'),
-                    'type': 'badge',
-                    'render': 'render_status_badge',
-                    'width': '100px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'country_region',
-                    'field': 'country',
-                    'label': _(mapping_manager.get_field_display_name('company', 'country')),
-                    'type': 'text',
-                    'width': '150px',
-                    'sort_type': 'string'
-                },
-                {
-                    'key': 'updated_at',
-                    'field': 'updated_at',
-                    'label': _(mapping_manager.get_field_display_name('common', 'updated_at')),
-                    'type': 'date',
-                    'format': '%Y-%m-%d',
-                    'width': '120px',
-                    'sort_type': 'date'
-                },
-                {
-                    'key': 'created_at',
-                    'field': 'created_at',
-                    'label': _(mapping_manager.get_field_display_name('common', 'created_at')),
-                    'type': 'date',
-                    'format': '%Y-%m-%d',
-                    'width': '120px',
-                    'sort_type': 'date'
-                }
-            ]
-        },
-        
-        # 移动端模板配置 (兼容性保持)
-        'mobile_template': 'customer/customer_cards.html',
-        
-        # 智能移动端卡片配置 v2.0
-        'smart_mobile_card': {
-            'module': 'customer',
-            'title_field': {'field': 'company_name'},
-            'link_url': '/customer/{id}/view',
-            'badges': [
-                {
-                    'field': 'company_type',
-                    'renderer': 'render_company_type_badge'
-                },
-                {
-                    'field': 'status',
-                    'renderer': 'customer_status_badge'
-                }
-            ],
-            'details': [
-                {
-                    'field': 'owner',
-                    'label': '负责人',
-                    'renderer': 'owner'
-                },
-                {
-                    'field': 'industry',
-                    'label': '行业',
-                    'renderer': 'industry_badge'
-                },
-                {
-                    'custom_renderer': 'location',
-                    'label': '地区'
-                },
-                {
-                    'field': 'main_contact_name',
-                    'label': '主要联系人'
-                },
-                {
-                    'field': 'main_contact_phone',
-                    'label': '联系电话',
-                    'format': 'phone'
-                },
-                {
-                    'field': 'main_contact_email',
-                    'label': '邮箱',
-                    'format': 'email'
-                },
-                {
-                    'field': 'created_at',
-                    'label': '创建时间',
-                    'format': 'date'
-                }
-            ]
-        }
-    }
-    
-    # 检查是否为AJAX请求（无限滚动）
-    if request.args.get('ajax') == '1' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        # 返回表格行HTML片段
-        rows_html = render_template('customer/tw_list_rows.html',
-                                   companies=companies,
-                                   country_code_to_name=country_code_to_name)
-        return jsonify({
-            'html': rows_html,
-            'has_more': has_more,
-            'offset': offset,
-            'total_count': total_count
-        })
-
-    return render_template('customer/tw_list.html',
-                          companies=companies,
-                          total_count=total_count,
-                          has_more=has_more,
-                          offset=offset,
-                          limit=limit,
-                          search_term=search,
-                          sort_field=sort_field,
-                          sort_order=sort_order,
-                          owner_filter=owner_filter,
-                          all_users=all_users,
-                          unique_owner_ids=unique_owner_ids,
-                          country_code_to_name=country_code_to_name,
-                          COMPANY_TYPE_OPTIONS=company_type_options,
-                          INDUSTRY_OPTIONS=industry_options,
-                          STATUS_OPTIONS=status_options,
-                          COUNTRY_OPTIONS=country_options,
-                          filter_config=filter_config,
-                          list_config=list_config)
 
 @customer.route('/api/companies/filter', methods=['GET'])
 @login_required
@@ -1130,220 +744,9 @@ def search_contacts():
 
 @customer.route('/<int:company_id>/view')
 @login_required
-# 注意：不使用 @permission_required 装饰器 - 创建者可以查看自己的客户
 def view_company(company_id):
-    from app.utils.access_control import get_viewable_data
-    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
-
-    # 使用统一的数据权限检查（包含数据归属和模块权限逻辑）
-    if not can_view_company(current_user, company):
-        flash(_('您没有权限查看此客户信息'), 'danger')
-        return redirect(url_for('customer.list_companies'))
-    
-    # 所有联系人
-    all_contacts = Contact.query.filter_by(company_id=company_id).all()
-    
-    # 获取用户有权限查看的联系人
-    viewable_contacts = [c for c in all_contacts if can_view_contact(current_user, c)]
-    
-    # 预加载所有联系人的所有者信息
-    owner_ids = [contact.owner_id for contact in all_contacts if contact.owner_id]
-    if owner_ids:
-        owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
-        for contact in all_contacts:
-            if contact.owner_id and contact.owner_id in owners:
-                contact.owner = owners[contact.owner_id]
-    
-    # 如果需要，确保公司的动作记录已正确加载并按日期排序
-    if hasattr(company, 'actions') and company.actions:
-        company.actions.sort(key=lambda x: x.date, reverse=True)
-    
-    # 查询与该企业关联的所有项目（使用关系表）
-    from app.models.project_customer_association import ProjectCustomerAssociation
-
-    # 通过关联表查询所有关联的项目
-    project_associations = ProjectCustomerAssociation.query.filter_by(
-        company_id=company_id
-    ).all()
-
-    # 提取项目对象（排除已删除的项目）
-    projects = [assoc.project for assoc in project_associations if assoc.project]
-
-    # 筛选用户有权限查看的项目（只查该公司的项目ID，避免全表扫描）
-    company_project_ids = [p.id for p in projects if p]
-    if company_project_ids:
-        viewable_project_ids = set(
-            row[0] for row in get_viewable_data(
-                Project, current_user,
-                [Project.id.in_(company_project_ids)]
-            ).with_entities(Project.id).all()
-        )
-        viewable_projects = [p for p in projects if p.id in viewable_project_ids]
-    else:
-        viewable_project_ids = set()
-        viewable_projects = []
-
-    # 获取公司的行动记录（在数据库层面同时过滤 company_id 和权限）
-    page = request.args.get('page', 1, type=int)
-    viewable_actions_query = get_viewable_data(
-        Action, current_user,
-        [Action.company_id == company_id]
-    )
-    # 🔒 额外过滤：移除关联到用户无权查看的项目的行动记录
-    if viewable_project_ids:
-        viewable_actions_query = viewable_actions_query.filter(
-            db.or_(
-                Action.project_id == None,
-                Action.project_id.in_(viewable_project_ids)
-            )
-        )
-    else:
-        viewable_actions_query = viewable_actions_query.filter(Action.project_id == None)
-
-    viewable_actions = viewable_actions_query.order_by(Action.created_at.desc()).all()
-
-    # 分页使用已过滤的查询
-    pagination = viewable_actions_query.order_by(Action.created_at.desc()).paginate(
-        page=page, per_page=10, error_out=False
-    )
-    actions = pagination.items
-
-    # 提前加载行动记录所有者信息，避免N+1查询
-    all_action_ids = set()
-    for action in viewable_actions:
-        if action.owner_id:
-            all_action_ids.add(action.owner_id)
-    for action in actions:
-        if action.owner_id:
-            all_action_ids.add(action.owner_id)
-    if all_action_ids:
-        users = User.query.filter(User.id.in_(all_action_ids)).all()
-        user_map = {user.id: user for user in users}
-        for action in viewable_actions:
-            if action.owner_id and action.owner_id in user_map:
-                action.owner = user_map[action.owner_id]
-        for action in actions:
-            if action.owner_id and action.owner_id in user_map:
-                action.owner = user_map[action.owner_id]
-    
-    # 获取共享相关数据
-    from app.utils.sharing import SharingService, get_shareable_users_tree
-    can_edit_sharing = SharingService.can_edit_sharing_settings(current_user, company, 'customer')
-    can_view_sharing = SharingService.can_view_sharing_settings(current_user, company, 'customer')
-
-    # 如果能编辑或查看共享设置，获取可共享用户树
-    if can_edit_sharing or can_view_sharing:
-        shareable_users_tree = get_shareable_users_tree(current_user, 'customer')
-    else:
-        shareable_users_tree = []
-
-    # 获取已共享用户详细信息（用于显示头像）
-    shared_users_info = []
-    if company.shared_with_users:
-        shared_user_ids = company.shared_with_users[:10]  # 最多10个
-        shared_users = User.query.filter(User.id.in_(shared_user_ids)).all()
-        for user in shared_users:
-            shared_users_info.append({
-                'id': user.id,
-                'name': user.real_name or user.username
-            })
-
-    # 获取国际化的国家名称映射
-    from app.utils.i18n import get_current_language
-    country_code_to_name = get_country_names(get_current_language())
-    
-    # 查询可选新拥有人
-    if can_change_company_owner(current_user, company):
-        from app.utils.user_helpers import get_collaborative_users
-        all_users = get_collaborative_users(current_user)
-        # 确保包含当前归属人（即使不在协作范围内）
-        if company.owner_id not in {u.id for u in all_users}:
-            owner_user = User.query.get(company.owner_id)
-            if owner_user:
-                all_users = list(all_users) + [owner_user]
-
-    # 生成用户树状数据
-    user_tree_data = None
-    if can_change_company_owner(current_user, company):
-        from app.utils.user_helpers import generate_user_tree_data_from_users
-        user_tree_data = generate_user_tree_data_from_users(all_users)
-
-    # 获取客户关联的报价单（通过项目）
-    from app.models.quotation import Quotation
-    quotations = []
-    if viewable_projects:
-        viewable_project_ids_list = [p.id for p in viewable_projects]
-        quotations = Quotation.query.filter(
-            Quotation.project_id.in_(viewable_project_ids_list)
-        ).order_by(Quotation.created_at.desc()).limit(10).all()
-
-    # 获取客户关联的报销单（基于权限过滤）
-    # 使用 get_viewable_data 确保权限过滤（报销单有特殊权限规则）
-    viewable_expenses_query = get_viewable_data(Expense, current_user).filter(
-        Expense.customer_id == company_id,
-        Expense.is_deleted == False
-    )
-    expenses = viewable_expenses_query.order_by(Expense.created_at.desc()).limit(10).all()
-
-    # 如果是供应商类型，查询相关采购订单
-    purchase_orders = []
-    if company.company_type == 'supplier':
-        from app.models.inventory import PurchaseOrder
-        purchase_orders = PurchaseOrder.query.filter(
-            PurchaseOrder.company_id == company_id
-        ).order_by(PurchaseOrder.order_date.desc()).limit(10).all()
-
-    # 计算该客户的累计报销费用（计算已审批和已支付的报销单）
-    total_expense_amount = get_viewable_data(Expense, current_user).filter(
-        Expense.customer_id == company_id,
-        Expense.is_deleted == False,
-        Expense.status.in_(['approved', 'paid'])  # 已审批或已支付
-    ).with_entities(func.sum(Expense.total_amount)).scalar() or 0
-
-    # 智能返回逻辑：保留筛选条件
-    return_url = request.args.get('return_url')
-    if return_url:
-        # 安全检查：确保是本站URL
-        from urllib.parse import urlparse
-        parsed = urlparse(return_url)
-        if parsed.netloc and parsed.netloc != request.host:
-            # 非本站URL，忽略
-            return_url = None
-
-    # 默认返回客户列表
-    if not return_url:
-        return_url = url_for('customer.list_companies')
-
-    return render_template('customer/tw_view.html',
-                          company=company,
-                          contacts=viewable_contacts,
-                          all_contacts=all_contacts,  # 用于查重
-                          actions=actions,
-                          viewable_actions=viewable_actions,
-                          pagination=pagination,
-                          projects=projects,
-                          viewable_projects=viewable_projects,
-                          quotations=quotations,  # 报价单列表
-                          purchase_orders=purchase_orders,  # 采购订单列表（供应商）
-                          expenses=expenses,  # 报销单列表
-                          total_expense_amount=total_expense_amount,  # 累计报销费用
-                          currency_options=get_currency_type_options(),  # 报销单货币选项
-                          expense_categories=EXPENSE_CATEGORIES,  # 报销科目选项
-                          country_code_to_name=country_code_to_name,
-                          can_edit_sharing=can_edit_sharing,
-                          can_view_sharing=can_view_sharing,
-                          shareable_users_tree=shareable_users_tree,
-                          shared_users_info=shared_users_info,
-                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
-                          INDUSTRY_OPTIONS=get_industry_options(),
-                          STATUS_OPTIONS=get_status_options(),
-                          user_tree_data=user_tree_data,
-                          has_change_owner_permission=user_tree_data is not None,
-                          return_url=return_url,  # 智能返回URL
-                          # 添加审批相关函数
-                          get_object_approval_instance=get_object_approval_instance,
-                          get_available_templates=get_available_templates,
-                          can_start_approval=can_start_approval)
+    """旧 TW 客户详情 — 已重定向到 AT 风格详情"""
+    return redirect(url_for('customer.at_view_company', company_id=company_id))
 
 @customer.route('/api/delete-confirm/<int:company_id>')
 @login_required
@@ -2402,11 +1805,17 @@ def api_get_company(company_id):
                 'country': company.country or '',
                 'region': company.region or '',
                 'address': company.address or '',
+                'city': company.city or '',
+                'latitude': company.latitude,
+                'longitude': company.longitude,
                 'industry': company.industry or '',
                 'company_type': company.company_type or '',
                 'source': company.source or '',
                 'notes': company.notes or '',
-                'status': company.status or 'active'
+                'status': company.status or 'active',
+                'owner_id': company.owner_id,
+                'owner_name': (company.owner.real_name or company.owner.username) if company.owner else '',
+                'can_change_owner': can_change_company_owner(current_user, company),
             }
         })
     except Exception as e:
@@ -2434,6 +1843,17 @@ def api_create_company():
         if not data.get('address'):
             return jsonify({'success': False, 'message': _('请填写地址')}), 400
 
+        # 归属人:前端可指定;为空则默认当前用户;非 admin/有 change_owner 权限的人
+        # 不能创建给"其他用户"(避免越权代建)
+        _owner_id = data.get('owner_id')
+        try:
+            _owner_id = int(_owner_id) if _owner_id else current_user.id
+        except (TypeError, ValueError):
+            _owner_id = current_user.id
+        if _owner_id != current_user.id and current_user.role != 'admin':
+            if not current_user.has_permission('customer', 'change_owner'):
+                _owner_id = current_user.id  # 静默回退,不阻断创建
+
         # 创建新公司
         company = Company(
             company_name=data.get('company_name'),
@@ -2448,7 +1868,7 @@ def api_create_company():
             source=data.get('source'),
             notes=data.get('notes', ''),
             status='active',
-            owner_id=current_user.id
+            owner_id=_owner_id
         )
 
         # 如果是供应商类型，自动生成供应商编码
@@ -2530,7 +1950,7 @@ def api_update_company(company_id):
         # 捕获修改前的值
         old_values = ChangeTracker.capture_old_values(company)
 
-        # 允许更新的字段
+        # 允许更新的字段(不含 owner_id,owner 单独走权限校验)
         allowed_fields = ['company_name', 'country', 'region', 'address',
                          'city', 'latitude', 'longitude',
                          'industry', 'company_type', 'source', 'notes']
@@ -2541,6 +1961,20 @@ def api_update_company(company_id):
                 if field in ('latitude', 'longitude') and value == '':
                     value = None
                 setattr(company, field, value)
+
+        # 归属人变更:校验 can_change_company_owner(创建人本人或上级管理者),
+        # 无权限静默忽略(不阻断其他字段保存)
+        if 'owner_id' in data:
+            try:
+                _new_owner = int(data['owner_id']) if data['owner_id'] else None
+            except (TypeError, ValueError):
+                _new_owner = None
+            if _new_owner and _new_owner != company.owner_id:
+                if can_change_company_owner(current_user, company):
+                    company.owner_id = _new_owner
+                else:
+                    logger.warning(f"用户 {current_user.username} 尝试改 company {company.id} owner_id "
+                                   f"从 {company.owner_id} 到 {_new_owner},无权限,忽略")
 
         # 如果类型变为供应商且没有供应商编码，自动生成
         if company.company_type == 'supplier' and not company.supplier_code:
@@ -3730,53 +3164,64 @@ def delete_action_api(action_id):
             'message': f'服务器处理请求时出错: {str(e)}'
         }), 500
 
+@customer.route('/api/contacts/<int:contact_id>/delete', methods=['POST'])
+@login_required
+@permission_required('customer', 'delete')
+def api_delete_contact(contact_id):
+    """JSON 删除联系人 API(AT 详情页用)"""
+    contact = Contact.query.get_or_404(contact_id)
+    if not can_delete_contact(current_user, contact):
+        return jsonify({'success': False, 'message': '您没有权限删除此联系人'}), 403
+    try:
+        try:
+            ChangeTracker.log_delete(contact)
+        except Exception as track_err:
+            logger.warning(f"记录联系人删除历史失败: {str(track_err)}")
+        company_id = contact.company_id
+        db.session.delete(contact)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '联系人已删除', 'company_id': company_id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"AT 删除联系人失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+
+
+@customer.route('/contacts/<int:contact_id>/at_view')
+@permission_required('customer', 'view')
+def at_view_contact(contact_id):
+    """AT 风格联系人详情页"""
+    contact = Contact.query.get_or_404(contact_id)
+    if not can_view_contact(current_user, contact):
+        from flask import abort
+        abort(403)
+    company = contact.company
+
+    # 跟进记录(权限过滤)
+    from sqlalchemy.orm import joinedload
+    actions = get_viewable_data(
+        Action, current_user, special_filters=[Action.contact_id == contact.id]
+    ).options(joinedload(Action.project)).order_by(Action.created_at.desc()).limit(50).all()
+
+    # 该客户关联的项目(供添加跟进时选项目用)
+    from app.models.project_customer_association import ProjectCustomerAssociation
+    projects = [assoc.project for assoc in company.project_associations.all() if assoc.project]
+
+    perms = {
+        'can_edit':   can_edit_contact(current_user, contact),
+        'can_delete': can_delete_contact(current_user, contact),
+        'can_create_action': True,
+    }
+    return render_template('customer/at_contact_view.html',
+                           contact=contact, company=company,
+                           actions=actions, projects=projects, perms=perms)
+
+
 @customer.route('/contacts/<int:contact_id>/view')
 @permission_required('customer', 'view')
 def view_contact(contact_id):
-    contact = Contact.query.get_or_404(contact_id)
-    if not can_view_contact(current_user, contact):
-        flash('您没有权限查看此联系人信息', 'danger')
-        return redirect(url_for('customer.list_companies'))
-    company = contact.company
-    # 使用权限过滤获取该联系人的行动记录（预加载项目关系）
-    from app.utils.access_control import get_viewable_data
-    from sqlalchemy.orm import joinedload
-    actions = get_viewable_data(Action, current_user, special_filters=[Action.contact_id == contact.id]).options(joinedload(Action.project)).order_by(Action.created_at.desc()).all()
-    owner_ids = [action.owner_id for action in actions if action.owner_id]
-    if owner_ids:
-        owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
-        for action in actions:
-            if action.owner_id and action.owner_id in owners:
-                action.owner = owners[action.owner_id]
-    # 传递可选新拥有人 - 使用协作用户公共函数
-    from app.utils.sharing import get_shareable_users_tree
-    from app.permissions import is_admin_or_ceo
-    permission_level = current_user.get_permission_level('customer')
-
-    # 计算是否有权限显示修改按钮
-    has_change_owner_permission = False
-    if is_admin_or_ceo() or permission_level == 'system':
-        has_change_owner_permission = True
-    elif (permission_level in ['company', 'department'] or getattr(current_user, 'is_department_manager', False)) and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
-        has_change_owner_permission = True
-
-    # 生成用户树状数据（使用与客户/项目详情页一致的数据源）
-    user_tree_data = None
-    if has_change_owner_permission:
-        user_tree_data = get_shareable_users_tree(current_user, 'customer')
-
-    # 获取与该企业相关的项目（通过项目-客户关联表）
-    from app.models.project_customer_association import ProjectCustomerAssociation
-    projects = [assoc.project for assoc in company.project_associations.all()]
-
-    return render_template('customer/tw_contact_view.html', contact=contact, company=company, actions=actions,
-                          has_change_owner_permission=has_change_owner_permission,
-                          user_tree_data=user_tree_data,
-                          projects=projects,
-                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
-                          INDUSTRY_OPTIONS=get_industry_options(),
-                          STATUS_OPTIONS=get_status_options(),
-                          COUNTRY_OPTIONS=get_country_options())
+    """旧 TW 联系人详情 — 已重定向到 AT 风格详情"""
+    return redirect(url_for('customer.at_view_contact', contact_id=contact_id))
 
 @customer.route('/<int:company_id>/add_action', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -3852,6 +3297,29 @@ def add_action_for_company(company_id):
                           INDUSTRY_OPTIONS=get_industry_options(),
                           STATUS_OPTIONS=get_status_options(),
                           COUNTRY_OPTIONS=get_country_options()) 
+@customer.route('/<int:company_id>/api/update-sharing', methods=['POST'])
+@permission_required('customer', 'view')
+def api_update_company_sharing(company_id):
+    """AT 共享设置提交 — JSON 入参 {share_enabled, shared_with_users:[id,...]}"""
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+    from app.utils.sharing import SharingService
+    if not SharingService.can_edit_sharing_settings(current_user, company, 'customer'):
+        return jsonify({'success': False, 'message': '您没有权限编辑此客户的共享设置'}), 403
+    data = request.get_json() or {}
+    try:
+        if hasattr(company, 'share_enabled'):
+            company.share_enabled = bool(data.get('share_enabled'))
+        if hasattr(company, 'shared_with_users'):
+            ids = data.get('shared_with_users') or []
+            company.shared_with_users = sorted(set(int(x) for x in ids if str(x).isdigit()))
+        db.session.commit()
+        return jsonify({'success': True, 'message': '共享设置已更新'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"更新客户共享设置失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'}), 500
+
+
 @customer.route('/<int:company_id>/update_sharing', methods=['POST'])
 @permission_required('customer', 'view')
 def update_company_sharing(company_id):
@@ -4065,70 +3533,6 @@ def get_available_accounts_api():
             'message': f'获取可用账户列表失败: {str(e)}'
         }), 500
 
-# ==================== 导出客户邮箱 ====================
-
-@customer.route('/api/export_email_csv')
-@login_required
-@permission_required('customer', 'export_email')
-def export_email_csv():
-    """导出客户联系人邮箱为CSV文件"""
-    import csv
-    import io
-    from flask import Response
-
-    # 获取选中的 company_type（逗号分隔）
-    company_types = request.args.get('company_types', '')
-    selected_types = [t.strip() for t in company_types.split(',') if t.strip()]
-
-    # 权限控制：只导出用户可查看的客户
-    query = get_viewable_data(Company, current_user)
-    query = query.filter(Company.is_deleted == False)
-
-    # 始终排除供应商
-    query = query.filter(Company.company_type != 'supplier')
-
-    # 按选中的类型筛选
-    if selected_types:
-        query = query.filter(Company.company_type.in_(selected_types))
-
-    # JOIN Contact 查询有邮箱的联系人
-    from app.utils.dictionary_helpers import company_type_label
-    results = db.session.query(
-        Company.company_name,
-        Company.company_type,
-        Contact.name,
-        Contact.position,
-        Contact.email
-    ).join(Contact, Contact.company_id == Company.id).filter(
-        Company.id.in_(query.with_entities(Company.id)),
-        Contact.email.isnot(None),
-        Contact.email != ''
-    ).order_by(Company.company_name, Contact.name).all()
-
-    # 生成 CSV
-    output = io.StringIO()
-    output.write('\ufeff')  # UTF-8 BOM
-    writer = csv.writer(output)
-    writer.writerow([_('企业名称'), _('企业类型'), _('联系人'), _('职位'), _('邮箱')])
-
-    for row in results:
-        company_name, comp_type, contact_name, position, email = row
-        type_label = company_type_label(comp_type) if comp_type else ''
-        writer.writerow([company_name, type_label, contact_name, position or '', email])
-
-    # 文件名: 客户邮箱地址列表-日期-版本.csv
-    from urllib.parse import quote
-    now = datetime.now()
-    filename = f"客户邮箱地址列表-{now.strftime('%Y%m%d')}-v{now.strftime('%H%M')}.csv"
-
-    response = Response(
-        output.getvalue(),
-        mimetype='text/csv; charset=utf-8',
-        headers={
-            'Content-Disposition': f"attachment; filename=\"export.csv\"; filename*=UTF-8''{quote(filename)}"
-        }
-    )
-    return response
 
 
 # ==================== 客户合并功能 ====================

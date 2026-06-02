@@ -1,0 +1,214 @@
+{#
+  AT 顶部工具栏(全局 56px 固定)
+  ─────────────────────────────────────────────────────────────
+  按 dashboard-redesign-spec §5 落地:
+    [左] Logo(可省) + 国旗角标
+    [中] 全局搜索 ⌘K
+    [右] [+ 创建] · 任务 · 通知 · 上传 · AI · 帮助 · 语言
+
+  用法:
+    {% from 'components/at_topbar.html' import at_topbar %}
+    {{ at_topbar(show_logo=false) }}   {# 在 sidebar 已有 logo 时省略 #}
+
+  依赖:
+    - at_base.at_icon
+    - at-prefs.js(暗色切换)
+    - at-topbar.js(可选:全局搜索唤起、快速创建下拉)
+#}
+{% from 'components/at_base.html' import at_icon, at_avatar with context %}
+
+
+{% macro _icon_btn(icon, title, onclick='', href='', dot_color='', dot_text='') %}
+  {% set tag = 'a' if href else 'button' %}
+  <{{ tag }} {% if href %}href="{{ href }}"{% else %}type="button"{% endif %}
+     {% if onclick %}onclick="{{ onclick }}"{% endif %}
+     title="{{ title }}"
+     style="position:relative;width:38px;height:38px;border-radius:8px;
+            border:0;background:transparent;color:var(--ink-2);cursor:pointer;
+            display:inline-flex;align-items:center;justify-content:center;
+            transition:background 120ms,color 120ms;text-decoration:none;"
+     onmouseover="this.style.background='var(--bg-page)';this.style.color='var(--ink)'"
+     onmouseout="this.style.background='transparent';this.style.color='var(--ink-2)'">
+    {{ at_icon(icon, 17) }}
+    {% if dot_color %}
+    <span style="position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;
+                 background:{{ dot_color }};border:1.5px solid var(--bg-elev);"></span>
+    {% endif %}
+    {% if dot_text %}
+    <span style="position:absolute;top:5px;right:4px;min-width:16px;height:16px;padding:0 4px;
+                 border-radius:8px;background:var(--danger);color:#fff;font-size:10px;
+                 font-weight:600;display:inline-flex;align-items:center;justify-content:center;
+                 border:1.5px solid var(--bg-elev);">{{ dot_text }}</span>
+    {% endif %}
+  </{{ tag }}>
+{% endmacro %}
+
+
+{% macro at_topbar(show_logo=false) %}
+<header id="atTopbar"
+        style="position:sticky;top:0;z-index:40;height:56px;
+               background:var(--bg-elev);border-bottom:1px solid var(--line);
+               display:flex;align-items:center;gap:16px;padding:0 20px;flex-shrink:0;">
+
+  {# ── 左:Logo(可选;sidebar 已有 logo 时通常省略) ── #}
+  {% if show_logo %}
+  <a href="{{ url_for('main.index') }}" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--ink);">
+    <img src="{{ url_for('static', filename='images/pma-logo.png') }}" alt="PMA"
+         style="width:24px;height:24px;border-radius:5px;" />
+    <span class="at-serif" style="font-size:15px;font-weight:600;letter-spacing:0.02em;">PMA</span>
+  </a>
+  <span style="height:18px;width:1px;background:var(--line-2);"></span>
+  {% endif %}
+
+  {# ── 中:全局搜索(⌘K) ── #}
+  <div style="flex:1;display:flex;justify-content:center;">
+    <button type="button" id="atGlobalSearchTrigger"
+            onclick="if(window.ATGlobalSearch)ATGlobalSearch.open()"
+            style="width:100%;max-width:520px;height:36px;padding:0 12px 0 36px;
+                   background:var(--bg-page);border:1px solid var(--line);
+                   border-radius:8px;color:var(--ink-4);font-size:13px;text-align:left;
+                   position:relative;cursor:pointer;
+                   transition:border-color 120ms,background 120ms;"
+            onmouseover="this.style.borderColor='var(--line-2)';this.style.background='var(--bg-elev)'"
+            onmouseout="this.style.borderColor='var(--line)';this.style.background='var(--bg-page)'">
+      <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);
+                   display:inline-flex;align-items:center;color:var(--ink-3);">
+        {{ at_icon('search', 14) }}
+      </span>
+      <span>搜索客户、项目、报价、SN、产品…</span>
+      <span class="at-mono" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                   font-size:11px;color:var(--ink-4);background:var(--bg-elev);
+                   border:1px solid var(--line);border-radius:4px;padding:2px 6px;">⌘K</span>
+    </button>
+  </div>
+
+  {# ── 右:操作集群 ── #}
+  <div style="display:flex;align-items:center;gap:2px;">
+
+    {# 快速创建下拉(对齐设计稿 dashboard-shell.jsx QuickCreateMenu — 9 项 + 1 分隔) #}
+    <div style="position:relative;">
+      <button type="button" id="atQuickCreateTrigger"
+              onclick="if(window.ATQuickCreate)ATQuickCreate.toggle(event)"
+              title="快速创建"
+              style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;
+                     background:var(--accent);color:#fff;border:0;border-radius:8px;
+                     font-size:13px;font-weight:500;cursor:pointer;
+                     box-shadow:0 1px 2px rgba(0,0,0,0.06);">
+        {{ at_icon('plus', 14) }} 创建
+        <span style="margin-left:-2px;">{{ at_icon('chevd', 11) }}</span>
+      </button>
+
+      <div id="atQuickCreateMenu" style="display:none;position:absolute;top:calc(100% + 6px);right:0;width:240px;
+                  background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;
+                  box-shadow:0 12px 32px rgba(31,30,27,0.14);padding:6px;z-index:50;
+                  animation:scale-in 140ms ease-out;">
+        <div style="padding:8px 12px 4px;font-size:11px;color:var(--ink-3);letter-spacing:0.08em;
+                    text-transform:uppercase;font-weight:500;">快速创建</div>
+
+        {% set _qc_style = 'display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;
+                            border:0;border-radius:6px;background:transparent;color:var(--ink);
+                            font-size:13px;text-align:left;text-decoration:none;cursor:pointer;font:inherit;' %}
+        {% macro qc(icon, label, href) %}
+          <a href="{{ href }}" style="{{ _qc_style }}"
+             onmouseover="this.style.background='var(--bg-page)'"
+             onmouseout="this.style.background='transparent'">
+            <span style="color:var(--ink-3);">{{ at_icon(icon, 14) }}</span>
+            <span style="flex:1;">{{ label }}</span>
+          </a>
+        {% endmacro %}
+
+        {# Primary 6 项 #}
+        {% if has_permission('customer', 'create') %}
+          {{ qc('users', '新建客户', url_for('customer.list_companies') ~ '?action=create') }}
+        {% endif %}
+        {% if has_permission('project', 'create') %}
+          {{ qc('flask', '新建项目', url_for('project.list_projects') ~ '?action=create') }}
+        {% endif %}
+        {% if has_permission('quotation', 'create') %}
+          {{ qc('pen', '新建报价', url_for('quotation.list_quotations') ~ '?action=create') }}
+        {% endif %}
+        {% if has_permission('expense', 'create') %}
+          {{ qc('money', '提交报销', url_for('expense.expense_list') ~ '?action=create') }}
+        {% endif %}
+        {% if has_permission('sales_order', 'create') %}
+          {{ qc('cart', '新建客户订单', url_for('sales_order.list_view') ~ '?action=create') }}
+        {% endif %}
+        {% if has_permission('order', 'create') %}
+          {{ qc('truck', '新建采购订单', url_for('purchase_order.at_list_view') ~ '?action=create') }}
+        {% endif %}
+
+        <div style="height:1px;background:var(--line);margin:4px 8px;"></div>
+
+        {# Secondary 3 项 #}
+        {{ qc('pulse', '记一笔 Action', '#') }}
+        {{ qc('edit',  '写工作日报',     '/worklog/calendar') }}
+        {{ qc('check', '创建任务',       '#') }}
+      </div>
+    </div>
+
+    <span style="width:10px;"></span>
+
+    {# 工作日历(未读用红圆点 — 后端 unread_calendar 标记) #}
+    {{ _icon_btn('clock', '工作日历', href='/worklog/calendar',
+                 dot_color=('var(--accent)' if (unread_calendar | default(false)) else '')) }}
+
+    {# 快捷上传 #}
+    {{ _icon_btn('upload', '快捷上传',
+                 onclick='if(window.atTopbarUpload)atTopbarUpload.toggle()') }}
+
+    {# AI 助手 #}
+    {{ _icon_btn('bot', 'AI 助手',
+                 onclick='if(window.atTopbarAI)atTopbarAI.toggle()') }}
+
+    {# 帮助 / What's New #}
+    {{ _icon_btn('help', '帮助 · What\'s New',
+                 onclick='if(window.atTopbarHelp)atTopbarHelp.toggle()') }}
+
+    {# 分隔线 #}
+    <span style="width:1px;height:22px;background:var(--line);margin:0 4px;"></span>
+
+    {# 语言切换 #}
+    {{ _icon_btn('globe', '语言 / Language',
+                 onclick='if(window.atToggleLang)atToggleLang()') }}
+
+    {# 暗色模式 #}
+    {{ _icon_btn('moon', '主题切换',
+                 onclick='if(window.ATPrefs)ATPrefs.toggleDark()') }}
+
+  </div>
+</header>
+
+{# 全局点击关闭 popup #}
+<script>
+  if (!window._atTopbarBound) {
+    window._atTopbarBound = true;
+    window.ATQuickCreate = {
+      toggle(e) {
+        if (e) e.stopPropagation();
+        const m = document.getElementById('atQuickCreateMenu');
+        if (m) m.style.display = (m.style.display === 'block') ? 'none' : 'block';
+      },
+      close() {
+        const m = document.getElementById('atQuickCreateMenu');
+        if (m) m.style.display = 'none';
+      }
+    };
+    document.addEventListener('click', (e) => {
+      const m = document.getElementById('atQuickCreateMenu');
+      const t = document.getElementById('atQuickCreateTrigger');
+      if (m && m.style.display === 'block' && !m.contains(e.target) && !t.contains(e.target)) {
+        m.style.display = 'none';
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      // Esc 关闭快速创建
+      if (e.key === 'Escape') ATQuickCreate.close();
+      // ⌘K / Ctrl+K 触发全局搜索
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (window.ATGlobalSearch) ATGlobalSearch.open();
+      }
+    });
+  }
+</script>
+{% endmacro %}

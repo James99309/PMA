@@ -1,0 +1,161 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
+{% from 'components/at_project_modal.html' import at_project_form_modal %}
+{% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+
+{% block sidebar_active %}project{% endblock %}
+{% block page_title %}项目管理{% endblock %}
+{% block category_label %}PROJECT · 业务管理{% endblock %}
+{% block page_description %}跟踪项目从发现、植入、投标到签约的完整阶段。{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">业务管理</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">项目管理</span>
+{% endblock %}
+
+{% block page_actions %}
+{{ at_btn('市场情报库', variant='ghost', icon_l='search', tag='a', href=url_for('prospect.list_view')) }}
+{{ at_btn('新建项目', variant='primary', icon_l='plus', onclick="atOpenProjectForm('create')") }}
+{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ai-form-enrich.js') }}"></script>
+{# Tailwind Play CDN(map_picker_modal 用 Tailwind class 渲染) — 关 preflight 防全局重置覆盖 AT 风格 #}
+<script>
+  // 对齐 AT 主题:AT 用 <html data-theme="dark">,默认 'class' 模式匹配 .dark 不生效
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
+    darkMode: ['selector', '[data-theme="dark"]'],
+    corePlugins: { preflight: false },
+    theme: { extend: { colors: { primary: 'var(--accent)' } } }
+  };
+</script>
+<script src="{{ url_for('static', filename='vendor/tailwind/tailwind.forms.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-project-form.js') }}"></script>
+{% endblock %}
+
+{% block tabs %}
+{% set _tabs = [
+  {'k':'all',        'l':'全部',  'c':tab_counts.all},
+  {'k':'discover',   'l':'发现',  'c':tab_counts.discover},
+  {'k':'embed',      'l':'植入',  'c':tab_counts.embed},
+  {'k':'pre_tender', 'l':'标前',  'c':tab_counts.pre_tender},
+  {'k':'tendering',  'l':'标中',  'c':tab_counts.tendering},
+  {'k':'awarded',    'l':'中标',  'c':tab_counts.awarded},
+  {'k':'closed',     'l':'失败/暂停', 'c':tab_counts.closed}
+] %}
+{% for t in _tabs %}
+{% set active = (current_tab == t.k) %}
+<a href="{{ url_for('project.at_list_view', tab=t.k, search=search) }}"
+   style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
+          position:relative;text-decoration:none;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;white-space:nowrap;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ t.l }}</span>
+  <span class="at-tab-num at-mono"
+        style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
+</a>
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+<form method="get" action="{{ url_for('project.at_list_view') }}"
+      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <input type="hidden" name="tab" value="{{ current_tab }}">
+  {{ at_input(name='search', value=search, placeholder='搜索项目名 / 授权码…', icon_l='search', width='320px') }}
+  {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
+</form>
+{% endblock %}
+
+{% block thead %}
+{% for h, a in [('项目','left'),('阶段','left'),('类型','left'),
+                ('报价额','right'),('所属','left'),('交期','left'),('更新','left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% set today = now() if now is defined else None %}
+{% for p in projects %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+{% set currency_sym = '$' if (p.quotation_currency or '') == 'USD' else '¥' %}
+<tr class="at-row" data-href="{{ url_for('project.at_view_project', project_id=p.id) }}"
+    onclick="location.href=this.dataset.href"
+    style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:300px;">
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
+      <span style="font-size:13px;font-weight:500;color:var(--ink);
+                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.project_name }}</span>
+      {% if p.authorization_code %}
+      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ p.authorization_code }}</span>
+      {% endif %}
+    </div>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    {{ at_status_pill(p.current_stage or 'discover', scope='project') }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-3);font-size:12px;">
+    {{ (p.project_type | project_type_label) if p.project_type else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <span class="at-mono at-tab-num"
+          style="color:{{ 'var(--ink)' if p.quotation_customer else 'var(--ink-4)' }};font-size:13px;">
+      {{ currency_sym }}{{ '{:,.0f}'.format(p.quotation_customer or 0) }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
+    {{ (p.owner.real_name or p.owner.username) if p.owner else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ p.delivery_forecast.strftime('%Y-%m-%d') if p.delivery_forecast else '—' }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ p.updated_at.strftime('%Y-%m-%d') if p.updated_at else '—' }}
+    </span>
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    没有符合筛选条件的项目
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block pagination %}
+{% if pagination.pages > 1 %}
+<span class="at-mono at-dim" style="font-size:11.5px;">
+  第 {{ pagination.page }} / {{ pagination.pages }} 页
+</span>
+<div style="display:flex;gap:6px;">
+  {% if pagination.has_prev %}
+    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+              href=url_for('project.at_list_view', tab=current_tab, page=pagination.prev_num, search=search)) }}
+  {% endif %}
+  {% if pagination.has_next %}
+    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+              href=url_for('project.at_list_view', tab=current_tab, page=pagination.next_num, search=search)) }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block modals %}
+{{ at_project_form_modal('atCreateProjectModal', mode='create') }}
+{{ render_map_picker_modal() }}
+{# 地图选择器原 z-index=50,AT modal=100,默认会被盖住 → 提到 200 显示在最顶层 #}
+<style>#mapPickerModal { z-index: 200 !important; }</style>
+{% endblock %}
