@@ -1,0 +1,70 @@
+{# 项目列表表格行模板 - 用于无限滚动AJAX加载 #}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_industry_badge, render_tw_project_stage_badge_key, render_tw_project_type_badge, render_tw_report_source_badge, render_tw_customer_status_badge %}
+{% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_link_secondary, tw_cell_badge, tw_cell_mono, tw_cell_amount, tw_cell_date %}
+{% for project in projects %}
+{% if project._is_pending %}
+<tr class="border-l-2 border-l-amber-400/60">
+    <td class="p-3 whitespace-nowrap overflow-hidden">
+        <div class="relative inline-flex">
+            {{ render_tw_owner_badge(project.owner) }}
+            <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                <span class="material-symbols-outlined text-amber-600 animate-pulse" style="font-size:10px;font-variation-settings:'FILL' 1">hourglass_top</span>
+            </span>
+        </div>
+    </td>
+    <td class="p-3 whitespace-nowrap">
+        <span class="text-sm text-slate-700 dark:text-slate-300">{{ project.project_name }}</span>
+    </td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    {{ tw_cell_badge(render_tw_customer_status_badge(project.activity_status)) }}
+    {{ tw_cell_badge(render_tw_project_stage_badge_key(project.current_stage)) }}
+    {{ tw_cell_badge(render_tw_project_type_badge(project.project_type)) }}
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    {{ tw_cell_badge(render_tw_industry_badge(project.industry)) }}
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+</tr>
+{% elif project._is_restricted %}
+<tr class="cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors"
+    onclick="window.dispatchEvent(new CustomEvent('open-access-request-modal', {detail: {entityType:'project', entityId:{{ project.id }}, ownerName:'{{ project._owner_name|e }}', entityName:'{{ project.project_name|e }}', companyType:''}}))">
+    <td class="p-3 whitespace-nowrap overflow-hidden">
+        <div class="relative inline-flex">
+            {{ render_tw_owner_badge(project.owner) }}
+            <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                <span class="material-symbols-outlined text-amber-600" style="font-size:10px;font-variation-settings:'FILL' 1">lock</span>
+            </span>
+        </div>
+    </td>
+    <td class="p-3 whitespace-nowrap">
+        <span class="text-sm text-slate-700 dark:text-slate-300">{{ project.project_name }}</span>
+    </td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    {{ tw_cell_badge(render_tw_customer_status_badge(project.activity_status)) }}
+    {{ tw_cell_badge(render_tw_project_stage_badge_key(project.current_stage)) }}
+    {{ tw_cell_badge(render_tw_project_type_badge(project.project_type)) }}
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    {{ tw_cell_badge(render_tw_industry_badge(project.industry)) }}
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+</tr>
+{% else %}
+<tr class="table-row-hover transition-colors">
+    {{ tw_cell_badge(render_tw_owner_badge(project.owner)) }}
+    {{ tw_cell_link(url_for('project.view_project', project_id=project.id), project.project_name, title=project.project_name) }}
+    {{ tw_cell_mono(project.authorization_code) }}
+    {{ tw_cell_badge(render_tw_customer_status_badge(project.activity_status)) }}
+    {{ tw_cell_badge(render_tw_project_stage_badge_key(project.current_stage)) }}
+    {{ tw_cell_badge(render_tw_project_type_badge(project.project_type)) }}
+    {{ tw_cell_amount(project.quotation_customer, 'CNY') }}
+    {{ tw_cell_badge(render_tw_industry_badge(project.industry)) }}
+    {{ tw_cell_badge(render_tw_report_source_badge(project.report_source)) }}
+    {{ tw_cell_date(project.delivery_forecast) }}
+    {{ tw_cell_date(project.updated_at) }}
+    {{ tw_cell_date(project.created_at) }}
+</tr>
+{% endif %}
+{% endfor %}

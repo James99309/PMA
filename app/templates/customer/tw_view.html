@@ -1,0 +1,1408 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_detail_layout.html' import tw_detail_layout with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles with context %}
+{% from 'components/tw_table_card.html' import render_tw_table_card, render_empty_state, render_table_card_styles with context %}
+{% from 'components/tw_action_list.html' import tw_action_list_card, render_tw_action_list_script with context %}
+{% from 'components/tw_buttons.html' import tw_btn_primary, tw_btn_secondary, tw_btn_danger, tw_btn_outline, tw_btn_icon with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script, tw_delete_confirm_modal, tw_custom_modal, tw_custom_modal_script with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script, tw_tab_content with context %}
+{% from 'components/tw_form_fields.html' import tw_form_field, tw_form_select, tw_form_textarea, tw_form_checkbox, tw_form_row with context %}
+{% from 'components/tw_action_modal.html' import tw_action_modal, tw_action_modal_script with context %}
+{% from 'components/tw_info_card.html' import tw_info_card with context %}
+{% from 'components/tw_item_list_card.html' import tw_item_list_card, tw_item_list_item, tw_item_list_empty with context %}
+{% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
+{% from 'components/tw_sharing_card.html' import tw_sharing_card with context %}
+{% from 'components/tw_user_selector_modal.html' import tw_user_selector_modal with context %}
+{% from 'macros/ui_helpers.html' import render_tw_customer_status_badge, render_tw_project_stage_badge_key, render_tw_quotation_badge, render_tw_primary_badge, render_tw_expense_status_badge with context %}
+
+{# 货币符号映射 - 用于报销单金额显示 #}
+{% set currency_symbols = {'CNY': '¥', 'USD': '$', 'HKD': 'HK$', 'TWD': 'NT$', 'SGD': 'S$', 'MYR': 'RM', 'IDR': 'Rp', 'THB': '฿', 'VND': '₫'} %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="google-maps-api-key" content="{{ config.GOOGLE_MAPS_API_KEY }}">
+    <meta name="map-provider" content="{{ config.MAP_PROVIDER }}">
+    <meta name="amap-js-key" content="{{ config.AMAP_JS_KEY }}">
+    <meta name="amap-security-key" content="{{ config.AMAP_SECURITY_KEY }}">
+    <title>{{ company.company_name }} - {{ _('客户详情') }}</title>
+    <!-- DNS预解析和预连接，加速CDN域名解析 -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+    <!-- 字体：使用国内镜像，非阻塞加载 -->
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* 通知徽章样式 */
+        .notification-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.25rem;
+            height: 1.25rem;
+            padding: 0 0.375rem;
+            border-radius: 9999px;
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        /* 表格滚动容器样式 */
+        .table-scroll-container::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .dark .table-scroll-container::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .dark .table-scroll-container::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+        .dark .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        /* 气泡卡片样式 */
+        .bubble-card {
+            background: rgba(19, 127, 236, 0.1);
+            border-radius: 0.75rem;
+            border-bottom-left-radius: 0.25rem;
+        }
+        .dark .bubble-card {
+            background: rgba(19, 127, 236, 0.2);
+        }
+        /* 头像颜色变体 */
+        .avatar-blue { background-color: #3b82f6; }
+        .avatar-green { background-color: #22c55e; }
+        .avatar-purple { background-color: #a855f7; }
+        .avatar-orange { background-color: #f97316; }
+        .avatar-pink { background-color: #ec4899; }
+        .avatar-teal { background-color: #14b8a6; }
+        /* 滚动区域 */
+        .action-scroll {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .action-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .action-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        .action-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .action-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        [x-cloak] { display: none !important; }
+
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
+    {% call(slot) render_tw_layout(active_page='customer', show_search=true) %}
+    {% if slot == 'content' %}
+    {# 使用统一的详情页布局组件 #}
+    {% call(detail_slot) tw_detail_layout(
+        breadcrumb_items=[
+            {'label': _('客户管理'), 'url': url_for('customer.list_companies')},
+            {'label': company.company_name}
+        ],
+        title=company.company_name,
+        back_url=url_for('customer.list_companies'),
+        status_badges=render_tw_customer_status_badge(company.status),
+        edit_btn={
+            'show': can_edit_company_info(current_user, company),
+            'onclick': 'openCustomerEditModal()'
+        },
+        delete_btn={
+            'show': can_delete_company(current_user, company),
+            'onclick': 'openDeleteConfirm()'
+        },
+        extra_actions=[
+            {
+                'show': true,
+                'label': _('AI 调研'),
+                'onclick': "window._handleAiResearchClick(this)",
+                'icon': 'travel_explore',
+                'color': 'slate',
+                'id': 'aiResearchBtn'
+            },
+            {
+                'show': true,
+                'label': _('星图'),
+                'onclick': "window.location.href='" ~ url_for('star_graph.company_graph', company_id=company.id) ~ "'",
+                'icon': 'hub',
+                'color': 'slate'
+            }
+        ],
+        has_sidebar=true,
+        main_cols=1,
+        sidebar_cols=2,
+        content_gap='8'
+    ) %}
+        {% if detail_slot == 'full_width' %}
+            <!-- AI 网络调研区域 (默认折叠，点击头部按钮展开) -->
+            <div x-data="{researchOpen: false}" @toggle-ai-research.window="researchOpen = !researchOpen" @set-ai-research.window="researchOpen = $event.detail">
+            <div x-show="researchOpen" x-collapse.duration.300ms>
+            <div x-data="aiResearch()" x-init="init()">
+
+                <!-- 已加载但数据为空 -->
+                <template x-if="status === 'completed' && isEmptyResult">
+                    <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 text-center">
+                        <span class="material-symbols-outlined text-5xl text-slate-400 dark:text-slate-500 mb-3">search_off</span>
+                        <p class="text-slate-600 dark:text-slate-400 mb-2 font-medium">{{ _('未找到该公司的公开信息') }}</p>
+                        <p class="text-sm text-slate-400 dark:text-slate-500 mb-4">{{ _('可能是小型企业或网络公开信息较少，您可以尝试重新调研') }}</p>
+                        <button @click="retry()"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-lg">refresh</span>
+                            {{ _('重新调研') }}
+                        </button>
+                    </div>
+                </template>
+
+                <!-- 已加载数据 -->
+                <template x-if="status === 'completed' && !isEmptyResult">
+                    <div class="space-y-4">
+                        <!-- 头部：标题 + 更新时间 -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">psychology</span>
+                                <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('AI 网络调研') }}</h3>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                <template x-if="isStale">
+                                    <span class="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                                        {{ _('数据已超过30天，正在自动刷新...') }}
+                                    </span>
+                                </template>
+                                <template x-if="!isStale">
+                                    <span x-text="formatUpdatedAt(updatedAt)"></span>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- 公司概况 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-primary">domain</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('公司概况') }}</span>
+                            </div>
+                            <div>
+                                <div class="px-5 pb-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                                    <template x-if="data.company_profile">
+                                        <div class="space-y-2">
+                                            <template x-if="data.company_profile.positioning">
+                                                <p class="text-base font-medium text-slate-900 dark:text-white" x-text="data.company_profile.positioning"></p>
+                                            </template>
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                <template x-if="data.company_profile.founded">
+                                                    <div class="flex gap-2"><span class="text-slate-500">{{ _('成立') }}:</span><span x-text="data.company_profile.founded"></span></div>
+                                                </template>
+                                                <template x-if="data.company_profile.headquarters">
+                                                    <div class="flex gap-2"><span class="text-slate-500">{{ _('总部') }}:</span><span x-text="data.company_profile.headquarters"></span></div>
+                                                </template>
+                                                <template x-if="data.company_profile.revenue">
+                                                    <div class="flex gap-2"><span class="text-slate-500">{{ _('营收') }}:</span><span x-text="data.company_profile.revenue"></span></div>
+                                                </template>
+                                            </div>
+                                            <template x-if="data.company_profile.main_business && data.company_profile.main_business.length">
+                                                <div>
+                                                    <span class="text-slate-500">{{ _('主营业务') }}:</span>
+                                                    <div class="flex flex-wrap gap-1.5 mt-1">
+                                                        <template x-for="biz in data.company_profile.main_business" :key="biz">
+                                                            <span class="px-2 py-0.5 bg-primary/10 text-primary dark:bg-primary/20 rounded-full text-xs" x-text="biz"></span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template x-if="data.company_profile.strategy">
+                                                <div><span class="text-slate-500">{{ _('战略方向') }}:</span> <span x-text="data.company_profile.strategy"></span></div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 关键人物 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-indigo-500">group</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('关键人物') }}</span>
+                                <template x-if="data.executives && data.executives.length">
+                                    <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full" x-text="data.executives.length"></span>
+                                </template>
+                            </div>
+                            <div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.executives && data.executives.length">
+                                        <div class="space-y-2">
+                                            <template x-for="exec in data.executives" :key="exec.name">
+                                                <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                    <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+                                                        <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-sm">person</span>
+                                                    </div>
+                                                    <div class="flex-1 min-w-0">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="font-medium text-sm text-slate-900 dark:text-white" x-text="exec.name"></span>
+                                                            <span class="text-xs text-slate-500 dark:text-slate-400" x-text="exec.title"></span>
+                                                            <template x-if="exec.risk_tag">
+                                                                <span class="px-1.5 py-0.5 text-xs bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 rounded-full" x-text="exec.risk_tag"></span>
+                                                            </template>
+                                                        </div>
+                                                        <template x-if="exec.background">
+                                                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5" x-text="exec.background"></p>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!data.executives || !data.executives.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 在建项目 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-emerald-500">engineering</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('在建/近期项目') }}</span>
+                                <template x-if="data.active_projects && data.active_projects.length">
+                                    <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full" x-text="data.active_projects.length"></span>
+                                </template>
+                            </div>
+                            <div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.active_projects && data.active_projects.length">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            <template x-for="proj in data.active_projects" :key="proj.name">
+                                                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                    <div class="flex items-start justify-between">
+                                                        <span class="font-medium text-sm text-slate-900 dark:text-white" x-text="proj.name"></span>
+                                                        <template x-if="proj.amount">
+                                                            <span class="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex-shrink-0 ml-2" x-text="proj.amount"></span>
+                                                        </template>
+                                                    </div>
+                                                    <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                        <template x-if="proj.type"><span x-text="proj.type"></span></template>
+                                                        <template x-if="proj.partner"><span>{{ _('合作方') }}: <span x-text="proj.partner"></span></span></template>
+                                                        <template x-if="proj.status"><span x-text="proj.status"></span></template>
+                                                    </div>
+                                                    <template x-if="proj.detail">
+                                                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" x-text="proj.detail"></p>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!data.active_projects || !data.active_projects.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 风险预警 + 合作伙伴并排 -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- 风险预警 -->
+                            <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                                <div class="flex items-center gap-2 px-5 py-3.5">
+                                    <span class="material-symbols-outlined text-red-500">warning</span>
+                                    <span class="font-medium text-slate-900 dark:text-white">{{ _('风险预警') }}</span>
+                                    <template x-if="data.risk_alerts && data.risk_alerts.length">
+                                        <span class="text-xs bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full" x-text="data.risk_alerts.length"></span>
+                                    </template>
+                                </div>
+                                <div>
+                                    <div class="px-5 pb-4">
+                                        <template x-if="data.risk_alerts && data.risk_alerts.length">
+                                            <div class="space-y-2">
+                                                <template x-for="alert in data.risk_alerts" :key="alert.content">
+                                                    <div class="flex items-start gap-2 p-2 rounded-lg"
+                                                         :class="alert.level === 'high' ? 'bg-red-50 dark:bg-red-900/20' : alert.level === 'medium' ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-slate-50 dark:bg-slate-700/40'">
+                                                        <span class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-1.5"
+                                                              :class="alert.level === 'high' ? 'bg-red-500' : alert.level === 'medium' ? 'bg-amber-500' : 'bg-slate-400'"></span>
+                                                        <div class="flex-1">
+                                                            <p class="text-sm" x-text="alert.content"></p>
+                                                            <template x-if="alert.date">
+                                                                <p class="text-xs text-slate-400 mt-0.5" x-text="alert.date"></p>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!data.risk_alerts || !data.risk_alerts.length">
+                                            <p class="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                                <span class="material-symbols-outlined text-sm">check_circle</span>
+                                                {{ _('暂无风险预警') }}
+                                            </p>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 合作伙伴 -->
+                            <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                                <div class="flex items-center gap-2 px-5 py-3.5">
+                                    <span class="material-symbols-outlined text-blue-500">handshake</span>
+                                    <span class="font-medium text-slate-900 dark:text-white">{{ _('合作伙伴') }}</span>
+                                </div>
+                                <div>
+                                    <div class="px-5 pb-4 space-y-3 text-sm">
+                                        <template x-if="data.partners">
+                                            <div class="space-y-3">
+                                                <template x-if="data.partners.general_contractors && data.partners.general_contractors.length">
+                                                    <div>
+                                                        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('总包方') }}</span>
+                                                        <div class="flex flex-wrap gap-1.5 mt-1">
+                                                            <template x-for="gc in data.partners.general_contractors" :key="gc">
+                                                                <span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs" x-text="gc"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                                <template x-if="data.partners.ecosystem && data.partners.ecosystem.length">
+                                                    <div>
+                                                        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('生态伙伴') }}</span>
+                                                        <div class="flex flex-wrap gap-1.5 mt-1">
+                                                            <template x-for="ep in data.partners.ecosystem" :key="ep">
+                                                                <span class="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-full text-xs" x-text="ep"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                                <template x-if="data.partners.key_customers && data.partners.key_customers.length">
+                                                    <div>
+                                                        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('重要客户') }}</span>
+                                                        <div class="flex flex-wrap gap-1.5 mt-1">
+                                                            <template x-for="kc in data.partners.key_customers" :key="kc">
+                                                                <span class="px-2 py-0.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs" x-text="kc"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!data.partners || (!data.partners.general_contractors?.length && !data.partners.ecosystem?.length && !data.partners.key_customers?.length)">
+                                            <p class="text-slate-400">{{ _('暂无数据') }}</p>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI 销售建议 -->
+                        <div class="bg-gradient-to-r from-primary/5 to-indigo-500/5 dark:from-primary/10 dark:to-indigo-500/10 rounded-2xl border border-primary/20 dark:border-primary/30 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-primary">lightbulb</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('AI 销售切入建议') }}</span>
+                            </div>
+                            <div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.sales_suggestions && data.sales_suggestions.length">
+                                        <ol class="space-y-2">
+                                            <template x-for="(sug, idx) in data.sales_suggestions" :key="idx">
+                                                <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 dark:bg-primary/20 text-primary text-xs flex items-center justify-center font-medium" x-text="idx + 1"></span>
+                                                    <span x-text="sug"></span>
+                                                </li>
+                                            </template>
+                                        </ol>
+                                    </template>
+                                    <template x-if="!data.sales_suggestions || !data.sales_suggestions.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- 候选选择状态 -->
+                <template x-if="status === 'needs_input'">
+                    <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-amber-200 dark:border-amber-700/60 p-6">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="material-symbols-outlined text-amber-500">help</span>
+                            <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('确认调研对象') }}</h3>
+                        </div>
+
+                        <!-- 有候选列表 -->
+                        <template x-if="candidates && candidates.length > 0">
+                            <div>
+                                <p class="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                                    {{ _('未找到与当前客户名完全匹配的结果，以下是搜索到的相关公司：') }}
+                                </p>
+                                <div class="space-y-2 mb-4">
+                                    <template x-for="(name, idx) in candidates" :key="idx">
+                                        <button @click="confirmCandidate(name)"
+                                            class="w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer">
+                                            <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="name"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <div class="flex items-center gap-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                                    <button @click="confirmCandidate(null)"
+                                        class="text-sm text-primary hover:underline cursor-pointer">
+                                        {{ _('仍使用原始名称调研') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- 无候选 -->
+                        <template x-if="!candidates || candidates.length === 0">
+                            <div>
+                                <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">{{ _('未找到匹配的候选公司') }}</p>
+                                <button @click="confirmCandidate(null)"
+                                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-sm">search</span>
+                                    {{ _('继续调研') }}
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- 错误状态 -->
+                <template x-if="status === 'error'">
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6 text-center">
+                        <span class="material-symbols-outlined text-3xl text-red-400 mb-2">error</span>
+                        <p class="text-red-600 dark:text-red-400 text-sm" x-text="errorMsg"></p>
+                        <button @click="retry()"
+                            class="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-sm">refresh</span>
+                            {{ _('重试') }}
+                        </button>
+                    </div>
+                </template>
+            </div>
+            </div>
+            </div>
+
+        {% elif detail_slot == 'main' %}
+                            <!-- 客户档案卡片 -->
+                            {{ tw_info_card(
+                                title=_('客户档案'),
+                                items=[
+                                    {'icon': 'business', 'label': _('企业类型'), 'value': company.company_type|company_type_label if company.company_type else none, 'hide_empty': true},
+                                    {'icon': 'qr_code', 'label': _('供应商编码'), 'value': company.supplier_code if company.company_type == 'supplier' and company.supplier_code else none, 'hide_empty': true},
+                                    {'icon': 'apartment', 'label': _('行业'), 'value': company.industry|industry_label if company.industry else none, 'hide_empty': true},
+                                    {'icon': 'source', 'label': _('来源'), 'value': company.source|report_source_label if company.source else none, 'hide_empty': true},
+                                    {'icon': 'public', 'label': _('国家/地区'), 'value': country_code_to_name.get(company.country, company.country) if company.country else none, 'hide_empty': true},
+                                    {'icon': 'location_city', 'label': _('省/州'), 'value': company.region, 'hide_empty': true},
+                                    {'icon': 'location_on', 'label': _('详细地址'), 'value': company.address, 'hide_empty': true},
+                                    {'icon': 'person', 'label': _('负责人'), 'value': company.owner.real_name or company.owner.username if company.owner else none, 'hide_empty': true, 'edit_btn': {'onclick': "window.dispatchEvent(new CustomEvent('open-change-owner-modal'))", 'show': has_change_owner_permission}},
+                                    {'icon': 'payments', 'label': _('累计报销费用'), 'value': '{}{:,.2f}'.format(currency_config.symbol, total_expense_amount or 0)}
+                                ]
+                            ) }}
+
+                            <!-- 联系人列表卡片 -->
+                            {% call tw_item_list_card(
+                                title=_('联系人'),
+                                action_btn={'onclick': 'openAddContactModal()', 'label': _('添加')} if has_permission('customer', 'create') else none
+                            ) %}
+                                {% if contacts %}
+                                    {% for contact in contacts %}
+                                    {% set subtitle_parts = [] %}
+                                    {% if contact.position %}{% set _ = subtitle_parts.append(contact.position) %}{% endif %}
+                                    {% if contact.department %}{% set _ = subtitle_parts.append(contact.department) %}{% endif %}
+                                    {{ tw_item_list_item(
+                                        avatar_text=contact.name,
+                                        avatar_neutral=true,
+                                        title=contact.name,
+                                        subtitle=subtitle_parts|join(' · '),
+                                        link_url=url_for('customer.view_contact', contact_id=contact.id),
+                                        badge=render_tw_primary_badge() if contact.is_primary else none
+                                    ) }}
+                                    {% endfor %}
+                                {% else %}
+                                    {{ tw_item_list_empty(_('暂无联系人')) }}
+                                {% endif %}
+                            {% endcall %}
+
+                            <!-- 元数据卡片 -->
+                            {{ tw_metadata_card_simple(
+                                object_id=company.id,
+                                creator=company.creator if company.creator else none,
+                                created_at=company.created_at,
+                                updated_at=company.updated_at
+                            ) }}
+
+        {% elif detail_slot == 'sidebar' %}
+                            {% if company.company_type != 'supplier' %}
+                            <!-- 关联项目表格 (非供应商) -->
+                            {% call render_tw_table_card(
+                                title=_('关联项目'),
+                                view_all_url=url_for('project.list_projects') ~ '?company_id=' ~ company.id,
+                                view_all_text=_('查看全部'),
+                                max_height='280px',
+                                headers=[
+                                    {'label': _('项目名称'), 'width': '45%'},
+                                    {'label': _('阶段'), 'width': '30%'},
+                                    {'label': _('报价金额'), 'width': '25%', 'align': 'right'}
+                                ]
+                            ) %}
+                                {% if viewable_projects %}
+                                    {% for project in viewable_projects %}
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <td class="p-3 font-medium text-slate-800 dark:text-slate-200">
+                                            <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="hover:text-primary">{{ project.project_name }}</a>
+                                        </td>
+                                        <td class="p-3">
+                                            {{ render_tw_project_stage_badge_key(project.current_stage) }}
+                                        </td>
+                                        <td class="p-3 text-right text-slate-600 dark:text-slate-300">
+                                            {% if project.quotation_customer %}
+                                                {{ project.quotation_currency_symbol or currency_config.symbol }}{{ '{:,.2f}'.format(project.quotation_customer) }}
+                                            {% else %}
+                                                <span class="text-slate-400">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    {{ render_empty_state(_('暂无关联项目'), 'folder_off') }}
+                                {% endif %}
+                            {% endcall %}
+
+                            <!-- 报价单列表 (非供应商) -->
+                            {% call render_tw_table_card(
+                                title=_('报价单'),
+                                view_all_url=url_for('quotation.list_quotations') ~ '?company_id=' ~ company.id,
+                                view_all_text=_('查看全部'),
+                                max_height='280px',
+                                headers=[
+                                    {'label': _('报价单号'), 'width': '30%'},
+                                    {'label': _('日期'), 'width': '20%'},
+                                    {'label': _('状态'), 'width': '25%'},
+                                    {'label': _('金额'), 'width': '25%', 'align': 'right'}
+                                ]
+                            ) %}
+                                {% if quotations %}
+                                    {% for quotation in quotations %}
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <td class="p-3 font-medium text-primary hover:underline">
+                                            <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}">{{ quotation.quotation_number }}</a>
+                                        </td>
+                                        <td class="p-3 text-slate-600 dark:text-slate-300">{{ quotation.created_at.strftime('%Y-%m-%d') if quotation.created_at else '-' }}</td>
+                                        <td class="p-3">
+                                            {{ render_tw_quotation_badge(quotation.approval_status) }}
+                                        </td>
+                                        <td class="p-3 text-right text-slate-600 dark:text-slate-300">
+                                            {% if quotation.amount %}
+                                                {{ quotation.currency or currency_config.symbol }}{{ '{:,.2f}'.format(quotation.amount) }}
+                                            {% else %}
+                                                <span class="text-slate-400">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    {{ render_empty_state(_('暂无报价单'), 'description') }}
+                                {% endif %}
+                            {% endcall %}
+                            {% else %}
+                            <!-- 采购订单列表 (供应商) -->
+                            {% call render_tw_table_card(
+                                title=_('采购订单'),
+                                view_all_url=url_for('purchase_order.list_view') ~ '?company_id=' ~ company.id,
+                                view_all_text=_('查看全部'),
+                                max_height='350px',
+                                headers=[
+                                    {'label': _('订单号'), 'width': '30%'},
+                                    {'label': _('日期'), 'width': '20%'},
+                                    {'label': _('状态'), 'width': '25%'},
+                                    {'label': _('金额'), 'width': '25%', 'align': 'right'}
+                                ]
+                            ) %}
+                                {% if purchase_orders %}
+                                    {# 订单状态映射 #}
+                                    {% set order_status_map = {
+                                        'draft': {'class': 'tw-badge-gray', 'text': _('草稿')},
+                                        'pending': {'class': 'tw-badge-yellow', 'text': _('审批中')},
+                                        'approved': {'class': 'tw-badge-green', 'text': _('已审批')},
+                                        'confirmed': {'class': 'tw-badge-blue', 'text': _('已确认')},
+                                        'rejected': {'class': 'tw-badge-red', 'text': _('已拒绝')},
+                                        'shipped': {'class': 'tw-badge-purple', 'text': _('已发货')},
+                                        'completed': {'class': 'tw-badge-green', 'text': _('已完成')},
+                                        'cancelled': {'class': 'tw-badge-gray', 'text': _('已取消')}
+                                    } %}
+                                    {% for order in purchase_orders %}
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <td class="p-3 font-medium text-primary hover:underline">
+                                            <a href="{{ url_for('inventory.order_detail', id=order.id) }}">{{ order.order_number }}</a>
+                                        </td>
+                                        <td class="p-3 text-slate-600 dark:text-slate-300">{{ order.order_date.strftime('%Y-%m-%d') if order.order_date else '-' }}</td>
+                                        <td class="p-3">
+                                            {% set status_config = order_status_map.get(order.status, {'class': 'tw-badge-gray', 'text': order.status}) %}
+                                            <span class="tw-badge {{ status_config.class }}">{{ status_config.text }}</span>
+                                        </td>
+                                        <td class="p-3 text-right text-slate-600 dark:text-slate-300">
+                                            {% if order.total_amount %}
+                                                {{ order.currency or '¥' }}{{ '{:,.2f}'.format(order.total_amount | float) }}
+                                            {% else %}
+                                                <span class="text-slate-400">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    {{ render_empty_state(_('暂无采购订单'), 'inventory_2') }}
+                                {% endif %}
+                            {% endcall %}
+                            {% endif %}
+
+                            <!-- 报销单列表 -->
+                            {% call render_tw_table_card(
+                                title=_('报销单'),
+                                action_btn={'label': _('添加'), 'onclick': 'openExpenseWithCustomer()'} if has_permission('expense', 'create') else none,
+                                view_all_url=url_for('expense.expense_list') ~ '?customer_id=' ~ company.id,
+                                view_all_text=_('查看全部'),
+                                max_height='280px',
+                                headers=[
+                                    {'label': _('单号'), 'width': '25%'},
+                                    {'label': _('日期'), 'width': '20%'},
+                                    {'label': _('状态'), 'width': '25%'},
+                                    {'label': _('金额'), 'width': '30%', 'align': 'right'}
+                                ]
+                            ) %}
+                                {% if expenses %}
+                                    {% for expense in expenses %}
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <td class="p-3 font-medium text-primary hover:underline">
+                                            <a href="{{ url_for('expense.expense_detail', id=expense.id) }}">{{ expense.expense_number }}</a>
+                                        </td>
+                                        <td class="p-3 text-slate-600 dark:text-slate-300">{{ expense.created_at.strftime('%Y-%m-%d') if expense.created_at else '-' }}</td>
+                                        <td class="p-3">
+                                            {{ render_tw_expense_status_badge(expense.status) }}
+                                        </td>
+                                        <td class="p-3 text-right text-slate-600 dark:text-slate-300">
+                                            {% if expense.total_amount %}
+                                                {{ currency_symbols.get(expense.currency, '¥') }}{{ '{:,.2f}'.format(expense.total_amount) }}
+                                            {% else %}
+                                                <span class="text-slate-400">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    {{ render_empty_state(_('暂无报销单'), 'receipt_long') }}
+                                {% endif %}
+                            {% endcall %}
+
+                            <!-- 共享设置卡片 -->
+                            {{ tw_sharing_card(
+                                can_view=can_view_sharing,
+                                can_edit=can_edit_sharing,
+                                shared_users=shared_users_info,
+                                share_enabled=company.share_enabled,
+                                open_modal_func='openSharingModal'
+                            ) }}
+
+        {% elif detail_slot == 'full_width_after' %}
+                    <!-- 行动记录（使用通用组件）- 占满整行 -->
+                    {{ tw_action_list_card(
+                        actions=viewable_actions,
+                        add_button={'onclick': 'openAddActionModal()'},
+                        layout='table',
+                        enable_replies=true,
+                        container_id='customerReplies',
+                        api_prefix='/customer',
+                        enable_quick_add=true,
+                        quick_add_contacts=contacts,
+                        quick_add_company_id=company.id,
+                        enable_pagination=true,
+                        pagination=pagination,
+                        page_url=url_for('customer.view_company', company_id=company.id),
+                        has_create_permission=has_permission('customer', 'create')
+                    ) }}
+
+        {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 客户删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteConfirmModal',
+        title=_('确认删除'),
+        message=_('确定要删除客户「') ~ company.company_name ~ _('」吗？此操作无法撤销。'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+
+    <!-- 回复删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='replyDeleteConfirmModal',
+        title=_('确认删除'),
+        message=_('确定要删除这条回复吗？此操作无法撤销。'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+
+    <!-- 客户编辑表单模态框 -->
+    {% call tw_form_modal(
+        modal_id='customerFormModal',
+        title=_('编辑客户'),
+        submit_text=_('保存'),
+        cancel_text=_('取消'),
+        size='lg'
+    ) %}
+        {% with company_id=company.id %}
+            {% include 'customer/partials/_company_form_fields.html' %}
+        {% endwith %}
+    {% endcall %}
+
+    <!-- 地图选择器弹窗 -->
+    {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+    {{ render_map_picker_modal() }}
+
+    <!-- 添加行动记录模态框 (使用通用组件) -->
+    {{ tw_action_modal(
+        context_type='customer',
+        context_id=company.id,
+        context_name=company.company_name,
+        contacts=contacts,
+        projects=viewable_projects,
+        sidebar_info={
+            'title': _('客户信息'),
+            'items': [
+                {'label': _('客户名称'), 'value': company.company_name},
+                {'label': _('客户类型'), 'value': company.company_type},
+                {'label': _('联系人数'), 'value': (contacts|length)|string ~ ' ' ~ _('人')},
+                {'label': _('关联项目'), 'value': (viewable_projects|length)|string ~ ' ' ~ _('个')}
+            ]
+        }
+    ) }}
+
+    <!-- 添加行动记录模态框脚本 -->
+    {{ tw_action_modal_script(
+        context_type='customer',
+        context_id=company.id,
+        api_endpoint='/customer/api/' ~ company.id ~ '/add_action'
+    ) }}
+
+    <!-- 添加联系人模态框 -->
+    {% call tw_form_modal(
+        modal_id='addContactModal',
+        title=_('添加联系人'),
+        submit_text=_('保存'),
+        cancel_text=_('取消'),
+        size='md'
+    ) %}
+        {{ tw_form_field('name', _('姓名'), required=true, placeholder=_('请输入联系人姓名')) }}
+        {% call tw_form_row(2) %}
+            {{ tw_form_field('department', _('部门'), placeholder=_('请输入部门')) }}
+            {{ tw_form_field('position', _('职位'), placeholder=_('请输入职位')) }}
+        {% endcall %}
+        {% call tw_form_row(2) %}
+            {{ tw_form_field('phone', _('电话'), type='tel', placeholder=_('请输入电话')) }}
+            {{ tw_form_field('email', _('邮箱'), type='email', placeholder=_('请输入邮箱')) }}
+        {% endcall %}
+        {{ tw_form_textarea('notes', _('备注'), rows=2, placeholder=_('请输入备注')) }}
+        <!-- 主要联系人复选框 (需要 Alpine.js) -->
+        <div x-data="{ isPrimary: false }" x-init="window._addContactPrimary = false; $watch('isPrimary', val => window._addContactPrimary = val)">
+            {{ tw_form_checkbox(
+                label=_('设为主要联系人'),
+                help_text=_('主要联系人会在客户列表中优先显示'),
+                alpine_model='isPrimary'
+            ) }}
+        </div>
+    {% endcall %}
+
+    {% if can_edit_sharing %}
+    <!-- 共享设置模态框 -->
+    {{ tw_user_selector_modal(
+        modal_id='sharingModal',
+        title=_('共享设置'),
+        event_name='open-sharing-modal',
+        users_tree=shareable_users_tree,
+        mode='multi',
+        selected_users=shared_users_info,
+        show_share_toggle=true,
+        share_enabled=company.share_enabled,
+        save_url='/customer/' ~ company.id ~ '/update_sharing',
+        searchable=true,
+        empty_text=_('暂无可共享的用户')
+    ) }}
+    {% endif %}
+
+    {% if has_change_owner_permission and shareable_users_tree %}
+    <!-- 修改负责人模态框 -->
+    {{ tw_user_selector_modal(
+        modal_id='changeOwnerModal',
+        title=_('修改客户负责人'),
+        event_name='open-change-owner-modal',
+        users_tree=shareable_users_tree,
+        mode='single',
+        selected_user_id=company.owner_id,
+        form_action=url_for('customer.change_company_owner', company_id=company.id),
+        field_name='new_owner_id',
+        searchable=true,
+        empty_text=_('没有找到匹配的用户')
+    ) }}
+    {% endif %}
+
+    {% if has_permission('expense', 'create') %}
+    <!-- 新建报销单表单模态框 -->
+    {% call tw_form_modal(
+        modal_id='expenseFormModal',
+        title=_('新建报销单'),
+        submit_text=_('创建'),
+        cancel_text=_('取消'),
+        size='2xl'
+    ) %}
+    {% include 'expense/partials/_expense_modal_fields.html' %}
+    {% endcall %}
+
+    <!-- 发票预览模态框 -->
+    {% call tw_custom_modal(
+        modal_id='invoicePreviewModal',
+        title=_('发票预览'),
+        icon='receipt',
+        icon_color='text-primary',
+        show_cancel_btn=false,
+        max_width='max-w-4xl'
+    ) %}
+    <div class="relative">
+        <div id="invoicePreviewContent" class="flex items-center justify-center min-h-[300px] bg-slate-100 dark:bg-slate-800 rounded-lg">
+            <span class="text-slate-400">{{ _('加载中...') }}</span>
+        </div>
+        <div class="mt-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <button type="button" id="prevInvoiceBtn" onclick="ExpenseModal.prevInvoice()"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+                <span id="invoiceCounter" class="text-sm text-slate-500 dark:text-slate-400">1/1</span>
+                <button type="button" id="nextInvoiceBtn" onclick="ExpenseModal.nextInvoice()"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+            </div>
+            <span id="invoiceFilename" class="text-sm text-slate-500 dark:text-slate-400 truncate max-w-xs"></span>
+            <button type="button" id="downloadInvoiceBtn" onclick="ExpenseModal.downloadCurrentInvoice()"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                <span class="material-symbols-outlined text-lg">download</span>
+                {{ _('下载') }}
+            </button>
+        </div>
+    </div>
+    {% endcall %}
+    {% endif %}
+
+    <!-- JavaScript -->
+    <script>
+        // 当前用户ID（用于回复组件）
+        window.currentUserId = {{ current_user.id }};
+        window.currentUserInitials = '{{ (current_user.real_name or current_user.username)[:2] }}';
+
+        // 打开共享设置模态框
+        function openSharingModal() {
+            window.dispatchEvent(new CustomEvent('open-sharing-modal'));
+        }
+
+        // 国际化文本
+        window.i18nTexts = {
+            justNow: '{{ _("刚刚") }}',
+            minutesAgo: '{{ _("分钟前") }}',
+            hoursAgo: '{{ _("小时前") }}',
+            daysAgo: '{{ _("天前") }}',
+            monthsAgo: '{{ _("个月前") }}',
+            yearsAgo: '{{ _("年前") }}',
+            delete: '{{ _("删除") }}',
+            confirmDeleteReply: '{{ _("确定要删除这条回复吗？") }}',
+            quickAddSuccess: '{{ _("行动记录添加成功") }}',
+            quickAddError: '{{ _("添加失败，请重试") }}',
+            selectContact: '{{ _("请选择联系人") }}',
+            enterContent: '{{ _("请输入行动记录内容") }}',
+            deleteSuccess: '{{ _("客户删除成功") }}',
+            deleteError: '{{ _("删除失败，请重试") }}'
+        };
+
+        // 打开删除确认模态框
+        function openDeleteConfirm() {
+            openConfirmModal('deleteConfirmModal', {
+                onConfirm: executeDelete
+            });
+        }
+
+        // 执行删除操作
+        async function executeDelete() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            try {
+                const response = await fetch('{{ url_for("customer.delete_company", company_id=company.id) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = '{{ url_for("customer.list_companies") }}';
+                } else {
+                    alert(data.message || window.i18nTexts.deleteError);
+                }
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert(window.i18nTexts.deleteError);
+            }
+        }
+
+        // 打开添加联系人模态框
+        function openAddContactModal() {
+            // 初始化主要联系人状态
+            window._addContactPrimary = false;
+
+            // 记录模态框打开时间（用于工作时长计算）
+            const _contactModalOpenTime = new Date().toTimeString().split(' ')[0];
+
+            openFormModal('addContactModal', {
+                onSubmit: async function(formData) {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+                    // 构建提交数据 (formData 是普通对象，不是 FormData)
+                    const data = {
+                        name: formData.name || '',
+                        department: formData.department || '',
+                        position: formData.position || '',
+                        phone: formData.phone || '',
+                        email: formData.email || '',
+                        notes: formData.notes || '',
+                        is_primary: window._addContactPrimary || false,
+                        page_open_time: _contactModalOpenTime
+                    };
+
+                    // 验证必填字段
+                    if (!data.name.trim()) {
+                        alert('{{ _("请填写联系人姓名") }}');
+                        return false;
+                    }
+
+                    try {
+                        const response = await fetch('/customer/api/{{ company.id }}/add_contact', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify(data)
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            closeFormModal('addContactModal');
+                            window.location.reload();
+                            return true;
+                        } else {
+                            alert(result.message || '{{ _("保存失败") }}');
+                            return false;
+                        }
+                    } catch (error) {
+                        console.error('提交失败:', error);
+                        alert('{{ _("网络错误，请重试") }}');
+                        return false;
+                    }
+                }
+            });
+        }
+
+        // AI 网络调研 Alpine.js 组件（后台自动调研，前端仅查看）
+        function aiResearch() {
+            return {
+                status: 'none',      // none | pre_searching | needs_input | researching | completed | error
+                data: null,
+                updatedAt: null,
+                isStale: false,
+                errorMsg: '',
+                candidates: [],
+                companyId: {{ company.id }},
+                _pollTimer: null,
+
+                init() {
+                    window._handleAiResearchClick = () => this.handleBtnClick();
+                    this.$watch('status', () => this.updateBtn());
+                    this.fetchStatus();
+                },
+
+                updateBtn() {
+                    const btn = document.getElementById('aiResearchBtn');
+                    if (!btn) return;
+                    const icon = btn.querySelector('.material-symbols-outlined');
+                    const label = btn.querySelector('span:last-child');
+
+                    const styles = {
+                        none: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg', icon: 'search', spin: false, text: '{{ _("AI 调研") }}' },
+                        pre_searching: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
+                        researching: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
+                        needs_input: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg animate-pulse cursor-pointer', icon: 'warning', spin: false, text: '{{ _("待确认") }}' },
+                        completed: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer', icon: 'check_circle', spin: false, text: '{{ _("AI 调研") }}' },
+                        error: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-lg cursor-pointer', icon: 'error', spin: false, text: '{{ _("调研失败") }}' },
+                    };
+                    const s = styles[this.status] || styles.none;
+                    btn.className = s.cls;
+                    if (icon) { icon.textContent = s.icon; s.spin ? icon.classList.add('animate-spin') : icon.classList.remove('animate-spin'); }
+                    if (label) label.textContent = s.text;
+                },
+
+                handleBtnClick() {
+                    if (this.status === 'pre_searching' || this.status === 'researching') return;
+                    if (this.status === 'completed' || this.status === 'error' || this.status === 'needs_input') {
+                        window.dispatchEvent(new CustomEvent('toggle-ai-research'));
+                    }
+                    // none 状态不触发调研（后台自动）
+                },
+
+                async fetchStatus() {
+                    try {
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                        const resp = await fetch(`/customer/api/company/${this.companyId}/ai-research`, {
+                            headers: { 'X-CSRFToken': csrfToken }
+                        });
+                        const json = await resp.json();
+
+                        if (json.success && json.data) {
+                            this.status = json.data.status || 'none';
+                            this.data = json.data.research_data;
+                            this.updatedAt = json.data.updated_at;
+                            this.isStale = json.data.is_stale || false;
+                            this.candidates = json.data.candidates || [];
+                            this.errorMsg = json.data.error || '';
+
+                            // 进行中 → 启动轮询
+                            if (this.status === 'pre_searching' || this.status === 'researching') {
+                                this.startPolling();
+                            }
+                        }
+                    } catch (e) {
+                        console.error('获取 AI 调研状态失败:', e);
+                    }
+                },
+
+                startPolling() {
+                    if (this._pollTimer) return;
+                    this._pollTimer = setInterval(async () => {
+                        await this.fetchStatus();
+                        if (this.status !== 'pre_searching' && this.status !== 'researching') {
+                            clearInterval(this._pollTimer);
+                            this._pollTimer = null;
+                        }
+                    }, 5000);
+                },
+
+                // 用户选择候选公司
+                async confirmCandidate(name) {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    try {
+                        await fetch(`/customer/api/company/${this.companyId}/ai-research/continue`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                            body: JSON.stringify({ confirmed_name: name })
+                        });
+                        this.status = 'researching';
+                        window.dispatchEvent(new CustomEvent('set-ai-research', { detail: false }));
+                        this.startPolling();
+                    } catch (e) {
+                        console.error('确认候选失败:', e);
+                    }
+                },
+
+                // 手动重试
+                async retry() {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    try {
+                        await fetch(`/customer/api/company/${this.companyId}/ai-research/retry`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+                        });
+                        this.status = 'pre_searching';
+                        window.dispatchEvent(new CustomEvent('set-ai-research', { detail: false }));
+                        this.startPolling();
+                    } catch (e) {
+                        console.error('重试失败:', e);
+                    }
+                },
+
+                get isEmptyResult() {
+                    if (!this.data) return true;
+                    const d = this.data;
+                    const cp = d.company_profile || {};
+                    const hasProfile = cp.founded || cp.headquarters || cp.positioning ||
+                        (cp.main_business && cp.main_business.length) || cp.revenue || cp.strategy;
+                    const hasExecs = d.executives && d.executives.length;
+                    const hasProjects = d.active_projects && d.active_projects.length;
+                    const hasRisks = d.risk_alerts && d.risk_alerts.length;
+                    const hasSuggestions = d.sales_suggestions && d.sales_suggestions.length;
+                    const p = d.partners || {};
+                    const hasPartners = (p.general_contractors && p.general_contractors.length) ||
+                        (p.ecosystem && p.ecosystem.length) || (p.key_customers && p.key_customers.length);
+                    return !hasProfile && !hasExecs && !hasProjects && !hasRisks && !hasSuggestions && !hasPartners;
+                },
+
+                formatUpdatedAt(isoStr) {
+                    if (!isoStr) return '';
+                    const d = new Date(isoStr);
+                    const now = new Date();
+                    const diffMs = now - d;
+                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                    if (diffDays === 0) return '{{ _("更新于") }} {{ _("今天") }}';
+                    if (diffDays === 1) return '{{ _("更新于") }} {{ _("昨天") }}';
+                    if (diffDays < 30) return '{{ _("更新于") }} ' + diffDays + ' {{ _("天前") }}';
+                    return '{{ _("更新于") }} ' + d.toLocaleDateString();
+                }
+            };
+        }
+
+    </script>
+
+    <!-- 确认模态框脚本 -->
+    {{ tw_confirm_modal_script() }}
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 客户表单公共模块 -->
+    <script src="{{ url_for('static', filename='js/customer-form.js') }}"></script>
+
+    <!-- 地图选择器 -->
+    <script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+    <!-- 通用地址选择器 -->
+    <script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
+
+    <!-- 客户编辑表单脚本 -->
+    <script>
+    (function() {
+        const companyId = {{ company.id }};
+        let formInitialized = false;
+        let isNameValid = true;
+
+        // 国际化文本
+        const i18n = {
+            country: '{{ _("请选择国家") }}',
+            region: '{{ _("请选择省/州") }}',
+            industry: '{{ _("请选择行业") }}',
+            companyType: '{{ _("请选择企业类型") }}',
+            source: '{{ _("请选择来源") }}',
+            saving: '{{ _("保存中...") }}',
+            save: '{{ _("保存") }}',
+            saveError: '{{ _("保存失败，请重试") }}',
+            loadError: '{{ _("加载数据失败") }}',
+            // 名称查重相关
+            similarCompanies: '{{ _("相似企业") }}',
+            referenceNotice: '{{ _("以上企业名称仅供参考，请确保输入的名称不与已有企业重复") }}',
+            companyNameExists: '{{ _("该企业名称已存在") }}'
+        };
+
+        // 初始化表单（首次打开时）
+        async function initializeForm() {
+            if (formInitialized) return true;
+
+            const result = await CustomerForm.init({
+                placeholders: i18n
+            });
+
+            if (!result) {
+                alert(i18n.loadError);
+                return false;
+            }
+
+            // 初始化名称查重（编辑模式排除当前企业）
+            CustomerForm.initNameCheck({
+                inputId: 'company_name',
+                excludeId: companyId,  // 排除当前企业
+                i18n: i18n,
+                onValidChange: function(valid) {
+                    isNameValid = valid;
+                    // 更新提交按钮状态
+                    const submitBtn = document.getElementById('customerFormModal-submit-btn');
+                    if (submitBtn) {
+                        submitBtn.disabled = !valid;
+                    }
+                }
+            });
+
+            // 绑定表单提交事件
+            const form = document.getElementById('customerFormModal-form');
+            if (form) {
+                form.onsubmit = async function(e) {
+                    e.preventDefault();
+
+                    // 检查名称是否有效
+                    if (!isNameValid) {
+                        alert(i18n.companyNameExists);
+                        return;
+                    }
+
+                    await CustomerForm.submit('customerFormModal-form', 'update', companyId, {
+                        i18n: i18n,
+                        onSuccess: function() {
+                            closeFormModal('customerFormModal');
+                            window.location.reload();
+                        },
+                        onError: function(msg) {
+                            alert(msg);
+                        }
+                    });
+                };
+            }
+
+            formInitialized = true;
+            return true;
+        }
+
+        // 打开客户编辑模态框（全局函数）
+        window.openCustomerEditModal = async function() {
+            // 初始化表单（如果尚未初始化）
+            const initialized = await initializeForm();
+            if (!initialized) return;
+
+            // 加载客户数据
+            const customerData = await CustomerForm.loadCompanyData(companyId);
+            if (!customerData) {
+                alert(i18n.loadError);
+                return;
+            }
+
+            // 填充表单数据
+            CustomerForm.populateFormData(customerData, {
+                placeholders: i18n
+            });
+
+            // 重置名称查重状态
+            isNameValid = true;
+            CustomerForm.hideSuggestions();
+            CustomerForm.clearNameError();
+
+            // 打开模态框
+            openFormModal('customerFormModal', {
+                title: '{{ _("编辑客户") }}'
+            });
+        };
+    })();
+    </script>
+
+    <!-- 布局脚本（搜索、语言切换、深色模式） -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 行动记录组件脚本（包含回复、快速添加、展开折叠等功能） -->
+    {{ render_tw_action_list_script(
+        container_id='customerReplies',
+        api_prefix='/customer',
+        enable_replies=true,
+        enable_quick_add=true,
+        quick_add_company_id=company.id
+    ) }}
+
+    {% if has_permission('expense', 'create') %}
+    <!-- 自定义模态框脚本（发票预览） -->
+    {{ tw_custom_modal_script() }}
+
+    <!-- 客户和项目搜索组件 -->
+    <script src="{{ url_for('static', filename='js/customer-search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/project-search.js') }}"></script>
+    <!-- 报销单模态框脚本 -->
+    <script src="{{ url_for('static', filename='js/expense-modal.js') }}"></script>
+    <script>
+    // 初始化报销单模态框
+    ExpenseModal.init({
+        modalId: 'expenseFormModal',
+        defaultCurrency: 'CNY',
+        csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || '',
+        i18n: {
+            loading: '{{ _("加载中...") }}',
+            selectCustomerFirst: '{{ _("请先选择关联客户") }}',
+            selectContact: '{{ _("请选择联系人") }}',
+            selectAttributedTo: '{{ _("请选择归属人") }}',
+            noContacts: '{{ _("该客户暂无联系人") }}',
+            noResults: '{{ _("无匹配结果") }}',
+            createSuccess: '{{ _("报销单创建成功") }}',
+            saveSuccess: '{{ _("保存成功") }}',
+            createError: '{{ _("创建失败") }}',
+            saveError: '{{ _("保存失败") }}',
+            requiredField: '{{ _("请填写必填项") }}',
+            atLeastOneDetail: '{{ _("请至少添加一条报销明细") }}',
+            createTitle: '{{ _("新建报销单") }}',
+            editTitle: '{{ _("编辑报销单") }}',
+            createBtn: '{{ _("创建") }}',
+            saveBtn: '{{ _("保存") }}'
+        }
+    });
+
+    // 打开报销单模态框（预填当前客户，创建后返回当前页面）
+    window.openExpenseWithCustomer = function() {
+        ExpenseModal.openCreateWithCustomer(
+            {{ company.id }},
+            '{{ company.company_name|replace("'", "\\'") }}',
+            window.location.href  // 返回当前客户详情页
+        );
+    };
+    </script>
+    {% endif %}
+</body>
+</html>

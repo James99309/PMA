@@ -1,0 +1,527 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_buttons.html' import tw_btn with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+{% from 'components/tw_filter_bar.html' import render_tw_filter_bar, render_tw_filter_bar_script with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles,
+render_tw_data_table_script, render_empty_row with context %}
+{% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
+{% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_company_type_badge, render_tw_industry_badge,
+render_tw_source_badge, render_tw_customer_status_badge with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="google-maps-api-key" content="{{ config.GOOGLE_MAPS_API_KEY }}">
+    <meta name="map-provider" content="{{ config.MAP_PROVIDER }}">
+    <meta name="amap-js-key" content="{{ config.AMAP_JS_KEY }}">
+    <meta name="amap-security-key" content="{{ config.AMAP_SECURITY_KEY }}">
+    <title>{{ _('客户管理') }}</title>
+    <!-- DNS预解析和预连接，加速CDN域名解析 -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+    <!-- 字体：使用国内镜像，非阻塞加载 -->
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    <!-- 数据表格样式 -->
+    {{ render_tw_data_table_styles() }}
+</head>
+
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='customer', show_search=true,
+    search_value=filter_config.search_field.value) %}
+    {% if slot == 'content' %}
+    <!-- 主内容 - 使用固定标题页面组件 -->
+    {% call(page_slot) render_tw_fixed_page() %}
+    {% if page_slot == 'header' %}
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{{ _('客户管理') }}</h1>
+        <div class="flex flex-wrap items-center gap-2">
+            {% if current_user.role in ['admin', 'business_admin'] and has_permission('customer', 'edit') %}
+            <a href="{{ url_for('customer.customer_merge_tool') }}"
+                class="inline-flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 18px;">merge</span>
+                <span class="hidden sm:inline">{{ _('智能合并') }}</span>
+            </a>
+            {% endif %}
+            {% if has_permission('customer', 'export_email') %}
+            <button type="button" onclick="openExportEmailModal()"
+                class="inline-flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 18px;">mail</span>
+                <span class="hidden sm:inline">{{ _('导出邮箱') }}</span>
+            </button>
+            {% endif %}
+            {% if has_permission('customer', 'create') %}
+            <button type="button" onclick="openAddCustomerModal()"
+                class="inline-flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs sm:text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+                <span class="hidden sm:inline">{{ _('添加客户') }}</span>
+            </button>
+            {% endif %}
+        </div>
+    {% elif page_slot == 'content' %}
+        <!-- 统计卡片 -->
+        {% set stats = list_config.stats.cards %}
+        {% call tw_stat_cards_grid(cols=4) %}
+        {% for card in stats %}
+        {% set variant_map = {'primary': 'default', 'success': 'success', 'info': 'info', 'warning': 'warning'} %}
+        {% set icon_map = {'fas fa-building': 'business', 'fas fa-check-circle': 'check_circle', 'fas fa-user-tie':
+        'person', 'fas fa-project-diagram': 'account_tree'} %}
+        {{ tw_stat_card(
+        title=card.title,
+        value=card.value,
+        unit=card.unit,
+        icon=icon_map.get(card.icon, 'analytics'),
+        variant=variant_map.get(card.color, 'default')
+        ) }}
+        {% endfor %}
+        {% endcall %}
+
+        <!-- 筛选区域（可滚出） -->
+        {{ render_tw_filter_bar(
+        form_id='filterForm',
+        action_url=filter_config.action_url,
+        filter_fields=filter_config.filter_fields,
+        search_value=filter_config.search_field.value,
+        cols=5
+        ) }}
+
+        <!-- 表格标题栏 (sticky) -->
+        <div class="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center gap-2 sm:gap-4 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 p-3 sm:p-4">
+                <h3 class="text-slate-900 dark:text-white text-sm sm:text-base font-medium">{{ _('企业列表') }}</h3>
+                <span class="text-slate-500 dark:text-slate-400 text-xs sm:text-sm ml-auto">
+                    <span id="companyTableCount">{{ total_count }}</span> {{ _('条记录') }}
+                </span>
+            </div>
+        </div>
+
+        <!-- 数据表格（无标题，与上方标题栏衔接） -->
+        {% call render_tw_data_table(
+        table_id='companyTable',
+        title='',
+        total_count=total_count,
+        columns=list_config.table.columns,
+        sort_field=sort_field,
+        sort_order=sort_order,
+        max_height='calc(100vh - 280px)',
+        min_height='400px',
+        show_loading=true,
+        min_width='900px',
+        no_top_radius=true
+        ) %}
+        {% for company in companies %}
+        {% if company._is_pending %}
+        {# 请求中行：半透明 + 沙漏在徽章右下角 #}
+        <tr class="border-l-2 border-l-amber-400/60">
+            <td class="p-3 whitespace-nowrap">
+                <div class="relative inline-flex">
+                    {{ render_tw_owner_badge(company.owner) }}
+                    <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-amber-600 animate-pulse" style="font-size:10px;font-variation-settings:'FILL' 1">hourglass_top</span>
+                    </span>
+                </div>
+            </td>
+            <td class="p-3 whitespace-nowrap">
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ company.company_name }}</span>
+            </td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_company_type_badge(company.company_type) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_industry_badge(company.industry) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">-</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+        </tr>
+        {% elif company._is_restricted %}
+        {# 受限行：锁图标在徽章右下角 + 点击弹请求框 #}
+        <tr class="cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors"
+            onclick="console.log('[TR] restricted row clicked, dispatching open-access-request-modal'); window.dispatchEvent(new CustomEvent('open-access-request-modal', {detail: {entityType:'customer', entityId:{{ company.id }}, ownerName:'{{ company._owner_name|e }}', entityName:'{{ company.company_name|e }}', companyType:'{{ company.company_type|company_type_label if company.company_type else "" }}'}}))">
+            <td class="p-3 whitespace-nowrap">
+                <div class="relative inline-flex">
+                    {{ render_tw_owner_badge(company.owner) }}
+                    <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-amber-600" style="font-size:10px;font-variation-settings:'FILL' 1">lock</span>
+                    </span>
+                </div>
+            </td>
+            <td class="p-3 whitespace-nowrap">
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ company.company_name }}</span>
+            </td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_company_type_badge(company.company_type) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_industry_badge(company.industry) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">-</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+        </tr>
+        {% else %}
+        {# 正常行 #}
+        <tr class="table-row-hover transition-colors">
+            <td class="p-3 whitespace-nowrap">
+                {{ render_tw_owner_badge(company.owner) }}
+            </td>
+            <td class="p-3 whitespace-nowrap">
+                <a href="{{ url_for('customer.view_company', company_id=company.id) }}"
+                    class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                    title="{{ company.company_name }}">
+                    {{ company.company_name }}
+                </a>
+            </td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">
+                {{ render_tw_company_type_badge(company.company_type) }}
+            </td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">
+                {{ render_tw_industry_badge(company.industry) }}
+            </td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">
+                {{ render_tw_source_badge(company.source) }}
+            </td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">
+                {{ render_tw_customer_status_badge(company.status) }}
+            </td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 truncate"
+                title="{% if company.country %}{{ country_code_to_name.get(company.country, company.country) }}{% if company.region %} / {{ company.region }}{% endif %}{% endif %}">
+                {% if company.country %}
+                {{ country_code_to_name.get(company.country, company.country) }}
+                {% if company.region %} / {{ company.region }}{% endif %}
+                {% else %}
+                <span class="text-slate-400 dark:text-slate-500">-</span>
+                {% endif %}
+            </td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                {{ company.updated_at.strftime('%Y-%m-%d') if company.updated_at else '-' }}
+            </td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                {{ company.created_at.strftime('%Y-%m-%d') if company.created_at else '-' }}
+            </td>
+        </tr>
+        {% endif %}
+        {% else %}
+        {{ render_empty_row(list_config.table.columns|length, _('暂无数据'), 'inbox') }}
+        {% endfor %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 新建客户表单模态框 -->
+    {% call tw_form_modal(
+    modal_id='customerFormModal',
+    title=_('新建客户'),
+    submit_text=_('创建'),
+    cancel_text=_('取消'),
+    size='lg'
+    ) %}
+    {% include 'customer/partials/_company_form_fields.html' %}
+    {% endcall %}
+
+    <!-- 地图选择器弹窗 -->
+    {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+    {{ render_map_picker_modal() }}
+
+    <!-- 表单模态框脚本 -->
+    {{ tw_form_modal_script() }}
+
+    <!-- 布局脚本（搜索、语言、主题切换） -->
+    {{ render_tw_layout_script() }}
+
+    <!-- 筛选栏脚本 -->
+    {{ render_tw_filter_bar_script(form_id='filterForm') }}
+
+    <!-- 数据表格脚本 -->
+    {{ render_tw_data_table_script(table_id='companyTable', sort_callback='sortTable') }}
+
+    <!-- 通用列表管理器 -->
+    <script src="{{ url_for('static', filename='js/tw-list-manager.js') }}"></script>
+    <script>
+            (function () {
+                // 使用通用列表管理器
+                const listManager = new TwListManager({
+                    tableId: 'companyTable',
+                    formId: 'filterForm',
+                    ajaxEndpoint: window.location.pathname,
+                    pageSize: {{ limit }},
+                initialCount: {{ offset + companies | length }},
+                sortField: '{{ request.args.get("sort", "updated_at") }}',
+                sortOrder: '{{ request.args.get("order", "desc") }}',
+                infiniteScroll: {{ 'true' if has_more else 'false' }},
+                messages: {
+                loadingMore: '{{ _("加载中...") }}',
+                noMoreData: '{{ _("没有更多数据") }}',
+                loadError: '{{ _("加载数据失败") }}'
+            }
+        });
+        listManager.init();
+
+        // 暴露排序函数供表格组件调用
+        window.sortTable = function (field) {
+            listManager.sortBy(field);
+        };
+    }) ();
+    </script>
+
+    <!-- 客户表单公共模块 -->
+    <script src="{{ url_for('static', filename='js/customer-form.js') }}"></script>
+
+    <!-- 地图选择器 -->
+    <script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+    <!-- 通用地址选择器 -->
+    <script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
+
+    <!-- 导出邮箱模态框 -->
+    {% if has_permission('customer', 'export_email') %}
+    <div id="exportEmailModal" class="fixed inset-0 z-50 hidden" x-data="exportEmailModal()" x-ref="modal">
+        <!-- 背景遮罩 -->
+        <div class="fixed inset-0 bg-black/50 transition-opacity" @click="close()"></div>
+        <!-- 模态框内容 -->
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md" @click.stop>
+                <!-- 标题 -->
+                <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-emerald-600">mail</span>
+                        {{ _('导出客户邮箱') }}
+                    </h3>
+                    <button @click="close()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <span class="material-symbols-outlined text-slate-400">close</span>
+                    </button>
+                </div>
+                <!-- 内容 -->
+                <div class="p-5">
+                    <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">{{ _('选择要导出的客户类型（排除供应商）：') }}</p>
+                    <!-- 全选 -->
+                    <label class="flex items-center gap-2 mb-3 pb-3 border-b border-slate-200 dark:border-slate-700 cursor-pointer">
+                        <input type="checkbox" :checked="allSelected" @change="toggleAll($event.target.checked)"
+                               class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('全选') }}</span>
+                    </label>
+                    <!-- 类型列表 -->
+                    <div class="space-y-2 max-h-60 overflow-y-auto">
+                        <template x-for="opt in types" :key="opt.value">
+                            <label class="flex items-center gap-2 cursor-pointer py-1">
+                                <input type="checkbox" :value="opt.value" x-model="selected"
+                                       class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                                <span class="text-sm text-slate-700 dark:text-slate-300" x-text="opt.label"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+                <!-- 底部按钮 -->
+                <div class="flex justify-end gap-3 p-5 border-t border-slate-200 dark:border-slate-700">
+                    <button @click="close()"
+                            class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button @click="doExport()" :disabled="selected.length === 0"
+                            class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span class="flex items-center gap-1">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                            {{ _('导出CSV') }}
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function exportEmailModal() {
+            // 从筛选栏提取企业类型选项，排除 supplier
+            const filterConfig = {{ filter_config | tojson }};
+            const companyTypeFilter = (filterConfig.filter_fields || []).find(f => f.name === 'company_type');
+            const allOptions = companyTypeFilter ? companyTypeFilter.options : [];
+            const types = allOptions.filter(o => o.value !== 'supplier');
+
+            return {
+                types: types,
+                selected: types.map(t => t.value),
+                get allSelected() {
+                    return this.selected.length === this.types.length;
+                },
+                toggleAll(checked) {
+                    this.selected = checked ? this.types.map(t => t.value) : [];
+                },
+                doExport() {
+                    if (this.selected.length === 0) return;
+                    const params = new URLSearchParams({ company_types: this.selected.join(',') });
+                    window.location.href = '{{ url_for("customer.export_email_csv") }}?' + params.toString();
+                    this.close();
+                },
+                close() {
+                    document.getElementById('exportEmailModal').classList.add('hidden');
+                }
+            };
+        }
+
+        function openExportEmailModal() {
+            document.getElementById('exportEmailModal').classList.remove('hidden');
+        }
+    </script>
+    {% endif %}
+
+    <!-- 新建客户模态框脚本 -->
+    <script>
+        (function () {
+            // 国际化文本
+            const i18n = {
+                country: '{{ _("请选择国家") }}',
+                region: '{{ _("请选择省/州") }}',
+                industry: '{{ _("请选择行业") }}',
+                companyType: '{{ _("请选择企业类型") }}',
+                source: '{{ _("请选择来源") }}',
+                creating: '{{ _("创建中...") }}',
+                create: '{{ _("创建") }}',
+                saveError: '{{ _("保存失败，请重试") }}',
+                loadError: '{{ _("加载数据失败，请重试") }}',
+                // 名称查重相关
+                similarCompanies: '{{ _("相似企业") }}',
+                referenceNotice: '{{ _("以上企业名称仅供参考，请确保输入的名称不与已有企业重复") }}',
+                companyNameExists: '{{ _("该企业名称已存在") }}'
+            };
+
+            let isFormInitialized = false;
+            let isNameValid = true;
+
+            // 初始化表单选项
+            async function initializeForm() {
+                if (isFormInitialized) return true;
+
+                const result = await CustomerForm.init({
+                    placeholders: i18n
+                });
+
+                if (!result) {
+                    alert(i18n.loadError);
+                    return false;
+                }
+
+                // 初始化名称查重
+                CustomerForm.initNameCheck({
+                    inputId: 'company_name',
+                    excludeId: null,  // 新建模式不排除任何ID
+                    i18n: i18n,
+                    onValidChange: function (valid) {
+                        isNameValid = valid;
+                        // 更新提交按钮状态
+                        const submitBtn = document.getElementById('customerFormModal-submit-btn');
+                        if (submitBtn) {
+                            submitBtn.disabled = !valid;
+                        }
+                    }
+                });
+
+                // 绑定表单提交
+                const form = document.getElementById('customerFormModal-form');
+                form.onsubmit = async function (e) {
+                    e.preventDefault();
+
+                    // 检查名称是否有效
+                    if (!isNameValid) {
+                        alert(i18n.companyNameExists);
+                        return;
+                    }
+
+                    await CustomerForm.submit('customerFormModal-form', 'create', null, {
+                        i18n: i18n,
+                        onSuccess: function (result) {
+                            closeFormModal('customerFormModal');
+                            // 跳转到新创建的客户详情页
+                            window.location.href = '/customer/' + result.data.id + '/view';
+                        },
+                        onError: function (msg) {
+                            alert(msg);
+                        }
+                    });
+                };
+
+                isFormInitialized = true;
+                return true;
+            }
+
+            // 打开新建客户模态框（全局函数）
+            window.openAddCustomerModal = async function () {
+                // 初始化表单
+                const initialized = await initializeForm();
+                if (!initialized) return;
+
+                // 重置表单和名称查重状态
+                CustomerForm.reset('customerFormModal-form', {
+                    placeholders: i18n
+                });
+                isNameValid = true;
+
+                // 记录模态框打开时间（用于工作时长计算）
+                const pageOpenTimeInput = document.querySelector('#customerFormModal-form [name="page_open_time"]');
+                if (!pageOpenTimeInput) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'page_open_time';
+                    input.value = new Date().toTimeString().split(' ')[0];
+                    document.getElementById('customerFormModal-form').appendChild(input);
+                } else {
+                    pageOpenTimeInput.value = new Date().toTimeString().split(' ')[0];
+                }
+
+                // 打开模态框
+                openFormModal('customerFormModal', {
+                    title: '{{ _("新建客户") }}',
+                    submitText: '{{ _("创建") }}'
+                });
+            };
+        })();
+    </script>
+</body>
+
+</html>
