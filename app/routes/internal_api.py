@@ -1780,19 +1780,44 @@ def list_actions():
 @internal_api_bp.route('/work-items', methods=['GET'])
 @internal_auth_required
 def list_work_items():
-    """工作项列表，支持关键词/类型/时间范围筛选。"""
+    """工作项列表，支持关键词/类型/时间范围/用户筛选。
+
+    ?owner_id=<int>  查看指定用户的工作项（需有 worklog 权限），不传则查自己+共享给自己的。
+    """
     user = g.current_user
     try:
         from app.models.worklog import WorkItem
+        from sqlalchemy import cast, or_
+        from sqlalchemy.dialects.postgresql import JSONB
+        from sqlalchemy import text as sa_text
 
         search = request.args.get('search', '').strip()
         work_type = request.args.get('work_type', '').strip()
         days = request.args.get('days', type=int)
         limit = min(int(request.args.get('limit', 30)), 100)
+        owner_id_raw = request.args.get('owner_id', type=int)
+
+        if owner_id_raw and owner_id_raw != user.id:
+            # 需要权限校验才能查看他人日志
+            from app.services.worklog_service import can_view_user, WorklogUserNotFound, WorklogPermissionDenied
+            try:
+                if not can_view_user(user, owner_id_raw):
+                    return jsonify({'error': '无权查看该用户的工作日志'}), 403
+            except WorklogUserNotFound:
+                return jsonify({'error': f'用户 {owner_id_raw} 不存在'}), 404
+            scope_filter = (WorkItem.owner_id == owner_id_raw,)
+        else:
+            # 默认：本人 + 共享给本人
+            scope_filter = (
+                or_(
+                    WorkItem.owner_id == user.id,
+                    cast(WorkItem.shared_with_users, JSONB).op('@>')(sa_text(f"'[{user.id}]'::jsonb")),
+                ),
+            )
 
         q = WorkItem.query.filter(
-            WorkItem.owner_id == user.id,
             WorkItem.is_deleted == False,
+            *scope_filter,
         ).order_by(WorkItem.planned_date.desc())
 
         if search:
@@ -1808,6 +1833,7 @@ def list_work_items():
 
         result = []
         for w in items:
+            owner = w.owner
             result.append({
                 'id': w.id,
                 'title': w.title or '',
@@ -1818,6 +1844,8 @@ def list_work_items():
                 'actual_hours': w.actual_hours,
                 'project_id': w.project_id,
                 'notes': w.execution_notes or '',
+                'owner_id': w.owner_id,
+                'owner_name': (owner.real_name or owner.username) if owner else '',
             })
 
         return jsonify({'items': result, 'count': len(result)})
