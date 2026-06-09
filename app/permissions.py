@@ -102,32 +102,23 @@ def has_permission(module, action):
     """
     if not current_user.is_authenticated:
         return False
-    
+
     # admin和CEO超级管理员特权
     if is_admin_or_ceo():
         return True
-    
-    # 查询数据库role_permissions表
-    from app.models.role_permissions import RolePermission
-    role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
-    
-    if role_permission:
-        # 根据动作类型检查相应权限
-        if action == 'view':
-            return role_permission.can_view or False
-        elif action == 'create':
-            return role_permission.can_create or False
-        elif action == 'edit':
-            return role_permission.can_edit or False
-        elif action == 'delete':
-            return role_permission.can_delete or False
-        elif action == 'export_email':
-            return role_permission.can_export_email or False
-        elif action in ['admin', 'import', 'all', 'department']:
-            # 对于特殊权限，检查是否有管理权限
-            # 这里可以根据需要扩展逻辑
-            return (role_permission.can_create and role_permission.can_edit and role_permission.can_delete) or False
-    
+
+    # 统一委托给 User.has_permission（个人权限完全覆盖角色），与 @permission_required 装饰器、
+    # 模板 has_permission 保持一致。修复历史 bug：本函数原仅查角色权限、忽略个人权限覆盖，
+    # 导致 check_permission 及直接调用方与路由/菜单层不一致（如个人去权后结算单分页仍可见）。
+    if action in ('view', 'create', 'edit', 'delete', 'export_email', 'change_owner'):
+        return current_user.has_permission(module, action)
+
+    # 特殊动作（admin/import/all/department）无独立字段，按 create+edit+delete 推导（同样走个人覆盖）
+    if action in ('admin', 'import', 'all', 'department'):
+        return bool(current_user.has_permission(module, 'create')
+                    and current_user.has_permission(module, 'edit')
+                    and current_user.has_permission(module, 'delete'))
+
     return False
 
 def check_permission(permission):
