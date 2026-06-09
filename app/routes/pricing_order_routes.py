@@ -1229,28 +1229,15 @@ def get_approval_flow(order_id):
 
 
 def _build_pricing_order_query(current_user):
-    """构建批价单查询（含权限过滤），供列表和AJAX共用"""
+    """构建批价单查询（严格按数据权限范围过滤），供列表和AJAX共用。
+
+    注：仅按 get_viewable_data(权限级别 system/company/department/personal + 归属)过滤,
+    不再并入"我审批过的批价单"——审批人需处理的单走「审批中心」入口,避免跨部门单污染列表。
+    """
     from app.utils.access_control import get_viewable_data
     from sqlalchemy.orm import joinedload
-    from app.models.approval import ApprovalInstance, ApprovalRecord
 
-    # 权限可见的 ID 子查询
-    visible_subq = get_viewable_data(PricingOrder, current_user).with_entities(PricingOrder.id).subquery()
-
-    # 作为审批人（当前或历史）参与过的批价单 ID 子查询
-    approval_subq = db.session.query(ApprovalInstance.object_id).join(
-        ApprovalRecord, ApprovalRecord.instance_id == ApprovalInstance.id
-    ).filter(
-        ApprovalInstance.object_type == 'pricing_order',
-        ApprovalRecord.approver_id == current_user.id
-    ).subquery()
-
-    query = PricingOrder.query.filter(
-        db.or_(
-            PricingOrder.id.in_(visible_subq),
-            PricingOrder.id.in_(approval_subq)
-        )
-    ).options(
+    query = get_viewable_data(PricingOrder, current_user).options(
         joinedload(PricingOrder.project),
         joinedload(PricingOrder.creator)
     )
