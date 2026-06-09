@@ -26,7 +26,7 @@
 {% macro render_project_minitable(items) %}
 <table class="at-mini-table">
   <thead><tr>
-    <th>名称</th><th>阶段</th><th>所属</th><th style="text-align:right;">报价额</th>
+    <th>{{ _('名称') }}</th><th>{{ _('阶段') }}</th><th>{{ _('所属') }}</th><th style="text-align:right;">{{ _('报价额') }}</th>
   </tr></thead>
   <tbody>
     {% for p in items %}
@@ -46,10 +46,10 @@
 {% macro render_quotation_minitable(items, show_project=true) %}
 <table class="at-mini-table">
   <thead><tr>
-    <th>单号</th>
-    {% if show_project %}<th>项目</th>{% endif %}
-    <th>状态</th>
-    <th style="text-align:right;">金额</th>
+    <th>{{ _('单号') }}</th>
+    {% if show_project %}<th>{{ _('项目') }}</th>{% endif %}
+    <th>{{ _('状态') }}</th>
+    <th style="text-align:right;">{{ _('金额') }}</th>
   </tr></thead>
   <tbody>
     {% for q in items %}
@@ -73,10 +73,10 @@
 {% macro render_pricing_order_minitable(items, show_project=true) %}
 <table class="at-mini-table">
   <thead><tr>
-    <th>单号</th>
-    {% if show_project %}<th>项目</th>{% endif %}
-    <th>状态</th>
-    <th style="text-align:right;">总额</th>
+    <th>{{ _('单号') }}</th>
+    {% if show_project %}<th>{{ _('项目') }}</th>{% endif %}
+    <th>{{ _('状态') }}</th>
+    <th style="text-align:right;">{{ _('总额') }}</th>
   </tr></thead>
   <tbody>
     {% for o in items %}
@@ -100,7 +100,7 @@
 {% macro render_sales_order_minitable(items) %}
 <table class="at-mini-table">
   <thead><tr>
-    <th>单号</th><th>状态</th><th>所属</th><th style="text-align:right;">金额</th>
+    <th>{{ _('单号') }}</th><th>{{ _('状态') }}</th><th>{{ _('所属') }}</th><th style="text-align:right;">{{ _('金额') }}</th>
   </tr></thead>
   <tbody>
     {% for o in items %}
@@ -120,7 +120,7 @@
 {% macro render_purchase_order_minitable(items) %}
 <table class="at-mini-table">
   <thead><tr>
-    <th>单号</th><th>状态</th><th>交期</th><th style="text-align:right;">金额</th>
+    <th>{{ _('单号') }}</th><th>{{ _('状态') }}</th><th>{{ _('交期') }}</th><th style="text-align:right;">{{ _('金额') }}</th>
   </tr></thead>
   <tbody>
     {% for o in items %}
@@ -140,7 +140,7 @@
 {% macro render_expense_minitable(items) %}
 <table class="at-mini-table">
   <thead><tr>
-    <th>编号</th><th>主题</th><th>状态</th><th style="text-align:right;">金额</th>
+    <th>{{ _('编号') }}</th><th>{{ _('主题') }}</th><th>{{ _('状态') }}</th><th style="text-align:right;">{{ _('金额') }}</th>
   </tr></thead>
   <tbody>
     {% for e in items %}
@@ -189,20 +189,20 @@
     <col class="col-row-actions" style="width:60px;display:none;">  {# 行操作(edit-only)#}
   </colgroup>
   <thead><tr>
-    <th style="text-align:center;">序号</th>
-    <th>产品名称</th>
-    <th>型号</th>
-    <th>规格</th>
-    <th>品牌</th>
-    <th style="text-align:right;">数量</th>
-    <th>单位</th>
-    <th class="th-market-price" style="text-align:right;display:none;">市场价</th>
-    <th class="th-discount" style="text-align:right;display:none;">折扣</th>
-    <th style="text-align:right;">单价</th>
-    <th style="text-align:right;">总价</th>
-    <th>产品编码</th>
-    <th>备注</th>
-    <th class="th-row-actions" style="text-align:center;display:none;">操作</th>
+    <th style="text-align:center;">{{ _('序号') }}</th>
+    <th>{{ _('产品名称') }}</th>
+    <th>{{ _('型号') }}</th>
+    <th>{{ _('规格') }}</th>
+    <th>{{ _('品牌') }}</th>
+    <th style="text-align:right;">{{ _('数量') }}</th>
+    <th>{{ _('单位') }}</th>
+    <th class="th-market-price" style="text-align:right;display:none;">{{ _('市场价') }}</th>
+    <th class="th-discount" style="text-align:right;display:none;">{{ _('折扣') }}</th>
+    <th style="text-align:right;">{{ _('单价') }}</th>
+    <th style="text-align:right;">{{ _('总价') }}</th>
+    <th>{{ _('产品编码') }}</th>
+    <th>{{ _('备注') }}</th>
+    <th class="th-row-actions" style="text-align:center;display:none;">{{ _('操作') }}</th>
   </tr></thead>
   <tbody>
     {% set idx = namespace(value=0) %}
@@ -217,7 +217,7 @@
       <td colspan="7" style="padding:10px 14px;border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};">
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:12.5px;font-weight:500;color:var(--ink);">{{ g.label }}</span>
-          <span class="at-dim at-mono qgroup-count" style="font-size:10.5px;">{{ g.count }} 项</span>
+          <span class="at-dim at-mono qgroup-count" style="font-size:10.5px;">{{ g.count }} {{ _('项') }}</span>
         </div>
       </td>
       <td class="td-market-price" style="display:none;border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};"></td>
@@ -225,7 +225,7 @@
       {# col 10 单价 · col 11 总价 → 右端放 "小计" 标签 #}
       <td style="border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};"></td>
       <td style="text-align:right;padding:10px 12px;border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};
-                 font-size:11px;color:var(--ink-3);">小计</td>
+                 font-size:11px;color:var(--ink-3);">{{ _('小计') }}</td>
       {# col 12 编码 → 小计金额(左对齐,跟产品编码列文本一致)#}
       <td class="at-mono at-tab-num qgroup-subtotal" style="text-align:left;padding:10px 12px;
                                             border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};
@@ -297,7 +297,7 @@
         <td class="td-row-actions" style="text-align:center;display:none;padding:8px;">
           {# 只保留删除按键:通过删除 + picker 添加来调整明细 #}
           <div class="row-actions" style="display:inline-flex;align-items:center;gap:2px;opacity:0.45;transition:opacity 120ms;">
-            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowAsk(this)" title="删除明细"
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowAsk(this)" title="{{ _('删除明细') }}"
                     style="width:26px;height:26px;border-radius:5px;border:0;background:transparent;color:var(--ink-3);
                            cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all 100ms;"
                     onmouseenter="this.style.background='var(--danger-soft)';this.style.color='var(--danger)';"
@@ -307,13 +307,13 @@
             </button>
           </div>
           <div class="row-actions-confirm" style="display:none;align-items:center;gap:4px;padding:2px 4px;border-radius:6px;background:var(--danger-soft);">
-            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowCancel(this)" title="取消"
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowCancel(this)" title="{{ _('取消') }}"
                     style="width:24px;height:24px;border-radius:4px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;
                            display:inline-flex;align-items:center;justify-content:center;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
-            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowConfirm(this)" title="确认删除"
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowConfirm(this)" title="{{ _('确认删除') }}"
                     style="width:24px;height:24px;border-radius:4px;border:0;background:var(--danger);color:#fff;cursor:pointer;
                            display:inline-flex;align-items:center;justify-content:center;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -368,7 +368,7 @@
       {% endif %}
     {% endfor %}{# /g.items #}
     {% else %}
-    <tr class="qempty-row"><td colspan="14" style="text-align:center;padding:40px;color:var(--ink-4);">暂无产品明细</td></tr>
+    <tr class="qempty-row"><td colspan="14" style="text-align:center;padding:40px;color:var(--ink-4);">{{ _('暂无产品明细') }}</td></tr>
     {% endfor %}{# /grouped or empty #}
     {% else %}
     {# 平铺模式 #}
@@ -406,7 +406,7 @@
         <td style="color:var(--ink-3);font-size:11.5px;white-space:pre-wrap;max-width:160px;"
             title="{{ d.item_note or '' }}">{{ d.item_note or '' }}</td>
         <td class="td-row-actions" style="text-align:center;display:none;">
-          <button type="button" onclick="atQuoteDeleteRow(this)" title="删除"
+          <button type="button" onclick="atQuoteDeleteRow(this)" title="{{ _('删除') }}"
                   style="width:24px;height:24px;border-radius:4px;border:0;
                          background:transparent;color:var(--danger);cursor:pointer;
                          display:inline-flex;align-items:center;justify-content:center;">
@@ -417,7 +417,7 @@
         </td>
       </tr>
     {% else %}
-    <tr class="qempty-row"><td colspan="14" style="text-align:center;padding:40px;color:var(--ink-4);">暂无产品明细</td></tr>
+    <tr class="qempty-row"><td colspan="14" style="text-align:center;padding:40px;color:var(--ink-4);">{{ _('暂无产品明细') }}</td></tr>
     {% endfor %}
     {% endif %}
   </tbody>
@@ -438,7 +438,7 @@
                          display:inline-flex;align-items:center;gap:5px;">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M8 3v10M3 8h10"/></svg>
-            从产品库添加
+            {{ _('从产品库添加') }}
           </button>
           <button type="button" onclick="atQuoteAddCustom()"
                   style="height:30px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
@@ -446,10 +446,10 @@
                          display:inline-flex;align-items:center;gap:5px;">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M11.5 2L14 4.5l-9 9-3.5.5.5-3.5 9-9z"/></svg>
-            手动添加自定义产品
+            {{ _('手动添加自定义产品') }}
           </button>
           <span class="at-dim" style="font-size:11.5px;margin-left:4px;">
-            或拖动行的 ⋮⋮ 图标在分类内重新排序
+            {{ _('或拖动行的 ⋮⋮ 图标在分类内重新排序') }}
           </span>
         </div>
       </td>
@@ -457,7 +457,7 @@
     {# ─ 小计行 ─ 数字落在「总价」列 #}
     <tr class="qfoot-row" style="background:var(--bg-sunk);">
       <td colspan="5" style="padding:12px 14px;border-top:1px solid var(--line);
-                              font-size:12px;color:var(--ink-3);letter-spacing:0.06em;">小计 (不含税)</td>
+                              font-size:12px;color:var(--ink-3);letter-spacing:0.06em;">{{ _('小计 (不含税)') }}</td>
       <td class="qfoot-qty" style="border-top:1px solid var(--line);"></td>
       <td style="border-top:1px solid var(--line);"></td>
       <td class="td-market-price" style="border-top:1px solid var(--line);display:none;"></td>
@@ -476,7 +476,7 @@
     <tr class="qfoot-row qfoot-tax-row" style="background:var(--bg-sunk);">
       <td colspan="5" style="padding:10px 14px;font-size:12px;color:var(--ink-3);letter-spacing:0.06em;">
         <span style="display:inline-flex;align-items:center;gap:8px;">
-          税金
+          {{ _('税金') }}
           <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:4px;
                        background:var(--bg-elev);border:1px solid var(--line-2);">
             <input id="qTaxRate" type="number" min="0" max="100" step="0.5" value="{{ tax_rate }}"
@@ -485,7 +485,7 @@
                           font-family:var(--font-mono);font-weight:600;color:var(--accent);font-size:12px;">
             <span style="color:var(--accent);font-size:11px;">%</span>
           </span>
-          <span class="at-dim" style="font-size:11px;">(应用于小计)</span>
+          <span class="at-dim" style="font-size:11px;">{{ _('(应用于小计)') }}</span>
         </span>
       </td>
       {# 数量/单位/市场价/折扣/单价 5 列空(showDiscount 时 +2,但 hidden 列不参与 colspan)#}
@@ -499,11 +499,11 @@
       <td colspan="2"></td>
       <td class="td-row-actions" style="display:none;"></td>
     </tr>
-    {# ─ 合计 (含税) ─ accent 高亮行 · 大字 serif 数字 · 数字落在「总价」列 #}
+    {# ─ {{ _('合计 (含税)') }} ─ accent 高亮行 · 大字 serif 数字 · 数字落在「总价」列 #}
     <tr class="qfoot-row" style="background:var(--accent-tint);">
       <td colspan="5" style="padding:16px 14px;border-top:1px solid var(--accent-soft);
                               font-size:13px;color:var(--accent);font-weight:500;letter-spacing:0.04em;">
-        合计 (含税)
+        {{ _('合计 (含税)') }}
       </td>
       <td style="border-top:1px solid var(--accent-soft);"></td>
       <td style="border-top:1px solid var(--accent-soft);"></td>
@@ -543,14 +543,14 @@
     <col style="width:80px;">     {# 发票 #}
   </colgroup>
   <thead><tr>
-    <th style="text-align:center;">序号</th>
-    <th>日期</th>
-    <th>类别</th>
-    <th>描述</th>
-    <th style="text-align:center;">单据</th>
-    <th style="text-align:right;">发票金额</th>
-    <th style="text-align:right;">报销金额</th>
-    <th style="text-align:center;">发票</th>
+    <th style="text-align:center;">{{ _('序号') }}</th>
+    <th>{{ _('日期') }}</th>
+    <th>{{ _('类别') }}</th>
+    <th>{{ _('描述') }}</th>
+    <th style="text-align:center;">{{ _('单据') }}</th>
+    <th style="text-align:right;">{{ _('发票金额') }}</th>
+    <th style="text-align:right;">{{ _('报销金额') }}</th>
+    <th style="text-align:center;">{{ _('发票') }}</th>
   </tr></thead>
   <tbody>
     {% for d in items %}
@@ -571,25 +571,25 @@
         {%- set _imgs = d.invoice_images -%}
         {%- if _imgs and _imgs != '[]' -%}
         <button type="button" class="at-invoice-btn"
-                data-files="{{ _imgs }}" data-label="发票 #{{ loop.index }}"
+                data-files="{{ _imgs }}" data-label="{{ _('发票') }} #{{ loop.index }}"
                 style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
                        background:var(--success-soft);color:var(--success);border:0;border-radius:4px;
                        font-size:11px;font-weight:500;cursor:pointer;">
-          <span style="width:6px;height:6px;border-radius:50%;background:var(--success);"></span>查看发票
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--success);"></span>{{ _('查看发票') }}
         </button>
         {%- else -%}
-        <span style="color:var(--ink-4);font-size:11px;">未上传</span>
+        <span style="color:var(--ink-4);font-size:11px;">{{ _('未上传') }}</span>
         {%- endif -%}
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--ink-4);">暂无报销明细</td></tr>
+    <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--ink-4);">{{ _('暂无报销明细') }}</td></tr>
     {% endfor %}
   </tbody>
   {% if total_amount is not none %}
   <tfoot>
     <tr style="background:var(--bg-page);border-top:2px solid var(--line);">
-      <td colspan="6" style="text-align:right;padding:14px 12px;font-size:13px;font-weight:600;color:var(--ink);">报销合计</td>
+      <td colspan="6" style="text-align:right;padding:14px 12px;font-size:13px;font-weight:600;color:var(--ink);">{{ _('报销合计') }}</td>
       <td class="at-mono" style="text-align:right;padding:14px 12px;font-size:15px;font-weight:600;color:var(--ink);">
         {{ currency_symbol }}{{ '{:,.2f}'.format(total_amount) }}
       </td>

@@ -171,7 +171,7 @@
                   color:var(--ink);font-size:13px;min-width:0;"
            {{ extra_attrs|safe }}>
     {# X 清除按钮 — 输入后才显示;清空 + 提交所在 form(恢复无关键词的全量列表)#}
-    <button type="button" data-at-input-clear aria-label="清除"
+    <button type="button" data-at-input-clear aria-label="{{ _('清除') }}"
             onclick="var i=this.parentNode.querySelector('input');if(i){i.value='';i.dispatchEvent(new Event('input',{bubbles:true}));if(i.form){i.form.submit();}else{i.focus();}}"
             style="display:none;width:18px;height:18px;border:0;border-radius:50%;
                    background:var(--line-2);color:var(--bg-elev);font-size:11px;line-height:1;
@@ -442,7 +442,7 @@
       <div style="padding:10px 12px;border-radius:6px;border:1px dashed var(--line-2);
                   display:flex;align-items:center;gap:10px;min-height:42px;">
         <span style="color:var(--ink-4);display:inline-flex;">{{ at_icon('file', 15) }}</span>
-        <span class="at-dim" style="font-size:12px;flex:1;">暂未上传</span>
+        <span class="at-dim" style="font-size:12px;flex:1;">{{ _('暂未上传') }}</span>
         {% if empty_action_html %}{{ empty_action_html|safe }}{% endif %}
       </div>
     {% endif %}

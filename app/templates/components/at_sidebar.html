@@ -98,7 +98,7 @@
              style="width:30px;height:30px;object-fit:contain;flex-shrink:0;
                     border-radius:6px;" />
         <div class="at-sb-text" style="display:none;flex-direction:column;line-height:1.1;white-space:nowrap;">
-          <span style="font-family:var(--font-serif);font-size:15px;font-weight:600;letter-spacing:0.02em;">和源通信</span>
+          <span style="font-family:var(--font-serif);font-size:15px;font-weight:600;letter-spacing:0.02em;">{{ _('和源通信') }}</span>
           <span class="at-dim at-mono" style="font-size:10px;letter-spacing:0.1em;">PMA</span>
         </div>
       </div>
@@ -107,7 +107,7 @@
       <nav style="flex:1;overflow-y:auto;padding:10px 8px;display:flex;flex-direction:column;gap:2px;">
 
         {# ── 顶级:仪表盘(单一顶级入口,其余分组化) ── #}
-        {{ _top_link(url_for('main.index'),               'grid',  '仪表盘',    'dashboard',       active_key) }}
+        {{ _top_link(url_for('main.index'),               'grid',  _('仪表盘'),    'dashboard',       active_key) }}
 
         {# ── 业务管理组 ── #}
         {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') or has_permission('expense', 'view') %}
@@ -118,15 +118,15 @@
                          color:var(--ink-3);background:transparent;border:0;cursor:pointer;
                          font-size:13px;width:100%;text-align:left;white-space:nowrap;overflow:hidden;">
             {{ at_icon('users', 16) }}
-            <span class="at-sb-text" style="flex:1;display:none;">业务管理</span>
+            <span class="at-sb-text" style="flex:1;display:none;">{{ _('业务管理') }}</span>
             <span class="at-sb-text at-sb-chev" style="display:none;color:var(--ink-4);transition:transform 180ms;">{{ at_icon('chevd', 12) }}</span>
           </button>
           <div class="at-sb-text at-sb-sub" style="margin-left:30px;margin-top:2px;margin-bottom:4px;
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
-            {% if has_permission('customer', 'view') %}{{ _sub_link(url_for('customer.at_list_view'), '客户管理', 'customer', active_key) }}{% endif %}
-            {% if has_permission('project', 'view') %}{{ _sub_link(url_for('project.at_list_view'), '项目管理', 'project', active_key) }}{% endif %}
-            {% if has_permission('quotation', 'view') %}{{ _sub_link(url_for('quotation.at_list_view'), '报价管理', 'quotation', active_key) }}{% endif %}
-            {% if has_permission('expense', 'view') %}{{ _sub_link(url_for('expense.at_list_view'), '报销管理', 'expense', active_key) }}{% endif %}
+            {% if has_permission('customer', 'view') %}{{ _sub_link(url_for('customer.at_list_view'), _('客户管理'), 'customer', active_key) }}{% endif %}
+            {% if has_permission('project', 'view') %}{{ _sub_link(url_for('project.at_list_view'), _('项目管理'), 'project', active_key) }}{% endif %}
+            {% if has_permission('quotation', 'view') %}{{ _sub_link(url_for('quotation.at_list_view'), _('报价管理'), 'quotation', active_key) }}{% endif %}
+            {% if has_permission('expense', 'view') %}{{ _sub_link(url_for('expense.at_list_view'), _('报销管理'), 'expense', active_key) }}{% endif %}
           </div>
         </div>
         {% endif %}
@@ -140,17 +140,17 @@
                          color:var(--ink-3);background:transparent;border:0;cursor:pointer;
                          font-size:13px;width:100%;text-align:left;white-space:nowrap;overflow:hidden;">
             {{ at_icon('cart', 16) }}
-            <span class="at-sb-text" style="flex:1;display:none;">订单中心</span>
+            <span class="at-sb-text" style="flex:1;display:none;">{{ _('订单中心') }}</span>
             <span class="at-sb-text at-sb-chev" style="display:none;color:var(--ink-4);transition:transform 180ms;">{{ at_icon('chevd', 12) }}</span>
           </button>
           <div class="at-sb-text at-sb-sub" style="margin-left:30px;margin-top:2px;margin-bottom:4px;
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
-            {% if has_permission('pricing_order', 'view') %}{{ _sub_link(url_for('pricing_order.at_list_view'), '批价单', 'pricing_order', active_key) }}{% endif %}
-            {% if has_permission('sales_order', 'view') %}{{ _sub_link(url_for('sales_order.list_view'), '客户订单', 'sales_order', active_key) }}{% endif %}
-            {% if has_permission('order', 'view') %}{{ _sub_link(url_for('purchase_order.at_list_view'), '采购订单', 'purchase_order', active_key) }}{% endif %}
-            {% if has_permission('inventory', 'view') %}{{ _sub_link(url_for('inventory.at_stock_list'), '库存管理', 'inventory', active_key) }}{% endif %}
+            {% if has_permission('pricing_order', 'view') %}{{ _sub_link(url_for('pricing_order.at_list_view'), _('批价单'), 'pricing_order', active_key) }}{% endif %}
+            {% if has_permission('sales_order', 'view') %}{{ _sub_link(url_for('sales_order.list_view'), _('客户订单'), 'sales_order', active_key) }}{% endif %}
+            {% if has_permission('order', 'view') %}{{ _sub_link(url_for('purchase_order.at_list_view'), _('采购订单'), 'purchase_order', active_key) }}{% endif %}
+            {% if has_permission('inventory', 'view') %}{{ _sub_link(url_for('inventory.at_stock_list'), _('库存管理'), 'inventory', active_key) }}{% endif %}
             {% if current_user.is_authenticated and current_user.role == 'admin' %}
-              {{ _sub_link(url_for('product_sn.list_view'), '序列号管理', 'serial_number', active_key) }}
+              {{ _sub_link(url_for('product_sn.list_view'), _('序列号管理'), 'serial_number', active_key) }}
             {% endif %}
           </div>
         </div>
@@ -165,14 +165,14 @@
                          color:var(--ink-3);background:transparent;border:0;cursor:pointer;
                          font-size:13px;width:100%;text-align:left;white-space:nowrap;overflow:hidden;">
             {{ at_icon('cube', 16) }}
-            <span class="at-sb-text" style="flex:1;display:none;">产品中心</span>
+            <span class="at-sb-text" style="flex:1;display:none;">{{ _('产品中心') }}</span>
             <span class="at-sb-text at-sb-chev" style="display:none;color:var(--ink-4);transition:transform 180ms;">{{ at_icon('chevd', 12) }}</span>
           </button>
           <div class="at-sb-text at-sb-sub" style="margin-left:30px;margin-top:2px;margin-bottom:4px;
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
-            {{ _sub_link(url_for('product.at_list_view'), '产品库', 'product', active_key) }}
-            {% if has_permission('system_diagram', 'view') %}{{ _sub_link(url_for('system_diagram.at_list_view'), '系统设计', 'system_diagram', active_key) }}{% endif %}
-            {% if has_permission('product_analysis', 'view') %}{{ _sub_link(url_for('product_analysis.tw_analysis'), '植入分析', 'product_analysis', active_key) }}{% endif %}
+            {{ _sub_link(url_for('product.at_list_view'), _('产品库'), 'product', active_key) }}
+            {% if has_permission('system_diagram', 'view') %}{{ _sub_link(url_for('system_diagram.at_list_view'), _('系统设计'), 'system_diagram', active_key) }}{% endif %}
+            {% if has_permission('product_analysis', 'view') %}{{ _sub_link(url_for('product_analysis.tw_analysis'), _('植入分析'), 'product_analysis', active_key) }}{% endif %}
           </div>
         </div>
         {% endif %}
@@ -185,16 +185,16 @@
                          color:var(--ink-3);background:transparent;border:0;cursor:pointer;
                          font-size:13px;width:100%;text-align:left;white-space:nowrap;overflow:hidden;">
             {{ at_icon('docs', 16) }}
-            <span class="at-sb-text" style="flex:1;display:none;">工具</span>
+            <span class="at-sb-text" style="flex:1;display:none;">{{ _('工具') }}</span>
             <span class="at-sb-text at-sb-chev" style="display:none;color:var(--ink-4);transition:transform 180ms;">{{ at_icon('chevd', 12) }}</span>
           </button>
           <div class="at-sb-text at-sb-sub" style="margin-left:30px;margin-top:2px;margin-bottom:4px;
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
-            {{ _sub_link(url_for('meeting.minutes_list'), '会议纪要', 'meeting_minutes', active_key) }}
-            {{ _sub_link(url_for('knowledge_wiki.wiki_page'), 'Wiki 知识库', 'wiki', active_key) }}
-            {% if has_permission('product_analysis', 'view') %}{{ _sub_link(url_for('geo_monitor.dashboard'), 'GEO 监控', 'geo_monitor', active_key) }}{% endif %}
+            {{ _sub_link(url_for('meeting.minutes_list'), _('会议纪要'), 'meeting_minutes', active_key) }}
+            {{ _sub_link(url_for('knowledge_wiki.wiki_page'), _('Wiki 知识库'), 'wiki', active_key) }}
+            {% if has_permission('product_analysis', 'view') %}{{ _sub_link(url_for('geo_monitor.dashboard'), _('GEO 监控'), 'geo_monitor', active_key) }}{% endif %}
             {% if current_user.role == 'admin' or has_permission('cli_agent', 'view') or config.get('ENABLE_CLI_AGENT') %}
-              {{ _sub_link(url_for('cli.terminal'), '智能终端', 'cli_terminal', active_key) }}
+              {{ _sub_link(url_for('cli.terminal'), _('智能终端'), 'cli_terminal', active_key) }}
             {% endif %}
           </div>
         </div>
@@ -212,38 +212,38 @@
                          color:var(--ink-3);background:transparent;border:0;cursor:pointer;
                          font-size:13px;width:100%;text-align:left;white-space:nowrap;overflow:hidden;">
             {{ at_icon('settings', 16) }}
-            <span class="at-sb-text" style="flex:1;display:none;">设置</span>
+            <span class="at-sb-text" style="flex:1;display:none;">{{ _('设置') }}</span>
             <span class="at-sb-text at-sb-chev" style="display:none;color:var(--ink-4);transition:transform 180ms;">{{ at_icon('chevd', 12) }}</span>
           </button>
           <div class="at-sb-text at-sb-sub" style="margin-left:30px;margin-top:2px;margin-bottom:4px;
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
             {# 账户与字典 #}
-            {% if has_permission('user_management', 'view') %}{{ _sub_link(url_for('user.list_users'), '账户列表', 'user_list', active_key) }}{% endif %}
-            {% if has_permission('config_management', 'view') %}{{ _sub_link(url_for('config_management.index'), '配置管理', 'config_management', active_key) }}{% endif %}
+            {% if has_permission('user_management', 'view') %}{{ _sub_link(url_for('user.list_users'), _('账户列表'), 'user_list', active_key) }}{% endif %}
+            {% if has_permission('config_management', 'view') %}{{ _sub_link(url_for('config_management.index'), _('配置管理'), 'config_management', active_key) }}{% endif %}
             {% if has_permission('dictionary_management', 'view') %}
-              {{ _sub_link(url_for('user.manage_roles'), '角色字典', 'role_dict', active_key) }}
-              {{ _sub_link(url_for('user.manage_companies'), '企业字典', 'company_dict', active_key) }}
-              {{ _sub_link(url_for('user.manage_departments'), '部门字典', 'department_dict', active_key) }}
+              {{ _sub_link(url_for('user.manage_roles'), _('角色字典'), 'role_dict', active_key) }}
+              {{ _sub_link(url_for('user.manage_companies'), _('企业字典'), 'company_dict', active_key) }}
+              {{ _sub_link(url_for('user.manage_departments'), _('部门字典'), 'department_dict', active_key) }}
             {% endif %}
             {# 产品配置(从原"产品管理"组下沉) #}
             {% if has_permission('product_code', 'view') and not currency_config.is_ovs %}
-              {{ _sub_link(url_for('spec_template.at_list_view'), '产品模板', 'spec_template', active_key) }}
-              {{ _sub_link(url_for('product_code.tw_categories'), '产品分类', 'product_code', active_key) }}
-              {{ _sub_link(url_for('product_code.origin_fields'), '销售地区', 'origin_fields', active_key) }}
-              {{ _sub_link(url_for('spec_definition.at_list_view'), '规格字典', 'spec_definition', active_key) }}
+              {{ _sub_link(url_for('spec_template.at_list_view'), _('产品模板'), 'spec_template', active_key) }}
+              {{ _sub_link(url_for('product_code.tw_categories'), _('产品分类'), 'product_code', active_key) }}
+              {{ _sub_link(url_for('product_code.origin_fields'), _('销售地区'), 'origin_fields', active_key) }}
+              {{ _sub_link(url_for('spec_definition.at_list_view'), _('规格字典'), 'spec_definition', active_key) }}
             {% endif %}
             {# 系统运维 #}
-            {% if has_permission('announcement', 'view') %}{{ _sub_link(url_for('announcement.list_view'), '公告管理', 'announcement', active_key) }}{% endif %}
+            {% if has_permission('announcement', 'view') %}{{ _sub_link(url_for('announcement.list_view'), _('公告管理'), 'announcement', active_key) }}{% endif %}
             {% if has_permission('system_settings', 'edit') %}
-              {{ _sub_link(url_for('admin.system_settings'), '系统参数', 'admin', active_key) }}
-              {{ _sub_link(url_for('admin.ai_usage_dashboard'), 'AI 使用量', 'ai_usage', active_key) }}
-              {{ _sub_link(url_for('points.admin_config'), '积分配置', 'points_config', active_key) }}
+              {{ _sub_link(url_for('admin.system_settings'), _('系统参数'), 'admin', active_key) }}
+              {{ _sub_link(url_for('admin.ai_usage_dashboard'), _('AI 使用量'), 'ai_usage', active_key) }}
+              {{ _sub_link(url_for('points.admin_config'), _('积分配置'), 'points_config', active_key) }}
             {% endif %}
-            {% if has_permission('version_management', 'view') %}{{ _sub_link(url_for('version_management.index'), '版本管理', 'version', active_key) }}{% endif %}
-            {% if has_permission('approval_config', 'view') %}{{ _sub_link(url_for('approval_config.template_list'), '审批配置', 'approval_config', active_key) }}{% endif %}
-            {% if has_permission('change_history', 'view') %}{{ _sub_link(url_for('change_history.index'), '历史记录', 'history', active_key) }}{% endif %}
-            {% if has_permission('backup', 'view') %}{{ _sub_link(url_for('backup.index'), '数据库备份', 'backup', active_key) }}{% endif %}
-            {% if has_permission('system_settings', 'edit') %}{{ _sub_link(url_for('admin.skill_list'), 'Skill 管理', 'skill_list', active_key) }}{% endif %}
+            {% if has_permission('version_management', 'view') %}{{ _sub_link(url_for('version_management.index'), _('版本管理'), 'version', active_key) }}{% endif %}
+            {% if has_permission('approval_config', 'view') %}{{ _sub_link(url_for('approval_config.template_list'), _('审批配置'), 'approval_config', active_key) }}{% endif %}
+            {% if has_permission('change_history', 'view') %}{{ _sub_link(url_for('change_history.index'), _('历史记录'), 'history', active_key) }}{% endif %}
+            {% if has_permission('backup', 'view') %}{{ _sub_link(url_for('backup.index'), _('数据库备份'), 'backup', active_key) }}{% endif %}
+            {% if has_permission('system_settings', 'edit') %}{{ _sub_link(url_for('admin.skill_list'), _('Skill 管理'), 'skill_list', active_key) }}{% endif %}
           </div>
         </div>
         {% endif %}
@@ -283,19 +283,19 @@
           <a href="{{ url_for('user.profile') }}" style="{{ _menu_link_style }}"
              onmouseover="this.style.background='var(--bg-page)'"
              onmouseout="this.style.background='transparent'">
-            {{ at_icon('user', 14) }} 个人设置
+            {{ at_icon('user', 14) }} {{ _('个人设置') }}
           </a>
           {% if has_permission('performance', 'view') %}
           <a href="{{ url_for('performance.index') }}" style="{{ _menu_link_style }}"
              onmouseover="this.style.background='var(--bg-page)'"
              onmouseout="this.style.background='transparent'">
-            {{ at_icon('chart', 14) }} 绩效看板
+            {{ at_icon('chart', 14) }} {{ _('绩效看板') }}
           </a>
           {% endif %}
           <a href="{{ url_for('approval.center', from_notification=1) }}" style="{{ _menu_link_style }}"
              onmouseover="this.style.background='var(--bg-page)'"
              onmouseout="this.style.background='transparent'">
-            {{ at_icon('check', 14) }} 审批中心
+            {{ at_icon('check', 14) }} {{ _('审批中心') }}
           </a>
           <div style="height:1px;background:var(--line);margin:4px 4px;"></div>
           <a href="{{ url_for('auth.logout') }}"
@@ -304,7 +304,7 @@
                     font-size:13px;transition:background 100ms;"
              onmouseover="this.style.background='var(--bg-page)'"
              onmouseout="this.style.background='transparent'">
-            {{ at_icon('logout', 14) }} 退出登录
+            {{ at_icon('logout', 14) }} {{ _('退出登录') }}
           </a>
         </div>
       </div>
@@ -336,7 +336,7 @@
     </script>
 
     {# Pin/Collapse 切换按钮 #}
-    <button id="{{ sidebar_id }}Toggle" type="button" title="固定展开"
+    <button id="{{ sidebar_id }}Toggle" type="button" title="{{ _('固定展开') }}"
             style="position:absolute;top:14px;right:-12px;
                    width:24px;height:24px;border-radius:50%;
                    background:var(--bg-elev);border:1px solid var(--line);

@@ -64,7 +64,7 @@
    body_padding: 'default'(14/18) | 'none'(0,适合 table 贴边)
 #}
 {% macro at_detail_section(title, count=none, has_more=false,
-                           create_url=none, create_label='+ 新建',
+                           create_url=none, create_label=_('+ 新建'),
                            body_padding='none') %}
 <section class="at-section">
   <header class="at-section-h">
@@ -113,7 +113,7 @@
   <div class="at-section-body">
     {% if filter_empty and _rows|length == 0 %}
       <div style="text-align:center;padding:24px 8px;color:var(--ink-4);font-size:12px;">
-        {{ empty_text or '暂无信息' }}
+        {{ empty_text or _('暂无信息') }}
       </div>
     {% elif columns > 1 %}
       <div style="display:grid;grid-template-columns:repeat({{ columns }}, 1fr);row-gap:18px;column-gap:24px;">
@@ -156,7 +156,7 @@
 {% macro at_contact_list(contacts, add_url=none) %}
 <section class="at-section">
   <header class="at-section-h">
-    <h3 class="at-section-title">联系人</h3>
+    <h3 class="at-section-title">{{ _('联系人') }}</h3>
     <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ contacts|length }}</span>
     <div style="flex:1;"></div>
     {% if add_url %}{{ at_btn('+', variant='ghost', size='sm', tag='a', href=add_url) }}{% endif %}
@@ -172,7 +172,7 @@
          onmouseout="this.style.background='transparent'">
         <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px;">
           <span style="font-size:13px;font-weight:500;color:var(--ink);">{{ c.name }}</span>
-          {% if c.is_primary %}<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--accent-tint);color:var(--accent);">主</span>{% endif %}
+          {% if c.is_primary %}<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--accent-tint);color:var(--accent);">{{ _('主') }}</span>{% endif %}
           {% if c.position %}<span style="font-size:11.5px;color:var(--ink-3);">{{ c.position }}</span>{% endif %}
         </div>
         <div style="font-size:11.5px;color:var(--ink-3);display:flex;gap:10px;flex-wrap:wrap;">
@@ -182,7 +182,7 @@
       </a>
       {% endfor %}
     {% else %}
-      <div style="text-align:center;padding:16px 0;color:var(--ink-4);font-size:12px;">暂无联系人</div>
+      <div style="text-align:center;padding:16px 0;color:var(--ink-4);font-size:12px;">{{ _('暂无联系人') }}</div>
     {% endif %}
   </div>
 </section>
@@ -198,10 +198,10 @@
 {% macro at_action_timeline(actions, add_url=none, max_height='560px', show_context=false) %}
 <section class="at-section">
   <header class="at-section-h">
-    <h3 class="at-section-title">跟进记录</h3>
+    <h3 class="at-section-title">{{ _('跟进记录') }}</h3>
     <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ actions|length }}</span>
     <div style="flex:1;"></div>
-    {% if add_url %}{{ at_btn('+ 添加跟进', variant='ghost', size='sm', tag='a', href=add_url) }}{% endif %}
+    {% if add_url %}{{ at_btn(_('+ 添加跟进'), variant='ghost', size='sm', tag='a', href=add_url) }}{% endif %}
   </header>
   <div class="at-section-body">
     {% if actions %}
@@ -229,7 +229,7 @@
             </div>
             {% if a.replies and a.replies.count() > 0 %}
             <div style="margin-top:6px;font-size:11px;color:var(--ink-4);">
-              {{ a.replies.count() }} 条回复
+              {{ a.replies.count() }} {{ _('条回复') }}
             </div>
             {% endif %}
           </div>
@@ -237,7 +237,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <div style="text-align:center;padding:24px 0;color:var(--ink-4);font-size:12.5px;">暂无跟进记录</div>
+      <div style="text-align:center;padding:24px 0;color:var(--ink-4);font-size:12.5px;">{{ _('暂无跟进记录') }}</div>
     {% endif %}
   </div>
 </section>
