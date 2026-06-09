@@ -170,15 +170,27 @@ def _build_todos(user):
             Project.current_stage == 'awarded',
             _or(Project.owner_id == user.id, Project.vendor_sales_manager_id == user.id),
         ).all()
+        proj_ids = [p.id for p in projs]
+        # 批量:每项目最近 Action.date(一次 group by,替代逐项目查询)
+        last_action = {}
+        if proj_ids:
+            last_action = dict(db.session.query(Action.project_id, _f.max(Action.date))
+                               .filter(Action.project_id.in_(proj_ids))
+                               .group_by(Action.project_id).all())
+        # 批量:从无 Action 的项目 → 进入中标阶段时间(一次 group by)
+        no_act_ids = [pid for pid in proj_ids if pid not in last_action]
+        awarded_since = {}
+        if no_act_ids:
+            awarded_since = dict(db.session.query(ProjectStageHistory.project_id, _f.max(ProjectStageHistory.change_date))
+                                 .filter(ProjectStageHistory.project_id.in_(no_act_ids),
+                                         ProjectStageHistory.to_stage == 'awarded')
+                                 .group_by(ProjectStageHistory.project_id).all())
         for p in projs:
-            last_date = db.session.query(_f.max(Action.date)).filter(Action.project_id == p.id).scalar()
+            last_date = last_action.get(p.id)
             if last_date:
                 days = (today - last_date).days
             else:
-                since = db.session.query(_f.max(ProjectStageHistory.change_date)).filter(
-                    ProjectStageHistory.project_id == p.id,
-                    ProjectStageHistory.to_stage == 'awarded').scalar()
-                base = since or p.created_at
+                base = awarded_since.get(p.id) or p.created_at
                 days = (now - base).days if base else None
             if days is not None and days > 30:
                 fu.append({
@@ -196,9 +208,15 @@ def _build_todos(user):
             Task.status != 'completed',
             _or(Task.assignee_id == user.id, Task.creator_id == user.id),
         ).all()
+        task_ids = [t.id for t in tasks]
+        # 批量:每任务最近未删除回复时间(一次 group by)
+        last_reply_map = {}
+        if task_ids:
+            last_reply_map = dict(db.session.query(TaskReply.task_id, _f.max(TaskReply.created_at))
+                                  .filter(TaskReply.task_id.in_(task_ids), TaskReply.is_deleted == False)
+                                  .group_by(TaskReply.task_id).all())
         for t in tasks:
-            last_reply = db.session.query(_f.max(TaskReply.created_at)).filter(
-                TaskReply.task_id == t.id, TaskReply.is_deleted == False).scalar()
+            last_reply = last_reply_map.get(t.id)
             cands = [d for d in (t.updated_at, last_reply, t.created_at) if d]
             last_act = max(cands) if cands else None
             days = (now - last_act).days if last_act else None
