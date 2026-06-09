@@ -223,7 +223,7 @@
                 {{ a.date.strftime('%Y-%m-%d') if a.date else (a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '—') }}
               </span>
             </div>
-            <div style="font-size:12.5px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap;
+            <div class="at-expandable" style="font-size:12.5px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap;
                         display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;">
 {{- a.communication or '—' -}}
             </div>
@@ -241,6 +241,8 @@
     {% endif %}
   </div>
 </section>
+{# 跟进记录文本可点击展开(超出 5 行时)— 幂等脚本,多次引入安全 #}
+<script src="{{ url_for('static', filename='js/at-clamp-expand.js') }}"></script>
 {% endmacro %}
 
 
