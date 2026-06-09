@@ -69,7 +69,8 @@
         .at-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
         .at-link { font-weight: 500; color: var(--accent); text-decoration: none; transition: opacity 120ms; }
         .at-link:hover { opacity: 0.8; }
-        .login-btn { width: 100%; height: 46px; margin-top: 4px; background: var(--accent-grad); color: #fff; border: 0; border-radius: var(--radius); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: opacity 120ms, transform 60ms; letter-spacing: 0.02em; }
+        /* 选择器提权到 .at-page .login-btn(0,2,0),压过 at-theme.css 的全局重置 body.at-page button{background:none}(0,1,2),否则橙色 accent 背景被抹掉 */
+        .at-page .login-btn { width: 100%; height: 46px; margin-top: 4px; background: var(--accent-grad); color: #fff; border: 0; border-radius: var(--radius); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: opacity 120ms, transform 60ms; letter-spacing: 0.02em; }
         .login-btn:hover { opacity: 0.92; }
         .login-btn:active { transform: translateY(1px); }
         /* Flash */
