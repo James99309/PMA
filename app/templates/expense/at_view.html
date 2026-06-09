@@ -38,6 +38,22 @@
 <script src="{{ url_for('static', filename='js/at-expense-form.js') }}"></script>
 {% endif %}
 {{ at_detail_styles() }}
+<style>
+  /* 标题背景用 CSS 规则(非内联)设定 → 即使 at-expense-form.js 的 AI 高亮把
+     内联 style.background 清空,也会回退到这里,不会露出原生白底字段 */
+  #expTitle { background: var(--bg-page); }
+  /* 标题输入框:透明无框设计。防止「浏览器自动填充」在明/暗模式下强制白底
+     —— 标题坐在 --bg-page 上,自动填充底色也用 --bg-page 才能隐形;文字色强制 --ink */
+  #expTitle:-webkit-autofill,
+  #expTitle:-webkit-autofill:hover,
+  #expTitle:-webkit-autofill:focus,
+  #expTitle:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--ink) !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-page) inset !important;
+    caret-color: var(--ink);
+    transition: background-color 9999s ease-out 0s;
+  }
+</style>
 </head>
 <body class="at-page">
 
@@ -94,11 +110,12 @@
       <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
         {% if _editable %}
           <input type="text" id="expTitle" placeholder="默认 客户名-姓名-YYDDHHS"
-                 value="{{ expense.title or '' }}"
+                 value="{{ expense.title or '' }}" autocomplete="off"
                  style="margin:0;font-size:24px;font-weight:500;letter-spacing:-0.005em;line-height:1.2;
                         font-family:'Source Serif Pro', Georgia, serif;
                         border:0;border-bottom:1.5px dashed var(--line-2);
-                        background:transparent;color:var(--ink);outline:none;
+                        color:var(--ink);outline:none;
+                        -webkit-appearance:none;appearance:none;
                         padding:2px 4px;min-width:280px;max-width:600px;">
           {% call at_header_chip_group() %}
             {% if is_new %}
@@ -192,6 +209,11 @@
           {{ at_icon('check', 12) }}{% if is_new %}创建{% else %}保存{% endif %}
         </button>
       {% else %}
+        {# 导出 PDF — 仅已支付(paid) + (admin/ceo 或参与该单审批的财务)可见;不含附件/审批/支付 #}
+        {% if can_export_pdf %}
+        {{ at_btn('导出 PDF', variant='ghost', size='sm', icon_l='download', tag='a',
+                  href=url_for('expense.export_pdf', id=expense.id)) }}
+        {% endif %}
         {% if perms.can_edit %}
           {{ at_btn('编辑', variant='ghost', size='sm', icon_l='pen', tag='a',
                     href=url_for('expense.at_view_expense', id=expense.id) ~ '?action=edit') }}

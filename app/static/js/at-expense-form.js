@@ -954,10 +954,8 @@
             if (titleEl.value.trim()) return;
             if (res && res.success && res.title) {
               titleEl.value = res.title;
-              // 高亮 200ms 提示用户这是 AI 填的
-              titleEl.style.transition = 'background 400ms';
-              titleEl.style.background = 'var(--accent-tint)';
-              setTimeout(function () { titleEl.style.background = ''; }, 800);
+              // 注:不做背景/外发光高亮 —— 任何对标题框背景或 box-shadow 的临时改动
+              // 在暗色下都会造成「闪一下的白方块」,故仅填值,不加视觉特效
             }
           })
           .catch(function () { /* 静默失败,保留用户原占位 */ })

@@ -6,6 +6,10 @@
 @import url("https://fonts.googleapis.cn/css2?family=Newsreader:wght@400;500;600&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 :root {
+  /* 让原生表单控件/滚动条按当前主题渲染:浅色模式字段底为浅,暗色为深。
+     不声明时浏览器默认按浅色画原生字段底 → 暗色下透明输入框会露白底 */
+  color-scheme: light;
+
   /* Surfaces */
   --bg-page:      #FAF9F5;
   --bg-elev:      #FFFFFF;
@@ -51,6 +55,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg-page:      #191714;
   --bg-elev:      #221F1A;
   --bg-sunk:      #100E0C;
@@ -105,6 +110,17 @@ body.at-page button { font: inherit; color: inherit; background: none; border: 0
 body.at-page input,
 body.at-page textarea,
 body.at-page select { font: inherit; color: inherit; box-sizing: border-box; max-width: 100%; }
+/* 浏览器自动填充:默认会强制白底,暗色模式下浅色 --ink 文字落白底看不清 ——
+   统一用 --ink 文字色 + 主题背景 inset 阴影覆盖,保证明暗模式都可读 */
+body.at-page input:-webkit-autofill,
+body.at-page input:-webkit-autofill:hover,
+body.at-page input:-webkit-autofill:focus,
+body.at-page textarea:-webkit-autofill {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-elev) inset;
+  caret-color: var(--ink);
+  transition: background-color 9999s ease-out 0s;
+}
 body.at-page a { color: inherit; text-decoration: none; }
 body.at-page table { border-collapse: collapse; }
 

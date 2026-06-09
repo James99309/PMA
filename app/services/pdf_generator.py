@@ -325,6 +325,121 @@ class PDFGenerator:
             logger.error(f"生成订单PDF失败: {str(e)}")
             raise
     
+    # 报销科目中英标签（数据库 EXPENSE_CATEGORIES 仅有中文，这里补英文）
+    EXPENSE_CATEGORY_LABELS = {
+        'entertainment':        {'zh': '招待费',   'en': 'Entertainment'},
+        'local_transport':      {'zh': '市内交通', 'en': 'Local Transport'},
+        'travel_accommodation': {'zh': '差旅住宿', 'en': 'Travel & Accommodation'},
+        'office_supplies':      {'zh': '办公用品', 'en': 'Office Supplies'},
+        'communication':        {'zh': '通讯费',   'en': 'Communication'},
+        'fuel':                 {'zh': '油费',     'en': 'Fuel'},
+        'parking':              {'zh': '停车费',   'en': 'Parking'},
+        'meals':                {'zh': '餐费',     'en': 'Meals'},
+        'other':                {'zh': '其他',     'en': 'Other'},
+    }
+    EXPENSE_STATUS_LABELS = {
+        'draft':            {'zh': '草稿',   'en': 'Draft'},
+        'pending':          {'zh': '待审批', 'en': 'Pending'},
+        'approved':         {'zh': '已通过', 'en': 'Approved'},
+        'rejected':         {'zh': '已驳回', 'en': 'Rejected'},
+        'recalled':         {'zh': '已召回', 'en': 'Recalled'},
+        'awaiting_payment': {'zh': '待支付', 'en': 'Awaiting Payment'},
+        'paid':             {'zh': '已支付', 'en': 'Paid'},
+    }
+
+    def _editorial_fontface_css(self):
+        """报销单横版 PDF 专用 @font-face（编辑风格品牌字体）。
+
+        Latin: Instrument Serif(标题) / Geist(正文) / Geist Mono(编号·数字)
+        CJK:   复用项目内嵌 NotoSansCJK
+        全部用绝对 file:// 路径,确保 NAS(Linux) 渲染也能找到。
+        """
+        fonts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'fonts'))
+        edir = os.path.join(fonts_dir, 'editorial')
+
+        def furl(path):
+            return 'file://' + path
+
+        faces = [
+            ('Instrument Serif', 'InstrumentSerif-Regular.ttf', 'normal', 'normal'),
+            ('Geist',            'Geist-Light.ttf',              '300',    'normal'),
+            ('Geist',            'Geist-Regular.ttf',            'normal', 'normal'),
+            ('Geist',            'Geist-Medium.ttf',             '500',    'normal'),
+            ('Geist Mono',       'GeistMono-Regular.ttf',        'normal', 'normal'),
+            ('Geist Mono',       'GeistMono-Medium.ttf',         '500',    'normal'),
+        ]
+        rules = []
+        for family, fname, weight, style in faces:
+            fpath = os.path.join(edir, fname)
+            if os.path.exists(fpath):
+                rules.append(
+                    f'@font-face {{ font-family: "{family}"; '
+                    f'src: url("{furl(fpath)}") format("truetype"); '
+                    f'font-weight: {weight}; font-style: {style}; }}'
+                )
+        # CJK（复用已有内嵌字体）
+        cjk = os.path.join(fonts_dir, 'NotoSansCJK-Regular.ttc')
+        if os.path.exists(cjk):
+            rules.append(
+                f'@font-face {{ font-family: "Noto Sans CJK SC"; '
+                f'src: url("{furl(cjk)}") format("truetype"); '
+                f'font-weight: normal; font-style: normal; }}'
+            )
+        return '\n'.join(rules)
+
+    def generate_expense_pdf(self, expense):
+        """生成报销单 PDF（EVERTAC 品牌横版 A4；基本信息 + 明细 + 签字行；
+        不含发票附件、系统审批流、支付信息）。
+
+        语言按数据库类型决定：OVS→英文(EVERTAC SOLUTIONS logo)，
+        SP8D/本地→中文(EVERTAC 和源通信 logo)。
+        """
+        try:
+            from app.utils.dictionary_helpers import get_currency_symbol
+
+            lang = 'en' if (current_app and current_app.config.get('IS_OVS', False)) else 'zh'
+            currency_sym = get_currency_symbol(expense.currency or 'CNY')
+
+            # 按语言/服务器选 logo
+            logo_file = 'evertac_solutions.png' if lang == 'en' else 'evertac_cn.png'
+            logo_path = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), '..', 'static', 'img', 'company_logos', logo_file))
+            logo_url = 'file://' + logo_path if os.path.exists(logo_path) else ''
+
+            def cat_label(code):
+                m = self.EXPENSE_CATEGORY_LABELS.get(code)
+                return m[lang] if m else (code or '')
+
+            def status_label(code):
+                m = self.EXPENSE_STATUS_LABELS.get(code)
+                return m[lang] if m else (code or '')
+
+            html_content = render_template(
+                'pdf/expense_template.html',
+                expense=expense,
+                lang=lang,
+                currency_sym=currency_sym,
+                cur_sym=get_currency_symbol,   # 供明细按各自发票货币取符号
+                cat_label=cat_label,
+                status_label=status_label,
+                generated_at=datetime.now(),
+                logo_url=logo_url,
+                fontface_css=self._editorial_fontface_css(),
+            )
+
+            num = expense.expense_number or str(expense.id)
+            filename = f'报销单_{num}.pdf' if lang == 'zh' else f'Expense_{num}.pdf'
+
+            # 专用渲染：样式全在模板内（横版 @page + @font-face），不套用竖版通用 _get_pdf_css
+            html_doc = HTML(string=html_content,
+                            base_url=(current_app.static_folder if current_app else None))
+            pdf_content = html_doc.write_pdf(font_config=self.font_config)
+            return {'content': pdf_content, 'filename': filename}
+
+        except Exception as e:
+            logger.error(f"生成报销单PDF失败: {str(e)}")
+            raise
+
     def _generate_pdf_from_html(self, html_content, filename):
         """从HTML内容生成PDF文件"""
         try:

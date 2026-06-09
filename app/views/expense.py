@@ -754,10 +754,14 @@ def at_view_expense(id):
                 'invoice_images': imgs or [],
             })
 
+    # 导出 PDF 按钮可见性(仅审批通过 + admin/ceo 或参与审批的财务)
+    can_export_pdf = can_export_expense_pdf(current_user, e)
+
     return render_template('expense/at_view.html',
                            expense=e,
                            related=related,
                            perms=perms,
+                           can_export_pdf=can_export_pdf,
                            currency_sym=currency_sym,
                            is_edit=is_edit,
                            is_new=False,
@@ -768,6 +772,73 @@ def at_view_expense(id):
                            currency_options=get_currency_type_options(),
                            default_currency=(e.currency or Config.DEFAULT_CURRENCY),
                            expense_details=expense_details)
+
+
+# 报销单 PDF 导出权限判定 — 详情页(控制按钮显示)与导出路由(后端强制)共用
+_EXPENSE_FINANCE_ROLES = ('finance', 'finance_director', 'finace_director')
+
+
+def can_export_expense_pdf(user, expense):
+    """是否可导出该报销单 PDF。
+
+    规则(经确认):
+      1. 仅「已支付」(status == 'paid') 的报销单可导出
+         —— 报销审批流终态为 paid(审批通过→awaiting_payment→财务支付→paid),
+            paid 即代表审批通过且付款完成;
+      2. 导出权限 = admin/ceo 始终放行,
+                 或 财务角色 且 参与过该单审批(has_approval_permission,
+                 执行支付节点的财务会留有审批记录)。
+    """
+    if not expense or expense.status != 'paid':
+        return False
+    role = (getattr(user, 'role', '') or '').strip()
+    if role in ('admin', 'ceo'):
+        return True
+    if role in _EXPENSE_FINANCE_ROLES:
+        from app.utils.access_control import has_approval_permission
+        return has_approval_permission(user, expense)
+    return False
+
+
+@expense.route('/<int:id>/export-pdf')
+@login_required
+@permission_required('expense', 'view')
+def export_pdf(id):
+    """导出报销单 PDF（基本信息 + 明细；不含发票附件 / 审批流 / 支付信息）。
+
+    仅「已支付」报销单可导出,且仅 admin/ceo 或参与该单审批的财务人员有权。
+    语言按数据库类型决定：OVS→英文，SP8D/本地→中文。
+    """
+    from io import BytesIO
+    from flask import send_file
+    from app.models.expense import Expense as E
+
+    e = E.query.get_or_404(id)
+    if e.is_deleted:
+        abort(404)
+    # 权限:走 viewable 过滤 — 不在范围内则 403（与详情页一致）
+    if not get_viewable_data(E, current_user, [E.id == id]).first():
+        abort(403)
+    # 导出专属门槛:仅审批通过 + (admin/ceo 或 参与审批的财务)
+    if not can_export_expense_pdf(current_user, e):
+        abort(403)
+
+    try:
+        from app.services.pdf_generator import pdf_generator
+        result = pdf_generator.generate_expense_pdf(e)
+    except Exception as ex:
+        logging.error(f"报销单 PDF 导出失败 (id={id}): {ex}")
+        flash(_('PDF 导出失败，请稍后重试'), 'danger')
+        return redirect(url_for('expense.at_view_expense', id=id))
+
+    pdf_io = BytesIO(result['content'])
+    pdf_io.seek(0)
+    return send_file(
+        pdf_io,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=result['filename'],
+    )
 
 
 @expense.route('/at_new', methods=['GET'])
