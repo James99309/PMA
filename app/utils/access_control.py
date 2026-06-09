@@ -519,7 +519,39 @@ def get_viewable_data(model_class, user, special_filters=None):
         query = apply_content_filters(query, model_class, 'order', user)
 
         return query
-    
+
+    if model_class.__name__ == 'SalesOrder':
+        # 客户订单：用 sales_order 模块 + created_by_id（SalesOrder 无 owner_id）
+        if not user.has_permission('sales_order', 'view'):
+            return model_class.query.filter(False)
+
+        permission_level = user.get_permission_level('sales_order')
+
+        if permission_level == 'system':
+            query = model_class.query.filter(*special_filters if special_filters else [])
+        elif permission_level == 'company' and user.company_name:
+            company_user_ids = get_company_user_ids(user)
+            query = model_class.query.filter(
+                model_class.created_by_id.in_(company_user_ids),
+                *special_filters
+            )
+        elif permission_level == 'department' and user.department:
+            dept_user_ids = get_department_user_ids(user)
+            query = model_class.query.filter(
+                model_class.created_by_id.in_(dept_user_ids),
+                *special_filters
+            )
+        else:  # personal
+            viewable_user_ids = get_personal_viewable_user_ids(user)
+            query = model_class.query.filter(
+                model_class.created_by_id.in_(viewable_user_ids),
+                *special_filters
+            )
+
+        query = apply_content_filters(query, model_class, 'sales_order', user)
+
+        return query
+
     # 处理特殊角色权限 - Project模型 - 基于四级权限管理系统（重构版）
     if model_class.__name__ == 'Project':
         # 检查用户是否有项目模块的查看权限
