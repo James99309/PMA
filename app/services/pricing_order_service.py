@@ -1534,14 +1534,14 @@ class PricingOrderService:
         from app.permissions import is_admin_or_ceo
         if is_admin_or_ceo():
             return True
-            
-        # 检查基础结算单查看权限（使用正确的权限标识符）
-        # 注：渠道经理、营销总监等角色通过权限配置系统授予 settlement_view 权限
-        from app.permissions import check_permission
-        if check_permission('settlement_view'):
-            return True
 
-        return False
+        # 结算单 view 权限(settlement 模块)。
+        # 用 User.has_permission(个人权限完全覆盖角色),而非 check_permission/全局 has_permission——
+        # 后者只看角色、忽略个人权限覆盖,会导致"个人去掉结算权限后仍能看到分页"。
+        return bool(
+            current_user and getattr(current_user, 'is_authenticated', False)
+            and current_user.has_permission('settlement', 'view')
+        )
     
     @staticmethod
     def can_view_pricing_order(pricing_order, current_user):
