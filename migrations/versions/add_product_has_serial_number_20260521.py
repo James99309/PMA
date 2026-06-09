@@ -21,10 +21,13 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        'products',
-        sa.Column('has_serial_number', sa.Boolean(), nullable=False, server_default=sa.text('true'))
-    )
+    # 幂等:该列可能已由 cherry-pick 直接加到生产(未走迁移),存在则跳过
+    insp = sa.inspect(op.get_bind())
+    if 'has_serial_number' not in [c['name'] for c in insp.get_columns('products')]:
+        op.add_column(
+            'products',
+            sa.Column('has_serial_number', sa.Boolean(), nullable=False, server_default=sa.text('true'))
+        )
 
 
 def downgrade():
