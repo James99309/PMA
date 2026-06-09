@@ -1326,12 +1326,13 @@ def get_ordered_modules():
         # 产品管理
         {'id': 'product', 'name': '产品管理', 'icon': 'inventory_2', 'description': '管理产品信息和价格', 'group': '产品管理'},
         {'id': 'product_code', 'name': '产品编码', 'icon': 'category', 'description': '管理产品编码系统', 'group': '产品管理'},
-        # 订单结算
-        {'id': 'order', 'name': '订单管理', 'icon': 'list_alt', 'description': '管理销售订单', 'group': '订单结算'},
-        {'id': 'settlement', 'name': '结算管理', 'icon': 'payments', 'description': '管理财务结算', 'group': '订单结算'},
-        {'id': 'inventory', 'name': '库存管理', 'icon': 'warehouse', 'description': '管理产品库存', 'group': '订单结算'},
-        {'id': 'pricing_order', 'name': '批价单管理', 'icon': 'sell', 'description': '管理批价单', 'group': '订单结算'},
-        {'id': 'settlement_order', 'name': '结算单管理', 'icon': 'credit_card', 'description': '管理结算单', 'group': '订单结算'},
+        # 订单结算(客户订单 → 采购订单 → 批价单 → 结算单 → 库存管理)
+        {'id': 'sales_order', 'name': '客户订单', 'icon': 'shopping_cart', 'description': '管理客户订单', 'group': '订单结算'},
+        {'id': 'order', 'name': '采购订单', 'icon': 'list_alt', 'description': '管理采购订单', 'group': '订单结算'},
+        {'id': 'pricing_order', 'name': '批价单', 'icon': 'sell', 'description': '管理批价单', 'group': '订单结算'},
+        {'id': 'settlement', 'name': '结算单', 'icon': 'payments', 'description': '查看结算单', 'group': '订单结算'},
+        {'id': 'inventory', 'name': '库存管理', 'icon': 'warehouse', 'description': '管理产品库存(含库存结算)', 'group': '订单结算'},
+        # settlement_order(结算单管理)为死模块,已停用,从清单移除
         # 账户管理
         {'id': 'user_management', 'name': '用户管理', 'icon': 'group', 'description': '管理系统用户', 'group': '账户管理'},
         {'id': 'config_management', 'name': '配置管理', 'icon': 'settings', 'description': '管理系统权限和配置', 'group': '账户管理'},
