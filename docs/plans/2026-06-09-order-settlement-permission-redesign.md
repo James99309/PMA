@@ -26,8 +26,10 @@
 | **客户订单** | `sales_order` | 客户订单查看/编辑 | 🆕 注册模块 + 配角色（代码已用，无需改路由） |
 | **采购订单** | `order` | 采购订单查看/编辑 | ✏️ 改名（订单管理→采购订单），key 不变 |
 | **批价单** | `pricing_order` | 批价单分页 | ✏️ 改名（批价单管理→批价单），规则不变 |
-| **结算单** | `settlement` | **结算单分页可见**（批价单结算单 tab + 结算单列表查看） | ✏️ 改名（结算管理→结算单）；与批价单同组并排显示 |
-| **库存管理** | `inventory` | 库存 + **库存结算动作** | ✏️ 把 inventory.py 结算「动作」路由从 `settlement` 改挂 `inventory`（create/edit） |
+| **结算单** | `settlement` | **看结算单(view) + 做结算动作(create/edit)** —— 批价单结算单 tab、结算单列表、库存结算/执行结算 | ✏️ 改名（结算管理→结算单）；与批价单同组并排显示 |
+| **库存管理** | `inventory` | 库存（**不含**结算动作） | 维持现状 |
+
+> 决策更正(2026-06-10)：结算动作仍由「结算单(settlement)」权限管(view=看/create=做结算)，**不**移到库存管理。原方案 A 的"库存管理具备结算动作(B)"**取消**，inventory.py 结算路由保持挂 `settlement`，无需改代码。
 | ~~结算单管理~~ | ~~`settlement_order`~~ | — | 🗑️ 删除死模块 |
 
 "两个分页勾选"= 配置页里把 `pricing_order`(批价单) 与 `settlement`(结算单) **归到同一分组并排展示**，视觉等同两个勾选；底层仍是两个模块，**不动 RolePermission 模型**。
@@ -46,7 +48,7 @@
 1. `sales_order_routes.py`：已用 `sales_order`，**无需改**。
 2. `purchase_order_routes.py`：已用 `order`，**无需改**。
 3. `pricing_order_routes.py`：已用 `pricing_order`，**无需改**。
-4. `inventory.py`：把**结算动作**路由（`create_settlement`、`execute_settlement`、`settle_product` 等 create/edit 语义）从 `@permission_required('settlement','create')` 改为 `('inventory','create'/'edit')`；**查看类**（`settlement_list`/`settlement_detail`/`settlement_order_list` 等）保留 `settlement` view。
+4. `inventory.py`：**无需改**（决策更正）。结算路由(查看 settlement view / 动作 settlement create)全部保持挂 `settlement` 模块——「结算单」权限统管"看 + 做结算",符合用户最终意图。
 5. 侧边栏 `at_sidebar.html`：客户订单已 gate `sales_order`、采购订单已 gate `order`，**无需改**。
 
 ### C. 角色权限数据（`role_permissions`）—— 由用户在「权限配置页」自行操作，不脚本化
