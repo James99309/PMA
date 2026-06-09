@@ -169,6 +169,26 @@
 <script>
   if (!window._atTopbarBound) {
     window._atTopbarBound = true;
+
+    // 语言切换(地球图标)— 读 language cookie 判当前语言,切到另一语言后刷新
+    window.atToggleLang = function () {
+      var m = document.cookie.match(/(?:^|;\s*)language=(zh|en)/);
+      var cur = m ? m[1] : (document.documentElement.lang === 'en' ? 'en' : 'zh');
+      var next = (cur === 'en') ? 'zh' : 'en';
+      var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content
+               || (document.querySelector('input[name="csrf_token"]') || {}).value || '';
+      fetch('/language/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({ language: next })
+      }).then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.success) { location.reload(); }
+          else { alert((d && d.message) || 'Language switch failed'); }
+        })
+        .catch(function () { alert('Language switch failed'); });
+    };
+
     window.ATQuickCreate = {
       toggle(e) {
         if (e) e.stopPropagation();
