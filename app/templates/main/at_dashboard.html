@@ -100,7 +100,7 @@
             {'k':'all','label':'全部','n': _todos|length,'tone':'neutral'},
             {'k':'approval','label':'待审批','n': _todos|selectattr('type','equalto','approval')|list|length,'tone':'warn'},
             {'k':'mention','label':'@我的','n': _todos|selectattr('type','equalto','mention')|list|length,'tone':'info'},
-            {'k':'action','label':'客户跟进','n': _todos|selectattr('type','equalto','action')|list|length,'tone':'danger'}
+            {'k':'action','label':'跟进提醒','n': _todos|selectattr('type','equalto','action')|list|length,'tone':'danger'}
           ] %}
           <div data-dash-tabs="todo"
                style="display:flex;gap:4px;margin-bottom:14px;padding:3px;background:var(--bg-page);border-radius:8px;">
@@ -623,7 +623,7 @@
                       <span style="flex:1;"></span>
                       <span style="font-size:11px;color:var(--ink-4);">{{ w.time }}</span>
                     </div>
-                    <p style="margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.6;
+                    <p class="at-expandable" style="margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.6;
                               display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ w.text }}</p>
                     {% if w.replies and w.replies > 0 %}
                     <div style="margin-top:6px;font-size:11px;color:var(--ink-3);display:inline-flex;align-items:center;gap:5px;">
@@ -722,6 +722,8 @@
       });
       // 同时处理日期分组:如果该组下所有 li 都隐藏,则隐藏整个日期分组
       document.querySelectorAll('[data-dash-tabs="worklog"]').forEach(() => {});
+      // 切换后新可见的记录补扫描「展开」按钮(隐藏元素测不出溢出)
+      if (window.ATClampExpand) window.ATClampExpand.scan();
     }
   };
 
@@ -733,6 +735,9 @@
     });
   });
 </script>
+
+{# 工作记录文本可点击展开(超出 2 行时)#}
+<script src="{{ url_for('static', filename='js/at-clamp-expand.js') }}"></script>
 
 </body>
 </html>

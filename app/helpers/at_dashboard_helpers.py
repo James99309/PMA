@@ -80,7 +80,8 @@ def _build_todos(user):
       1) 待审批:get_user_pending_approvals(user.id) — 已处理 dynamic approver
       2) 待确认产品:QuotationConfirmationTask(老消息面板的"待办任务"实体)
       3) @我提及:Message 表的 worklog_mention / task_reply / task_assigned(未读)
-      4) 客户跟进:Action 我 owner 超 30 天(MVP 规则,无对应老后端)
+      4) 跟进提醒:中标项目 >30 天无跟进(Action) + 我的任务 >10 天无更新
+         (按逾期天数倒序;计数取真实条数,不再 limit)
     """
     out = []
     obj_label_map = {
@@ -151,21 +152,70 @@ def _build_todos(user):
     except Exception as e:
         import logging; logging.warning(f'todos mention err: {e}')
 
+    # 4) 跟进提醒 — 中标项目 >30 天无跟进 + 我的任务 >10 天无更新(按逾期天数倒序)
     try:
+        from sqlalchemy import func as _f, or_ as _or
+        from app import db
+        now = datetime.now()
+        today = now.date()
+        fu = []
+
+        # 4a) 中标(awarded)项目:owner 或 销售负责人 == 我;关联该项目最近一条 Action.date
+        #     >30 天;若从无跟进 → 用进入中标阶段时间(阶段历史),兜底项目创建时间
+        from app.models.project import Project
         from app.models.action import Action
-        cutoff = datetime.now() - timedelta(days=30)
-        for a in Action.query.filter(
-            Action.owner_id == user.id, Action.created_at < cutoff
-        ).order_by(Action.created_at.asc()).limit(2).all():
-            days = (datetime.now() - a.created_at).days if a.created_at else 0
-            out.append({
-                'id': f'A{a.id}', 'type': 'action', 'typeLabel': '客户跟进', 'tone': 'danger',
-                'title': f'{(a.company.company_name if a.company else "客户")} · {days} 天未沟通',
-                'meta': f'上次:{a.created_at.strftime("%m-%d") if a.created_at else "—"}',
-                'who': '—', 'when': '—', 'route': '#', 'urgent': False,
-            })
-    except Exception:
-        pass
+        from app.models.projectpm_stage_history import ProjectStageHistory
+        projs = Project.query.filter(
+            Project.is_deleted == False,
+            Project.current_stage == 'awarded',
+            _or(Project.owner_id == user.id, Project.vendor_sales_manager_id == user.id),
+        ).all()
+        for p in projs:
+            last_date = db.session.query(_f.max(Action.date)).filter(Action.project_id == p.id).scalar()
+            if last_date:
+                days = (today - last_date).days
+            else:
+                since = db.session.query(_f.max(ProjectStageHistory.change_date)).filter(
+                    ProjectStageHistory.project_id == p.id,
+                    ProjectStageHistory.to_stage == 'awarded').scalar()
+                base = since or p.created_at
+                days = (now - base).days if base else None
+            if days is not None and days > 30:
+                fu.append({
+                    'id': f'P{p.id}', 'type': 'action', 'typeLabel': '项目跟进', 'tone': 'danger',
+                    'title': f'{p.project_name} · {days} 天未跟进', 'meta': '中标',
+                    'who': '—', 'when': f'{days}天',
+                    'route': f'/project/{p.id}/at_view', 'urgent': days > 60, '_d': days,
+                })
+
+        # 4b) 我的任务:指派给我 或 我创建;非已完成;最近一次交互
+        #     (max(updated_at, 最近未删除回复)) >10 天
+        from app.models.task import Task, TaskReply
+        tasks = Task.query.filter(
+            Task.is_deleted == False,
+            Task.status != 'completed',
+            _or(Task.assignee_id == user.id, Task.creator_id == user.id),
+        ).all()
+        for t in tasks:
+            last_reply = db.session.query(_f.max(TaskReply.created_at)).filter(
+                TaskReply.task_id == t.id, TaskReply.is_deleted == False).scalar()
+            cands = [d for d in (t.updated_at, last_reply, t.created_at) if d]
+            last_act = max(cands) if cands else None
+            days = (now - last_act).days if last_act else None
+            if days is not None and days > 10:
+                fu.append({
+                    'id': f'T{t.id}', 'type': 'action', 'typeLabel': '任务跟进', 'tone': 'danger',
+                    'title': f'{t.title} · {days} 天未更新', 'meta': '任务',
+                    'who': '—', 'when': f'{days}天',
+                    'route': f'/task/management?task={t.id}', 'urgent': days > 20, '_d': days,
+                })
+
+        fu.sort(key=lambda x: x['_d'], reverse=True)
+        for it in fu[:50]:        # 安全上限;列表只展示 top 5,其余进"显示其余 N 项"
+            it.pop('_d', None)
+            out.append(it)
+    except Exception as e:
+        import logging; logging.warning(f'todos followup err: {e}')
 
     return out
 
