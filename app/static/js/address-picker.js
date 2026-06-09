@@ -29,6 +29,7 @@ window.AddressPicker = (function() {
 
         MapPicker.open({
             initialLocation: options.initialLocation,
+            initialQuery: options.initialQuery || '',
             onConfirm: function(locationData) {
                 fillAddress(fieldId, locationData);
                 setLoading(fieldId, false);

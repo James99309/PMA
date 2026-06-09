@@ -1,0 +1,43 @@
+{#
+  AT "关联客户" 模态(项目详情用)
+  ──────────────────────────────────────────────────
+  搜索现有客户 → 选中 → POST /project/api/add_customer_association → 刷新
+
+  调用:
+    {% from 'components/at_add_customer_modal.html' import at_add_customer_modal %}
+    {{ at_add_customer_modal('atAddCustomerModal') }}
+
+  JS API:
+    atOpenAddCustomer(projectId)
+
+  依赖:
+    - at_modal_shell / at_field(app/templates/components/at_purchase_order.html)
+    - at-toast.js / 后端:/quotation/search_customers + /project/api/add_customer_association
+#}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
+{% from 'components/at_base.html' import at_icon %}
+
+{% macro at_add_customer_modal(modal_id='atAddCustomerModal') %}
+  {% set footer = '<button onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
+                ~ 'style="padding:8px 16px;border-radius:8px;background:transparent;'
+                ~ 'border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;">'
+                ~ '关闭</button>' %}
+  {% call at_modal_shell(modal_id, '关联客户', icon='users', width=560, footer_html=footer) %}
+    {% set _inp = "width:100%;box-sizing:border-box;height:36px;padding:0 12px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
+                   font-size:13px;outline:none;transition:border-color 120ms;" %}
+    {% call at_field('搜索客户', hint='输入公司名或编码 ≥ 2 字符') %}
+      <input type="text" id="{{ modal_id }}__search" autocomplete="off"
+             placeholder="输入公司名或编码…" style="{{ _inp }}">
+    {% endcall %}
+    {# 结果列表 #}
+    <div id="{{ modal_id }}__results"
+         style="margin-top:10px;max-height:340px;overflow-y:auto;
+                border:1px solid var(--line-soft);border-radius:6px;background:var(--bg-page);
+                min-height:120px;">
+      <div style="padding:36px 0;text-align:center;color:var(--ink-4);font-size:12.5px;">
+        输入关键词开始搜索
+      </div>
+    </div>
+  {% endcall %}
+{% endmacro %}

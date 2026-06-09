@@ -1126,6 +1126,16 @@ def can_edit_data(model_obj, user):
             model_obj.project.vendor_sales_manager_id == user.id):
             return True
 
+        # 🆕 SM 确认被指派人可以编辑(独立于权限系统,确认核查时需调整产品/数量)
+        try:
+            from app.models.quotation_confirmation_task import QuotationConfirmationTask
+            if QuotationConfirmationTask.query.filter_by(
+                quotation_id=model_obj.id, assignee_id=user.id, status='pending'
+            ).first():
+                return True
+        except Exception:
+            pass
+
         # 检查用户是否有报价单模块的编辑权限（用于编辑他人数据）
         # 注：解决方案经理的编辑权限通过权限级别控制，而非直接授权所有报价单
         if not user.has_permission('quotation', 'edit'):
@@ -1857,6 +1867,16 @@ def can_view_project(user, project):
             return True
     except Exception as e:
         logger.debug(f"检查任务关联权限时出错: {e}")
+
+    # 最后一道防线:通用权限系统(system/company/department 级 + content_filters)
+    # 修复审批通过后,曾经的"当前审批人"失去 is_current_approver 身份,但其
+    # 配置的 system 级 project 权限应该让他继续可见 — 之前代码漏了这层 fallback。
+    try:
+        viewable = get_viewable_data(Project, user, [Project.id == project.id]).first()
+        if viewable is not None:
+            return True
+    except Exception as e:
+        logger.debug(f"通用权限系统 fallback 检查失败: {e}")
 
     return False
 

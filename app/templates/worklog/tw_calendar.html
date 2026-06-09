@@ -1881,8 +1881,9 @@ function workCalendar() {
             const ownerId = params.get('owner_id');
             const date = params.get('date');
             const openItemId = params.get('open_item');
+            const openToday = params.get('open_today');  // 顶栏"写日志"：进入即打开当天日志
 
-            if (ownerId || date || openItemId) {
+            if (ownerId || date || openItemId || openToday) {
                 // 清除 URL 参数，防止刷新重复处理
                 window.history.replaceState({}, '', window.location.pathname);
 
@@ -1902,6 +1903,16 @@ function workCalendar() {
                     // 自动打开行程详情弹窗（从通知点击跳转）
                     if (openItemId) {
                         this.openViewModalById(openItemId);
+                    }
+
+                    // 自动打开当天日志编辑（顶栏"写日志"入口）
+                    if (openToday) {
+                        const t = new Date();
+                        const todayStr = t.getFullYear() + '-'
+                            + String(t.getMonth() + 1).padStart(2, '0') + '-'
+                            + String(t.getDate()).padStart(2, '0');
+                        if (this.calendar) this.calendar.gotoDate(todayStr);
+                        this.openLogModal(todayStr);
                     }
                 }, 100);
             }

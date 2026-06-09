@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RF 覆盖工具 — 页面布局重设计蓝图</title>
+<!--
+ JUNIOR PASS · 结构蓝图（不是最终 hi-fi）
+ 目标：先定「骨架/信息架构」对不对，再做像素级。
+ 范围：整个 RF 覆盖工具页面（工具栏/楼层/RF菜单/右面板/画布chrome/缩放）。
+ 现有 context：5 张真实截图 + 真实代码 system-diagram-*.js。
+ 核心动作 = 把现在混在「RF覆盖」下拉里的 12 按钮+8 勾选框，按"职责"拆成
+   工具(模式) / 动作(一次性) / 图层(显隐) / 参数 / 全局 五类，分别归位。
+-->
+<style>
+ :root{
+  --paper:#f4f2ee;--app:#f7f6f3;--ink:#1f2632;--sub:#6b7280;--faint:#9aa1ab;
+  --line:#dcd7cd;--rail:#eceae4;--teal:#0f766e;--teal-s:#0f766e1a;
+  --warn:#b45309;--danger:#b91c1c;
+  --mono:"SF Mono",ui-monospace,"Geist Mono",Menlo,monospace;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;}
+ *{box-sizing:border-box;margin:0;padding:0}
+ body{background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+ .wrap{max-width:1400px;margin:0 auto;padding:56px 36px 90px}
+ .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--sub)}
+ h1{font-family:var(--serif);font-size:32px;font-weight:600;letter-spacing:-.01em;margin:12px 0 6px}
+ .lead{font-size:14.5px;color:#4b5563;max-width:840px;line-height:1.7;margin-bottom:8px}
+
+ .sec-t{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--teal);margin:54px 0 18px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+
+ /* —— 三个组织原则缩略 —— */
+ .principles{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+ .pr{background:#fff;border:1px solid var(--line);border-radius:4px;padding:18px;position:relative}
+ .pr.rec{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal)}
+ .pr .badge{position:absolute;top:-10px;left:16px;background:var(--teal);color:#fff;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;padding:3px 9px;border-radius:2px}
+ .pr h3{font-family:var(--serif);font-size:17px;margin-bottom:4px}
+ .pr .tg{font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:.06em;margin-bottom:12px}
+ .pr p{font-size:12.5px;line-height:1.6;color:#4b5563;margin-top:11px}
+ .mini{height:118px;border:1px solid var(--line);border-radius:3px;background:var(--app);
+  display:flex;overflow:hidden;font-family:var(--mono);font-size:7px;color:var(--faint)}
+ .mini .r{background:var(--rail);border-right:1px solid var(--line);display:flex;
+  flex-direction:column;align-items:center;gap:5px;padding:7px 0}
+ .mini .r b{width:12px;height:12px;background:#cdd2d8;border-radius:3px;display:block}
+ .mini .r b.on{background:var(--teal)}
+ .mini .c{flex:1;display:flex;flex-direction:column}
+ .mini .top{height:16px;border-bottom:1px solid var(--line);background:#fff;display:flex;
+  align-items:center;justify-content:space-between;padding:0 6px}
+ .mini .cv{flex:1;background:
+   radial-gradient(circle at 45% 50%,#22c55e55,transparent 55%),
+   radial-gradient(circle at 60% 60%,#ef444455,transparent 40%),
+   radial-gradient(circle at 35% 65%,#06b6d455,transparent 45%),#e9e7e1;
+   position:relative}
+ .mini .insp{width:46px;border-left:1px solid var(--line);background:#fff;padding:6px 4px;
+  display:flex;flex-direction:column;gap:4px}
+ .mini .insp i{height:7px;background:#e5e7eb;border-radius:2px;display:block}
+ .mini .lay{position:absolute;left:5px;top:5px;width:40px;height:auto;background:#fffffff2;
+  border:1px solid var(--line);border-radius:2px;padding:3px;display:flex;flex-direction:column;gap:3px}
+ .mini .lay i{height:5px;background:#e5e7eb;border-radius:1px}
+ .mini .hud{position:absolute;left:5px;right:5px;bottom:4px;height:9px;background:#fffffff2;
+  border:1px solid var(--line);border-radius:2px}
+ .mini .cmd{position:absolute;left:50%;top:42%;transform:translateX(-50%);width:54px;height:13px;
+  background:#fff;border:1px solid var(--teal);border-radius:3px}
+
+ /* —— 中保真 方向A —— */
+ .app{margin-top:8px;border:1px solid var(--line);border-radius:6px;overflow:hidden;
+  background:var(--app);box-shadow:0 12px 40px -18px #0f172a55}
+ .topbar{height:48px;background:#fff;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;padding:0 14px;gap:10px}
+ .brandmark{font-family:var(--serif);font-size:14px;font-weight:600;color:var(--ink);padding-right:12px;border-right:1px solid var(--line)}
+ .ctx{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.06em;
+  background:var(--teal-s);padding:5px 10px;border-radius:3px}
+ .ctx-actions{display:flex;gap:6px}
+ .tb{font-size:12px;color:#374151;background:#fff;border:1px solid var(--line);
+  padding:6px 11px;border-radius:4px;cursor:default}
+ .tb.ghost{border-color:transparent;background:transparent;color:var(--sub)}
+ .spacer{flex:1}
+ .tb.primary{background:var(--teal);color:#fff;border-color:var(--teal);font-weight:600}
+ .tb.go{border-color:var(--teal);color:var(--teal)}
+
+ .body{display:flex;height:560px}
+ .toolrail{width:56px;background:var(--rail);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:3px}
+ .tool{width:38px;height:38px;border-radius:6px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;cursor:default;color:#4b5563}
+ .tool svg{width:17px;height:17px}
+ .tool span{font-size:8px;font-family:var(--mono);letter-spacing:.02em}
+ .tool.active{background:#fff;color:var(--teal);box-shadow:0 1px 4px #0f172a1f}
+ .tool.sep{height:1px;width:30px;background:var(--line);margin:6px 0;border-radius:0}
+ .tool.danger{color:var(--danger);margin-top:auto}
+
+ .stage{flex:1;position:relative;overflow:hidden;
+  background:radial-gradient(circle at 44% 50%,rgba(34,197,94,.42),transparent 52%),
+   radial-gradient(circle at 30% 38%,rgba(59,130,246,.30),transparent 38%),
+   radial-gradient(circle at 58% 60%,rgba(234,179,8,.35),transparent 36%),
+   radial-gradient(circle at 65% 66%,rgba(239,68,68,.38),transparent 30%),
+   radial-gradient(circle at 40% 64%,rgba(6,182,212,.30),transparent 38%),#e9e7e1}
+ .stage .cad{position:absolute;inset:0;opacity:.32;
+  background-image:linear-gradient(#9a958c 0 0),linear-gradient(#9a958c 0 0),
+   linear-gradient(#9a958c 0 0),linear-gradient(#9a958c 0 0);
+  background-size:1px 70%,70% 1px,1px 46%,52% 1px;
+  background-position:18% 14%,14% 18%,72% 40%,40% 78%;background-repeat:no-repeat}
+ .stage .grid{position:absolute;inset:0;
+  background-image:linear-gradient(#e7716b66 1px,transparent 1px),linear-gradient(90deg,#e7716b66 1px,transparent 1px);
+  background-size:46px 46px}
+ .bnd{position:absolute;left:14%;top:14%;width:55%;height:64%;border:2px solid #eab308;
+  border-radius:30px;background:transparent}
+ .mk{position:absolute;width:30px;height:30px;transform:translate(-50%,-50%)}
+ .mk .disc{width:30px;height:30px;border-radius:50%;background:#fff;border:1.5px solid #1f2632;
+  display:flex;align-items:center;justify-content:center}
+ .mk .disc svg{width:19px;height:13px;fill:var(--teal)}
+ .mk.sel::after{content:"";position:absolute;inset:-7px;border:2px solid var(--teal);border-radius:50%}
+ .mk .cov{position:absolute;left:50%;top:50%;width:230px;height:230px;transform:translate(-50%,-50%);
+  border-radius:50%;border:3px solid #ffffffe6;box-shadow:inset 0 0 0 1px #1f263288}
+
+ /* 浮层 chrome */
+ .floors{position:absolute;left:14px;top:14px;background:#ffffffee;border:1px solid var(--line);
+  border-radius:6px;display:flex;align-items:center;padding:5px;gap:3px;backdrop-filter:blur(4px)}
+ .floors .f{font-size:11px;font-family:var(--mono);padding:5px 10px;border-radius:4px;color:#4b5563}
+ .floors .f.on{background:var(--teal);color:#fff}
+ .floors .f.add{color:var(--teal);border:1px dashed var(--teal)}
+
+ .layers{position:absolute;left:14px;top:62px;width:182px;background:#ffffffee;
+  border:1px solid var(--line);border-radius:6px;padding:11px 12px;backdrop-filter:blur(4px)}
+ .layers h4{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--sub);margin-bottom:9px}
+ .lg{font-size:9px;font-family:var(--mono);color:var(--faint);letter-spacing:.08em;margin:9px 0 5px}
+ .lr{display:flex;align-items:center;gap:8px;font-size:11.5px;color:#374151;padding:3px 0}
+ .lr .eye{width:13px;height:13px;border-radius:3px;border:1px solid #cbd0d6;flex:none}
+ .lr.on .eye{background:var(--teal);border-color:var(--teal)}
+ .lr.off{color:var(--faint)}
+
+ .hud{position:absolute;left:14px;right:14px;bottom:14px;height:34px;background:#ffffffee;
+  border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;
+  padding:0 14px;gap:18px;font-family:var(--mono);font-size:11px;color:#4b5563;backdrop-filter:blur(4px)}
+ .hud .z{margin-left:auto;display:flex;align-items:center;gap:9px}
+ .hud .zb{width:22px;height:22px;border:1px solid var(--line);border-radius:4px;
+  display:flex;align-items:center;justify-content:center;background:#fff}
+
+ .inspector{width:264px;background:#fff;border-left:1px solid var(--line);overflow:hidden;
+  display:flex;flex-direction:column}
+ .ins-h{padding:14px 16px;border-bottom:1px solid var(--line)}
+ .ins-h .t{font-family:var(--serif);font-size:15px;font-weight:600}
+ .ins-h .s{font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:.06em;margin-top:3px}
+ .grp{border-bottom:1px solid var(--line);padding:13px 16px}
+ .grp .gt{font-family:var(--mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--sub);display:flex;justify-content:space-between;cursor:default}
+ .grp .gt .cv{color:var(--faint)}
+ .field{margin-top:11px}
+ .field label{font-size:11px;color:var(--sub);display:block;margin-bottom:4px}
+ .field .inp{height:30px;border:1px solid var(--line);border-radius:4px;background:#fbfaf7;
+  display:flex;align-items:center;padding:0 10px;font-size:12px;color:#374151}
+ .seg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin-top:6px}
+ .seg span{flex:1;text-align:center;font-size:11px;padding:6px 0;color:#4b5563;border-right:1px solid var(--line)}
+ .seg span:last-child{border:0}
+ .seg span.on{background:var(--teal);color:#fff}
+ .stat{display:flex;gap:16px;margin-top:8px}
+ .stat div{font-size:11px;color:var(--sub)}
+ .stat div b{display:block;font-family:var(--serif);font-size:19px;color:var(--ink)}
+
+ .ann{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+ .ann span{font-family:var(--mono);font-size:11px;color:var(--sub);background:#fff;
+  border:1px solid var(--line);border-radius:3px;padding:6px 11px}
+ .ann b{color:var(--teal)}
+ footer{margin-top:30px;font-size:12.5px;color:var(--sub);line-height:1.75;max-width:880px}
+ footer b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div class="kicker">PMA · RF 覆盖工具 · 页面布局重设计 · 结构蓝图</div>
+ <h1>从「按钮一排」到「按职责分区」</h1>
+ <p class="lead">不改功能，只重排信息架构。把现在塞在「RF 覆盖」下拉里的 12 个按钮 + 8 个勾选框，
+ 按 <b style="color:var(--teal)">工具 / 动作 / 图层 / 参数 / 全局</b> 五类拆开归位 —— 这是让工具
+ "专业干净"的本质动作，视觉是其次。</p>
+
+ <div class="sec-t">① 三个组织原则 — 先选骨架</div>
+ <div class="principles">
+  <div class="pr rec">
+   <span class="badge">推荐 · 风险低</span>
+   <h3>A · 专业 CAD 工作台</h3>
+   <div class="tg">左工具栏 + 上下文顶栏 + 右检视 + 浮层图层</div>
+   <div class="mini">
+    <div class="r"><b class="on"></b><b></b><b></b><b></b><b></b></div>
+    <div class="c"><div class="top"><span>ctx</span><span>save</span></div>
+     <div class="cv"><div class="lay"><i></i><i></i><i></i></div><div class="hud"></div></div></div>
+    <div class="insp"><i></i><i></i><i></i><i></i></div></div>
+   <p>Figma / AutoCAD-web 同构。左侧竖工具栏选模式，顶栏只显示当前模式相关动作 + 全局保存导出，
+   右侧检视面板分组折叠，图层显隐独立浮层。学习成本最低，一眼专业。</p>
+  </div>
+  <div class="pr">
+   <h3>B · 可停靠面板 / 高密度</h3>
+   <div class="tg">右侧 Tab 面板：属性·图层·统计·RF参数</div>
+   <div class="mini">
+    <div class="r"><b class="on"></b><b></b><b></b><b></b></div>
+    <div class="c"><div class="top"><span>ctx</span><span>save</span></div><div class="cv"></div></div>
+    <div class="insp" style="width:60px"><i style="height:9px"></i><i></i><i></i><i></i><i></i><i></i></div></div>
+   <p>Ekahau / iBwave 同构。右侧多 Tab 可停靠面板，信息密度高，适合长时间规划作业的重度用户。
+   比 A 更强大但更重。</p>
+  </div>
+  <div class="pr">
+   <h3>C · 模式驱动 / 极简画布</h3>
+   <div class="tg">命令面板 ⌘K + 自动隐藏 chrome</div>
+   <div class="mini">
+    <div class="r" style="width:18px"><b class="on"></b><b></b></div>
+    <div class="c"><div class="top"><span></span><span>save</span></div>
+     <div class="cv"><div class="cmd"></div></div></div></div>
+   <p>Linear / Raycast 美学套到 CAD。画布优先，chrome 极简自动隐藏，命令面板唤起一切。
+   最"干净"但 UX 改动最大，老用户需适应。</p>
+  </div>
+ </div>
+
+ <div class="sec-t">② 推荐方向 A — 中保真布局（真实内容，非最终像素）</div>
+ <div class="app">
+  <div class="topbar">
+   <span class="brandmark">RF 覆盖设计</span>
+   <span class="ctx">模式 · 放置天线</span>
+   <div class="ctx-actions">
+    <span class="tb">RF 参数</span><span class="tb go">自动布线</span>
+    <span class="tb">手动连接</span><span class="tb">生成报告</span>
+   </div>
+   <span class="spacer"></span>
+   <span class="tb ghost">← 返回列表</span><span class="tb">分享</span>
+   <span class="tb">导出 ▾</span><span class="tb primary">保存</span>
+  </div>
+  <div class="body">
+   <!-- 左：工具=模式（从混乱下拉里抽出来的"绘制类"全在这） -->
+   <div class="toolrail">
+    <div class="tool active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l7 16 2-7 7-2z"/></svg><span>选择</span></div>
+    <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="9" r="3"/><path d="M5 21c0-4 3-7 7-7s7 3 7 7"/></svg><span>天线</span></div>
+    <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg><span>边界</span></div>
+    <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18L20 6M4 6l4 4M16 14l4 4"/></svg><span>桥架</span></div>
+    <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="4" width="6" height="16" rx="1"/></svg><span>弱电井</span></div>
+    <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg><span>标定</span></div>
+    <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3"/></svg><span>区域</span></div>
+    <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20L16 8M14 4h6v6"/></svg><span>连线</span></div>
+    <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg><span>标注</span></div>
+    <div class="tool sep"></div>
+    <div class="tool danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg><span>清除</span></div>
+   </div>
+
+   <!-- 中：画布 + 统一 chrome -->
+   <div class="stage">
+    <div class="cad"></div><div class="grid"></div>
+    <div class="bnd"></div>
+    <div class="mk" style="left:40%;top:46%">
+     <div class="cov"></div>
+     <div class="disc"><svg viewBox="857.1 771.7 215.6 144.1"><path d="M867.99,834.43c-0.72,3.05-1.09,6.16-1.09,9.33c0,34.28,43.64,62.08,97.55,62.23h36.26l-84.8-31.28L867.99,834.43z"/><path d="M1062.88,843.76c0-34.37-43.87-62.23-97.99-62.23c-44.84,0-82.64,19.12-94.3,45.22l47.84,44.07l83.89,34.93l21.78-12.4h-0.02C1047.66,881.99,1062.88,864.01,1062.88,843.76z"/></svg></div>
+    </div>
+    <div class="mk sel" style="left:60%;top:60%">
+     <div class="disc"><svg viewBox="857.1 771.7 215.6 144.1"><path d="M867.99,834.43c-0.72,3.05-1.09,6.16-1.09,9.33c0,34.28,43.64,62.08,97.55,62.23h36.26l-84.8-31.28L867.99,834.43z"/><path d="M1062.88,843.76c0-34.37-43.87-62.23-97.99-62.23c-44.84,0-82.64,19.12-94.3,45.22l47.84,44.07l83.89,34.93l21.78-12.4h-0.02C1047.66,881.99,1062.88,864.01,1062.88,843.76z"/></svg></div>
+    </div>
+
+    <div class="floors">
+     <span class="f">🔧 系统图</span><span class="f on">1F</span><span class="f">2F</span>
+     <span class="f add">+ 楼层</span>
+    </div>
+
+    <!-- 8 个勾选框 → 真正的图层面板，分组 -->
+    <div class="layers">
+     <h4>图层</h4>
+     <div class="lg">底图</div>
+     <div class="lr on"><span class="eye"></span>背景 PDF</div>
+     <div class="lr on"><span class="eye"></span>米格网格</div>
+     <div class="lr off"><span class="eye"></span>墙体</div>
+     <div class="lg">RF 覆盖</div>
+     <div class="lr on"><span class="eye"></span>覆盖圈</div>
+     <div class="lr on"><span class="eye"></span>下行热图</div>
+     <div class="lr off"><span class="eye"></span>上行热图</div>
+     <div class="lr off"><span class="eye"></span>双向通信</div>
+     <div class="lg">布线</div>
+     <div class="lr on"><span class="eye"></span>布线</div>
+     <div class="lr on"><span class="eye"></span>弱电井</div>
+    </div>
+
+    <div class="hud">
+     <span>1m = 53px</span><span>节点 2 · 连线 0 · 区域 2</span>
+     <span style="color:var(--teal)">已标定</span>
+     <span class="z"><span class="zb">−</span><span>17%</span><span class="zb">+</span><span class="zb">⊡</span></span>
+    </div>
+   </div>
+
+   <!-- 右：检视面板，分组折叠，上下文敏感 -->
+   <div class="inspector">
+    <div class="ins-h"><div class="t">楼层 · 1F</div><div class="s">独立楼层 · 设备 2</div></div>
+    <div class="grp"><div class="gt">底图<span class="cv">▾</span></div>
+     <div class="field"><label>背景透明度</label><div class="inp">30%</div></div>
+    </div>
+    <div class="grp"><div class="gt">线缆 / 图标<span class="cv">▾</span></div>
+     <div class="field"><label>粗细</label>
+      <div class="seg"><span class="on">1×</span><span>1.5×</span><span>2×</span></div></div>
+     <div class="field"><label>颜色</label>
+      <div class="seg"><span class="on">原色</span><span>黑色</span></div></div>
+    </div>
+    <div class="grp"><div class="gt">覆盖<span class="cv">▾</span></div>
+     <div class="field">
+      <div class="seg"><span>关闭</span><span class="on">依据天线</span><span>全部</span></div></div>
+     <div class="field">
+      <div class="seg"><span class="on">圆圈</span><span>热力图</span></div></div>
+    </div>
+    <div class="grp"><div class="gt">统计</div>
+     <div class="stat"><div><b>2</b>设备</div><div><b>0</b>走线</div><div><b>2</b>区域</div></div>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <div class="ann">
+  <span><b>左栏</b> = 从混乱下拉抽出的"绘制类"工具（模式互斥，点了就在画布画）</span>
+  <span><b>顶栏</b> = 当前模式的动作 + 全局保存/导出（不再 11 个平铺）</span>
+  <span><b>图层浮层</b> = 8 个勾选框归位，按 底图/RF/布线 分组</span>
+  <span><b>右检视</b> = 长列表拆成可折叠分组，上下文敏感</span>
+  <span><b>底部 HUD</b> = 比例尺/计数/标定/缩放 统一一条，不再四角散落</span>
+ </div>
+
+ <footer>
+  <p><b>这是结构蓝图，不是最终像素</b> —— 配色/字体/间距/图标都还会精修；天线标记沿用之前
+  「精炼测绘 V1」白 disc + 墨环（已嵌在画布里看连续性）。<br>
+  <b>需要你定：</b>① 骨架选 A / B / C（还是混）？② A 里有哪块觉得不对（左栏图标？图层做成浮层还是固定？顶栏上下文动作）？
+  ③ 定下来我做<b>像素级 hi-fi 单页原型</b> + 暗色态，再按真实模板出可落地结构。</p>
+ </footer>
+</div>
+</body>
+</html>

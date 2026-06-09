@@ -45,4 +45,10 @@
 | #8628 | 8:45 PM | 🟣 | Implemented wiki API refactor with topic browsing and on-demand article retrieval | ~171 |
 | #8626 | 8:37 PM | 🔵 | Wiki topic infrastructure exists but not exposed via MCP or internal API | ~426 |
 | #8601 | 12:01 PM | 🔴 | Fixed currency mismatch for newly added products in quotation form | ~496 |
+
+### Jun 7, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8912 | 12:21 PM | 🟣 | AT Product Detail View Enhanced with Specification Display | ~301 |
 </claude-mem-context>

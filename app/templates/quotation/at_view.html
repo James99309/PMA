@@ -1,0 +1,1580 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_avatar %}
+{% from 'components/at_header_badges.html' import at_header_chip_group %}
+{% from 'components/at_approval_dropdown.html' import at_approval_dropdown %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles, at_detail_section,
+    at_info_panel, at_summary_strip %}
+{% from 'components/at_minitables.html' import render_minitable, render_quotation_details_table %}
+{% from 'components/at_purchase_order.html' import at_current_action_card %}
+{% from 'components/at_timeline.html' import at_timeline %}
+{% from 'components/at_product_picker.html' import at_product_picker_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ quotation.quotation_number }} · 报价详情</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-product-picker.js') }}"></script>
+{{ at_detail_styles() }}
+<style>
+  /* 模式切换:view ↔ edit */
+  [data-mode="view"] .edit-only { display: none !important; }
+  [data-mode="edit"] .view-only { display: none !important; }
+  [data-mode="edit"] .edit-only { display: flex !important; }
+  [data-mode="edit"] tr.edit-only { display: table-row !important; }
+  [data-mode="edit"] td.edit-only { display: table-cell !important; }
+  /* 可编辑单元格 — 严格按设计稿 InlineNumber 视觉:
+     默认完全透明(无 hover 高亮)· 点击后 input 自带 accent 边框 */
+  [data-mode="edit"] .editable-cell {
+    cursor: text;
+    border-radius: 4px;
+    transition: all 100ms;
+  }
+  /* InlineNumber editing input — 严格按设计稿:26px 高 · 1.5px accent 边 · bg-page · 4 圆角 · spinner 可见 */
+  [data-mode="edit"] .editable-cell input {
+    width: 100%; height: 26px;
+    border: 1.5px solid var(--accent);
+    background: var(--bg-page);
+    border-radius: 4px;
+    padding: 0 6px;
+    text-align: inherit;
+    font: inherit; font-size: 12.5px; color: var(--ink);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    outline: none;
+    /* 保留浏览器原生 spinner ▲▼(对齐设计稿)*/
+  }
+  [data-mode="edit"] .editable-cell input::-webkit-inner-spin-button {
+    opacity: 1;
+    height: 24px;
+  }
+  /* edit 态:删除列显示 — col 用 table-column,th/td 用 table-cell */
+  [data-mode="edit"] .col-row-actions { display: table-column !important; }
+  [data-mode="edit"] .th-row-actions,
+  [data-mode="edit"] .td-row-actions { display: table-cell !important; }
+  /* edit 态:备注栏可点击 — 默认无线/无提示;hover 时浅 accent 高亮 + 空 cell 显示提示 */
+  [data-mode="edit"] .editable-note {
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 100ms;
+    position: relative;
+  }
+  [data-mode="edit"] .editable-note:hover {
+    background: var(--accent-tint);
+  }
+  [data-mode="edit"] .editable-note:empty:hover::before {
+    content: '点击编辑…';
+    color: var(--ink-4);
+    font-style: italic;
+  }
+  /* 基础信息 + 变更历史:两栏 section 底部对齐 — 去掉 margin-bottom */
+  .qmain-row > .at-section { margin-bottom: 0; }
+  /* 分类小计行:所有 td 同色(含操作列),tr bg 在 border-collapse:separate 下不可靠 */
+  #quotationDetailTable .qgroup-header > td { background: var(--bg-sunk); }
+  /* 产品行 hover 整行底纹 — 纯 CSS,瞬时切换无延迟;tr/cell 同步 */
+  #quotationDetailTable tbody tr[data-detail-id] > td { transition: background-color 0ms; }
+  [data-mode="edit"] #quotationDetailTable tbody tr[data-detail-id]:hover > td {
+    background: var(--bg-hover);
+  }
+  /* 未保存行:hover 时仍保持 accent-tint(优先级 > 上面 hover 规则)*/
+  #quotationDetailTable tbody tr[data-unsaved="1"] > td,
+  [data-mode="edit"] #quotationDetailTable tbody tr[data-unsaved="1"]:hover > td {
+    background: var(--accent-tint);
+  }
+  /* row-actions opacity:纯 CSS hover,跟底纹同步无延迟 */
+  [data-mode="edit"] .row-actions { transition: opacity 0ms; }
+  [data-mode="edit"] #quotationDetailTable tr[data-detail-id]:hover .row-actions { opacity: 1; }
+  /* view 态:税率 input 不可编辑(但仍可见数值)*/
+  [data-mode="view"] #qTaxRate {
+    pointer-events: none;
+    color: var(--ink-3) !important;
+    cursor: default;
+  }
+  [data-mode="view"] #qTaxRate + span {
+    color: var(--ink-3) !important;
+  }
+  /* view 态:税率 input 容器去掉编辑感(浅边)*/
+  [data-mode="view"] #qTaxRate {
+    -webkit-appearance: none;
+  }
+  [data-mode="view"] .qfoot-tax-row span[style*="background:var(--bg-elev)"] {
+    border-color: transparent !important;
+    background: transparent !important;
+  }
+</style>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='quotation') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="#" style="font-size:13px;color:var(--ink-3);">业务管理</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('quotation.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">报价管理</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span class="at-mono" style="font-size:13px;color:var(--ink);">{{ quotation.quotation_number }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} 暗色
+    </button>
+  </div>
+</header>
+
+<main data-mode="{{ 'edit' if is_new else 'view' }}" style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 80px;min-width:0;">
+
+  {# ── Hero(头部)── 对齐设计稿 QuoteHero #}
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px;">
+    <div style="flex:1;min-width:0;">
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;
+                                          display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span>QUOTATION · {{ quotation.currency or 'CNY' }}</span>
+        {# 来源项目导航回链:新建态用 quotation.project,详情态用 from_project 参数 #}
+        {% set _src_proj = (quotation.project if is_new else from_project) %}
+        {% if _src_proj %}
+        <span style="color:var(--ink-4);">·</span>
+        <a href="{{ url_for('project.at_view_project', project_id=_src_proj.id) }}"
+           style="color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:4px;
+                  font-size:11px;letter-spacing:0.05em;text-transform:none;font-weight:500;">
+          ← 返回 {{ _src_proj.project_name }}
+        </a>
+        {% endif %}
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <h1 class="at-serif at-mono"
+            style="margin:0;font-size:40px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;
+                   font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+                   flex:0 1 auto;min-width:0;max-width:min(100%, 720px);
+                   overflow-wrap:anywhere;word-break:break-word;">
+          {{ quotation.quotation_number }}
+        </h1>
+        {% call at_header_chip_group() %}
+          {# 旧 SM 确认徽章保留 — 反映 confirmation_badge_status #}
+          {{ at_status_pill(quotation.confirmation_badge_status or 'none', scope='quotation') }}
+          {# 新标准审批 chip(走 ApprovalInstance)— 已创建报价才显示
+             状态来自 view 预查的 at_ap_status(基于 ApprovalInstance.status),
+             不能用 quotation.approval_status(那是 SM 老机制字段) #}
+          {% if not (is_new is defined and is_new) and quotation.id %}
+          {% set _q_ap_status = at_ap_status if at_ap_status is defined else 'draft' %}
+          {{ at_approval_dropdown(
+                object_type='quotation', object_id=quotation.id,
+                status=_q_ap_status, status_scope='quotation_approval',
+                api_base='/quotation/api/approval',
+                meta={
+                  'currency_sym': currency_sym or '¥',
+                  'total_amount': quotation.amount or 0,
+                  'customer_name': quotation.customer.company_name if quotation.customer else '',
+                  'project_name':  quotation.project.project_name if quotation.project else '',
+                  'line_count':    (quotation.details|length) if quotation.details else 0,
+                  'title':         quotation.quotation_number or ''
+                }
+              ) }}
+          {% endif %}
+          {% if quotation.is_locked %}{{ at_pill('已锁定', tone='warn') }}{% endif %}
+        {% endcall %}
+      </div>
+      <div style="margin-top:12px;color:var(--ink-3);font-size:13px;
+                  display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;">
+        {% if quotation.customer %}
+        <a href="{{ url_for('customer.at_view_company', company_id=quotation.customer.id) }}"
+           style="display:inline-flex;align-items:center;gap:5px;color:var(--ink-2);text-decoration:none;
+                  border-bottom:1px solid var(--line-2);padding-bottom:1px;">
+          {{ at_icon('users', 13) }}{{ quotation.customer.company_name }}
+        </a>
+        <span style="color:var(--line-2);">|</span>
+        {% endif %}
+        {% if quotation.project %}
+        <a href="{{ url_for('project.at_view_project', project_id=quotation.project.id) }}"
+           style="display:inline-flex;align-items:center;gap:5px;color:var(--ink-2);text-decoration:none;
+                  border-bottom:1px solid var(--line-2);padding-bottom:1px;">
+          {{ at_icon('flask', 13) }}{{ quotation.project.project_name }}
+        </a>
+        <span style="color:var(--line-2);">|</span>
+        {% endif %}
+        {% if quotation.project_stage %}
+        <span><span class="at-dim">阶段</span> <span style="color:var(--ink-2);">{{ quotation.project_stage | project_stage_label }}</span></span>
+        <span style="color:var(--line-2);">|</span>
+        {% endif %}
+        {% if quotation.owner %}
+        <span><span class="at-dim">负责人</span> <span style="color:var(--ink-2);">{{ quotation.owner.real_name or quotation.owner.username }}</span></span>
+        <span style="color:var(--line-2);">|</span>
+        {% endif %}
+        {% if quotation.created_at %}
+        <span class="at-dim at-mono">创建 {{ quotation.created_at.strftime('%m-%d') }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+      {{ at_btn('返回', variant='ghost', icon_l='back', tag='a',
+                href=url_for('quotation.at_list_view')) }}
+      {# 编辑按钮 + 技术确认 — 与产品明细 header 那组同步(都通过 data-mode 切换)#}
+      {% if perms.can_edit and not quotation.is_locked %}
+      <div class="view-only" style="display:inline-flex;gap:6px;align-items:center;">
+        <button type="button" onclick="atQuoteEnterEdit()"
+                style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                       background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('pen', 12) }}编辑
+        </button>
+        {# 旧「技术确认」按钮已移除 — 统一走标准审批「提交审批」入口(下方) #}
+        {# 提交审批 / 重新提交(走标准 ApprovalInstance) #}
+        {% if not is_new and quotation.id and (quotation.owner_id == current_user.id or current_user.role == 'admin') and not quotation.is_locked %}
+        {% set _q_status = (at_ap_status if at_ap_status is defined else 'draft') %}
+        {% if _q_status in ('draft', 'rejected', 'recalled') %}
+        {% set _q_submit_action = 'resubmit' if _q_status in ('rejected', 'recalled') else 'submit' %}
+        {% set _q_submit_label = '重新发起' if _q_submit_action == 'resubmit' else '技术确认' %}
+        <button type="button"
+                data-at-approval-quick="{{ _q_submit_action }}"
+                data-api-base="/quotation/api/approval"
+                data-object-id="{{ quotation.id }}"
+                data-meta='{{ {
+                  "currency_sym": currency_sym or "¥",
+                  "total_amount": quotation.amount or 0,
+                  "customer_name": (quotation.customer.company_name if quotation.customer else ""),
+                  "project_name":  (quotation.project.project_name if quotation.project else ""),
+                  "line_count":    ((quotation.details|length) if quotation.details else 0),
+                  "title":         (quotation.quotation_number or "")
+                } | tojson }}'
+                style="height:32px;padding:0 14px;border-radius:6px;border:0;
+                       background:var(--accent);color:#fff;font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>
+          </svg>
+          {{ _q_submit_label }}
+        </button>
+        {% endif %}
+        {% endif %}
+
+        {# 删除 — 已存在且未锁定的报价才允许 #}
+        {% if not is_new and not quotation.is_locked %}
+        <button type="button" onclick="atQuoteDelete()" title="删除报价单"
+                style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--danger-soft);
+                       background:transparent;color:var(--danger);font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('trash', 12) }}删除
+        </button>
+        {% endif %}
+      </div>
+      <div class="edit-only" style="display:none;gap:6px;align-items:center;">
+        <button type="button" onclick="atQuoteCancelEdit()"
+                style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                       background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;cursor:pointer;">
+          取消
+        </button>
+        <button type="button" onclick="atQuoteSave()"
+                style="height:32px;padding:0 14px;border-radius:6px;border:0;
+                       background:var(--accent);color:#fff;font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('check', 12) }}保存
+        </button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 旧 SM Action Card 已移除 — 审批流程 + 操作统一在标题旁 chip dropdown 浮层内 #}
+
+  {# ── Summary stats strip · 4 tile ── 对齐设计稿 QuoteSummary #}
+  {% set _items_cnt = (quotation.details | rejectattr('parent_item_id') | list | length) %}
+  {% set _qty_total = (quotation.details | rejectattr('parent_item_id') | map(attribute='quantity') | sum) if quotation.details else 0 %}
+  {{ at_summary_strip([
+    {
+      'label': '报价总额',
+      'value': currency_sym ~ '{:,.0f}'.format(quotation.amount or 0),
+      'sub': _items_cnt|string ~ ' 项 · ' ~ _qty_total|int|string ~ ' 件',
+      'strong': true,
+    },
+    {
+      'label': '植入总额',
+      'value': currency_sym ~ '{:,.0f}'.format(quotation.implant_total_amount or 0),
+      'sub': (quotation.currency or 'CNY') ~ ' · ' ~ ((quotation.currency or 'CNY') | currency_label),
+    },
+    {
+      'label': '报价阶段',
+      'value': (quotation.project_stage | project_stage_label) if quotation.project_stage else '—',
+      'sub': (quotation.project_type | project_type_label) if quotation.project_type else '',
+    },
+    {
+      'label': '货币',
+      'value': (quotation.currency or 'CNY') | currency_label,
+      'sub': (quotation.currency or 'CNY') ~ ((' · 汇率 ' ~ ('{:.4f}'.format(quotation.exchange_rate))) if quotation.exchange_rate and quotation.exchange_rate != 1 else ''),
+      'mono': true,
+    },
+  ]) }}
+
+  {# ── 主体两栏:基本信息(左 1fr,决定 row 高度) + 变更历史(右 320,绝对填充,内部滚动)── #}
+  <div class="qmain-row" style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:stretch;">
+
+    {% if is_new %}
+    {# 基本信息 — 新建态编辑表单(仅在新建时可编辑;创建后字段固化为只读)
+       预填来源:from project (URL ?project_id=X)
+       - 来源项目存在(quotation.project) → 项目/客户/类型/阶段/货币锁定 readonly
+       - 否则 → 走原"自由搜索"流程 #}
+    {% set _inp = "width:100%;box-sizing:border-box;height:32px;padding:0 10px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
+                   font-size:13px;outline:none;transition:border-color 120ms;" %}
+    {% set _label = "display:block;font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;" %}
+    {% set _ro_inp = _inp ~ ';background:var(--bg-sunk);color:var(--ink-3);cursor:default;' %}
+    {% set _has_src_proj = quotation.project is not none %}
+    <section class="at-section">
+      <header class="at-section-h">
+        <h3 class="at-section-title">基本信息</h3>
+        <span class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;">
+          {% if _has_src_proj %}从项目详情新建 · 关联信息已锁定{% else %}新建 · 必填后保存{% endif %}
+        </span>
+      </header>
+      <div style="padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;">
+        {# 关联项目 — 搜索框 + 清除;有来源项目时 readonly #}
+        <div style="grid-column:span 2;">
+          <label style="{{ _label }}">关联项目 {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">(项目和客户至少选其一)</span>{% endif %}</label>
+          <div style="position:relative;">
+            <input type="text" id="qNewProjectSearch" autocomplete="off"
+                   placeholder="输入 2 个以上字符搜索项目名称…"
+                   value="{{ quotation.project.project_name if _has_src_proj else '' }}"
+                   {% if _has_src_proj %}readonly{% endif %}
+                   style="{{ _ro_inp if _has_src_proj else _inp }};padding-right:30px;">
+            <button type="button" id="qNewProjectClear"
+                    style="display:none;position:absolute;top:50%;right:6px;transform:translateY(-50%);
+                           width:22px;height:22px;border:0;border-radius:50%;background:transparent;
+                           color:var(--ink-3);cursor:pointer;font-size:14px;line-height:1;">✕</button>
+            <div id="qNewProjectDropdown" data-anchor="qNewProjectSearch"
+                 style="display:none;position:fixed;z-index:9999;
+                        background:var(--bg-elev);border:1px solid var(--line-2);
+                        border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,0.12);
+                        max-height:240px;overflow-y:auto;"></div>
+            <input type="hidden" id="qNewProjectId" value="{{ quotation.project.id if _has_src_proj else '' }}">
+          </div>
+        </div>
+        {# 关联客户 — 来源项目时锁定(若有预填)否则可搜 #}
+        <div>
+          <label style="{{ _label }}">关联客户 {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">(同上)</span>{% endif %}</label>
+          <div style="position:relative;">
+            <input type="text" id="qNewCustomerSearch" autocomplete="off"
+                   placeholder="输入 2 个以上字符搜索客户名称…"
+                   value="{{ quotation.customer.company_name if quotation.customer else '' }}"
+                   {% if _has_src_proj and quotation.customer %}readonly{% endif %}
+                   style="{{ _ro_inp if (_has_src_proj and quotation.customer) else _inp }};padding-right:30px;">
+            <button type="button" id="qNewCustomerClear"
+                    style="display:none;position:absolute;top:50%;right:6px;transform:translateY(-50%);
+                           width:22px;height:22px;border:0;border-radius:50%;background:transparent;
+                           color:var(--ink-3);cursor:pointer;font-size:14px;line-height:1;">✕</button>
+            <div id="qNewCustomerDropdown" data-anchor="qNewCustomerSearch"
+                 style="display:none;position:fixed;z-index:9999;
+                        background:var(--bg-elev);border:1px solid var(--line-2);
+                        border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,0.12);
+                        max-height:240px;overflow-y:auto;"></div>
+            <input type="hidden" id="qNewCustomerId" value="{{ quotation.customer.id if quotation.customer else '' }}">
+          </div>
+        </div>
+        <div>
+          <label style="{{ _label }}">联系人</label>
+          <select id="qNewContactId" style="{{ _inp }};color:var(--ink);">
+            <option value="">{% if quotation.customer %}— 选择联系人(可选) —{% else %}— 请先选客户 —{% endif %}</option>
+          </select>
+        </div>
+        <div>
+          <label style="{{ _label }}">项目类型</label>
+          <input id="qNewProjectType" type="text" readonly
+                 value="{{ (quotation.project_type | project_type_label) if quotation.project_type else '' }}"
+                 data-value="{{ quotation.project_type or '' }}"
+                 style="{{ _ro_inp }};">
+        </div>
+        <div>
+          <label style="{{ _label }}">报价阶段 {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">(选项目后自动同步)</span>{% endif %}</label>
+          <select id="qNewProjectStage" style="{{ _ro_inp if _has_src_proj else _inp }}" {% if _has_src_proj %}disabled{% endif %}>
+            <option value="">— 选择阶段 —</option>
+            {% set _stage_opts = [
+              ('discover', '发现'),
+              ('embed', '植入'),
+              ('pre_tender', '标前'),
+              ('tendering', '标中'),
+              ('awarded', '中标'),
+              ('quoted', '批价'),
+              ('signed', '签约'),
+              ('lost', '失败'),
+              ('paused', '搁置'),
+            ] %}
+            {% for code, label in _stage_opts %}
+            <option value="{{ code }}" {% if code == quotation.project_stage %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="{{ _label }}">货币</label>
+          <select id="qNewCurrency" style="{{ _inp }}">
+            {% for code, name in (available_currencies or []) %}
+            <option value="{{ code }}" {% if code == (quotation.currency or 'CNY') %}selected{% endif %}>{{ name }} ({{ code }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="{{ _label }}">销售负责人</label>
+          <input type="text" value="{{ current_user.real_name or current_user.username }}" readonly
+                 style="{{ _inp }};background:var(--bg-sunk);color:var(--ink-3);">
+        </div>
+      </div>
+    </section>
+    {% else %}
+    {# 基本信息 — 已创建,只读 #}
+    {{ at_info_panel('基本信息', [
+          ('报价单号', quotation.quotation_number, 'at-mono'),
+          ('货币', ((quotation.currency or 'CNY') | currency_label) ~ ' ' ~ currency_sym),
+          ('锁定状态', '已锁定' if quotation.is_locked else '未锁定'),
+          ('关联项目', quotation.project.project_name if quotation.project else None),
+          ('关联客户', quotation.customer.company_name if quotation.customer else None),
+          ('项目类型', (quotation.project_type | project_type_label) if quotation.project_type else None),
+          ('报价阶段', (quotation.project_stage | project_stage_label) if quotation.project_stage else None),
+          ('联系人', quotation.contact.name if quotation.contact else None),
+          ('销售负责人', (quotation.owner.real_name or quotation.owner.username) if quotation.owner else None),
+          ('创建时间', quotation.created_at.strftime('%Y-%m-%d %H:%M') if quotation.created_at else None, 'at-mono'),
+          ('更新时间', quotation.updated_at.strftime('%Y-%m-%d %H:%M') if quotation.updated_at else None, 'at-mono'),
+          ('确认时间', quotation.confirmed_at.strftime('%Y-%m-%d %H:%M') if quotation.confirmed_at else None, 'at-mono'),
+      ], columns=4) }}
+    {% endif %}
+
+    {# 右栏:变更历史 timeline — 严格按设计稿 L975-1014
+       关键:外层 div position:relative + 内层 section position:absolute fill,
+       让右栏的内容高度不参与 grid row 高度计算 → 高度始终由左栏(基础信息)决定 #}
+    {% set _tone_map = {'CREATE':'success', 'UPDATE':'info', 'DELETE':'warn'} %}
+    {% set _tone_color = {
+        'neutral': 'var(--ink-3)',
+        'info':    'var(--info)',
+        'warn':    'var(--warn)',
+        'success': 'var(--success)',
+    } %}
+    {% set _icon_path = {
+        'plus':  '<path d="M12 5v14M5 12h14"/>',
+        'edit':  '<path d="M16 3l5 5L8 21H3v-5z"/>',
+        'trash': '<path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M5 6l1 14a2 2 0 002 2h8a2 2 0 002-2l1-14"/>',
+    } %}
+    <div style="position:relative;min-height:0;">
+    <section class="at-section" style="position:absolute;inset:0;display:flex;flex-direction:column;margin:0;">
+      <header class="at-section-h" style="flex-shrink:0;">
+        <h3 class="at-section-title">变更历史</h3>
+        <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ change_history | length }}</span>
+      </header>
+      {% if change_history %}
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:8px 18px 18px;">
+          {% for h in change_history %}
+          {% set tone = _tone_map.get(h.op, 'neutral') %}
+          {% set color = _tone_color[tone] %}
+          {% set icon = 'plus' if h.op == 'CREATE' else ('trash' if h.op == 'DELETE' else 'edit') %}
+          {% set is_current = loop.first %}
+          {% set is_last = loop.last %}
+          <div style="display:grid;grid-template-columns:24px 1fr;gap:10px;position:relative;padding-bottom:{{ 0 if is_last else 16 }}px;">
+            {% if not is_last %}
+            <div style="position:absolute;left:11.5px;top:24px;bottom:-4px;width:1px;background:var(--line-2);"></div>
+            {% endif %}
+            <div style="width:24px;height:24px;border-radius:50%;z-index:1;
+                        background:{{ color if is_current else 'var(--bg-page)' }};
+                        border:{{ '0' if is_current else '1.5px solid ' ~ color }};
+                        color:{{ '#fff' if is_current else color }};
+                        display:flex;align-items:center;justify-content:center;
+                        {% if is_current %}box-shadow:0 0 0 4px {{ color }}22;{% endif %}">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                {{ _icon_path[icon] | safe }}
+              </svg>
+            </div>
+            <div style="padding-top:2px;min-width:0;">
+              <div style="font-size:12.5px;color:{{ color if is_current else 'var(--ink)' }};
+                          font-weight:{{ 500 if is_current else 400 }};
+                          line-height:1.4;word-break:break-word;">
+                {{ h.title }}{% if h.old is not none and h.new is not none %}
+                <span class="at-mono at-dim" style="font-size:11px;">
+                  {{ h.old }} → {{ h.new }}
+                </span>{% endif %}
+              </div>
+              <div class="at-dim" style="font-size:11px;margin-top:3px;display:flex;align-items:center;gap:5px;">
+                <span>{{ h.user }}</span>
+                <span style="color:var(--ink-4);">·</span>
+                <span class="at-mono at-tab-num">{{ h.time }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--ink-4);font-size:12px;">暂无变更</div>
+      {% endif %}
+    </section>
+    </div>
+
+  </div>
+
+  {# ── 全宽:产品明细 ── #}
+  <div style="margin-top:20px;">
+    <section class="at-section">
+      <header class="at-section-h">
+        <h3 class="at-section-title">产品明细</h3>
+        <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ _items_cnt }}</span>
+        <div style="flex:1;"></div>
+        {# 顶部 actions:全局折扣(edit-only)+ 显示折扣 toggle + 编辑/取消/保存按钮 #}
+        <div class="edit-only" style="display:none;align-items:center;gap:8px;">
+          <div style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;
+                      border-radius:6px;background:var(--accent-tint);border:1px solid var(--accent-soft);">
+            <span style="font-size:11.5px;color:var(--accent);font-weight:500;">全局折扣</span>
+            <input id="qGlobalDiscount" type="number" min="0" max="999" step="0.01" value="100.00"
+                   onchange="atQuoteApplyGlobalDiscount(this.value)"
+                   style="width:72px;height:22px;text-align:right;border:0;background:transparent;
+                          color:var(--accent);font-weight:600;font-size:12px;font-family:var(--font-mono);">
+            <span style="color:var(--accent);font-size:11.5px;">%</span>
+          </div>
+        </div>
+        <button type="button" id="qDetailToggleDiscount"
+                onclick="atQuoteToggleDiscount(this)"
+                title="显示/隐藏 市场价 + 折扣 列"
+                style="height:32px;padding:0 10px;border-radius:6px;
+                       border:1px solid var(--line);background:var(--bg-elev);
+                       color:var(--ink-3);font-size:12px;cursor:pointer;
+                       display:inline-flex;align-items:center;gap:5px;">
+          {{ at_icon('check', 12) }}<span data-toggle-label>显示折扣</span>
+        </button>
+        {# 编辑 / 取消 + 保存 — view ↔ edit 切换(放在产品明细 header 最右)#}
+        {% if perms.can_edit and not quotation.is_locked %}
+        <div class="view-only" style="display:inline-flex;gap:6px;">
+          {# 旧「技术确认」入口已移除 — 统一走顶部「提交审批」按钮 #}
+          <button type="button" onclick="atQuoteEnterEdit()"
+                  style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                         background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;
+                         display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+            {{ at_icon('pen', 12) }}编辑
+          </button>
+        </div>
+        <div class="edit-only" style="display:none;gap:6px;">
+          <button type="button" onclick="atQuoteCancelEdit()"
+                  style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                         background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;cursor:pointer;">
+            取消
+          </button>
+          <button type="button" id="qSaveBtn" onclick="atQuoteSave()"
+                  style="height:32px;padding:0 14px;border-radius:6px;border:0;
+                         background:var(--accent);color:#fff;font-size:12px;font-weight:500;
+                         display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+            {{ at_icon('check', 12) }}保存
+          </button>
+        </div>
+        {% endif %}
+      </header>
+      <div class="at-section-body" style="padding:0;">
+        <div style="overflow-x:auto;">
+          {{ render_quotation_details_table(quotation.details or [], currency_symbol=currency_sym,
+                                             total_amount=quotation.amount,
+                                             tax_rate=quotation.tax_rate or 0,
+                                             grouped=grouped_details) }}
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script id="qDetailsRaw" type="application/json">{{ details_payload | tojson }}</script>
+  <script>
+    // ─── 货币符号(后续按 currency 字段切换)─────────────────
+    const CURRENCY_SYMBOL = {{ currency_sym | tojson }};
+    const QUOTATION_ID = {{ quotation.id }};
+    const IS_NEW = {{ is_new | tojson }};
+    // 原始 details(含所有字段,用于 save 时 merge)
+    const QUOTATION_DETAILS_RAW = JSON.parse(document.getElementById('qDetailsRaw').textContent);
+
+    // ─── 通用 SearchPicker 工厂 — 输入搜索 + 关键词高亮 + ✕ 清除 + fixed dropdown ──
+    //   ATSearchPicker({ inputId, hiddenIdId, clearId, dropdownId,
+    //                    searchUrl(term)→Promise<items>,
+    //                    suggestUrl?(state)→Promise<items>|null   // 空 term 时按当前 state 拉建议
+    //                    renderItem(item, term)→{primary, secondary}
+    //                    onPick(item, picker)→void
+    //                    onClear(picker)→void })
+    const _esc = (s) => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const _highlight = (text, term) => {
+      const t = _esc(text);
+      if (!term) return t;
+      const safe = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return t.replace(new RegExp(safe, 'gi'),
+        m => `<mark style="background:rgba(229,156,75,0.30);color:var(--ink);padding:0 1px;border-radius:2px;">${m}</mark>`);
+    };
+    function ATSearchPicker(cfg) {
+      const input  = document.getElementById(cfg.inputId);
+      const hidden = document.getElementById(cfg.hiddenIdId);
+      const clear  = document.getElementById(cfg.clearId);
+      const dd     = document.getElementById(cfg.dropdownId);
+      if (!input || !dd) return null;
+      let timer = null;
+      const picker = { input, hidden, clear, dd, cfg };
+      // fixed dropdown 定位:贴输入框正下方
+      function position() {
+        const r = input.getBoundingClientRect();
+        dd.style.top   = (r.bottom + 4) + 'px';
+        dd.style.left  = r.left + 'px';
+        dd.style.width = r.width + 'px';
+      }
+      function show()  { position(); dd.style.display = 'block'; }
+      function hide()  { dd.style.display = 'none'; }
+      function render(items, term) {
+        if (!items || !items.length) {
+          dd.innerHTML = `<div class="at-dim" style="padding:10px;font-size:12px;">无匹配${cfg.label||'结果'}</div>`;
+          show(); return;
+        }
+        dd.innerHTML = items.slice(0, 10).map((it, idx) => {
+          const r = cfg.renderItem(it, term);
+          return `<div data-idx="${idx}" style="padding:8px 12px;cursor:pointer;font-size:12.5px;"
+                       onmouseenter="this.style.background='var(--bg-hover)'"
+                       onmouseleave="this.style.background='transparent'">
+            <div style="color:var(--ink);">${r.primary}</div>
+            ${r.secondary ? `<div class="at-dim" style="font-size:11px;margin-top:2px;">${r.secondary}</div>` : ''}
+          </div>`;
+        }).join('');
+        // 绑定点击(避免 onclick 内联转义)
+        dd.querySelectorAll('[data-idx]').forEach(el => {
+          el.addEventListener('click', () => {
+            const it = items[parseInt(el.dataset.idx)];
+            pick(it);
+          });
+        });
+        show();
+      }
+      function pick(item) {
+        const name = cfg.itemName ? cfg.itemName(item) : item.name;
+        const id   = item.id;
+        input.value  = name;
+        if (hidden) hidden.value = id;
+        if (clear)  clear.style.display = 'block';
+        hide();
+        if (cfg.onPick) cfg.onPick(item, picker);
+      }
+      function clearPick() {
+        input.value = '';
+        if (hidden) hidden.value = '';
+        if (clear)  clear.style.display = 'none';
+        hide();
+        if (cfg.onClear) cfg.onClear(picker);
+      }
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        const term = input.value.trim();
+        if (!term) {
+          // 空 term:看是否有建议(双向关联场景)
+          if (cfg.suggestUrl) {
+            const url = cfg.suggestUrl();
+            if (url) {
+              fetch(url).then(r=>r.json()).then(res => render(cfg.itemsFromResp(res), ''));
+              return;
+            }
+          }
+          hide(); return;
+        }
+        timer = setTimeout(() => {
+          fetch(cfg.searchUrl(term)).then(r=>r.json())
+            .then(res => render(cfg.itemsFromResp(res), term))
+            .catch(() => hide());
+        }, 200);
+      });
+      input.addEventListener('focus', () => {
+        // 聚焦时,若已有建议(空 term)直接展示
+        if (!input.value.trim() && cfg.suggestUrl) {
+          const url = cfg.suggestUrl();
+          if (url) fetch(url).then(r=>r.json()).then(res => render(cfg.itemsFromResp(res), ''));
+        }
+      });
+      if (clear) clear.addEventListener('click', clearPick);
+      // scroll/resize 同步定位
+      window.addEventListener('scroll', () => { if (dd.style.display === 'block') position(); }, true);
+      window.addEventListener('resize', () => { if (dd.style.display === 'block') position(); });
+      // 点击外部关闭
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#' + cfg.inputId) && !e.target.closest('#' + cfg.dropdownId)) hide();
+      });
+      picker.pick = pick;
+      picker.clear = clearPick;
+      picker.hide = hide;
+      return picker;
+    }
+
+    // ─── 用工厂创建项目 / 客户两个 picker;onPick 里做双向关联 ──
+    let _qNewProjectPicker, _qNewCustomerPicker;
+    function _qNewLoadContacts(cid) {
+      const sel = document.getElementById('qNewContactId');
+      if (!cid) { sel.innerHTML = '<option value="">— 请先选客户 —</option>'; return; }
+      fetch(`/quotation/get_customer_contacts/${cid}`).then(r => r.json()).then(res => {
+        const items = (res && res.contacts) || [];
+        sel.innerHTML = '<option value="">— 选择联系人(可选) —</option>' + items.map(c =>
+          `<option value="${c.id}">${_esc(c.name||'')}</option>`).join('');
+      });
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!IS_NEW) return;
+      _qNewProjectPicker = ATSearchPicker({
+        inputId: 'qNewProjectSearch', hiddenIdId: 'qNewProjectId',
+        clearId: 'qNewProjectClear', dropdownId: 'qNewProjectDropdown', label: '项目',
+        searchUrl: term => `/quotation/search_projects?q=${encodeURIComponent(term)}`,
+        suggestUrl: () => {
+          const cid = parseInt(document.getElementById('qNewCustomerId').value) || 0;
+          return cid ? `/quotation/get_customer_projects/${cid}` : null;
+        },
+        itemsFromResp: res => res.projects || [],
+        renderItem: (p, term) => ({
+          primary:   _highlight(p.name, term),
+          secondary: _esc(p.owner||'') + (p.stage ? ' · ' + _esc(p.stage) : ''),
+        }),
+        onPick: (p) => {
+          const t = document.getElementById('qNewProjectType');
+          if (t) t.value = p.type || '';
+          // 报价阶段跟随项目当前阶段
+          const stageSel = document.getElementById('qNewProjectStage');
+          if (stageSel && p.stage_code) {
+            const opt = Array.from(stageSel.options).find(o => o.value === p.stage_code);
+            if (opt) stageSel.value = p.stage_code;
+          }
+          // 反向:无客户时,若项目只有一个客户自动填
+          if (!(parseInt(document.getElementById('qNewCustomerId').value) || 0)) {
+            fetch(`/quotation/get_project_customers/${p.id}`).then(r=>r.json()).then(res=>{
+              const items = (res.customers || []).map(c => ({ id: c.id, name: c.company_name || c.name }));
+              if (items.length === 1) _qNewCustomerPicker.pick(items[0]);
+            });
+          }
+        },
+        onClear: () => { document.getElementById('qNewProjectType').value = ''; },
+      });
+      _qNewCustomerPicker = ATSearchPicker({
+        inputId: 'qNewCustomerSearch', hiddenIdId: 'qNewCustomerId',
+        clearId: 'qNewCustomerClear', dropdownId: 'qNewCustomerDropdown', label: '客户',
+        searchUrl: term => `/quotation/search_customers?q=${encodeURIComponent(term)}`,
+        suggestUrl: () => {
+          const pid = parseInt(document.getElementById('qNewProjectId').value) || 0;
+          return pid ? `/quotation/get_project_customers/${pid}` : null;
+        },
+        itemsFromResp: res => (res.customers || []).map(c => ({
+          id: c.id, name: c.company_name || c.name, code: c.code || '', country: c.country || '',
+        })),
+        renderItem: (c, term) => ({
+          primary:   _highlight(c.name, term),
+          secondary: _esc(c.code||'') + (c.country ? ' · ' + _esc(c.country) : ''),
+        }),
+        onPick: (c) => {
+          _qNewLoadContacts(c.id);
+          // 反向:无项目时,若客户只有一个项目自动填
+          if (!(parseInt(document.getElementById('qNewProjectId').value) || 0)) {
+            fetch(`/quotation/get_customer_projects/${c.id}`).then(r=>r.json()).then(res=>{
+              const items = res.projects || [];
+              if (items.length === 1) _qNewProjectPicker.pick(items[0]);
+            });
+          }
+        },
+        onClear: () => {
+          document.getElementById('qNewContactId').innerHTML = '<option value="">— 请先选客户 —</option>';
+        },
+      });
+      // 来源项目预填态:已有 customer_id 时自动拉取联系人列表
+      const _preCid = parseInt(document.getElementById('qNewCustomerId').value) || 0;
+      if (_preCid) _qNewLoadContacts(_preCid);
+    });
+
+    // 显示折扣 toggle:切换 市场价/折扣 列显隐
+    window.atQuoteToggleDiscount = function(btn) {
+      const table = document.getElementById('quotationDetailTable');
+      if (!table) return;
+      const showing = btn.classList.toggle('is-on');
+      // <col> 用 table-column, <th>/<td> 用 table-cell, 隐藏全部 none
+      table.querySelectorAll('.col-market-price, .col-discount').forEach(el => {
+        el.style.display = showing ? 'table-column' : 'none';
+      });
+      table.querySelectorAll('.th-market-price, .th-discount, .td-market-price, .td-discount').forEach(el => {
+        el.style.display = showing ? 'table-cell' : 'none';
+      });
+      btn.style.background = showing ? 'var(--accent-tint)' : 'var(--bg-elev)';
+      btn.style.color      = showing ? 'var(--accent)' : 'var(--ink-3)';
+      btn.querySelector('[data-toggle-label]').textContent = showing ? '隐藏折扣' : '显示折扣';
+    };
+
+    // ─── 模式切换 ───────────────────────────────────────
+    window.atQuoteEnterEdit = function() {
+      document.querySelector('main').dataset.mode = 'edit';
+      if (typeof _resetAllRowConfirms === 'function') _resetAllRowConfirms();
+    };
+    window.atQuoteCancelEdit = function() {
+      // 局部刷新(A 方案)— 跟保存一样不动 scroll / sidebar / header
+      if (!window._qDirty) { _qRefreshMain(); return; }
+      if (window.ATConfirm) {
+        ATConfirm.show({
+          title: '放弃修改',
+          message: '当前有未保存的修改,确定放弃并回到只读模式?',
+          confirmText: '放弃修改',
+          cancelText: '继续编辑',
+          variant: 'warn',
+          icon: 'warn',
+          onConfirm: () => { window._qDirty = false; _qRefreshMain(); },
+        });
+      } else { if (confirm('放弃所有未保存的修改?')) _qRefreshMain(); }
+    };
+    // 离开页面拦截(刷新/关闭/跳转)
+    window.addEventListener('beforeunload', (e) => {
+      if (window._qDirty) {
+        e.preventDefault();
+        e.returnValue = '当前有未保存的修改,确定离开?';
+        return e.returnValue;
+      }
+    });
+
+    // ─── inline 编辑 ─────────────────────────────────────
+    // 单元格 click → input;blur → 写回并重算
+    function _onCellClick(td) {
+      if (document.querySelector('main').dataset.mode !== 'edit') return;
+      if (td.querySelector('input')) return;
+      const raw = td.dataset.type === 'int'
+        ? td.textContent.trim().replace(/[^\d-]/g, '')
+        : td.textContent.trim().replace(/[^\d.-]/g, '');
+      td.innerHTML = '';
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.value = raw;
+      input.step = td.dataset.type === 'int' ? '1' : '0.01';
+      // 折扣字段允许超过 100%(行级和全局一致)
+      if (td.dataset.field === 'discount') { input.min = '0'; input.max = '999'; }
+      input.style.fontFamily = 'inherit';
+      input.style.fontWeight = 'inherit';
+      td.appendChild(input);
+      input.focus();
+      input.select();
+      input.addEventListener('blur', () => _onCellBlur(td, input));
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') { input.value = raw; input.blur(); }
+      });
+    }
+    function _onCellBlur(td, input) {
+      const val = parseFloat(input.value) || 0;
+      const field = td.dataset.field;
+      const tr = td.closest('tr');
+      const fmt = (n) => CURRENCY_SYMBOL + n.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+      const market = parseFloat(tr.dataset.marketPrice) || 0;
+
+      if (field === 'quantity') {
+        tr.dataset.quantity = val;
+        td.textContent = Math.floor(val).toString();
+      } else if (field === 'unit_price') {
+        tr.dataset.unitPrice = val;
+        td.textContent = fmt(val);
+        // 同步行折扣率(百分比)+ 折扣 cell
+        if (market > 0) {
+          const pct = (val / market) * 100;
+          tr.dataset.discountRate = pct.toFixed(2);
+          const discCell = tr.querySelector('.td-discount');
+          if (discCell) discCell.textContent = pct.toFixed(2) + '%';
+        }
+      } else if (field === 'discount') {
+        // 改折扣 → 反推单价 = 市场价 × 折扣%
+        const newPrice = market > 0 ? +(market * val / 100).toFixed(2) : 0;
+        tr.dataset.unitPrice = newPrice;
+        tr.dataset.discountRate = val.toFixed(2);
+        td.textContent = val.toFixed(2) + '%';
+        const priceCell = tr.querySelector('[data-field="unit_price"]');
+        if (priceCell) priceCell.textContent = fmt(newPrice);
+      }
+
+      // 重算行总价
+      const qty = parseFloat(tr.dataset.quantity) || 0;
+      const price = parseFloat(tr.dataset.unitPrice) || 0;
+      const totalCell = tr.querySelector('.td-total');
+      if (totalCell) totalCell.textContent = fmt(qty * price);
+
+      window._qDirty = true;
+      _recomputeFooter();
+    }
+    function _recomputeFooter() {
+      // 重算 tfoot:数量合计 + 小计 + 税额 + 总计 + 总折扣率(custom 行不参与折扣计算)
+      const table = document.getElementById('quotationDetailTable');
+      let qtyTotal = 0, subtotal = 0, marketTotal = 0, discountableSubtotal = 0;
+      table.querySelectorAll('tbody tr[data-detail-id]').forEach(tr => {
+        const qty = parseFloat(tr.dataset.quantity) || 0;
+        const price = parseFloat(tr.dataset.unitPrice) || 0;
+        const market = parseFloat(tr.dataset.marketPrice) || 0;
+        const isTemp = tr.dataset.isTemp === '1';
+        qtyTotal += qty;
+        subtotal += qty * price;
+        if (!isTemp) {
+          marketTotal += qty * market;
+          discountableSubtotal += qty * price;
+        }
+      });
+      const taxInput = document.getElementById('qTaxRate');
+      const taxRate = taxInput ? (parseFloat(taxInput.value) || 0) : 0;
+      const taxAmt = subtotal * taxRate / 100;
+      const grand = subtotal + taxAmt;
+      const fmt = (n) => CURRENCY_SYMBOL + n.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+      const qtyCell = table.querySelector('.qfoot-qty');
+      const subCell = table.querySelector('.qfoot-subtotal');
+      const taxCell = table.querySelector('.qfoot-tax');
+      const grandCell = table.querySelector('.qfoot-grand');
+      const discPct = table.querySelector('#qfootDiscountPct');
+      if (qtyCell)   qtyCell.textContent   = String(Math.round(qtyTotal));
+      if (subCell)   subCell.textContent   = fmt(subtotal);
+      if (taxCell)   taxCell.textContent   = '+' + fmt(taxAmt);
+      if (grandCell) grandCell.textContent = fmt(grand);
+      // 总折扣率 = 可折扣小计 / 市场价合计 × 100(custom 行不参与)
+      if (discPct && marketTotal > 0) {
+        const pct = (discountableSubtotal / marketTotal) * 100;
+        discPct.textContent = '≈' + pct.toFixed(2) + '%';
+        const gd = document.getElementById('qGlobalDiscount');
+        if (gd && document.activeElement !== gd) {
+          gd.value = pct.toFixed(2);
+        }
+      }
+    }
+    // 加载完成时立即同步一次全局折扣 input(从行折扣反算)
+    document.addEventListener('DOMContentLoaded', () => { try { _recomputeFooter(); } catch(_){} });
+    // 暴露给税率 input onchange
+    window.atQuoteRecomputeFooter = _recomputeFooter;
+
+    // 旧 SM 确认 handlers(atQuoteConfirmSM / atQuoteRejectSM / atQuoteRecallSM)
+    // 已统一迁到标准 ApprovalInstance 流程,通过 chip dropdown 操作
+
+    // 删除报价单 — 复用后端 form POST /{id}/delete(后端 redirect 到列表 + flash)
+    window.atQuoteDelete = function() {
+      if (!window.ATConfirm) return;
+      ATConfirm.show({
+        title: '删除报价单',
+        message: '此操作不可撤销,确认删除当前报价单及其全部明细?',
+        variant: 'danger', icon: 'warn', confirmText: '删除', cancelText: '取消',
+        onConfirm: () => {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/quotation/${QUOTATION_ID}/delete`;
+          const csrf = document.createElement('input');
+          csrf.type = 'hidden';
+          csrf.name = 'csrf_token';
+          csrf.value = document.querySelector('meta[name="csrf-token"]').content;
+          form.appendChild(csrf);
+          document.body.appendChild(form);
+          form.submit();
+        },
+      });
+    };
+
+    // 旧 SM 发起 modal(atQuoteInitiateSM)已移除 — 改走 chip dropdown 提交标准审批
+
+    document.querySelectorAll('.editable-cell').forEach(td => {
+      td.addEventListener('click', () => _onCellClick(td));
+    });
+
+    // ─── 备注栏:编辑态点击 → ATConfirm 多行输入 ─────────────
+    function _onNoteClick(td) {
+      // 仅编辑态可用
+      if (document.querySelector('[data-mode]').dataset.mode !== 'edit') return;
+      const tr   = td.closest('tr');
+      const name = tr.querySelector('td:nth-child(2)').textContent.trim();
+      const cur  = td.dataset.note || '';
+      if (!window.ATConfirm) return;
+      ATConfirm.show({
+        title: '编辑备注',
+        message: `「${name}」`,
+        variant: 'accent',
+        icon: 'edit',
+        confirmText: '保存',
+        cancelText: '取消',
+        input: {
+          label: '备注',
+          placeholder: '请填写备注…',
+          multiline: true,
+          rows: 5,
+          maxLength: 2000,
+          defaultValue: cur,
+        },
+        onConfirm: (val) => {
+          const v = (val || '').trim();
+          td.dataset.note = v;
+          td.title        = v;
+          if (v) {
+            td.innerHTML = '<div style="line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;'
+                         + '-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;'
+                         + 'white-space:pre-wrap;">' + v.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div>';
+          } else {
+            td.innerHTML = '';
+          }
+          window._qDirty = true;
+        },
+      });
+    }
+    document.querySelectorAll('.editable-note').forEach(td => {
+      td.addEventListener('click', () => _onNoteClick(td));
+    });
+
+    // ─── 行操作:行内两步删除(编辑按键已移除,改产品通过删除 + picker 添加)───
+    function _toggleRowConfirm(btn, showConfirm) {
+      const td = btn.closest('td');
+      const def = td.querySelector('.row-actions');
+      const cfm = td.querySelector('.row-actions-confirm');
+      if (def) def.style.display = showConfirm ? 'none' : 'inline-flex';
+      if (cfm) cfm.style.display = showConfirm ? 'inline-flex' : 'none';
+    }
+    window.atQuoteDeleteRowAsk    = (btn) => _toggleRowConfirm(btn, true);
+    window.atQuoteDeleteRowCancel = (btn) => _toggleRowConfirm(btn, false);
+    window.atQuoteDeleteRowConfirm = function(btn) {
+      const tr = btn.closest('tr');
+      const nameCell = tr.querySelector('td:nth-child(2)');
+      const name = nameCell ? nameCell.textContent.trim() : '明细';
+      let next = tr.nextElementSibling;
+      tr.remove();
+      // 顺带移除紧跟的子配置行(没 detail-id 也不是 qgroup-header)
+      while (next && !next.dataset.detailId && !next.classList.contains('qgroup-header')) {
+        const toRemove = next; next = next.nextElementSibling; toRemove.remove();
+      }
+      window._qDirty = true;
+      _recomputeFooter();
+      if (window.ATToast) ATToast.success('已删除明细', `${name} 已从报价单中移除`);
+    };
+    // 编辑态进入时 reset 所有行内确认态(防止脏状态遗留)
+    function _resetAllRowConfirms() {
+      document.querySelectorAll('.row-actions').forEach(el => el.style.display = 'inline-flex');
+      document.querySelectorAll('.row-actions-confirm').forEach(el => el.style.display = 'none');
+    }
+    // row-actions opacity 由 CSS :hover 控制(无延迟,无 JS reflow)
+
+    // ─── 全局折扣(允许 > 100%)────────────────────────────
+    window.atQuoteApplyGlobalDiscount = function(pct) {
+      const p = parseFloat(pct);
+      if (isNaN(p) || p < 0) return;
+      const table = document.getElementById('quotationDetailTable');
+      const fmt = (n) => CURRENCY_SYMBOL + n.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+      table.querySelectorAll('tbody tr[data-detail-id]').forEach(tr => {
+        const market = parseFloat(tr.dataset.marketPrice) || 0;
+        if (!market) return;
+        const newPrice = +(market * p / 100).toFixed(2);
+        tr.dataset.unitPrice = newPrice;
+        tr.dataset.discountRate = p.toFixed(2);  // 同步行折扣率(百分比)
+        const priceCell = tr.querySelector('[data-field="unit_price"]');
+        if (priceCell) priceCell.textContent = fmt(newPrice);
+        const qty = parseFloat(tr.dataset.quantity) || 0;
+        const totalCell = tr.querySelector('.td-total');
+        if (totalCell) totalCell.textContent = fmt(qty * newPrice);
+        const discCell = tr.querySelector('.td-discount');
+        if (discCell) discCell.textContent = p.toFixed(2) + '%';
+      });
+      window._qDirty = true;
+      _recomputeFooter();
+    };
+
+    // ─── 添加产品(打开 ATProductPicker → 选完插入新行 + 配套子行)──────────────────
+    window.atQuoteAddProduct = function() {
+      if (!window.ATProductPicker) { alert('产品选择器未加载'); return; }
+      const globalDisc = parseFloat(document.getElementById('qGlobalDiscount')?.value) || 100;
+      const productToDetail = (p, isConfig) => {
+        const market = parseFloat(p.price) || 0;
+        const unitPrice = isConfig ? market : +(market * globalDisc / 100).toFixed(2);
+        const discount = isConfig ? 1.0 : (globalDisc / 100);
+        const qty = parseInt(p.quantity) || 1;
+        return {
+          id: _qCustomTempIdSeq--,
+          product_name:  p.name  || '',
+          product_model: p.model || '',
+          product_desc:  p.spec  || '',
+          brand:         p.brand || '',
+          unit:          p.unit  || '套',
+          product_mn:    p.code  || '',
+          quantity:      qty,
+          market_price:  market,
+          unit_price:    unitPrice,
+          discount:      discount,
+          total_price:   unitPrice * qty,
+          item_note:     '',
+          parent_item_id: null,
+          is_temp:       false,
+          configurations: [],
+        };
+      };
+      ATProductPicker.open({
+        currency: {{ (quotation.currency or 'CNY') | tojson }},
+        onPick: (result) => {
+          // result = { items: [{ product, configurations:[] }, ...] }
+          // 主产品和配套**全部作为独立明细**(各自可调数量/单价/备注/删除),不建父子关系
+          let total = 0;
+          (result.items || []).forEach(it => {
+            const main = productToDetail(it.product, false);
+            QUOTATION_DETAILS_RAW.push(main);
+            _qInsertNewRow(main);
+            total++;
+            (it.configurations || []).forEach(cfg => {
+              const row = productToDetail(cfg, false);
+              QUOTATION_DETAILS_RAW.push(row);
+              _qInsertNewRow(row);
+              total++;
+            });
+          });
+          window._qDirty = true;
+          _recomputeFooter();
+          if (window.ATToast) ATToast.success(`已添加 ${total} 条明细`, '保存后归类');
+        },
+      });
+    };
+
+    // ─── M4.6 手动添加自定义产品 — 严格按设计稿 L813 ────────
+    let _qCustomTempIdSeq = -1;  // 新行临时负 ID
+    window.atQuoteAddCustom = function() {
+      _qOpenCustomModal();
+    };
+    function _qOpenCustomModal() {
+      const modal = document.getElementById('qCustomModal');
+      if (!modal) return;
+      modal.querySelectorAll('input,textarea').forEach(el => {
+        if      (el.name === 'unit')  el.value = '套';
+        else if (el.name === 'qty')   el.value = '1';
+        else if (el.name === 'price') el.value = '0';
+        else    el.value = '';
+      });
+      modal.style.display = 'flex';
+      setTimeout(() => modal.querySelector('input[name="name"]').focus(), 80);
+    }
+    function _qCloseCustomModal() {
+      const modal = document.getElementById('qCustomModal');
+      if (modal) modal.style.display = 'none';
+    }
+    window._qCloseCustomModal = _qCloseCustomModal;
+    window._qCustomValidate = function() {
+      const f = document.getElementById('qCustomForm');
+      const name  = f.querySelector('input[name="name"]').value.trim();
+      const qty   = parseFloat(f.querySelector('input[name="qty"]').value)   || 0;
+      const price = parseFloat(f.querySelector('input[name="price"]').value) || 0;
+      const valid = name && qty > 0 && price > 0;
+      document.getElementById('qCustomSubmit').disabled = !valid;
+    };
+    window._qCustomSubmit = function() {
+      const f = document.getElementById('qCustomForm');
+      const data = {};
+      f.querySelectorAll('input,textarea').forEach(el => data[el.name] = el.value);
+      const name  = (data.name || '').trim();
+      const qty   = parseInt(data.qty)     || 1;
+      const price = parseFloat(data.price) || 0;
+      if (!name || qty <= 0 || price <= 0) return;
+      const tempId = _qCustomTempIdSeq--;
+      // 1. push 到 RAW(供 atQuoteSave merge)— 自定义产品无市场价,discount=1.0 固定
+      const newDetail = {
+        id: tempId,
+        product_name:  name,
+        product_model: data.model  || '',
+        product_desc:  data.spec   || '',
+        brand:         data.brand  || '',
+        unit:          data.unit   || '套',
+        product_mn:    data.code   || '',
+        quantity:      qty,
+        market_price:  0,
+        unit_price:    price,
+        discount:      1.0,
+        total_price:   qty * price,
+        item_note:     '',
+        parent_item_id: null,
+        is_temp:       true,
+        temp_product_id: 'CUSTOM_' + Math.abs(tempId),
+        configurations: [],
+      };
+      QUOTATION_DETAILS_RAW.push(newDetail);
+      _qInsertNewRow(newDetail);
+      _qCloseCustomModal();
+      window._qDirty = true;
+      _recomputeFooter();
+      if (window.ATToast) ATToast.success('已添加', `「${name}」加入明细`);
+    };
+
+    // 构建"自定义产品"分类头(JS 端复制后端 SSR 14-td 结构)
+    // 插入子配置行 — 跟随主产品,简化版(无操作列,字段不可编辑,样式偏 dim)
+    function _qInsertSubRow(d, parentDetailId) {
+      const table = document.getElementById('quotationDetailTable');
+      const tbody = table.querySelector('tbody');
+      const parentTr = tbody.querySelector(`tr[data-detail-id="${parentDetailId}"]`);
+      if (!parentTr) return;
+      const fmt = (n) => CURRENCY_SYMBOL + (n||0).toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+      const esc = (s) => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      // 子序号: 主行序号.子index(根据已有 sibling 数 +1)
+      const mainIdx = parentTr.querySelector('td:first-child')?.textContent.trim() || '00';
+      const existingSubs = [];
+      let n = parentTr.nextElementSibling;
+      while (n && !n.dataset.detailId && !n.classList.contains('qgroup-header')) { existingSubs.push(n); n = n.nextElementSibling; }
+      const subIdx = existingSubs.length + 1;
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-parent', parentDetailId);
+      tr.style.cssText = 'background:var(--bg-page);cursor:default;';
+      tr.innerHTML = `
+        <td class="at-mono at-tab-num" style="text-align:center;color:var(--ink-4);font-size:11px;">${parseInt(mainIdx,10)}.${subIdx}</td>
+        <td title="${esc(d.product_name)}"><div style="font-size:12.5px;color:var(--ink-2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;"><span style="color:var(--ink-4);margin-right:4px;">↳</span>${esc(d.product_name)}</div></td>
+        <td class="at-mono" title="${esc(d.product_model)}"><div style="font-size:11.5px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(d.product_model)||'—'}</div></td>
+        <td title="${esc(d.product_desc)}"><div style="font-size:11.5px;color:var(--ink-3);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">${esc(d.product_desc)||'—'}</div></td>
+        <td style="font-size:12px;color:var(--ink-3);">${esc(d.brand)||'—'}</td>
+        <td class="at-mono at-tab-num" style="text-align:right;color:var(--ink-2);font-size:12.5px;">${d.quantity}</td>
+        <td style="font-size:12px;color:var(--ink-3);">${esc(d.unit)||'—'}</td>
+        <td class="td-market-price at-mono at-tab-num at-dim" style="text-align:right;display:none;font-size:12px;">${d.market_price ? fmt(d.market_price) : '—'}</td>
+        <td class="td-discount at-mono at-tab-num at-dim" style="text-align:right;font-size:12px;display:none;">—</td>
+        <td class="at-mono at-tab-num" style="text-align:right;color:var(--ink-2);font-size:12.5px;">${fmt(d.unit_price)}</td>
+        <td class="at-mono at-tab-num" style="text-align:right;color:var(--ink-2);font-size:12.5px;">${fmt(d.quantity * d.unit_price)}</td>
+        <td class="at-mono" style="color:var(--ink-4);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(d.product_mn)||'—'}</td>
+        <td></td>
+        <td class="td-row-actions" style="display:none;"></td>
+      `;
+      // 插到主行后、所有现有 sub 之后
+      const insertAfter = existingSubs.length ? existingSubs[existingSubs.length - 1] : parentTr;
+      insertAfter.parentNode.insertBefore(tr, insertAfter.nextSibling);
+    }
+
+    function _qInsertNewRow(d) {
+      const table = document.getElementById('quotationDetailTable');
+      const tbody = table.querySelector('tbody');
+      // 移除"暂无产品明细" placeholder(如有)
+      tbody.querySelectorAll('tr.qempty-row').forEach(tr => tr.remove());
+      const isTemp = !!d.is_temp;
+      const fmt = (n) => CURRENCY_SYMBOL + (n||0).toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+      const discPct = (d.discount * 100).toFixed(2);
+      // 序号:取当前主产品行 count + 1
+      const idx = tbody.querySelectorAll('tr[data-detail-id]:not([data-parent])').length + 1;
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-detail-id',   d.id);
+      tr.setAttribute('data-market-price', d.market_price);
+      tr.setAttribute('data-unit-price',   d.unit_price);
+      tr.setAttribute('data-quantity',     d.quantity);
+      tr.setAttribute('data-discount-rate', discPct);
+      if (isTemp) tr.setAttribute('data-is-temp', '1');
+      // 未保存标记 — 视觉上 highlight,保存后 reload 自然消失
+      tr.setAttribute('data-unsaved', '1');
+      tr.style.cssText = 'cursor:default;background:var(--accent-tint);box-shadow:inset 3px 0 0 var(--accent);';
+      const esc = (s) => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      tr.innerHTML = `
+        <td class="at-mono at-tab-num" style="text-align:center;color:var(--ink-4);font-size:11px;">${String(idx).padStart(2,'0')}</td>
+        <td title="${esc(d.product_name)}"><div style="font-weight:500;font-size:13px;color:var(--ink);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">${esc(d.product_name)}</div></td>
+        <td class="at-mono" title="${esc(d.product_model)}"><div style="font-size:11.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(d.product_model)||'—'}</div></td>
+        <td title="${esc(d.product_desc)}"><div style="font-size:11.5px;color:var(--ink-3);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">${esc(d.product_desc)||'—'}</div></td>
+        <td style="font-size:12px;color:var(--ink-2);">${esc(d.brand)||'—'}</td>
+        <td class="editable-cell at-mono at-tab-num" data-field="quantity" data-type="int" style="text-align:right;color:var(--ink);font-size:12.5px;">${d.quantity}</td>
+        <td style="font-size:12px;color:var(--ink-3);">${esc(d.unit)||'—'}</td>
+        <td class="td-market-price at-mono at-tab-num at-dim" style="text-align:right;display:none;font-size:12px;">${isTemp || !d.market_price ? '—' : fmt(d.market_price)}</td>
+        ${isTemp
+          ? `<td class="td-discount at-mono at-tab-num at-dim" style="text-align:right;font-size:12px;display:none;">—</td>`
+          : `<td class="td-discount editable-cell at-mono at-tab-num" data-field="discount" data-type="float" style="text-align:right;color:var(--accent);font-weight:500;font-size:12px;display:none;">${discPct}%</td>`
+        }
+        <td class="editable-cell at-mono at-tab-num" data-field="unit_price" data-type="float" style="text-align:right;color:var(--ink);font-weight:500;font-size:12.5px;">${fmt(d.unit_price)}</td>
+        <td class="td-total at-mono at-tab-num" style="text-align:right;font-weight:500;color:var(--ink);font-size:12.5px;">${fmt(d.quantity * d.unit_price)}</td>
+        <td class="at-mono" style="color:var(--ink-4);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(d.product_mn)||'—'}</td>
+        <td class="td-note editable-note" data-field="item_note" data-note="" style="color:var(--ink-4);font-size:11px;max-width:160px;vertical-align:middle;" title=""></td>
+        <td class="td-row-actions" style="text-align:center;display:none;padding:8px;">
+          <div class="row-actions" style="display:inline-flex;align-items:center;gap:2px;opacity:0.45;transition:opacity 0ms;">
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowAsk(this)" title="删除明细" style="width:26px;height:26px;border-radius:5px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all 100ms;" onmouseenter="this.style.background='var(--danger-soft)';this.style.color='var(--danger)';" onmouseleave="this.style.background='transparent';this.style.color='var(--ink-3)';"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M5 6l1 14a2 2 0 002 2h8a2 2 0 002-2l1-14M10 11v6M14 11v6"/></svg></button>
+          </div>
+          <div class="row-actions-confirm" style="display:none;align-items:center;gap:4px;padding:2px 4px;border-radius:6px;background:var(--danger-soft);">
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowCancel(this)" title="取消" style="width:24px;height:24px;border-radius:4px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowConfirm(this)" title="确认删除" style="width:24px;height:24px;border-radius:4px;border:0;background:var(--danger);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></button>
+          </div>
+        </td>
+      `;
+      // 所有新行统一插到 tbody 末尾(在已有 group 之后,反色标识未保存)
+      //   保存后 atQuoteSave → 后端按 product_mn 重新 grouping → 局部刷新带正确分类
+      tbody.appendChild(tr);
+      // 绑定新行的可编辑监听
+      tr.querySelectorAll('.editable-cell').forEach(td => td.addEventListener('click', () => _onCellClick(td)));
+      tr.querySelectorAll('.editable-note').forEach(td => td.addEventListener('click', () => _onNoteClick(td)));
+    }
+
+    // ─── 保存:merge 原始字段 + 用户改动 → POST /save ──────────
+    window.atQuoteSave = async function() {
+      // 两个保存按钮(Hero + 产品明细 header)都要同步 disabled / 文字
+      const btns = document.querySelectorAll('button[onclick="atQuoteSave()"]');
+      const oldHtmls = Array.from(btns).map(b => b.innerHTML);
+      btns.forEach(b => { b.disabled = true; b.textContent = '保存中…'; });
+      try {
+        const table = document.getElementById('quotationDetailTable');
+        // 收集 DOM 中所有 detail-id(还在的 = 未删除)+ 用户改动的 quantity/unit_price
+        const overrides = {};
+        table.querySelectorAll('tbody tr[data-detail-id]').forEach(tr => {
+          const noteCell = tr.querySelector('.td-note');
+          overrides[parseInt(tr.dataset.detailId)] = {
+            quantity:      parseFloat(tr.dataset.quantity)     || 0,
+            unit_price:    parseFloat(tr.dataset.unitPrice)    || 0,
+            discount_rate: parseFloat(tr.dataset.discountRate) || 100,
+            item_note:     noteCell ? (noteCell.dataset.note || '') : '',
+          };
+        });
+        // 子配置:跟主产品同步,QUOTATION_DETAILS_RAW 含子配置(parent_item_id),保留原值
+        // 合并:从 RAW 取完整字段 + 应用 overrides(未删除的)
+        // 同时构造 row_id / parent_row_id 让后端能建父子关系(process_quotation_details 1397)
+        const details = QUOTATION_DETAILS_RAW
+          .filter(d => d.parent_item_id != null || overrides[d.id] != null)  // 子配置全保留 + 主产品按 DOM
+          .map(d => {
+            const merged = {...d, ...(overrides[d.id] || {})};
+            merged.total_price = (merged.quantity || 0) * (merged.unit_price || 0);
+            // row_id 给所有 detail;parent_row_id 给子配置
+            merged.row_id = 'r_' + d.id;
+            if (d.parent_item_id != null) {
+              merged.parent_row_id = 'r_' + d.parent_item_id;
+              merged.is_configuration = true;
+            }
+            return merged;
+          });
+        // 小计 = 主行 total_price 之和(子配置已计入主行)
+        const subtotalAmount = details
+          .filter(d => d.parent_item_id == null)
+          .reduce((s, d) => s + (d.total_price || 0), 0);
+        // 整单报价总额 = 含税合计 = 小计 × (1 + tax_rate/100)
+        const taxRateVal = parseFloat(document.getElementById('qTaxRate')?.value) || 0;
+        const totalAmount = subtotalAmount * (1 + taxRateVal / 100);
+
+        const csrf = document.querySelector('meta[name="csrf-token"]').content;
+        let body, url;
+        if (IS_NEW) {
+          // 新建态:从控件读基本信息,走 /quotation/create
+          const pid = parseInt(document.getElementById('qNewProjectId').value) || 0;
+          const cid = parseInt(document.getElementById('qNewCustomerId').value) || 0;
+          if (!pid) { ATToast.error('请选择关联项目(可先选客户后从其项目中选)'); btns.forEach((b,i)=>{b.disabled=false;b.innerHTML=oldHtmls[i];}); return; }
+          if (!details.length) { ATToast.error('请至少添加一条明细'); btns.forEach((b,i)=>{b.disabled=false;b.innerHTML=oldHtmls[i];}); return; }
+          body = {
+            project_id:  pid,
+            customer_id: cid || null,
+            contact_id:  parseInt(document.getElementById('qNewContactId').value) || null,
+            currency:    document.getElementById('qNewCurrency').value || 'CNY',
+            project_stage: document.getElementById('qNewProjectStage').value || '',
+            project_type:  document.getElementById('qNewProjectType').value || '',
+            total_amount:  totalAmount,
+            tax_rate:      taxRateVal,
+            details: details,
+          };
+          url = '/quotation/create';
+        } else {
+          body = {
+            project_id:  {{ quotation.project_id or 'null' }},
+            customer_id: {{ quotation.customer_id or 'null' }},
+            contact_id:  {{ quotation.contact_id or 'null' }},
+            currency:    {{ (quotation.currency or 'CNY') | tojson }},
+            project_stage: {{ (quotation.project_stage or '') | tojson }},
+            project_type:  {{ (quotation.project_type or '') | tojson }},
+            total_amount:  totalAmount,
+            tax_rate:      taxRateVal,
+            details: details,
+          };
+          url = `/quotation/${QUOTATION_ID}/save`;
+        }
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json', 'X-CSRFToken': csrf},
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (data.status === 'success' || data.success) {
+          window._qDirty = false;
+          if (IS_NEW) {
+            const newId = data.quotation_id || data.id;
+            if (window.ATToast) ATToast.success('已创建', '跳转中…');
+            // 保留"来源项目"上下文 → 新报价详情顶部也显示"返回项目"链接
+            const fromProj = parseInt(document.getElementById('qNewProjectId').value) || 0;
+            const suffix = fromProj ? `?from_project=${fromProj}` : '';
+            setTimeout(() => location.href = `/quotation/${newId}/at_view${suffix}`, 400);
+          } else {
+            if (window.ATToast) ATToast.success('已保存');
+            await _qRefreshMain();
+          }
+        } else {
+          throw new Error(data.message || '保存失败');
+        }
+      } catch (e) {
+        if (window.ATToast) ATToast.error('保存失败', e.message);
+        else alert('保存失败:' + e.message);
+        btns.forEach((b, i) => { b.disabled = false; b.innerHTML = oldHtmls[i]; });
+      }
+    };
+
+    // ─── A 方案 · 局部刷新 <main> ─────────────────────────────
+    async function _qRefreshMain() {
+      try {
+        const resp = await fetch(window.location.href, { headers: { 'X-Requested-With': 'fetch' } });
+        const html = await resp.text();
+        const doc  = new DOMParser().parseFromString(html, 'text/html');
+        const newMain = doc.querySelector('main[data-mode]');
+        const curMain = document.querySelector('main[data-mode]');
+        if (!newMain || !curMain) { location.reload(); return; }
+        // 保留当前 scroll(整窗口 + 内部容器都不动)
+        const sx = window.scrollX, sy = window.scrollY;
+        // 替换内容(保留 main 元素本身的事件挂载点 / data 属性) — 强制回 view 态
+        curMain.innerHTML = newMain.innerHTML;
+        curMain.dataset.mode = 'view';
+        // 重置 RAW(in-place,保持 const 引用)
+        const rawScript = document.getElementById('qDetailsRaw');
+        if (rawScript) {
+          const newRaw = JSON.parse(rawScript.textContent);
+          QUOTATION_DETAILS_RAW.length = 0;
+          newRaw.forEach(d => QUOTATION_DETAILS_RAW.push(d));
+        }
+        // 重新绑定:editable cell + editable note + footer
+        document.querySelectorAll('.editable-cell').forEach(td =>
+          td.addEventListener('click', () => _onCellClick(td)));
+        document.querySelectorAll('.editable-note').forEach(td =>
+          td.addEventListener('click', () => _onNoteClick(td)));
+        try { _recomputeFooter(); } catch (_) {}
+        window.scrollTo(sx, sy);
+      } catch (err) {
+        console.warn('[atQuoteSave] partial refresh failed, fallback to full reload:', err);
+        location.reload();
+      }
+    }
+  </script>
+
+  {# 备注 #}
+  {% if quotation.notes %}
+  {% call at_detail_section('备注') %}
+    <div style="padding:14px 18px;font-size:12.5px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap;">
+      {{ quotation.notes }}
+    </div>
+  {% endcall %}
+  {% endif %}
+
+  {# 关联(同项目报价 / 关联批价单)#}
+  {% set _has_related = related.values() | selectattr('items') | list %}
+  {% if _has_related %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+    {% set _module_meta = {
+      'quotation':     {'label': '同项目其他报价'},
+      'pricing_order': {'label': '关联批价单'},
+    } %}
+    {% for key, data in related.items() %}
+    {% if data['items'] %}
+    {% set meta = _module_meta.get(key, {'label': key}) %}
+    <div style="min-width:0;">
+      {% call at_detail_section(meta.label, count=data['items']|length, has_more=data.has_more) %}
+        {{ render_minitable(key, data['items']) }}
+      {% endcall %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# 旧 SM 发起 modal 已移除 — 通过 chip dropdown「技术确认」按钮触发标准审批 #}
+
+  {# ─── AT 产品挑选器 modal(4 列联选,从产品库添加)── #}
+  {{ at_product_picker_modal() }}
+
+  {# ─── M4.6 自定义产品 modal — 严格按设计稿 L813 CustomProductModal ───────────── #}
+  <div id="qCustomModal" style="display:none;position:fixed;inset:0;z-index:200;
+                                background:rgba(31,30,27,0.42);backdrop-filter:blur(2px);
+                                justify-content:center;align-items:flex-start;padding-top:8vh;"
+       onclick="if(event.target===this)_qCloseCustomModal();">
+    <div style="width:540px;max-width:94vw;background:var(--bg-elev);border:1px solid var(--line);
+                border-radius:12px;box-shadow:0 24px 64px rgba(31,30,27,0.20);
+                display:flex;flex-direction:column;">
+      {# header #}
+      <div style="padding:18px 22px;border-bottom:1px solid var(--line);
+                  display:flex;align-items:center;gap:14px;">
+        <span style="width:32px;height:32px;border-radius:8px;background:var(--accent-tint);
+                     color:var(--accent);display:inline-flex;align-items:center;justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 3l5 5L8 21H3v-5z"/></svg>
+        </span>
+        <div style="flex:1;">
+          <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.14em;margin-bottom:3px;">
+            CUSTOM ITEM · 自定义产品
+          </div>
+          <h2 class="at-serif" style="margin:0;font-size:17px;font-weight:500;">手动输入一条明细</h2>
+        </div>
+        <button type="button" onclick="_qCloseCustomModal()"
+                style="width:32px;height:32px;border-radius:6px;color:var(--ink-3);
+                       display:inline-flex;align-items:center;justify-content:center;
+                       border:1px solid var(--line);background:var(--bg-elev);cursor:pointer;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      {# form #}
+      <form id="qCustomForm" onsubmit="event.preventDefault();_qCustomSubmit();"
+            style="padding:22px;display:flex;flex-direction:column;gap:14px;">
+        {% set _inp = "width:100%;box-sizing:border-box;height:34px;padding:0 10px;background:var(--bg-page);
+                     border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
+                     font-size:13px;outline:none;transition:border-color 120ms;" %}
+        <label style="display:flex;flex-direction:column;gap:6px;">
+          <span style="font-size:12px;color:var(--ink-3);font-weight:500;">产品名称 *</span>
+          <input name="name" required placeholder="例如:定制法兰天线"
+                 oninput="_qCustomValidate()" style="{{ _inp }}">
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">型号</span>
+            <input name="model" style="{{ _inp }}">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">品牌</span>
+            <input name="brand" style="{{ _inp }}">
+          </label>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;">
+          <span style="font-size:12px;color:var(--ink-3);font-weight:500;">规格</span>
+          <textarea name="spec" rows="2"
+                    style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg-page);
+                           border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
+                           font-size:13px;outline:none;resize:vertical;line-height:1.5;"></textarea>
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">数量 *</span>
+            <input name="qty" type="number" min="1" value="1"
+                   oninput="_qCustomValidate()" style="{{ _inp }}">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">单位</span>
+            <input name="unit" value="套" style="{{ _inp }}">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">产品编码</span>
+            <input name="code" style="{{ _inp }};font-family:var(--font-mono);">
+          </label>
+        </div>
+        <div style="padding:14px;background:var(--bg-sunk);border-radius:8px;">
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">报价单价 *</span>
+            <input name="price" type="number" min="0" step="0.01" value="0"
+                   oninput="_qCustomValidate()" style="{{ _inp }};font-family:var(--font-mono);">
+            <span class="at-dim" style="font-size:11px;margin-top:2px;">
+              自定义产品无市场价,不参与全局折扣计算
+            </span>
+          </label>
+        </div>
+      </form>
+      {# footer #}
+      <div style="padding:12px 22px;border-top:1px solid var(--line);background:var(--bg-sunk);
+                  display:flex;align-items:center;gap:10px;">
+        <div class="at-dim" style="font-size:11.5px;flex:1;">
+          自定义产品不入产品库,仅本报价生效
+        </div>
+        <button type="button" onclick="_qCloseCustomModal()"
+                style="height:34px;padding:0 14px;background:transparent;color:var(--ink);
+                       border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">
+          取消
+        </button>
+        <button type="button" id="qCustomSubmit" onclick="_qCustomSubmit()" disabled
+                style="height:34px;padding:0 14px;background:var(--accent);color:#fff;
+                       border:1px solid var(--accent);border-radius:6px;font-size:13px;font-weight:500;
+                       cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+                       opacity:0.5;transition:opacity 120ms;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3v10M3 8h10"/></svg>
+          添加到明细
+        </button>
+      </div>
+    </div>
+  </div>
+  <style>
+    /* qCustomSubmit:disabled 时降透明度,enabled 时恢复 */
+    #qCustomSubmit:not([disabled]) { opacity: 1 !important; }
+    #qCustomModal input:focus, #qCustomModal textarea:focus { border-color: var(--accent) !important; }
+  </style>
+
+</main>
+
+</div>
+</div>
+</body>
+</html>

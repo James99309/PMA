@@ -1,0 +1,179 @@
+{#
+  AT 产品编辑弹框
+  ──────────────────────────────────────────────────────
+    at_product_edit_modal(product, is_admin=False)
+      → 弹框 HTML（放在 <body> 任意位置）
+    at_product_edit_script(product)
+      → 提交脚本（放在 </body> 前）
+
+  POST → /products/<id>/update  (表单 multipart，返回 JSON)
+  成功后刷新页面（名称/型号可能变化，需全量刷新）
+#}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
+{% from 'components/at_base.html' import at_icon %}
+
+{% macro at_product_edit_modal(product, is_admin=False) %}
+{% set _inp %}width:100%;box-sizing:border-box;height:36px;padding:0 10px;
+background:var(--bg-page);border:1px solid var(--line-2);border-radius:6px;
+color:var(--ink);font:inherit;font-size:13px;outline:none;
+transition:border-color 120ms;{% endset %}
+{% set _sel %}{{ _inp }}cursor:pointer;{% endset %}
+{% set _footer %}
+  <button type="button"
+          onclick="document.getElementById('atProductEditModal').style.display='none'"
+          style="padding:8px 16px;border-radius:8px;background:transparent;
+                 border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;">
+    取消
+  </button>
+  <button type="button" id="atProdEditSubmit"
+          onclick="atProdEditSubmit()"
+          style="padding:8px 20px;border-radius:8px;background:var(--accent);
+                 color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;
+                 display:inline-flex;align-items:center;gap:6px;">
+    {{ at_icon('check', 14) }} 保存
+  </button>
+{% endset %}
+
+{% call at_modal_shell('atProductEditModal', '编辑产品', icon='edit', width=660, footer_html=_footer) %}
+  <form id="atProdEditForm">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;">
+
+      {# 型号 #}
+      {% call at_field('型号', required=true) %}
+        <input name="model" id="atPeModel" value="{{ product.model or '' }}"
+               style="{{ _inp }}" required>
+      {% endcall %}
+
+      {# 产品名称 #}
+      {% call at_field('产品名称') %}
+        <input name="name" id="atPeName" value="{{ product.product_name or '' }}"
+               style="{{ _inp }}">
+      {% endcall %}
+
+      {# 品牌 #}
+      {% call at_field('品牌') %}
+        <input name="brand" id="atPeBrand" value="{{ product.brand or '' }}"
+               style="{{ _inp }}">
+      {% endcall %}
+
+      {# 单位 #}
+      {% call at_field('单位') %}
+        <input name="unit" id="atPeUnit" value="{{ product.unit or '' }}"
+               style="{{ _inp }}" placeholder="台 / 套 / 个">
+      {% endcall %}
+
+      {# 产品类型 #}
+      {% call at_field('产品类型') %}
+        <select name="type" id="atPeType" style="{{ _sel }}">
+          <option value="">— 不指定 —</option>
+          {% for val, label in [
+            ('third party', '第三方产品'),
+            ('channel',     '渠道产品'),
+            ('project',     '项目产品'),
+          ] %}
+          <option value="{{ val }}" {{ 'selected' if product.type == val else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      {% endcall %}
+
+      {# 状态（仅管理员） #}
+      {% if is_admin %}
+      {% call at_field('状态') %}
+        <select name="status" id="atPeStatus" style="{{ _sel }}">
+          {% for val, label in [('active','生产中'),('upcoming','待上市'),('discontinued','已停产')] %}
+          <option value="{{ val }}" {{ 'selected' if product.status == val else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      {% endcall %}
+      {% else %}
+      <input type="hidden" name="status" value="{{ product.status or 'active' }}">
+      {% endif %}
+
+      {# 零售价 #}
+      {% call at_field('零售价') %}
+        <input name="retail_price" id="atPePrice" type="number" step="0.01" min="0"
+               value="{{ product.retail_price or '' }}"
+               style="{{ _inp }}" placeholder="0.00">
+      {% endcall %}
+
+      {# 货币 #}
+      {% call at_field('货币') %}
+        <select name="currency" id="atPeCurrency" style="{{ _sel }}">
+          {% for code, cname in [
+            ('CNY','CNY 人民币'), ('USD','USD 美元'), ('SGD','SGD 新加坡元'),
+            ('MYR','MYR 马来西亚林吉特'), ('HKD','HKD 港币'),
+            ('IDR','IDR 印尼盾'), ('THB','THB 泰铢'),
+          ] %}
+          <option value="{{ code }}" {{ 'selected' if (product.currency or 'CNY') == code else '' }}>{{ cname }}</option>
+          {% endfor %}
+        </select>
+      {% endcall %}
+
+    </div>{# grid #}
+
+    {# 勾选项 #}
+    <div style="padding:4px 0 8px;">
+      <label style="display:inline-flex;align-items:center;gap:7px;
+                    font-size:13px;color:var(--ink-2);cursor:pointer;">
+        <input type="checkbox" id="atPeVendor" name="is_vendor_product"
+               style="width:15px;height:15px;cursor:pointer;"
+               {{ 'checked' if product.is_vendor_product else '' }}>
+        厂商产品
+      </label>
+    </div>
+
+  </form>
+{% endcall %}
+{% endmacro %}
+
+
+{% macro at_product_edit_script(product) %}
+<script>
+(function () {
+  var SUBMIT_URL = '/products/{{ product.id }}/update';
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+  window.atProdEditSubmit = function () {
+    var form  = document.getElementById('atProdEditForm');
+    var btn   = document.getElementById('atProdEditSubmit');
+    var model = document.getElementById('atPeModel');
+    if (!model || !model.value.trim()) {
+      model && (model.style.borderColor = 'var(--danger)');
+      model && model.focus();
+      return;
+    }
+
+    var fd = new FormData(form);
+    // checkbox 未勾选时 FormData 不含该字段，需手动补入
+    fd.set('is_vendor_product', document.getElementById('atPeVendor').checked ? 'on' : '');
+
+    btn.disabled = true;
+    btn.innerHTML = '保存中…';
+
+    fetch(SUBMIT_URL, {
+      method: 'POST',
+      headers: {'X-CSRFToken': csrf},
+      body: fd
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.success) {
+        if (window.atToast) atToast('产品信息已更新', 'success');
+        document.getElementById('atProductEditModal').style.display = 'none';
+        // 刷新页面（型号/名称可能已改变，需全量刷新）
+        setTimeout(function () { location.reload(); }, 400);
+      } else {
+        if (window.atToast) atToast(d.message || '保存失败', 'error');
+        else alert(d.message || '保存失败');
+        btn.disabled = false;
+        btn.innerHTML = '{{ at_icon("check", 14)|e }} 保存';
+      }
+    })
+    .catch(function () {
+      if (window.atToast) atToast('网络错误，请重试', 'error');
+      btn.disabled = false;
+    });
+  };
+})();
+</script>
+{% endmacro %}

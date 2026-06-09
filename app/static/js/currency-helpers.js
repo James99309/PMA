@@ -37,6 +37,22 @@ window.CurrencyHelpers = (function() {
         'VND': '₫'
     };
 
+    // 货币中文名映射
+    const NAMES = {
+        'CNY': '人民币',
+        'USD': '美元',
+        'SGD': '新加坡元',
+        'MYR': '马来西亚林吉特',
+        'HKD': '港币',
+        'IDR': '印尼盾',
+        'THB': '泰铢',
+        'TWD': '新台币',
+        'VND': '越南盾'
+    };
+
+    // 产品地区面价支持的货币（排除系统内部用货币）
+    const REGION_PRICE_CURRENCIES = ['CNY', 'USD', 'SGD', 'MYR', 'HKD', 'IDR', 'THB'];
+
     // 货币单位映射（用于大金额显示）
     const UNITS = {
         'CNY': '万元',
@@ -75,6 +91,29 @@ window.CurrencyHelpers = (function() {
     let exchangeRate = 1;
 
     return {
+        /**
+         * 获取货币中文名
+         */
+        getName(currency) {
+            return NAMES[currency] || currency;
+        },
+
+        /**
+         * 获取货币列表（用于下拉选择器）
+         * @param {string[]} [codes] - 限定返回的货币代码，默认返回地区面价支持的全部货币
+         * @returns {{code:string, name:string, symbol:string, label:string}[]}
+         */
+        getCurrencyList(codes) {
+            return (codes || REGION_PRICE_CURRENCIES).map(function(code) {
+                return {
+                    code:   code,
+                    name:   NAMES[code]   || code,
+                    symbol: SYMBOLS[code] || code,
+                    label:  code + ' ' + (NAMES[code] || code)
+                };
+            });
+        },
+
         /**
          * 获取货币符号
          * @param {string} currency - 货币代码 (如 'CNY', 'USD', 'HKD')

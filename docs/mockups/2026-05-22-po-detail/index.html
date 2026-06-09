@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>采购订单详情页 · Purchase Order Detail · PMA UX Mockup</title>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<script>if (localStorage.getItem('lang') === 'en') document.documentElement.classList.add('en')</script>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }</script>
+<style>
+body { font-family: 'Inter', sans-serif; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+html.en .lang-zh { display: none !important; }
+html:not(.en) .lang-en { display: none !important; }
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,.5); } 70% { box-shadow: 0 0 0 7px rgba(245,158,11,0); } 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); } }
+.node-current { animation: pulse-ring 2s infinite; }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-white">
+
+<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+  <div class="max-w-[1400px] mx-auto px-6 h-14 flex items-center gap-6">
+    <a href="../2026-05-22-so-tracking/index.html" class="flex items-center gap-2 text-primary"><span class="material-symbols-outlined">arrow_back</span>
+      <span class="text-sm"><span class="lang-zh">SO 追踪页 Mockup</span><span class="lang-en">SO tracking mockup</span></span></a>
+    <div class="ml-auto flex items-center gap-2">
+      <button onclick="toggleTheme()" class="h-8 w-8 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg inline-flex items-center justify-center text-slate-700 dark:text-slate-300">
+        <span class="material-symbols-outlined text-sm">dark_mode</span></button>
+      <button onclick="toggleLang()" class="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1">
+        <span class="material-symbols-outlined text-sm">language</span><span class="lang-zh">EN</span><span class="lang-en">中</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- 设计说明 -->
+<div class="max-w-[1400px] mx-auto px-6 pt-5">
+  <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
+    <div class="font-semibold mb-1"><span class="lang-zh">设计说明 — 采购订单详情页(v2)</span><span class="lang-en">Design notes — Purchase Order detail (v2)</span></div>
+    <ul class="list-disc list-inside space-y-0.5 text-xs leading-relaxed">
+      <li><span class="lang-zh"><b>进度条节点自带时间信息</b>:每个阶段的完成时间 + 停留时长直接显示在节点下方,不再单列「阶段历史」卡。</span><span class="lang-en"><b>Each step shows its own timing</b> — completion time + dwell duration sit right under the node; no separate "stage history" card.</span></li>
+      <li><span class="lang-zh"><b>当前阶段节点可点击</b>:点节点直接弹出该阶段操作(上传测试报告 / 推进 / 创建发货),不再有单独的「行动卡」。</span><span class="lang-en"><b>The current node is clickable</b> — click it to open the stage action modal; no standalone action card.</span></li>
+      <li><span class="lang-zh"><b>产出物即链接</b>:已上传的确认单/测试报告,在对应节点下方以一行链接呈现。</span><span class="lang-en"><b>Deliverables as links</b> — uploaded files show as a one-line link under the node.</span></li>
+      <li><span class="lang-zh"><b>主体单列全宽</b>:基本信息 / 订单明细 / 发货记录都占满整页宽度,去掉右侧栏。</span><span class="lang-en"><b>Full-width single column</b> — info / items / shipments all span the full page; no sidebar.</span></li>
+    </ul>
+  </div>
+</div>
+
+<main class="max-w-[1400px] mx-auto p-6">
+
+  <!-- 面包屑 + 标题 -->
+  <nav class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
+    <a href="#" class="hover:text-primary"><span class="lang-zh">采购管理</span><span class="lang-en">Procurement</span></a>
+    <span class="material-symbols-outlined text-base">chevron_right</span>
+    <a href="#" class="hover:text-primary"><span class="lang-zh">采购订单</span><span class="lang-en">Purchase Orders</span></a>
+    <span class="material-symbols-outlined text-base">chevron_right</span>
+    <span class="text-slate-700 dark:text-slate-300">CG-2601-001</span>
+  </nav>
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div class="flex items-center gap-3">
+      <h1 class="text-3xl font-bold">CG-2601-001</h1>
+      <span class="px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <span class="lang-zh">生产中</span><span class="lang-en">In Production</span>
+      </span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
+        <span class="material-symbols-outlined text-lg">arrow_back</span><span class="lang-zh">返回</span><span class="lang-en">Back</span></button>
+      <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
+        <span class="material-symbols-outlined text-lg">download</span><span class="lang-zh">导出 PO</span><span class="lang-en">Export PO</span></button>
+    </div>
+  </div>
+
+  <!-- ===== 横向流程进度条（节点自带时间 + 可点） ===== -->
+  <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 mb-5">
+    <div class="flex items-start justify-between gap-1 overflow-x-auto pb-1" id="stepBar"></div>
+    <p class="text-xs text-slate-400 mt-3 flex items-center gap-1">
+      <span class="material-symbols-outlined text-sm">touch_app</span>
+      <span class="lang-zh">点击高亮的当前阶段可执行操作</span><span class="lang-en">Click the highlighted current stage to take action</span>
+    </p>
+  </section>
+
+  <!-- ===== 基本信息（全宽） ===== -->
+  <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 mb-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold"><span class="lang-zh">基本信息</span><span class="lang-en">Basic Info</span></h2>
+      <button class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+        <span class="material-symbols-outlined text-base">edit</span><span class="lang-zh">编辑</span><span class="lang-en">Edit</span>
+      </button>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 text-sm">
+      <div><div class="text-slate-500 dark:text-slate-400 text-xs mb-0.5"><span class="lang-zh">供应商</span><span class="lang-en">Supplier</span></div><div class="font-medium">长泽科技</div></div>
+      <div><div class="text-slate-500 dark:text-slate-400 text-xs mb-0.5"><span class="lang-zh">订单日期</span><span class="lang-en">Order date</span></div><div class="font-medium">2026-01-08</div></div>
+      <div><div class="text-slate-500 dark:text-slate-400 text-xs mb-0.5"><span class="lang-zh">需求日期</span><span class="lang-en">Required</span></div><div class="font-medium">2026-02-20</div></div>
+      <div><div class="text-slate-500 dark:text-slate-400 text-xs mb-0.5"><span class="lang-zh">订单类别</span><span class="lang-en">Category</span></div><div class="font-medium"><span class="lang-zh">渠道订单</span><span class="lang-en">Channel</span></div></div>
+      <div><div class="text-slate-500 dark:text-slate-400 text-xs mb-0.5"><span class="lang-zh">贸易术语</span><span class="lang-en">Incoterms</span></div><div class="font-medium">EXW</div></div>
+      <div><div class="text-slate-500 dark:text-slate-400 text-xs mb-0.5"><span class="lang-zh">运输方式</span><span class="lang-en">Shipping</span></div><div class="font-medium"><span class="lang-zh">汽运</span><span class="lang-en">Truck</span></div></div>
+      <div><div class="text-slate-500 dark:text-slate-400 text-xs mb-0.5"><span class="lang-zh">付款条件</span><span class="lang-en">Payment</span></div><div class="font-medium">T/T 30%</div></div>
+      <div><div class="text-slate-500 dark:text-slate-400 text-xs mb-0.5"><span class="lang-zh">交货地点</span><span class="lang-en">Ship to</span></div><div class="font-medium">上海市浦东新区</div></div>
+    </div>
+  </section>
+
+  <!-- ===== 订单明细（全宽） ===== -->
+  <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 mb-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold"><span class="lang-zh">订单明细 (3)</span><span class="lang-en">Order Items (3)</span></h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="border-b border-slate-200 dark:border-slate-700 text-xs uppercase text-slate-500 dark:text-slate-400">
+          <th class="py-2.5 px-3 text-left font-semibold"><span class="lang-zh">产品描述</span><span class="lang-en">Product</span></th>
+          <th class="py-2.5 px-3 text-left font-semibold"><span class="lang-zh">型号</span><span class="lang-en">Model</span></th>
+          <th class="py-2.5 px-3 text-left font-semibold"><span class="lang-zh">产品编号</span><span class="lang-en">Product No.</span></th>
+          <th class="py-2.5 px-3 text-right font-semibold"><span class="lang-zh">数量</span><span class="lang-en">Qty</span></th>
+          <th class="py-2.5 px-3 text-right font-semibold"><span class="lang-zh">单价</span><span class="lang-en">Unit</span></th>
+          <th class="py-2.5 px-3 text-right font-semibold"><span class="lang-zh">金额</span><span class="lang-en">Amount</span></th>
+        </tr></thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+          <tr><td class="py-3 px-3 font-medium">常规数字基站</td><td class="py-3 px-3 text-slate-500">Mark3000BS</td><td class="py-3 px-3 text-slate-500">MN-0001</td><td class="py-3 px-3 text-right">1</td><td class="py-3 px-3 text-right">¥12,000</td><td class="py-3 px-3 text-right font-medium">¥12,000</td></tr>
+          <tr><td class="py-3 px-3 font-medium">多信道分合路器</td><td class="py-3 px-3 text-slate-500">FHJ400-2</td><td class="py-3 px-3 text-slate-500">MN-0002</td><td class="py-3 px-3 text-right">1</td><td class="py-3 px-3 text-right">¥3,200</td><td class="py-3 px-3 text-right font-medium">¥3,200</td></tr>
+          <tr><td class="py-3 px-3 font-medium">数字对讲机</td><td class="py-3 px-3 text-slate-500">DMR-2600</td><td class="py-3 px-3 text-slate-500">MN-0003</td><td class="py-3 px-3 text-right">1</td><td class="py-3 px-3 text-right">¥980</td><td class="py-3 px-3 text-right font-medium">¥980</td></tr>
+        </tbody>
+        <tfoot><tr class="border-t border-slate-200 dark:border-slate-700">
+          <td colspan="3" class="py-3 px-3 font-medium text-slate-600 dark:text-slate-300"><span class="lang-zh">合计</span><span class="lang-en">Total</span></td>
+          <td class="py-3 px-3 text-right font-medium">3</td><td class="py-3 px-3"></td>
+          <td class="py-3 px-3 text-right font-bold">¥16,180</td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== 发货记录（全宽） ===== -->
+  <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 mb-5">
+    <h2 class="text-lg font-bold mb-4"><span class="lang-zh">发货记录</span><span class="lang-en">Shipments</span></h2>
+    <div class="text-center py-8 text-slate-400 dark:text-slate-500">
+      <span class="material-symbols-outlined text-4xl">local_shipping</span>
+      <p class="mt-2 text-sm"><span class="lang-zh">尚未发货 — 订单进入「待发货」阶段后,点击该阶段节点创建发货单</span><span class="lang-en">No shipments — create one by clicking the "Ready to ship" stage node</span></p>
+    </div>
+  </section>
+
+  <!-- 元数据 -->
+  <div class="flex flex-wrap gap-x-8 gap-y-1 text-xs text-slate-400 px-2">
+    <span><span class="lang-zh">创建者</span><span class="lang-en">Created by</span>: 张伟</span>
+    <span><span class="lang-zh">创建时间</span><span class="lang-en">Created</span>: 2026-01-08</span>
+    <span><span class="lang-zh">更新时间</span><span class="lang-en">Updated</span>: 2026-01-22 14:30</span>
+  </div>
+</main>
+
+<!-- ===== 阶段操作模态（点击当前阶段节点弹出） ===== -->
+<div id="stageModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/50" onclick="closeStageModal()"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg">
+      <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-amber-500">science</span>
+          <h3 class="text-lg font-bold"><span class="lang-zh">出厂测试 — 上传测试报告</span><span class="lang-en">Factory Testing — Upload Report</span></h3>
+        </div>
+        <button onclick="closeStageModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center">
+          <span class="material-symbols-outlined text-slate-400">close</span>
+        </button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-sm text-slate-500 dark:text-slate-400">
+          <span class="lang-zh">上传供应商出厂测试报告后,订单将推进到「待发货」阶段。</span>
+          <span class="lang-en">After uploading the supplier's factory test report, the order advances to "Ready to ship".</span>
+        </p>
+        <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-8 text-center">
+          <span class="material-symbols-outlined text-4xl text-slate-400">upload_file</span>
+          <p class="mt-2 text-sm text-slate-500"><span class="lang-zh">点击或拖拽上传 PDF / 图片</span><span class="lang-en">Click or drag to upload PDF / image</span></p>
+        </div>
+      </div>
+      <div class="p-5 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+        <button onclick="closeStageModal()" class="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-sm font-medium"><span class="lang-zh">取消</span><span class="lang-en">Cancel</span></button>
+        <button onclick="closeStageModal()" class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold"><span class="lang-zh">提交</span><span class="lang-en">Submit</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleLang() {
+  document.documentElement.classList.toggle('en');
+  localStorage.setItem('lang', document.documentElement.classList.contains('en') ? 'en' : 'zh');
+}
+function toggleTheme() {
+  document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+}
+function openStageModal() { document.getElementById('stageModal').classList.remove('hidden'); }
+function closeStageModal() { document.getElementById('stageModal').classList.add('hidden'); }
+
+// 进度条：每节点带完成时间 + 停留时长；当前节点可点；产出物显示链接
+const STEPS = [
+  { zh:'提交审批', en:'Submitted',   icon:'send',       state:'done',    date:'2026-01-08', dwell:{zh:'停留 2 天',en:'2 days'} },
+  { zh:'供应商确认', en:'Supplier OK',icon:'handshake',  state:'done',    date:'2026-01-12', dwell:{zh:'停留 3 天',en:'3 days'}, link:{zh:'查看确认单',en:'View confirmation'} },
+  { zh:'备料',     en:'Material',     icon:'inventory',  state:'done',    date:'2026-01-15', dwell:{zh:'停留 7 天',en:'7 days'} },
+  { zh:'生产',     en:'Production',   icon:'precision_manufacturing', state:'done', date:'2026-01-22', dwell:{zh:'停留 3 天',en:'3 days'} },
+  { zh:'测试',     en:'Testing',      icon:'science',    state:'current', date:'2026-01-22', dwell:{zh:'已停留 3 天',en:'3 days so far'}, action:{zh:'点击上传测试报告',en:'Click to upload report'} },
+  { zh:'待发货',   en:'Ready',        icon:'local_shipping', state:'future', date:'—' },
+  { zh:'验收入库', en:'Stocked',      icon:'done_all',   state:'future',  date:'—' }
+];
+const bar = document.getElementById('stepBar');
+STEPS.forEach((s, i) => {
+  const isLast = i === STEPS.length - 1;
+  let circle, nameCls, clickAttr = '';
+  if (s.state === 'done') {
+    circle = `<div class="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center"><span class="material-symbols-outlined text-white text-lg">check</span></div>`;
+    nameCls = 'text-slate-700 dark:text-slate-300';
+  } else if (s.state === 'current') {
+    circle = `<div class="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center node-current"><span class="material-symbols-outlined text-white text-lg">${s.icon}</span></div>`;
+    nameCls = 'text-amber-600 dark:text-amber-400 font-semibold';
+    clickAttr = 'onclick="openStageModal()"';
+  } else {
+    circle = `<div class="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center"><span class="material-symbols-outlined text-slate-400 text-lg">${s.icon}</span></div>`;
+    nameCls = 'text-slate-400';
+  }
+  // 节点内容
+  const dateLine = s.date && s.date !== '—'
+    ? `<div class="text-[11px] text-slate-400">${s.state==='current' ? '<span class="lang-zh">进入 </span><span class="lang-en">since </span>' : '<span class="lang-zh">完成 </span><span class="lang-en">done </span>'}${s.date}</div>`
+    : `<div class="text-[11px] text-slate-300 dark:text-slate-600">—</div>`;
+  const dwellLine = s.dwell ? `<div class="text-[11px] text-slate-400"><span class="lang-zh">${s.dwell.zh}</span><span class="lang-en">${s.dwell.en}</span></div>` : '';
+  const linkLine = s.link ? `<a href="#" class="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5"><span class="material-symbols-outlined text-[13px]">description</span><span class="lang-zh">${s.link.zh}</span><span class="lang-en">${s.link.en}</span></a>` : '';
+  const actionLine = s.action ? `<div class="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5 inline-flex items-center gap-0.5"><span class="material-symbols-outlined text-[13px]">touch_app</span><span class="lang-zh">${s.action.zh}</span><span class="lang-en">${s.action.en}</span></div>` : '';
+
+  const nodeWrap = s.state === 'current'
+    ? `<div ${clickAttr} class="flex flex-col items-center gap-1.5 shrink-0 w-[150px] px-2 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/15 cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/25 transition-colors">`
+    : `<div class="flex flex-col items-center gap-1.5 shrink-0 w-[150px] px-2 py-2">`;
+
+  bar.insertAdjacentHTML('beforeend', `
+    ${nodeWrap}
+      ${circle}
+      <span class="text-sm whitespace-nowrap ${nameCls}"><span class="lang-zh">${s.zh}</span><span class="lang-en">${s.en}</span></span>
+      <div class="text-center leading-tight">
+        ${dateLine}
+        ${dwellLine}
+        ${linkLine}
+        ${actionLine}
+      </div>
+    </div>
+    ${isLast ? '' : `<div class="flex-1 h-0.5 min-w-[20px] ${s.state==='done'?'bg-green-500':'bg-slate-200 dark:bg-slate-700'} mt-[20px]"></div>`}
+  `);
+});
+</script>
+</body>
+</html>

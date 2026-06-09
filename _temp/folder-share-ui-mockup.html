@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>文件夹共享 · PMA 高保真 Mockup</title>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: {
+    colors: {
+      primary: '#137fec',
+      'background-light': '#faf8f6',
+      'background-dark': '#1a1816',
+    },
+    fontFamily: { display: ['Inter', 'sans-serif'] }
+  } }
+}
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
+  .scene-frame { box-shadow: 0 20px 60px -20px rgba(15, 23, 42, 0.18), 0 6px 18px -6px rgba(15, 23, 42, 0.08); }
+  .scene-label { letter-spacing: 0.12em; font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+<!-- ============================ 顶部说明 ============================ -->
+<div class="max-w-[1680px] mx-auto px-8 pt-10 pb-6">
+  <div class="flex items-end justify-between mb-2">
+    <div>
+      <div class="scene-label mb-2">PMA · File Manager · Sharing UX</div>
+      <h1 class="text-2xl font-semibold text-slate-900">文件夹共享 · 高保真交互稿</h1>
+      <p class="text-sm text-slate-500 mt-1">沿用现行 tw_file_manager 视觉语言（Inter + Material Symbols + <code class="text-primary">#137fec</code> primary）· 共享态采用 emerald 区分</p>
+    </div>
+    <div class="flex items-center gap-2 text-xs text-slate-500">
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-slate-200">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 已共享 / 共享给我
+      </span>
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-slate-200">
+        <span class="w-2 h-2 rounded-full bg-primary"></span> 主操作
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ 三联场景 ============================ -->
+<div class="max-w-[1680px] mx-auto px-8 pb-16 grid grid-cols-12 gap-6">
+
+  <!-- ──────────── 场景 A · 共享方视角（发起方） ──────────── -->
+  <div class="col-span-7">
+    <div class="scene-label mb-3">A · 共享方视角（发起方）</div>
+    <div class="scene-frame rounded-2xl overflow-hidden bg-white">
+
+      <!-- 模拟文件管理器主体 -->
+      <div class="flex h-[640px]">
+
+        <!-- 左侧导航 -->
+        <aside class="w-56 border-r border-slate-200 bg-white flex flex-col">
+          <div class="p-4">
+            <button class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left bg-primary/10 text-primary">
+              <span class="material-symbols-outlined text-lg">folder_open</span>
+              我的文件
+            </button>
+            <div class="ml-4 mt-1 flex flex-col gap-0.5">
+              <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left text-slate-600 hover:bg-slate-100">
+                <span class="material-symbols-outlined text-base">folder</span> 客户档案
+              </button>
+              <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left text-slate-600 hover:bg-slate-100">
+                <span class="material-symbols-outlined text-base relative">
+                  folder
+                </span>
+                <span class="flex-1 truncate">项目资料-2026Q2</span>
+                <!-- 侧栏内联共享标 -->
+                <span class="material-symbols-outlined text-[14px] text-emerald-500" title="已共享给 3 人">group</span>
+              </button>
+              <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left text-slate-600 hover:bg-slate-100">
+                <span class="material-symbols-outlined text-base">folder</span> 投标文件
+              </button>
+            </div>
+
+            <div class="mt-6">
+              <!-- 共享给我入口（哪怕没有也常驻，让用户知道这个能力存在） -->
+              <button class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left text-slate-700 hover:bg-slate-100">
+                <span class="material-symbols-outlined text-lg text-emerald-600">group</span>
+                共享给我
+                <span class="ml-auto text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold">2</span>
+              </button>
+              <button class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left text-slate-700 hover:bg-slate-100">
+                <span class="material-symbols-outlined text-lg">delete</span> 回收站
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-auto p-4 border-t border-slate-100">
+            <div class="text-xs text-slate-500 mb-1">存储空间</div>
+            <div class="w-full bg-slate-200 rounded-full h-1.5">
+              <div class="bg-primary rounded-full h-1.5" style="width: 42%"></div>
+            </div>
+            <div class="text-xs text-slate-400 mt-1">42%</div>
+          </div>
+        </aside>
+
+        <!-- 主区域 -->
+        <main class="flex-1 flex flex-col bg-white">
+          <!-- 顶部面包屑 -->
+          <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-100 text-sm">
+            <span class="text-slate-500">全部文件</span>
+          </div>
+
+          <!-- 操作栏 -->
+          <div class="flex items-center gap-2 px-4 py-2 border-b border-slate-100">
+            <button class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
+              <span class="material-symbols-outlined text-base">create_new_folder</span> 新建文件夹
+            </button>
+            <button class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90">
+              <span class="material-symbols-outlined text-base">upload_file</span> 上传文件
+            </button>
+          </div>
+
+          <!-- 网格视图：文件夹卡片 -->
+          <div class="flex-1 overflow-auto p-4">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">文件夹</div>
+            <div class="grid grid-cols-3 gap-3">
+
+              <!-- 普通文件夹（未共享）-->
+              <div class="group p-3 rounded-xl border border-slate-200 hover:border-primary/40 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-start justify-between">
+                  <div class="relative">
+                    <span class="material-symbols-outlined text-4xl text-amber-400" style="font-variation-settings: 'FILL' 1;">folder</span>
+                  </div>
+                  <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700 p-1">
+                    <span class="material-symbols-outlined text-base">more_horiz</span>
+                  </button>
+                </div>
+                <div class="mt-1.5 text-sm text-slate-900 font-medium truncate">客户档案</div>
+                <div class="text-xs text-slate-400 mt-0.5">12 项</div>
+              </div>
+
+              <!-- 已共享文件夹（高亮 + 角标 + 头像组） -->
+              <div class="group p-3 rounded-xl border-2 border-emerald-200 bg-emerald-50/40 hover:border-emerald-400 cursor-pointer ring-1 ring-emerald-100">
+                <div class="flex items-start justify-between">
+                  <div class="relative">
+                    <span class="material-symbols-outlined text-4xl text-amber-400" style="font-variation-settings: 'FILL' 1;">folder</span>
+                    <!-- 角标：右下角 emerald 小圆+箭头 -->
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white">
+                      <span class="material-symbols-outlined text-white" style="font-size:11px; font-variation-settings: 'wght' 700;">arrow_outward</span>
+                    </span>
+                  </div>
+                  <button class="opacity-100 text-slate-400 hover:text-slate-700 p-1">
+                    <span class="material-symbols-outlined text-base">more_horiz</span>
+                  </button>
+                </div>
+                <div class="mt-1.5 flex items-center gap-1">
+                  <span class="text-sm text-slate-900 font-medium truncate">项目资料-2026Q2</span>
+                </div>
+                <div class="flex items-center justify-between mt-1">
+                  <div class="text-xs text-slate-500">8 项</div>
+                  <!-- 头像组 + N -->
+                  <div class="flex items-center -space-x-1.5">
+                    <div class="w-5 h-5 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 ring-2 ring-white flex items-center justify-center text-[9px] font-semibold text-white">王</div>
+                    <div class="w-5 h-5 rounded-full bg-gradient-to-br from-violet-400 to-violet-600 ring-2 ring-white flex items-center justify-center text-[9px] font-semibold text-white">赵</div>
+                    <div class="w-5 h-5 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 ring-2 ring-white flex items-center justify-center text-[9px] font-semibold text-white">李</div>
+                    <div class="w-5 h-5 rounded-full bg-emerald-100 ring-2 ring-white flex items-center justify-center text-[9px] font-semibold text-emerald-700">+1</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 普通文件夹 -->
+              <div class="group p-3 rounded-xl border border-slate-200 hover:border-primary/40 hover:bg-slate-50 cursor-pointer">
+                <div class="flex items-start justify-between">
+                  <span class="material-symbols-outlined text-4xl text-amber-400" style="font-variation-settings: 'FILL' 1;">folder</span>
+                  <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-700 p-1">
+                    <span class="material-symbols-outlined text-base">more_horiz</span>
+                  </button>
+                </div>
+                <div class="mt-1.5 text-sm text-slate-900 font-medium truncate">投标文件</div>
+                <div class="text-xs text-slate-400 mt-0.5">23 项</div>
+              </div>
+            </div>
+
+            <!-- 右键菜单 / "..." 下拉菜单（demo 展示） -->
+            <div class="absolute" style="top: 340px; left: 56%;">
+              <div class="w-44 rounded-xl bg-white border border-slate-200 shadow-xl py-1.5 text-sm">
+                <button class="w-full flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50">
+                  <span class="material-symbols-outlined text-base text-slate-400">edit</span> 重命名
+                </button>
+                <button class="w-full flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50">
+                  <span class="material-symbols-outlined text-base text-slate-400">drive_file_move</span> 移动
+                </button>
+                <!-- 共享入口（emerald 强调） -->
+                <button class="w-full flex items-center gap-2 px-3 py-2 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-50 font-medium">
+                  <span class="material-symbols-outlined text-base">group_add</span> 共享给…
+                  <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">3</span>
+                </button>
+                <div class="border-t border-slate-100 my-1"></div>
+                <button class="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50">
+                  <span class="material-symbols-outlined text-base">delete</span> 删除
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <p class="mt-3 text-xs text-slate-500 leading-relaxed">
+      <strong class="text-slate-700">关键标识</strong>：① 文件夹图标右下角 emerald 角标 ↗ · ② 卡片底部头像组 + 余数 ·
+      ③ 卡片整体 emerald 描边 + 浅底（弱区分）· ④ 侧栏树状里小 group 图标 · ⑤ "…" 菜单中"共享给…"按钮带计数
+    </p>
+  </div>
+
+  <!-- ──────────── 场景 B · 共享 Modal 对话框 ──────────── -->
+  <div class="col-span-5">
+    <div class="scene-label mb-3">B · 共享设置 Modal</div>
+    <div class="scene-frame rounded-2xl bg-slate-900/40 backdrop-blur p-8 flex items-center justify-center" style="height: 640px;">
+
+      <!-- Modal 主体 -->
+      <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <!-- 头部 -->
+        <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
+          <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+            <span class="material-symbols-outlined text-emerald-600 text-xl">group_add</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-[11px] text-slate-400">共享文件夹</div>
+            <div class="text-sm font-semibold text-slate-900 truncate">项目资料-2026Q2</div>
+          </div>
+          <button class="text-slate-400 hover:text-slate-700 p-1">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <!-- 内容 -->
+        <div class="p-5 space-y-5 max-h-[460px] overflow-y-auto">
+
+          <!-- ① 选择对象 -->
+          <div>
+            <label class="text-xs font-semibold text-slate-700 mb-1.5 block">添加共享对象</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
+              <input type="text" placeholder="搜索用户 / 部门..." class="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-slate-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none">
+            </div>
+            <!-- 已选 chips -->
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span class="inline-flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-100 text-xs">
+                <span class="w-5 h-5 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-[9px] font-semibold text-white">王</span>
+                王五
+                <button class="text-slate-400 hover:text-slate-700 ml-0.5"><span class="material-symbols-outlined text-[14px]">close</span></button>
+              </span>
+              <span class="inline-flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-100 text-xs">
+                <span class="w-5 h-5 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 flex items-center justify-center text-[9px] font-semibold text-white">李</span>
+                李四
+                <button class="text-slate-400 hover:text-slate-700 ml-0.5"><span class="material-symbols-outlined text-[14px]">close</span></button>
+              </span>
+            </div>
+          </div>
+
+          <!-- ② 权限 -->
+          <div>
+            <label class="text-xs font-semibold text-slate-700 mb-1.5 block">权限</label>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex items-start gap-2 p-2.5 rounded-lg border-2 border-primary bg-primary/5 cursor-pointer">
+                <input type="radio" name="perm" checked class="mt-0.5 text-primary focus:ring-primary/50">
+                <div class="flex-1">
+                  <div class="text-sm font-medium text-slate-900">只读</div>
+                  <div class="text-[11px] text-slate-500 leading-tight mt-0.5">仅可查看 / 下载</div>
+                </div>
+              </label>
+              <label class="flex items-start gap-2 p-2.5 rounded-lg border-2 border-slate-200 hover:border-slate-300 cursor-pointer">
+                <input type="radio" name="perm" class="mt-0.5">
+                <div class="flex-1">
+                  <div class="text-sm font-medium text-slate-900">可编辑</div>
+                  <div class="text-[11px] text-slate-500 leading-tight mt-0.5">可上传 / 删除子项</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- ③ 留言 -->
+          <div>
+            <label class="text-xs font-semibold text-slate-700 mb-1.5 block">留言 <span class="text-slate-400 font-normal">（可选）</span></label>
+            <textarea rows="2" placeholder="附加说明，被共享人会收到通知" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none resize-none">Q2 客户拜访资料，请查阅</textarea>
+          </div>
+
+          <!-- ④ 已共享列表 -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-semibold text-slate-700">已共享给（3 人）</label>
+              <button class="text-[11px] text-red-500 hover:underline">全部收回</button>
+            </div>
+            <div class="space-y-1.5">
+              <!-- 一行 -->
+              <div class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-slate-50">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-xs font-semibold text-white">王</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium text-slate-900 truncate">王五 <span class="text-[11px] text-slate-400 font-normal">销售部</span></div>
+                  <div class="text-[11px] text-slate-500">2 天前 · 由你共享</div>
+                </div>
+                <select class="text-xs rounded-md border border-slate-200 px-1.5 py-1 bg-white focus:ring-1 focus:ring-primary">
+                  <option>只读</option><option>可编辑</option>
+                </select>
+                <button class="text-slate-300 hover:text-red-500 p-1"><span class="material-symbols-outlined text-base">person_remove</span></button>
+              </div>
+              <div class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-slate-50">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-xs font-semibold text-white">赵</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium text-slate-900 truncate">赵六 <span class="text-[11px] text-slate-400 font-normal">市场部</span></div>
+                  <div class="text-[11px] text-slate-500">上周 · 由你共享</div>
+                </div>
+                <select class="text-xs rounded-md border border-slate-200 px-1.5 py-1 bg-white focus:ring-1 focus:ring-primary">
+                  <option>只读</option><option selected>可编辑</option>
+                </select>
+                <button class="text-slate-300 hover:text-red-500 p-1"><span class="material-symbols-outlined text-base">person_remove</span></button>
+              </div>
+              <div class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-slate-50">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 flex items-center justify-center text-xs font-semibold text-white">李</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium text-slate-900 truncate">李四 <span class="text-[11px] text-slate-400 font-normal">技术部</span></div>
+                  <div class="text-[11px] text-slate-500">5 天前 · 由你共享</div>
+                </div>
+                <select class="text-xs rounded-md border border-slate-200 px-1.5 py-1 bg-white focus:ring-1 focus:ring-primary">
+                  <option selected>只读</option><option>可编辑</option>
+                </select>
+                <button class="text-slate-300 hover:text-red-500 p-1"><span class="material-symbols-outlined text-base">person_remove</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部按钮 -->
+        <div class="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-100 bg-slate-50/50">
+          <button class="px-4 py-1.5 text-sm rounded-lg text-slate-600 hover:bg-slate-100">取消</button>
+          <button class="px-4 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 inline-flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-base">check</span> 确认共享
+          </button>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-xs text-slate-500 leading-relaxed">
+      <strong class="text-slate-700">四区结构</strong>：① 选人（chips + 搜索）· ② 权限二选一（只读/可编辑大卡片）·
+      ③ 留言（可选，被共享人收通知时附带）· ④ 已共享列表（可改权限、单个移除、全部收回）
+    </p>
+  </div>
+
+  <!-- ──────────── 场景 C · 被共享方视角 ──────────── -->
+  <div class="col-span-12">
+    <div class="scene-label mb-3 mt-6">C · 被共享方视角（收到共享的账号）</div>
+    <div class="scene-frame rounded-2xl overflow-hidden bg-white">
+
+      <div class="flex h-[520px]">
+
+        <!-- 左侧导航：定位在「共享给我」 -->
+        <aside class="w-56 border-r border-slate-200 bg-white flex flex-col">
+          <div class="p-4">
+            <button class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left text-slate-700 hover:bg-slate-100">
+              <span class="material-symbols-outlined text-lg">folder_open</span> 我的文件
+            </button>
+
+            <!-- 共享给我（当前激活） -->
+            <button class="mt-1 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+              <span class="material-symbols-outlined text-lg">group</span>
+              共享给我
+              <span class="ml-auto text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-200/60 text-emerald-800 font-semibold">2</span>
+            </button>
+            <!-- 子项：按共享人分组（折叠树） -->
+            <div class="ml-4 mt-1 flex flex-col gap-0.5">
+              <div class="text-[10px] uppercase tracking-wider text-slate-400 px-3 py-1">按共享人</div>
+              <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left text-slate-600 hover:bg-slate-100">
+                <div class="w-4 h-4 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-[9px] font-semibold text-white">张</div>
+                <span class="flex-1 truncate">张三</span>
+                <span class="text-[10px] text-slate-400">1</span>
+              </button>
+              <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left text-slate-600 hover:bg-slate-100">
+                <div class="w-4 h-4 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-[9px] font-semibold text-white">林</div>
+                <span class="flex-1 truncate">林经理</span>
+                <span class="text-[10px] text-slate-400">1</span>
+              </button>
+            </div>
+
+            <button class="mt-4 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left text-slate-700 hover:bg-slate-100">
+              <span class="material-symbols-outlined text-lg">delete</span> 回收站
+            </button>
+          </div>
+        </aside>
+
+        <!-- 主区：共享给我列表 -->
+        <main class="flex-1 flex flex-col bg-white">
+          <!-- 顶部 Banner -->
+          <div class="flex items-center gap-3 px-4 py-2.5 bg-emerald-50/60 border-b border-emerald-100 text-sm">
+            <span class="material-symbols-outlined text-emerald-600">info</span>
+            <div class="flex-1 text-emerald-800">
+              此区域显示其他同事共享给你的文件夹。<strong>无法移动到「我的文件」</strong>，原始权限由共享人控制。
+            </div>
+          </div>
+
+          <!-- 列表视图 -->
+          <div class="flex-1 overflow-auto">
+            <div class="flex items-center gap-3 px-4 py-2 text-xs text-slate-500 border-b border-slate-100 sticky top-0 bg-white">
+              <div class="flex-1">名称</div>
+              <div class="w-32">共享人</div>
+              <div class="w-24">权限</div>
+              <div class="w-28">共享时间</div>
+              <div class="w-20 text-right">操作</div>
+            </div>
+
+            <!-- 行 1 -->
+            <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer">
+              <div class="relative flex-shrink-0">
+                <span class="material-symbols-outlined text-3xl text-amber-400" style="font-variation-settings: 'FILL' 1;">folder</span>
+                <!-- 入射箭头角标（emerald 实心 ↙） -->
+                <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white">
+                  <span class="material-symbols-outlined text-white" style="font-size:11px; font-variation-settings: 'wght' 700;">south_west</span>
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-slate-900 truncate">项目资料-2026Q2</span>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                    <span class="material-symbols-outlined" style="font-size:11px">group</span> 共享
+                  </span>
+                </div>
+                <div class="text-xs text-slate-500 mt-0.5">8 项 · "Q2 客户拜访资料，请查阅"</div>
+              </div>
+              <div class="w-32 flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-[10px] font-semibold text-white">张</div>
+                <span class="text-sm text-slate-700">张三</span>
+              </div>
+              <div class="w-24">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+                  <span class="material-symbols-outlined" style="font-size:12px">visibility</span> 只读
+                </span>
+              </div>
+              <div class="w-28 text-xs text-slate-500">2 天前</div>
+              <div class="w-20 text-right">
+                <button class="text-slate-400 hover:text-slate-700 p-1"><span class="material-symbols-outlined text-base">more_horiz</span></button>
+              </div>
+            </div>
+
+            <!-- 行 2 -->
+            <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer">
+              <div class="relative flex-shrink-0">
+                <span class="material-symbols-outlined text-3xl text-amber-400" style="font-variation-settings: 'FILL' 1;">folder</span>
+                <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white">
+                  <span class="material-symbols-outlined text-white" style="font-size:11px; font-variation-settings: 'wght' 700;">south_west</span>
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-slate-900 truncate">2026 投标参考</span>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                    <span class="material-symbols-outlined" style="font-size:11px">group</span> 共享
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary">
+                    <span class="material-symbols-outlined" style="font-size:11px">edit</span> 可编辑
+                  </span>
+                </div>
+                <div class="text-xs text-slate-500 mt-0.5">15 项</div>
+              </div>
+              <div class="w-32 flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-[10px] font-semibold text-white">林</div>
+                <span class="text-sm text-slate-700">林经理</span>
+              </div>
+              <div class="w-24">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 text-primary">
+                  <span class="material-symbols-outlined" style="font-size:12px">edit</span> 可编辑
+                </span>
+              </div>
+              <div class="w-28 text-xs text-slate-500">上周</div>
+              <div class="w-20 text-right">
+                <button class="text-slate-400 hover:text-slate-700 p-1"><span class="material-symbols-outlined text-base">more_horiz</span></button>
+              </div>
+            </div>
+
+            <!-- 空文件夹示例占位 -->
+            <div class="px-4 py-8 text-center text-xs text-slate-400">
+              没有更多共享文件夹
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <p class="mt-3 text-xs text-slate-500 leading-relaxed">
+      <strong class="text-slate-700">关键标识</strong>：① 侧栏一级目录「共享给我」常驻 + 计数徽章 ·
+      ② 子项按共享人分组（树状）· ③ Banner 解释规则（无法移动 / 权限由共享人控制）·
+      ④ 文件夹角标方向反转 ↙（入射）· ⑤ 列表行带 "共享" 标签 + 共享人头像 + 权限徽章
+    </p>
+  </div>
+
+</div>
+
+<!-- ============================ 设计要点小结 ============================ -->
+<div class="max-w-[1680px] mx-auto px-8 pb-16">
+  <div class="bg-white rounded-2xl border border-slate-200 p-6 grid grid-cols-3 gap-6">
+    <div>
+      <div class="scene-label mb-2">颜色语义</div>
+      <ul class="text-xs text-slate-600 space-y-1.5">
+        <li><span class="inline-block w-3 h-3 rounded bg-primary mr-2"></span>主操作 (primary <code>#137fec</code>)</li>
+        <li><span class="inline-block w-3 h-3 rounded bg-emerald-500 mr-2"></span>共享相关（已共享/共享给我）</li>
+        <li><span class="inline-block w-3 h-3 rounded bg-amber-400 mr-2"></span>文件夹本色（不变）</li>
+        <li><span class="inline-block w-3 h-3 rounded bg-red-500 mr-2"></span>移除 / 收回 / 删除</li>
+      </ul>
+    </div>
+    <div>
+      <div class="scene-label mb-2">角标语义</div>
+      <ul class="text-xs text-slate-600 space-y-1.5">
+        <li><span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 mr-2"><span class="material-symbols-outlined text-white" style="font-size:9px;font-variation-settings:'wght' 700">arrow_outward</span></span>↗ 出射 = <strong>我共享给别人</strong></li>
+        <li><span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 mr-2"><span class="material-symbols-outlined text-white" style="font-size:9px;font-variation-settings:'wght' 700">south_west</span></span>↙ 入射 = <strong>别人共享给我</strong></li>
+        <li>同色不同方向 = 一眼区分两种状态</li>
+      </ul>
+    </div>
+    <div>
+      <div class="scene-label mb-2">交互一致性</div>
+      <ul class="text-xs text-slate-600 space-y-1.5">
+        <li>• 共享方角标 / 头像组 / 卡片 → 任一可点击直达 Modal</li>
+        <li>• Modal 同时承担「添加」+「管理」两职责（含权限改 / 单个移除 / 全部收回）</li>
+        <li>• 被共享方无法重命名 / 移动 / 删除 → 仅能"离开此共享"</li>
+        <li>• 树状用户选择器复用 customer 共享同款</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

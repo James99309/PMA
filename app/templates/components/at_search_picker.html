@@ -1,0 +1,45 @@
+{#
+  AT 通用搜索 picker HTML 骨架
+  ──────────────────────────────────────────────────
+  渲染:input(显示+输入)+ hidden(真实 value)+ clear ✕ + 浮层 dropdown
+
+  调用方需在 JS 里调 ATSearchPicker({ inputId, hiddenIdId, clearId, dropdownId, ... })
+  绑定行为。配套 JS: static/js/at-search-picker.js
+
+  参数:
+    id           — DOM id 前缀(会派生 {id}, {id}Id, {id}Clear, {id}Dropdown)
+    name         — hidden input 的 name(form 提交时取这个值)
+    placeholder  — input 占位
+    value_text   — 已选显示文本(回填回显)
+    value_id     — 已选 id(hidden 回填)
+    readonly     — 锁定(预填来源场景)
+    extra_style  — 追加 style(可覆盖宽度等)
+#}
+
+{% macro at_search_picker(id, name='', placeholder='输入关键词搜索…',
+                          value_text='', value_id='',
+                          readonly=false, extra_style='') %}
+{% set _inp_style = 'width:100%;box-sizing:border-box;height:34px;padding:0 30px 0 12px;' ~
+                   'background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;' ~
+                   'font-size:13px;color:var(--ink);outline:none;' ~ extra_style %}
+{% set _ro_style = _inp_style ~ ';background:var(--bg-sunk);color:var(--ink-3);cursor:not-allowed;' %}
+<div style="position:relative;">
+  <input type="text" id="{{ id }}" autocomplete="off"
+         placeholder="{{ placeholder }}"
+         value="{{ value_text }}"
+         {% if readonly %}readonly{% endif %}
+         style="{{ _ro_style if readonly else _inp_style }}">
+  <button type="button" id="{{ id }}Clear"
+          style="display:{{ 'inline-flex' if value_text else 'none' }};
+                 position:absolute;top:50%;right:6px;transform:translateY(-50%);
+                 width:22px;height:22px;align-items:center;justify-content:center;
+                 border:0;border-radius:50%;background:transparent;
+                 color:var(--ink-3);cursor:pointer;font-size:14px;line-height:1;padding:0;">✕</button>
+  <input type="hidden" id="{{ id }}Id" {% if name %}name="{{ name }}"{% endif %} value="{{ value_id }}">
+  <div id="{{ id }}Dropdown"
+       style="display:none;position:fixed;z-index:9999;
+              background:var(--bg-elev);border:1px solid var(--line-2);
+              border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,0.12);
+              max-height:240px;overflow-y:auto;"></div>
+</div>
+{% endmacro %}

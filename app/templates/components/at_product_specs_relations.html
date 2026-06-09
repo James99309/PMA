@@ -1,0 +1,454 @@
+{#
+  AT 规格 + 配置 两块 macro（供 at_view.html tab 内嵌）
+  ────────────────────────────────────────────────────────
+    at_specs_relations_styles()
+      → <head> 内调用一次
+    at_product_specs(spec_categories, can_edit=false)
+      → 规格工具栏 + spec-editor.js 兼容列表（可编辑）
+    at_product_relations(product)
+      → 普通关联 + 互斥分组（懒加载）
+    at_spec_preview_modal()
+      → MN 编码更新预览弹框（spec-editor.js 驱动）
+    at_spec_editor_init(product, can_edit)
+      → SpecEditor 初始化脚本（放在 </body> 前）
+#}
+
+{% macro at_specs_relations_styles() %}
+<style>
+/* ── 通用 hidden（spec-editor.js 依赖）── */
+.hidden { display: none !important; }
+
+/* ── 分类标题 ── */
+.spec-category-header {
+  font-size: 10.5px; letter-spacing: .12em; font-weight: 600;
+  color: var(--ink-4); text-transform: uppercase;
+  padding: 14px 0 5px; border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
+}
+.spec-category-header:first-child { padding-top: 4px; }
+
+/* ── 规格行 ── */
+.spec-row {
+  display: flex; align-items: center; gap: 8px; padding: 7px 0;
+}
+.spec-drag-handle {
+  color: var(--ink-4); cursor: grab; flex-shrink: 0; line-height: 1;
+}
+.spec-drag-handle:active { cursor: grabbing; }
+.at-spec-body {
+  flex: 1; display: grid; grid-template-columns: 130px 1fr;
+  gap: 6px; align-items: center; min-width: 0;
+}
+.spec-name { font-size: 12.5px; color: var(--ink-3); }
+.spec-value { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.value-display { font-size: 13px; color: var(--ink); }
+.unit-display, .unit-edit { font-size: 11.5px; color: var(--ink-4); }
+.value-select {
+  padding: 3px 7px; font-size: 12px; border-radius: 4px; min-width: 100px;
+  border: 1px solid var(--line-2); background: var(--bg-page);
+  color: var(--ink); cursor: pointer;
+}
+.value-select:focus { outline: none; border-color: var(--accent); }
+
+/* ── 行操作按钮 ── */
+.spec-actions { display: flex; gap: 3px; flex-shrink: 0; }
+.at-spec-act-btn {
+  width: 26px; height: 26px; border: 0; border-radius: 4px; cursor: pointer;
+  background: transparent; color: var(--ink-3); display: inline-flex;
+  align-items: center; justify-content: center;
+  transition: color 100ms, background 100ms;
+}
+.at-spec-act-btn:hover { color: var(--ink); background: var(--bg-hover, rgba(0,0,0,.05)); }
+.at-spec-act-btn.del:hover { color: var(--danger, #dc2626); }
+
+/* ── 双列展示 ── */
+#productSpecsList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 24px;
+}
+#productSpecsList .spec-category-header {
+  grid-column: 1 / -1;
+}
+/* 编辑模式退回单列 */
+#productSpecsContainer.specs-editing #productSpecsList {
+  display: block;
+}
+
+/* ── 空态 ── */
+.at-specs-empty { padding: 40px 0; text-align: center; font-size: 12.5px; color: var(--ink-4); }
+
+/* ── 关联配置 ── */
+.at-rel-sec-label {
+  font-size: 10.5px; letter-spacing: .12em; font-weight: 600;
+  color: var(--ink-4); text-transform: uppercase;
+  margin-bottom: 8px; margin-top: 20px;
+}
+.at-rel-sec-label:first-child { margin-top: 0; }
+.at-rel-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+}
+.at-rel-item:last-child { border-bottom: none; }
+.at-rel-mn    { font-size: 11.5px; font-family: var(--font-mono, monospace); color: var(--ink-3); flex-shrink: 0; min-width: 90px; }
+.at-rel-name  { font-size: 13px; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.at-rel-model { font-size: 13px; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, monospace); }
+.at-rel-qty   { font-size: 11.5px; font-family: var(--font-mono, monospace); color: var(--ink-3); flex-shrink: 0; min-width: 28px; text-align: right; }
+.at-rel-badge {
+  font-size: 11px; padding: 2px 7px; border-radius: 3px;
+  background: var(--bg-hover, rgba(0,0,0,.04)); color: var(--ink-3); flex-shrink: 0;
+}
+.at-rel-badge.req { background: var(--danger-soft, #fee2e2); color: var(--danger, #dc2626); }
+.at-rel-group { margin-bottom: 4px; }
+.at-rel-group-hd {
+  font-size: 12px; color: var(--ink-2); font-weight: 500;
+  padding: 5px 0; border-bottom: 1px solid var(--line-2);
+  margin-bottom: 2px; display: flex; align-items: center; gap: 6px;
+}
+.at-rel-group-hd .at-rel-badge { font-size: 10.5px; }
+.at-rel-loading { padding: 32px 0; text-align: center; font-size: 12px; color: var(--ink-4); }
+.at-rel-empty  { padding: 40px 0; text-align: center; font-size: 12.5px; color: var(--ink-4); }
+</style>
+{% endmacro %}
+
+
+{# ── 规格 tab 内容（spec-editor.js 兼容）── #}
+{% macro at_product_specs(spec_categories, can_edit=false) %}
+{% set ns = namespace(total=0) %}
+{% for cat in spec_categories %}
+  {% set ns.total = ns.total + (cat.specs | selectattr('field_value') | list | length) %}
+{% endfor %}
+
+{# 规格列表容器 #}
+<div id="productSpecsContainer">
+  {% if spec_categories and ns.total > 0 %}
+  <dl id="productSpecsList" style="margin:0;padding:0;list-style:none;">
+    {% for category in spec_categories %}
+      {% set rows = category.specs | selectattr('field_value') | list %}
+      {% if rows %}
+      <div class="spec-category-header" data-category-id="{{ category.id }}">
+        {{ category.name }}
+      </div>
+      {% for spec in rows %}
+      <div class="spec-row"
+           data-spec-id="{{ spec.id }}"
+           data-field-name="{{ spec.field_name }}"
+           data-field-id="{{ spec.field_id or '' }}"
+           data-field-value="{{ spec.field_value or '' }}"
+           data-field-code="{{ spec.field_code or '' }}"
+           data-unit="{{ spec.unit or '' }}"
+           data-category-id="{{ category.id }}">
+
+        {# 拖拽手柄（编辑模式显示）#}
+        <span class="spec-drag-handle hidden">
+          <span class="material-symbols-outlined" style="font-size:18px;color:var(--ink-4);">drag_indicator</span>
+        </span>
+
+        {# 内容区：名称 + 值（只读）#}
+        <div class="at-spec-body">
+          <span class="spec-name">{{ spec.field_name }}</span>
+          <span class="spec-value">
+            <span class="value-display">{{ spec.field_value }}</span>
+            <span class="unit-display">{{ spec.unit or '' }}</span>
+          </span>
+        </div>
+
+        {# 操作按钮（编辑模式：仅删除）#}
+        {% if can_edit %}
+        <div class="spec-actions hidden">
+          <button type="button" class="at-spec-act-btn del" onclick="deleteSpec(this)" title="删除">
+            <span class="material-symbols-outlined" style="font-size:15px;">delete</span>
+          </button>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+    {% endfor %}
+  </dl>
+  {% else %}
+  <div id="emptySpecsMessage" class="at-specs-empty">暂无规格信息</div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{# ── MN 编码更新预览弹框 ── #}
+{% macro at_spec_preview_modal() %}
+<div id="specMnPreviewModal"
+     style="position:fixed;inset:0;z-index:200;display:none;
+            background:rgba(31,30,27,.35);backdrop-filter:blur(2px);
+            align-items:center;justify-content:center;padding:20px;">
+  <div style="width:100%;max-width:380px;background:var(--bg-elev);border-radius:12px;
+              box-shadow:0 20px 60px rgba(0,0,0,.18),0 0 0 1px var(--line);overflow:hidden;">
+    <div style="padding:20px 22px 14px;">
+      <h3 class="at-serif" style="margin:0 0 14px;font-size:17px;font-weight:500;
+                                   display:flex;align-items:center;gap:8px;">
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--accent);">info</span>
+        编码更新预览
+      </h3>
+      <div style="padding:12px 14px;background:var(--bg-page);border:1px solid var(--line);
+                  border-radius:8px;margin-bottom:12px;">
+        <div style="font-size:11.5px;color:var(--ink-4);margin-bottom:8px;">产品编码</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;">
+            <div style="font-size:11px;color:var(--ink-4);">更新前</div>
+            <div id="previewProductMnBefore" class="at-mono" style="font-size:13px;color:var(--ink);">-</div>
+          </div>
+          <span class="material-symbols-outlined" style="font-size:16px;color:var(--ink-4);">arrow_forward</span>
+          <div style="flex:1;">
+            <div style="font-size:11px;color:var(--ink-4);">更新后</div>
+            <div id="previewProductMnAfter" class="at-mono" style="font-size:13px;color:var(--ink);">-</div>
+          </div>
+          <div id="previewProductMnResult"></div>
+        </div>
+      </div>
+      <p style="font-size:11.5px;color:var(--ink-4);margin:0;">产品描述将根据规格重新生成。</p>
+    </div>
+    <div style="padding:10px 22px 18px;display:flex;justify-content:flex-end;gap:8px;">
+      <button onclick="closeSpecMnPreviewModal()"
+              style="padding:7px 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:transparent;color:var(--ink-2);font-size:13px;cursor:pointer;">
+        取消
+      </button>
+      <button onclick="confirmSpecMnPreview()"
+              style="padding:7px 18px;border-radius:7px;border:0;
+                     background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;">
+        确定
+      </button>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+
+{# ── SpecEditor 初始化脚本（放在 </body> 前）── #}
+{% macro at_spec_editor_init(product, can_edit) %}
+{% if can_edit %}
+<script>
+(function () {
+  var specEditor = new SpecEditor({
+    productId:       {{ product.id }},
+    apiEndpoint:     '/api/products/{{ product.id }}/specs',
+    previewEndpoint: '/api/products/{{ product.id }}/specs/preview',
+    containerId:     'productSpecsContainer',
+    listId:          'productSpecsList',
+    emptyMessageId:  'emptySpecsMessage',
+    subcategoryId:   {{ product.subcategory_id or 'null' }},
+    buttons: {
+      edit:   'editSpecsBtn',
+      apply:  'applySpecsBtn',
+      cancel: 'cancelSpecsBtn'
+    },
+    features: {
+      descriptionControl: false,
+      codePreview:        true,
+      addNewSpec:         false
+    },
+    modals: { preview: 'specMnPreviewModal' },
+    csrfToken: (document.querySelector('meta[name="csrf-token"]') || {}).content || '',
+    onShowPreview: function (data, confirmFn) {
+      specEditor.showPreviewModal(data, confirmFn);
+    },
+    onSaveSuccess: function () {
+      if (window.atToast) atToast('规格已保存', 'success');
+      setTimeout(function () { location.reload(); }, 500);
+    }
+  });
+
+  specEditor.init();
+
+  // 双列 ↔ 单列切换（展示双列，编辑单列）
+  var _specCont = document.getElementById('productSpecsContainer');
+  var _editBtn = document.getElementById('editSpecsBtn');
+  if (_editBtn) _editBtn.addEventListener('click', function () {
+    if (_specCont) _specCont.classList.add('specs-editing');
+  });
+  ['cancelSpecsBtn', 'applySpecsBtn'].forEach(function (id) {
+    var _btn = document.getElementById(id);
+    if (_btn) _btn.addEventListener('click', function () {
+      if (_specCont) _specCont.classList.remove('specs-editing');
+    });
+  });
+
+  // 产品是否为引入产品（编码规格锁定）
+  {% if product.source_type == 'from_dev' %}
+  specEditor.setImportedProduct(true);
+  {% endif %}
+
+  // 全局暴露（spec-editor.js 内部需要）
+  window.deleteSpec              = function (btn) { specEditor.deleteSpec(btn); };
+  window.closeSpecMnPreviewModal = function ()    { specEditor.closePreviewModal(); };
+  window.confirmSpecMnPreview    = function ()    { specEditor.confirmPreview(); };
+})();
+</script>
+{% endif %}
+{% endmacro %}
+
+
+{# ── 配置 tab 内容（懒加载，支持删除操作）── #}
+{% macro at_product_relations(product, can_edit=false) %}
+<div id="atRelWrap">
+  <div id="atRelLoading" class="at-rel-loading">加载中…</div>
+  <div id="atRelNormal"  style="display:none;"></div>
+  <div id="atRelMutual"  style="display:none;"></div>
+  <div id="atRelEmpty"   class="at-rel-empty" style="display:none;">暂无关联产品配置</div>
+</div>
+
+<script>
+(function () {
+  var PID    = {{ product.id }};
+  var CAN_EDIT = {{ 'true' if can_edit else 'false' }};
+  var csrf   = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function _delBtn(onclick) {
+    if (!CAN_EDIT) return '';
+    return '<button type="button" onclick="' + onclick + '"'
+      + ' style="width:24px;height:24px;border:0;border-radius:4px;cursor:pointer;flex-shrink:0;'
+      + 'background:transparent;color:var(--ink-4);display:inline-flex;align-items:center;'
+      + 'justify-content:center;transition:color 100ms,background 100ms;"'
+      + ' onmouseover="this.style.color=\'var(--danger,#dc2626)\';this.style.background=\'var(--bg-hover)\'"'
+      + ' onmouseout="this.style.color=\'var(--ink-4)\';this.style.background=\'transparent\'">'
+      + '<span class="material-symbols-outlined" style="font-size:15px;">delete</span>'
+      + '</button>';
+  }
+
+  function _render(d) {
+    var normal    = d.data   || [];
+    var groups    = d.groups || {};
+    var groupList = Object.values(groups);
+
+    document.getElementById('atRelLoading').style.display = 'none';
+    document.getElementById('atRelNormal').style.display  = 'none';
+    document.getElementById('atRelMutual').style.display  = 'none';
+    document.getElementById('atRelEmpty').style.display   = 'none';
+
+    if (!normal.length && !groupList.length) {
+      document.getElementById('atRelEmpty').style.display = '';
+      return;
+    }
+
+    if (normal.length) {
+      var el = document.getElementById('atRelNormal');
+      el.innerHTML = '<div class="at-rel-sec-label">普通关联</div>'
+        + normal.map(function(r) {
+            return '<div class="at-rel-item">'
+              + '<span class="at-rel-mn">' + esc(r.product_mn) + '</span>'
+              + '<a href="/product/' + r.related_product_id + '/at_view" class="at-rel-model"'
+              + ' style="color:var(--ink);text-decoration:none;">' + esc(r.product_model || r.product_name || '') + '</a>'
+              + '<span class="at-rel-qty">×' + (r.default_quantity || 1) + '</span>'
+              + '<span class="at-rel-badge' + (r.is_required ? ' req' : '') + '">' + esc(r.relation_type_label) + '</span>'
+              + _delBtn('atRelDelete(' + r.id + ')')
+              + '</div>';
+          }).join('');
+      el.style.display = '';
+    }
+
+    if (groupList.length) {
+      var el2 = document.getElementById('atRelMutual');
+      el2.innerHTML = '<div class="at-rel-sec-label">互斥分组</div>'
+        + groupList.map(function(g) {
+            var items = (g.products || []).map(function(p) {
+              return '<div class="at-rel-item" style="padding-left:14px;">'
+                + '<span class="at-rel-mn">' + esc(p.product_mn) + '</span>'
+                + '<a href="/product/' + p.related_product_id + '/at_view" class="at-rel-model"'
+                + ' style="color:var(--ink);text-decoration:none;">' + esc(p.product_model || p.product_name || '') + '</a>'
+                + '<span class="at-rel-qty">×' + (p.default_quantity || 1) + '</span>'
+                + _delBtn('atRelDelete(' + p.id + ')')
+                + '</div>';
+            }).join('');
+            return '<div class="at-rel-group">'
+              + '<div class="at-rel-group-hd">'
+              + esc(g.group_name || ('组 ' + g.group_id))
+              + '<span class="at-rel-badge' + (g.is_required ? ' req' : '') + '">'
+              + (g.is_required ? '必选' : '可选') + '</span>'
+              + '<span style="flex:1;"></span>'
+              + _delBtn('atRelDeleteGroup(' + JSON.stringify(g.group_id) + ')')
+              + '</div>'
+              + items + '</div>';
+          }).join('');
+      el2.style.display = '';
+    }
+  }
+
+  function _reload() {
+    document.getElementById('atRelLoading').style.display = '';
+    document.getElementById('atRelNormal').style.display  = 'none';
+    document.getElementById('atRelMutual').style.display  = 'none';
+    document.getElementById('atRelEmpty').style.display   = 'none';
+    fetch('/api/product/' + PID + '/relations', {
+      headers: {'X-CSRFToken': csrf}
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ _render(d); })
+    .catch(function(){
+      document.getElementById('atRelLoading').textContent = '加载失败，请刷新重试';
+    });
+  }
+
+  /* 全局接口：可被添加弹框调用刷新 */
+  window.atRelReload = _reload;
+
+  /* 删除单条关联 */
+  window.atRelDelete = function (relId) {
+    ATConfirm.show({
+      title: '删除关联产品',
+      message: '确认删除此关联产品？',
+      variant: 'danger',
+      confirmText: '删除',
+      onConfirm: function() {
+        fetch('/api/product/' + PID + '/relations/' + relId, {
+          method: 'DELETE',
+          headers: {'X-CSRFToken': csrf}
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.success) { if (window.atToast) atToast('已删除', 'success'); _reload(); }
+          else if (window.atToast) atToast(d.message || '删除失败', 'error');
+        });
+      }
+    });
+  };
+
+  /* 删除互斥组 */
+  window.atRelDeleteGroup = function (groupId) {
+    ATConfirm.show({
+      title: '删除互斥组',
+      message: '确认删除整个互斥组？组内所有关联产品将被移出。',
+      variant: 'danger',
+      confirmText: '删除',
+      onConfirm: function() {
+        fetch('/api/product/' + PID + '/mutual-exclusion-group', {
+          method: 'DELETE',
+          headers: {'Content-Type':'application/json','X-CSRFToken': csrf},
+          body: JSON.stringify({group_id: groupId})
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.success) { if (window.atToast) atToast('已删除', 'success'); _reload(); }
+          else if (window.atToast) atToast(d.message || '删除失败', 'error');
+        });
+      }
+    });
+  };
+
+  /* 首次加载：点击 config tab 时触发，或已在 config tab 时立即触发 */
+  var _firstLoad = false;
+  function _firstReload() {
+    if (_firstLoad) return;
+    _firstLoad = true;
+    _reload();
+  }
+
+  var configBtn = document.querySelector('#atProductSubTabs [data-tab-key="config"]');
+  if (configBtn) configBtn.addEventListener('click', _firstReload);
+
+  var panel = document.querySelector('[data-tab-panel="config"]');
+  if (panel && panel.style.display !== 'none') _firstReload();
+})();
+</script>
+{% endmacro %}

@@ -1,0 +1,124 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_input %}
+
+{% block sidebar_active %}spec_template{% endblock %}
+{% block page_title %}规格模板{% endblock %}
+{% block category_label %}SPEC TEMPLATE · 产品中心{% endblock %}
+{% block page_description %}型号级规格模板,定义产品的规格项与编码生成规则。{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">产品中心</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">规格模板</span>
+{% endblock %}
+
+{% block page_actions %}
+{{ at_btn('新建模板', variant='primary', icon_l='plus', tag='a',
+          href=url_for('spec_template.at_create_template_page')) }}
+{% endblock %}
+
+{% block total_count %}{{ total_count }}{% endblock %}
+
+{% block tabs %}
+{% set _active_cat = category_filter %}
+<a href="{{ url_for('spec_template.at_list_view', search=search) }}"
+   style="padding:16px 16px;display:flex;align-items:baseline;gap:6px;position:relative;
+          text-decoration:none;white-space:nowrap;
+          color:{{ 'var(--ink)' if not _active_cat else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if not _active_cat else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;">
+  <span style="font-size:13px;font-weight:{{ '500' if not _active_cat else '400' }};">全部</span>
+</a>
+{% for cat in category_tree if cat.name %}
+{% set active = (_active_cat == cat.name) %}
+<a href="{{ url_for('spec_template.at_list_view', search=search, category=cat.name) }}"
+   style="padding:16px 16px;display:flex;align-items:baseline;gap:6px;position:relative;
+          text-decoration:none;white-space:nowrap;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ cat.name }}</span>
+</a>
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+{% if category_filter %}
+{% for cat in category_tree if cat.name == category_filter %}
+{% if cat.subcategories %}
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+  <a href="{{ url_for('spec_template.at_list_view', search=search, category=category_filter) }}"
+     style="display:inline-flex;align-items:center;padding:3px 11px;border-radius:5px;font-size:12px;font-weight:500;text-decoration:none;
+            {% if not subcategory_filter %}background:var(--ink-2);color:var(--bg);{% else %}background:transparent;color:var(--ink-3);border:1px solid var(--line-soft);{% endif %}">
+    全部子分类
+  </a>
+  {% for sub in cat.subcategories %}
+  <a href="{{ url_for('spec_template.at_list_view', search=search, category=category_filter, subcategory=sub) }}"
+     style="display:inline-flex;align-items:center;padding:3px 11px;border-radius:5px;font-size:12px;font-weight:500;text-decoration:none;
+            {% if subcategory_filter == sub %}background:var(--ink-2);color:var(--bg);{% else %}background:transparent;color:var(--ink-3);border:1px solid var(--line-soft);{% endif %}">
+    {{ sub }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
+<form method="get" action="{{ url_for('spec_template.at_list_view') }}"
+      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  {{ at_input(name='search', value=search, placeholder='搜索模板名 / 型号…', icon_l='search', width='320px') }}
+  {% if category_filter %}<input type="hidden" name="category" value="{{ category_filter }}">{% endif %}
+  {% if subcategory_filter %}<input type="hidden" name="subcategory" value="{{ subcategory_filter }}">{% endif %}
+  {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
+</form>
+{% endblock %}
+
+{% block thead %}
+{% for h, a in [('型号','left'),('名称','left'),('分类','left'),
+                ('版本','left'),('规格项','right'),('更新','left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% for t in templates %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+<tr class="at-row" data-href="{{ url_for('spec_template.at_view_template', template_id=t.id) }}"
+    onclick="location.href=this.dataset.href"
+    style="height:var(--row-h, 52px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">{{ t.model }}</span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:280px;color:var(--ink-2);font-size:12.5px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    {{ t.name or '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-3);font-size:12px;">
+    {% if t.category and t.subcategory %}{{ t.category.name }} · {{ t.subcategory.name }}
+    {% elif t.category %}{{ t.category.name }}
+    {% else %}—{% endif %}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">{{ t.version or 'V1.0' }}</span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12.5px;color:var(--ink-2);">{{ t.items | length }}</span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ t.updated_at.strftime('%Y-%m-%d') if t.updated_at else '—' }}
+    </span>
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="6" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    没有规格模板
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block pagination %}{% endblock %}

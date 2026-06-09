@@ -1,0 +1,106 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_input %}
+
+{% block sidebar_active %}system_diagram{% endblock %}
+{% block page_title %}系统图{% endblock %}
+{% block category_label %}DIAGRAM · 产品中心{% endblock %}
+{% block page_description %}创建和管理产品系统图、技术方案模板。{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">产品中心</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">系统图</span>
+{% endblock %}
+
+{% block page_actions %}
+{{ at_btn('新建系统图', variant='primary', icon_l='plus', tag='a',
+          href=url_for('system_diagram.new_editor')) }}
+{% endblock %}
+
+{% block tabs %}
+{% set _tabs = [
+  {'k':'diagrams',  'l':'我的图',   'c':tab_counts.diagrams},
+  {'k':'templates', 'l':'我的模板', 'c':tab_counts.templates}
+] %}
+{% for t in _tabs %}
+{% set active = (current_tab == t.k) %}
+<a href="{{ url_for('system_diagram.at_list_view', tab=t.k, search=search) }}"
+   style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
+          position:relative;text-decoration:none;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;white-space:nowrap;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ t.l }}</span>
+  <span class="at-tab-num at-mono"
+        style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
+</a>
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+<form method="get" action="{{ url_for('system_diagram.at_list_view') }}"
+      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <input type="hidden" name="tab" value="{{ current_tab }}">
+  {{ at_input(name='search', value=search, placeholder='搜索图名…', icon_l='search', width='320px') }}
+  {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
+</form>
+{% endblock %}
+
+{% block thead %}
+{% for h, a in [('名称','left'),('描述','left'),('类型','left'),('更新时间','left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% for d in diagrams %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+<tr class="at-row" data-href="{{ url_for('system_diagram.edit_editor', diagram_id=d.id) }}"
+    onclick="location.href=this.dataset.href"
+    style="height:var(--row-h, 52px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:280px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    <span style="font-size:13px;font-weight:500;color:var(--ink);">{{ d.name or '未命名' }}</span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:380px;color:var(--ink-3);font-size:12.5px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    {{ d.description or '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    {% if d.is_template %}{{ at_pill('模板', tone='accent') }}{% else %}{{ at_pill('系统图', tone='info') }}{% endif %}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ d.updated_at.strftime('%Y-%m-%d %H:%M') if d.updated_at else '—' }}
+    </span>
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="4" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    没有{% if current_tab == 'templates' %}模板{% else %}系统图{% endif %}
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block pagination %}
+{% if pagination.pages > 1 %}
+<span class="at-mono at-dim" style="font-size:11.5px;">
+  第 {{ pagination.page }} / {{ pagination.pages }} 页
+</span>
+<div style="display:flex;gap:6px;">
+  {% if pagination.has_prev %}
+    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+              href=url_for('system_diagram.at_list_view', tab=current_tab, page=pagination.prev_num, search=search)) }}
+  {% endif %}
+  {% if pagination.has_next %}
+    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+              href=url_for('system_diagram.at_list_view', tab=current_tab, page=pagination.next_num, search=search)) }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

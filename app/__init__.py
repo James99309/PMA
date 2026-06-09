@@ -18,7 +18,7 @@ from app.utils import version_check
 import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency, format_achievement_rate
 from app.utils.dictionary_helpers import (
-    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency, approval_status_label, product_type_label, product_status_label, dev_product_status_label, active_status_label,
+    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, share_permission_label, user_label, get_role_display_name, get_all_active_roles, get_all_user_companies, get_amount_unit_config, get_currency_symbol, get_default_currency, approval_status_label, product_type_label, product_status_label, dev_product_status_label, active_status_label, country_label,
     activity_status_label, activity_status_color,
     make_i18n_filter
 )
@@ -120,6 +120,15 @@ def create_app(config_class=Config):
     app.config['SESSION_COOKIE_SECURE'] = False  # 在开发环境中设为False，生产环境设为True
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+    # 多 localhost 实例隔离:本地同时跑多个 PMA(主 worktree + RF + mobile-test 等)
+    # 都用默认 cookie 名 'session' 会互相覆盖 → 各自跳登录。按 PORT 派生 cookie 名,
+    # 让每个实例的 session/remember 互不影响。
+    # 生产 / NAS / 单一实例场景:不设 PORT 时回退默认名,行为不变。
+    _local_port = (os.environ.get('PORT') or os.environ.get('FLASK_RUN_PORT') or '').strip()
+    if _local_port:
+        app.config['SESSION_COOKIE_NAME']  = f'pma_session_{_local_port}'
+        app.config['REMEMBER_COOKIE_NAME'] = f'pma_remember_{_local_port}'
     
     # 调试模式或开发环境关闭CSRF
     if os.environ.get('FLASK_ENV') == 'development' or os.environ.get('FLASK_DEBUG') == '1':
@@ -344,6 +353,9 @@ def create_app(config_class=Config):
     # 导入序列号管理蓝图
     from app.routes.product_sn_routes import product_sn_bp
 
+    # AT 设计系统预览(开发期临时)
+    from app.routes.at_preview_routes import at_preview_bp
+
     # 导入库存管理蓝图
     from app.routes.inventory import inventory
 
@@ -393,6 +405,8 @@ def create_app(config_class=Config):
     csrf.exempt(shipment_bp)  # 豁免发货管理蓝图的CSRF保护
     app.register_blueprint(product_sn_bp, url_prefix='/product-sn')  # 注册序列号管理蓝图
     csrf.exempt(product_sn_bp)  # 豁免序列号管理蓝图的CSRF保护
+
+    app.register_blueprint(at_preview_bp)  # AT 设计系统预览(开发期)
     app.register_blueprint(inventory, url_prefix='/inventory')  # 注册库存管理蓝图
     app.register_blueprint(purchase_order_bp)  # 注册采购订单蓝图（Tailwind风格）
     csrf.exempt(purchase_order_bp)  # 豁免采购订单蓝图的CSRF保护
@@ -927,6 +941,14 @@ def create_app(config_class=Config):
     app.jinja_env.filters['company_type_color'] = company_type_color
     app.jinja_env.filters['product_situation_label'] = make_i18n_filter(product_situation_label)
     app.jinja_env.filters['industry_label'] = make_i18n_filter(industry_label)
+    app.jinja_env.filters['country_label'] = country_label
+    from app.utils.dictionary_helpers import currency_type_label
+    app.jinja_env.filters['currency_label'] = currency_type_label
+
+    # 报销科目 label(基于 model 的 EXPENSE_CATEGORIES list,无需重复定义)
+    from app.models.expense import EXPENSE_CATEGORIES
+    _expense_cat_map = dict(EXPENSE_CATEGORIES)
+    app.jinja_env.filters['expense_category_label'] = lambda v: _expense_cat_map.get(v, v) if v else ''
     app.jinja_env.filters['industry_color'] = industry_color
     app.jinja_env.filters['status_label'] = make_i18n_filter(status_label)
     app.jinja_env.filters['activity_status_label'] = make_i18n_filter(activity_status_label)
@@ -939,6 +961,14 @@ def create_app(config_class=Config):
     # 研发库已废弃 (2025-12-26)，但保留过滤器以避免模板解析错误
     app.jinja_env.filters['dev_product_status_label'] = make_i18n_filter(dev_product_status_label)
     app.jinja_env.filters['active_status_label'] = make_i18n_filter(active_status_label)
+
+    # AT 状态徽章统一映射(label + tone),供模板用 at_status_pill 宏调用
+    from app.utils.status_meta import get_status_meta, get_status_label
+    app.jinja_env.globals['get_status_meta'] = get_status_meta
+    app.jinja_env.globals['get_status_label'] = get_status_label
+
+    # AT 关联数据服务:导入触发注册(company / project / ... 各实体的关联模块)
+    from app.utils import related_data_register  # noqa: F401
 
     def datetimeformat(value):
         if not value:
@@ -968,6 +998,8 @@ def create_app(config_class=Config):
     app.register_blueprint(projectpm_statistics, url_prefix='/projectpm/statistics')
 
     app.jinja_env.globals['get_role_display_name'] = get_role_display_name
+    app.jinja_env.globals['get_all_active_roles'] = get_all_active_roles
+    app.jinja_env.globals['get_all_user_companies'] = get_all_user_companies
     # 注册语言感知的货币单位相关函数
     app.jinja_env.globals['get_amount_unit_config'] = get_amount_unit_config
     app.jinja_env.globals['get_currency_symbol'] = get_currency_symbol

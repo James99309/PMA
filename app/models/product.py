@@ -20,6 +20,7 @@ class Product(db.Model):
     status = db.Column(db.String(20), default='active')  # 产品状态：'active'(生产中), 'discontinued'(已停产), 'upcoming'(待上市)
     image_path = db.Column(db.String(255))  # 产品图片路径
     pdf_path = db.Column(db.String(255))  # 产品PDF文件路径
+    pdf_original_name = db.Column(db.String(255))  # 上传时的原始文件名
     icon_svg = db.Column(db.Text, comment='产品SVG图标数据')
 
     # 厂商产品标记字段

@@ -83,6 +83,7 @@ class Quotation(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)  # 客户字段（数据库可空，前端必填）
     contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # 联系人可选
     amount = db.Column(db.Float)
+    tax_rate = db.Column(db.Float, nullable=False, default=0)  # 整张报价共用的税率(0-100 浮点),合计 = 小计 × (1 + tax_rate/100)
     project_stage = db.Column(db.String(20))  # 项目阶段：发现、品牌植入、招标前、招标中、中标、失败
     project_type = db.Column(db.String(20))   # 项目类型：销售重点、渠道跟进
     

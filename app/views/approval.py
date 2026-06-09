@@ -103,9 +103,9 @@ def center():
             expense_pending_count=expense_pending_count
         )
         
-        # 渲染模板
+        # 渲染模板 — Ajax 列表初始化:首屏空,数据由 tw_center_ajax 拉
         return render_template(
-            'approval/center.html',
+            'approval/tw_center.html',
             current_tab=tab,
             object_type=object_type,
             status=status,
@@ -113,7 +113,14 @@ def center():
             created_pending_count=created_pending_count,
             pricing_order_pending_count=pricing_order_pending_count,
             order_pending_count=order_pending_count,
-            list_config=list_config
+            list_config=list_config,
+            # Ajax 初始化参数(模板 line 183 + 后续 JS 需要)
+            items=[],
+            offset=0,
+            limit=per_page,
+            sort_field='created_at',
+            sort_order='desc',
+            has_more=False,
         )
     except Exception as e:
         # 捕获任何错误并显示
@@ -612,7 +619,7 @@ def detail(instance_id):
         try:
             order_id = int(instance_id.split('_')[1])
             # 重定向到订单详情页面
-            return redirect(url_for('inventory.order_detail', id=order_id))
+            return redirect(url_for('purchase_order.at_detail_view', order_id=order_id))
         except (ValueError, IndexError):
             flash(_('无效的订单审批ID'), 'danger')
             return redirect(url_for('approval.center'))

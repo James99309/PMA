@@ -127,7 +127,7 @@ AUTHORIZATION_STATUS_LABELS = {
 
 # 企业类型颜色映射（颜色不需要国际化，保留硬编码）
 COMPANY_TYPE_COLORS = {
-    # 主键（8个）- 用于新数据
+    # 主键（9个）- 用于新数据
     'user': '#0B6EFD',
     'dealer': '#28a745',
     'distributor': '#28a745',
@@ -135,6 +135,7 @@ COMPANY_TYPE_COLORS = {
     'designer': '#6f42c1',
     'contractor': '#dc3545',
     'partner': '#20c997',
+    'supplier': '#17a2b8',
     'other': '#6c757d',
 
     # 向后兼容别名（4个）- 仅用于历史数据显示
@@ -465,6 +466,56 @@ def get_available_quotation_currencies():
         # 异常时返回所有货币，不影响系统正常使用
         return get_currency_type_options()
 
+
+def get_available_product_currencies():
+    """获取「产品库中实际拥有价格的所有货币」
+
+    合并两个来源:
+    1. Product.currency(产品主货币,即 retail_price 用的币种)
+    2. ProductRegionPrice.currency(区域面价货币 — 一个产品可在多个区域有不同价)
+    + 兜底:系统默认货币(避免产品库为空时下拉是空)
+
+    Returns:
+        list of (code, name) tuples,按 CURRENCY_TYPE_LABELS 的顺序排列
+    """
+    try:
+        from app.utils.i18n import get_current_language
+        from app.models.product import Product, ProductRegionPrice
+        from config import Config
+        from app import db
+
+        lang_code = get_current_language()
+        available_codes = {Config.DEFAULT_CURRENCY}
+
+        # 1) Product 主货币
+        try:
+            rows = db.session.query(Product.currency).distinct().filter(
+                Product.is_deleted == False
+            ).all()
+            for (cur,) in rows:
+                if cur:
+                    available_codes.add(cur.upper())
+        except Exception:
+            pass
+
+        # 2) ProductRegionPrice 区域价货币
+        try:
+            rows = db.session.query(ProductRegionPrice.currency).distinct().all()
+            for (cur,) in rows:
+                if cur:
+                    available_codes.add(cur.upper())
+        except Exception:
+            pass
+
+        return [
+            (k, v[lang_code]) for k, v in CURRENCY_TYPE_LABELS.items()
+            if k in available_codes
+        ]
+    except Exception as e:
+        import logging
+        logging.warning(f"get_available_product_currencies 失败: {e}")
+        return get_currency_type_options()
+
 # 向后兼容性选项 - 使用 property 类实现懒加载，避免启动时查询数据库
 class _LazyOptions:
     """延迟加载选项类，仅在访问时查询数据库"""
@@ -768,6 +819,56 @@ def get_country_options():
         import logging
         logging.warning(f"get_country_options 获取语言失败: {e}")
         return [(k, v['zh']) for k, v in COUNTRY_LABELS.items()]
+
+
+def country_label(value, lang='zh'):
+    """国家 code/原值 → 中文/英文 label。
+    优先用 country_names(33 国 ISO 表),fallback COUNTRY_LABELS(8 国),再 fallback 原值。
+    兼容 code('CN')和原值('中国')两种存储。
+    用法(模板):{{ c.country | country_label }}
+    """
+    if not value:
+        return ''
+    # 1) 全 ISO 表(country_names.py — 业务上 customer/project 都用这套)
+    try:
+        from app.utils.country_names import get_country_names
+        names = get_country_names(lang)
+        if value in names:
+            return names[value]
+    except Exception:
+        pass
+    # 2) 本地化常用表(dictionary_helpers.COUNTRY_LABELS)
+    meta = COUNTRY_LABELS.get(value)
+    if meta:
+        return meta.get(lang, meta.get('zh', value))
+    # 3) 已是中文/未知值,原样返回
+    return value
+
+def get_all_active_roles():
+    """返回系统所有活跃角色字典项,用于审批配置「限定角色」等动态下拉。
+
+    Returns:
+        list[dict]: [{'key': 'sm', 'label': '销售经理'}, ...]  按 sort_order 排序
+    """
+    rows = db.session.query(Dictionary).filter_by(type=ROLE_TYPE, is_active=True).order_by(
+        getattr(Dictionary, 'sort_order', Dictionary.id).asc()
+    ).all()
+    return [{'key': r.key, 'label': r.value} for r in rows]
+
+
+def get_all_user_companies():
+    """返回系统中所有用户的企业(distinct company_name)列表,用于审批配置「限定企业」下拉。
+
+    Returns:
+        list[str]: ['EVERTAC', 'Evertac Solutions', ...]
+    """
+    from app.models.user import User
+    rows = db.session.query(User.company_name).filter(
+        User.company_name.isnot(None),
+        User.company_name != ''
+    ).distinct().order_by(User.company_name.asc()).all()
+    return [r[0] for r in rows if r[0]]
+
 
 def get_role_display_name(role_key):
     """

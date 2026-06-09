@@ -1,0 +1,1049 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_avatar, at_section, at_empty, at_tabs, at_stat_card_row, at_input, at_select %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
+{% from 'components/at_file_preview.html' import at_file_preview_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>库存管理 · PMA</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='inventory') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- Topbar (面包屑 + 偏好) -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <span style="font-size:13px;color:var(--ink-3);">采购仓储</span>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);">库存管理</span>
+    {% if is_global %}
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span class="at-mono" style="font-size:13px;color:var(--accent);">全局库存</span>
+    {% elif current_company %}
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span class="at-mono" style="font-size:13px;color:var(--ink-2);">{{ current_company.company_name }}</span>
+    {% endif %}
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} 暗色
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 60px;">
+
+  <!-- 页眉 -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;
+              margin-bottom:24px;flex-wrap:wrap;gap:16px;">
+    <div>
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        INVENTORY · 库存管理
+      </div>
+      <h1 class="at-serif"
+          style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
+        库存管理
+      </h1>
+      <p class="at-dim" style="margin:8px 0 0;font-size:13px;max-width:520px;">
+        按公司维度查看库存余量、流水变动,支持手动调整与 Excel 导入。
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      {% if is_vendor_admin %}
+      {{ at_btn('Excel 导入', variant='primary', icon_l='upload',
+                onclick='atOpenImport()') }}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not is_global and not current_company %}
+  <!-- 空态:账号未绑定公司,无可见库存 -->
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;padding:60px 24px;">
+    {{ at_empty(
+      label='暂无可查看的库存',
+      sub='您的账号尚未绑定企业,请联系管理员关联后查看本企业库存',
+      icon='archive'
+    ) }}
+  </div>
+  {% else %}
+
+  <!-- 公司切换器(支持"全局库存"虚拟选项) -->
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;
+              padding:16px 20px;margin-bottom:18px;
+              display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    {% if is_global %}
+      <div style="width:42px;height:42px;border-radius:9px;flex-shrink:0;
+                  background:var(--accent-tint);color:var(--accent);
+                  display:flex;align-items:center;justify-content:center;">
+        {{ at_icon('grid', 22) }}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;">
+          当前查看
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px;">
+          <span style="font-size:15px;font-weight:500;color:var(--ink);">🌐 全局库存(所有公司聚合)</span>
+          {{ at_pill('厂商管理员', tone='accent', dot=true) }}
+        </div>
+      </div>
+    {% else %}
+      {% set is_vendor = current_company.company_type == 'vendor' %}
+      <div style="width:42px;height:42px;border-radius:9px;flex-shrink:0;
+                  background:{{ 'var(--info-soft)' if is_vendor else 'var(--accent-tint)' }};
+                  color:{{ 'var(--info)' if is_vendor else 'var(--accent)' }};
+                  display:flex;align-items:center;justify-content:center;">
+        {{ at_icon('factory' if is_vendor else 'archive', 22) }}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;">
+          当前查看
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px;">
+          <span style="font-size:15px;font-weight:500;color:var(--ink);">{{ current_company.company_name }}</span>
+          {{ at_pill(('厂商' if is_vendor else '经销商'), tone=('info' if is_vendor else 'accent'), dot=true) }}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if is_vendor_admin %}
+    <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-shrink:0;">
+      <span class="at-dim" style="font-size:12px;white-space:nowrap;">切换视图</span>
+      <div style="display:flex;align-items:center;height:34px;padding:0 10px 0 12px;
+                  background:var(--bg-page);border:1px solid var(--line-2);border-radius:6px;
+                  font-size:13px;position:relative;min-width:240px;">
+        <select onchange="if(this.value) location.href='{{ url_for('inventory.at_stock_list') }}/'+this.value;"
+                style="appearance:none;border:0;outline:none;background:transparent;color:var(--ink);
+                       font:inherit;padding-right:22px;width:100%;cursor:pointer;">
+          {% if is_vendor_admin %}
+          <option value="global" {% if is_global %}selected{% endif %}>🌐 全局库存(全部公司聚合)</option>
+          {% endif %}
+          {% for c in switchable %}
+          <option value="{{ c.id }}" {% if not is_global and current_company and c.id == current_company.id %}selected{% endif %}>
+            {{ c.name }} ({{ c.inv_count }})
+          </option>
+          {% endfor %}
+        </select>
+        <span style="position:absolute;right:8px;color:var(--ink-3);pointer-events:none;">
+          {{ at_icon('chevd', 14) }}
+        </span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if locked %}
+  <div style="background:var(--info-soft);border:1px solid var(--info-soft);border-radius:8px;
+              padding:10px 14px;margin-bottom:18px;display:flex;align-items:center;gap:8px;
+              color:var(--info);font-size:12.5px;">
+    {{ at_icon('info', 14) }}
+    您正在查看本公司库存。如需查看其他公司,请联系厂商管理员。
+  </div>
+  {% endif %}
+
+  <!-- 3 KPI -->
+  <div style="margin-bottom:18px;">
+    {% if is_global %}
+    {{ at_stat_card_row(stats=[
+      {'label': '产品种类', 'value': stats.products,   'icon': 'cube',    'tone': ''},
+      {'label': '全局总量', 'value': stats.total_qty,  'icon': 'archive', 'sub': '件', 'tone': 'accent'},
+      {'label': '本月全局流水', 'value': stats.monthly_tx, 'icon': 'clock', 'sub': '笔', 'tone': 'success'}
+    ], cols=3) }}
+    {% else %}
+    {{ at_stat_card_row(stats=[
+      {'label': '在册产品', 'value': stats.products,   'icon': 'cube',    'tone': ''},
+      {'label': '总数量',   'value': stats.total_qty,  'icon': 'archive', 'sub': '件', 'tone': 'accent'},
+      {'label': '本月流水', 'value': stats.monthly_tx, 'icon': 'clock', 'sub': '笔', 'tone': 'success'}
+    ], cols=3) }}
+    {% endif %}
+  </div>
+
+  <!-- 库存 / 流水 双 tab -->
+  {% set _tab_search = '<input type="text" id="atStockSearch" placeholder="搜产品名 / MN号…"
+                              oninput="atFilterStockRows()"
+                              style="height:30px;padding:0 12px;border:1px solid var(--line-2);
+                                     border-radius:6px;background:var(--bg-elev);font-size:12.5px;
+                                     color:var(--ink);outline:none;width:240px;
+                                     box-sizing:border-box;">' %}
+
+  {% call at_tabs(tabs=[
+    {'key':'inventory',    'label':'库存',  'count': stats.products, 'icon':'archive'},
+    {'key':'transactions', 'label':'流水',  'count': tx_rows|length if tx_rows else 0, 'icon':'clock'}
+  ], active_key='inventory', tab_id='atStockTabs') %}
+
+    {# ─── 库存 Tab ─── #}
+    <div data-tab-panel="inventory">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--line);
+                  display:flex;align-items:center;justify-content:flex-end;">
+        {{ _tab_search|safe }}
+      </div>
+
+      {% if is_global %}
+        {# ─── 全局聚合表(同 MN 累加 + 可展开子表) ─── #}
+        {% if global_inventories %}
+        <div style="overflow:hidden;">
+          <table style="width:100%;table-layout:fixed;font-size:13px;border-collapse:separate;border-spacing:0;">
+            <colgroup>
+              <col style="width:32px;"><!-- chev -->
+              <col style="width:240px;"><!-- 产品 -->
+              <col><!-- 描述(弹性) -->
+              <col style="width:140px;"><!-- 全局总量 -->
+              <col style="width:120px;"><!-- 分布 -->
+            </colgroup>
+            <thead>
+              <tr>
+                {% for h, a in [('','left'),('产品','left'),('描述','left'),('全局总量','right'),('分布','center')] %}
+                <th style="text-align:{{ a }};padding:10px 16px 12px;font-size:10.5px;font-weight:500;
+                           color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
+                           border-bottom:1px solid var(--line-soft);">{{ h }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody id="atStockBody">
+              {% for g in global_inventories %}
+              {% set pid = g.product.id %}
+              <tr class="at-stock-row at-glob-row"
+                  data-pid="{{ pid }}"
+                  data-name="{{ (g.product.product_name or '')|lower }}"
+                  data-mn="{{ (g.product.product_mn or '')|lower }}"
+                  onclick="atToggleGlobRow({{ pid }})"
+                  style="border-bottom:1px solid var(--line-soft);cursor:pointer;
+                         transition:background 100ms;"
+                  onmouseenter="this.style.background='var(--bg-hover)'"
+                  onmouseleave="this.style.background='transparent'">
+                <td style="padding:14px 12px;text-align:center;color:var(--ink-3);">
+                  <span class="at-glob-chev" style="display:inline-flex;align-items:center;justify-content:center;
+                                                    width:18px;height:18px;transition:transform 200ms;">
+                    {{ at_icon('chev', 12) }}
+                  </span>
+                </td>
+                <td style="padding:14px 16px;overflow:hidden;">
+                  <div title="{{ g.product.product_name }}"
+                       style="font-size:13.5px;color:var(--ink);font-weight:500;
+                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ g.product.product_name }}
+                  </div>
+                  {% if g.product.product_mn %}
+                  <div class="at-mono at-dim"
+                       style="font-size:11.5px;margin-top:2px;
+                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ g.product.product_mn }}
+                  </div>
+                  {% endif %}
+                </td>
+                <td style="padding:14px 16px;overflow:hidden;color:var(--ink-3);font-size:12px;line-height:1.5;">
+                  {% if g.product.specification %}
+                  <div title="{{ g.product.specification }}"
+                       style="display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+                              overflow:hidden;text-overflow:ellipsis;word-break:break-word;">{{ g.product.specification }}</div>
+                  {% else %}
+                  <span class="at-dim">—</span>
+                  {% endif %}
+                </td>
+                <td style="padding:14px 16px;text-align:right;white-space:nowrap;">
+                  <span class="at-mono at-tab-num"
+                        style="font-size:17px;font-weight:600;color:var(--accent);">{{ g.total_qty }}</span>
+                  <span class="at-dim" style="font-size:11px;margin-left:3px;">{{ g.unit }}</span>
+                </td>
+                <td style="padding:14px 16px;text-align:center;">
+                  <span class="at-mono at-tab-num"
+                        style="font-size:12.5px;color:var(--ink-2);">{{ g.companies|length }}</span>
+                  <span class="at-dim" style="font-size:11px;margin-left:2px;">家公司</span>
+                </td>
+              </tr>
+
+              {# 子表行(默认隐藏) #}
+              <tr class="at-glob-detail" data-pid="{{ pid }}" style="display:none;background:var(--bg-page);">
+                <td colspan="5" style="padding:0 16px 16px 50px;">
+                  <table style="width:100%;font-size:12px;border-collapse:separate;border-spacing:0;
+                                background:var(--bg-elev);border:1px solid var(--line);border-radius:8px;
+                                overflow:hidden;margin-top:4px;">
+                    <thead>
+                      <tr>
+                        {% for h, a in [('公司','left'),('类型','center'),('数量','right'),('最后变动','left')] %}
+                        <th style="text-align:{{ a }};padding:8px 14px 10px;font-size:10px;font-weight:500;
+                                   color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
+                                   border-bottom:1px solid var(--line-soft);
+                                   background:var(--bg-page);">{{ h }}</th>
+                        {% endfor %}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for sub in g.companies %}
+                      {% set _is_vendor = sub.is_vendor_warehouse %}
+                      {% set _scope_val = 'vendor' if _is_vendor else (sub.company.id if sub.company else '') %}
+                      {% set _name = (vendor_warehouse_label if _is_vendor else (sub.company.company_name if sub.company else '—')) %}
+                      {% set tx = sub.last_tx %}
+                      <tr style="border-bottom:{{ '0' if loop.last else '1px solid var(--line-soft)' }};">
+                        <td style="padding:8px 14px;color:var(--ink);">
+                          <a href="{{ url_for('inventory.at_stock_list', scope=_scope_val) }}"
+                             onclick="event.stopPropagation()"
+                             style="color:var(--accent);text-decoration:none;">{{ _name }}</a>
+                        </td>
+                        <td style="padding:8px 14px;text-align:center;">
+                          {{ at_pill(('厂商' if _is_vendor else '经销商'), tone=('info' if _is_vendor else 'accent'), dot=false) }}
+                        </td>
+                        <td class="at-mono at-tab-num"
+                            style="padding:8px 14px;text-align:right;font-weight:600;color:var(--ink);">
+                          {{ sub.quantity }} <span class="at-dim" style="font-weight:400;">{{ sub.unit }}</span>
+                        </td>
+                        <td style="padding:8px 14px;color:var(--ink-3);font-size:11px;">
+                          {% if tx %}
+                            <span class="at-mono">{{ tx.transaction_date.strftime('%m-%d') }}</span>
+                            {% set delta = tx.quantity_after - tx.quantity_before %}
+                            {% if tx.transaction_type == 'in' %}<span style="color:var(--success);">入 +{{ delta }}</span>
+                            {% elif tx.transaction_type == 'out' %}<span style="color:var(--danger);">出 {{ delta }}</span>
+                            {% elif tx.transaction_type == 'adjustment' %}<span style="color:var(--ink-2);">→ {{ tx.quantity_after }}</span>
+                            {% elif tx.transaction_type == 'settlement' %}<span style="color:var(--danger);">结算 {{ delta }}</span>
+                            {% else %}{{ delta }}
+                            {% endif %}
+                          {% else %}—{% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+              {% endfor %}
+              <tr id="atStockEmpty" style="display:none;">
+                <td colspan="5" style="padding:40px;text-align:center;color:var(--ink-3);font-size:12.5px;">
+                  没有匹配的产品
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        {{ at_empty(label='全局尚无库存数据', icon='archive') }}
+        {% endif %}
+
+      {% else %}
+        {# ─── 普通单公司表 ─── #}
+        {% if inventories %}
+        <div style="overflow:hidden;">
+          <table style="width:100%;table-layout:fixed;font-size:13px;border-collapse:separate;border-spacing:0;">
+            <colgroup>
+              <col style="width:240px;"><!-- 产品 -->
+              <col><!-- 描述(弹性) -->
+              <col style="width:110px;"><!-- 数量 -->
+              <col style="width:180px;"><!-- 最后变动 -->
+              <col style="width:110px;"><!-- 操作 -->
+            </colgroup>
+            <thead>
+              <tr>
+                {% for h, a in [('产品','left'),('描述','left'),('数量','right'),('最后变动','left'),('操作','center')] %}
+                <th style="text-align:{{ a }};padding:10px 16px 12px;font-size:10.5px;font-weight:500;
+                           color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
+                           border-bottom:1px solid var(--line-soft);">{{ h }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody id="atStockBody">
+              {% for inv in inventories %}
+              {% set tx = last_tx_map.get(inv.id) %}
+              <tr class="at-stock-row" style="border-bottom:1px solid var(--line-soft);
+                                              transition:background 100ms;"
+                  data-name="{{ (inv.product.product_name if inv.product else '')|lower }}"
+                  data-mn="{{ (inv.product.product_mn if inv.product else '')|lower }}"
+                  onmouseenter="this.style.background='var(--bg-hover)'"
+                  onmouseleave="this.style.background='transparent'">
+                <td style="padding:14px 16px;overflow:hidden;">
+                  <div title="{{ inv.product.product_name if inv.product else '-' }}"
+                       style="font-size:13.5px;color:var(--ink);font-weight:500;
+                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ inv.product.product_name if inv.product else '-' }}
+                  </div>
+                  {% if inv.product and inv.product.product_mn %}
+                  <div class="at-mono at-dim"
+                       style="font-size:11.5px;margin-top:2px;
+                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ inv.product.product_mn }}
+                  </div>
+                  {% endif %}
+                </td>
+                <td style="padding:14px 16px;overflow:hidden;color:var(--ink-3);font-size:12px;line-height:1.5;">
+                  {% if inv.product and inv.product.specification %}
+                  <div title="{{ inv.product.specification }}"
+                       style="display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+                              overflow:hidden;text-overflow:ellipsis;word-break:break-word;">{{ inv.product.specification }}</div>
+                  {% else %}
+                  <span class="at-dim">—</span>
+                  {% endif %}
+                </td>
+                <td style="padding:14px 16px;text-align:right;white-space:nowrap;">
+                  <span class="at-mono at-tab-num"
+                        style="font-size:16px;font-weight:600;color:var(--ink);">{{ inv.quantity }}</span>
+                  <span class="at-dim" style="font-size:11px;margin-left:3px;">{{ inv.unit or '件' }}</span>
+                </td>
+                <td style="padding:14px 16px;font-size:11.5px;color:var(--ink-3);">
+                  {% if tx %}
+                    {% set delta = tx.quantity_after - tx.quantity_before %}
+                    <div style="white-space:nowrap;">
+                      <span class="at-mono at-tab-num">{{ tx.transaction_date.strftime('%m-%d') }}</span>
+                      {% if tx.transaction_type == 'in' %}
+                        <span style="color:var(--success);font-weight:500;">入库 +{{ delta }}</span>
+                      {% elif tx.transaction_type == 'out' %}
+                        <span style="color:var(--danger);font-weight:500;">出库 {{ delta }}</span>
+                      {% elif tx.transaction_type == 'adjustment' %}
+                        <span style="color:var(--ink-2);">设值 {{ tx.quantity_after }}</span>
+                      {% elif tx.transaction_type == 'settlement' %}
+                        <span style="color:var(--danger);font-weight:500;">结算 {{ delta }}</span>
+                      {% else %}
+                        <span>{{ delta }}</span>
+                      {% endif %}
+                    </div>
+                    {% if tx.description %}
+                    <div class="at-dim" title="{{ tx.description }}"
+                         style="margin-top:2px;overflow:hidden;text-overflow:ellipsis;
+                                white-space:nowrap;font-size:11px;">{{ tx.description }}</div>
+                    {% endif %}
+                  {% else %}
+                    <span class="at-dim">—</span>
+                  {% endif %}
+                </td>
+                <td style="padding:14px 16px;text-align:center;">
+                  {% if has_permission('inventory', 'edit') %}
+                  <button type="button"
+                          onclick='atOpenAdjust({{ inv.id }}, {{ ((inv.product.product_name if inv.product else '') or '')|tojson }}, {{ inv.quantity }}, {{ (inv.unit or '件')|tojson }})'
+                          style="padding:5px 11px;border-radius:5px;
+                                 background:var(--accent-tint);color:var(--accent);
+                                 border:1px solid transparent;font-size:11.5px;font-weight:500;
+                                 display:inline-flex;align-items:center;gap:4px;cursor:pointer;
+                                 transition:border-color 120ms;"
+                          onmouseenter="this.style.borderColor='var(--accent)'"
+                          onmouseleave="this.style.borderColor='transparent'">
+                    {{ at_icon('edit', 12) }} 调整
+                  </button>
+                  {% else %}
+                  <span class="at-dim" style="font-size:11px;">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              <tr id="atStockEmpty" style="display:none;">
+                <td colspan="5" style="padding:40px;text-align:center;color:var(--ink-3);font-size:12.5px;">
+                  没有匹配的产品
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        {{ at_empty(label='该公司暂无库存记录', icon='archive') }}
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {# ─── 流水 Tab ─── #}
+    <div data-tab-panel="transactions">
+      {% if tx_rows %}
+      <div style="overflow:auto;">
+        <table style="width:100%;table-layout:fixed;font-size:12.5px;border-collapse:separate;border-spacing:0;
+                      min-width:{{ '1080px' if is_global else '920px' }};">
+          <colgroup>
+            <col style="width:130px;"><!-- 时间 -->
+            {% if is_global %}<col style="width:180px;"><!-- 公司(仅全局) -->{% endif %}
+            <col><!-- 产品 -->
+            <col style="width:78px;"><!-- 类型 -->
+            <col style="width:100px;"><!-- 变动 -->
+            <col style="width:120px;"><!-- 变化 -->
+            <col style="width:180px;"><!-- 关联/备注 -->
+            <col style="width:100px;"><!-- 操作人 -->
+          </colgroup>
+          <thead>
+            <tr>
+              {% set _headers = (
+                [('时间','left'),('公司','left'),('产品','left'),('类型','center'),('变动','right'),('变化','right'),('关联/备注','left'),('操作人','left')]
+                if is_global else
+                [('时间','left'),('产品','left'),('类型','center'),('变动','right'),('变化','right'),('关联/备注','left'),('操作人','left')]
+              ) %}
+              {% for h, a in _headers %}
+              <th style="text-align:{{ a }};padding:10px 14px 12px;font-size:10.5px;font-weight:500;
+                         color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
+                         border-bottom:1px solid var(--line-soft);">{{ h }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% set tone_map = {
+              'in':         {'tone':'success','label':'入库'},
+              'out':        {'tone':'warn',   'label':'出库'},
+              'adjustment': {'tone':'neutral','label':'调整'},
+              'settlement': {'tone':'danger', 'label':'结算'}
+            } %}
+            {% for r in tx_rows %}
+            {% set tx = r.tx %}
+            {% set _tm = tone_map.get(tx.transaction_type, {'tone':'neutral','label': tx.transaction_type}) %}
+            <tr style="border-bottom:1px solid var(--line-soft);
+                       transition:background 100ms;"
+                onmouseenter="this.style.background='var(--bg-hover)'"
+                onmouseleave="this.style.background='transparent'">
+              <td class="at-mono at-tab-num at-dim" style="padding:12px 14px;white-space:nowrap;font-size:11px;">
+                {{ tx.transaction_date.strftime('%Y-%m-%d %H:%M') if tx.transaction_date else '-' }}
+              </td>
+              {% if is_global %}
+              <td style="padding:12px 14px;overflow:hidden;">
+                {% if r.company %}
+                <a href="{{ url_for('inventory.at_stock_list', scope=r.company.id) }}"
+                   title="{{ r.company.company_name }}"
+                   style="color:var(--accent);text-decoration:none;font-size:12px;
+                          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                          display:block;max-width:100%;">{{ r.company.company_name }}</a>
+                {% else %}
+                <span class="at-dim">—</span>
+                {% endif %}
+              </td>
+              {% endif %}
+              <td style="padding:12px 14px;overflow:hidden;">
+                <div title="{{ r.product.product_name if r.product else '-' }}"
+                     style="color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  {{ r.product.product_name if r.product else '-' }}
+                </div>
+                {% if r.product and r.product.product_mn %}
+                <span class="at-mono at-dim" style="font-size:10.5px;">{{ r.product.product_mn }}</span>
+                {% endif %}
+              </td>
+              <td style="padding:12px 14px;text-align:center;">
+                {{ at_pill(_tm.label, tone=_tm.tone, dot=false) }}
+              </td>
+              <td class="at-mono at-tab-num"
+                  style="padding:12px 14px;text-align:right;font-weight:600;white-space:nowrap;
+                         color:{% if tx.transaction_type == 'in' %}var(--success){% elif tx.transaction_type in ['out','settlement'] %}var(--danger){% else %}var(--ink-2){% endif %};">
+                {% if tx.transaction_type == 'in' %}+{{ tx.quantity }}
+                {% elif tx.transaction_type in ['out','settlement'] %}{{ tx.quantity }}
+                {% elif tx.transaction_type == 'adjustment' %}→ {{ tx.quantity_after }}
+                {% else %}{{ tx.quantity }}{% endif %}
+              </td>
+              <td class="at-mono at-tab-num at-dim"
+                  style="padding:12px 14px;text-align:right;font-size:11px;white-space:nowrap;">
+                {{ tx.quantity_before }} → {{ tx.quantity_after }}
+              </td>
+              <td style="padding:12px 14px;font-size:11.5px;overflow:hidden;">
+                {% if r.ref_url %}
+                  <a href="{{ r.ref_url }}" class="at-mono"
+                     style="color:var(--accent);text-decoration:none;">{{ tx.reference_type }}#{{ tx.reference_id }}</a>
+                {% elif tx.reference_type == 'manual' %}
+                  <span class="at-dim">手动</span>
+                {% elif tx.reference_type == 'import' %}
+                  <span style="color:var(--accent);">期初导入 #{{ tx.reference_id or '-' }}</span>
+                {% else %}
+                  <span class="at-dim">—</span>
+                {% endif %}
+                {% if tx.description %}
+                <div class="at-dim" title="{{ tx.description }}"
+                     style="font-size:11px;margin-top:2px;overflow:hidden;
+                            text-overflow:ellipsis;white-space:nowrap;">{{ tx.description }}</div>
+                {% endif %}
+              </td>
+              <td class="at-dim" style="padding:12px 14px;font-size:11px;overflow:hidden;">
+                <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  {{ tx.created_by.real_name or tx.created_by.username if tx.created_by else '-' }}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if tx_rows|length >= 100 %}
+      <div style="padding:12px 16px;text-align:center;font-size:11.5px;color:var(--ink-3);
+                  border-top:1px solid var(--line-soft);">
+        仅显示最近 100 条
+      </div>
+      {% endif %}
+      {% else %}
+      {{ at_empty(label=('全局尚无流水记录' if is_global else '该公司暂无流水记录'), icon='clock') }}
+      {% endif %}
+    </div>
+
+  {% endcall %}
+
+  {% endif %}
+
+</main>
+
+<!-- 调整库存模态 -->
+{% set _adjust_footer = '<button type="button" onclick="document.getElementById(\'atAdjustModal\').style.display=\'none\'" '
+                     ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
+                     ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                     ~ '<button type="button" id="atAdjustSubmitBtn" onclick="atSubmitAdjust()" '
+                     ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
+                     ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
+                     ~ 'border-radius:6px;font-size:13px;font-weight:500;">'
+                     ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
+                     ~ '提交调整</button>' %}
+{% call at_modal_shell('atAdjustModal', '调整库存', icon='edit', width=480, footer_html=_adjust_footer) %}
+  <div id="atAdjustInfo" style="background:var(--bg-page);border:1px solid var(--line);
+                                 border-radius:8px;padding:12px 14px;margin-bottom:18px;
+                                 display:flex;align-items:center;gap:10px;">
+    <div style="width:36px;height:36px;border-radius:8px;background:var(--accent-tint);
+                color:var(--accent);display:flex;align-items:center;justify-content:center;">
+      {{ at_icon('archive', 18) }}
+    </div>
+    <div style="flex:1;min-width:0;overflow:hidden;">
+      <div id="atAdjustProductName"
+           style="font-size:13.5px;font-weight:500;color:var(--ink);
+                  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+      <div class="at-dim" style="font-size:11.5px;margin-top:2px;">
+        当前库存:<span id="atAdjustCurrentQty" class="at-mono at-tab-num" style="color:var(--ink-2);font-weight:500;">—</span>
+        <span id="atAdjustUnit" style="color:var(--ink-3);">件</span>
+      </div>
+    </div>
+  </div>
+
+  <form id="atAdjustForm" onsubmit="return false;">
+    <input type="hidden" id="atAdjustInvId">
+
+    {% call at_field('调整方式', required=true) %}
+      <div style="display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:8px;" id="atAdjustModeRow">
+        {% for v, label, hint in [
+          ('set',   '设值', '直接设置为某个数量'),
+          ('in',    '入库', '增加库存数量'),
+          ('out',   '出库', '减少库存数量')
+        ] %}
+        <button type="button" data-mode="{{ v }}" onclick="atSetAdjustMode('{{ v }}')"
+                class="at-adjust-mode"
+                style="padding:10px 8px;border-radius:6px;border:1px solid {{ 'var(--accent)' if loop.first else 'var(--line-2)' }};
+                       background:{{ 'var(--accent-tint)' if loop.first else 'var(--bg-elev)' }};
+                       text-align:center;cursor:pointer;transition:all 120ms;">
+          <div style="font-size:13px;font-weight:500;color:var(--ink);">{{ label }}</div>
+          <div class="at-dim" style="font-size:10.5px;margin-top:2px;">{{ hint }}</div>
+        </button>
+        {% endfor %}
+      </div>
+    {% endcall %}
+
+    {% call at_field('数量', required=true) %}
+      <input type="number" id="atAdjustQty" min="0" placeholder="输入数量"
+             style="width:100%;height:36px;padding:0 12px;background:var(--bg-elev);
+                    border:1px solid var(--line-2);border-radius:6px;font-size:14px;color:var(--ink);
+                    outline:none;font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
+      <div class="at-dim" id="atAdjustPreview" style="font-size:11.5px;margin-top:6px;font-family:var(--font-mono);"></div>
+    {% endcall %}
+
+    {% call at_field('调整原因', hint='可选,记录到流水描述') %}
+      <textarea id="atAdjustReason" placeholder="如:盘点修正 / 退货入库 / 损耗扣减"
+                style="width:100%;min-height:54px;padding:9px 12px;
+                       border:1px solid var(--line-2);border-radius:6px;
+                       background:var(--bg-elev);font-size:13px;resize:vertical;
+                       outline:none;font-family:inherit;color:var(--ink);"></textarea>
+    {% endcall %}
+  </form>
+{% endcall %}
+
+
+<!-- Excel 导入模态(厂商管理员) -->
+{% if is_vendor_admin %}
+{% set _import_footer = '<button type="button" onclick="atCloseImport()" '
+                     ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
+                     ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                     ~ '<a href="' ~ url_for('inventory.tw_import_template') ~ '" '
+                     ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:6px;'
+                     ~ 'background:transparent;color:var(--ink);border:1px solid var(--line-2);'
+                     ~ 'border-radius:6px;font-size:13px;font-weight:500;text-decoration:none;">'
+                     ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>'
+                     ~ '下载模板</a>'
+                     ~ '<button type="button" id="atImportSubmitBtn" onclick="atSubmitImport()" disabled '
+                     ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
+                     ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
+                     ~ 'border-radius:6px;font-size:13px;font-weight:500;opacity:0.5;cursor:not-allowed;">'
+                     ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 10l5 5 5-5M5 3h14"/></svg>'
+                     ~ '上传并预览</button>' %}
+{% call at_modal_shell('atImportModal', 'Excel 批量导入库存', icon='upload', width=620, footer_html=_import_footer) %}
+  <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;
+              padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.6;color:var(--ink-2);">
+    <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;
+                                        margin-bottom:6px;text-transform:uppercase;">使用提示</div>
+    支持 .xlsx 格式 · 列名必须为「MN号 / 公司名 / 数量 / 单位 / 存储位置 / 最低库存 / 最高库存 / 备注」<br>
+    上传后会先预览校验,确认无误再提交入库
+  </div>
+
+  <div id="atImportDropWrap">
+    <label id="atImportDrop"
+           style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                  gap:8px;padding:36px 20px;border-radius:8px;
+                  border:1.5px dashed var(--line-2);background:var(--bg-page);
+                  cursor:pointer;transition:all 160ms;position:relative;">
+      <span style="width:42px;height:42px;border-radius:10px;
+                   background:var(--bg-sunk);color:var(--ink-3);
+                   display:inline-flex;align-items:center;justify-content:center;">
+        {{ at_icon('upload', 20) }}
+      </span>
+      <div style="font-size:13px;color:var(--ink-2);font-weight:500;">点击或拖拽上传 Excel 文件</div>
+      <div class="at-dim at-mono" style="font-size:11px;letter-spacing:0.04em;">.xlsx · 单文件 · 最大 10 MB</div>
+      <input type="file" id="atImportFile" accept=".xlsx,.xls"
+             onchange="atOnImportFile()"
+             style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+    </label>
+  </div>
+
+  <div id="atImportPreview" style="display:none;margin-top:14px;">
+    <!-- JS 注入预览结果 -->
+  </div>
+{% endcall %}
+{% endif %}
+
+
+<!-- 通用文件预览 -->
+{{ at_file_preview_modal() }}
+
+<script>
+// ─── Tab 内库存搜索 ───
+function atFilterStockRows() {
+  const q = (document.getElementById('atStockSearch').value || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#atStockBody .at-stock-row');
+  let visible = 0;
+  rows.forEach(r => {
+    const name = r.dataset.name || '';
+    const mn   = r.dataset.mn || '';
+    const match = !q || name.includes(q) || mn.includes(q);
+    r.style.display = match ? '' : 'none';
+    if (match) visible++;
+    // 全局表:筛掉的主行,对应的子表也要隐藏
+    if (r.classList.contains('at-glob-row')) {
+      const pid = r.dataset.pid;
+      const detail = document.querySelector(`tr.at-glob-detail[data-pid="${pid}"]`);
+      if (detail && !match) detail.style.display = 'none';
+    }
+  });
+  const empty = document.getElementById('atStockEmpty');
+  if (empty) empty.style.display = (visible === 0 && q) ? '' : 'none';
+}
+
+// ─── 全局聚合表:点击主行展开/收起子表 ───
+function atToggleGlobRow(pid) {
+  const row = document.querySelector(`tr.at-glob-row[data-pid="${pid}"]`);
+  const detail = document.querySelector(`tr.at-glob-detail[data-pid="${pid}"]`);
+  if (!row || !detail) return;
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : 'table-row';
+  const chev = row.querySelector('.at-glob-chev');
+  if (chev) chev.style.transform = isOpen ? 'rotate(0)' : 'rotate(90deg)';
+}
+
+// ─── 库存调整 ───
+let _atAdjustMode = 'set';
+
+function atOpenAdjust(invId, productName, currentQty, unit) {
+  document.getElementById('atAdjustInvId').value = invId;
+  document.getElementById('atAdjustProductName').textContent = productName;
+  document.getElementById('atAdjustProductName').title = productName;
+  document.getElementById('atAdjustCurrentQty').textContent = currentQty;
+  document.getElementById('atAdjustUnit').textContent = unit || '件';
+  document.getElementById('atAdjustQty').value = '';
+  document.getElementById('atAdjustReason').value = '';
+  document.getElementById('atAdjustPreview').textContent = '';
+  atSetAdjustMode('set');
+  document.getElementById('atAdjustModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('atAdjustQty').focus(), 100);
+}
+
+function atSetAdjustMode(mode) {
+  _atAdjustMode = mode;
+  document.querySelectorAll('#atAdjustModeRow .at-adjust-mode').forEach(btn => {
+    const active = btn.dataset.mode === mode;
+    btn.style.background = active ? 'var(--accent-tint)' : 'var(--bg-elev)';
+    btn.style.borderColor = active ? 'var(--accent)' : 'var(--line-2)';
+  });
+  atUpdateAdjustPreview();
+}
+
+function atUpdateAdjustPreview() {
+  const cur = parseInt(document.getElementById('atAdjustCurrentQty').textContent) || 0;
+  const qty = parseInt(document.getElementById('atAdjustQty').value) || 0;
+  const unit = document.getElementById('atAdjustUnit').textContent || '件';
+  const preview = document.getElementById('atAdjustPreview');
+  if (qty <= 0) { preview.textContent = ''; return; }
+  let after;
+  if (_atAdjustMode === 'set') after = qty;
+  else if (_atAdjustMode === 'in') after = cur + qty;
+  else after = Math.max(0, cur - qty);
+  preview.innerHTML = `调整后:<span style="color:var(--ink);font-weight:500;">${cur} → ${after}</span> ${unit}`;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const q = document.getElementById('atAdjustQty');
+  if (q) q.addEventListener('input', atUpdateAdjustPreview);
+});
+
+function atSubmitAdjust() {
+  const invId = document.getElementById('atAdjustInvId').value;
+  const qty = parseInt(document.getElementById('atAdjustQty').value) || 0;
+  const reason = document.getElementById('atAdjustReason').value.trim();
+  if (qty <= 0) { ATToast.warn('无法提交', '请输入大于 0 的数量'); return; }
+
+  // 默认 reason(后端必填):按模式自动给个标签
+  const defaultReason = ({set:'盘点设值', in:'入库', out:'出库'})[_atAdjustMode] || '调整';
+  const finalReason = reason || defaultReason;
+
+  const btn = document.getElementById('atAdjustSubmitBtn');
+  btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'wait';
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+  fetch('{{ url_for("inventory.tw_stock_adjust") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+    body: JSON.stringify({
+      inventory_id: parseInt(invId),
+      action_type: _atAdjustMode,   // 后端字段名:action_type(in/out/set)
+      quantity: qty,
+      reason: finalReason,           // 后端必填
+      notes: reason                  // 用户输入的备注另传一份
+    })
+  })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) {
+        document.getElementById('atAdjustModal').style.display = 'none';
+        ATToast.success('库存已调整', `当前数量:${res.new_quantity ?? '—'}`);
+        setTimeout(() => location.reload(), 700);
+      } else {
+        ATToast.error('调整失败', res.message || '');
+        btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+      }
+    })
+    .catch(err => {
+      ATToast.error('调整失败', String(err));
+      btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+    });
+}
+
+{% if is_vendor_admin %}
+// ─── Excel 导入(对齐后端 /api/import/preview & /api/import/commit) ───
+// 后端 preview 返回:{ success, rows:[{line_no, mn, company_name, product_name, quantity, status, reason, ...}], summary:{total, success, warning, failed} }
+// commit 接收:{ rows: [...上面同结构...] },按 row.status != 'failed' 写入
+let _atImportFileObj = null;
+let _atImportPreviewRows = null;  // 缓存预览结果,commit 时回传
+
+function atOpenImport() {
+  _atImportFileObj = null;
+  _atImportPreviewRows = null;
+  document.getElementById('atImportFile').value = '';
+  document.getElementById('atImportPreview').style.display = 'none';
+  document.getElementById('atImportPreview').innerHTML = '';
+  const btn = document.getElementById('atImportSubmitBtn');
+  btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'not-allowed';
+  btn.querySelector('svg').nextSibling.textContent = '上传并预览';
+  document.getElementById('atImportModal').style.display = 'flex';
+}
+
+function atCloseImport() {
+  document.getElementById('atImportModal').style.display = 'none';
+}
+
+function atOnImportFile() {
+  const input = document.getElementById('atImportFile');
+  if (!input.files || !input.files[0]) return;
+  _atImportFileObj = input.files[0];
+  _atImportPreviewRows = null;
+  const drop = document.getElementById('atImportDrop');
+  drop.innerHTML = `
+    <span style="width:42px;height:42px;border-radius:10px;background:var(--accent-tint);
+                 color:var(--accent);display:inline-flex;align-items:center;justify-content:center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+    </span>
+    <div style="font-size:13px;color:var(--ink);font-weight:500;
+                overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;"
+         title="${(_atImportFileObj.name||'').replace(/"/g,'&quot;')}">${_atImportFileObj.name}</div>
+    <div class="at-dim at-mono" style="font-size:11px;">
+      ${(_atImportFileObj.size/1024).toFixed(1)} KB · 点击 "上传并预览" 校验
+    </div>
+    <input type="file" id="atImportFile" accept=".xlsx,.xls"
+           onchange="atOnImportFile()"
+           style="position:absolute;inset:0;opacity:0;cursor:pointer;">`;
+  const btn = document.getElementById('atImportSubmitBtn');
+  btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+  btn.querySelector('svg').nextSibling.textContent = '上传并预览';
+}
+
+function atSubmitImport() {
+  if (!_atImportFileObj && !_atImportPreviewRows) {
+    ATToast.warn('无文件', '请先选择 Excel 文件');
+    return;
+  }
+  const btn = document.getElementById('atImportSubmitBtn');
+  btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'wait';
+
+  // 已有预览结果 → 第二次点击 = commit
+  if (_atImportPreviewRows) {
+    atCommitImport();
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('file', _atImportFileObj);
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  fetch('{{ url_for("inventory.tw_import_preview") }}', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': csrf },
+    body: fd
+  })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) {
+        _atImportPreviewRows = res.rows || [];
+        atRenderImportPreview(res);
+      } else {
+        ATToast.error('预览失败', res.message || '');
+        btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+      }
+    })
+    .catch(err => {
+      ATToast.error('预览失败', String(err));
+      btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+    });
+}
+
+function atRenderImportPreview(res) {
+  const pv = document.getElementById('atImportPreview');
+  pv.style.display = 'block';
+
+  const summary = res.summary || {};
+  const total   = summary.total ?? (res.rows || []).length;
+  const okCount = (summary.success || 0) + (summary.warning || 0);  // 通过 = success + warning(覆盖)
+  const okPure  = summary.success || 0;
+  const warning = summary.warning || 0;
+  const errCount = summary.failed || 0;
+  const rows = res.rows || [];
+
+  const statusBadge = (s) => {
+    if (s === 'success') return `<span style="color:var(--success);font-weight:500;">✓ 新建</span>`;
+    if (s === 'warning') return `<span style="color:var(--warn);font-weight:500;">⚠ 覆盖</span>`;
+    if (s === 'failed')  return `<span style="color:var(--danger);font-weight:500;">✕ 错误</span>`;
+    return s || '-';
+  };
+
+  pv.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px;">
+      <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center;">
+        <div class="at-mono at-tab-num" style="font-size:18px;font-weight:600;color:var(--ink);">${total}</div>
+        <div class="at-dim" style="font-size:11px;margin-top:1px;">总行数</div>
+      </div>
+      <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center;">
+        <div class="at-mono at-tab-num" style="font-size:18px;font-weight:600;color:var(--success);">${okPure}</div>
+        <div class="at-dim" style="font-size:11px;margin-top:1px;">新建</div>
+      </div>
+      <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center;">
+        <div class="at-mono at-tab-num" style="font-size:18px;font-weight:600;color:var(--warn);">${warning}</div>
+        <div class="at-dim" style="font-size:11px;margin-top:1px;">覆盖</div>
+      </div>
+      <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center;">
+        <div class="at-mono at-tab-num" style="font-size:18px;font-weight:600;color:${errCount > 0 ? 'var(--danger)' : 'var(--ink-4)'};">${errCount}</div>
+        <div class="at-dim" style="font-size:11px;margin-top:1px;">错误</div>
+      </div>
+    </div>
+    ${rows.length ? `
+      <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;max-height:260px;overflow-y:auto;">
+        <table style="width:100%;font-size:11.5px;border-collapse:separate;border-spacing:0;">
+          <thead>
+            <tr>
+              ${['行','MN号','产品','公司','数量','状态','说明'].map(h => `
+                <th style="text-align:left;padding:6px 10px;background:var(--bg-page);
+                           color:var(--ink-4);font-size:10px;font-weight:500;letter-spacing:0.08em;
+                           text-transform:uppercase;border-bottom:1px solid var(--line);
+                           position:sticky;top:0;">${h}</th>
+              `).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.slice(0, 50).map(r => `
+              <tr style="border-bottom:1px solid var(--line-soft);
+                         background:${r.status === 'failed' ? 'rgba(220,90,80,0.04)' : 'transparent'};">
+                <td class="at-mono at-dim" style="padding:6px 10px;">${r.line_no || '-'}</td>
+                <td class="at-mono" style="padding:6px 10px;">${escapeHtmlSafe(r.mn || '-')}</td>
+                <td style="padding:6px 10px;">${escapeHtmlSafe(r.product_name || '-')}</td>
+                <td style="padding:6px 10px;">${escapeHtmlSafe(r.company_name || '-')}</td>
+                <td class="at-mono at-tab-num" style="padding:6px 10px;">${r.quantity ?? '-'}</td>
+                <td style="padding:6px 10px;white-space:nowrap;">${statusBadge(r.status)}</td>
+                <td style="padding:6px 10px;color:var(--ink-3);">${escapeHtmlSafe(r.reason || '')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        ${rows.length > 50 ? `<div style="padding:8px;text-align:center;color:var(--ink-4);font-size:11px;border-top:1px solid var(--line);">仅显示前 50 行,共 ${rows.length} 行</div>` : ''}
+      </div>` : ''}
+  `;
+
+  const btn = document.getElementById('atImportSubmitBtn');
+  if (okCount > 0) {
+    btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+    btn.querySelector('svg').nextSibling.textContent = `确认导入 (${okCount} 条)`;
+  } else {
+    btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'not-allowed';
+    btn.querySelector('svg').nextSibling.textContent = '无可提交的数据';
+  }
+}
+
+function atCommitImport() {
+  if (!_atImportPreviewRows) return;
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  fetch('{{ url_for("inventory.tw_import_commit") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+    body: JSON.stringify({ rows: _atImportPreviewRows })
+  })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) {
+        atCloseImport();
+        const w = res.written ?? res.imported ?? 0;
+        const sk = res.skipped || 0;
+        ATToast.success('导入完成', `成功 ${w} 条${sk > 0 ? ' · 跳过 '+sk+' 条' : ''}`);
+        setTimeout(() => location.reload(), 800);
+      } else {
+        ATToast.error('导入失败', res.message || '');
+        const btn = document.getElementById('atImportSubmitBtn');
+        btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+      }
+    })
+    .catch(err => {
+      ATToast.error('导入失败', String(err));
+      const btn = document.getElementById('atImportSubmitBtn');
+      btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+    });
+}
+
+// 局部 escape(避免依赖外部 escapeHtml)
+function escapeHtmlSafe(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// 拖拽视觉反馈
+document.addEventListener('DOMContentLoaded', () => {
+  const drop = document.getElementById('atImportDrop');
+  if (!drop) return;
+  drop.addEventListener('dragover', e => {
+    e.preventDefault();
+    drop.style.borderColor = 'var(--accent)';
+    drop.style.background = 'var(--accent-tint)';
+  });
+  drop.addEventListener('dragleave', () => {
+    drop.style.borderColor = 'var(--line-2)';
+    drop.style.background = 'var(--bg-page)';
+  });
+});
+{% endif %}
+</script>
+
+</div>{# /main col #}
+</div>{# /flex wrap #}
+</body>
+</html>

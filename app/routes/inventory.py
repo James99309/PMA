@@ -22,1161 +22,6 @@ logger = logging.getLogger(__name__)
 
 inventory = Blueprint('inventory', __name__, url_prefix='/inventory')
 
-@inventory.route('/')
-@login_required
-def index():
-    """库存管理主页"""
-    try:
-        # 获取库存统计数据
-        total_inventory = Inventory.query.count()
-        
-        # 今日入库数量
-        today = date.today()
-        today_in = InventoryTransaction.query.filter(
-            InventoryTransaction.transaction_type == 'in',
-            InventoryTransaction.transaction_date >= today
-        ).count()
-        
-        # 低库存预警数量
-        low_stock_count = Inventory.query.filter(
-            Inventory.quantity <= Inventory.min_stock,
-            Inventory.min_stock > 0
-        ).count()
-        
-        # 待处理结算数量
-        pending_settlements = Settlement.query.filter_by(status='pending').count()
-        
-        stats = {
-            'total_inventory': total_inventory,
-            'today_in': today_in,
-            'low_stock': low_stock_count,
-            'pending_settlements': pending_settlements
-        }
-        
-        return render_template('inventory/index.html', stats=stats)
-    except Exception as e:
-        logger.error(f"加载库存统计数据失败: {str(e)}")
-        # 使用默认值
-        stats = {
-            'total_inventory': 0,
-            'today_in': 0,
-            'low_stock': 0,
-            'pending_settlements': 0
-        }
-        return render_template('inventory/index.html', stats=stats)
-
-@inventory.route('/stock')
-@login_required
-@permission_required('inventory', 'view')
-def stock_list():
-    """库存列表 - 标准筛选搜索功能"""
-    try:
-        from flask_babel import gettext as _
-        from sqlalchemy import func, or_
-        logger.info("开始处理库存列表请求")
-        
-        # 获取标准搜索和筛选参数
-        search = request.args.get('search', '').strip()
-        company_id = request.args.get('company_id', '')
-        stock_status = request.args.get('stock_status', '')
-        
-        logger.info(f"查询参数: search={search}, company_id={company_id}, stock_status={stock_status}")
-        
-        if company_id:
-            # 公司视图：显示该公司的单独产品记录
-            logger.info(f"使用公司视图模式，公司ID: {company_id}")
-            
-            query = Inventory.query.join(Product).join(Company).filter(
-                Inventory.company_id == company_id,
-                Company.is_deleted == False
-            )
-            
-            # 应用搜索条件：搜索MN号、型号或产品名称
-            if search:
-                # 先join ProductSubcategory以支持新字段搜索
-                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
-                query = query.filter(
-                    or_(
-                        Product.product_mn.ilike(f'%{search}%'),
-                        Product.model.ilike(f'%{search}%'),
-                        ProductSubcategory.name.ilike(f'%{search}%'),  # 新字段
-                        Product.product_name.ilike(f'%{search}%')      # 旧字段
-                    )
-                )
-                logger.info(f"应用搜索条件: {search}")
-            
-            # 应用库存状态筛选
-            if stock_status == 'normal':
-                query = query.filter(Inventory.quantity > Inventory.min_stock)
-            elif stock_status == 'low':
-                query = query.filter(
-                    Inventory.quantity <= Inventory.min_stock,
-                    Inventory.quantity > 0
-                )
-            elif stock_status == 'zero':
-                query = query.filter(Inventory.quantity == 0)
-
-            # 确保join ProductSubcategory以支持新字段排序
-            if not search:  # 如果有搜索，上面已经join了
-                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
-
-            # 排序时优先使用新字段
-            query = query.order_by(
-                func.coalesce(ProductSubcategory.name, Product.product_name),
-                Product.model
-            )
-            inventories = query.all()
-            
-            # 转换为产品记录格式
-            product_records = []
-            for inv in inventories:
-                product_records.append({
-                    'inventory_id': inv.id,
-                    'product_id': inv.product.id,
-                    'product_name': inv.product.name,  # 使用智能属性
-                    'model': inv.product.model,
-                    'specification': inv.product.specification,
-                    'product_mn': inv.product.product_mn,
-                    'brand': inv.product.brand,
-                    'unit': inv.product.unit,
-                    'total_quantity': inv.quantity,
-                    'min_stock': inv.min_stock,
-                    'updated_at': inv.updated_at,
-                    'company_name': inv.company.company_name,
-                    'is_aggregate': False
-                })
-            
-        else:
-            # 产品聚合视图：显示所有公司的产品合计
-            logger.info("使用产品聚合视图模式")
-
-            # 计算用于显示和排序的产品名称（优先使用新字段）
-            computed_name = func.coalesce(ProductSubcategory.name, Product.product_name).label('display_name')
-
-            # 构建聚合查询
-            query = db.session.query(
-                Product.id,
-                Product.product_name,
-                Product.model,
-                Product.specification,
-                Product.product_mn,
-                Product.brand,
-                Product.unit,
-                computed_name,
-                func.sum(Inventory.quantity).label('total_quantity'),
-                func.max(Inventory.updated_at).label('updated_at')
-            ).join(Inventory, Inventory.product_id == Product.id)\
-             .join(Company, Inventory.company_id == Company.id)\
-             .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
-             .filter(Company.is_deleted == False)
-
-            # 应用搜索条件：搜索MN号、型号或产品名称
-            if search:
-                query = query.filter(
-                    or_(
-                        Product.product_mn.ilike(f'%{search}%'),
-                        Product.model.ilike(f'%{search}%'),
-                        ProductSubcategory.name.ilike(f'%{search}%'),  # 新字段
-                        Product.product_name.ilike(f'%{search}%')      # 旧字段
-                    )
-                )
-                logger.info(f"应用搜索条件: {search}")
-
-            # 按产品分组
-            query = query.group_by(
-                Product.id,
-                Product.product_name,
-                Product.model,
-                Product.specification,
-                Product.product_mn,
-                Product.brand,
-                Product.unit,
-                ProductSubcategory.name  # 新增：包含新字段
-            ).order_by(
-                computed_name,
-                Product.model
-            )
-            
-            results = query.all()
-            
-            # 转换为产品记录格式
-            product_records = []
-            for result in results:
-                # 对于聚合视图，计算最低库存警戒线（取最大值作为参考）
-                min_stock_query = db.session.query(func.max(Inventory.min_stock)).join(Product).filter(
-                    Product.id == result.id
-                ).scalar() or 0
-                
-                product_records.append({
-                    'inventory_id': None,
-                    'product_id': result.id,
-                    'product_name': result.display_name,  # 使用计算字段（优先新字段）
-                    'model': result.model,
-                    'specification': result.specification,
-                    'product_mn': result.product_mn,
-                    'brand': result.brand,
-                    'unit': result.unit,
-                    'total_quantity': result.total_quantity or 0,
-                    'min_stock': min_stock_query,
-                    'updated_at': result.updated_at,
-                    'company_name': '所有公司合计',
-                    'is_aggregate': True
-                })
-            
-            # 应用库存状态筛选（在Python中进行，因为涉及聚合后的数据）
-            if stock_status == 'normal':
-                product_records = [r for r in product_records if r['total_quantity'] > r['min_stock']]
-            elif stock_status == 'low':
-                product_records = [r for r in product_records if r['total_quantity'] <= r['min_stock'] and r['total_quantity'] > 0]
-            elif stock_status == 'zero':
-                product_records = [r for r in product_records if r['total_quantity'] == 0]
-        
-        logger.info(f"产品记录数量: {len(product_records)}")
-        
-        # 计算统计数据
-        total_items = len(product_records)
-        normal_stock = len([r for r in product_records if r['total_quantity'] > r['min_stock']])
-        low_stock_count = len([r for r in product_records if r['total_quantity'] <= r['min_stock'] and r['total_quantity'] > 0])
-        zero_stock = len([r for r in product_records if r['total_quantity'] == 0])
-        
-        logger.info(f"统计数据: total={total_items}, normal={normal_stock}, low={low_stock_count}, zero={zero_stock}")
-        
-        # 获取有库存的公司列表
-        company_ids_with_stock = select(Inventory.company_id).distinct()
-        companies_with_stock = Company.query.filter(
-            Company.id.in_(company_ids_with_stock),
-            Company.is_deleted == False
-        ).order_by(Company.company_name).all()
-        
-        # 构建标准筛选搜索配置
-        filter_config = {
-            'action_url': url_for('inventory.stock_list'),
-            'form_id': 'stockFilterForm',
-            'reset_url': url_for('inventory.stock_list'),
-            'auto_submit': True,                # 启用自动筛选
-            'ajax_mode': True,                  # 启用AJAX模式
-            'ajax_endpoint': url_for('inventory.stock_list_ajax'),
-            'ajax_target': 'stockTableBody',
-            'dynamic_reset_button': True,       # 启用动态重置按钮
-            
-            'search_field': {
-                'name': 'search',
-                'label': '搜索',
-                'placeholder': 'MN号、型号或产品名称',
-                'value': search,
-                'col_width': 4
-            },
-            
-            'filter_fields': [
-                {
-                    'name': 'company_id',
-                    'label': '公司',
-                    'all_option_text': '全部公司（聚合视图）',
-                    'current_value': company_id,
-                    'col_width': 3,
-                    'options': [
-                        {'value': company.id, 'label': company.company_name, 'translate': False} 
-                        for company in companies_with_stock
-                    ]
-                },
-                {
-                    'name': 'stock_status',
-                    'label': '库存状态',
-                    'all_option_text': '全部状态',
-                    'current_value': stock_status,
-                    'col_width': 3,
-                    'options': [
-                        {'value': 'normal', 'label': '正常库存', 'translate': True},
-                        {'value': 'low', 'label': '低库存', 'translate': True},
-                        {'value': 'zero', 'label': '零库存', 'translate': True}
-                    ]
-                }
-            ],
-            
-            'search_button_text': '搜索',
-            'reset_button_text': '重置'
-        }
-        
-        # 通用列表组件配置
-        list_config = {
-            'module_name': 'stock',
-            'title': '库存管理',
-            'ajax_mode': True,
-            
-            # 无限滚动配置
-            'infinite_scroll': {
-                'enabled': True,
-                'page_size': 50,
-                'scroll_threshold': 100,
-                'container_selector': '.table-responsive',
-                'scroll_mode': 'container'
-            },
-            
-            # 统计卡片配置
-            'stats': {
-                'cards': [
-                    {
-                        'id': 'total',
-                        'title': '总库存',
-                        'icon': 'fas fa-boxes',
-                        'value': total_items,
-                        'unit': '种',
-                        'color': 'primary',
-                        'clickable': True,
-                        'click_params': {},
-                        'data_key': 'total'
-                    },
-                    {
-                        'id': 'normal',
-                        'title': '正常库存',
-                        'icon': 'fas fa-check-circle',
-                        'value': normal_stock,
-                        'unit': '种',
-                        'color': 'success',
-                        'clickable': True,
-                        'click_params': {'stock_status': 'normal'},
-                        'data_key': 'normal'
-                    },
-                    {
-                        'id': 'low',
-                        'title': '库存不足',
-                        'icon': 'fas fa-exclamation-triangle',
-                        'value': low_stock_count,
-                        'unit': '种',
-                        'color': 'warning',
-                        'clickable': True,
-                        'click_params': {'stock_status': 'low'},
-                        'data_key': 'low'
-                    },
-                    {
-                        'id': 'zero',
-                        'title': '库存为零',
-                        'icon': 'fas fa-times-circle',
-                        'value': zero_stock,
-                        'unit': '种',
-                        'color': 'danger',
-                        'clickable': True,
-                        'click_params': {'stock_status': 'zero'},
-                        'data_key': 'zero'
-                    }
-                ]
-            },
-            
-            # 筛选配置
-            'filter': filter_config,
-            
-            # 表格配置
-            'table': {
-                'ajax_target': 'stockTableBody',
-                'title': '库存列表',
-                'icon': 'fas fa-table',
-                'fixed_height_scroll': True,     # 启用固定高度滚动（蓝色滚动条）
-                'enhanced_striping': True,       # 启用增强斑马纹效果
-                'use_custom_rows': True,         # 使用自定义行模板
-                'custom_rows_template': 'inventory/stock_rows.html',
-                'columns': [
-                    {
-                        'key': 'product_name',
-                        'field': 'product_name',
-                        'label': '产品名称',
-                        'type': 'text',
-                        'width': '200px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'model_spec',
-                        'field': 'model_spec',
-                        'label': '型号/规格',
-                        'type': 'text', 
-                        'width': '180px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'product_mn',
-                        'field': 'product_mn',
-                        'label': 'MN号',
-                        'type': 'text',
-                        'width': '120px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'total_quantity',
-                        'field': 'total_quantity',
-                        'label': '当前库存',
-                        'type': 'number',
-                        'width': '100px',
-                        'align': 'end',
-                        'sort_type': 'number'
-                    },
-                    {
-                        'key': 'min_stock',
-                        'field': 'min_stock',
-                        'label': '最低库存',
-                        'type': 'number',
-                        'width': '100px',
-                        'align': 'end',
-                        'sort_type': 'number'
-                    },
-                    {
-                        'key': 'stock_status',
-                        'field': 'stock_status',
-                        'label': '状态',
-                        'type': 'badge',
-                        'width': '100px',
-                        'render': 'render_stock_status_badge',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'brand',
-                        'field': 'brand',
-                        'label': '品牌',
-                        'type': 'text',
-                        'width': '100px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'unit',
-                        'field': 'unit',
-                        'label': '单位',
-                        'type': 'text',
-                        'width': '80px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'updated_at',
-                        'field': 'updated_at',
-                        'label': '更新时间',
-                        'type': 'date',
-                        'width': '150px',
-                        'sort_type': 'date'
-                    }
-                ]
-            }
-        }
-
-        # 准备模板数据
-        template_data = {
-            'product_records': product_records,
-            'companies_with_stock': companies_with_stock,
-            'filter_config': filter_config,
-            'list_config': list_config,
-            'is_company_view': bool(company_id),
-            'stats': {
-                'total': total_items,
-                'normal': normal_stock,
-                'low': low_stock_count,
-                'zero': zero_stock
-            }
-        }
-        
-        logger.info(f"模板数据准备完成，product_records数量: {len(product_records)}")
-        
-        return render_template('inventory/stock_list.html', **template_data)
-                             
-    except Exception as e:
-        logger.error(f"库存列表查询失败：{str(e)}")
-        import traceback
-        logger.error(f"错误详情: {traceback.format_exc()}")
-        # 回滚事务
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-        flash(f'加载库存列表失败：{str(e)}', 'danger')
-        
-        # 错误时的默认filter_config
-        error_filter_config = {
-            'action_url': url_for('inventory.stock_list'),
-            'form_id': 'stockFilterForm',
-            'reset_url': url_for('inventory.stock_list'),
-            'search_field': {
-                'name': 'search',
-                'label': '搜索',
-                'placeholder': 'MN号、型号或产品名称',
-                'value': '',
-                'col_width': 4
-            },
-            'filter_fields': [],
-            'search_button_text': '搜索',
-            'reset_button_text': '重置'
-        }
-        
-        # 错误时的默认list_config
-        error_list_config = {
-            'module_name': 'stock',
-            'title': '库存管理',
-            'ajax_mode': True,
-            'stats': {
-                'cards': [
-                    {
-                        'id': 'total',
-                        'title': '总库存',
-                        'icon': 'fas fa-boxes',
-                        'value': 0,
-                        'unit': '种',
-                        'color': 'primary',
-                        'data_key': 'total'
-                    },
-                    {
-                        'id': 'normal',
-                        'title': '正常库存',
-                        'icon': 'fas fa-check-circle',
-                        'value': 0,
-                        'unit': '种',
-                        'color': 'success',
-                        'data_key': 'normal'
-                    },
-                    {
-                        'id': 'low',
-                        'title': '库存不足',
-                        'icon': 'fas fa-exclamation-triangle',
-                        'value': 0,
-                        'unit': '种',
-                        'color': 'warning',
-                        'data_key': 'low'
-                    },
-                    {
-                        'id': 'zero',
-                        'title': '库存为零',
-                        'icon': 'fas fa-times-circle',
-                        'value': 0,
-                        'unit': '种',
-                        'color': 'danger',
-                        'data_key': 'zero'
-                    }
-                ]
-            },
-            'filter': error_filter_config,
-            'table': {
-                'ajax_target': 'stockTableBody',
-                'title': '库存列表',
-                'icon': 'fas fa-table',
-                'columns': []
-            },
-            'infinite_scroll': {'enabled': False}
-        }
-
-        return render_template('inventory/stock_list.html',
-                             product_records=[],
-                             companies_with_stock=[],
-                             filter_config=error_filter_config,
-                             list_config=error_list_config,
-                             is_company_view=False,
-                             stats={
-                                 'total': 0,
-                                 'normal': 0,
-                                 'low': 0,
-                                 'zero': 0
-                             })
-
-@inventory.route('/api/stock/filter', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def stock_list_ajax():
-    """库存列表AJAX筛选API"""
-    try:
-        from flask_babel import gettext as _
-        from sqlalchemy import func, or_
-        
-        # 获取搜索和筛选参数
-        search = request.args.get('search', '').strip()
-        company_id = request.args.get('company_id', '')
-        stock_status = request.args.get('stock_status', '')
-        
-        # 分页参数
-        offset = request.args.get('offset', 0, type=int)
-        limit = request.args.get('limit', 20, type=int)
-        
-        # 排序参数
-        sort_field = request.args.get('sort_field', '')
-        sort_direction = request.args.get('sort_direction', 'asc')
-        
-        # 限制每次加载数量的范围
-        if limit not in [10, 20, 30, 50]:
-            limit = 20
-        
-        if company_id:
-            # 公司视图：显示该公司的单独产品记录
-            query = Inventory.query.join(Product).join(Company).filter(
-                Inventory.company_id == company_id,
-                Company.is_deleted == False
-            )
-            
-            # 应用搜索条件：搜索MN号、型号或产品名称
-            if search:
-                # 先join ProductSubcategory以支持新字段搜索
-                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
-                query = query.filter(
-                    or_(
-                        Product.product_mn.ilike(f'%{search}%'),
-                        Product.model.ilike(f'%{search}%'),
-                        ProductSubcategory.name.ilike(f'%{search}%'),  # 新字段
-                        Product.product_name.ilike(f'%{search}%')      # 旧字段
-                    )
-                )
-
-            # 应用库存状态筛选
-            if stock_status == 'normal':
-                query = query.filter(Inventory.quantity > Inventory.min_stock)
-            elif stock_status == 'low':
-                query = query.filter(
-                    Inventory.quantity <= Inventory.min_stock,
-                    Inventory.quantity > 0
-                )
-            elif stock_status == 'zero':
-                query = query.filter(Inventory.quantity == 0)
-
-            # 确保join ProductSubcategory以支持新字段排序
-            if not search:  # 如果有搜索，上面已经join了
-                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
-
-            # 应用排序（公司视图）
-            if sort_field and sort_direction:
-                field_mapping = {
-                    'product_name': Product.product_name,
-                    'model': Product.model,
-                    'product_mn': Product.product_mn,
-                    'brand': Product.brand,
-                    'total_quantity': Inventory.quantity,
-                    'updated_at': Inventory.updated_at
-                }
-
-                if sort_field in field_mapping:
-                    sort_column = field_mapping[sort_field]
-                    if sort_direction.lower() == 'desc':
-                        query = query.order_by(sort_column.desc())
-                    else:
-                        query = query.order_by(sort_column.asc())
-                else:
-                    # 默认排序：优先使用新字段
-                    query = query.order_by(
-                        func.coalesce(ProductSubcategory.name, Product.product_name),
-                        Product.model
-                    )
-            else:
-                # 默认排序：优先使用新字段
-                query = query.order_by(
-                    func.coalesce(ProductSubcategory.name, Product.product_name),
-                    Product.model
-                )
-            
-            # 执行查询
-            total_count = query.count()
-            inventories = query.offset(offset).limit(limit).all()
-            
-            # 转换为产品记录格式
-            product_records = []
-            for inv in inventories:
-                product_records.append({
-                    'inventory_id': inv.id,
-                    'product_id': inv.product.id,
-                    'product_name': inv.product.name,  # 使用智能属性
-                    'model': inv.product.model,
-                    'specification': inv.product.specification,
-                    'product_mn': inv.product.product_mn,
-                    'brand': inv.product.brand,
-                    'unit': inv.product.unit,
-                    'total_quantity': inv.quantity,
-                    'min_stock': inv.min_stock,
-                    'updated_at': inv.updated_at,
-                    'company_name': inv.company.company_name,
-                    'is_aggregate': False
-                })
-            
-        else:
-            # 产品聚合视图
-            # 计算用于显示和排序的产品名称（优先使用新字段）
-            computed_name = func.coalesce(ProductSubcategory.name, Product.product_name).label('display_name')
-
-            query = db.session.query(
-                Product.id,
-                Product.product_name,
-                Product.model,
-                Product.specification,
-                Product.product_mn,
-                Product.brand,
-                Product.unit,
-                computed_name,
-                func.sum(Inventory.quantity).label('total_quantity'),
-                func.max(Inventory.updated_at).label('updated_at')
-            ).join(Inventory, Inventory.product_id == Product.id)\
-             .join(Company, Inventory.company_id == Company.id)\
-             .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
-             .filter(Company.is_deleted == False)
-
-            # 应用搜索条件：搜索MN号、型号或产品名称
-            if search:
-                query = query.filter(
-                    or_(
-                        Product.product_mn.ilike(f'%{search}%'),
-                        Product.model.ilike(f'%{search}%'),
-                        ProductSubcategory.name.ilike(f'%{search}%'),  # 新字段
-                        Product.product_name.ilike(f'%{search}%')      # 旧字段
-                    )
-                )
-
-            # 按产品分组
-            query = query.group_by(
-                Product.id,
-                Product.product_name,
-                Product.model,
-                Product.specification,
-                Product.product_mn,
-                Product.brand,
-                Product.unit,
-                ProductSubcategory.name  # 新增：包含新字段
-            )
-
-            # 应用排序（聚合视图）
-            if sort_field and sort_direction:
-                field_mapping = {
-                    'product_name': computed_name,  # 使用计算字段排序
-                    'model': Product.model,
-                    'product_mn': Product.product_mn,
-                    'brand': Product.brand,
-                    'total_quantity': func.sum(Inventory.quantity),
-                    'updated_at': func.max(Inventory.updated_at)
-                }
-
-                if sort_field in field_mapping:
-                    sort_column = field_mapping[sort_field]
-                    if sort_direction.lower() == 'desc':
-                        query = query.order_by(sort_column.desc())
-                    else:
-                        query = query.order_by(sort_column.asc())
-                else:
-                    # 默认排序：优先使用新字段
-                    query = query.order_by(computed_name, Product.model)
-            else:
-                # 默认排序：优先使用新字段
-                query = query.order_by(computed_name, Product.model)
-            
-            # 执行查询
-            total_query_count = query.count()
-            results = query.offset(offset).limit(limit).all()
-            
-            # 转换为产品记录格式
-            product_records = []
-            for result in results:
-                min_stock_query = db.session.query(func.max(Inventory.min_stock)).join(Product).filter(
-                    Product.id == result.id
-                ).scalar() or 0
-                
-                product_records.append({
-                    'inventory_id': None,
-                    'product_id': result.id,
-                    'product_name': result.display_name,  # 使用计算字段（优先新字段）
-                    'model': result.model,
-                    'specification': result.specification,
-                    'product_mn': result.product_mn,
-                    'brand': result.brand,
-                    'unit': result.unit,
-                    'total_quantity': result.total_quantity or 0,
-                    'min_stock': min_stock_query,
-                    'updated_at': result.updated_at,
-                    'company_name': '所有公司合计',
-                    'is_aggregate': True
-                })
-            
-            total_count = total_query_count
-            
-            # 应用库存状态筛选（在Python中进行）
-            if stock_status == 'normal':
-                product_records = [r for r in product_records if r['total_quantity'] > r['min_stock']]
-            elif stock_status == 'low':
-                product_records = [r for r in product_records if r['total_quantity'] <= r['min_stock'] and r['total_quantity'] > 0]
-            elif stock_status == 'zero':
-                product_records = [r for r in product_records if r['total_quantity'] == 0]
-        
-        # 计算统计数据（用于更新统计卡片）
-        all_records_query = query if company_id else query
-        all_results = all_records_query.all() if company_id else query.all()
-        
-        if company_id:
-            all_product_records = []
-            for inv in all_results:
-                all_product_records.append({
-                    'total_quantity': inv.quantity,
-                    'min_stock': inv.min_stock
-                })
-        else:
-            all_product_records = []
-            for result in all_results:
-                min_stock_query = db.session.query(func.max(Inventory.min_stock)).join(Product).filter(
-                    Product.id == result.id
-                ).scalar() or 0
-                all_product_records.append({
-                    'total_quantity': result.total_quantity or 0,
-                    'min_stock': min_stock_query
-                })
-        
-        # 应用状态筛选到统计数据
-        if stock_status == 'normal':
-            all_product_records = [r for r in all_product_records if r['total_quantity'] > r['min_stock']]
-        elif stock_status == 'low':
-            all_product_records = [r for r in all_product_records if r['total_quantity'] <= r['min_stock'] and r['total_quantity'] > 0]
-        elif stock_status == 'zero':
-            all_product_records = [r for r in all_product_records if r['total_quantity'] == 0]
-        
-        # 计算统计数据
-        total_stats = len(all_product_records)
-        normal_stats = len([r for r in all_product_records if r['total_quantity'] > r['min_stock']])
-        low_stats = len([r for r in all_product_records if r['total_quantity'] <= r['min_stock'] and r['total_quantity'] > 0])
-        zero_stats = len([r for r in all_product_records if r['total_quantity'] == 0])
-        
-        # 构建统计数据
-        statistics = {
-            'total_count': total_stats,
-            'normal_count': normal_stats,
-            'low_stock_count': low_stats,
-            'zero_count': zero_stats
-        }
-        
-        # 检测移动端并使用智能移动卡片
-        from app.utils.mobile_helpers import is_mobile_request
-        from types import SimpleNamespace
-        
-        if product_records:
-            # 格式化库存数据为标准结构
-            formatted_results = []
-            for record in product_records:
-                # 计算库存状态
-                quantity = record['total_quantity']
-                min_stock = record['min_stock']
-                
-                if quantity == 0:
-                    stock_status = '缺货'
-                elif quantity <= min_stock:
-                    stock_status = '库存不足'
-                else:
-                    stock_status = '库存正常'
-                
-                formatted_record = SimpleNamespace(
-                    id=record['inventory_id'] or record['product_id'],
-                    inventory_id=record['inventory_id'],
-                    product_id=record['product_id'],
-                    product_name=record['product_name'],
-                    model=record['model'],
-                    product_mn=record['product_mn'],
-                    brand=record['brand'],
-                    specification=record['specification'] or '',
-                    unit=record['unit'],
-                    total_quantity=quantity,
-                    min_stock=min_stock,
-                    stock_status=stock_status,
-                    company_name=record['company_name'],
-                    updated_at=record['updated_at'],
-                    is_aggregate=record.get('is_aggregate', False)
-                )
-                formatted_results.append(formatted_record)
-            
-            if is_mobile_request():
-                # 智能移动卡片配置 - 库存管理
-                smart_mobile_card = {
-                    'module': 'inventory',
-                    'title_field': {'field': 'product_name'},
-                    'badges': [
-                        {'field': 'stock_status', 'renderer': 'inventory_status'}
-                    ],
-                    'details': [
-                        {'field': 'model', 'label': '产品型号'},
-                        {'field': 'product_mn', 'label': '产品料号'},
-                        {'field': 'brand', 'label': '品牌'},
-                        {'field': 'specification', 'label': '规格'},
-                        {'field': 'total_quantity', 'label': '库存数量', 'suffix': '件'},
-                        {'field': 'min_stock', 'label': '最小库存', 'suffix': '件'},
-                        {'field': 'company_name', 'label': '所属公司'},
-                        {'field': 'updated_at', 'label': '更新时间', 'format': 'date'}
-                    ]
-                }
-                
-                # 使用智能移动卡片模板渲染
-                html = render_template_string('''
-                {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
-                {{ render_smart_mobile_cards(items, card_config) }}
-                ''', items=formatted_results, card_config=smart_mobile_card)
-            else:
-                # 桌面端使用传统表格行渲染
-                html = render_template('inventory/stock_rows.html', 
-                                      product_records=product_records,
-                                      is_company_view=bool(company_id))
-        else:
-            if is_mobile_request():
-                html = '<div class="text-center py-4">暂无符合条件的数据</div>'
-            else:
-                html = render_template('inventory/stock_rows.html', 
-                                      product_records=product_records,
-                                      is_company_view=bool(company_id))
-        
-        # 计算是否还有更多数据
-        has_more = (offset + limit) < total_count
-        
-        return jsonify({
-            'success': True,
-            'html': html,
-            'has_more': has_more,
-            'total_count': total_count,
-            'loaded_count': len(product_records),
-            'statistics': statistics  # 用于更新统计卡片
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@inventory.route('/stock/<int:id>')
-@login_required
-@permission_required('inventory', 'view')
-def stock_detail(id):
-    """库存详情"""
-    inventory = Inventory.query.get_or_404(id)
-    
-    # 获取相关的库存变动记录
-    transactions = InventoryTransaction.query.filter_by(inventory_id=id)\
-        .order_by(InventoryTransaction.transaction_date.desc())\
-        .limit(20).all()
-    
-    return render_template('inventory/stock_detail.html', 
-                         inventory=inventory,
-                         transactions=transactions)
-
-@inventory.route('/product/<int:product_id>/stock')
-@login_required
-@permission_required('inventory', 'view')
-def product_stock_detail(product_id):
-    """产品库存聚合详情（显示该产品在所有公司的库存情况）"""
-    product = Product.query.get_or_404(product_id)
-    
-    # 获取该产品在所有公司的库存记录
-    inventories = Inventory.query.join(Company).join(Product).filter(
-        Product.id == product_id,
-        Company.is_deleted == False
-    ).order_by(Company.company_name).all()
-    
-    if not inventories:
-        flash('该产品暂无库存记录', 'warning')
-        return redirect(url_for('inventory.stock_list'))
-    
-    # 计算汇总数据
-    total_quantity = sum(inv.quantity for inv in inventories)
-    total_companies = len(inventories)
-    
-    # 获取该产品相关的库存变动记录（所有公司）
-    inventory_ids = [inv.id for inv in inventories]
-    transactions = InventoryTransaction.query.filter(
-        InventoryTransaction.inventory_id.in_(inventory_ids)
-    ).order_by(InventoryTransaction.transaction_date.desc()).limit(50).all()
-    
-    return render_template('inventory/product_stock_detail.html',
-                         product=product,
-                         inventories=inventories,
-                         total_quantity=total_quantity,
-                         total_companies=total_companies,
-                         transactions=transactions)
-
-@inventory.route('/update_min_stock', methods=['POST'])
-@login_required
-@permission_required('inventory', 'edit')
-def update_min_stock():
-    """更新最低库存"""
-    try:
-        inventory_id = request.form.get('inventory_id')
-        min_stock = request.form.get('min_stock')
-        
-        if not inventory_id or min_stock is None:
-            return jsonify({'success': False, 'message': '缺少必要参数'})
-        
-        inventory = Inventory.query.get_or_404(inventory_id)
-        
-        # 验证数值
-        try:
-            min_stock_value = int(min_stock)
-            if min_stock_value < 0:
-                return jsonify({'success': False, 'message': '最低库存不能为负数'})
-        except ValueError:
-            return jsonify({'success': False, 'message': '最低库存必须是有效数字'})
-        
-        # 更新最低库存
-        inventory.min_stock = min_stock_value
-        db.session.commit()
-        
-        logger.info(f"用户 {current_user.username} 更新了库存 {inventory.id} 的最低库存为 {min_stock_value}")
-        
-        return jsonify({
-            'success': True,
-            'message': '最低库存更新成功',
-            'new_value': min_stock_value
-        })
-        
-    except Exception as e:
-        logger.error(f"更新最低库存失败：{str(e)}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': f'更新失败：{str(e)}'})
-
-@inventory.route('/update_max_stock', methods=['POST'])
-@login_required
-@permission_required('inventory', 'edit')
-def update_max_stock():
-    """更新最高库存"""
-    try:
-        inventory_id = request.form.get('inventory_id')
-        max_stock = request.form.get('max_stock')
-        
-        if not inventory_id or max_stock is None:
-            return jsonify({'success': False, 'message': '缺少必要参数'})
-        
-        inventory = Inventory.query.get_or_404(inventory_id)
-        
-        # 验证数值
-        try:
-            max_stock_value = int(max_stock)
-            if max_stock_value < 0:
-                return jsonify({'success': False, 'message': '最高库存不能为负数'})
-        except ValueError:
-            return jsonify({'success': False, 'message': '最高库存必须是有效数字'})
-        
-        # 更新最高库存（0表示不限制）
-        inventory.max_stock = max_stock_value if max_stock_value > 0 else None
-        db.session.commit()
-        
-        logger.info(f"用户 {current_user.username} 更新了库存 {inventory.id} 的最高库存为 {max_stock_value}")
-        
-        return jsonify({
-            'success': True,
-            'message': '最高库存更新成功',
-            'new_value': max_stock_value
-        })
-        
-    except Exception as e:
-        logger.error(f"更新最高库存失败：{str(e)}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': f'更新失败：{str(e)}'})
-
-@inventory.route('/stock_action', methods=['POST'])
-@login_required
-@permission_required('inventory', 'edit')
-def stock_action():
-    """库存操作（入库、出库、调整）"""
-    try:
-        inventory_id = request.form.get('inventory_id')
-        action_type = request.form.get('action_type')
-        quantity = request.form.get('quantity')
-        description = request.form.get('description', '')
-        
-        if not inventory_id or not action_type or not quantity:
-            return jsonify({'success': False, 'message': '缺少必要参数'})
-        
-        inventory = Inventory.query.get_or_404(inventory_id)
-        
-        # 验证数量
-        try:
-            quantity_value = int(quantity)
-            if quantity_value <= 0:
-                return jsonify({'success': False, 'message': '数量必须大于0'})
-        except ValueError:
-            return jsonify({'success': False, 'message': '数量必须是有效数字'})
-        
-        # 根据操作类型确定数量变动
-        if action_type == 'in':
-            quantity_change = quantity_value
-            trans_type = 'in'
-            action_desc = f'手动入库：{description}' if description else '手动入库'
-        elif action_type == 'out':
-            quantity_change = -quantity_value
-            trans_type = 'out'
-            action_desc = f'手动出库：{description}' if description else '手动出库'
-        elif action_type == 'adjustment':
-            # 调整：设置为指定的绝对数量
-            quantity_change = quantity_value - inventory.quantity
-            trans_type = 'adjustment'
-            action_desc = f'库存调整至{quantity_value}：{description}' if description else f'库存调整至{quantity_value}'
-        else:
-            return jsonify({'success': False, 'message': '无效的操作类型'})
-        
-        # 检查出库时库存是否足够
-        if quantity_change < 0 and inventory.quantity + quantity_change < 0:
-            return jsonify({'success': False, 'message': f'库存不足，当前库存：{inventory.quantity}'})
-        
-        # 执行库存变动
-        success, message, updated_inventory = update_inventory(
-            company_id=inventory.company_id,
-            product_id=inventory.product_id,
-            quantity_change=quantity_change,
-            transaction_type=trans_type,
-            description=action_desc,
-            reference_type='manual',
-            user_id=current_user.id
-        )
-        
-        if success:
-            logger.info(f"用户 {current_user.username} 对库存 {inventory_id} 执行了 {action_type} 操作，数量变动：{quantity_change}")
-            return jsonify({
-                'success': True,
-                'message': message,
-                'new_quantity': updated_inventory.quantity,
-                'action_type': action_type,
-                'quantity_change': quantity_change
-            })
-        else:
-            return jsonify({'success': False, 'message': message})
-        
-    except Exception as e:
-        logger.error(f"库存操作失败：{str(e)}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': f'操作失败：{str(e)}'})
-
-@inventory.route('/add_stock', methods=['GET', 'POST'])
-@login_required
-@permission_required('inventory', 'create')
-def add_stock():
-    """添加库存"""
-    if request.method == 'POST':
-        try:
-            company_id = request.form.get('company_id')
-            product_id = request.form.get('product_id')
-            quantity = int(request.form.get('quantity', 0))
-            description = request.form.get('description', '')
-            
-            if not company_id or not product_id or quantity <= 0:
-                flash('请填写完整的库存信息', 'danger')
-                return redirect(url_for('inventory.add_stock'))
-            
-            success, message, _ = update_inventory(
-                company_id=company_id,
-                product_id=product_id,
-                quantity_change=quantity,
-                transaction_type='in',
-                description=description,
-                reference_type='manual',
-                user_id=current_user.id
-            )
-            
-            if success:
-                flash('库存添加成功', 'success')
-                return redirect(url_for('inventory.stock_list'))
-            else:
-                flash(f'库存添加失败：{message}', 'danger')
-                
-        except Exception as e:
-            logger.error(f"添加库存失败：{str(e)}")
-            flash(f'操作失败：{str(e)}', 'danger')
-    
-    # 获取公司和产品列表
-    companies = Company.query.filter(
-        Company.is_deleted == False
-    ).order_by(Company.company_name).all()
-    # 获取产品列表，排序时优先使用新字段
-    products = Product.query\
-        .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
-        .order_by(func.coalesce(ProductSubcategory.name, Product.product_name))\
-        .all()
-    
-    return render_template('inventory/add_stock.html', 
-                         companies=companies, 
-                         products=products)
-
 @inventory.route('/settlement')
 @login_required
 @permission_required('settlement', 'view')
@@ -2545,555 +1390,6 @@ def get_company_inventory_details(company_id):
         logger.error(f"获取公司库存详情失败：{str(e)}")
         return jsonify({'success': False, 'message': f'获取库存详情失败：{str(e)}'})
 
-@inventory.route('/orders')
-@login_required
-@permission_required('order', 'view')
-def order_list():
-    """订单列表 - 使用通用列表组件架构"""
-    try:
-        # 确保数据库连接正常，如果有失败的事务则回滚
-        try:
-            db.session.rollback()
-        except:
-            pass
-            
-        # 获取搜索和筛选参数
-        search = request.args.get('search', '').strip()
-        company_id = request.args.get('company_id', '')
-        status = request.args.get('status', '')
-        inventory_status = request.args.get('inventory_status', '')
-        
-        # 构建基础查询
-        query = PurchaseOrder.query
-        
-        # 应用筛选条件
-        if search:
-            query = query.filter(
-                db.or_(
-                    PurchaseOrder.order_number.contains(search),
-                    PurchaseOrder.company.has(Company.company_name.contains(search))
-                )
-            )
-        
-        if company_id:
-            query = query.filter(PurchaseOrder.company_id == company_id)
-        
-        if status:
-            query = query.filter(PurchaseOrder.status == status)
-        
-        # 计算统计数据
-        all_orders_for_stats = query.all()
-        
-        # 统计数据
-        total_count = len(all_orders_for_stats)
-        total_amount = sum(float(order.total_amount or 0) for order in all_orders_for_stats) / 10000  # 转换为万元
-        
-        # 按入库状态分类统计
-        pending_orders = [order for order in all_orders_for_stats if order.inventory_status == 'pending']
-        partial_orders = [order for order in all_orders_for_stats if order.inventory_status == 'partially_received']
-        completed_orders = [order for order in all_orders_for_stats if order.inventory_status == 'fully_received']
-        
-        pending_count = len(pending_orders)
-        pending_amount = sum(float(order.total_amount or 0) for order in pending_orders) / 10000
-        
-        partial_count = len(partial_orders)
-        partial_amount = sum(float(order.total_amount or 0) for order in partial_orders) / 10000
-        
-        completed_count = len(completed_orders)
-        completed_amount = sum(float(order.total_amount or 0) for order in completed_orders) / 10000
-        
-        # 获取筛选选项
-        company_ids_with_orders = db.session.query(PurchaseOrder.company_id).distinct().all()
-        company_ids = [row[0] for row in company_ids_with_orders if row[0]]
-        companies = Company.query.filter(
-            Company.id.in_(company_ids),
-            Company.is_deleted == False
-        ).order_by(Company.company_name).all()
-        
-        # 获取实际存在的订单状态
-        existing_statuses = db.session.query(PurchaseOrder.status).distinct().all()
-        available_statuses = []
-        status_map = {
-            'draft': '草稿',
-            'pending': '审批中', 
-            'approved': '已审批',
-            'rejected': '已拒绝',
-            'confirmed': '已确认',
-            'shipped': '已发货',
-            'completed': '已完成',
-            'cancelled': '已取消'
-        }
-        
-        for status_row in existing_statuses:
-            status_val = status_row[0]
-            if status_val and status_val in status_map:
-                available_statuses.append({
-                    'value': status_val,
-                    'label': status_map[status_val]
-                })
-        
-        # 获取实际存在的入库状态
-        available_inventory_statuses = []
-        inventory_status_map = {
-            'pending': '待入库',
-            'partially_received': '部分入库',
-            'fully_received': '全部入库'
-        }
-        
-        for inv_status in ['pending', 'partially_received', 'fully_received']:
-            available_inventory_statuses.append({
-                'value': inv_status,
-                'label': inventory_status_map[inv_status]
-            })
-        
-        # 构建筛选搜索配置
-        filter_config = {
-            'action_url': url_for('inventory.order_list'),
-            'form_id': 'orderFilterForm',
-            'reset_url': url_for('inventory.order_list'),
-            'auto_submit': True,
-            'ajax_mode': True,
-            'ajax_endpoint': url_for('inventory.order_list_ajax'),
-            'ajax_target': 'orderTableBody',
-            'ajax_columns': 8,
-            'dynamic_reset_button': True,
-            'search_field_id': 'search',
-            
-            'search_field': {
-                'name': 'search',
-                'label': '搜索',
-                'placeholder': '订单号或公司名称',
-                'value': search,
-                'col_width': 3
-            },
-            
-            'filter_fields': [
-                {
-                    'name': 'company_id',
-                    'label': '公司',
-                    'all_option_text': '全部公司',
-                    'current_value': company_id,
-                    'col_width': 2,
-                    'options': [
-                        {'value': company.id, 'label': company.company_name, 'translate': False} 
-                        for company in companies
-                    ]
-                },
-                {
-                    'name': 'status',
-                    'label': '审批状态',
-                    'all_option_text': '全部状态',
-                    'current_value': status,
-                    'col_width': 2,
-                    'options': [
-                        {'value': s['value'], 'label': s['label'], 'translate': True} 
-                        for s in available_statuses
-                    ]
-                },
-                {
-                    'name': 'inventory_status',
-                    'label': '入库状态',
-                    'all_option_text': '全部状态',
-                    'current_value': inventory_status,
-                    'col_width': 2,
-                    'options': [
-                        {'value': s['value'], 'label': s['label'], 'translate': True} 
-                        for s in available_inventory_statuses
-                    ]
-                }
-            ],
-            
-            'search_button_text': '搜索',
-            'reset_button_text': '重置'
-        }
-        
-        # 构建通用列表配置
-        list_config = {
-            'module_name': 'order',
-            'title': '订单管理',  # 设置为与页面标题一致
-            'ajax_mode': True,
-            
-            # 无限滚动配置
-            'infinite_scroll': {
-                'enabled': True,
-                'page_size': 50,
-                'scroll_threshold': 100,
-                'container_selector': '.table-responsive',
-                'scroll_mode': 'container'  # 明确设置为容器滚动模式
-            },
-            
-            # 统计卡片配置
-            'stats': {
-                'cards': [
-                    {
-                        'id': 'total',
-                        'title': '全部订单',
-                        'icon': 'fas fa-list-alt',
-                        'value': total_count,
-                        'amount': total_amount,
-                        'unit': '单',
-                        'amount_unit': Config.AMOUNT_UNIT,
-                        'color': 'primary',
-                        'data_key': 'total'
-                    },
-                    {
-                        'id': 'pending',
-                        'title': '待入库',
-                        'icon': 'fas fa-clock',
-                        'value': pending_count,
-                        'amount': pending_amount,
-                        'unit': '单',
-                        'amount_unit': Config.AMOUNT_UNIT,
-                        'color': 'warning',
-                        'data_key': 'pending'
-                    },
-                    {
-                        'id': 'partial',
-                        'title': '部分入库',
-                        'icon': 'fas fa-hourglass-half',
-                        'value': partial_count,
-                        'amount': partial_amount,
-                        'unit': '单',
-                        'amount_unit': Config.AMOUNT_UNIT,
-                        'color': 'info',
-                        'data_key': 'partial'
-                    },
-                    {
-                        'id': 'completed',
-                        'title': '已入库',
-                        'icon': 'fas fa-check-circle',
-                        'value': completed_count,
-                        'amount': completed_amount,
-                        'unit': '单',
-                        'amount_unit': Config.AMOUNT_UNIT,
-                        'color': 'success',
-                        'data_key': 'completed'
-                    }
-                ]
-            },
-            
-            # 筛选配置
-            'filter': filter_config,
-            
-            # 表格配置
-            'table': {
-                'ajax_target': 'orderTableBody',
-                'title': '订单列表',  # 恢复表格标题
-                'icon': 'fas fa-table',
-                'show_header': True,
-                'fixed_height_scroll': True,     # 启用固定高度滚动
-                'enhanced_striping': True,       # 启用增强斑马纹效果
-                'columns': [
-                    {
-                        'key': 'order_number',
-                        'field': 'order_number',
-                        'label': '订单号',
-                        'type': 'link',
-                        'url_template': '/inventory/orders/{id}',
-                        'width': '140px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'company.company_name',
-                        'field': 'company.company_name',
-                        'label': '公司名称',
-                        'type': 'text',
-                        'width': '200px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'total_amount',
-                        'field': 'total_amount',
-                        'label': '总金额',
-                        'type': 'number',
-                        'format': 'wan',
-                        'align': 'end',
-                        'width': '120px',
-                        'sort_type': 'number'
-                    },
-                    {
-                        'key': 'status',
-                        'field': 'status',
-                        'label': '审批状态',
-                        'type': 'badge',
-                        'render': 'render_order_status_badge',
-                        'width': '100px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'inventory_status',
-                        'field': 'inventory_status',
-                        'label': '入库状态',
-                        'type': 'badge',
-                        'render': 'render_inventory_status_badge',
-                        'width': '100px',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'expected_date',
-                        'field': 'expected_date',
-                        'label': '预期日期',
-                        'type': 'date',
-                        'format': '%Y-%m-%d',
-                        'width': '120px',
-                        'sort_type': 'date'
-                    },
-                    {
-                        'key': 'created_at',
-                        'field': 'created_at',
-                        'label': '创建时间',
-                        'type': 'date',
-                        'format': '%Y-%m-%d %H:%M',
-                        'width': '150px',
-                        'sort_type': 'date'
-                    },
-                    {
-                        'key': 'created_by',
-                        'field': 'created_by',
-                        'label': '创建人',
-                        'type': 'badge',
-                        'render': 'render_owner',
-                        'width': '100px',
-                        'sort_type': 'string'
-                    }
-                ]
-            }
-        }
-        
-        return render_template('inventory/order_list.html', list_config=list_config)
-        
-    except Exception as e:
-        logger.error(f"获取订单列表失败：{str(e)}")
-        import traceback
-        logger.error(f"错误详情: {traceback.format_exc()}")
-        flash(f'加载订单列表失败：{str(e)}', 'danger')
-        
-        # 错误时的默认list_config
-        error_list_config = {
-            'module_name': 'order',
-            'title': '订单管理',  # 设置为与页面标题一致
-            'ajax_mode': True,
-            'stats': {'cards': []},
-            'filter': {
-                'action_url': url_for('inventory.order_list'),
-                'form_id': 'orderFilterForm',
-                'reset_url': url_for('inventory.order_list'),
-                'search_field': {
-                    'name': 'search',
-                    'label': '搜索',
-                    'placeholder': '订单号或公司名称',
-                    'value': '',
-                    'col_width': 3
-                },
-                'filter_fields': [],
-                'search_button_text': '搜索',
-                'reset_button_text': '重置'
-            },
-            'table': {
-                'ajax_target': 'orderTableBody',
-                'columns': []
-            }
-        }
-        
-        return render_template('inventory/order_list.html', list_config=error_list_config)
-
-@inventory.route('/api/orders/filter', methods=['GET'])
-@login_required
-@permission_required('order', 'view')
-def order_list_ajax():
-    """订单列表AJAX筛选API"""
-    # 获取搜索和筛选参数
-    search = request.args.get('search', '')
-    company_id = request.args.get('company_id', '')
-    status = request.args.get('status', '')
-    inventory_status = request.args.get('inventory_status', '')
-    
-    # 分页参数
-    offset = request.args.get('offset', 0, type=int)
-    limit = request.args.get('limit', 20, type=int)
-    
-    # 排序参数
-    sort_field = request.args.get('sort_field', '')
-    sort_direction = request.args.get('sort_direction', 'asc')
-    
-    # 限制每次加载数量的范围
-    if limit not in [10, 20, 30, 50]:
-        limit = 20
-    
-    # 构建查询
-    query = PurchaseOrder.query
-    
-    # 搜索条件
-    if search:
-        query = query.filter(
-            db.or_(
-                PurchaseOrder.order_number.contains(search),
-                PurchaseOrder.company.has(Company.company_name.contains(search))
-            )
-        )
-    
-    # 筛选条件
-    if company_id:
-        try:
-            company_id = int(company_id)
-            query = query.filter(PurchaseOrder.company_id == company_id)
-        except (ValueError, TypeError):
-            pass
-    
-    if status:
-        query = query.filter(PurchaseOrder.status == status)
-    
-    # 应用排序
-    from app.utils.sorting_service import SortingService, create_basic_field_mappings
-    
-    # 创建排序配置
-    sorting_config = {
-        'field_mappings': create_basic_field_mappings(PurchaseOrder, [
-            'order_number', 'total_amount', 'status', 'created_at', 'updated_at'
-        ]),
-        'relation_mappings': {},
-        'default_sort': {'field': 'created_at', 'direction': 'desc'}
-    }
-    
-    # 创建排序服务并应用排序
-    sorting_service = SortingService(PurchaseOrder, sorting_config)
-    query = sorting_service.apply_sort(query, sort_field, sort_direction)
-    
-    # 处理入库状态筛选
-    if inventory_status:
-        # 需要先获取所有订单再筛选
-        all_orders = query.all()
-        filtered_orders = [order for order in all_orders if order.inventory_status == inventory_status]
-        
-        # 手动分页
-        total_count = len(filtered_orders)
-        orders = filtered_orders[offset:offset + limit]
-        has_more = (offset + limit) < total_count
-    else:
-        # 普通查询可以使用数据库分页
-        total_count = query.count()
-        orders = query.offset(offset).limit(limit).all()
-        has_more = (offset + limit) < total_count
-    
-    # 计算统计数据（用于更新统计卡片）
-    all_orders_for_stats = query.all()
-    
-    # 安全的金额计算函数
-    def safe_amount_sum(orders):
-        total = 0
-        for order in orders:
-            amount = order.total_amount
-            if amount is not None:
-                try:
-                    total += float(amount)
-                except (ValueError, TypeError):
-                    pass  # 忽略无效的金额值
-        return round(total / 10000, 2)  # 转换为万元并保留2位小数
-    
-    # 分类统计
-    total_stats_count = len(all_orders_for_stats)
-    total_stats_amount = safe_amount_sum(all_orders_for_stats)
-    
-    pending_orders = [o for o in all_orders_for_stats if o.inventory_status == 'pending']
-    pending_stats_count = len(pending_orders)
-    pending_stats_amount = safe_amount_sum(pending_orders)
-    
-    partial_orders = [o for o in all_orders_for_stats if o.inventory_status == 'partially_received']
-    partial_stats_count = len(partial_orders)
-    partial_stats_amount = safe_amount_sum(partial_orders)
-    
-    completed_orders = [o for o in all_orders_for_stats if o.inventory_status == 'fully_received']
-    completed_stats_count = len(completed_orders)
-    completed_stats_amount = safe_amount_sum(completed_orders)
-    
-    # 构建统计数据
-    statistics = {
-        'total_count': int(total_stats_count),
-        'total_amount': float(total_stats_amount),
-        'pending_count': int(pending_stats_count),
-        'pending_amount': float(pending_stats_amount),
-        'partial_count': int(partial_stats_count),
-        'partial_amount': float(partial_stats_amount),
-        'completed_count': int(completed_stats_count),
-        'completed_amount': float(completed_stats_amount)
-    }
-    
-    # 检测移动端并使用智能移动卡片
-    from app.utils.mobile_helpers import is_mobile_request
-    from types import SimpleNamespace
-    
-    if orders:
-        # 格式化订单数据为标准结构
-        formatted_results = []
-        for order in orders:
-            company_name = order.company.company_name if order.company else '未知公司'
-            creator_name = order.created_by.real_name if order.created_by and order.created_by.real_name else (order.created_by.username if order.created_by else '未知')
-            
-            # 获取入库状态标签
-            inventory_status = order.inventory_status or 'pending'
-            status_labels = {
-                'pending': '待入库',
-                'partially_received': '部分入库',
-                'fully_received': '已入库'
-            }
-            inventory_status_label = status_labels.get(inventory_status, inventory_status)
-            
-            formatted_order = SimpleNamespace(
-                id=order.id,
-                order_number=order.order_number,
-                company_name=company_name,
-                total_amount=order.total_amount or 0,
-                status=order.status or '未知',
-                inventory_status=inventory_status,
-                inventory_status_label=inventory_status_label,
-                expected_date=order.expected_date,
-                creator_name=creator_name,
-                created_at=order.created_at
-            )
-            formatted_results.append(formatted_order)
-        
-        if is_mobile_request():
-            # 智能移动卡片配置 - 订单管理
-            smart_mobile_card = {
-                'module': 'order',
-                'title_field': {'field': 'order_number'},
-                'link_url': '/inventory/orders/{id}',
-                'badges': [
-                    {'field': 'inventory_status_label', 'renderer': 'order_status'}
-                ],
-                'details': [
-                    {'field': 'company_name', 'label': '供应商'},
-                    {'field': 'total_amount', 'label': '订单金额', 'format': 'currency'},
-                    {'field': 'status', 'label': '订单状态'},
-                    {'field': 'expected_date', 'label': '预期日期', 'format': 'date'},
-                    {'field': 'creator_name', 'label': '创建人'},
-                    {'field': 'created_at', 'label': '创建时间', 'format': 'date'}
-                ]
-            }
-            
-            # 使用智能移动卡片模板渲染
-            html = render_template_string('''
-            {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
-            {{ render_smart_mobile_cards(items, card_config) }}
-            ''', items=formatted_results, card_config=smart_mobile_card)
-        else:
-            # 桌面端使用传统表格行渲染
-            html = render_template('inventory/order_rows.html', orders=orders)
-    else:
-        if is_mobile_request():
-            html = '<div class="text-center py-4">暂无符合条件的数据</div>'
-        else:
-            html = render_template('inventory/order_rows.html', orders=orders)
-    
-    return jsonify({
-        'success': True,
-        'html': html,
-        'has_more': has_more,
-        'total_count': total_count,
-        'loaded_count': offset + len(orders),
-        'statistics': statistics  # 用于更新统计卡片
-    })
-
 @inventory.route('/api/settlement_orders/filter', methods=['GET'])
 @login_required
 @permission_required('settlement', 'view')
@@ -3417,666 +1713,6 @@ def settlement_list_ajax():
         'statistics': statistics  # 用于更新统计卡片
     })
 
-@inventory.route('/orders/create', methods=['GET', 'POST'])
-@login_required
-@permission_required('order', 'create')
-def create_order():
-    """创建订单"""
-    if request.method == 'POST':
-        try:
-            # 获取基本信息
-            company_id = request.form.get('company_id')
-            expected_date = request.form.get('expected_date')
-            description = request.form.get('description', '')
-            
-            if not company_id:
-                flash('请选择公司', 'danger')
-                return redirect(url_for('inventory.create_order'))
-            
-            # 处理日期
-            expected_date_obj = None
-            if expected_date:
-                expected_date_obj = datetime.strptime(expected_date, '%Y-%m-%d')
-            
-            # 生成订单号
-            order_number = generate_order_number()
-            
-            # ===== PO模板扩展字段 =====
-            revision = request.form.get('revision', '').strip() or None
-            incoterms = request.form.get('incoterms', '').strip() or None
-            order_category = request.form.get('order_category', '').strip() or None
-            verification_test_type = request.form.get('verification_test_type', '').strip() or None
-
-            # ===== 交货信息 =====
-            required_date_str = request.form.get('required_date')
-            required_date_obj = None
-            if required_date_str:
-                required_date_obj = datetime.strptime(required_date_str, '%Y-%m-%d').date()
-
-            confirmed_date_str = request.form.get('confirmed_date')
-            confirmed_date_obj = None
-            if confirmed_date_str:
-                confirmed_date_obj = datetime.strptime(confirmed_date_str, '%Y-%m-%d').date()
-
-            shipping_method = request.form.get('shipping_method', '').strip() or None
-            freight_terms = request.form.get('freight_terms', '').strip() or None
-            ship_to = request.form.get('ship_to', '').strip() or None
-            payment_terms = request.form.get('payment_terms', '').strip() or None
-            currency = request.form.get('currency', 'CNY').strip()
-
-            # 创建订单（默认为采购订单）
-            order = PurchaseOrder(
-                order_number=order_number,
-                company_id=company_id,
-                order_type='purchase',  # 默认为采购订单
-                expected_date=expected_date_obj,
-                description=description,
-                created_by_id=current_user.id,
-                # 新增字段
-                revision=revision,
-                incoterms=incoterms,
-                order_category=order_category,
-                verification_test_type=verification_test_type,
-                required_date=required_date_obj,
-                confirmed_date=confirmed_date_obj,
-                shipping_method=shipping_method,
-                freight_terms=freight_terms,
-                ship_to=ship_to,
-                payment_terms=payment_terms,
-                currency=currency
-            )
-            db.session.add(order)
-            db.session.flush()
-            
-            # 获取订单明细 - 处理新的表单格式
-            order_details = []
-            total_quantity = 0
-            total_amount = 0
-            
-            # 获取数组形式的表单数据
-            product_ids = request.form.getlist('product_id[]')
-            quantities = request.form.getlist('quantity[]')
-            unit_prices = request.form.getlist('unit_price[]')
-            discounts = request.form.getlist('discount[]')
-            notes_list = request.form.getlist('notes[]')
-            
-            logger.info(f"接收到的表单数据: product_ids={product_ids}, quantities={quantities}, unit_prices={unit_prices}, discounts={discounts}")
-            
-            for i, product_id in enumerate(product_ids):
-                if product_id and i < len(quantities):
-                    try:
-                        quantity = int(quantities[i]) if quantities[i] else 0
-                        unit_price = float(unit_prices[i]) if i < len(unit_prices) and unit_prices[i] else 0
-                        discount_rate = float(discounts[i]) if i < len(discounts) and discounts[i] else 100
-                        notes = notes_list[i] if i < len(notes_list) else ''
-                        
-                        logger.info(f"处理第{i+1}行: product_id={product_id}, quantity={quantity}, unit_price={unit_price}, discount_rate={discount_rate}")
-                        
-                        if quantity > 0 and unit_price >= 0:
-                            product = Product.query.get(product_id)
-                            if product:
-                                # 折扣率转换为小数（100% = 1.0）
-                                discount_decimal = discount_rate / 100.0
-                                
-                                # 计算总价
-                                calculated_total = unit_price * quantity * discount_decimal
-                                
-                                detail = PurchaseOrderDetail(
-                                    order_id=order.id,
-                                    product_id=product_id,
-                                    product_name=product.name,
-                                    product_model=product.model or '',
-                                    product_desc=product.specification or '',
-                                    brand=product.brand or '',
-                                    quantity=quantity,
-                                    unit=product.unit or '',
-                                    unit_price=unit_price,
-                                    discount=discount_decimal,
-                                    total_price=calculated_total,
-                                    notes=notes
-                                )
-                                order_details.append(detail)
-                                total_quantity += quantity
-                                total_amount += calculated_total
-
-                                logger.info(f"成功添加订单明细: {product.name}, 数量={quantity}, 单价={unit_price}, 小计={calculated_total}")
-                            else:
-                                logger.warning(f"未找到产品ID: {product_id}")
-                        else:
-                            logger.warning(f"跳过无效行: quantity={quantity}, unit_price={unit_price}")
-                    except (ValueError, TypeError) as e:
-                        logger.error(f"处理订单明细时出错：{str(e)}")
-                        continue
-            
-            if not order_details:
-                flash('请至少添加一个有效的产品', 'danger')
-                return redirect(url_for('inventory.create_order'))
-            
-            # 添加订单明细
-            for detail in order_details:
-                db.session.add(detail)
-            
-            # 更新订单总计
-            order.total_quantity = total_quantity
-            order.total_amount = total_amount
-            
-            db.session.commit()
-            
-            flash(f'订单创建成功！订单号：{order_number}', 'success')
-            return redirect(url_for('inventory.order_detail', id=order.id))
-            
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"创建订单失败：{str(e)}")
-            flash(f'操作失败：{str(e)}', 'danger')
-    
-    # 获取公司列表 - 只显示经销商类型且未删除的公司
-    companies = Company.query.filter(
-        Company.company_type == 'dealer',
-        Company.is_deleted != True
-    ).order_by(Company.company_name).all()
-    
-    return render_template('inventory/create_order.html', companies=companies)
-
-@inventory.route('/orders/<int:id>')
-@login_required
-@permission_required_with_approval_context('order', 'view')
-def order_detail(id):
-    """订单详情"""
-    # 使用数据访问控制获取订单
-    from app.utils.access_control import get_viewable_data
-    viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-    order = viewable_orders.filter(PurchaseOrder.id == id).first_or_404()
-    
-    # 导入审批相关函数
-    from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
-    
-    # 获取审批实例
-    approval_instance = get_object_approval_instance('purchase_order', order.id)
-    
-    return render_template('inventory/order_detail.html', 
-                         order=order,
-                         approval_instance=approval_instance,
-                         get_object_approval_instance=get_object_approval_instance,
-                         get_available_templates=get_available_templates)
-
-@inventory.route('/orders/<int:id>/edit', methods=['GET', 'POST'])
-@login_required
-@permission_required('order', 'edit')
-def edit_order(id):
-    """编辑订单"""
-    # 使用数据访问控制获取订单
-    from app.utils.access_control import get_viewable_data
-    viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-    order = viewable_orders.filter(PurchaseOrder.id == id).first_or_404()
-    
-    # 只有草稿状态的订单才能编辑
-    if order.status != 'draft':
-        flash('只有草稿状态的订单才能编辑', 'warning')
-        return redirect(url_for('inventory.order_detail', id=id))
-    
-    if request.method == 'POST':
-        try:
-            # 更新订单基本信息
-            order.company_id = request.form.get('company_id')
-            order.order_date = datetime.strptime(request.form.get('order_date'), '%Y-%m-%d').date()
-            
-            expected_date_str = request.form.get('expected_date')
-            if expected_date_str:
-                order.expected_date = datetime.strptime(expected_date_str, '%Y-%m-%d').date()
-            else:
-                order.expected_date = None
-                
-            order.payment_terms = request.form.get('payment_terms', '').strip()
-            order.delivery_address = request.form.get('delivery_address', '').strip()
-            order.description = request.form.get('description', '').strip()
-            order.currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
-
-            # ===== PO模板扩展字段 =====
-            order.revision = request.form.get('revision', '').strip() or None
-            order.incoterms = request.form.get('incoterms', '').strip() or None
-            order.order_category = request.form.get('order_category', '').strip() or None
-            order.verification_test_type = request.form.get('verification_test_type', '').strip() or None
-
-            # ===== 交货信息 =====
-            required_date_str = request.form.get('required_date')
-            if required_date_str:
-                order.required_date = datetime.strptime(required_date_str, '%Y-%m-%d').date()
-            else:
-                order.required_date = None
-
-            confirmed_date_str = request.form.get('confirmed_date')
-            if confirmed_date_str:
-                order.confirmed_date = datetime.strptime(confirmed_date_str, '%Y-%m-%d').date()
-            else:
-                order.confirmed_date = None
-
-            order.shipping_method = request.form.get('shipping_method', '').strip() or None
-            order.freight_terms = request.form.get('freight_terms', '').strip() or None
-            order.ship_to = request.form.get('ship_to', '').strip() or None
-
-            # 删除原有的订单明细
-            PurchaseOrderDetail.query.filter_by(order_id=order.id).delete()
-            
-            # 重新处理订单明细
-            order_details = []
-            total_quantity = 0
-            total_amount = 0
-            
-            # 获取产品明细数据
-            product_ids = request.form.getlist('product_id[]')
-            quantities = request.form.getlist('quantity[]')
-            unit_prices = request.form.getlist('unit_price[]')
-            discounts = request.form.getlist('discount[]')
-            notes_list = request.form.getlist('notes[]')
-            
-            for i in range(len(product_ids)):
-                try:
-                    product_id = int(product_ids[i]) if product_ids[i] else None
-                    quantity = int(quantities[i]) if quantities[i] else 0
-                    unit_price = float(unit_prices[i]) if unit_prices[i] else 0
-                    discount = float(discounts[i]) if discounts[i] else 100
-                    notes = notes_list[i] if i < len(notes_list) else ''
-                    
-                    if product_id and quantity > 0 and unit_price > 0:
-                        product = Product.query.get(product_id)
-                        if product:
-                            discount_decimal = discount / 100
-                            calculated_total = quantity * unit_price * discount_decimal
-                            
-                            detail = PurchaseOrderDetail(
-                                order_id=order.id,
-                                product_id=product_id,
-                                product_name=product.name,
-                                product_model=product.product_model or '',
-                                product_desc=product.specification or '',
-                                brand=product.brand or '',
-                                quantity=quantity,
-                                unit=product.unit or '',
-                                unit_price=unit_price,
-                                discount=discount_decimal,
-                                total_price=calculated_total,
-                                notes=notes
-                            )
-                            order_details.append(detail)
-                            total_quantity += quantity
-                            total_amount += calculated_total
-                except (ValueError, TypeError):
-                    continue
-            
-            if not order_details:
-                flash('请至少添加一个有效的产品', 'danger')
-                return redirect(url_for('inventory.edit_order', id=id))
-            
-            # 添加订单明细
-            for detail in order_details:
-                db.session.add(detail)
-            
-            # 更新订单总计
-            order.total_quantity = total_quantity
-            order.total_amount = total_amount
-            
-            db.session.commit()
-            
-            flash('订单更新成功', 'success')
-            return redirect(url_for('inventory.order_detail', id=id))
-        
-        except Exception as e:
-            db.session.rollback()
-            flash(f'更新订单失败：{str(e)}', 'danger')
-    
-    # 获取公司列表
-    companies = Company.query.filter(
-        Company.is_deleted == False
-    ).order_by(Company.company_name).all()
-    
-    return render_template('inventory/edit_order.html', 
-                         order=order, 
-                         companies=companies)
-
-
-
-@inventory.route('/orders/<int:id>/delete', methods=['POST'])
-@login_required
-@permission_required('order', 'delete')
-def delete_order(id):
-    """删除单个订单"""
-    try:
-        # 使用数据访问控制获取订单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == id).first_or_404()
-        order_number = order.order_number
-        
-        # 删除订单明细
-        PurchaseOrderDetail.query.filter_by(order_id=id).delete()
-        
-        # 删除订单
-        db.session.delete(order)
-        db.session.commit()
-        
-        logger.info(f"订单删除成功：{order_number}")
-        return jsonify({'success': True, 'message': f'订单 {order_number} 删除成功'})
-        
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"删除订单失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'删除失败：{str(e)}'})
-
-@inventory.route('/orders/receive', methods=['POST'])
-@login_required
-@permission_required('order', 'edit')
-def receive_order_item():
-    """订单明细入库操作"""
-    try:
-        # 验证请求格式
-        if not request.is_json:
-            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
-        
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': '请求数据为空'}), 400
-        
-        # 参数验证和类型转换
-        try:
-            detail_id = int(data.get('detail_id', 0))
-            quantity = float(data.get('quantity', 0))
-        except (ValueError, TypeError) as e:
-            logger.error(f"参数类型转换失败: {e}, 原始数据: {data}")
-            return jsonify({'success': False, 'message': f'参数格式错误: {str(e)}'}), 400
-        
-        if not detail_id or detail_id <= 0:
-            return jsonify({'success': False, 'message': '订单明细ID无效'}), 400
-            
-        if quantity <= 0:
-            return jsonify({'success': False, 'message': '入库数量必须大于0'}), 400
-        
-        # 获取订单明细
-        detail = PurchaseOrderDetail.query.get(detail_id)
-        if not detail:
-            return jsonify({'success': False, 'message': '订单明细不存在'}), 404
-        
-        # 检查用户是否有权限操作此订单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        if not viewable_orders.filter(PurchaseOrder.id == detail.order_id).first():
-            return jsonify({'success': False, 'message': '无权限操作此订单'}), 403
-        
-        # 检查订单状态是否允许入库
-        if detail.order.status not in ['approved', 'confirmed']:
-            return jsonify({'success': False, 'message': f'订单状态为"{detail.order.status}"，不允许入库操作'}), 400
-        
-        # 检查入库数量
-        remaining_qty = detail.remaining_quantity
-        if quantity > remaining_qty:
-            return jsonify({'success': False, 'message': f'入库数量不能超过待入库数量 {remaining_qty}'}), 400
-        
-        # 更新已收货数量
-        detail.received_quantity += quantity
-        
-        # 获取或创建库存记录
-        inventory = Inventory.query.filter_by(
-            company_id=detail.order.company_id,
-            product_id=detail.product_id
-        ).first()
-        
-        if not inventory:
-            # 创建新的库存记录
-            inventory = Inventory(
-                company_id=detail.order.company_id,
-                product_id=detail.product_id,
-                quantity=quantity,
-                unit=detail.unit,
-                created_by_id=current_user.id
-            )
-            db.session.add(inventory)
-            # 刷新会话以获取新创建记录的ID
-            db.session.flush()
-        else:
-            # 更新现有库存
-            inventory.quantity += quantity
-            inventory.updated_at = func.now()
-        
-        # 创建库存变动记录
-        transaction = InventoryTransaction(
-            inventory_id=inventory.id,  # 移除了条件判断，因为flush()后已有ID
-            transaction_type='in',
-            quantity=quantity,
-            quantity_before=inventory.quantity - quantity,
-            quantity_after=inventory.quantity,
-            reference_type='order',
-            reference_id=detail.order_id,
-            description=f'订单入库：{detail.order.order_number} - {detail.product_name}',
-            created_by_id=current_user.id
-        )
-        
-        db.session.add(transaction)
-        db.session.commit()
-        
-        logger.info(f"用户 {current_user.username} 对订单 {detail.order.order_number} 的产品 {detail.product_name} 入库 {quantity} 件")
-        
-        return jsonify({
-            'success': True, 
-            'message': f'成功入库 {quantity} 件',
-            'remaining_quantity': detail.remaining_quantity,
-            'received_quantity': detail.received_quantity
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"订单入库失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'入库失败：{str(e)}'})
-
-@inventory.route('/orders/<int:order_id>/receive_all', methods=['POST'])
-@login_required
-@permission_required('order', 'edit')
-def receive_all_order_items(order_id):
-    """批量入库订单所有待入库产品"""
-    try:
-        logger.info(f"开始批量入库订单 {order_id}")
-        
-        # 验证请求格式
-        if not request.is_json:
-            logger.error(f"批量入库请求格式错误，不是JSON格式")
-            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
-        
-        # 获取订单
-        order = PurchaseOrder.query.get(order_id)
-        if not order:
-            return jsonify({'success': False, 'message': '订单不存在'}), 404
-        
-        # 检查用户是否有权限操作此订单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        if not viewable_orders.filter(PurchaseOrder.id == order_id).first():
-            return jsonify({'success': False, 'message': '无权限操作此订单'}), 403
-        
-        # 检查订单状态是否允许入库
-        if order.status not in ['approved', 'confirmed']:
-            return jsonify({'success': False, 'message': f'订单状态为"{order.status}"，不允许入库操作'}), 400
-        
-        # 获取所有待入库的明细
-        pending_details = [detail for detail in order.details if detail.remaining_quantity > 0]
-        
-        if not pending_details:
-            return jsonify({'success': False, 'message': '没有待入库的产品'}), 400
-        
-        success_count = 0
-        
-        for detail in pending_details:
-            quantity = detail.remaining_quantity
-            
-            # 更新已收货数量
-            detail.received_quantity += quantity
-            
-            # 获取或创建库存记录
-            inventory = Inventory.query.filter_by(
-                company_id=order.company_id,
-                product_id=detail.product_id
-            ).first()
-            
-            if not inventory:
-                # 创建新的库存记录
-                inventory = Inventory(
-                    company_id=order.company_id,
-                    product_id=detail.product_id,
-                    quantity=quantity,
-                    unit=detail.unit,
-                    created_by_id=current_user.id
-                )
-                db.session.add(inventory)
-                # 刷新会话以获取新创建记录的ID
-                db.session.flush()
-            else:
-                # 更新现有库存
-                inventory.quantity += quantity
-                inventory.updated_at = func.now()
-            
-            # 创建库存变动记录
-            transaction = InventoryTransaction(
-                inventory_id=inventory.id,  # 移除了条件判断，因为flush()后已有ID
-                transaction_type='in',
-                quantity=quantity,
-                quantity_before=inventory.quantity - quantity,
-                quantity_after=inventory.quantity,
-                reference_type='order',
-                reference_id=order_id,
-                description=f'批量入库：{order.order_number} - {detail.product_name}',
-                created_by_id=current_user.id
-            )
-            
-            db.session.add(transaction)
-            success_count += 1
-        
-        db.session.commit()
-        
-        logger.info(f"用户 {current_user.username} 批量入库订单 {order.order_number}，共 {success_count} 个产品")
-        
-        return jsonify({
-            'success': True, 
-            'message': f'成功批量入库 {success_count} 个产品'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"批量入库失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'批量入库失败：{str(e)}'})
-
-@inventory.route('/orders/<int:order_id>/export/pdf')
-@login_required
-@permission_required('order', 'view')
-def export_order_pdf(order_id):
-    """导出订单PDF"""
-    try:
-        # 获取订单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == order_id).first()
-        
-        if not order:
-            flash('订单不存在或无权访问', 'error')
-            return redirect(url_for('inventory.order_list'))
-        
-        # 生成PDF
-        from app.utils.pdf_generator import generate_order_pdf
-        pdf_buffer = generate_order_pdf(order)
-        
-        # 生成文件名：订单编号-日期时间 (YYMMDD HHMM)
-        filename = f"{order.order_number}-{datetime.now().strftime('%y%m%d %H%M')}.pdf"
-        
-        return send_file(
-            pdf_buffer,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='application/pdf'
-        )
-        
-    except Exception as e:
-        logger.error(f"导出订单PDF失败：{str(e)}")
-        flash(f'导出失败：{str(e)}', 'error')
-        return redirect(url_for('inventory.order_detail', id=order_id))
-
-@inventory.route('/orders/export/list')
-@login_required
-@permission_required('order', 'view')
-def export_orders_list():
-    """导出订单列表Excel"""
-    try:
-        # 使用数据访问控制获取订单列表
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        orders = viewable_orders.order_by(PurchaseOrder.created_at.desc()).all()
-        
-        # 创建Excel文件
-        import pandas as pd
-        from io import BytesIO
-        
-        # 准备订单数据
-        orders_data = []
-        for order in orders:
-            orders_data.append({
-                '订单编号': order.order_number,
-                '采购商': order.company.company_name if order.company else '',
-                '订单日期': order.order_date.strftime('%Y-%m-%d') if order.order_date else '',
-                '预期日期': order.expected_date.strftime('%Y-%m-%d') if order.expected_date else '',
-                '订单状态': get_status_text_for_export(order.status),
-                '入库状态': get_inventory_status_text(order.inventory_status),
-                '总数量': order.total_quantity or 0,
-                '总金额': f'{order.total_amount:.2f}' if order.total_amount else '0.00',
-                '创建人': order.created_by.real_name or order.created_by.username if order.created_by else '',
-                '创建时间': order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '',
-            })
-        
-        # 创建DataFrame
-        df = pd.DataFrame(orders_data)
-        
-        # 生成Excel文件
-        buffer = BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.to_excel(writer, sheet_name='订单列表', index=False)
-        
-        buffer.seek(0)
-        
-        # 生成文件名
-        filename = f"订单列表-{datetime.now().strftime('%y%m%d %H%M')}.xlsx"
-        
-        return send_file(
-            buffer,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        
-    except Exception as e:
-        logger.error(f"导出订单列表失败：{str(e)}")
-        flash(f'导出失败：{str(e)}', 'error')
-        return redirect(url_for('inventory.order_list'))
-
-def get_status_text_for_export(status):
-    """获取状态的中文显示文本（用于导出）"""
-    status_map = {
-        'draft': '草稿',
-        'pending': '审批中',
-        'approved': '已审批',
-        'confirmed': '已确认',
-        'rejected': '已拒绝',
-        'shipped': '已发货',
-        'completed': '已完成',
-        'cancelled': '已取消'
-    }
-    return status_map.get(status, status)
-
-def get_inventory_status_text(inventory_status):
-    """获取入库状态的中文显示文本"""
-    if inventory_status is None:
-        return '-'
-    status_map = {
-        'pending': '待入库',
-        'partially_received': '部分入库',
-        'fully_received': '全部入库'
-    }
-    return status_map.get(inventory_status, '未知')
-
 @inventory.route('/api/company/<int:company_id>/product/<int:product_id>/stock')
 @login_required
 def get_product_stock(company_id, product_id):
@@ -4098,41 +1734,6 @@ def get_product_stock(company_id, product_id):
         logger.error(f"获取产品库存失败：{str(e)}")
         return jsonify({'success': False, 'message': f'获取库存失败：{str(e)}'})
 
-@inventory.route('/orders/batch_delete', methods=['POST'])
-@login_required
-@permission_required('order', 'delete')
-def batch_delete_orders():
-    """批量删除订单"""
-    try:
-        data = request.get_json()
-        order_ids = data.get('order_ids', [])
-        
-        if not order_ids:
-            return jsonify({'success': False, 'message': '未选择要删除的订单'})
-        
-        # 使用数据访问控制获取要删除的订单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        orders = viewable_orders.filter(PurchaseOrder.id.in_(order_ids)).all()
-        order_numbers = [order.order_number for order in orders]
-        
-        # 删除订单明细
-        PurchaseOrderDetail.query.filter(PurchaseOrderDetail.order_id.in_(order_ids)).delete(synchronize_session=False)
-        
-        # 删除订单
-        PurchaseOrder.query.filter(PurchaseOrder.id.in_(order_ids)).delete(synchronize_session=False)
-        
-        db.session.commit()
-        
-        logger.info(f"批量删除订单成功：{', '.join(order_numbers)}")
-        return jsonify({'success': True, 'message': f'成功删除 {len(orders)} 个订单'})
-        
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"批量删除订单失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'批量删除失败：{str(e)}'})
-
-# AJAX API接口
 @inventory.route('/api/company_inventory/<int:company_id>')
 @login_required
 @permission_required('inventory', 'view')
@@ -4752,1171 +2353,60 @@ def settle_product_to_company():
         logger.error(f"结算产品到指定公司失败：{str(e)}")
         return jsonify({'success': False, 'message': f'结算失败：{str(e)}'})
 
-@inventory.route('/add_inventory', methods=['GET', 'POST'])
-@login_required
-@permission_required('inventory', 'create')
-def add_inventory():
-    """批量添加库存页面"""
-    # 只获取 company_type 为 'dealer' 且未删除的公司
-    companies = Company.query.filter(
-        Company.company_type == 'dealer',
-        Company.is_deleted == False
-    ).order_by(Company.company_name).all()
-    return render_template('inventory/add_inventory.html', companies=companies)
-
-@inventory.route('/add_inventory_bulk', methods=['POST'])
-@login_required
-@permission_required('inventory', 'create')
-def add_inventory_bulk():
-    """批量添加库存处理"""
-    try:
-        company_id = request.form.get('company_id')
-        if not company_id:
-            flash('请选择库存公司', 'danger')
-            return redirect(url_for('inventory.add_inventory'))
-        
-        # 获取所有产品数据
-        product_names = request.form.getlist('product_name[]')
-        product_models = request.form.getlist('product_model[]')
-        product_specs = request.form.getlist('product_spec[]')
-        product_brands = request.form.getlist('product_brand[]')
-        product_units = request.form.getlist('product_unit[]')
-        quantities = request.form.getlist('quantity[]')
-        product_mns = request.form.getlist('product_mn[]')
-        
-        success_count = 0
-        error_messages = []
-        
-        # 处理每个产品
-        for i in range(len(product_names)):
-            if not product_names[i].strip():
-                continue
-                
-            try:
-                quantity = int(quantities[i]) if quantities[i] else 0
-                if quantity <= 0:
-                    continue
-                
-                # 查找产品（优先使用MN号匹配）
-                product = None
-                if product_mns[i]:
-                    product = Product.query.filter_by(product_mn=product_mns[i]).first()
-                
-                if not product and product_names[i] and product_models[i]:
-                    product = Product.query.filter(
-                        Product.product_name == product_names[i],
-                        Product.model == product_models[i]
-                    ).first()
-                
-                if not product:
-                    error_messages.append(f'未找到产品：{product_names[i]} - {product_models[i]}')
-                    continue
-                
-                # 添加库存
-                success, message, _ = update_inventory(
-                    company_id=company_id,
-                    product_id=product.id,
-                    quantity_change=quantity,
-                    transaction_type='in',
-                    description=f'批量添加库存 - {product.product_name}',
-                    reference_type='manual',
-                    user_id=current_user.id
-                )
-                
-                if success:
-                    success_count += 1
-                else:
-                    error_messages.append(f'{product.product_name}: {message}')
-                    
-            except Exception as e:
-                error_messages.append(f'处理产品 {product_names[i]} 时出错：{str(e)}')
-        
-        # 显示结果
-        if success_count > 0:
-            flash(f'成功添加 {success_count} 个产品的库存', 'success')
-        
-        if error_messages:
-            for msg in error_messages[:5]:  # 只显示前5个错误
-                flash(msg, 'warning')
-            if len(error_messages) > 5:
-                flash(f'另外还有 {len(error_messages) - 5} 个错误...', 'warning')
-        
-        if success_count == 0 and error_messages:
-            flash('没有成功添加任何库存', 'danger')
-            return redirect(url_for('inventory.add_inventory'))
-        
-        return redirect(url_for('inventory.stock_list'))
-        
-    except Exception as e:
-        logger.error(f"批量添加库存失败：{str(e)}")
-        flash(f'操作失败：{str(e)}', 'danger')
-        return redirect(url_for('inventory.add_inventory'))
-
-@inventory.route('/stock/<int:inventory_id>/settlements')
-@login_required
-@permission_required('inventory', 'view')
-def view_stock_settlements(inventory_id):
-    """查看库存相关的结算记录"""
-    try:
-        inventory = Inventory.query.get_or_404(inventory_id)
-        
-        # 获取相关的结算记录
-        from app.models.pricing_order import SettlementOrderDetail
-        
-        # 通过库存变动记录找到结算相关的交易
-        settlement_transactions = InventoryTransaction.query.filter(
-            InventoryTransaction.inventory_id == inventory_id,
-            InventoryTransaction.reference_type == 'settlement'
-        ).order_by(InventoryTransaction.transaction_date.desc()).all()
-        
-        # 获取结算记录，只包含与当前产品相关的结算明细
-        settlement_records = []
-        for trans in settlement_transactions:
-            if trans.reference_id:
-                # 查找对应的结算明细
-                settlement_detail = SettlementOrderDetail.query.filter_by(
-                    id=trans.reference_id
-                ).first()
-                if settlement_detail and settlement_detail.settlement_order:
-                    # 创建结算记录，包含结算单信息和相关的产品明细
-                    settlement_record = {
-                        'settlement_order': settlement_detail.settlement_order,
-                        'settlement_detail': settlement_detail,
-                        'transaction': trans
-                    }
-                    settlement_records.append(settlement_record)
-        
-        return render_template('inventory/stock_settlements.html',
-                             inventory=inventory,
-                             settlement_records=settlement_records)
-                             
-    except Exception as e:
-        logger.error(f"查看库存结算记录失败：{str(e)}")
-        flash(f'查看库存结算记录失败：{str(e)}', 'danger')
-        return redirect(url_for('inventory.stock_detail', id=inventory_id))
-
-# 产品选择相关API - 为创建订单页面提供支持
-@inventory.route('/api/products/categories', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def get_product_categories_for_order():
-    """获取产品类别列表 - 用于订单创建"""
-    try:
-        from app.models.product import Product
-        from app.models.product_code import ProductCategory
-
-        # 与报价单一致：SELECT 包含 display_order 才能 ORDER BY（SQL DISTINCT规则）
-        categories = db.session.query(
-            ProductCategory.id,
-            ProductCategory.name,
-            ProductCategory.display_order
-        ).join(
-            Product, Product.category_id == ProductCategory.id
-        ).filter(
-            Product.status != '停产'
-        ).distinct().order_by(ProductCategory.display_order, ProductCategory.id).all()
-
-        # 提取类别名称（cat[1] 是 name）
-        category_list = [cat[1] for cat in categories]
-
-        logger.debug(f'找到 {len(category_list)} 个类别')
-        return jsonify(category_list)
-    except Exception as e:
-        logger.error(f'获取产品类别列表时出错: {str(e)}')
-        return jsonify({
-            'error': '获取产品类别列表失败',
-            'message': str(e)
-        }), 500
-
-@inventory.route('/api/products/by-category', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def get_products_by_category_for_order():
-    """获取指定类别的产品列表 - 用于订单创建"""
-    try:
-        from app.models.product import Product
-        from decimal import Decimal
-        
-        category = request.args.get('category', '')
-        logger.debug(f'正在获取类别 "{category}" 的产品列表...')
-        
-        if not category:
-            return jsonify([])
-        
-        # 查询指定类别的产品（与报价单一致）
-        products = Product.query.filter(
-            Product.category == category,
-            Product.status != '停产'
-        ).order_by(Product.id).all()
-        
-        logger.debug(f'找到 {len(products)} 个产品')
-        
-        def decimal_to_float(obj):
-            if isinstance(obj, Decimal):
-                return float(obj)
-            return obj
-        
-        result = []
-        for p in products:
-            try:
-                product_dict = {
-                    'id': p.id,
-                    'product_name': p.name,  # 使用智能属性
-                    'model': p.model,
-                    'specification': p.specification,
-                    'brand': p.brand,
-                    'unit': p.unit,
-                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
-                    'product_mn': p.product_mn
-                }
-                result.append(product_dict)
-                logger.debug(f'成功处理产品: {p.product_name}, MN: {p.product_mn}')
-            except Exception as e:
-                logger.error(f'处理产品时出错: {p.id} - {str(e)}')
-                continue
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logger.error(f'获取类别产品列表时出错: {str(e)}')
-        return jsonify({
-            'error': '获取类别产品列表失败',
-            'message': str(e)
-        }), 500
-
-
-@inventory.route('/api/products/models', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def get_product_models_for_order():
-    """获取指定类别和产品名称的型号列表 - 用于订单创建"""
-    try:
-        from app.models.product import Product
-        from decimal import Decimal
-
-        category = request.args.get('category', '')
-        product_name = request.args.get('product_name', '')
-        logger.debug(f'正在获取产品型号，类别: "{category}", 产品名称: "{product_name}"')
-
-        if not category or not product_name:
-            return jsonify([])
-
-        # 查询指定类别和产品名称的产品（与报价单一致）
-        products = Product.query.filter_by(
-            category=category,
-            product_name=product_name
-        ).order_by(Product.id).all()
-
-        logger.debug(f'找到 {len(products)} 个产品')
-
-        def decimal_to_float(obj):
-            if isinstance(obj, Decimal):
-                return float(obj)
-            return obj
-
-        result = []
-        for p in products:
-            try:
-                product_dict = {
-                    'id': p.id,
-                    'product_name': p.name,
-                    'model': p.model,
-                    'specification': p.specification,
-                    'brand': p.brand,
-                    'unit': p.unit,
-                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
-                    'product_mn': p.product_mn,
-                    'currency': p.currency or Config.DEFAULT_CURRENCY,
-                    'status': p.status
-                }
-                result.append(product_dict)
-            except Exception as e:
-                logger.error(f'处理产品时出错: {p.id} - {str(e)}')
-                continue
-
-        return jsonify(result)
-
-    except Exception as e:
-        logger.error(f'获取产品型号列表时出错: {str(e)}')
-        return jsonify({
-            'error': '获取产品型号列表失败',
-            'message': str(e)
-        }), 500
-
-
-@inventory.route('/api/products/specs', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def get_product_specs_for_order():
-    """获取指定类别、产品名称和型号的规格列表 - 用于订单创建"""
-    try:
-        from app.models.product import Product
-        from decimal import Decimal
-
-        category = request.args.get('category', '')
-        product_name = request.args.get('product_name', '')
-        product_model = request.args.get('model', '') or request.args.get('product_model', '')
-        logger.debug(f'正在获取产品规格，类别: "{category}", 产品名称: "{product_name}", 型号: "{product_model}"')
-
-        if not category or not product_name or not product_model:
-            return jsonify([])
-
-        # 查询指定条件的产品（与报价单一致）
-        products = Product.query.filter_by(
-            category=category,
-            product_name=product_name,
-            model=product_model
-        ).filter(Product.status != '停产').order_by(Product.id).all()
-
-        logger.debug(f'找到 {len(products)} 个产品')
-
-        def decimal_to_float(obj):
-            if isinstance(obj, Decimal):
-                return float(obj)
-            return obj
-
-        result = []
-        for p in products:
-            try:
-                product_dict = {
-                    'id': p.id,
-                    'product_name': p.name,
-                    'model': p.model,
-                    'specification': p.specification,
-                    'brand': p.brand,
-                    'unit': p.unit,
-                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
-                    'product_mn': p.product_mn,
-                    'currency': p.currency or Config.DEFAULT_CURRENCY
-                }
-                result.append(product_dict)
-            except Exception as e:
-                logger.error(f'处理产品时出错: {p.id} - {str(e)}')
-                continue
-
-        return jsonify(result)
-
-    except Exception as e:
-        logger.error(f'获取产品规格列表时出错: {str(e)}')
-        return jsonify({
-            'error': '获取产品规格列表失败',
-            'message': str(e)
-        }), 500
-
-
-# 订单审批相关API
-# 标准化审批API路由
-
-@inventory.route('/api/approval/order/templates')
-@login_required
-def get_order_approval_templates():
-    """获取订单审批模板"""
-    try:
-        from app.helpers.approval_helpers import get_available_templates
-        templates = get_available_templates('purchase_order')
-        template_list = []
-        for template in templates:
-            template_list.append({
-                'id': template.id,
-                'name': template.name,
-                'object_type': template.object_type,
-                'is_active': template.is_active
-            })
-        
-        return jsonify({
-            'success': True,
-            'templates': template_list
-        })
-    except Exception as e:
-        logger.error(f"获取审批模板失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'获取失败：{str(e)}'})
-
-@inventory.route('/api/approval/order/<int:object_id>/submit', methods=['POST'])
-@login_required
-@permission_required('order', 'edit')
-def submit_order_approval_standard(object_id):
-    """提交订单审批 - 标准化API"""
-    try:
-        # 获取订单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == object_id).first_or_404()
-        
-        # 检查订单状态
-        if order.status != 'draft':
-            return jsonify({'success': False, 'message': '只有草稿状态的订单才能提交审批'})
-        
-        # 导入审批相关函数
-        from app.helpers.approval_helpers import start_approval_process, get_available_templates
-        
-        # 获取可用的审批模板
-        templates = get_available_templates('purchase_order')
-        if not templates:
-            return jsonify({'success': False, 'message': '未找到适用的审批流程模板'})
-        
-        # 使用第一个可用模板
-        template = templates[0]
-        
-        # 创建审批实例（使用 auto_commit=False 确保与订单状态更新在同一事务中）
-        approval_instance = start_approval_process(
-            object_type='purchase_order',
-            object_id=order.id,
-            template_id=template.id,
-            user_id=current_user.id,
-            auto_commit=False
-        )
-
-        if approval_instance:
-            # 更新订单状态为审批中
-            order.status = 'pending'
-            # 统一提交：审批实例创建 + 订单状态更新
-            db.session.commit()
-
-            logger.info(f"用户 {current_user.username} 提交订单 {order.order_number} 审批")
-            return jsonify({'success': True, 'message': '审批提交成功'})
-        else:
-            db.session.rollback()
-            return jsonify({'success': False, 'message': '未找到适用的审批流程'})
-            
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"提交订单审批失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'提交失败：{str(e)}'})
-
-@inventory.route('/api/approval/order/<int:object_id>/flow')
-@login_required
-def get_order_approval_flow_standard(object_id):
-    """获取订单审批流程信息 - 标准化API"""
-    try:
-        # 检查订单访问权限 - 优先检查是否为当前审批人
-        from app.helpers.approval_helpers import is_current_approver
-        is_approver = is_current_approver('purchase_order', object_id, current_user.id)
-
-        if is_approver:
-            # 如果是当前审批人，直接获取订单（绕过常规权限检查）
-            order = PurchaseOrder.query.filter_by(id=object_id).first_or_404()
-        else:
-            # 否则使用常规权限检查
-            from app.utils.access_control import get_viewable_data
-            viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-            order = viewable_orders.filter(PurchaseOrder.id == object_id).first_or_404()
-        
-        # 导入审批相关函数
-        from app.helpers.approval_helpers import get_object_approval_instance
-        from app.models.approval import ApprovalInstance, ApprovalRecord, ApprovalStep
-        
-        # 获取审批实例（包含被拒绝的实例）
-        approval_instance = get_object_approval_instance('purchase_order', order.id, include_rejected=True)
-        
-        if not approval_instance:
-            # 没有审批实例，可能是草稿状态或其他状态
-            # 返回基本的控制信息，即使没有审批实例也要检查权限
-            from app.helpers.approval_helpers import can_recall_approval, can_resubmit_approval
-            control_info = {
-                'status': order.status,
-                'is_creator': order.created_by_id == current_user.id,
-                'can_submit': order.status == 'draft' and order.created_by_id == current_user.id,
-                'can_recall': can_recall_approval('purchase_order', object_id, current_user.id),
-                'can_resubmit': can_resubmit_approval('purchase_order', object_id, current_user.id)
-            }
-            return jsonify({
-                'success': False, 
-                'message': '未找到审批流程', 
-                'approval_flow': None,
-                'control_info': control_info
-            })
-        
-        # 获取审批步骤（从模板获取）
-        steps = approval_instance.get_steps()
-        if not steps:
-            return jsonify({'success': False, 'message': '审批流程配置错误'})
-        
-        # 获取已有的审批记录
-        records = ApprovalRecord.query.filter_by(
-            instance_id=approval_instance.id
-        ).order_by(ApprovalRecord.timestamp.asc()).all()
-        
-        # 构建响应数据
-        stages_data = []
-
-        # 🔥 修复：current_step 可能是 step_order 或 step_id，需要智能匹配
-        # 使用与 get_current_step_info() 相同的逻辑：优先 step_order，失败则 step_id
-        current_step_value = approval_instance.current_step
-        matched_step_order = None
-
-        # 先尝试用 step_order 匹配
-        for step in steps:
-            step_order_val = step.get('step_order') if isinstance(step, dict) else step.step_order
-            if step_order_val == current_step_value:
-                matched_step_order = current_step_value
-                break
-
-        # 如果 step_order 匹配不到，尝试用 step_id 匹配
-        if matched_step_order is None:
-            for step in steps:
-                step_id_val = step.get('step_id') if isinstance(step, dict) else getattr(step, 'id', None)
-                if step_id_val == current_step_value:
-                    matched_step_order = step.get('step_order') if isinstance(step, dict) else step.step_order
-                    logger.info(f"[审批流程] current_step={current_step_value} 通过 step_id 匹配到 step_order={matched_step_order}")
-                    break
-
-        current_step_order = matched_step_order
-
-        logger.info(f"Debug: 当前步骤顺序: {current_step_order}")
-        logger.info(f"Debug: 找到 {len(records)} 个审批记录")
-        
-        # 处理步骤数据（可能是模型对象或字典快照）
-        for i, step in enumerate(steps):
-            if isinstance(step, dict):
-                # 快照数据
-                step_name = step.get('step_name', f'步骤{i+1}')
-                step_order = step.get('step_order', i+1)
-                approver_user_id = step.get('approver_user_id')
-            else:
-                # 模型对象
-                step_name = step.step_name
-                step_order = step.step_order
-                approver_user_id = step.approver_user_id
-            
-            # 查找对应的审批记录
-            step_record = None
-            
-            # 首先尝试通过step_id精确匹配（适用于正常模板）
-            if hasattr(step, 'id') and isinstance(step.id, int):
-                step_record = next((r for r in records if r.step_id == step.id), None)
-            
-            # 如果没找到，可能是模板快照模式（step_id为None）
-            if not step_record and records:
-                # 检查是否所有记录的step_id都为None（模板快照模式）
-                if all(r.step_id is None for r in records):
-                    # 模板快照模式：按照审批顺序匹配
-                    # 只有当当前步骤序号小于等于已有记录数时，才认为有记录
-                    if step_order <= len(records):
-                        step_record = records[step_order - 1]  # 第step_order个步骤对应第step_order-1个记录
-            
-            logger.info(f"Debug: 步骤 {step_order} ({step_name}), 找到记录: {'是' if step_record else '否'}")
-            
-            # 确定审批人姓名
-            approver_name = '未分配'
-            if approver_user_id:
-                from app.models.user import User
-                approver = User.query.get(approver_user_id)
-                approver_name = approver.real_name if approver and approver.real_name else approver.username if approver else '未分配'
-            
-            # 确定步骤状态
-            if step_record:
-                # 有审批记录的步骤，根据实际审批结果设置状态
-                status = 'approved' if step_record.action == 'approve' else 'rejected'
-                processed_at = step_record.timestamp.isoformat() if step_record.timestamp else None
-                logger.info(f"Debug: 步骤 {step_order} 状态: {status} (有记录)")
-            elif step_order == current_step_order:
-                # 当前待审批步骤
-                status = 'pending'
-                processed_at = None
-                logger.info(f"Debug: 步骤 {step_order} 状态: pending (当前步骤)")
-            else:
-                # 其他步骤都是等待状态（无论是之前的还是之后的）
-                status = 'waiting'
-                processed_at = None
-                logger.info(f"Debug: 步骤 {step_order} 状态: waiting (其他步骤)")
-            
-            # 获取评语
-            comment = ''
-            if step_record:
-                comment = step_record.comment or ''
-            
-            stage_data = {
-                'id': step.id if hasattr(step, 'id') else f'step_{i}',
-                'stage_name': step_name,
-                'stage_order': step_order,
-                'status': status,
-                'approver_name': approver_name,
-                'arrived_at': approval_instance.started_at.isoformat() if step_order <= approval_instance.current_step else None,
-                'processed_at': processed_at,
-                'comment': comment
-            }
-            stages_data.append(stage_data)
-        
-        # 检查当前用户是否可以审批
-        can_approve = False
-
-        if current_step_order:
-            # 🔥 修复：使用已计算的 current_step_order（已兼容 step_id 和 step_order）
-            current_step_info = None
-            for step in steps:
-                step_order_val = step.get('step_order') if isinstance(step, dict) else step.step_order
-                if step_order_val == current_step_order:
-                    current_step_info = step
-                    break
-
-            # 检查当前用户是否为当前步骤的审批人
-            if current_step_info:
-                approver_user_id = current_step_info.get('approver_user_id') if isinstance(current_step_info, dict) else current_step_info.approver_user_id
-                if approver_user_id == current_user.id:
-                    can_approve = True
-        
-        # 导入控制权限检查函数
-        from app.helpers.approval_helpers import can_recall_approval, can_resubmit_approval
-        
-        # 获取实际状态（区分召回和拒绝）
-        actual_status = approval_instance.status.value if hasattr(approval_instance.status, 'value') else approval_instance.status
-        if actual_status == 'rejected':
-            # 检查最后一个记录是否是召回
-            last_record = ApprovalRecord.query.filter_by(
-                instance_id=approval_instance.id
-            ).order_by(ApprovalRecord.timestamp.desc()).first()
-            if last_record and last_record.action == 'recall':
-                actual_status = 'recalled'
-        
-        return jsonify({
-            'success': True,
-            'approval_flow': {
-                'stages': stages_data,
-                'current_stage': current_step,
-                'can_approve': can_approve,
-                'status': actual_status,
-                'can_recall': can_recall_approval('purchase_order', object_id, current_user.id),
-                'can_resubmit': can_resubmit_approval('purchase_order', object_id, current_user.id),
-                'is_creator': approval_instance.created_by == current_user.id,
-                'creator_id': approval_instance.created_by
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"获取审批流程失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'获取失败：{str(e)}'})
-
-@inventory.route('/api/approval/order/<int:object_id>/process', methods=['POST'])
-@login_required
-def process_order_approval_standard(object_id):
-    """处理订单审批"""
-    try:
-        data = request.get_json()
-        stage_id = data.get('stage_id')
-        action = data.get('action')  # 'approved' 或 'rejected'
-        comment = data.get('comment', '')
-        
-        # 获取订单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == object_id).first_or_404()
-        
-        # 导入审批相关函数
-        from app.helpers.approval_helpers import get_object_approval_instance, process_approval
-        from app.models.approval import ApprovalAction
-        
-        # 获取订单的审批实例
-        approval_instance = get_object_approval_instance('purchase_order', order.id)
-        if not approval_instance:
-            return jsonify({'success': False, 'message': '未找到订单的审批流程'})
-        
-        # 转换action
-        if action == 'approve':
-            approval_action = ApprovalAction.APPROVE
-        elif action == 'reject':
-            approval_action = ApprovalAction.REJECT
-        else:
-            return jsonify({'success': False, 'message': f'无效的审批动作: {action}'})
-        
-        # 处理审批
-        success = process_approval(
-            instance_id=approval_instance.id,
-            action=approval_action,
-            comment=comment,
-            user_id=current_user.id
-        )
-        
-        if not success:
-            return jsonify({'success': False, 'message': '审批处理失败'})
-        
-        # 重新查询实例状态
-        db.session.refresh(approval_instance)
-        
-        # 构建结果
-        result = {
-            'success': True,
-            'message': '审批处理成功',
-            'approval_completed': approval_instance.status.value != 'pending',
-            'final_status': approval_instance.status.value if approval_instance.status.value != 'pending' else None
-        }
-        
-        # 根据审批结果更新订单状态
-        if result.get('approval_completed'):
-            if result.get('final_status') == 'approved':
-                order.status = 'approved'
-            elif result.get('final_status') == 'rejected':
-                order.status = 'rejected'
-        
-        db.session.commit()
-        
-        logger.info(f"用户 {current_user.username} 处理订单 {order.order_number} 审批，动作：{action}")
-        return jsonify(result)
-            
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"处理订单审批失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'处理失败：{str(e)}'}) 
-
-
-@inventory.route('/api/approval/order/<int:object_id>/recall', methods=['POST'])
-@login_required
-def recall_order_approval_standard(object_id):
-    """召回订单审批流程"""
-    try:
-        # 导入召回函数
-        from app.helpers.approval_helpers import recall_approval_process
-
-        # 执行召回
-        success, message = recall_approval_process('purchase_order', object_id, current_user.id)
-
-        if success:
-            logger.info(f"用户 {current_user.username} 召回订单 #{object_id} 审批流程")
-            return jsonify({'success': True, 'message': message})
-        else:
-            return jsonify({'success': False, 'message': message})
-        
-    except Exception as e:
-        logger.error(f"召回订单审批失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'召回失败：{str(e)}'})
-
-
-@inventory.route('/api/approval/order/<int:object_id>/resubmit', methods=['POST'])
-@login_required
-def resubmit_order_approval_standard(object_id):
-    """重新提交订单审批流程"""
-    try:
-        # 导入重新提交函数
-        from app.helpers.approval_helpers import resubmit_approval
-        
-        # 执行重新提交
-        result = resubmit_approval('purchase_order', object_id, current_user.id)
-        
-        if result['success']:
-            logger.info(f"用户 {current_user.username} 重新提交订单 #{object_id} 审批流程")
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logger.error(f"重新提交订单审批失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'重新提交失败：{str(e)}'})
-
-
-@inventory.route('/api/approval/order/<int:object_id>/control-info', methods=['GET'])
-@login_required
-def get_order_approval_control_info(object_id):
-    """获取订单审批控制信息（召回、重新提交权限等）"""
-    try:
-        # 导入权限检查函数
-        from app.helpers.approval_helpers import can_recall_approval, can_resubmit_approval, get_object_approval_instance
-        
-        # 获取审批实例
-        approval_instance = get_object_approval_instance('purchase_order', object_id)
-        
-        result = {
-            'success': True,
-            'can_recall': can_recall_approval('purchase_order', object_id, current_user.id),
-            'can_resubmit': can_resubmit_approval('purchase_order', object_id, current_user.id),
-            'status': approval_instance.status.value if approval_instance else 'none',
-            'is_creator': approval_instance.created_by == current_user.id if approval_instance else False
-        }
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        logger.error(f"获取订单审批控制信息失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'获取失败：{str(e)}'})
-
-
-# ========== Phase 2: 采购端扩展功能 ==========
-
-@inventory.route('/orders/<int:order_id>/progress', methods=['POST'])
-@login_required
-@permission_required('order', 'edit')
-def update_order_progress(order_id):
-    """更新订单生产进度"""
-    try:
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == order_id).first_or_404()
-
-        # 只允许特定状态的订单更新进度
-        if order.status not in ['confirmed', 'producing', 'tested']:
-            return jsonify({'success': False, 'message': '当前订单状态不允许更新生产进度'})
-
-        # 获取表单数据
-        production_status = request.form.get('production_status', '').strip()
-        production_progress = request.form.get('production_progress', 0)
-        estimated_completion_date_str = request.form.get('estimated_completion_date', '')
-        production_notes = request.form.get('production_notes', '').strip()
-
-        # 验证生产状态
-        valid_statuses = ['not_started', 'preparing', 'producing', 'testing', 'packaging', 'ready']
-        if production_status and production_status not in valid_statuses:
-            return jsonify({'success': False, 'message': '无效的生产状态'})
-
-        # 更新订单
-        if production_status:
-            order.production_status = production_status
-            # 如果进入生产中，更新订单状态
-            if production_status in ['preparing', 'producing', 'testing', 'packaging'] and order.status == 'confirmed':
-                order.status = 'producing'
-
-        try:
-            order.production_progress = int(production_progress)
-        except (ValueError, TypeError):
-            order.production_progress = 0
-
-        if estimated_completion_date_str:
-            order.estimated_completion_date = datetime.strptime(estimated_completion_date_str, '%Y-%m-%d').date()
-        else:
-            order.estimated_completion_date = None
-
-        order.production_notes = production_notes or None
-
-        db.session.commit()
-        logger.info(f"用户 {current_user.username} 更新订单 {order.order_number} 生产进度: {production_status} {production_progress}%")
-
-        return jsonify({
-            'success': True,
-            'message': '生产进度已更新',
-            'data': {
-                'production_status': order.production_status,
-                'production_progress': order.production_progress,
-                'status': order.status
-            }
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"更新订单生产进度失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'更新失败：{str(e)}'})
-
-
-@inventory.route('/orders/<int:order_id>/test', methods=['POST'])
-@login_required
-@permission_required('order', 'edit')
-def upload_order_test(order_id):
-    """上传测试报告"""
-    try:
-        from app.utils.access_control import get_viewable_data
-        from app.models.product_test import ProductTest
-
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == order_id).first_or_404()
-
-        # 获取表单数据
-        test_category = request.form.get('test_category', '').strip()
-        test_result = request.form.get('test_result', '').strip()
-        test_date_str = request.form.get('test_date', '')
-        test_notes = request.form.get('test_notes', '').strip()
-
-        # 验证必填字段
-        if not test_category:
-            return jsonify({'success': False, 'message': '请选择测试类型'})
-        if not test_result:
-            return jsonify({'success': False, 'message': '请选择测试结果'})
-
-        # 验证测试类型
-        valid_categories = ['factory', 'site_fat', 'incoming']
-        if test_category not in valid_categories:
-            return jsonify({'success': False, 'message': '无效的测试类型'})
-
-        # 验证测试结果
-        valid_results = ['passed', 'failed', 'conditional']
-        if test_result not in valid_results:
-            return jsonify({'success': False, 'message': '无效的测试结果'})
-
-        # 解析日期
-        test_date = None
-        if test_date_str:
-            test_date = datetime.strptime(test_date_str, '%Y-%m-%d').date()
-
-        # 处理文件上传
-        report_file_path = None
-        if 'test_report' in request.files:
-            file = request.files['test_report']
-            if file and file.filename:
-                # 保存文件（这里简化处理，实际需要使用存储服务）
-                import os
-                from werkzeug.utils import secure_filename
-                filename = secure_filename(file.filename)
-                # 生成唯一文件名
-                unique_filename = f"test_{order_id}_{test_category}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-                upload_dir = os.path.join('app', 'static', 'uploads', 'tests')
-                os.makedirs(upload_dir, exist_ok=True)
-                file_path = os.path.join(upload_dir, unique_filename)
-                file.save(file_path)
-                report_file_path = f"/static/uploads/tests/{unique_filename}"
-
-        # 确定test_type
-        if test_category == 'factory':
-            test_type = 'factory_self'
-        else:
-            test_type = test_category  # site_fat or incoming
-
-        # 创建测试记录
-        test_record = ProductTest(
-            purchase_order_id=order_id,
-            test_category='factory' if test_category == 'factory' else 'verification',
-            test_type=test_type,
-            test_date=test_date,
-            result=test_result,
-            notes=test_notes,
-            report_file=report_file_path,
-            created_by_id=current_user.id
-        )
-        db.session.add(test_record)
-
-        # 更新订单测试状态
-        if test_category == 'factory':
-            order.factory_test_status = test_result
-        else:  # site_fat or incoming
-            order.verification_test_status = test_result
-
-        # 如果两个测试都通过，更新订单状态
-        if order.factory_test_status == 'passed':
-            if order.verification_test_status == 'passed' or order.verification_test_status == 'not_required':
-                order.status = 'tested'
-
-        db.session.commit()
-        logger.info(f"用户 {current_user.username} 上传订单 {order.order_number} 测试报告: {test_category} - {test_result}")
-
-        return jsonify({
-            'success': True,
-            'message': '测试报告已提交',
-            'data': {
-                'test_id': test_record.id,
-                'factory_test_status': order.factory_test_status,
-                'verification_test_status': order.verification_test_status,
-                'status': order.status
-            }
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"上传测试报告失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'提交失败：{str(e)}'})
-
-
-@inventory.route('/orders/<int:order_id>/accept', methods=['POST'])
-@login_required
-@permission_required('order', 'edit')
-def accept_order(order_id):
-    """订单验收确认"""
-    try:
-        from app.utils.access_control import get_viewable_data
-        from app.models.product_serial_number import ProductSerialNumber, SerialNumberHistory
-
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == order_id).first_or_404()
-
-        # 只允许特定状态的订单进行验收
-        if order.status not in ['shipped', 'tested']:
-            return jsonify({'success': False, 'message': '当前订单状态不允许验收操作'})
-
-        # 获取表单数据
-        acceptance_status = request.form.get('acceptance_status', '').strip()
-        acceptance_notes = request.form.get('acceptance_notes', '').strip()
-        serial_numbers_json = request.form.get('serial_numbers', '[]')
-
-        # 验证验收状态
-        valid_statuses = ['passed', 'failed', 'conditional']
-        if not acceptance_status or acceptance_status not in valid_statuses:
-            return jsonify({'success': False, 'message': '请选择有效的验收结果'})
-
-        # 解析序列号
-        import json
-        try:
-            serial_numbers = json.loads(serial_numbers_json)
-        except json.JSONDecodeError:
-            serial_numbers = []
-
-        # 更新订单验收信息
-        order.acceptance_status = acceptance_status
-        order.acceptance_date = datetime.now()
-        order.acceptance_by_id = current_user.id
-        order.acceptance_notes = acceptance_notes or None
-
-        # 如果验收通过，更新订单状态为已入库
-        if acceptance_status == 'passed':
-            order.status = 'stored'
-            order.actual_arrival_date = datetime.now()
-
-            # 创建序列号记录
-            created_sns = []
-            for sn_data in serial_numbers:
-                if isinstance(sn_data, str):
-                    sn_number = sn_data.strip()
-                    product_id = None
-                elif isinstance(sn_data, dict):
-                    sn_number = sn_data.get('serial_number', '').strip()
-                    product_id = sn_data.get('product_id')
-                else:
-                    continue
-
-                if not sn_number:
-                    continue
-
-                # 检查序列号是否已存在
-                existing_sn = ProductSerialNumber.query.filter_by(serial_number=sn_number).first()
-                if existing_sn:
-                    continue
-
-                # 创建新序列号记录
-                new_sn = ProductSerialNumber(
-                    serial_number=sn_number,
-                    product_id=product_id,
-                    purchase_order_id=order_id,
-                    status='in_stock',
-                    warehouse_in_date=datetime.now(),
-                    created_by_id=current_user.id
-                )
-                db.session.add(new_sn)
-                db.session.flush()
-
-                # 创建历史记录
-                history = SerialNumberHistory(
-                    serial_number_id=new_sn.id,
-                    action='stock_in',
-                    operator_id=current_user.id,
-                    notes=f'订单 {order.order_number} 验收入库'
-                )
-                db.session.add(history)
-                created_sns.append(sn_number)
-
-        db.session.commit()
-        logger.info(f"用户 {current_user.username} 验收订单 {order.order_number}: {acceptance_status}")
-
-        return jsonify({
-            'success': True,
-            'message': '验收已完成' if acceptance_status == 'passed' else '验收记录已保存',
-            'data': {
-                'acceptance_status': order.acceptance_status,
-                'status': order.status,
-                'serial_numbers_created': len(created_sns) if acceptance_status == 'passed' else 0
-            }
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"订单验收失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'验收失败：{str(e)}'})
-
-
-@inventory.route('/orders/<int:order_id>/ship', methods=['POST'])
-@login_required
-@permission_required('order', 'edit')
-def confirm_order_ship(order_id):
-    """确认订单发货"""
-    try:
-        from app.utils.access_control import get_viewable_data
-
-        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
-        order = viewable_orders.filter(PurchaseOrder.id == order_id).first_or_404()
-
-        # 只允许特定状态的订单确认发货
-        if order.status not in ['confirmed', 'producing', 'tested']:
-            return jsonify({'success': False, 'message': '当前订单状态不允许确认发货'})
-
-        # 获取表单数据
-        carrier = request.form.get('carrier', '').strip()
-        tracking_number = request.form.get('tracking_number', '').strip()
-        ship_date_str = request.form.get('ship_date', '')
-        arrival_date_str = request.form.get('arrival_date', '')
-
-        # 更新物流信息
-        order.carrier = carrier or None
-        order.tracking_number = tracking_number or None
-
-        if ship_date_str:
-            order.ship_date = datetime.strptime(ship_date_str, '%Y-%m-%d').date()
-        else:
-            order.ship_date = datetime.now()
-
-        if arrival_date_str:
-            order.arrival_date = datetime.strptime(arrival_date_str, '%Y-%m-%d').date()
-
-        # 更新订单状态为已发货
-        order.status = 'shipped'
-
-        db.session.commit()
-        logger.info(f"用户 {current_user.username} 确认订单 {order.order_number} 发货")
-
-        return jsonify({
-            'success': True,
-            'message': '发货已确认',
-            'data': {
-                'status': order.status,
-                'carrier': order.carrier,
-                'tracking_number': order.tracking_number
-            }
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"确认发货失败：{str(e)}")
-        return jsonify({'success': False, 'message': f'确认失败：{str(e)}'})
-
-
-# =============================================================================
-# Task 2: Tailwind 库存基础页 — 权限感知单公司视图
-# =============================================================================
-
 def _resolve_default_company(user):
     """决定当前用户默认看哪家公司的库存。
 
-    Rules:
-    - 外部用户(linked_company_id 不为空) → 只能看自己 linked 的公司
-    - 内部用户(linked_company_id 为空,EVERTAC 员工) → 默认 PMA 平台所属公司
-      平台所属公司 = 在 companies 表里被打上 company_type='vendor' 的那一条
-      (注意:'supplier' 是上游供应商,不算平台自己;不要混淆)
-    - 都不满足 → fall back 到第一家有库存的公司(只是不显示厂商徽章)
+    新规则(2026-05-24):
+    - 任何用户都优先看自己 linked_company_id 对应的公司(锁定,不可切换)
+    - admin 默认看平台所属公司(vendor),并可在切换器里选其他公司 / 全局视图
+    - 既不是 admin、又没 linked_company_id → 返回 None(无可看库存,显示空态)
+
+    返回 (company_id | None, locked: bool)
     """
     if user.linked_company_id:
-        return user.linked_company_id, True  # locked
+        return user.linked_company_id, True  # 所有用户(含 admin 若有绑定)默认锁在自己公司
 
-    # 内部用户:优先平台所属(vendor)公司
-    vendor_co = db.session.query(Company.id).filter(
-        Company.is_deleted == False,
-        Company.company_type == 'vendor'
-    ).order_by(Company.id).first()
-    if vendor_co:
-        return vendor_co[0], False
+    # admin 无绑定 → 默认指向第一家有库存的客户公司(厂商自营仓库是独立 scope,见
+    # at_stock_list 的 scope='vendor';这里只处理 customer 仓库的 fallback)
+    if getattr(user, 'role', None) == 'admin':
+        fallback = db.session.query(Company.id).join(
+            Inventory, Inventory.company_id == Company.id
+        ).filter(
+            Company.is_deleted == False,
+            Inventory.is_vendor_warehouse == False
+        ).order_by(Company.company_name).first()
+        return (fallback[0] if fallback else None), False
 
-    # Fallback:按字母选第一家有库存的
-    fallback = db.session.query(Company.id).join(
-        Inventory, Inventory.company_id == Company.id
-    ).filter(Company.is_deleted == False).order_by(Company.company_name).first()
-    return (fallback[0] if fallback else None), False
+    # 非 admin 且无 linked_company_id → 无可看库存
+    return None, False
 
 
 def _user_can_view_company(user, company_id):
-    """非厂商用户只能看自己 linked 的公司。"""
-    if user.linked_company_id is None:
-        return True  # 内部/厂商用户全开
+    """权限校验:用户能否查看指定公司的库存。
+    - admin:所有公司
+    - 其他用户:仅自己 linked_company_id 对应的公司
+    """
+    if getattr(user, 'role', None) == 'admin':
+        return True
     return user.linked_company_id == company_id
 
 
 def _switchable_companies():
-    """返回当前所有有库存的公司(供 switcher 下拉用)。
+    """返回当前所有有库存的客户公司(供 switcher 下拉用)。
 
-    排序:平台所属公司(vendor)优先,然后按公司名字母。
+    厂商自营仓库是独立 scope(scope='vendor'),由模板单独渲染,不在此列表。
     """
-    # SQL CASE 让 vendor 排序值为 0,其他为 1
-    is_vendor_order = db.case(
-        (Company.company_type == 'vendor', 0),
-        else_=1
-    )
     rows = db.session.query(
         Company.id, Company.company_name, Company.company_type,
         func.count(Inventory.id).label('inv_count'),
         func.sum(Inventory.quantity).label('total_qty')
     ).join(Inventory, Inventory.company_id == Company.id).filter(
-        Company.is_deleted == False
+        Company.is_deleted == False,
+        Inventory.is_vendor_warehouse == False
     ).group_by(Company.id, Company.company_name, Company.company_type).order_by(
-        is_vendor_order, Company.company_name
+        Company.company_name
     ).all()
-    return [{
+    out = [{
         'id': r.id,
         'name': r.company_name,
         'type': r.company_type or 'user',
@@ -5924,41 +2414,88 @@ def _switchable_companies():
         'total_qty': int(r.total_qty or 0),
     } for r in rows]
 
+    # 厂商自营仓库聚合作为独立条目(id='vendor' 字符串区分)
+    vendor_agg = db.session.query(
+        func.count(Inventory.id).label('inv_count'),
+        func.sum(Inventory.quantity).label('total_qty')
+    ).filter(Inventory.is_vendor_warehouse == True).first()
+    if vendor_agg and (vendor_agg.inv_count or 0) > 0:
+        from app.utils.inventory_helpers import get_vendor_warehouse_label
+        out.insert(0, {
+            'id': 'vendor',
+            'name': get_vendor_warehouse_label(),
+            'type': 'vendor',
+            'inv_count': vendor_agg.inv_count or 0,
+            'total_qty': int(vendor_agg.total_qty or 0),
+        })
+    return out
 
+
+@inventory.route('/')
 @inventory.route('/tw_stock')
-@inventory.route('/tw_stock/<int:company_id>')
+@inventory.route('/tw_stock/<int:_legacy_company_id>')
+@inventory.route('/stock')
+@inventory.route('/index')
+@login_required
+def _legacy_inventory_redirect(_legacy_company_id=None):
+    """老 URL(浏览器缓存 / 收藏夹遗留)兜底跳转到 AT 库存页。"""
+    if _legacy_company_id is not None:
+        return redirect(url_for('inventory.at_stock_list', scope=str(_legacy_company_id)), code=301)
+    return redirect(url_for('inventory.at_stock_list'), code=301)
+
+
+@inventory.route('/at_stock')
+@inventory.route('/at_stock/<scope>')
 @login_required
 @permission_required('inventory', 'view')
-def tw_stock_list(company_id=None):
-    """新版 Tailwind 库存管理页 - 权限感知单公司视图。"""
-    # 1. Resolve target company
-    locked = False
-    if company_id is None:
-        company_id, locked = _resolve_default_company(current_user)
-        if company_id is None:
-            return render_template('inventory/tw_stock_list.html',
-                                   current_company=None, inventories=[],
-                                   switchable=[], locked=False,
-                                   stats={'products': 0, 'total_qty': 0, 'monthly_tx': 0})
+def at_stock_list(scope=None):
+    """AT 风格库存管理 — 支持单公司视图 + 全局聚合视图 + 厂商自营仓视图。
+
+    scope:
+      None / 缺省 → 默认公司
+      'global'    → 全局聚合(仅厂商管理员)
+      'vendor'    → 厂商自营仓库(系统级,不在 companies 表)
+      数字字符串  → 指定客户公司 id
+    """
+    if scope == 'global':
+        if not _is_vendor_admin(current_user):
+            flash('您没有权限查看全局库存', 'danger')
+            return redirect(url_for('inventory.at_stock_list'))
+        ctx = _build_global_stock_context()
+    elif scope == 'vendor':
+        ctx = _build_vendor_stock_context()
     else:
-        # External users can only access their own company
-        if not _user_can_view_company(current_user, company_id):
-            flash('您没有权限查看该公司的库存', 'danger')
-            return redirect(url_for('inventory.tw_stock_list'))
-        locked = current_user.linked_company_id is not None
+        try:
+            company_id = int(scope) if scope else None
+        except (TypeError, ValueError):
+            company_id = None
+        ctx = _build_stock_list_context(company_id)
+        if ctx is None:
+            return redirect(url_for('inventory.at_stock_list'))
+    return render_template('inventory/at_stock_list.html', **ctx)
 
-    company = Company.query.get_or_404(company_id)
 
-    # 2. Inventory rows + last transaction (eager loaded)
-    inventories = Inventory.query.filter_by(company_id=company_id).join(
+def _build_vendor_stock_context():
+    """厂商自营仓库视图(is_vendor_warehouse=true 的库存,company_id=NULL)。
+
+    厂商在 dictionaries 表里(type='company', is_vendor=true),不在 companies 表,
+    所以 current_company 构造为 SimpleNamespace,id='vendor',name 取字典。
+    """
+    from types import SimpleNamespace
+    from app.utils.inventory_helpers import get_vendor_warehouse_label
+
+    vendor_label = get_vendor_warehouse_label()
+    current_company = SimpleNamespace(
+        id='vendor', company_name=vendor_label, company_type='vendor'
+    )
+
+    inventories = Inventory.query.filter_by(is_vendor_warehouse=True).join(
         Product, Product.id == Inventory.product_id
     ).order_by(Product.product_name).all()
 
-    # Attach last transaction to each inventory item for "Last change" column
     inv_ids = [i.id for i in inventories]
     last_tx_map = {}
     if inv_ids:
-        # Get latest transaction per inventory using subquery
         subq = db.session.query(
             InventoryTransaction.inventory_id,
             func.max(InventoryTransaction.transaction_date).label('max_date')
@@ -5972,7 +2509,6 @@ def tw_stock_list(company_id=None):
         ).all()
         last_tx_map = {tx.inventory_id: tx for tx in latest_txs}
 
-    # 3. Stats for this company
     from datetime import datetime as _dt
     month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     monthly_tx = db.session.query(func.count(InventoryTransaction.id)).filter(
@@ -5986,16 +2522,11 @@ def tw_stock_list(company_id=None):
         'monthly_tx': int(monthly_tx),
     }
 
-    # 4. Switchable companies (only if not locked)
-    switchable = _switchable_companies() if not locked else []
-
-    # 5. 当前公司的流水(供"流水" Tab 用),最多展示最近 100 条
     tx_rows = []
     if inv_ids:
         recent_txs = db.session.query(InventoryTransaction).filter(
             InventoryTransaction.inventory_id.in_(inv_ids)
         ).order_by(InventoryTransaction.id.desc()).limit(100).all()
-        # 把 inventory.product 预加载到字典
         inv_by_id = {i.id: i for i in inventories}
         for tx in recent_txs:
             inv = inv_by_id.get(tx.inventory_id)
@@ -6005,15 +2536,219 @@ def tw_stock_list(company_id=None):
                 'ref_url': _build_ref_url(tx.reference_type, tx.reference_id),
             })
 
-    return render_template('inventory/tw_stock_list.html',
-                           current_company=company,
-                           inventories=inventories,
-                           last_tx_map=last_tx_map,
-                           switchable=switchable,
-                           locked=locked,
-                           stats=stats,
-                           tx_rows=tx_rows,
-                           is_vendor_admin=(current_user.linked_company_id is None))
+    return {
+        'is_global': False,
+        'is_vendor_warehouse': True,
+        'current_company': current_company,
+        'inventories': inventories,
+        'global_inventories': [],
+        'last_tx_map': last_tx_map,
+        'switchable': _switchable_companies(),
+        'locked': False,
+        'stats': stats,
+        'tx_rows': tx_rows,
+        'is_vendor_admin': _is_vendor_admin(current_user),
+        'vendor_warehouse_label': vendor_label,
+    }
+
+
+def _build_global_stock_context():
+    """全局聚合视图:跨公司汇总 + 流水合并(仅厂商管理员)。"""
+    # 1. 全部库存 → 按 product_id 聚合
+    rows = db.session.query(Inventory).join(
+        Product, Product.id == Inventory.product_id
+    ).all()
+    grouped = {}  # product_id → {product, total_qty, unit, companies:[{company, qty, last_tx}], inv_ids:[]}
+    for inv in rows:
+        pid = inv.product_id
+        if pid not in grouped:
+            grouped[pid] = {
+                'product': inv.product,
+                'total_qty': 0,
+                'unit': inv.unit or '件',
+                'companies': [],
+                'inv_ids': [],
+            }
+        g = grouped[pid]
+        g['total_qty'] += inv.quantity or 0
+        g['companies'].append({
+            'company': inv.company,  # 厂商仓时为 None
+            'is_vendor_warehouse': bool(inv.is_vendor_warehouse),
+            'inv_id': inv.id,
+            'quantity': inv.quantity or 0,
+            'unit': inv.unit or '件',
+        })
+        g['inv_ids'].append(inv.id)
+
+    # 2. 取所有 inv 的最近一次流水(供子行显示"最后变动")
+    all_inv_ids = [i.id for i in rows]
+    last_tx_by_inv = {}
+    if all_inv_ids:
+        subq = db.session.query(
+            InventoryTransaction.inventory_id,
+            func.max(InventoryTransaction.transaction_date).label('max_date')
+        ).filter(InventoryTransaction.inventory_id.in_(all_inv_ids)).group_by(
+            InventoryTransaction.inventory_id
+        ).subquery()
+        latest = db.session.query(InventoryTransaction).join(
+            subq,
+            (InventoryTransaction.inventory_id == subq.c.inventory_id) &
+            (InventoryTransaction.transaction_date == subq.c.max_date)
+        ).all()
+        last_tx_by_inv = {tx.inventory_id: tx for tx in latest}
+
+    # 把 last_tx 串到各 company 子行
+    for g in grouped.values():
+        for sub in g['companies']:
+            sub['last_tx'] = last_tx_by_inv.get(sub['inv_id'])
+        # 子行按数量降序排,大库存的公司在前
+        g['companies'].sort(key=lambda s: s['quantity'], reverse=True)
+
+    # 按产品名排序
+    global_inventories = sorted(grouped.values(), key=lambda g: g['product'].product_name or '')
+
+    # 3. 全局 KPI
+    from datetime import datetime as _dt
+    month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_tx = db.session.query(func.count(InventoryTransaction.id)).filter(
+        InventoryTransaction.transaction_date >= month_start
+    ).scalar() or 0
+    stats = {
+        'products': len(global_inventories),
+        'total_qty': sum(g['total_qty'] for g in global_inventories),
+        'monthly_tx': int(monthly_tx),
+    }
+
+    # 4. 全局最近 100 条流水(带公司列)
+    tx_rows = []
+    if all_inv_ids:
+        recent = db.session.query(InventoryTransaction).order_by(
+            InventoryTransaction.id.desc()
+        ).limit(100).all()
+        # 预加载 inv → company / product 映射
+        inv_by_id = {i.id: i for i in rows}
+        for tx in recent:
+            inv = inv_by_id.get(tx.inventory_id)
+            tx_rows.append({
+                'tx': tx,
+                'company': inv.company if inv else None,
+                'product': inv.product if inv else None,
+                'ref_url': _build_ref_url(tx.reference_type, tx.reference_id),
+            })
+
+    switchable = _switchable_companies()
+
+    from app.utils.inventory_helpers import get_vendor_warehouse_label
+    return {
+        'is_global': True,
+        'current_company': None,
+        'global_inventories': global_inventories,
+        'inventories': [],          # 模板兼容
+        'last_tx_map': {},          # 模板兼容
+        'switchable': switchable,
+        'locked': False,
+        'stats': stats,
+        'tx_rows': tx_rows,
+        'is_vendor_admin': True,
+        'vendor_warehouse_label': get_vendor_warehouse_label(),
+    }
+
+
+def _build_stock_list_context(company_id=None):
+    """构建库存主页的渲染上下文(供 tw_stock_list / at_stock_list 共用)。
+
+    返回 dict | None。None 表示权限被拒,调用方应 redirect。
+    空 company 时返回完整 ctx(模板内自行处理空态)。
+    """
+    # 1. Resolve target company
+    locked = False
+    if company_id is None:
+        company_id, locked = _resolve_default_company(current_user)
+        if company_id is None:
+            from app.utils.inventory_helpers import get_vendor_warehouse_label
+            return {
+                'is_global': False,
+                'current_company': None, 'inventories': [],
+                'global_inventories': [],
+                'switchable': _switchable_companies(),
+                'locked': False,
+                'last_tx_map': {}, 'tx_rows': [],
+                'stats': {'products': 0, 'total_qty': 0, 'monthly_tx': 0},
+                'is_vendor_admin': _is_vendor_admin(current_user),
+                'vendor_warehouse_label': get_vendor_warehouse_label(),
+            }
+    else:
+        if not _user_can_view_company(current_user, company_id):
+            flash('您没有权限查看该公司的库存', 'danger')
+            return None
+        # admin 可切换;其他人锁在自己公司
+        locked = not _is_vendor_admin(current_user)
+
+    company = Company.query.get_or_404(company_id)
+
+    inventories = Inventory.query.filter_by(company_id=company_id).join(
+        Product, Product.id == Inventory.product_id
+    ).order_by(Product.product_name).all()
+
+    inv_ids = [i.id for i in inventories]
+    last_tx_map = {}
+    if inv_ids:
+        subq = db.session.query(
+            InventoryTransaction.inventory_id,
+            func.max(InventoryTransaction.transaction_date).label('max_date')
+        ).filter(InventoryTransaction.inventory_id.in_(inv_ids)).group_by(
+            InventoryTransaction.inventory_id
+        ).subquery()
+        latest_txs = db.session.query(InventoryTransaction).join(
+            subq,
+            (InventoryTransaction.inventory_id == subq.c.inventory_id) &
+            (InventoryTransaction.transaction_date == subq.c.max_date)
+        ).all()
+        last_tx_map = {tx.inventory_id: tx for tx in latest_txs}
+
+    from datetime import datetime as _dt
+    month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_tx = db.session.query(func.count(InventoryTransaction.id)).filter(
+        InventoryTransaction.inventory_id.in_(inv_ids) if inv_ids else False,
+        InventoryTransaction.transaction_date >= month_start
+    ).scalar() or 0
+
+    stats = {
+        'products': len(inventories),
+        'total_qty': sum(i.quantity for i in inventories),
+        'monthly_tx': int(monthly_tx),
+    }
+
+    switchable = _switchable_companies() if not locked else []
+
+    tx_rows = []
+    if inv_ids:
+        recent_txs = db.session.query(InventoryTransaction).filter(
+            InventoryTransaction.inventory_id.in_(inv_ids)
+        ).order_by(InventoryTransaction.id.desc()).limit(100).all()
+        inv_by_id = {i.id: i for i in inventories}
+        for tx in recent_txs:
+            inv = inv_by_id.get(tx.inventory_id)
+            tx_rows.append({
+                'tx': tx,
+                'product': inv.product if inv else None,
+                'ref_url': _build_ref_url(tx.reference_type, tx.reference_id),
+            })
+
+    from app.utils.inventory_helpers import get_vendor_warehouse_label
+    return {
+        'is_global': False,
+        'current_company': company,
+        'inventories': inventories,
+        'global_inventories': [],
+        'last_tx_map': last_tx_map,
+        'switchable': switchable,
+        'locked': locked,
+        'stats': stats,
+        'tx_rows': tx_rows,
+        'is_vendor_admin': _is_vendor_admin(current_user),
+        'vendor_warehouse_label': get_vendor_warehouse_label(),
+    }
 
 
 @inventory.route('/api/tw_stock_adjust', methods=['POST'])
@@ -6103,160 +2838,12 @@ def tw_stock_adjust():
 # =============================================================================
 
 def _is_vendor_admin(user):
-    """厂商管理员 = 内部用户(无 linked_company_id)且有 inventory.view 权限。"""
-    return user.linked_company_id is None
+    """是否有"全局库存"+ 切换公司的权限。
+    规则:仅角色为 admin 的用户;其他人(无论是否有 linked_company_id)都只能看自己公司。
+    """
+    return getattr(user, 'role', None) == 'admin'
 
 
-@inventory.route('/transactions')
-@login_required
-@permission_required('inventory', 'view')
-def tw_transactions_list():
-    """全局库存流水审计页 - 仅厂商管理员可见。"""
-    if not _is_vendor_admin(current_user):
-        flash('您没有权限查看全局流水', 'danger')
-        return redirect(url_for('inventory.tw_stock_list'))
-
-    # Filter params
-    date_from = request.args.get('date_from', '').strip()
-    date_to = request.args.get('date_to', '').strip()
-    company_id = request.args.get('company_id', '').strip()
-    tx_type = request.args.get('type', '').strip()
-    ref_type = request.args.get('ref_type', '').strip()
-    search = request.args.get('search', '').strip()
-    page = int(request.args.get('page', 1) or 1)
-    per_page = 50
-
-    # Base query
-    q = db.session.query(InventoryTransaction).join(
-        Inventory, InventoryTransaction.inventory_id == Inventory.id
-    ).join(
-        Company, Inventory.company_id == Company.id
-    ).join(
-        Product, Inventory.product_id == Product.id
-    )
-
-    if date_from:
-        try:
-            q = q.filter(InventoryTransaction.transaction_date >= datetime.strptime(date_from, '%Y-%m-%d'))
-        except ValueError:
-            pass
-    if date_to:
-        try:
-            end = datetime.strptime(date_to, '%Y-%m-%d')
-            end = end.replace(hour=23, minute=59, second=59)
-            q = q.filter(InventoryTransaction.transaction_date <= end)
-        except ValueError:
-            pass
-    if company_id:
-        try:
-            q = q.filter(Inventory.company_id == int(company_id))
-        except ValueError:
-            pass
-    if tx_type:
-        q = q.filter(InventoryTransaction.transaction_type == tx_type)
-    if ref_type:
-        q = q.filter(InventoryTransaction.reference_type == ref_type)
-    if search:
-        like = f'%{search}%'
-        q = q.filter(or_(
-            Product.product_name.ilike(like),
-            Product.product_mn.ilike(like),
-            Company.company_name.ilike(like),
-            InventoryTransaction.description.ilike(like),
-        ))
-
-    total = q.count()
-    transactions = q.order_by(InventoryTransaction.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
-
-    # Stats 跟随当前筛选实时变化
-    from flask_babel import gettext as _
-    any_filter = any([date_from, date_to, company_id, tx_type, ref_type, search])
-    stats_label_total = _('筛选结果总数') if any_filter else _('本月流水笔数')
-    stats_label_in = _('筛选入库') if any_filter else _('本月入库')
-    stats_label_out = _('筛选出库') if any_filter else _('本月出库')
-    stats_label_active = _('涉及公司') if any_filter else _('活跃公司')
-
-    if any_filter:
-        # 用当前筛选 q 算聚合
-        stats_in = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
-            InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery()),
-            InventoryTransaction.transaction_type == 'in',
-        ).scalar() or 0
-        stats_out = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
-            InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery()),
-            InventoryTransaction.transaction_type.in_(['out', 'settlement']),
-        ).scalar() or 0
-        active_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).join(
-            InventoryTransaction, InventoryTransaction.inventory_id == Inventory.id
-        ).filter(InventoryTransaction.id.in_(q.with_entities(InventoryTransaction.id).subquery())).scalar() or 0
-        stats_total_value = total
-    else:
-        # 无筛选 → 默认显示本月
-        from datetime import datetime as _dt
-        month_start = _dt.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        stats_total_value = db.session.query(func.count(InventoryTransaction.id)).filter(
-            InventoryTransaction.transaction_date >= month_start
-        ).scalar() or 0
-        stats_in = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
-            InventoryTransaction.transaction_date >= month_start,
-            InventoryTransaction.transaction_type == 'in',
-        ).scalar() or 0
-        stats_out = db.session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
-            InventoryTransaction.transaction_date >= month_start,
-            InventoryTransaction.transaction_type.in_(['out', 'settlement']),
-        ).scalar() or 0
-        active_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).join(
-            InventoryTransaction, InventoryTransaction.inventory_id == Inventory.id
-        ).filter(InventoryTransaction.transaction_date >= month_start).scalar() or 0
-
-    total_companies = db.session.query(func.count(func.distinct(Inventory.company_id))).scalar() or 0
-    stats = {
-        'label_total': stats_label_total,
-        'label_in': stats_label_in,
-        'label_out': stats_label_out,
-        'label_active': stats_label_active,
-        'total': int(stats_total_value),
-        'in_sum': int(stats_in),
-        'out_sum': abs(int(stats_out)),
-        'active': f'{active_companies} / {total_companies}',
-    }
-
-    # Filter dropdowns
-    companies_with_inv = _switchable_companies()
-
-    # Build per-row metadata: company, product, ref URL
-    rows = []
-    for tx in transactions:
-        inv = tx.inventory
-        rows.append({
-            'tx': tx,
-            'company': inv.company if inv else None,
-            'product': inv.product if inv else None,
-            'ref_url': _build_ref_url(tx.reference_type, tx.reference_id),
-        })
-
-    pagination = {
-        'page': page,
-        'per_page': per_page,
-        'total': total,
-        'pages': (total + per_page - 1) // per_page,
-        'has_prev': page > 1,
-        'has_next': page * per_page < total,
-    }
-
-    current_filters = {
-        'date_from': date_from, 'date_to': date_to,
-        'company_id': company_id, 'type': tx_type,
-        'ref_type': ref_type, 'search': search,
-    }
-    # 仅保留非空过滤参数,供分页 URL 构造用
-    filter_qs = {k: v for k, v in current_filters.items() if v}
-
-    return render_template('inventory/tw_inventory_transactions.html',
-                           rows=rows, stats=stats, pagination=pagination,
-                           companies_with_inv=companies_with_inv,
-                           current_filters=current_filters,
-                           filter_qs=filter_qs)
 
 
 def _build_ref_url(ref_type, ref_id):
@@ -6266,14 +2853,12 @@ def _build_ref_url(ref_type, ref_id):
     if ref_type == 'order':
         # PurchaseOrder
         try:
-            return url_for('purchase_order.detail_view', order_id=ref_id)
+            return url_for('purchase_order.at_detail_view', order_id=ref_id)
         except Exception:
             return None
     if ref_type == 'shipment':
-        try:
-            return url_for('shipment.detail_view', shipment_id=ref_id)
-        except Exception:
-            return None
+        # 独立发货详情页已移除，发货流水不再可点
+        return None
     if ref_type == 'settlement':
         # 跳到批价单(settlement_order.id → 找其 pricing_order_id)
         try:
@@ -6303,7 +2888,7 @@ def tw_import_template():
     """下载 Excel 导入模板(带示例行)。仅厂商管理员。"""
     if not _is_vendor_admin(current_user):
         flash('没有权限', 'danger')
-        return redirect(url_for('inventory.tw_stock_list'))
+        return redirect(url_for('inventory.at_stock_list'))
     bio = io.BytesIO()
     example_data = [
         {'MN号': 'PNR2100-001', '公司名': '北京 ABC 经销商', '数量': 100, '单位': '台', '存储位置': 'A 区 1 排', '最低库存': 10, '最高库存': 500, '备注': '示例行,可删除'},

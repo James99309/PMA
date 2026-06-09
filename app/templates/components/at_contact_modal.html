@@ -1,0 +1,110 @@
+{#
+  AT 联系人编辑模态
+  ──────────────────────────────────────────────────
+  对齐 TW 编辑联系人字段。仅 edit 一种 mode(新建联系人由客户详情触发,后续可扩展)
+
+  调用:
+    {% from 'components/at_contact_modal.html' import at_contact_form_modal %}
+    {{ at_contact_form_modal('atEditContactModal', mode='edit') }}
+
+  JS API(in at-contact-form.js):
+    atOpenContactForm('edit', contactId)
+    atSubmitContactForm('edit', modalId)
+
+  字段:姓名⭐ / 部门 / 职位 / 电话 / 邮箱 / 设为主要联系人 / 备注
+#}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
+{% from 'components/at_base.html' import at_icon %}
+
+{% macro at_contact_form_modal(modal_id, mode='edit') %}
+  {% set _is_edit = (mode == 'edit') %}
+  {% set _title = '编辑联系人' if _is_edit else '新建联系人' %}
+  {% set _submit_label = '保存修改' if _is_edit else '创建联系人' %}
+  {% set _p = modal_id ~ '__' %}
+  {% set _submit_btn_id = modal_id ~ '_submit' %}
+  {% set footer = '<button onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
+                ~ 'style="padding:8px 16px;border-radius:8px;background:transparent;'
+                ~ 'border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;'
+                ~ 'margin-right:8px;">取消</button>'
+                ~ '<button id="' ~ _submit_btn_id ~ '" '
+                ~ 'onclick="atSubmitContactForm(\'' ~ mode ~ '\', \'' ~ modal_id ~ '\')" '
+                ~ 'style="padding:8px 18px;border-radius:8px;background:var(--accent);'
+                ~ 'color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;'
+                ~ 'display:inline-flex;align-items:center;gap:6px;">'
+                ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
+                ~ ' ' ~ _submit_label ~ '</button>' %}
+  {% call at_modal_shell(modal_id, _title, icon='pen', width=620, footer_html=footer) %}
+    {% set _inp = "width:100%;box-sizing:border-box;height:34px;padding:0 10px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
+                   font-size:13px;outline:none;transition:border-color 120ms;" %}
+    {% set _ta  = _inp ~ ';height:auto;padding:8px 10px;resize:vertical;min-height:72px;line-height:1.5;' %}
+
+    {# 姓名 — 必填 #}
+    {% call at_field('姓名', required=true) %}
+      <input type="text" id="{{ _p }}name" autocomplete="off"
+             placeholder="请输入联系人姓名(必填)" style="{{ _inp }}">
+    {% endcall %}
+
+    {# 部门 + 职位 #}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      {% call at_field('部门') %}
+        <input type="text" id="{{ _p }}department" placeholder="如:技术部 / 销售部" style="{{ _inp }}">
+      {% endcall %}
+      {% call at_field('职位') %}
+        <input type="text" id="{{ _p }}position" placeholder="如:总经理 / 工程师" style="{{ _inp }}">
+      {% endcall %}
+    </div>
+
+    {# 电话 + 邮箱 #}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      {% call at_field('电话') %}
+        <input type="tel" id="{{ _p }}phone" placeholder="请输入电话" style="{{ _inp }}">
+      {% endcall %}
+      {% call at_field('邮箱') %}
+        <input type="email" id="{{ _p }}email" placeholder="请输入邮箱" style="{{ _inp }}">
+      {% endcall %}
+    </div>
+
+    {# 主要联系人 checkbox(对齐 at_action_modal 自定义样式,两边视觉一致) #}
+    <div>
+      <label class="at-cbx" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="{{ _p }}isPrimary" class="at-cbx-input">
+        <span class="at-cbx-box" aria-hidden="true"></span>
+        <span style="flex:1;">
+          <div style="font-size:13px;color:var(--ink);">设为主要联系人</div>
+          <div class="at-dim" style="font-size:11px;color:var(--ink-3);margin-top:2px;">
+            主要联系人会在客户列表中优先显示
+          </div>
+        </span>
+      </label>
+    </div>
+
+    {# 备注 #}
+    {% call at_field('备注') %}
+      <textarea id="{{ _p }}notes" rows="3" placeholder="备注信息(可选)" style="{{ _ta }}"></textarea>
+    {% endcall %}
+
+    {# 自定义 checkbox 样式 — 同 at_action_modal #}
+    <style>
+      #{{ modal_id }} .at-cbx-input {
+        position: absolute; opacity: 0; pointer-events: none;
+      }
+      #{{ modal_id }} .at-cbx-box {
+        flex-shrink: 0; margin-top: 2px;
+        width: 16px; height: 16px; border-radius: 4px;
+        border: 1.5px solid var(--line-2); background: var(--bg-page);
+        display: inline-flex; align-items: center; justify-content: center;
+        transition: all 120ms;
+      }
+      #{{ modal_id }} .at-cbx:hover .at-cbx-box { border-color: var(--accent); }
+      #{{ modal_id }} .at-cbx-input:checked + .at-cbx-box {
+        background: var(--accent); border-color: var(--accent);
+      }
+      #{{ modal_id }} .at-cbx-input:checked + .at-cbx-box::after {
+        content: ''; width: 9px; height: 5px;
+        border-left: 1.6px solid #fff; border-bottom: 1.6px solid #fff;
+        transform: rotate(-45deg) translate(1px, -1px);
+      }
+    </style>
+  {% endcall %}
+{% endmacro %}

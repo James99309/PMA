@@ -1,0 +1,168 @@
+{#
+  AT "添加跟进记录" 通用模态(项目 / 客户 / 联系人 3 场景)
+  ──────────────────────────────────────────────────
+  对齐 TW tw_action_modal 字段集 + 文案,纯 AT 设计语言。
+
+  调用:
+    {% from 'components/at_action_modal.html' import at_action_modal %}
+    {{ at_action_modal('atActionModalProject', scope='project') }}
+    {{ at_action_modal('atActionModalCustomer', scope='customer') }}
+    {{ at_action_modal('atActionModalContact',  scope='contact')  }}
+
+  JS API(in at-action-modal.js):
+    atOpenActionModal({
+      modalId, scope, contextId, contextName,
+      apiEndpoint,       // POST 落库地址
+      contactsApi,       // (scope=project only) 公司联系人加载 base url
+      companies,         // (scope=project only) [{id, name}] 项目关联客户
+      projects,          // (scope=customer|contact only) [{id, name}]
+      contacts,          // (scope=customer only) [{id, name, position}] 该客户联系人
+      sidebarInfo        // 可选 {title, items:[{label,value}], list_title, list_items}
+    })
+
+  字段(每场景):
+    - project:  关联项目(只读) / 相关企业(可选,联动联系人) / 联系人(联动)
+    - customer: 关联客户(只读) / 关联项目(可选) / 联系人(可选)
+    - contact:  联系人(只读)   / 关联项目(可选)
+    - 通用: 日期⭐(默认今天) / 沟通情况⭐ / 共享此记录(默认✓)
+#}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
+{% from 'components/at_base.html' import at_icon %}
+
+{% macro at_action_modal(modal_id, scope='project') %}
+  {% set _p = modal_id ~ '__' %}
+  {% set _submit_btn_id = modal_id ~ '_submit' %}
+  {% set footer = '<button onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
+                ~ 'style="padding:8px 16px;border-radius:8px;background:transparent;'
+                ~ 'border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;'
+                ~ 'margin-right:8px;">取消</button>'
+                ~ '<button id="' ~ _submit_btn_id ~ '" '
+                ~ 'onclick="atSubmitActionForm(\'' ~ modal_id ~ '\')" '
+                ~ 'style="padding:8px 18px;border-radius:8px;background:var(--accent);'
+                ~ 'color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;'
+                ~ 'display:inline-flex;align-items:center;gap:6px;">'
+                ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
+                ~ ' 保存</button>' %}
+  {% call at_modal_shell(modal_id, '添加跟进记录', icon='plus', width=780, footer_html=footer) %}
+    {% set _inp = "width:100%;box-sizing:border-box;height:34px;padding:0 10px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
+                   font-size:13px;outline:none;transition:border-color 120ms;" %}
+    {% set _ro  = _inp ~ ';background:var(--bg-sunk);color:var(--ink-3);cursor:not-allowed;' %}
+    {% set _ta  = _inp ~ ';height:auto;padding:8px 10px;resize:vertical;min-height:120px;line-height:1.5;' %}
+
+    {# 两栏:左侧表单 / 右侧 sidebar(由 JS 注入) #}
+    <div style="display:grid;grid-template-columns:1fr 220px;gap:18px;">
+
+      {# ─── 左侧表单 ─── #}
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        {% if scope == 'project' %}
+        {# 项目场景:关联项目只读 + 相关企业可选 + 联系人联动 #}
+        {% call at_field('关联项目') %}
+          <input type="text" id="{{ _p }}contextLabel" readonly style="{{ _ro }}">
+        {% endcall %}
+        {% call at_field('相关企业', hint='可选 · 项目关联的客户中选') %}
+          <select id="{{ _p }}company" style="{{ _inp }}">
+            <option value="">— 请选择企业 —</option>
+          </select>
+        {% endcall %}
+        {% call at_field('联系人', hint='可选 · 选择企业后联动') %}
+          <select id="{{ _p }}contact" disabled style="{{ _ro }}">
+            <option value="">请先选择企业</option>
+          </select>
+        {% endcall %}
+
+        {% elif scope == 'contact' %}
+        {# 联系人场景:联系人只读 + 关联项目可选 #}
+        {% call at_field('联系人') %}
+          <input type="text" id="{{ _p }}contextLabel" readonly style="{{ _ro }}">
+        {% endcall %}
+        {% call at_field('关联项目', hint='可选') %}
+          <select id="{{ _p }}project" style="{{ _inp }}">
+            <option value="">— 请选择项目 —</option>
+          </select>
+        {% endcall %}
+
+        {% else %}
+        {# 客户场景:关联客户只读 + 关联项目可选 + 联系人可选 #}
+        {% call at_field('关联客户') %}
+          <input type="text" id="{{ _p }}contextLabel" readonly style="{{ _ro }}">
+        {% endcall %}
+        {% call at_field('关联项目', hint='可选') %}
+          <select id="{{ _p }}project" style="{{ _inp }}">
+            <option value="">— 请选择项目 —</option>
+          </select>
+        {% endcall %}
+        {% call at_field('联系人', hint='可选') %}
+          <select id="{{ _p }}contact" style="{{ _inp }}">
+            <option value="">— 请选择联系人 —</option>
+          </select>
+        {% endcall %}
+        {% endif %}
+
+        {# 日期(必填) #}
+        {% call at_field('日期', required=true) %}
+          <input type="date" id="{{ _p }}date" style="{{ _inp }}">
+        {% endcall %}
+
+        {# 沟通情况(必填,textarea) #}
+        {% call at_field('沟通情况', required=true) %}
+          <textarea id="{{ _p }}communication" rows="5"
+                    placeholder="请输入本次沟通的详细内容…"
+                    style="{{ _ta }}"></textarea>
+        {% endcall %}
+
+        {# 共享 checkbox + 说明 — 自定义 visual 不依赖 Tailwind/forms 插件,两边视觉一致 #}
+        <div>
+          <label class="at-cbx" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="{{ _p }}isShared" checked class="at-cbx-input">
+            <span class="at-cbx-box" aria-hidden="true"></span>
+            <span style="flex:1;">
+              <div style="font-size:13px;color:var(--ink);">共享此记录</div>
+              <div class="at-dim" style="font-size:11px;color:var(--ink-3);margin-top:2px;">
+                取消勾选后,此记录仅对管理员和上级账户可见
+              </div>
+            </span>
+          </label>
+        </div>
+        <style>
+          /* AT 风格自定义 checkbox(modal 内统一外观,不被 Tailwind forms 影响) */
+          #{{ modal_id }} .at-cbx-input {
+            position: absolute; opacity: 0; pointer-events: none;
+          }
+          #{{ modal_id }} .at-cbx-box {
+            flex-shrink: 0; margin-top: 2px;
+            width: 16px; height: 16px; border-radius: 4px;
+            border: 1.5px solid var(--line-2); background: var(--bg-page);
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all 120ms;
+          }
+          #{{ modal_id }} .at-cbx:hover .at-cbx-box {
+            border-color: var(--accent);
+          }
+          #{{ modal_id }} .at-cbx-input:checked + .at-cbx-box {
+            background: var(--accent); border-color: var(--accent);
+          }
+          #{{ modal_id }} .at-cbx-input:checked + .at-cbx-box::after {
+            content: '';
+            width: 9px; height: 5px;
+            border-left: 1.6px solid #fff;
+            border-bottom: 1.6px solid #fff;
+            transform: rotate(-45deg) translate(1px, -1px);
+          }
+          #{{ modal_id }} .at-cbx-input:focus-visible + .at-cbx-box {
+            box-shadow: 0 0 0 3px var(--accent-soft, rgba(218,82,30,0.18));
+          }
+        </style>
+      </div>
+
+      {# ─── 右侧 sidebar(由 JS 注入内容) ─── #}
+      <aside id="{{ _p }}sidebar"
+             style="background:var(--bg-page);border-left:1px solid var(--line-soft);
+                    padding:14px 16px;border-radius:8px;
+                    display:none;flex-direction:column;gap:14px;font-size:12.5px;">
+        {# JS 注入: <h4>title</h4> <p>label/value</p> ... #}
+      </aside>
+    </div>
+  {% endcall %}
+{% endmacro %}

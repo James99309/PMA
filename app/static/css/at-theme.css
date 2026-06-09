@@ -1,0 +1,158 @@
+/* ─────────────────────────────────────────────────────────────
+   PMA · AT 设计系统(Anthropic-style)
+   暖白底 + 衬线大标题 + 陶土橙强调色
+   ───────────────────────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.cn/css2?family=Newsreader:wght@400;500;600&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* Surfaces */
+  --bg-page:      #FAF9F5;
+  --bg-elev:      #FFFFFF;
+  --bg-sunk:      #F2EFE6;
+  --bg-hover:     #F0EDE3;
+  --bg-active:    #EAE6D6;
+
+  /* Ink */
+  --ink:          #1F1E1B;
+  --ink-2:        #4A4842;
+  --ink-3:        #76746B;
+  --ink-4:        #9C9A8F;
+
+  /* Lines */
+  --line-soft:    #F0EDDF;
+  --line:         #E5E1D3;
+  --line-2:       #D9D4C4;
+
+  /* Accent (terracotta) */
+  --accent:       #C15F3C;
+  --accent-2:     #D97757;
+  --accent-soft:  #F2DCCC;
+  --accent-tint:  #FBF1E9;
+
+  /* Status */
+  --success:      #2F7155;
+  --success-soft: #E0EDE5;
+  --warn:         #B8742E;
+  --warn-soft:    #F4E2CD;
+  --info:         #2A5F8F;
+  --info-soft:    #DDE6F1;
+  --danger:       #A23B3B;
+  --danger-soft:  #F0DAD8;
+
+  /* Typography stacks */
+  --font-serif:   "Newsreader", "Source Serif 4", "Songti SC", "STSong", serif;
+  --font-sans:    "Inter Tight", -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-sm:    4px;
+  --radius:       8px;
+  --radius-lg:    12px;
+}
+
+[data-theme="dark"] {
+  --bg-page:      #191714;
+  --bg-elev:      #221F1A;
+  --bg-sunk:      #100E0C;
+  --bg-hover:     #28241E;
+  --bg-active:    #2F2B23;
+
+  --ink:          #F2EFE6;
+  --ink-2:        #C9C5B8;
+  --ink-3:        #908C81;
+  --ink-4:        #696558;
+
+  --line-soft:    #25221C;
+  --line:         #322D25;
+  --line-2:       #443E33;
+
+  --accent:       #E08A6C;
+  --accent-2:     #D97757;
+  --accent-soft:  #3A2519;
+  --accent-tint:  #2A1B12;
+
+  --success:      #6BAE8B;
+  --success-soft: #1E2E25;
+  --warn:         #D89855;
+  --warn-soft:    #332515;
+  --info:         #7CA9D8;
+  --info-soft:    #1A2632;
+  --danger:       #D67878;
+  --danger-soft:  #321E1E;
+}
+
+/* Density */
+:root[data-density="compact"]  { --row-h: 40px; --pad-y: 10px; --gap: 20px; }
+:root[data-density="standard"] { --row-h: 52px; --pad-y: 14px; --gap: 28px; }
+:root[data-density="cozy"]     { --row-h: 64px; --pad-y: 18px; --gap: 40px; }
+
+/* 整页限定 AT 风格（避免影响现有 tw 页面） */
+body.at-page {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-feature-settings: "cv11", "ss03", "ss01";
+  color: var(--ink);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
+  margin: 0;
+}
+
+body.at-page button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+/* 所有 input/textarea/select 强制 border-box,避免 width:100% + padding/border 溢出父容器 */
+body.at-page input,
+body.at-page textarea,
+body.at-page select { font: inherit; color: inherit; box-sizing: border-box; max-width: 100%; }
+body.at-page a { color: inherit; text-decoration: none; }
+body.at-page table { border-collapse: collapse; }
+
+.at-serif    { font-family: var(--font-serif); font-feature-settings: "ss01"; }
+.at-mono     { font-family: var(--font-mono); }
+.at-tab-num  { font-variant-numeric: tabular-nums; }
+.at-muted    { color: var(--ink-3); }
+.at-dim      { color: var(--ink-4); }
+.at-no-wrap  { white-space: nowrap; }
+.at-hairline { background: var(--line); height: 1px; width: 100%; }
+
+/* Subtle scrollbar */
+body.at-page * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+body.at-page *::-webkit-scrollbar { width: 10px; height: 10px; }
+body.at-page *::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 5px;
+}
+body.at-page *::-webkit-scrollbar-thumb:hover { background: var(--ink-4); background-clip: content-box; }
+
+/* 大标题字体切换 — sans 时用 sans 替换 serif */
+body.at-page[data-headline-font="sans"] .at-serif {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* at_input 通用样式:focus 用主题色边框替代浏览器默认蓝框;有值时显示 X 清除按钮 */
+.at-input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(218, 130, 30, 0.14));
+}
+/* 高德 / Google Maps autocomplete 下拉默认 z-index 太低,会被 modal(z=200)盖住 */
+.amap-sug-result, .pac-container { z-index: 99999 !important; }
+
+/* 强制清除 Tailwind Forms 插件对 input focus 的蓝色边框/外发光 */
+.at-input-wrap input:focus,
+.at-input-wrap input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-color: transparent !important;
+}
+/* X 清除按钮 — input 非空时显示(:placeholder-shown 反逻辑,跟用户输入实时同步) */
+.at-input-wrap:has(input:not(:placeholder-shown)) button[data-at-input-clear] {
+  display: inline-flex !important;
+}

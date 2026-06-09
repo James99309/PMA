@@ -134,6 +134,7 @@
                     name="approver_selection" onchange="handleApproverSelection()" required>
               <option value="">请选择审批人</option>
               <option value="next_level">上一级领导（自动选择）</option>
+              <option value="submitter_designate">提交时由提交人指定</option>
               <optgroup label="指定用户">
                 {% for user in users %}
                   <option value="user_{{ user.id }}">{{ user.real_name or user.username }}</option>
@@ -151,6 +152,39 @@
                   • 如果找不到上级，将选择部门负责人<br>
                   • 确保组织架构中已正确设置上下级关系
                 </small>
+              </div>
+            </div>
+
+            {# 提交时指定 — 可选范围(留空=允许所有用户) #}
+            <div id="{{ 'edit_' if is_edit else '' }}designate_info_section" style="display: none;" class="mt-2">
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <small>
+                  <strong>提交时指定:</strong> 提交人在发起审批时弹框选择审批人。
+                  下方"可选范围"限制提交人可选的用户;留空=允许任何用户。
+                </small>
+              </div>
+              <div class="row g-2 mt-2">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted mb-1">限定角色(可多选,留空=不限)</label>
+                  <select multiple class="form-control form-control-sm" size="6"
+                          id="{{ 'edit_' if is_edit else '' }}designate_pool_roles"
+                          name="designate_pool_roles">
+                    {% for r in get_all_active_roles() %}
+                    <option value="{{ r.key }}">{{ r.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted mb-1">限定企业(可多选,留空=不限)</label>
+                  <select multiple class="form-control form-control-sm" size="6"
+                          id="{{ 'edit_' if is_edit else '' }}designate_pool_companies"
+                          name="designate_pool_companies">
+                    {% for c in get_all_user_companies() %}
+                    <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
               </div>
             </div>
           </div>

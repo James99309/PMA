@@ -1,0 +1,136 @@
+{# partial 独立渲染，内联 edit icon #}
+{% macro _icon(name, size=16) %}
+{% set icons = {
+  'edit': '<svg width="'~size~'" height="'~size~'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+} %}{{ icons.get(name, '') | safe }}{% endmacro %}
+
+{% if all_items %}
+<table class="ats-table">
+  <thead>
+    <tr>
+      {% if can_edit %}<th style="width:28px;"></th>{% endif %}
+      <th style="text-align:left;width:240px;">规格名称</th>
+      <th style="text-align:left;width:60px;">单位</th>
+      <th style="text-align:left;">通用值</th>
+      <th style="text-align:left;">测试条件</th>
+      <th style="text-align:left;">测试方法</th>
+      <th style="text-align:center;width:52px;">必填</th>
+      {% if can_edit %}<th style="width:40px;"></th>{% endif %}
+    </tr>
+  </thead>
+
+  {% for category in categories %}
+  {% set cat_items = items_by_category.get(category.id, []) %}
+  {% if cat_items %}
+  <tbody>
+    <tr class="ats-cat-header">
+      <td colspan="{{ 8 if can_edit else 6 }}">
+        {{ category.name }}
+        <span style="font-size:11px;color:var(--ink-4);font-weight:400;margin-left:6px;">{{ cat_items|length }} 项</span>
+      </td>
+    </tr>
+  </tbody>
+  <tbody class="ats-cat-body" data-cat-id="{{ category.id }}">
+    {% for item in cat_items %}
+    <tr id="ats-row-{{ item.id }}" data-item-id="{{ item.id }}" data-cat-id="{{ category.id }}">
+      {% if can_edit %}
+      <td style="padding:10px 4px 0 10px;vertical-align:top;">
+        <span class="ats-drag-handle" title="分类内拖拽排序">⠿</span>
+      </td>
+      {% endif %}
+      <td>
+        <div style="display:flex;align-items:flex-start;gap:6px;">
+          <div style="flex:1;">
+            <div style="font-size:13px;color:var(--ink);">{{ item.spec_dict.name }}</div>
+            {% if item.spec_dict.name_en %}
+            <div style="font-size:11px;color:var(--ink-4);">{{ item.spec_dict.name_en }}</div>
+            {% endif %}
+          </div>
+          {% if item.id in code_position_map %}
+          {% set pos = code_position_map[item.id] %}
+          <span style="display:inline-flex;align-items:center;justify-content:center;
+                       width:18px;height:18px;min-width:18px;font-size:11px;font-weight:700;
+                       border-radius:50%;background:var(--warning,#d97706);color:#fff;
+                       flex-shrink:0;margin-top:1px;"
+                title="MN编码第{{ pos.start_pos }}位{% if pos.length > 1 %}–{{ pos.start_pos + pos.length - 1 }}位{% endif %}">{{ pos.index }}</span>
+          {% endif %}
+        </div>
+      </td>
+      <td style="color:var(--ink-3);">{{ item.spec_dict.unit or '—' }}</td>
+      <td id="ats-gv-{{ item.id }}" style="color:var(--ink-2);">{{ item.general_value or '—' }}</td>
+      <td id="ats-tc-{{ item.id }}" style="color:var(--ink-3);">
+        {% if item.test_condition %}{{ item.test_condition.name }}
+        {% elif item.test_condition_text %}{{ item.test_condition_text }}
+        {% else %}—{% endif %}
+      </td>
+      <td id="ats-tm-{{ item.id }}" style="color:var(--ink-3);">
+        {% if item.test_method %}{{ item.test_method.name }}
+        {% elif item.test_method_text %}{{ item.test_method_text }}
+        {% else %}—{% endif %}
+      </td>
+      <td id="ats-req-{{ item.id }}" style="text-align:center;">
+        {% if item.is_required %}
+        <span style="font-size:11px;color:var(--accent);">✓</span>
+        {% else %}
+        <span style="color:var(--line-2);">—</span>
+        {% endif %}
+      </td>
+      {% if can_edit %}
+      <td style="text-align:center;">
+        <button onclick="atItemEdit({{ item.id }})"
+                style="width:28px;height:28px;border-radius:5px;border:0;background:0;
+                       cursor:pointer;color:var(--ink-4);font-size:13px;line-height:1;
+                       display:inline-flex;align-items:center;justify-content:center;"
+                title="编辑">{{ _icon('edit', 14) }}</button>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+  {% endif %}
+  {% endfor %}
+</table>
+{% else %}
+<div style="text-align:center;padding:60px;color:var(--ink-4);">
+  <div>暂无规格项</div>
+  {% if can_edit %}
+  <button onclick="atAddSpecOpen()"
+          style="margin-top:16px;height:34px;padding:0 18px;border-radius:6px;
+                 background:var(--accent);color:#fff;border:0;font-size:13px;cursor:pointer;">
+    + 添加规格项
+  </button>
+  {% endif %}
+</div>
+{% endif %}
+
+{# 供 JS 更新 SPEC_ITEMS_DATA #}
+<script>
+(function(){
+  var newItems = {
+    {% for item in all_items %}
+    {{ item.id }}: {
+      id: {{ item.id }},
+      spec_dict_id: {{ item.spec_dict_id or 'null' }},
+      name: {{ (item.spec_dict.name if item.spec_dict else '') | tojson }},
+      name_en: {{ (item.spec_dict.name_en if item.spec_dict else '') | tojson }},
+      general_value: {{ (item.general_value or '') | tojson }},
+      is_required: {{ 'true' if item.is_required else 'false' }},
+      use_in_code: {{ 'true' if item.use_in_code else 'false' }},
+      code_length: {{ item.code_length or 1 }},
+      test_condition_id: {{ item.test_condition_id or 'null' }},
+      test_condition_text: {{ (item.test_condition_text or '') | tojson }},
+      test_method_id: {{ item.test_method_id or 'null' }},
+      test_method_text: {{ (item.test_method_text or '') | tojson }},
+      is_code_locked: {{ 'true' if has_locked_config else 'false' }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+  if (typeof SPEC_ITEMS_DATA !== 'undefined') {
+    Object.assign(SPEC_ITEMS_DATA, newItems);
+    // 清除已删除的 key
+    Object.keys(SPEC_ITEMS_DATA).forEach(function(k) {
+      if (!newItems[k]) delete SPEC_ITEMS_DATA[k];
+    });
+  }
+})();
+</script>

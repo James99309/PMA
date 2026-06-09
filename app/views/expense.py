@@ -667,6 +667,224 @@ def expense_list():
                               expense_categories=EXPENSE_CATEGORIES,
                               default_currency=error_default_currency)
 
+@expense.route('/<int:id>/at_view')
+@login_required
+@permission_required('expense', 'view')
+def at_view_expense(id):
+    """AT 风格报销详情页(支持 ?action=edit 进入编辑态)"""
+    from app.utils.related_data import RelatedDataService
+    from app.utils.access_control import get_viewable_data
+    from app.models.expense import Expense as E, EXPENSE_CATEGORIES
+
+    e = E.query.get_or_404(id)
+    if e.is_deleted:
+        from flask import abort
+        abort(404)
+    # 权限:走 viewable 过滤 — 不在范围内则 403
+    if not get_viewable_data(E, current_user, [E.id == id]).first():
+        from flask import abort
+        abort(403)
+
+    related = RelatedDataService.fetch_all('expense', id, current_user, limit=5)
+
+    # 货币符号
+    currency_sym = '$' if (e.currency or '') == 'USD' else ('RM' if (e.currency or '') == 'MYR' else '¥')
+
+    can_edit_now = (e.status in ('draft', 'rejected') and e.owner_id == current_user.id)
+    perms = {'can_edit': can_edit_now}
+
+    # ?action=edit → 进入编辑态(需要 can_edit)
+    is_edit = (request.args.get('action') == 'edit' and can_edit_now)
+
+    # ?action=approval_edit → 审核修改态(审批人在当前节点可改部分字段)
+    is_approval_edit = False
+    editable_fields_list = []
+    approval_step_name = ''
+    if request.args.get('action') == 'approval_edit':
+        from app.helpers.approval_helpers import get_current_approval_step_editable_fields
+        edit_info = get_current_approval_step_editable_fields('expense', id, current_user.id)
+        if edit_info and edit_info.get('can_edit') and edit_info.get('editable_fields'):
+            is_approval_edit = True
+            editable_fields_list = edit_info['editable_fields']
+            approval_step_name = edit_info.get('step_name', '')
+        else:
+            flash(_('您当前节点没有可编辑字段,或不是当前审批人'), 'warning')
+            return redirect(url_for('expense.at_view_expense', id=id))
+
+    # 编辑态:把明细打包给 JS(模板用 | tojson 渲染,Jinja 帮做安全编码)
+    expense_details = []
+    if is_edit:
+        for d in (e.details or []):
+            # invoice_images 数据库是 Text 存 JSON 字符串 → 这里解码成 list
+            imgs = d.invoice_images
+            if isinstance(imgs, str):
+                try:
+                    imgs = json.loads(imgs)
+                except (json.JSONDecodeError, ValueError):
+                    imgs = []
+            expense_details.append({
+                'id': d.id,
+                'expense_category': d.expense_category,
+                'expense_date': d.expense_date.strftime('%Y-%m-%d') if d.expense_date else None,
+                'description': d.description or '',
+                'invoice_amount': float(d.invoice_amount) if d.invoice_amount is not None else 0,
+                'currency': d.currency or e.currency or 'CNY',
+                'exchange_rate': float(d.exchange_rate) if d.exchange_rate is not None else 1.0,
+                'current_amount': float(d.current_amount) if d.current_amount is not None else 0,
+                'invoice_images': imgs or [],
+            })
+
+    # 审核修改态:序列化明细给 JS(允许审批人在 UI 上看完整明细,但 update-fields 后端拒明细字段)
+    if is_approval_edit and not expense_details:
+        import json as _json2
+        for d in (e.details or []):
+            imgs = d.invoice_images
+            if isinstance(imgs, str):
+                try: imgs = json.loads(imgs)
+                except Exception: imgs = []
+            expense_details.append({
+                'id': d.id,
+                'expense_category': d.expense_category,
+                'expense_date': d.expense_date.strftime('%Y-%m-%d') if d.expense_date else None,
+                'description': d.description or '',
+                'invoice_amount': float(d.invoice_amount) if d.invoice_amount is not None else 0,
+                'currency': d.currency or e.currency or 'CNY',
+                'exchange_rate': float(d.exchange_rate) if d.exchange_rate is not None else 1.0,
+                'current_amount': float(d.current_amount) if d.current_amount is not None else 0,
+                'invoice_images': imgs or [],
+            })
+
+    return render_template('expense/at_view.html',
+                           expense=e,
+                           related=related,
+                           perms=perms,
+                           currency_sym=currency_sym,
+                           is_edit=is_edit,
+                           is_new=False,
+                           is_approval_edit=is_approval_edit,
+                           editable_fields=editable_fields_list,
+                           approval_step_name=approval_step_name,
+                           expense_categories=EXPENSE_CATEGORIES,
+                           currency_options=get_currency_type_options(),
+                           default_currency=(e.currency or Config.DEFAULT_CURRENCY),
+                           expense_details=expense_details)
+
+
+@expense.route('/at_new', methods=['GET'])
+@login_required
+@permission_required('expense', 'create')
+def at_new_expense():
+    """AT 风格新建报销 — 渲染空白详情页,保存时复用 /expense/create 落库。
+
+    支持 ?customer_id=X / ?project_id=X 预填来源。
+    """
+    from types import SimpleNamespace
+    from app.models.expense import EXPENSE_CATEGORIES
+    from app.models.customer import Company
+    from app.models.project import Project
+    from app.utils.access_control import can_view_company, can_view_project
+
+    # 来源预填
+    src_customer = None
+    src_project = None
+    src_customer_id = request.args.get('customer_id', type=int)
+    src_project_id = request.args.get('project_id', type=int)
+    if src_customer_id:
+        c = Company.query.filter_by(id=src_customer_id, is_deleted=False).first()
+        if c and can_view_company(current_user, c):
+            src_customer = c
+    if src_project_id:
+        p = Project.query.filter_by(id=src_project_id, is_deleted=False).first()
+        if p and can_view_project(current_user, p):
+            src_project = p
+
+    # 用户默认结算货币
+    try:
+        fresh_user = User.query.get(current_user.id)
+        default_currency = (fresh_user.settlement_currency if fresh_user else None) or Config.DEFAULT_CURRENCY
+    except Exception:
+        default_currency = Config.DEFAULT_CURRENCY
+    currency_sym = '$' if default_currency == 'USD' else ('RM' if default_currency == 'MYR' else '¥')
+
+    stub = SimpleNamespace(
+        id=None, expense_number='NEW', title='', description='',
+        currency=default_currency, total_amount=0,
+        status='draft', is_locked=False, no_customer_mode=False,
+        customer=src_customer, customer_id=(src_customer.id if src_customer else None),
+        contact=None, contact_id=None,
+        project=src_project, project_id=(src_project.id if src_project else None),
+        owner=current_user, owner_id=current_user.id,
+        approver=None, approved_at=None, approval_notes=None,
+        payment_status=None, payment_method=None, payment_reference=None,
+        payment_date=None, payment_amount=None,
+        created_at=None, updated_at=None,
+        details=[],
+    )
+
+    return render_template('expense/at_view.html',
+                           expense=stub,
+                           related={},
+                           perms={'can_edit': True},
+                           currency_sym=currency_sym,
+                           is_new=True,
+                           is_edit=False,
+                           expense_categories=EXPENSE_CATEGORIES,
+                           currency_options=get_currency_type_options(),
+                           default_currency=default_currency,
+                           expense_details=[])
+
+
+@expense.route('/at_list')
+@login_required
+@permission_required('expense', 'view')
+def at_list_view():
+    """AT 风格报销单列表 — 走 access_control 的报销特殊规则(自己+下属+财务/admin)"""
+    from sqlalchemy import or_
+    from app.utils.access_control import get_viewable_data
+    from app.models.expense import Expense
+
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 30
+    tab = request.args.get('tab', 'all')
+    search = request.args.get('search', '').strip()
+
+    base = get_viewable_data(Expense, current_user).filter(Expense.is_deleted == False)
+
+    TAB_STATUS_MAP = {
+        'draft':            'draft',
+        'pending':          'pending',
+        'approved':         'approved',
+        'awaiting_payment': 'awaiting_payment',
+        'paid':             'paid',
+        'rejected':         'rejected',
+    }
+    tab_counts = {'all': base.count()}
+    for k, v in TAB_STATUS_MAP.items():
+        tab_counts[k] = base.filter(Expense.status == v).count()
+
+    q = base
+    if tab in TAB_STATUS_MAP:
+        q = q.filter(Expense.status == TAB_STATUS_MAP[tab])
+
+    if search:
+        like = f'%{search}%'
+        q = q.filter(or_(
+            Expense.expense_number.ilike(like),
+            Expense.title.ilike(like),
+        ))
+
+    pagination = q.order_by(Expense.updated_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False,
+    )
+
+    return render_template('expense/at_list.html',
+                           expenses=pagination.items,
+                           pagination=pagination,
+                           tab_counts=tab_counts,
+                           current_tab=tab,
+                           search=search)
+
+
 @expense.route('/ajax/test')
 def test_ajax():
     """测试AJAX端点"""
@@ -2303,6 +2521,89 @@ def get_same_company_users():
         }), 500
 
 
+@expense.route('/api/generate-title', methods=['POST'])
+@login_required
+def api_generate_title():
+    """AT 报销表单 — 根据"报销说明"用 AI 生成简短标题(5-12 字)。
+
+    复用 services/expense_title_generator.generate_title(描述 → 标题)
+    薄壳:JWT → session 鉴权切换,无状态(不需要 expense_id)。
+
+    入参:JSON {description: str}
+    出参:{success, title}
+    """
+    from flask import session as flask_session
+    data = request.get_json(silent=True) or {}
+    description = (data.get('description') or '').strip()
+    if not description:
+        return jsonify({'success': True, 'title': ''})
+    from app.services.expense_title_generator import generate_title
+    lang = 'en' if flask_session.get('language') == 'en' else 'zh'
+    try:
+        title = generate_title(description, fallback='', lang=lang)
+    except Exception as e:
+        logger.warning(f'web auto-title failed: {e}')
+        return jsonify({'success': False, 'message': str(e)})
+    return jsonify({'success': True, 'title': title or ''})
+
+
+@expense.route('/api/exchange-rate', methods=['GET'])
+@login_required
+def api_exchange_rate():
+    """AT 报销表单 — 取汇率(发票货币 → 报销单货币)
+
+    复用 services/exchange_rate_service.exchange_rate_service.get_exchange_rate
+    """
+    from_ccy = request.args.get('from', '').strip().upper()
+    to_ccy = request.args.get('to', '').strip().upper()
+    if not from_ccy or not to_ccy:
+        return jsonify({'success': False, 'message': 'from/to 必填', 'rate': 1.0}), 400
+    if from_ccy == to_ccy:
+        return jsonify({'success': True, 'rate': 1.0})
+    try:
+        from app.services.exchange_rate_service import exchange_rate_service
+        rate = exchange_rate_service.get_exchange_rate(from_ccy, to_ccy)
+    except Exception as e:
+        logger.warning(f'expense exchange-rate fail {from_ccy}→{to_ccy}: {e}')
+        rate = 1.0
+    return jsonify({'success': True, 'rate': round(rate or 1.0, 6)})
+
+
+@expense.route('/api/ocr-invoice', methods=['POST'])
+@login_required
+@permission_required('expense', 'create')
+def api_ocr_invoice():
+    """AT 报销表单 — 发票 OCR 识别(仅识别,不落盘)。
+
+    复用移动端 services/expense_invoice_ocr.extract_invoice,
+    薄壳:JWT → session 鉴权切换 + 不存 NAS(文件随保存表单一起上传)。
+
+    入参:multipart file
+    出参:{success, fields: {seller, invoice_no, date, currency,
+            invoice_amount, tax_amount, category, description, confidence}}
+    """
+    from flask import session as flask_session
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'success': False, 'message': '未提供文件'}), 400
+    blob = f.read()
+    if not blob:
+        return jsonify({'success': False, 'message': '文件为空'}), 400
+    if len(blob) > 10 * 1024 * 1024:
+        return jsonify({'success': False, 'message': '文件过大 (>10MB)'}), 400
+
+    from app.services.expense_invoice_ocr import extract_invoice
+    lang = 'en' if flask_session.get('language') == 'en' else 'zh'
+    try:
+        result = extract_invoice(blob, lang=lang)
+    except Exception as e:
+        logger.error(f"发票 OCR 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+    if not result.get('success'):
+        return jsonify({'success': False, 'message': result.get('message') or 'OCR 识别失败'})
+    return jsonify({'success': True, 'fields': result.get('data', {})})
+
+
 @expense.route('/api/upload_invoice_temp', methods=['POST'])
 @login_required
 @permission_required('expense', 'edit')
@@ -2936,23 +3237,22 @@ def get_approval_templates(expense_id):
             }), 403
         
         # 获取报销单类型的审批模板
-        templates = get_approval_templates(object_type='expense', active_only=True)
-        
-        template_list = []
-        if hasattr(templates, 'items'):  # 如果是分页对象
-            template_list = [{
+        templates = get_approval_templates(object_type='expense', is_active=True)
+
+        # 获取模板中的 submitter_designate 步骤(用于前端弹"指定审批人"对话框)
+        from app.helpers.approval_helpers import get_designate_steps_info
+
+        def _serialize(t):
+            return {
                 'id': t.id,
                 'name': t.name,
                 'object_type': t.object_type,
-                'required_fields': t.required_fields or []
-            } for t in templates.items]
-        else:  # 如果是列表
-            template_list = [{
-                'id': t.id,
-                'name': t.name,
-                'object_type': t.object_type,
-                'required_fields': t.required_fields or []
-            } for t in templates]
+                'required_fields': t.required_fields or [],
+                'designate_steps': get_designate_steps_info(t.id),
+            }
+
+        template_iter = templates.items if hasattr(templates, 'items') else templates
+        template_list = [_serialize(t) for t in template_iter]
         
         return jsonify({
             'success': True,
@@ -3016,14 +3316,19 @@ def submit_approval(expense_id):
                 }), 400
             
             template_id = default_template.id
-        
-        # 启动审批流程（使用 auto_commit=False 确保与报销单状态更新在同一事务中）
+
+        # 提交时指定审批人(submitter_designate 步骤用)
+        _req_data = request.get_json(silent=True) or {}
+        designated_approvers = _req_data.get('designated_approvers')
+
+        # 启动审批流程(使用 auto_commit=False 确保与报销单状态更新在同一事务中)
         approval_instance = start_approval_process(
             object_type='expense',
             object_id=expense_id,
             template_id=template_id,
             user_id=current_user.id,
-            auto_commit=False
+            auto_commit=False,
+            designated_approvers=designated_approvers,
         )
 
         if not approval_instance:
@@ -3161,14 +3466,19 @@ def resubmit_approval(expense_id):
                 }), 400
             
             template_id = default_template.id
-        
-        # 重新启动审批流程（使用 auto_commit=False 确保与报销单状态更新在同一事务中）
+
+        # 提交时指定审批人(submitter_designate 步骤用)
+        _req_data = request.get_json(silent=True) or {}
+        designated_approvers = _req_data.get('designated_approvers')
+
+        # 重新启动审批流程(使用 auto_commit=False 确保与报销单状态更新在同一事务中)
         approval_instance = start_approval_process(
             object_type='expense',
             object_id=expense_id,
             template_id=template_id,
             user_id=current_user.id,
-            auto_commit=False
+            auto_commit=False,
+            designated_approvers=designated_approvers,
         )
 
         if not approval_instance:
@@ -3430,7 +3740,11 @@ def get_approval_editable_fields(expense_id):
 
 @expense.route('/api/approval/<int:expense_id>/update-fields', methods=['POST'])
 @login_required
-@permission_required('expense', 'edit')
+# 注:不要求 expense.edit 权限 — 审批人通常只有 view 权限,但有审批资格。
+# 内部 update_fields 服务已经做了双重校验:
+#   1) 必须是当前节点审批人(get_current_approval_step_editable_fields)
+#   2) 只能改流程模板配置的 editable_fields 白名单字段
+@permission_required('expense', 'view')
 def update_approval_fields(expense_id):
     """在审核阶段更新特定字段（使用通用服务）"""
     try:
@@ -3456,10 +3770,14 @@ def update_approval_fields(expense_id):
                 'success': False,
                 'message': '字段更新数据格式不正确'
             }), 400
-        
+
+        logger.info(f"[approval-edit] route received expense={expense_id} user={current_user.id} "
+                    f"field_updates={field_updates!r}")
+
         # 使用通用字段编辑服务更新字段
         field_service = get_field_edit_service('expense')
         success, message = field_service.update_fields(expense_id, field_updates, current_user.id)
+        logger.info(f"[approval-edit] route result expense={expense_id} success={success} message={message}")
         
         if success:
             return jsonify({

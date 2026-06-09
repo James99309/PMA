@@ -484,7 +484,8 @@ def get_step_actual_approver(step, approval_instance):
         approver_user_id = step.get('approver_user_id')
         approver_role = step.get('approver_role')  # 角色类型审批人
         action_type = step.get('action_type')
-        step_id = step.get('id', 'unknown')
+        # 模板快照里 step 的真实 ID key 是 'step_id'(不是 'id')— 召回快照写入时统一用 step_id
+        step_id = step.get('step_id', step.get('id', 'unknown'))
         step_name = step.get('step_name', 'unknown')
     else:
         # 从ApprovalStep对象获取
@@ -544,6 +545,26 @@ def get_step_actual_approver(step, approval_instance):
         # 分支决策：根据条件确定审批人
         result = get_branch_approver(step, approval_instance)
         return result
+    elif approver_type == 'submitter_designate':
+        # 提交时由提交者指定 — 从 approval_instance.designated_approvers 取
+        # designated_approvers JSON 格式: {str(step_id): user_id, ...}
+        designated = getattr(approval_instance, 'designated_approvers', None) or {}
+        # step_id 在 step dict / Step 对象上都叫 'step_id' 或 'id'
+        key = str(step_id) if step_id != 'unknown' else None
+        user_id = designated.get(key) if key else None
+        if not user_id and isinstance(step, dict):
+            # 兼容快照里用 step_order 当 key 的情况
+            order_key = str(step.get('step_order') or '')
+            if order_key:
+                user_id = designated.get(order_key)
+        if user_id:
+            result = User.query.get(int(user_id))
+            if result:
+                return result
+        current_app.logger.warning(
+            f"submitter_designate 步骤未找到指定审批人: step_id={step_id} designated={designated}"
+        )
+        return None
 
     current_app.logger.warning(f"无法确定步骤审批人: approver_type={approver_type}, approver_user_id={approver_user_id}, approver_role={approver_role}")
     return None
@@ -2063,7 +2084,7 @@ def get_approval_object_url(instance):
     elif object_type == 'pricing_order':
         return url_for('pricing_order.excel_edit_pricing_order', order_id=object_id)
     elif object_type == 'purchase_order':
-        return url_for('inventory.order_detail', id=object_id)
+        return url_for('purchase_order.at_detail_view', order_id=object_id)
     elif object_type == 'expense':
         return url_for('expense.expense_detail', id=object_id, from_approval='true')
     elif object_type == 'rd_product':
@@ -2333,6 +2354,51 @@ def can_user_approve(instance_id, user_id=None):
     return actual_approver and actual_approver.id == user_id
 
 # ----- 以下是审批流程配置模块需要的函数 ----- #
+
+def get_designate_steps_info(template_id):
+    """返回模板中 approver_type='submitter_designate' 的步骤 + 候选审批人列表。
+
+    用途:提交审批前,前端拿到这个列表展示「选择审批人」对话框,
+         用户为每个 submitter_designate 步骤选定 user_id。
+
+    Returns:
+        list[dict]: [{step_id, step_name, step_order, pool, candidates: [{id, name, role}]}]
+    """
+    from app.models.approval import ApprovalStep
+    from app.models.user import User
+    out = []
+    steps = ApprovalStep.query.filter_by(
+        process_id=template_id, approver_type='submitter_designate'
+    ).order_by(ApprovalStep.step_order.asc()).all()
+    for s in steps:
+        pool = s.designate_pool or {}
+        roles = pool.get('roles') or []
+        companies = pool.get('companies') or []
+        # 兼容旧字段名(早期版本叫 departments,现已改为 companies)
+        if not companies:
+            companies = pool.get('departments') or []
+        # 注意:User.is_active 是 hybrid property,filter 必须用底层列 User._is_active
+        # 参见 memory feedback_systematic_patterns
+        q = User.query.filter(User._is_active == True)  # noqa: E712
+        if roles:
+            q = q.filter(User.role.in_(roles))
+        if companies:
+            q = q.filter(User.company_name.in_(companies))
+        candidates = [{
+            'id': u.id,
+            'name': u.real_name or u.username,
+            'role': u.role or '',
+            'company': u.company_name or '',
+        } for u in q.order_by(User.real_name.asc()).limit(200).all()]
+        out.append({
+            'step_id': s.id,
+            'step_name': s.step_name,
+            'step_order': s.step_order,
+            'pool': pool,
+            'candidates': candidates,
+        })
+    return out
+
 
 def get_approval_templates(page=1, per_page=10, object_type=None, is_active=None, search=None, creator_id=None):
     """获取审批流程模板列表
@@ -3232,20 +3298,23 @@ def _get_complete_branch_condition(step):
         return step.branch_condition
 
 
-def start_approval_process(object_type, object_id, template_id, user_id=None, auto_commit=True):
+def start_approval_process(object_type, object_id, template_id, user_id=None,
+                            auto_commit=True, designated_approvers=None):
     """发起审批流程
 
     Args:
         object_type: 业务对象类型
         object_id: 业务对象ID
         template_id: 审批流程模板ID
-        user_id: 发起人ID，默认为当前登录用户
-        auto_commit: 是否自动提交事务，默认True。
-                     设为False时只flush不commit，由调用者统一提交，
+        user_id: 发起人ID,默认为当前登录用户
+        auto_commit: 是否自动提交事务,默认True。
+                     设为False时只flush不commit,由调用者统一提交,
                      确保审批实例创建和业务对象状态更新在同一事务中。
+        designated_approvers: 提交时指定的审批人 dict {step_id_str: user_id},
+                             用于 approver_type='submitter_designate' 的步骤。
 
     Returns:
-        新建的审批实例对象，如果失败则返回None
+        新建的审批实例对象,如果失败则返回None
     """
     # 记录详细的诊断信息
     current_app.logger.info(f"开始发起审批流程: 对象类型={object_type}, 对象ID={object_id}, 模板ID={template_id}")
@@ -3499,6 +3568,11 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
         first_step_order = 1  # 第一步的 step_order 始终为 1
         current_app.logger.info(f"使用 step_order 作为 current_step: {first_step_order}")
 
+        # 标准化 designated_approvers:key 转 str(兼容前端发 int key 的情况)
+        _designated_norm = None
+        if designated_approvers and isinstance(designated_approvers, dict):
+            _designated_norm = {str(k): int(v) for k, v in designated_approvers.items() if v}
+
         # 创建审批实例
         instance = ApprovalInstance(
             process_id=template_id,
@@ -3509,7 +3583,8 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
             started_at=datetime.now(),
             created_by=user_id,
             template_snapshot=template_snapshot,
-            template_version=f"v{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            template_version=f"v{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            designated_approvers=_designated_norm,
         )
         db.session.add(instance)
         db.session.flush()  # 获取实例ID但不提交
@@ -3530,38 +3605,18 @@ def start_approval_process(object_type, object_id, template_id, user_id=None, au
             from app.models.pricing_order import PricingOrder
             pricing_order_after = PricingOrder.query.get(object_id)
         
-        # 如果模板配置了锁定对象，则锁定对象
+        # 如果模板配置了锁定对象，则锁定对象（统一调度,详见 app/utils/lockable.py）
         if template.lock_object_on_start:
-            lock_success = False
-            if object_type == 'quotation':
-                from app.helpers.quotation_helpers import lock_quotation
-                lock_success = lock_quotation(
-                    quotation_id=object_id,
-                    reason=template.lock_reason or '审批流程进行中，暂时锁定编辑',
-                    user_id=user_id
-                )
-            elif object_type == 'project':
-                # 先检查项目是否已被锁定，如果是，先解锁再锁定
-                project = Project.query.get(object_id)
-                if project and project.is_locked:
-                    current_app.logger.info(f"项目已被锁定，尝试强制重新锁定: {object_id}, 原因: {project.locked_reason}")
-                
-                lock_success = lock_project(
-                    project_id=object_id,
-                    reason=f"授权编号审批锁定: {template.name}",
-                    user_id=user_id,
-                    force=True  # 强制锁定，即使已经锁定也更新锁定状态
-                )
-            elif object_type == 'expense':
-                # 报销单锁定逻辑
-                lock_success = lock_expense(object_id, user_id)
-            elif object_type == 'customer':
-                # 客户锁定逻辑可以在这里添加
-                lock_success = True  # 暂时跳过客户锁定
-            
-            if not lock_success and object_type in ['quotation', 'project', 'expense']:
+            from app.utils.lockable import lock_object, get_registry
+            _reason = template.lock_reason or '审批流程进行中，暂时锁定编辑'
+            if object_type == 'project':
+                # 项目特殊:锁定原因包含模板名(沿用旧行为)
+                _reason = f"授权编号审批锁定: {template.name}"
+            lock_success = lock_object(object_type, object_id, reason=_reason, user_id=user_id)
+
+            # 已注册的对象类型如果锁定失败,回滚整个审批实例
+            if not lock_success and object_type in get_registry():
                 current_app.logger.warning(f"锁定{object_type}失败: {object_id}")
-                # 锁定失败时回滚审批实例创建
                 db.session.rollback()
                 from flask import flash
                 flash(f"发起审批失败: 无法锁定{get_object_type_display(object_type)}，请稍后再试", 'danger')
@@ -3919,14 +3974,9 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         # 更新业务对象的审批状态
         _update_business_object_approval_status(instance, action, user_id, comment)
 
-        # 解锁对象
-        if instance.object_type == 'project':
-            unlock_project(instance.object_id, user_id)
-        elif instance.object_type == 'quotation':
-            from app.helpers.quotation_helpers import unlock_quotation
-            unlock_quotation(instance.object_id, user_id)
-        elif instance.object_type == 'expense':
-            unlock_expense(instance.object_id, user_id)
+        # 解锁对象(统一调度,详见 app/utils/lockable.py)
+        from app.utils.lockable import unlock_object
+        unlock_object(instance.object_type, instance.object_id, user_id)
     else:
         # 🔥 修复：检查是否刚完成了支付步骤
         current_step_action_type = None
@@ -4039,14 +4089,9 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
                 # 更新业务对象的审批状态
                 _update_business_object_approval_status(instance, action, user_id, comment)
 
-                # 解锁对象
-                if instance.object_type == 'project':
-                    unlock_project(instance.object_id, user_id)
-                elif instance.object_type == 'quotation':
-                    from app.helpers.quotation_helpers import unlock_quotation
-                    unlock_quotation(instance.object_id, user_id)
-                elif instance.object_type == 'expense':
-                    unlock_expense(instance.object_id, user_id)
+                # 解锁对象(统一调度,详见 app/utils/lockable.py)
+                from app.utils.lockable import unlock_object
+                unlock_object(instance.object_type, instance.object_id, user_id)
     
     try:
         db.session.commit()
@@ -4546,14 +4591,9 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
         # 更新业务对象的审批状态
         _update_business_object_approval_status(instance, action, user_id, comment)
 
-        # 解锁对象
-        if instance.object_type == 'project':
-            unlock_project(instance.object_id, user_id)
-        elif instance.object_type == 'quotation':
-            from app.helpers.quotation_helpers import unlock_quotation
-            unlock_quotation(instance.object_id, user_id)
-        elif instance.object_type == 'expense':
-            unlock_expense(instance.object_id, user_id)
+        # 解锁对象(统一调度,详见 app/utils/lockable.py)
+        from app.utils.lockable import unlock_object
+        unlock_object(instance.object_type, instance.object_id, user_id)
     else:
         # 🔥 修复：检查是否刚完成了支付步骤
         current_step_action_type = None
@@ -4666,14 +4706,9 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
                 # 更新业务对象的审批状态
                 _update_business_object_approval_status(instance, action, user_id, comment)
 
-                # 解锁对象
-                if instance.object_type == 'project':
-                    unlock_project(instance.object_id, user_id)
-                elif instance.object_type == 'quotation':
-                    from app.helpers.quotation_helpers import unlock_quotation
-                    unlock_quotation(instance.object_id, user_id)
-                elif instance.object_type == 'expense':
-                    unlock_expense(instance.object_id, user_id)
+                # 解锁对象(统一调度,详见 app/utils/lockable.py)
+                from app.utils.lockable import unlock_object
+                unlock_object(instance.object_type, instance.object_id, user_id)
 
     # 步骤推进/拒绝/通过 — 转交失效, 清空代理字段
     # 转交是 per-step 级别: 当前步骤处理完(approve/reject)后下一步骤须按原配置审批人
@@ -5466,7 +5501,7 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                 elif action == ApprovalAction.REJECT:
                     # 拒绝审批
                     quotation.approval_status = QuotationApprovalStatus.REJECTED
-                    
+
                     # 添加审核历史
                     if not quotation.approval_history:
                         quotation.approval_history = []
@@ -5479,7 +5514,20 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                         'timestamp': datetime.now().isoformat(),
                         'approval_instance_id': instance.id
                     })
-                    
+
+                    # 驳回后解锁 — 让创建人 / 有编辑权限的人(如方案经理)能修正后重新提交
+                    try:
+                        if hasattr(quotation, 'unlock'):
+                            quotation.unlock(user_id)
+                        else:
+                            quotation.is_locked = False
+                            quotation.lock_reason = None
+                            quotation.locked_by = None
+                            quotation.locked_at = None
+                        current_app.logger.info(f"报价单 {quotation.quotation_number} 驳回后已解锁")
+                    except Exception as _unlock_err:
+                        current_app.logger.warning(f"驳回后解锁报价单失败: {_unlock_err}")
+
                     current_app.logger.info(f"报价单 {quotation.quotation_number} 审批被拒绝")
         
         elif instance.object_type == 'project':
@@ -7490,22 +7538,65 @@ class UniversalFieldEditService:
             return False, str(e)
     
     def _update_expense_exchange_rate(self, expense_id, exchange_rate):
-        """更新报销单汇率"""
+        """更新报销单汇率
+
+        - exchange_rate 为 dict {str(detail_id): rate} → 明细级粒度,只更新指定行(支持多币种)
+        - exchange_rate 为 number/str → 全表批量(向后兼容旧调用方)
+        """
         try:
             from app.models.expense import Expense, ExpenseDetail
-            
-            # 更新报销明细中的汇率
+            from flask import current_app
+            current_app.logger.info(
+                f"[approval-edit] expense={expense_id} exchange_rate update "
+                f"input={exchange_rate!r} type={type(exchange_rate).__name__}"
+            )
+
             details = ExpenseDetail.query.filter_by(expense_id=expense_id).all()
-            for detail in details:
-                detail.exchange_rate = float(exchange_rate)
-                # 重新计算报销金额
-                detail.amount = detail.invoice_amount * detail.exchange_rate
-            
+            current_app.logger.info(
+                f"[approval-edit] expense={expense_id} loaded {len(details)} details: "
+                f"{[(d.id, d.exchange_rate) for d in details]}"
+            )
+            updated = 0
+
+            if isinstance(exchange_rate, dict):
+                # 明细级:逐行匹配
+                for d in details:
+                    key = str(d.id)
+                    if key in exchange_rate:
+                        try:
+                            new_rate = float(exchange_rate[key])
+                        except (TypeError, ValueError):
+                            continue
+                        old_rate = d.exchange_rate
+                        d.exchange_rate = new_rate
+                        d.current_amount = round((d.invoice_amount or 0) * new_rate, 2)
+                        d.amount = d.current_amount
+                        updated += 1
+                        current_app.logger.info(
+                            f"[approval-edit] detail={d.id} {old_rate} → {new_rate} "
+                            f"(amount={d.current_amount})"
+                        )
+                if updated == 0:
+                    return False, f"未匹配到任何明细行(detail_id 不一致)。入参 keys={list(exchange_rate.keys())},DB ids={[d.id for d in details]}"
+                msg = f"已更新 {updated} 条明细的汇率"
+            else:
+                # 全表批量(向后兼容)
+                rate_f = float(exchange_rate)
+                for d in details:
+                    d.exchange_rate = rate_f
+                    d.current_amount = round((d.invoice_amount or 0) * rate_f, 2)
+                    d.amount = d.current_amount
+                    updated += 1
+                msg = f"全部 {updated} 条明细汇率统一更新为 {rate_f}"
+
             db.session.commit()
-            return True, f"汇率更新为 {exchange_rate}，并重新计算了报销金额"
-            
+            current_app.logger.info(f"[approval-edit] commit done · {msg}")
+            return True, msg
+
         except Exception as e:
             db.session.rollback()
+            from flask import current_app
+            current_app.logger.error(f"[approval-edit] 汇率更新失败: {e}", exc_info=True)
             return False, f"汇率更新失败: {str(e)}"
     
     def _update_expense_amount(self, expense_id, amount):

@@ -670,6 +670,322 @@ def list_quotations():
                               currency_options=get_available_quotation_currencies(),
                               default_currency=default_currency)
 
+@quotation.route('/at_new', methods=['GET'])
+@login_required
+@permission_required('quotation', 'create')
+def at_new_quotation():
+    """AT 风格新建报价 — 渲染空白详情页,首次保存时调 /quotation/create 落库。
+
+    支持 ?project_id=X — 从项目详情页"新建报价"过来时预填项目关联,模板顶部
+    渲染"返回 项目XX"链接,保存创建后跳回项目详情。
+    """
+    from types import SimpleNamespace
+    from app.utils.dictionary_helpers import get_available_quotation_currencies
+    from app.models.project import Project
+
+    # 来源项目预填
+    src_project_id = request.args.get('project_id', type=int)
+    src_customer_arg = request.args.get('customer_id', type=int)  # 从客户详情新建报价
+    src_project = None
+    src_currency = 'CNY'
+    src_customer_id = None
+    src_customer = None
+    if src_project_id:
+        src_project = Project.query.filter_by(id=src_project_id, is_deleted=False).first()
+        if src_project and not can_view_project(current_user, src_project):
+            src_project = None  # 无权访问的项目静默忽略
+        if src_project:
+            # Project 没 currency 字段,沿用上一次报价的货币(quotation_currency)
+            src_currency = (getattr(src_project, 'quotation_currency', None) or 'CNY')
+            # 预填客户:取第一个关联客户
+            from app.models.project_customer_association import ProjectCustomerAssociation
+            from app.models.customer import Company
+            first_assoc = ProjectCustomerAssociation.query.filter_by(
+                project_id=src_project.id
+            ).first()
+            if first_assoc:
+                src_customer_id = first_assoc.company_id
+                src_customer = Company.query.get(src_customer_id)
+    # 客户详情来源(无 project_id)— 只预填客户
+    elif src_customer_arg:
+        from app.models.customer import Company
+        from app.utils.access_control import can_view_company
+        _c = Company.query.filter_by(id=src_customer_arg, is_deleted=False).first()
+        if _c and can_view_company(current_user, _c):
+            src_customer = _c
+            src_customer_id = _c.id
+
+    # 空 stub:让 at_view 模板里所有 quotation.xxx 调用不报错
+    stub = SimpleNamespace(
+        id=0, quotation_number='新建中', amount=0, tax_rate=0,
+        currency=src_currency, exchange_rate=1,
+        project_id=(src_project.id if src_project else None),
+        customer_id=src_customer_id,
+        contact_id=None,
+        project_stage=(src_project.current_stage if src_project else None),
+        project_type=(src_project.project_type if src_project else None),
+        notes=None, entity_id=None, extra_fields={}, is_locked=False,
+        confirmation_badge_status='none', confirmation_badge_color=None,
+        implant_total_amount=0, approval_history=[],
+        created_at=None, updated_at=None, confirmed_at=None,
+        owner=current_user, owner_id=current_user.id,
+        project=src_project, customer=src_customer, contact=None, details=[],
+    )
+    available_currencies = get_available_quotation_currencies()
+    return render_template(
+        'quotation/at_view.html',
+        quotation=stub,
+        is_new=True,
+        from_project=None,
+        related={},
+        actions=[],
+        perms={'can_edit': True},
+        currency_sym='¥',
+        grouped_details=[],
+        details_payload=[],
+        change_history=[],
+        sm_is_owner=False,
+        sm_is_assignee=False,
+        sm_pending=[],
+        sm_available_assignees=[],
+        available_currencies=available_currencies,
+    )
+
+
+@quotation.route('/<int:id>/at_view')
+@login_required
+@permission_required('quotation', 'view')
+def at_view_quotation(id):
+    """AT 风格报价详情页"""
+    from app.utils.related_data import RelatedDataService
+    from app.models.action import Action
+    from app.models.product import Product
+    from app import db as _db
+
+    q = Quotation.query.get_or_404(id)
+    if not can_view_quotation(current_user, q):
+        from flask import abort
+        abort(403)
+
+    # ?from_project=X — 来自项目详情页"新建报价"的回链上下文,模板顶部据此渲染"返回 项目XX"
+    from_project_id = request.args.get('from_project', type=int)
+    from_project_obj = None
+    if from_project_id:
+        from app.models.project import Project
+        from_project_obj = Project.query.filter_by(id=from_project_id, is_deleted=False).first()
+        if from_project_obj and not can_view_project(current_user, from_project_obj):
+            from_project_obj = None
+
+    related = RelatedDataService.fetch_all('quotation', id, current_user, limit=5)
+    actions = []
+    if q.project_id:
+        actions = get_viewable_data(Action, current_user,
+            [Action.project_id == q.project_id]
+        ).order_by(Action.created_at.desc()).limit(10).all()
+
+    perms = {
+        'can_edit': can_edit_data(q, current_user),
+    }
+    currency_sym = '$' if (q.currency or '') == 'USD' else ('RM' if (q.currency or '') == 'MYR' else '¥')
+
+    # ── 按产品类别分组(主产品 only · 配置子产品跟随主产品)──
+    # 排序按 product_categories.display_order(产品分类管理设定的顺序)
+    # 用 product_categories FK 关系(更准),fallback 到旧的 string category 字段
+    from app.models.product_code import ProductCategory
+    main_details = [d for d in (q.details or []) if not d.parent_item_id]
+    product_mns = list({d.product_mn for d in main_details if d.product_mn})
+    category_map = {}
+    if product_mns:
+        rows = _db.session.query(
+            Product.product_mn,
+            ProductCategory.name,
+            Product.category,
+        ).outerjoin(ProductCategory, ProductCategory.id == Product.category_id
+        ).filter(Product.product_mn.in_(product_mns)).all()
+        # 优先用 category_obj.name,fallback 旧 string category
+        category_map = {r[0]: (r[1] or r[2] or '') for r in rows}
+    # 产品分类的全局显示顺序
+    cat_order = {row[0]: row[1] for row in
+                 _db.session.query(ProductCategory.name, ProductCategory.display_order).all()}
+
+    _group_dict = {}
+    for d in main_details:
+        cat = (category_map.get(d.product_mn) or '').strip() or '自定义产品'
+        _group_dict.setdefault(cat, []).append(d)
+    grouped = []
+    for cat, items in _group_dict.items():
+        subtotal = sum((d.total_price or 0) for d in items)
+        grouped.append({'label': cat, 'items': items, 'subtotal': subtotal, 'count': len(items)})
+    # 排序:按 product_categories.display_order;自定义产品(无 order)排最后
+    grouped.sort(key=lambda g: (
+        1 if g['label'] == '自定义产品' else 0,
+        cat_order.get(g['label'], 999),
+        g['label'],
+    ))
+
+    # 详情完整字段 JSON(给前端 save 用 — 防止只 PATCH 局部字段导致后端校验失败清空数据)
+    details_payload = []
+    for d in (q.details or []):
+        _is_temp = bool(d.product_mn and str(d.product_mn).startswith('TEMP_'))
+        details_payload.append({
+            'id': d.id,
+            'product_name': d.product_name or '',
+            'product_model': d.product_model or '',
+            'product_desc': d.product_desc or '',
+            'product_mn': d.product_mn or '',
+            'brand': d.brand or '',
+            'unit': d.unit or '套',
+            'quantity': int(d.quantity or 0),
+            'market_price': float(d.market_price or 0),
+            'unit_price': float(d.unit_price or 0),
+            # 自定义产品标识 — 后端 process_quotation_details 用此判断是否跳过 market_price<=0 校验
+            'is_temp': _is_temp,
+            'temp_product_id': (str(d.product_mn)[5:] if _is_temp else None),
+            # 用 discount_rate(百分比 0-100)— 与后端 process_quotation_details 接口一致
+            # discount 字段是 0-1 浮点,后端会按百分比再除 100,不能直接传 raw 值
+            'discount_rate': float((d.discount or 1) * 100),
+            'total_price': float(d.total_price or 0),
+            'item_note': d.item_note or '',
+            'row_type': getattr(d, 'row_type', None) or 'product',
+            'section_label': getattr(d, 'section_label', None) or '',
+            'parent_item_id': d.parent_item_id,
+            'is_accessory': bool(getattr(d, 'is_accessory', False)),
+            'config_type': getattr(d, 'config_type', None) or '',
+            'config_base_quantity': getattr(d, 'config_base_quantity', None),
+            'quantity_synced': bool(getattr(d, 'quantity_synced', True) if getattr(d, 'quantity_synced', None) is not None else True),
+            'sort_order': getattr(d, 'sort_order', None),
+            'currency': d.currency or (q.currency or 'CNY'),
+        })
+
+    # 变更历史 — 从 ChangeLog 表抓取;人员优先 real_name;时间 UTC→本地时区
+    from app.models.change_log import ChangeLog
+    from app.models import User
+    from app.utils.filters import format_datetime_local
+    _CH_FIELD_LABEL = {'amount': '报价金额', 'details_count': '明细数量', 'details': '产品配置'}
+    _CH_OP_LABEL    = {'CREATE': '创建', 'UPDATE': '修改', 'DELETE': '删除'}
+    _logs = ChangeLog.get_record_history('quotation', 'quotations', q.id)
+    _uids = {l.user_id for l in _logs if l.user_id}
+    _user_real = {u.id: (u.real_name or u.username) for u in User.query.filter(User.id.in_(_uids)).all()} if _uids else {}
+    change_history = []
+    for h in _logs:
+        label = _CH_FIELD_LABEL.get(h.field_name, h.field_name) if h.field_name else _CH_OP_LABEL.get(h.operation_type, h.operation_type)
+        display_name = _user_real.get(h.user_id) or h.user_name or '系统'
+        change_history.append({
+            'op':     h.operation_type,
+            'title':  label or '变更',
+            'time':   format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
+            'user':   display_name,
+            'old':    h.old_value,
+            'new':    h.new_value,
+        })
+
+    # SM 确认上下文
+    from app.models.quotation_confirmation_task import QuotationConfirmationTask
+    sm_pending_tasks = QuotationConfirmationTask.query.filter_by(
+        quotation_id=q.id, status='pending'
+    ).all()
+    sm_is_owner = (q.owner_id == current_user.id)
+    sm_is_assignee = any(t.assignee_id == current_user.id for t in sm_pending_tasks)
+    sm_pending = [{
+        'id':            t.id,
+        'assignee_id':   t.assignee_id,
+        'assignee_name': (t.assignee.real_name or t.assignee.username) if t.assignee else '',
+        'message':       t.message or '',
+    } for t in sm_pending_tasks]
+    # 可选被指派人列表(发起对话框用)— 仅 owner 时拉
+    sm_available_assignees = []
+    if sm_is_owner and not sm_pending_tasks:
+        # 注意:User.is_active 是 property,DB 列为 _is_active(避免陷阱)
+        # 仅方案经理(solution_manager)可作为确认人
+        _u_rows = User.query.filter(
+            User.role == 'solution_manager',
+            User._is_active == True,
+        ).order_by(User.real_name.asc(), User.username.asc()).all()
+        sm_available_assignees = [{
+            'id': u.id,
+            'name': u.real_name or u.username,
+            'role': u.role,
+        } for u in _u_rows]
+
+    # 标准审批 chip 状态 — 必须取自 ApprovalInstance,而非 quotation.approval_status
+    # 因为 quotation.approval_status 是 SM 老机制字段(默认就是 'pending'),与标准审批无关
+    # 注意:recall_approval 把 instance.status 设为 REJECTED,通过最后一条 record.action='recall' 区分
+    from app.helpers.approval_helpers import get_object_approval_instance
+    from app.models.approval import ApprovalRecord
+    _q_ap_instance = get_object_approval_instance('quotation', q.id, include_rejected=True)
+    if _q_ap_instance:
+        _raw = _q_ap_instance.status.value if hasattr(_q_ap_instance.status, 'value') else str(_q_ap_instance.status)
+        _at_ap_status = _raw if _raw in ('draft', 'pending', 'approved', 'rejected', 'recalled') else 'draft'
+        # rejected 态需要进一步区分:最后一条 record action='recall' → 显示为 recalled
+        if _at_ap_status == 'rejected':
+            _last_rec = ApprovalRecord.query.filter_by(instance_id=_q_ap_instance.id) \
+                .order_by(ApprovalRecord.timestamp.desc()).first()
+            if _last_rec and _last_rec.action == 'recall':
+                _at_ap_status = 'recalled'
+    else:
+        _at_ap_status = 'draft'
+
+    return render_template('quotation/at_view.html',
+                           quotation=q,
+                           is_new=False,
+                           from_project=from_project_obj,
+                           related=related,
+                           actions=actions,
+                           perms=perms,
+                           currency_sym=currency_sym,
+                           grouped_details=grouped,
+                           details_payload=details_payload,
+                           change_history=change_history,
+                           sm_is_owner=sm_is_owner,
+                           sm_is_assignee=sm_is_assignee,
+                           sm_pending=sm_pending,
+                           sm_available_assignees=sm_available_assignees,
+                           at_ap_status=_at_ap_status)
+
+
+@quotation.route('/at_list')
+@login_required
+@permission_required('quotation', 'view')
+def at_list_view():
+    """AT 风格报价单列表"""
+    from sqlalchemy import or_
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 30
+    tab = request.args.get('tab', 'all')
+    search = request.args.get('search', '').strip()
+
+    base = get_viewable_data(Quotation, current_user)
+
+    # tab → confirmation_badge_status(待确认 tab 同时含已驳回,owner 可见驳回回流)
+    TAB_BADGE_MAP = {
+        'none':      ['none'],                 # 待审批
+        'pending':   ['pending', 'rejected'],  # 待确认 / 已驳回
+        'confirmed': ['confirmed'],            # 已成交
+    }
+    tab_counts = {'all': base.count()}
+    for k, vs in TAB_BADGE_MAP.items():
+        tab_counts[k] = base.filter(Quotation.confirmation_badge_status.in_(vs)).count()
+
+    q = base
+    if tab in TAB_BADGE_MAP:
+        q = q.filter(Quotation.confirmation_badge_status.in_(TAB_BADGE_MAP[tab]))
+
+    if search:
+        like = f'%{search}%'
+        q = q.filter(Quotation.quotation_number.ilike(like))
+
+    pagination = q.order_by(Quotation.updated_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False,
+    )
+
+    return render_template('quotation/at_list.html',
+                           quotations=pagination.items,
+                           pagination=pagination,
+                           tab_counts=tab_counts,
+                           current_tab=tab,
+                           search=search)
+
+
 @quotation.route('/api/quotations/filter', methods=['GET'])
 @login_required
 @permission_required('quotation', 'view')
@@ -1262,10 +1578,14 @@ def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CUR
 def create_quotation():
     # 获取返回URL参数
     return_to = request.args.get('return_to')
-    
+
     # 获取预设的项目ID
     preset_project_id = request.args.get('project_id')
-    
+
+    # GET:直接重定向到 AT 风格新建页(模板复用 at_view.html with is_new=True)
+    if request.method == 'GET':
+        return redirect(url_for('quotation.at_new_quotation'))
+
     if request.method == 'POST':
         try:
             # 检查请求是否为JSON数据
@@ -1598,29 +1918,8 @@ def create_quotation():
                     # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
                     current_app.logger.info('项目报价金额将由事件监听器自动更新')
 
-                    # 设置待确认状态并创建待办任务给厂家的解决方案经理
-                    try:
-                        from app.models.quotation_confirmation_task import QuotationConfirmationTask
-                        from app.models.user import User
-                        quotation.set_pending_confirmation_badge()
-                        sm_users = User.query.filter(
-                            User.role == 'solution_manager',
-                            User.company_name == current_user.company_name,
-                            User._is_active == True
-                        ).all()
-                        for sm in sm_users:
-                            if sm.id != current_user.id:
-                                task = QuotationConfirmationTask(
-                                    quotation_id=quotation.id,
-                                    assignee_id=sm.id,
-                                    requester_id=current_user.id,
-                                    message=f'新建报价单 {quotation.quotation_number}，请确认产品明细',
-                                    status='pending'
-                                )
-                                db.session.add(task)
-                        db.session.commit()
-                    except Exception as msg_err:
-                        current_app.logger.warning(f"创建报价单确认任务失败: {str(msg_err)}")
+                    # 新建报价单默认 none 态(不自动发起技术确认)
+                    # owner 在详情页主动点"技术确认"按钮再发起 + 选指定 SM
 
                     # 记录创建报价单到日历工作项
                     record_activity('create', 'quotation', quotation.quotation_number, current_user,
@@ -1936,7 +2235,9 @@ def search_projects():
                 'name': r['project_name'],
                 'owner': r.get('owner_name', ''),
                 'type': r.get('project_type_display', r.get('project_type', '')),
-                'stage': r.get('current_stage_display', r.get('current_stage', ''))
+                'type_code': r.get('project_type', ''),
+                'stage': r.get('current_stage_display', r.get('current_stage', '')),
+                'stage_code': r.get('current_stage', ''),
             })
 
         return jsonify({'success': True, 'projects': projects})
@@ -1944,6 +2245,62 @@ def search_projects():
     except Exception as e:
         logger.error(f"搜索项目时出错: {str(e)}")
         return jsonify({'success': False, 'message': str(e), 'projects': []})
+
+@quotation.route('/search_customers')
+@login_required
+def search_customers():
+    """模糊搜客户(公司名/编码),用于报价单新建时独立选客户"""
+    try:
+        query_term = request.args.get('q', '').strip()
+        limit = min(int(request.args.get('limit', 10)), 50)
+        if not query_term or len(query_term) < 2:
+            return jsonify({'success': True, 'customers': []})
+        from app.models import Company
+        from app.utils.access_control import get_viewable_data
+        like = f'%{query_term}%'
+        base = get_viewable_data(Company, current_user, [Company.is_deleted == False])
+        rows = base.filter(or_(
+            Company.company_name.ilike(like),
+            Company.company_code.ilike(like),
+        )).order_by(Company.updated_at.desc()).limit(limit).all()
+        return jsonify({'success': True, 'customers': [{
+            'id': c.id,
+            'name': c.company_name,
+            'code': c.company_code or '',
+            'country': c.country or '',
+        } for c in rows]})
+    except Exception as e:
+        logger.error(f"搜索客户失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e), 'customers': []})
+
+
+@quotation.route('/get_customer_projects/<int:customer_id>')
+@login_required
+def get_customer_projects(customer_id):
+    """反向取客户参与的项目列表(用于先选客户、再选项目的双向场景)"""
+    try:
+        from app.models import Project
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        from app.utils.access_control import get_viewable_data
+        # 查 ProjectCustomerAssociation
+        assocs = ProjectCustomerAssociation.query.filter_by(customer_id=customer_id).all()
+        pids = [a.project_id for a in assocs]
+        if not pids:
+            return jsonify({'success': True, 'projects': []})
+        base = get_viewable_data(Project, current_user, [Project.id.in_(pids)])
+        rows = base.order_by(Project.updated_at.desc()).limit(50).all()
+        return jsonify({'success': True, 'projects': [{
+            'id': p.id,
+            'name': p.project_name,
+            'type': p.project_type or '',
+            'type_code': p.project_type or '',
+            'stage': getattr(p, 'current_stage', '') or '',
+            'stage_code': getattr(p, 'current_stage', '') or '',
+        } for p in rows]})
+    except Exception as e:
+        logger.error(f"取客户项目失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e), 'projects': []})
+
 
 @quotation.route('/get_project_customers/<int:project_id>')
 def get_project_customers(project_id):
@@ -3198,10 +3555,12 @@ def get_quotation_history(id):
         FIELD_LABEL = {
             'amount': '报价金额',
             'details_count': '明细数量',
+            'details': '产品明细',
         }
         DESC_LABEL = {
             'amount_changed': '修改了报价金额',
             'details_count_changed': '修改了产品明细',
+            'details_changed': '修改了产品配置',
         }
 
         history = ChangeLog.get_record_history('quotation', 'quotations', id)
@@ -3244,13 +3603,18 @@ def save_quotation(id):
                 'message': '您没有权限编辑此报价单'
             }), 403
         
-        # 检查报价单是否被锁定
+        # 检查报价单是否被锁定 — SM 确认被指派人绕过(他们需要核查时调整)
         if quotation.is_locked:
-            lock_info = quotation.lock_status_display
-            return jsonify({
-                'status': 'error',
-                'message': f'报价单已被锁定，无法编辑。锁定原因：{lock_info["reason"]}，锁定人：{lock_info["locked_by"]}'
-            }), 403
+            from app.models.quotation_confirmation_task import QuotationConfirmationTask
+            _is_pending_assignee = QuotationConfirmationTask.query.filter_by(
+                quotation_id=quotation.id, assignee_id=current_user.id, status='pending'
+            ).first() is not None
+            if not _is_pending_assignee:
+                lock_info = quotation.lock_status_display
+                return jsonify({
+                    'status': 'error',
+                    'message': f'报价单已被锁定，无法编辑。锁定原因:{lock_info["reason"]}，锁定人:{lock_info["locked_by"]}'
+                }), 403
         
         # 捕获修改前的值
         from app.utils.change_tracker import ChangeTracker
@@ -3336,6 +3700,12 @@ def save_quotation(id):
         # 非结构化字段（payment_terms/shipping_terms/validity/ref_no 等）
         if 'extra_fields' in data and isinstance(data.get('extra_fields'), dict):
             quotation.extra_fields = data.get('extra_fields') or {}
+        # 税率(0-100 浮点,整张报价共用,合计 = 小计 × (1 + tax_rate/100))
+        if 'tax_rate' in data:
+            try:
+                quotation.tax_rate = float(data.get('tax_rate') or 0)
+            except (ValueError, TypeError):
+                pass
         # 手动更新时间戳，确保updated_at字段正确
         quotation.updated_at = datetime.utcnow()
         current_app.logger.info(f'直接保存前端总金额到报价单: {total_amount}, 货币: {quotation.currency}')
@@ -3427,43 +3797,18 @@ def save_quotation(id):
                     new_product_signature = quotation.calculate_product_signature()
                     if old_product_signature and new_product_signature != old_product_signature:
                         if quotation.confirmation_badge_status == 'confirmed':
-                            quotation.confirmation_badge_status = 'reconfirm'
-                            quotation.confirmation_badge_color = '#f59e0b'
-                            current_app.logger.info(f"报价单 {quotation.id} 配置变更(JSON路径)，状态改为再次确认")
+                            # 产品配置变更 → 回到草稿态,owner 改完再主动发起新一轮技术确认
+                            quotation.confirmation_badge_status = 'none'
+                            quotation.confirmation_badge_color = None
+                            current_app.logger.info(f"报价单 {quotation.id} 配置变更，状态回退为草稿")
                     quotation.product_signature = new_product_signature
                     db.session.commit()
                 except Exception as sig_err:
                     current_app.logger.warning(f"签名检测失败: {str(sig_err)}")
 
-                # 配置变更时创建再次确认待办任务给解决方案经理
-                if quotation.confirmation_badge_status == 'reconfirm':
-                    try:
-                        from app.models.quotation_confirmation_task import QuotationConfirmationTask
-                        from app.models.user import User
-                        sm_users = User.query.filter(
-                            User.role == 'solution_manager',
-                            User.company_name == current_user.company_name,
-                            User._is_active == True
-                        ).all()
-                        for sm in sm_users:
-                            if sm.id != current_user.id:
-                                existing = QuotationConfirmationTask.query.filter_by(
-                                    quotation_id=quotation.id,
-                                    assignee_id=sm.id,
-                                    status='pending'
-                                ).first()
-                                if not existing:
-                                    task = QuotationConfirmationTask(
-                                        quotation_id=quotation.id,
-                                        assignee_id=sm.id,
-                                        requester_id=current_user.id,
-                                        message=f'报价单 {quotation.quotation_number} 配置已变更，请再次确认',
-                                        status='pending'
-                                    )
-                                    db.session.add(task)
-                        db.session.commit()
-                    except Exception as msg_err:
-                        current_app.logger.warning(f"创建再次确认任务失败: {str(msg_err)}")
+                # reconfirm 后由 owner 在 UI 上手动点"技术确认"按钮重新选 SM 并发起,
+                # 这里不再自动批量创建任务(原逻辑会给全公司 SM 都建 pending,
+                # 导致按钮被 sm_pending 条件挡掉,与新流程冲突)
 
             except Exception as commit_error:
                 db.session.rollback()
@@ -3523,6 +3868,26 @@ def save_quotation(id):
                     user_id=current_user.id,
                     user_name=user_name,
                     description='details_count_changed',
+                    ip_address=request.remote_addr
+                )
+
+            # 记录产品配置变更(包含 qty / unit_price / 备注 等行内字段)
+            # product_signature 涵盖产品+型号+数量+单价,任意改动都会变化
+            try:
+                _new_sig = quotation.calculate_product_signature() if hasattr(quotation, 'calculate_product_signature') else None
+            except Exception:
+                _new_sig = None
+            if _new_sig and old_product_signature and _new_sig != old_product_signature:
+                ChangeLog.log_update(
+                    module_name='quotation',
+                    table_name='quotations',
+                    record_id=quotation.id,
+                    field_name='details',
+                    old_value=old_product_signature,
+                    new_value=_new_sig,
+                    user_id=current_user.id,
+                    user_name=user_name,
+                    description='details_changed',
                     ip_address=request.remote_addr
                 )
 
@@ -3866,11 +4231,12 @@ def create_confirmation_tasks(quotation_id):
             db.session.add(msg)
             created_count += 1
 
-        # 更新报价单确认状态为pending
+        # 更新报价单确认状态为 pending + 锁定报价单(避免发起后还能改)
         if created_count > 0:
             quotation_obj.confirmation_badge_status = 'pending'
             quotation_obj.confirmation_badge_color = '#f97316'
             quotation_obj.product_signature = quotation_obj.calculate_product_signature()
+            quotation_obj.lock('产品确认中', current_user.id)
 
         db.session.commit()
 
@@ -3947,8 +4313,9 @@ def confirm_quotation_task(quotation_id):
         all_confirmed = confirmed_count == total
 
         if all_confirmed:
-            # 全部确认完成，更新报价单状态
+            # 全部确认完成，更新报价单状态 + 解锁(后续若改动 → reconfirm 流程)
             quotation_obj.set_confirmation_badge('#28a745', current_user.id)
+            quotation_obj.unlock(current_user.id)
             # 通知发起人
             requester_ids = set(t.requester_id for t in all_tasks)
             for req_id in requester_ids:
@@ -3988,6 +4355,113 @@ def confirm_quotation_task(quotation_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f'确认任务失败: {str(e)}')
+        return jsonify({'success': False, 'message': f'操作失败：{str(e)}'}), 500
+
+
+@quotation.route('/<int:quotation_id>/confirmation-tasks', methods=['DELETE'])
+@login_required
+def recall_confirmation_tasks(quotation_id):
+    """召回:发起人撤销已发出的确认请求 — 删 pending 任务 + WorkItem + 解锁 + 通知被指派人"""
+    try:
+        quotation_obj = Quotation.query.get_or_404(quotation_id)
+        if quotation_obj.owner_id != current_user.id:
+            return jsonify({'success': False, 'message': '只有发起人可以召回'}), 403
+
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        from app.models.message import Message
+
+        pending_tasks = QuotationConfirmationTask.query.filter_by(
+            quotation_id=quotation_id, status='pending'
+        ).all()
+        if not pending_tasks:
+            return jsonify({'success': False, 'message': '没有待召回的任务'}), 404
+
+        recalled_count = 0
+        for task in pending_tasks:
+            # 删除关联 WorkItem
+            if task.workitem:
+                db.session.delete(task.workitem)
+            # 通知被指派人
+            msg = Message(
+                sender_id=current_user.id,
+                recipient_id=task.assignee_id,
+                message_type='confirmation_recalled',
+                title=f'确认请求已召回:{quotation_obj.quotation_number}',
+                related_object_type='quotation',
+                related_object_id=quotation_id,
+                content=f'报价单 {quotation_obj.quotation_number} 的确认请求已被发起人召回',
+            )
+            db.session.add(msg)
+            db.session.delete(task)
+            recalled_count += 1
+
+        # 解锁 + badge 回 none
+        quotation_obj.unlock(current_user.id)
+        quotation_obj.confirmation_badge_status = 'none'
+        quotation_obj.confirmation_badge_color = None
+        db.session.commit()
+
+        return jsonify({'success': True, 'recalled': recalled_count})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'召回确认请求失败: {str(e)}')
+        return jsonify({'success': False, 'message': f'操作失败：{str(e)}'}), 500
+
+
+@quotation.route('/<int:quotation_id>/confirmation-tasks/reject', methods=['POST'])
+@login_required
+def reject_quotation_task(quotation_id):
+    """驳回:被指派人拒绝确认 — 标记任务 rejected + 解锁 + badge=rejected + 通知发起人"""
+    try:
+        quotation_obj = Quotation.query.get_or_404(quotation_id)
+        if not can_view_quotation(current_user, quotation_obj):
+            return jsonify({'success': False, 'message': '权限不足'}), 403
+
+        data = request.get_json() or {}
+        reason = (data.get('reason') or '').strip()
+        if not reason:
+            return jsonify({'success': False, 'message': '请填写驳回原因'}), 400
+
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        from app.models.message import Message
+
+        task = QuotationConfirmationTask.query.filter_by(
+            quotation_id=quotation_id, assignee_id=current_user.id, status='pending'
+        ).first()
+        if not task:
+            return jsonify({'success': False, 'message': '未找到待确认的任务'}), 404
+
+        now = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+        task.status = 'rejected'
+        task.confirmed_at = now
+        task.message = (task.message or '') + f'\n[驳回理由] {reason}'
+        if task.workitem:
+            task.workitem.status = 'completed'
+            task.workitem.completed_at = now
+
+        # 解锁报价单(发起人可改后重发)+ badge 切 rejected(保留驳回态供 UI 展示)
+        quotation_obj.unlock(current_user.id)
+        quotation_obj.confirmation_badge_status = 'rejected'
+        quotation_obj.confirmation_badge_color = '#dc2626'
+
+        # 通知发起人
+        rejector = current_user.real_name or current_user.username
+        msg = Message(
+            sender_id=current_user.id,
+            recipient_id=task.requester_id,
+            message_type='confirmation_rejected',
+            title=f'{rejector} 驳回了报价单:{quotation_obj.quotation_number}',
+            related_object_type='quotation',
+            related_object_id=quotation_id,
+            content=f'报价单 {quotation_obj.quotation_number} 已被 {rejector} 驳回:{reason}',
+        )
+        db.session.add(msg)
+        db.session.commit()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'驳回确认失败: {str(e)}')
         return jsonify({'success': False, 'message': f'操作失败：{str(e)}'}), 500
 
 
@@ -5202,3 +5676,242 @@ def mobile_view_quotation(token):
     except Exception as e:
         logger.error(f"mobile_view_quotation error: {e}", exc_info=True)
         return "链接已过期或无效，请重新打开", 403
+
+
+# ════════════════════════════════════════════════════════════════
+# AT 标准审批 API — 复用 ApprovalInstance/start_approval_process 框架
+# 与现有 SM 销售指派机制并行(SM 用于 confirmation_badge_status,这套用于 ApprovalInstance)
+# ════════════════════════════════════════════════════════════════
+
+@quotation.route('/api/approval/<int:quotation_id>/templates')
+@login_required
+def at_get_quotation_approval_templates(quotation_id):
+    """获取报价单可用的审批模板,含 designate_steps(submitter_designate 候选审批人)"""
+    try:
+        from app.helpers.approval_helpers import get_approval_templates as _list_tpls
+        from app.helpers.approval_helpers import get_designate_steps_info
+
+        q = Quotation.query.get_or_404(quotation_id)
+        if not can_view_quotation(current_user, q):
+            return jsonify({'success': False, 'message': '无权限访问'}), 403
+
+        tpls = _list_tpls(object_type='quotation', is_active=True)
+
+        def _ser(t):
+            return {
+                'id': t.id,
+                'name': t.name,
+                'object_type': t.object_type,
+                'required_fields': t.required_fields or [],
+                'designate_steps': get_designate_steps_info(t.id),
+            }
+        items = tpls.items if hasattr(tpls, 'items') else tpls
+        return jsonify({'success': True, 'templates': [_ser(t) for t in items]})
+    except Exception as e:
+        logger.error(f"获取报价单审批模板失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@quotation.route('/api/approval/<int:quotation_id>/flow')
+@login_required
+def at_get_quotation_approval_flow(quotation_id):
+    """获取报价单标准审批流程(ApprovalInstance 视角)— 与 SM 机制并行"""
+    try:
+        from app.helpers.approval_helpers import (
+            get_object_approval_instance, can_recall_approval, can_resubmit_approval,
+            get_step_actual_approver, can_user_approve,
+        )
+        from app.models.approval import ApprovalRecord
+
+        q = Quotation.query.get_or_404(quotation_id)
+        if not can_view_quotation(current_user, q):
+            return jsonify({'success': False, 'message': '无权限'}), 403
+
+        instance = get_object_approval_instance('quotation', quotation_id)
+        if not instance:
+            # 草稿态 — 没有 ApprovalInstance
+            return jsonify({
+                'success': False,
+                'message': '尚未提交审批',
+                'approval_flow': None,
+                'control_info': {
+                    'status': 'draft',
+                    'can_submit': (q.owner_id == current_user.id),
+                    'can_recall': False, 'can_resubmit': False,
+                },
+            })
+
+        steps = instance.get_steps() or []
+        records = ApprovalRecord.query.filter_by(instance_id=instance.id) \
+            .order_by(ApprovalRecord.timestamp.asc()).all()
+
+        # 当前 step 解析(沿用 expense flow 同款逻辑:先 step_order,再 step_id 兜底)
+        current_step_value = instance.current_step
+        current_step_order = None
+        for s in steps:
+            if s.get('step_order') == current_step_value:
+                current_step_order = current_step_value
+                break
+        if current_step_order is None:
+            for s in steps:
+                if s.get('step_id') == current_step_value:
+                    current_step_order = s.get('step_order')
+                    break
+
+        stages = []
+        for i, step in enumerate(steps):
+            actual = get_step_actual_approver(step, instance)
+            step_recs = [r for r in records if r.step_id == step.get('step_id')]
+            if not step_recs and records:
+                # 快照模式兜底
+                approve_recs = [r for r in records if r.action in ('approve', 'reject')]
+                if approve_recs and all(r.step_id is None for r in approve_recs):
+                    order_n = step.get('step_order', i + 1)
+                    if order_n <= len(approve_recs):
+                        step_recs = [approve_recs[order_n - 1]]
+
+            stage = {
+                'id': step.get('step_id'),
+                'stage_name': step.get('step_name'),
+                'stage_order': step.get('step_order'),
+                'approver_name': actual.real_name if actual else '待确定',
+                'approver_id': actual.id if actual else None,
+                'status': 'pending',
+                'processed_at': None,
+                'comment': None,
+                'action': None,
+                'can_approve': False,
+            }
+            if step_recs:
+                latest = step_recs[-1]
+                stage.update({
+                    'status': 'skipped' if latest.action == 'skipped' else (
+                        'approved' if latest.action == 'approve' else 'rejected'),
+                    'processed_at': latest.timestamp.strftime('%Y-%m-%d %H:%M:%S') if latest.timestamp else None,
+                    'comment': latest.comment,
+                    'action': latest.action,
+                    'approver_name': latest.approver.real_name if latest.approver else stage['approver_name'],
+                    'approver_id': latest.approver_id,
+                })
+            elif step.get('step_order') == current_step_order:
+                stage.update({
+                    'status': 'current',
+                    'arrived_at': instance.started_at.strftime('%Y-%m-%d %H:%M:%S') if instance.started_at else None,
+                    'can_approve': can_user_approve(instance.id, current_user.id),
+                })
+            stages.append(stage)
+
+        actual_status = instance.status.value if hasattr(instance.status, 'value') else str(instance.status)
+        last_record = records[-1] if records else None
+        if last_record and last_record.action == 'recall':
+            actual_status = 'recalled'
+
+        return jsonify({
+            'success': True,
+            'approval_flow': {
+                'instance_id': instance.id,
+                'stages': stages,
+                'current_stage': current_step_order,
+                'can_approve': any(s.get('can_approve') for s in stages),
+                'status': actual_status,
+                'can_recall': can_recall_approval('quotation', quotation_id, current_user.id),
+                'can_resubmit': can_resubmit_approval('quotation', quotation_id, current_user.id),
+                'is_creator': instance.created_by == current_user.id,
+                'creator_id': instance.created_by,
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取报价单审批流程失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@quotation.route('/api/approval/<int:quotation_id>/submit', methods=['POST'])
+@login_required
+def at_submit_quotation_approval(quotation_id):
+    """提交报价单到标准审批流程(支持 submitter_designate)"""
+    try:
+        from app.helpers.approval_helpers import start_approval_process, get_approval_templates
+
+        q = Quotation.query.get_or_404(quotation_id)
+        if q.owner_id != current_user.id and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '只有创建人或管理员可以提交审批'}), 403
+
+        data = request.get_json(silent=True) or {}
+        template_id = data.get('template_id')
+        designated = data.get('designated_approvers')
+
+        # 默认模板:取第一个可用
+        if not template_id:
+            tpls = get_approval_templates(object_type='quotation', is_active=True)
+            tpl_items = tpls.items if hasattr(tpls, 'items') else tpls
+            if not tpl_items:
+                return jsonify({'success': False, 'message': '没有可用的报价单审批模板'}), 400
+            template_id = tpl_items[0].id
+
+        instance = start_approval_process(
+            object_type='quotation',
+            object_id=quotation_id,
+            template_id=template_id,
+            user_id=current_user.id,
+            auto_commit=True,
+            designated_approvers=designated,
+        )
+        if not instance:
+            return jsonify({'success': False, 'message': '提交审批失败,请检查是否已有进行中的审批'}), 400
+        return jsonify({'success': True, 'message': '已提交审批', 'instance_id': instance.id})
+    except Exception as e:
+        logger.error(f"提交报价单审批失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@quotation.route('/api/approval/<int:quotation_id>/recall', methods=['POST'])
+@login_required
+def at_recall_quotation_approval(quotation_id):
+    """召回报价单审批"""
+    try:
+        from app.helpers.approval_helpers import recall_approval
+
+        q = Quotation.query.get_or_404(quotation_id)
+        data = request.get_json(silent=True) or {}
+        reason = data.get('reason', '')
+        result = recall_approval(
+            object_type='quotation', object_id=quotation_id,
+            user_id=current_user.id, reason=reason,
+        )
+        # recall_approval 返回 (success: bool, message: str) 或 tuple/dict — 兼容处理
+        if isinstance(result, tuple) and len(result) >= 2:
+            ok, msg = result[0], result[1]
+        elif isinstance(result, dict):
+            ok = result.get('success', False); msg = result.get('message', '')
+        else:
+            ok, msg = bool(result), ''
+
+        # 召回成功后,解锁报价单 — 重新查避免 session expired,用模型 unlock() 方法清空所有锁字段
+        if ok:
+            try:
+                fresh_q = Quotation.query.get(quotation_id)
+                if fresh_q:
+                    if hasattr(fresh_q, 'unlock'):
+                        fresh_q.unlock(current_user.id)
+                    else:
+                        fresh_q.is_locked = False
+                        fresh_q.lock_reason = None
+                        fresh_q.locked_by = None
+                        fresh_q.locked_at = None
+                    db.session.commit()
+                    logger.info(f"召回后已解锁报价单 #{quotation_id}, is_locked={fresh_q.is_locked}")
+            except Exception as _unlock_err:
+                logger.warning(f"召回后解锁报价单失败: {_unlock_err}", exc_info=True)
+                db.session.rollback()
+
+        return jsonify({'success': ok, 'message': msg or ('已召回' if ok else '召回失败')})
+    except Exception as e:
+        logger.error(f"召回报价单审批失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@quotation.route('/api/approval/<int:quotation_id>/resubmit', methods=['POST'])
+@login_required
+def at_resubmit_quotation_approval(quotation_id):
+    """重新提交报价单审批(rejected / recalled 态)— 复用 submit 逻辑"""
+    return at_submit_quotation_approval(quotation_id)

@@ -339,26 +339,14 @@ def upload_supplier_confirmation_file(order, file):
 
 
 def generate_order_number():
-    """生成采购订单号 格式: CG-YYMM-XXX"""
+    """生成采购订单号 PO<YYYYMM>-NNN — 走统一生成器
+
+    历史数据以 CG- 前缀存在(2026-05 之前)、上一轮临时改为 PO-YYMM- 也作历史,均不迁移。
+    新单一律 PO<YYYYMM>-NNN(与 SO/SHP 风格统一)。
+    """
     from app.models.inventory import PurchaseOrder
-
-    today = datetime.now()
-    prefix = f"CG-{today.strftime('%y%m')}"
-
-    latest_order = PurchaseOrder.query.filter(
-        PurchaseOrder.order_number.like(f"{prefix}%")
-    ).order_by(PurchaseOrder.order_number.desc()).first()
-
-    if latest_order:
-        try:
-            latest_num = int(latest_order.order_number.split('-')[-1])
-            new_num = latest_num + 1
-        except (ValueError, IndexError):
-            new_num = 1
-    else:
-        new_num = 1
-
-    return f"{prefix}-{new_num:03d}"
+    from app.utils.doc_number import generate_doc_number
+    return generate_doc_number('PO', PurchaseOrder)
 
 
 def parse_date(date_str):

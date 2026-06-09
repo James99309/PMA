@@ -579,6 +579,308 @@ def list_templates():
     )
 
 
+@spec_template_bp.route('/at_list')
+@login_required
+@permission_required('product_code', 'view')
+def at_list_view():
+    """AT 风格规格模板列表"""
+    search = request.args.get('search', '').strip()
+    category_filter = request.args.get('category', '').strip()
+    subcategory_filter = request.args.get('subcategory', '').strip()
+
+    query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
+    if not _is_template_admin():
+        query = query.filter_by(created_by=current_user.id)
+
+    if search:
+        s = f'%{search}%'
+        query = query.filter(db.or_(SpecTemplate.model.ilike(s), SpecTemplate.name.ilike(s)))
+
+    # Join category tables for sorting and filtering
+    query = query.outerjoin(
+        ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id
+    ).outerjoin(
+        ProductCategory, ProductSubcategory.category_id == ProductCategory.id
+    )
+
+    if category_filter:
+        query = query.filter(ProductCategory.name == category_filter)
+    if subcategory_filter:
+        query = query.filter(ProductSubcategory.name == subcategory_filter)
+
+    # Sort by product display order (same as TW list)
+    from app.models.product_display_order import ProductDisplayOrder
+    from sqlalchemy import func, and_
+    query = query.outerjoin(
+        ProductDisplayOrder,
+        and_(
+            ProductCategory.code_letter == ProductDisplayOrder.category_code,
+            ProductSubcategory.code_letter == ProductDisplayOrder.subcategory_code,
+            SpecTemplate.model == ProductDisplayOrder.model
+        )
+    ).order_by(
+        func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
+        func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
+        func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
+        SpecTemplate.created_at.desc()
+    )
+    templates = query.all()
+
+    # Build category tree for filter tabs
+    all_q = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
+    if not _is_template_admin():
+        all_q = all_q.filter_by(created_by=current_user.id)
+    category_tree = {}
+    for t in all_q.all():
+        if t.subcategory and t.subcategory.parent_category:
+            cat = t.subcategory.parent_category
+            sub = t.subcategory
+            if cat.name not in category_tree:
+                category_tree[cat.name] = {'order': cat.display_order or 0, 'subs': {}}
+            category_tree[cat.name]['subs'][sub.name] = sub.display_order or 0
+    category_tree_sorted = [
+        {'name': cat, 'subcategories': [s for s, _ in sorted(info['subs'].items(), key=lambda x: x[1])]}
+        for cat, info in sorted(category_tree.items(), key=lambda x: x[1]['order'])
+    ]
+
+    return render_template('spec_template/at_list.html',
+                           templates=templates,
+                           total_count=len(templates),
+                           search=search,
+                           category_filter=category_filter,
+                           subcategory_filter=subcategory_filter,
+                           category_tree=category_tree_sorted)
+
+
+@spec_template_bp.route('/<int:template_id>/at')
+@login_required
+@permission_required('product_code', 'view')
+def at_view_template(template_id):
+    """AT 风格规格模板详情（配置矩阵 + 规格项 + 配置版本）"""
+    from sqlalchemy import and_
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
+
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+
+    items_by_category = {}
+    all_items = list(template.items)
+    for item in all_items:
+        if item.spec_dict and item.spec_dict.category_id:
+            items_by_category.setdefault(item.spec_dict.category_id, []).append(item)
+
+    configurations = [c for c in template.configurations if c.deleted_at is None]
+
+    config_values_matrix = {}
+    for config in configurations:
+        config_values_matrix[config.id] = {}
+        for cv in config.config_values:
+            # 跳过 template_item_id 为 None 的孤儿配置值（FK SET NULL 残留），
+            # 否则 None 键混入会导致 tojson 排序报错，且对矩阵/前端拼接均无用
+            if cv.template_item_id is not None:
+                config_values_matrix[config.id][cv.template_item_id] = cv.value
+
+    spec_dict_ids = list({item.spec_dict_id for item in all_items if item.spec_dict_id})
+    if spec_dict_ids:
+        dict_objs = SpecificationDictionary.query.filter(
+            SpecificationDictionary.id.in_(spec_dict_ids)
+        ).all()
+        definition_indicators = _load_definition_indicators(dict_objs)
+    else:
+        definition_indicators = {}
+
+    sales_regions = db.session.query(
+        ProductCodeField.code, ProductCodeField.name
+    ).filter_by(field_type='origin_location').distinct().all()
+    region_options = [{'value': r.code, 'label': r.name.split('(')[0].strip()} for r in sales_regions]
+    status_options = [{'value': code, 'label': name} for code, name in CONFIG_STATUS]
+
+    can_edit = _is_template_admin() or template.created_by == current_user.id
+
+    test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(
+        TestConditionDictionary.display_order).all()
+    test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(
+        TestMethodDictionary.display_order).all()
+
+    product_categories = ProductCategory.query.order_by(ProductCategory.display_order).all()
+    _subcategories = ProductSubcategory.query.order_by(ProductSubcategory.display_order).all()
+    subcategories_by_category = {}
+    for subcat in _subcategories:
+        subcategories_by_category.setdefault(subcat.category_id, []).append({
+            'id': subcat.id, 'name': subcat.name, 'code_letter': subcat.code_letter or ''
+        })
+
+    code_items = sorted(
+        [item for item in all_items if item.use_in_code],
+        key=lambda x: x.display_order
+    )
+    code_items_data = []
+    code_position_map = {}
+    current_pos = 4
+    for idx, item in enumerate(code_items):
+        code_length = item.code_length or 1
+        code_options = _build_code_options_from_dict(item.spec_dict_id) if item.spec_dict_id else (item.options or {})
+        code_items_data.append({
+            'id': item.id,
+            'name': item.spec_dict.name if item.spec_dict else '',
+            'code_length': code_length,
+            'options': code_options,
+            'display_order': item.display_order
+        })
+        code_position_map[item.id] = {
+            'index': idx + 1,
+            'start_pos': current_pos,
+            'length': code_length
+        }
+        current_pos += code_length
+
+    return render_template('spec_template/at_view.html',
+                           template=template,
+                           categories=categories,
+                           items_by_category=items_by_category,
+                           all_items=all_items,
+                           configurations=configurations,
+                           config_values_matrix=config_values_matrix,
+                           definition_indicators=definition_indicators,
+                           region_options=region_options,
+                           status_options=status_options,
+                           can_edit=can_edit,
+                           code_items_data=code_items_data,
+                           code_position_map=code_position_map,
+                           test_conditions=test_conditions,
+                           test_methods=test_methods,
+                           product_categories=product_categories,
+                           subcategories_by_category=subcategories_by_category)
+
+
+@spec_template_bp.route('/<int:template_id>/at/matrix-partial')
+@login_required
+@permission_required('product_code', 'view')
+def at_matrix_partial(template_id):
+    """局部刷新：返回配置矩阵 tab 的 HTML 片段"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
+
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+    all_items = list(template.items)
+    items_by_category = {}
+    for item in all_items:
+        if item.spec_dict and item.spec_dict.category_id:
+            items_by_category.setdefault(item.spec_dict.category_id, []).append(item)
+
+    configurations = [c for c in template.configurations if c.deleted_at is None]
+
+    config_values_matrix = {}
+    for config in configurations:
+        config_values_matrix[config.id] = {}
+        for cv in config.config_values:
+            # 跳过 template_item_id 为 None 的孤儿配置值（FK SET NULL 残留），
+            # 否则 None 键混入会导致 tojson 排序报错，且对矩阵/前端拼接均无用
+            if cv.template_item_id is not None:
+                config_values_matrix[config.id][cv.template_item_id] = cv.value
+
+    spec_dict_ids = list({item.spec_dict_id for item in all_items if item.spec_dict_id})
+    definition_indicators = _load_definition_indicators(
+        SpecificationDictionary.query.filter(SpecificationDictionary.id.in_(spec_dict_ids)).all()
+    ) if spec_dict_ids else {}
+
+    can_edit = _is_template_admin() or template.created_by == current_user.id
+
+    code_items = sorted([item for item in all_items if item.use_in_code], key=lambda x: x.display_order)
+    code_position_map = {}
+    current_pos = 4
+    for idx, item in enumerate(code_items):
+        code_length = item.code_length or 1
+        code_position_map[item.id] = {'index': idx + 1, 'start_pos': current_pos, 'length': code_length}
+        current_pos += code_length
+
+    return render_template('spec_template/_matrix_partial.html',
+                           all_items=all_items,
+                           categories=categories,
+                           items_by_category=items_by_category,
+                           configurations=configurations,
+                           config_values_matrix=config_values_matrix,
+                           definition_indicators=definition_indicators,
+                           code_position_map=code_position_map,
+                           can_edit=can_edit)
+
+
+@spec_template_bp.route('/<int:template_id>/at/specs-partial')
+@login_required
+@permission_required('product_code', 'view')
+def at_specs_partial(template_id):
+    """局部刷新：返回规格项 tab 的 HTML 片段"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
+
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+    all_items = list(template.items)
+    items_by_category = {}
+    for item in all_items:
+        if item.spec_dict and item.spec_dict.category_id:
+            items_by_category.setdefault(item.spec_dict.category_id, []).append(item)
+
+    can_edit = _is_template_admin() or template.created_by == current_user.id
+    has_locked_config = any(c.mn_locked for c in template.configurations if c.deleted_at is None)
+
+    code_items = sorted([item for item in all_items if item.use_in_code], key=lambda x: x.display_order)
+    code_position_map = {}
+    current_pos = 4
+    for idx, item in enumerate(code_items):
+        code_length = item.code_length or 1
+        code_position_map[item.id] = {'index': idx + 1, 'start_pos': current_pos, 'length': code_length}
+        current_pos += code_length
+
+    return render_template('spec_template/_specs_partial.html',
+                           all_items=all_items,
+                           categories=categories,
+                           items_by_category=items_by_category,
+                           can_edit=can_edit,
+                           has_locked_config=has_locked_config,
+                           code_position_map=code_position_map)
+
+
+@spec_template_bp.route('/create/at', methods=['GET'])
+@login_required
+@permission_required('product_code', 'create')
+def at_create_template_page():
+    """AT 风格新建规格模板页面（仅基本信息，保存后自动导入子分类规格）"""
+    product_categories = ProductCategory.query.order_by(ProductCategory.display_order).all()
+    _subcategories = ProductSubcategory.query.order_by(ProductSubcategory.display_order).all()
+    subcategories_by_category = {}
+    subcat_name_en_map = {}
+    for subcat in _subcategories:
+        subcategories_by_category.setdefault(subcat.category_id, []).append({
+            'id': subcat.id, 'name': subcat.name, 'code_letter': subcat.code_letter or ''
+        })
+        subcat_name_en_map[subcat.id] = subcat.name_en or ''
+
+    # 每个子分类下已有产品的型号列表（用于自动补全）
+    from app.models.product import Product as _Product
+    _prods = _Product.query.filter(
+        _Product.subcategory_id.isnot(None),
+        _Product.is_deleted == False,
+        _Product.model.isnot(None),
+        _Product.model != '/'
+    ).with_entities(_Product.subcategory_id, _Product.model, _Product.product_name).distinct().all()
+    models_by_subcategory = {}
+    for p in _prods:
+        sid = str(p.subcategory_id)
+        models_by_subcategory.setdefault(sid, [])
+        entry = {
+            'model': p.model,
+            'name': p.product_name or '',
+            'name_en': subcat_name_en_map.get(p.subcategory_id, '')
+        }
+        if entry not in models_by_subcategory[sid]:
+            models_by_subcategory[sid].append(entry)
+
+    return render_template('spec_template/at_create.html',
+                           product_categories=product_categories,
+                           subcategories_by_category=subcategories_by_category,
+                           models_by_subcategory=models_by_subcategory)
+
+
 @spec_template_bp.route('/create', methods=['GET'])
 @login_required
 @permission_required('product_code', 'create')
@@ -878,32 +1180,49 @@ def api_create_template():
 
     # 添加规格项
     items_data = data.get('items', [])
-    for idx, item_data in enumerate(items_data):
-        if not item_data.get('definition_id'):
-            continue
-
-        # 如果参与编码且有通用值，从规格字典查找编码
-        use_in_code = item_data.get('use_in_code', False)
-        general_value = item_data.get('general_value')
-        dict_id = item_data['definition_id']
-        options = item_data.get('options') or {}
-        if use_in_code and general_value:
-            options = ensure_code_for_value(options, general_value, spec_dict_id=dict_id)
-        item = SpecTemplateItem(
-            template_id=template.id,
-            spec_dict_id=dict_id,
-            general_value=item_data.get('general_value'),
-            test_condition_id=item_data.get('test_condition_id'),
-            test_condition_text=item_data.get('test_condition_text'),
-            test_method_id=item_data.get('test_method_id'),
-            test_method_text=item_data.get('test_method_text'),
-            is_required=item_data.get('is_required', False),
-            options=options,
-            display_order=item_data.get('display_order', idx),
-            use_in_code=use_in_code,
-            code_length=item_data.get('code_length', 1)
+    if items_data:
+        for idx, item_data in enumerate(items_data):
+            if not item_data.get('definition_id'):
+                continue
+            use_in_code = item_data.get('use_in_code', False)
+            general_value = item_data.get('general_value')
+            dict_id = item_data['definition_id']
+            options = item_data.get('options') or {}
+            if use_in_code and general_value:
+                options = ensure_code_for_value(options, general_value, spec_dict_id=dict_id)
+            db.session.add(SpecTemplateItem(
+                template_id=template.id,
+                spec_dict_id=dict_id,
+                general_value=general_value,
+                test_condition_id=item_data.get('test_condition_id'),
+                test_condition_text=item_data.get('test_condition_text'),
+                test_method_id=item_data.get('test_method_id'),
+                test_method_text=item_data.get('test_method_text'),
+                is_required=item_data.get('is_required', False),
+                options=options,
+                display_order=item_data.get('display_order', idx),
+                use_in_code=use_in_code,
+                code_length=item_data.get('code_length', 1)
+            ))
+    elif data.get('subcategory_id'):
+        # 没有手动指定规格项 → 从子分类的 ProductCodeField 自动导入
+        fields_data = ProductCodeField.get_all_fields_for_subcategory(data['subcategory_id'])
+        all_fields = sorted(
+            [f for f in (fields_data['inherited'] + fields_data['own']) if f.field_type == 'spec'],
+            key=lambda f: f.position
         )
-        db.session.add(item)
+        for field in all_fields:
+            spec_dict = SpecificationDictionary.query.filter_by(name=field.name, is_active=True).first()
+            if spec_dict is None:
+                continue
+            db.session.add(SpecTemplateItem(
+                template_id=template.id,
+                spec_dict_id=spec_dict.id,
+                is_required=field.is_required,
+                use_in_code=field.use_in_code,
+                code_length=field.max_length or 1,
+                display_order=field.position
+            ))
 
     db.session.commit()
 
@@ -930,6 +1249,53 @@ def api_get_template(template_id):
     return jsonify({
         'success': True,
         'data': result_data
+    })
+
+
+@spec_template_bp.route('/api/<int:template_id>/basic', methods=['PATCH'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_patch_template_basic(template_id):
+    """API: 更新规格模板基本信息（非结构性字段）"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
+    data = request.get_json()
+
+    if 'model' in data:
+        new_model = (data['model'] or '').strip()
+        if not new_model:
+            return jsonify({'success': False, 'message': _('产品型号不能为空')}), 400
+        if new_model != template.model:
+            dup = SpecTemplate.query.filter(
+                SpecTemplate.model == new_model,
+                SpecTemplate.id != template_id,
+                SpecTemplate.deleted_at.is_(None)
+            ).first()
+            if dup:
+                return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
+        template.model = new_model
+
+    for field in ('name', 'name_en', 'description', 'unit'):
+        if field in data:
+            setattr(template, field, data[field] or None)
+
+    if 'category_id' in data:
+        template.category_id = int(data['category_id']) if data['category_id'] else None
+    if 'subcategory_id' in data:
+        template.subcategory_id = int(data['subcategory_id']) if data['subcategory_id'] else None
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'model': template.model,
+        'name': template.name or '',
+        'name_en': template.name_en or '',
+        'description': template.description or '',
+        'unit': template.unit or '',
+        'category_id': template.category_id,
+        'subcategory_id': template.subcategory_id,
+        'category_name': template.category.name if template.category else '',
+        'subcategory_name': template.subcategory.name if template.subcategory else '',
     })
 
 
@@ -1341,7 +1707,10 @@ def spec_config_matrix_page(template_id):
     for config in configurations:
         config_values_matrix[config.id] = {}
         for cv in config.config_values:
-            config_values_matrix[config.id][cv.template_item_id] = cv.value
+            # 跳过 template_item_id 为 None 的孤儿配置值（FK SET NULL 残留），
+            # 否则 None 键混入会导致 tojson 排序报错，且对矩阵/前端拼接均无用
+            if cv.template_item_id is not None:
+                config_values_matrix[config.id][cv.template_item_id] = cv.value
 
     # 查找锁定配置中的"孤立"规格项（已从模板删除但配置中仍有值）
     current_item_ids = {item.id for item in all_items}
@@ -2513,7 +2882,7 @@ def _sync_config_to_cn_product(config, product):
             ps.field_name_en = sd.name_en or ps.field_name_en or ''
             ps.unit = sd.unit or ps.unit or ''
             ps.display_order = item.display_order
-            ps.include_in_description = item.use_in_code
+            ps.include_in_description = bool(item.include_in_description)
         else:
             new_ps = ProductSpec(
                 product_id=product.id,
@@ -2524,7 +2893,7 @@ def _sync_config_to_cn_product(config, product):
                 use_in_code=bool(item.use_in_code),
                 unit=sd.unit or '',
                 display_order=item.display_order,
-                include_in_description=item.use_in_code
+                include_in_description=bool(item.include_in_description)
             )
             db.session.add(new_ps)
 
@@ -2533,7 +2902,7 @@ def _sync_config_to_cn_product(config, product):
         if spec_name not in synced_spec_names:
             db.session.delete(ps)
 
-    # 重建快照 + 描述
+    # 重建快照 + 描述：按本配置勾选了"加入描述"的规格拼接（值取本配置实际值）
     from app.utils.product_helpers import generate_product_snapshot
     from app.services.spec_service import SpecService
     snap = generate_product_snapshot(product, source='config_sync')
@@ -2934,6 +3303,170 @@ def validate_attachment_file(file):
         return False, _('文件大小超过限制（最大10MB）')
 
     return True, None
+
+
+@spec_template_bp.route('/api/items/<int:item_id>', methods=['PATCH'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_patch_template_item(item_id):
+    """API: 更新规格项的非结构性字段（通用值、测试条件/方法、必填、编码设置）"""
+    item = SpecTemplateItem.query.get_or_404(item_id)
+    _check_template_owner(item.template)
+    data = request.get_json()
+
+    if 'general_value' in data:
+        item.general_value = data['general_value'] or None
+    if 'is_required' in data:
+        item.is_required = bool(data['is_required'])
+    if 'include_in_description' in data:
+        item.include_in_description = bool(data['include_in_description'])
+
+    # 编码字段：只有当所有关联配置都未锁定时才允许修改
+    if 'use_in_code' in data or 'code_length' in data:
+        has_locked = any(c.mn_locked for c in item.template.configurations)
+        if has_locked:
+            return jsonify({'success': False, 'message': _('编码字段已锁定，无法修改')}), 403
+        if 'use_in_code' in data:
+            item.use_in_code = bool(data['use_in_code'])
+        if 'code_length' in data:
+            item.code_length = int(data['code_length']) if data['code_length'] in (1, 2) else 1
+
+    # 测试条件：字典选项与自由文本互斥
+    if 'test_condition_id' in data:
+        item.test_condition_id = data['test_condition_id'] or None
+        if item.test_condition_id:
+            item.test_condition_text = None
+    if 'test_condition_text' in data:
+        item.test_condition_text = data['test_condition_text'] or None
+        if item.test_condition_text:
+            item.test_condition_id = None
+
+    # 测试方法：字典选项与自由文本互斥
+    if 'test_method_id' in data:
+        item.test_method_id = data['test_method_id'] or None
+        if item.test_method_id:
+            item.test_method_text = None
+    if 'test_method_text' in data:
+        item.test_method_text = data['test_method_text'] or None
+        if item.test_method_text:
+            item.test_method_id = None
+
+    db.session.commit()
+    return jsonify({'success': True, 'item': item.to_dict()})
+
+
+@spec_template_bp.route('/api/items/reorder', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_reorder_template_items():
+    """API: 批量更新规格项 display_order"""
+    data = request.get_json()
+    # data: [{id, display_order}, ...]
+    if not data or not isinstance(data, list):
+        return jsonify({'success': False, 'message': '参数错误'}), 400
+
+    item_ids = [d['id'] for d in data]
+    items = SpecTemplateItem.query.filter(SpecTemplateItem.id.in_(item_ids)).all()
+    item_map = {item.id: item for item in items}
+
+    if not items:
+        return jsonify({'success': False, 'message': '未找到规格项'}), 404
+
+    _check_template_owner(items[0].template)
+
+    for d in data:
+        item = item_map.get(d['id'])
+        if item:
+            item.display_order = int(d['display_order'])
+
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@spec_template_bp.route('/api/<int:template_id>/available-definitions', methods=['GET'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_available_definitions(template_id):
+    """API: 返回全量规格字典条目，含每项在模版中的状态（未添加/已添加/已引用）"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
+
+    # 构建 spec_dict_id → {item_id, is_referenced} 映射
+    item_map = {}
+    for item in template.items:
+        if item.spec_dict_id:
+            item_map[item.spec_dict_id] = {
+                'item_id': item.id,
+                'is_referenced': len(item.config_values) > 0
+            }
+
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+    all_defs = SpecificationDictionary.query.filter_by(is_active=True).order_by(
+        SpecificationDictionary.category_id, SpecificationDictionary.display_order
+    ).all()
+
+    result = []
+    for cat in categories:
+        defs = []
+        for d in all_defs:
+            if d.category_id != cat.id:
+                continue
+            info = item_map.get(d.id)
+            defs.append({
+                'id': d.id,
+                'name': d.name,
+                'name_en': d.name_en or '',
+                'unit': d.unit or '',
+                'in_template': info is not None,
+                'item_id': info['item_id'] if info else None,
+                'is_referenced': info['is_referenced'] if info else False,
+            })
+        if defs:
+            result.append({'category_id': cat.id, 'category_name': cat.name, 'definitions': defs})
+
+    return jsonify({'success': True, 'data': result})
+
+
+@spec_template_bp.route('/api/<int:template_id>/items/batch-update', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_batch_update_items(template_id):
+    """API: 批量添加/移除规格项。add_ids=spec_dict_id列表，remove_ids=SpecTemplateItem.id列表"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
+
+    data = request.get_json()
+    add_ids = data.get('add_ids', [])       # spec_dict_id 列表（未在模版中的）
+    remove_ids = data.get('remove_ids', []) # SpecTemplateItem.id 列表（已在模版中且未引用的）
+
+    existing_dict_ids = {item.spec_dict_id for item in template.items if item.spec_dict_id}
+    max_order = max((item.display_order for item in template.items), default=0)
+
+    added_count = 0
+    for i, dict_id in enumerate(add_ids):
+        if dict_id in existing_dict_ids:
+            continue
+        db.session.add(SpecTemplateItem(
+            template_id=template_id,
+            spec_dict_id=dict_id,
+            display_order=max_order + added_count + 1
+        ))
+        added_count += 1
+
+    removed_count = 0
+    if remove_ids:
+        items_to_remove = SpecTemplateItem.query.filter(
+            SpecTemplateItem.id.in_(remove_ids),
+            SpecTemplateItem.template_id == template_id
+        ).all()
+        for item in items_to_remove:
+            if item.config_values:  # 有引用，跳过
+                continue
+            db.session.delete(item)
+            removed_count += 1
+
+    db.session.commit()
+    return jsonify({'success': True, 'added_count': added_count, 'removed_count': removed_count})
 
 
 @spec_template_bp.route('/api/item/<int:item_id>/attachments', methods=['GET'])

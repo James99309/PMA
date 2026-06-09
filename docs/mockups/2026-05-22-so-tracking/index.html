@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>客户订单追踪页 · Order Tracking · PMA UX Mockup</title>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<script>if (localStorage.getItem('lang') === 'en') document.documentElement.classList.add('en')</script>
+<link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#137fec', 'background-light': '#faf8f6', 'background-dark': '#1a1816' } } } }</script>
+<style>
+body { font-family: 'Inter', sans-serif; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+html.en .lang-zh { display: none !important; }
+html:not(.en) .lang-en { display: none !important; }
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(19,127,236,.5); } 70% { box-shadow: 0 0 0 8px rgba(19,127,236,0); } 100% { box-shadow: 0 0 0 0 rgba(19,127,236,0); } }
+.node-current { animation: pulse-ring 2s infinite; }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-white">
+
+<header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+  <div class="max-w-[1400px] mx-auto px-6 h-14 flex items-center gap-6">
+    <a href="../2026-05-20-inventory/index.html" class="flex items-center gap-2 text-primary"><span class="material-symbols-outlined">arrow_back</span>
+      <span class="text-sm"><span class="lang-zh">Mockup 索引</span><span class="lang-en">Mockup index</span></span></a>
+    <div class="ml-auto flex items-center gap-2">
+      <button onclick="toggleTheme()" class="h-8 w-8 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg inline-flex items-center justify-center text-slate-700 dark:text-slate-300">
+        <span class="material-symbols-outlined text-sm">dark_mode</span></button>
+      <button onclick="toggleLang()" class="h-8 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1">
+        <span class="material-symbols-outlined text-sm">language</span><span class="lang-zh">EN</span><span class="lang-en">中</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- 设计说明 -->
+<div class="max-w-[1400px] mx-auto px-6 pt-5">
+  <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
+    <div class="font-semibold mb-1"><span class="lang-zh">设计说明 — 客户订单追踪页改造</span><span class="lang-en">Design notes — Customer Order Tracking page</span></div>
+    <ul class="list-disc list-inside space-y-0.5 text-xs leading-relaxed">
+      <li><span class="lang-zh">销售订单详情页改造成「订单追踪页」:客户能看到从<b>生产开始</b>到<b>签收</b>的全过程进度。</span><span class="lang-en">The Sales Order detail page becomes an order tracking page — the customer sees the full journey from <b>production</b> to <b>delivery</b>.</span></li>
+      <li><span class="lang-zh">发货<b>只从采购单发起</b>,SO 页移除「创建发货单」入口 → 本页全部只读。</span><span class="lang-en">Shipments are created <b>only from the Purchase Order</b>. The "Create shipment" entry is removed here — this page is fully read-only.</span></li>
+      <li><span class="lang-zh">独立「发货记录」模块删除,发货详情改为<b>本页弹模态</b>查看。</span><span class="lang-en">The standalone Shipment module is removed; shipment details open in a <b>modal on this page</b>.</span></li>
+    </ul>
+  </div>
+</div>
+
+<main class="max-w-[1400px] mx-auto p-6">
+
+  <!-- Breadcrumb + Title -->
+  <nav class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-2">
+    <a href="#" class="hover:text-primary"><span class="lang-zh">客户订单</span><span class="lang-en">Sales Orders</span></a>
+    <span class="material-symbols-outlined text-base">chevron_right</span>
+    <span class="text-slate-700 dark:text-slate-300">SO202605-003</span>
+  </nav>
+  <div class="flex items-center gap-3 mb-6">
+    <h1 class="text-3xl font-bold">SO202605-003</h1>
+    <span class="px-3 py-1 rounded-full text-sm font-medium bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
+      <span class="lang-zh">发货中</span><span class="lang-en">Shipping</span>
+    </span>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- ========== 左主列 ========== -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- 订单信息 -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-lg font-bold mb-4"><span class="lang-zh">订单信息</span><span class="lang-en">Order Info</span></h2>
+        <div class="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">订单号</span><span class="lang-en">Order No.</span></div><div class="font-medium">SO202605-003</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">客户</span><span class="lang-en">Customer</span></div><div class="font-medium">上海常森电子有限公司</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">来源批价单</span><span class="lang-en">Source Pricing Order</span></div><div class="font-medium text-primary">PO-CG-2605-014</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">关联项目</span><span class="lang-en">Linked Project</span></div><div class="font-medium">上海地铁 18 号线</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">订单总额</span><span class="lang-en">Total Amount</span></div><div class="font-medium text-lg">¥52,260.00</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">总数量</span><span class="lang-en">Total Qty</span></div><div class="font-medium text-lg">268 <span class="text-sm font-normal text-slate-500"><span class="lang-zh">件</span><span class="lang-en">pcs</span></span></div></div>
+        </div>
+      </section>
+
+      <!-- 交付信息 -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-lg font-bold mb-4"><span class="lang-zh">交付信息</span><span class="lang-en">Delivery Info</span></h2>
+        <div class="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">期望交付日期</span><span class="lang-en">Expected Date</span></div><div class="font-medium">2026-06-10</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">交付地址</span><span class="lang-en">Address</span></div><div class="font-medium">上海市浦东新区世纪大道 100 号</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">收货联系人</span><span class="lang-en">Contact</span></div><div class="font-medium">张工</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">联系电话</span><span class="lang-en">Phone</span></div><div class="font-medium">138-0000-0000</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">运输方式</span><span class="lang-en">Shipping</span></div><div class="font-medium"><span class="lang-zh">陆运</span><span class="lang-en">Land</span></div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5"><span class="lang-zh">运费承担</span><span class="lang-en">Freight</span></div><div class="font-medium"><span class="lang-zh">卖方承担</span><span class="lang-en">Seller</span></div></div>
+        </div>
+      </section>
+
+      <!-- 订单明细 -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-lg font-bold mb-4"><span class="lang-zh">订单明细 (2)</span><span class="lang-en">Order Items (2)</span></h2>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr class="border-b border-slate-200 dark:border-slate-700 text-xs uppercase text-slate-500 dark:text-slate-400">
+                <th class="py-2.5 text-left font-semibold"><span class="lang-zh">产品</span><span class="lang-en">Product</span></th>
+                <th class="py-2.5 text-center font-semibold"><span class="lang-zh">数量</span><span class="lang-en">Qty</span></th>
+                <th class="py-2.5 text-center font-semibold"><span class="lang-zh">已采购</span><span class="lang-en">Purchased</span></th>
+                <th class="py-2.5 text-center font-semibold"><span class="lang-zh">已发</span><span class="lang-en">Shipped</span></th>
+                <th class="py-2.5 text-center font-semibold"><span class="lang-zh">已收</span><span class="lang-en">Received</span></th>
+                <th class="py-2.5 text-right font-semibold"><span class="lang-zh">单价</span><span class="lang-en">Unit</span></th>
+                <th class="py-2.5 text-right font-semibold"><span class="lang-zh">金额</span><span class="lang-en">Amount</span></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+              <tr>
+                <td class="py-3"><div class="font-medium">数字对讲机</div><div class="text-xs text-slate-500">DMR-2600</div></td>
+                <td class="py-3 text-center">200</td>
+                <td class="py-3 text-center text-green-600 dark:text-green-400">200</td>
+                <td class="py-3 text-center text-cyan-600 dark:text-cyan-400">200</td>
+                <td class="py-3 text-center text-slate-400">120</td>
+                <td class="py-3 text-right">¥180.00</td>
+                <td class="py-3 text-right font-medium">¥36,000.00</td>
+              </tr>
+              <tr>
+                <td class="py-3"><div class="font-medium">多信道分合路器</div><div class="text-xs text-slate-500">FHJ400-2</div></td>
+                <td class="py-3 text-center">68</td>
+                <td class="py-3 text-center text-green-600 dark:text-green-400">68</td>
+                <td class="py-3 text-center text-cyan-600 dark:text-cyan-400">68</td>
+                <td class="py-3 text-center text-slate-400">0</td>
+                <td class="py-3 text-right">¥239.12</td>
+                <td class="py-3 text-right font-medium">¥16,260.00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- ========== 右侧栏 ========== -->
+    <div class="space-y-6">
+
+      <!-- 订单进度追踪（核心） -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-lg font-bold mb-1 flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">timeline</span>
+          <span class="lang-zh">订单进度追踪</span><span class="lang-en">Order Progress</span>
+        </h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-5"><span class="lang-zh">从生产到签收的全过程</span><span class="lang-en">From production to delivery</span></p>
+
+        <div class="relative">
+          <!-- 竖线 -->
+          <div class="absolute left-[15px] top-2 bottom-2 w-0.5 bg-slate-200 dark:bg-slate-700"></div>
+
+          <!-- 节点1: 订单确认 (done) -->
+          <div class="relative pl-11 pb-6">
+            <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center ring-4 ring-white dark:ring-slate-800">
+              <span class="material-symbols-outlined text-white text-lg">check</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="font-semibold text-sm"><span class="lang-zh">订单已确认</span><span class="lang-en">Order Confirmed</span></div>
+              <div class="text-xs text-slate-400">2026-05-21</div>
+            </div>
+          </div>
+
+          <!-- 节点2: 生产 (done) -->
+          <div class="relative pl-11 pb-6">
+            <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center ring-4 ring-white dark:ring-slate-800">
+              <span class="material-symbols-outlined text-white text-lg">check</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="font-semibold text-sm"><span class="lang-zh">生产完成</span><span class="lang-en">Production Done</span></div>
+              <div class="text-xs text-slate-400">2026-05-29</div>
+            </div>
+          </div>
+
+          <!-- 节点3: 出厂测试 (done) -->
+          <div class="relative pl-11 pb-6">
+            <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center ring-4 ring-white dark:ring-slate-800">
+              <span class="material-symbols-outlined text-white text-lg">check</span>
+            </div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="font-semibold text-sm"><span class="lang-zh">出厂测试</span><span class="lang-en">Factory Test</span></div>
+              <div class="text-xs text-slate-400">2026-05-30</div>
+            </div>
+            <div class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+              <span class="material-symbols-outlined text-sm">verified</span>
+              <span class="lang-zh">测试通过 · 含 FAT 验收</span><span class="lang-en">Passed · incl. FAT</span>
+            </div>
+          </div>
+
+          <!-- 节点4: 发货（当前·进行中） -->
+          <div class="relative pl-11 pb-6">
+            <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center ring-4 ring-white dark:ring-slate-800 node-current">
+              <span class="material-symbols-outlined text-white text-lg">local_shipping</span>
+            </div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold text-sm text-primary"><span class="lang-zh">发货中</span><span class="lang-en">Shipping</span></div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary"><span class="lang-zh">进行中</span><span class="lang-en">In progress</span></span>
+            </div>
+            <!-- 发货单列表（点击弹模态查看物流/SN/签收） -->
+            <div class="space-y-1.5">
+              <button onclick="openShipModal()" class="w-full flex items-center justify-between text-xs border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 rounded-lg px-3 py-2 transition-colors">
+                <span class="flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-sm text-slate-400">inventory_2</span>
+                  <span class="font-medium text-primary">SHP202605-002</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"><span class="lang-zh">已签收</span><span class="lang-en">Received</span></span>
+                  <span class="material-symbols-outlined text-sm text-slate-300">chevron_right</span>
+                </span>
+              </button>
+              <button onclick="openShipModal()" class="w-full flex items-center justify-between text-xs border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 rounded-lg px-3 py-2 transition-colors">
+                <span class="flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-sm text-slate-400">inventory_2</span>
+                  <span class="font-medium text-primary">SHP202605-005</span>
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400"><span class="lang-zh">运输中</span><span class="lang-en">In transit</span></span>
+                  <span class="material-symbols-outlined text-sm text-slate-300">chevron_right</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 节点5: 签收 (pending) -->
+          <div class="relative pl-11">
+            <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center ring-4 ring-white dark:ring-slate-800">
+              <span class="material-symbols-outlined text-slate-400 text-lg">done_all</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="font-semibold text-sm text-slate-400"><span class="lang-zh">全部签收</span><span class="lang-en">All Received</span></div>
+              <span class="text-xs text-slate-400"><span class="lang-zh">待完成</span><span class="lang-en">Pending</span></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 元数据 -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+        <div class="text-xs text-slate-400 uppercase tracking-wider mb-3"><span class="lang-zh">元数据</span><span class="lang-en">Metadata</span></div>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400"><span class="lang-zh">创建者</span><span class="lang-en">Created by</span></span><span>管理员</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400"><span class="lang-zh">创建时间</span><span class="lang-en">Created at</span></span><span>2026-05-21</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400"><span class="lang-zh">更新时间</span><span class="lang-en">Updated at</span></span><span>2026-05-21 23:38</span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- ========== 发货详情模态 ========== -->
+<div id="shipModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/50" onclick="closeShipModal()"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto">
+      <!-- 模态头 -->
+      <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">local_shipping</span>
+          <h3 class="text-lg font-bold"><span class="lang-zh">发货单详情</span><span class="lang-en">Shipment Detail</span></h3>
+          <span class="text-sm text-slate-400">SHP202605-002</span>
+        </div>
+        <button onclick="closeShipModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center">
+          <span class="material-symbols-outlined text-slate-400">close</span>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-5">
+        <!-- 状态 + 物流 -->
+        <div class="grid grid-cols-2 gap-4 text-sm">
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5 text-xs"><span class="lang-zh">状态</span><span class="lang-en">Status</span></div>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"><span class="lang-zh">已签收</span><span class="lang-en">Received</span></span></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5 text-xs"><span class="lang-zh">发货日期</span><span class="lang-en">Ship Date</span></div><div class="font-medium">2026-05-22</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5 text-xs"><span class="lang-zh">承运商</span><span class="lang-en">Carrier</span></div><div class="font-medium">顺丰速运</div></div>
+          <div><div class="text-slate-500 dark:text-slate-400 mb-0.5 text-xs"><span class="lang-zh">物流单号</span><span class="lang-en">Tracking No.</span></div><div class="font-medium">SF1234567890</div></div>
+        </div>
+
+        <!-- 发货明细 -->
+        <div>
+          <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2"><span class="lang-zh">发货明细</span><span class="lang-en">Items</span></div>
+          <div class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            <table class="w-full text-sm">
+              <thead><tr class="bg-slate-50 dark:bg-slate-700/40 text-xs text-slate-500 dark:text-slate-400">
+                <th class="p-2.5 text-left font-semibold"><span class="lang-zh">产品</span><span class="lang-en">Product</span></th>
+                <th class="p-2.5 text-center font-semibold"><span class="lang-zh">数量</span><span class="lang-en">Qty</span></th>
+                <th class="p-2.5 text-center font-semibold"><span class="lang-zh">序列号</span><span class="lang-en">Serial No.</span></th>
+              </tr></thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+                <tr><td class="p-2.5"><div class="font-medium">数字对讲机</div><div class="text-xs text-slate-500">DMR-2600</div></td>
+                  <td class="p-2.5 text-center">120</td>
+                  <td class="p-2.5 text-center">
+                    <button onclick="document.getElementById('snBox').classList.toggle('hidden')" class="inline-flex items-center gap-1 text-xs text-primary">
+                      <span class="material-symbols-outlined text-sm">qr_code_2</span><span class="lang-zh">120 个</span><span class="lang-en">120 SNs</span>
+                    </button>
+                  </td></tr>
+                <tr><td class="p-2.5"><div class="font-medium">多信道分合路器</div><div class="text-xs text-slate-500">FHJ400-2</div></td>
+                  <td class="p-2.5 text-center">0</td>
+                  <td class="p-2.5 text-center text-xs text-slate-400"><span class="lang-zh">无序列号</span><span class="lang-en">No SN</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="snBox" class="hidden mt-2 bg-slate-50 dark:bg-slate-700/40 rounded-lg p-3 max-h-32 overflow-y-auto">
+            <div class="flex flex-wrap gap-1.5">
+              <span class="text-xs px-2 py-0.5 bg-white dark:bg-slate-600 rounded border border-slate-200 dark:border-slate-500 font-mono">DMR-2600-001</span>
+              <span class="text-xs px-2 py-0.5 bg-white dark:bg-slate-600 rounded border border-slate-200 dark:border-slate-500 font-mono">DMR-2600-002</span>
+              <span class="text-xs px-2 py-0.5 bg-white dark:bg-slate-600 rounded border border-slate-200 dark:border-slate-500 font-mono">DMR-2600-003</span>
+              <span class="text-xs px-2 py-0.5 text-slate-400">… +117</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 签收回执 -->
+        <div>
+          <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2"><span class="lang-zh">签收回执</span><span class="lang-en">Receipt</span></div>
+          <div class="flex items-center gap-3 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
+            <span class="material-symbols-outlined text-red-500">picture_as_pdf</span>
+            <span class="text-sm flex-1 truncate"><span class="lang-zh">签收单_SHP202605-002.pdf</span><span class="lang-en">receipt_SHP202605-002.pdf</span></span>
+            <span class="text-xs text-slate-400">2026-05-25</span>
+            <button class="text-primary"><span class="material-symbols-outlined text-base">download</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-5 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+        <button onclick="closeShipModal()" class="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-sm font-medium">
+          <span class="lang-zh">关闭</span><span class="lang-en">Close</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleLang() {
+  document.documentElement.classList.toggle('en');
+  localStorage.setItem('lang', document.documentElement.classList.contains('en') ? 'en' : 'zh');
+}
+function toggleTheme() {
+  document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+}
+function openShipModal() { document.getElementById('shipModal').classList.remove('hidden'); }
+function closeShipModal() { document.getElementById('shipModal').classList.add('hidden'); }
+</script>
+</body>
+</html>

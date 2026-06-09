@@ -62,6 +62,41 @@ def list_view():
                            active_page='system_diagram')
 
 
+@system_diagram.route('/at_list')
+@login_required
+@permission_required('system_diagram', 'view')
+def at_list_view():
+    """AT 风格系统图列表"""
+    from sqlalchemy import or_
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 30
+    tab = request.args.get('tab', 'diagrams')  # diagrams | templates
+    search = request.args.get('search', '').strip()
+
+    base = SystemDiagram.query.filter(
+        SystemDiagram.is_deleted == False,
+        SystemDiagram.owner_id == current_user.id,
+        SystemDiagram.project_id == None,
+    )
+    tab_counts = {
+        'diagrams':  base.filter(SystemDiagram.is_template == False).count(),
+        'templates': base.filter(SystemDiagram.is_template == True).count(),
+    }
+    q = base.filter(SystemDiagram.is_template == (tab == 'templates'))
+    if search:
+        q = q.filter(SystemDiagram.name.ilike(f'%{search}%'))
+
+    pagination = q.order_by(SystemDiagram.updated_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False,
+    )
+    return render_template('system_diagram/at_list.html',
+                           diagrams=pagination.items,
+                           pagination=pagination,
+                           tab_counts=tab_counts,
+                           current_tab=tab,
+                           search=search)
+
+
 @system_diagram.route('/new')
 @login_required
 @permission_required('system_diagram', 'create')

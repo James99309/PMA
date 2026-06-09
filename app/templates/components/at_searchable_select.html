@@ -1,0 +1,83 @@
+{#
+  AT 可搜索下拉(combobox)
+
+  特性:
+    - 直接输入关键词过滤(按 label + 可选 keywords 字段)
+    - 焦点/点击展开下拉,选中后塞值并合上
+    - hidden input 存真实 value,提交表单与原 <select> 等价
+    - 键盘:↑↓ 切高亮,Enter 选中,Esc 关闭
+
+  用法:
+    {{ at_searchable_select(
+         id='atSoCustomer',
+         name='customer_id',
+         items=[{'value': c.id, 'label': c.company_name, 'keywords': c.alias or ''} for c in customers],
+         placeholder='搜索或选择客户…',
+         value=current_customer_id,
+         required=true,
+         width='100%',
+         on_change='atUpdateSoSubmitBtn()'
+       ) }}
+
+  依赖:JS `at-searchable-select.js` 必须先加载,负责绑定行为
+#}
+{% from 'components/at_base.html' import at_icon %}
+
+
+{% macro at_searchable_select(id, name='', items=[], value='', placeholder='搜索或选择…',
+                               required=false, width='100%', on_change='') %}
+  {# 计算 selected label,显示在 input 里 #}
+  {% set _selected_label = '' %}
+  {% for it in items %}
+    {% if (it.value|string) == (value|string) %}
+      {% set _selected_label = it.label %}
+    {% endif %}
+  {% endfor %}
+
+  <div class="at-ss" data-ss-id="{{ id }}" data-onchange="{{ on_change }}"
+       style="position:relative;width:{{ width }};min-width:0;box-sizing:border-box;">
+    <div class="at-ss-input-wrap"
+         style="display:flex;align-items:center;height:34px;padding:0 10px 0 12px;
+                background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
+                font-size:13px;position:relative;width:100%;min-width:0;box-sizing:border-box;
+                cursor:text;">
+      <input type="text" class="at-ss-display"
+             value="{{ _selected_label }}"
+             placeholder="{{ placeholder }}"
+             autocomplete="off"
+             style="flex:1;min-width:0;border:0;outline:none;background:transparent;
+                    color:var(--ink);font:inherit;padding:0;">
+      <button type="button" class="at-ss-clear"
+              style="display:{{ 'inline-flex' if _selected_label else 'none' }};
+                     align-items:center;justify-content:center;
+                     width:18px;height:18px;border-radius:50%;border:0;background:transparent;
+                     color:var(--ink-4);cursor:pointer;margin-right:4px;padding:0;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+      <span class="at-ss-chev" style="color:var(--ink-3);pointer-events:none;
+                                       transition:transform 180ms;display:inline-flex;">
+        {{ at_icon('chevd', 14) }}
+      </span>
+    </div>
+
+    {# 真实 value(submit 表单时取这个;Jinja-rendered 名字让 form 也能 work) #}
+    <input type="hidden" class="at-ss-value" {% if name %}name="{{ name }}"{% endif %}
+           value="{{ value or '' }}" {% if required %}data-required="1"{% endif %}>
+
+    {# 下拉面板 — 默认隐藏 · 用 position:fixed 避开父级 overflow 裁剪(在 modal 内仍可正常显示) #}
+    <div class="at-ss-panel"
+         style="display:none;position:fixed;
+                background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
+                box-shadow:0 8px 24px rgba(0,0,0,0.08), 0 0 0 1px var(--line);
+                max-height:280px;overflow-y:auto;z-index:1000;font-size:13px;">
+      {# 数据 — JS 读取后渲染列表 #}
+      <script type="application/json" class="at-ss-data">{{ items|tojson }}</script>
+      <div class="at-ss-list" style="padding:4px;"></div>
+      <div class="at-ss-empty" style="display:none;padding:14px 12px;text-align:center;
+                                       color:var(--ink-4);font-size:12px;">无匹配项</div>
+    </div>
+  </div>
+{% endmacro %}

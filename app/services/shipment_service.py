@@ -19,27 +19,9 @@ class ShipmentService:
 
     @staticmethod
     def generate_shipment_number():
-        """
-        生成发货单号
-        格式: SHP202501-001
-        """
-        today = datetime.now()
-        prefix = f"SHP{today.strftime('%Y%m')}"
-
-        latest = Shipment.query.filter(
-            Shipment.shipment_number.like(f"{prefix}%")
-        ).order_by(Shipment.shipment_number.desc()).first()
-
-        if latest:
-            try:
-                latest_num = int(latest.shipment_number.split('-')[-1])
-                new_num = latest_num + 1
-            except (ValueError, IndexError):
-                new_num = 1
-        else:
-            new_num = 1
-
-        return f"{prefix}-{new_num:03d}"
+        """生成发货单号 SHP<YYYYMM>-NNN — 走统一生成器"""
+        from app.utils.doc_number import generate_doc_number
+        return generate_doc_number('SHP', Shipment, number_field='shipment_number')
 
     @staticmethod
     def create_shipment(sales_order_id, shipment_data, details, current_user_id):
@@ -246,8 +228,14 @@ class ShipmentService:
             if not shipment:
                 return False, '发货单不存在'
 
-            if shipment.status not in ['shipped', 'in_transit', 'delivered']:
+            # 允许从 pending/shipped/in_transit/delivered 直接签收
+            # 业务上发货单创建后可分批多次发,每个发货单独立签收;不强制走"确认发货"中间步骤
+            if shipment.status not in ['pending', 'shipped', 'in_transit', 'delivered']:
                 return False, f'当前状态 {shipment.status} 不允许签收'
+
+            # 关键修复:若发货单是 pending(从未走 confirm_shipment),签收前补做发货数量累加
+            # — 否则 SO detail 的 shipped_quantity 不会更新,导致 remaining_to_ship 错误高估
+            was_pending = (shipment.status == 'pending')
 
             # 更新签收信息
             shipment.status = 'received'
@@ -289,6 +277,10 @@ class ShipmentService:
                                 pass
             except Exception as sn_err:
                 logger.warning(f"更新序列号签收状态失败（非致命）: {sn_err}")
+
+            # 若发货单从 pending 直接签收(跳过 confirm_shipment),补做 shipped_quantity 累加
+            if was_pending:
+                ShipmentService._update_order_shipped_quantity(shipment)
 
             # 更新客户订单明细的签收数量
             ShipmentService._update_order_received_quantity(shipment)

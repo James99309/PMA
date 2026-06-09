@@ -1143,13 +1143,15 @@ def submit_daily_log(user, target_date, data):
 
     db.session.commit()
 
-    # 发送日志提交通知给领导
-    leader_ids = get_leader_ids(user)
-    if leader_ids:
-        from app.models.message import Message
-        for leader_id in leader_ids:
-            db.session.add(Message.create_worklog_submitted(
-                sender_id=user.id, recipient_id=leader_id, worklog=worklog))
-        db.session.commit()
+    # 日志提交通知给领导 — 已停用(2026-05-24 用户决策):噪音过多,
+    # 历史 5054 条已删除(备份在 cloud_db_backups/worklog_submitted_backup_20260524_2140.csv)
+    # 如需恢复:取消下方注释 + 重新启用 scheduled_tasks.cleanup_old_worklog_notifications
+    # leader_ids = get_leader_ids(user)
+    # if leader_ids:
+    #     from app.models.message import Message
+    #     for leader_id in leader_ids:
+    #         db.session.add(Message.create_worklog_submitted(
+    #             sender_id=user.id, recipient_id=leader_id, worklog=worklog))
+    #     db.session.commit()
 
     return worklog

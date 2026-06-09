@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN" data-pma-page="calendar">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PMA · 工作日历(中文)</title>
+<script src="pma-nav.js" defer></script>
+<style>
+  html,body{margin:0;padding:0;background:#E9E7E2;font-family:-apple-system,"PingFang SC",system-ui,sans-serif;color:#1A1A1A}
+  .dc-root{background:#E9E7E2}
+  .hdr{padding:28px 36px 22px;background:#1A1A1A;color:#fff}
+  .hdr h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-0.3px}
+  .hdr h1 .a{color:#D97757}
+  .hdr p{margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.65);max-width:840px;line-height:1.6}
+  .hdr .meta{display:flex;gap:22px;margin-top:14px;font-size:11.5px;color:rgba(255,255,255,0.5);flex-wrap:wrap}
+  .hdr .meta b{color:rgba(255,255,255,0.85);font-weight:600}
+  .fc{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 14px 22px}
+  .fc .label{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase}
+  .fc .sub{font-size:11px;color:#7A7570;font-style:italic;max-width:380px;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>PMA · <span class="a">工作日历</span></h1>
+    <p>把 web 端「工作日历」转译到移动端 Agenda 形态:周日期条 + 当日工作项列表 + 日报闭环。沿用 Task 同套 token,入口在「我的」工作 section 内排在我审批的、我的任务之后。Web 上重的 FullCalendar 月历 + 拖拽改期 / 31 类型大网格 / 钉钉同步管理全部移动端做减法。</p>
+    <div class="meta">
+      <span><b>9 屏</b> · Agenda 2 + 月视图 + 切换日历 + 创建 2 + 类型选择 + 日报提交 + 工作项详情 2</span>
+      <span><b>402 × 874</b> · iPhone</span>
+      <span><b>31 类型</b> · 6 组 · 颜色字典</span>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="calendar-base.jsx"></script>
+  <script type="text/babel" src="calendar-screens.jsx"></script>
+  <script type="text/babel" src="calendar-forms.jsx"></script>
+  <script type="text/babel">
+    function Phone({ children }) {
+      return (
+        <div style={{ width: 402, height: 874, borderRadius: 56, overflow: 'hidden', position: 'relative',
+          background: '#000', boxShadow: '0 0 0 12px #1a1a1a, 0 30px 60px rgba(0,0,0,0.18)' }}>
+          <div style={{ position: 'absolute', top: 13, left: '50%', transform: 'translateX(-50%)', width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 100 }}/>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 54, zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px',
+            color: '#000', fontSize: 16, fontWeight: 600, paddingTop: 18, mixBlendMode: 'difference' }}>
+            <span style={{ color: '#fff' }}>9:41</span><span style={{ width: 126 }}/>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#fff' }}>
+              <svg width="17" height="11" viewBox="0 0 19 12">
+                <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill="currentColor"/>
+                <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill="currentColor"/>
+                <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill="currentColor"/>
+                <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill="currentColor"/>
+              </svg>
+              <svg width="26" height="13" viewBox="0 0 28 13" fill="none">
+                <rect x="0.5" y="0.5" width="23" height="12" rx="3" stroke="currentColor" opacity="0.35"/>
+                <rect x="2" y="2" width="20" height="9" rx="1.5" fill="currentColor"/>
+                <rect x="24.5" y="4" width="2" height="5" rx="0.6" fill="currentColor" opacity="0.5"/>
+              </svg>
+            </span>
+          </div>
+          <div style={{ position: 'absolute', inset: 0 }}>{children}</div>
+          <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', width: 139, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.28)', zIndex: 200 }}/>
+        </div>
+      );
+    }
+    function F({ label, sub, children }) {
+      return <div className="fc"><Phone>{children}</Phone><div className="label">{label}</div>{sub && <div className="sub">{sub}</div>}</div>;
+    }
+    const W = 460, H = 1000;
+
+    function App() {
+      const {
+        CalendarAgenda, CalendarAgendaSubmitted, CalendarMonthSheet, CalendarScopeSheet,
+        CalendarItemCreate, CalendarItemCreateFilled, CalendarTypePickerSheet,
+        DailyLogSubmit, WorkItemDetailSheet, WorkItemDetailSheetCompleted,
+      } = window;
+      return (
+        <DesignCanvas>
+          <DCSection id="agenda" title="① 日历 Agenda" subtitle="hero · 周日期条 · 月/周/日 toggle · 当日工作项 · 日报卡">
+            <DCArtboard id="agenda-draft" label="Agenda · 日报草稿" width={W} height={H + 240}>
+              <F label="Agenda · 日报草稿" sub="周四 5/14 选中 · 5 项工作 · 累计 7.5h · 日报草稿态(撰写提交按钮)"><CalendarAgenda/></F>
+            </DCArtboard>
+            <DCArtboard id="agenda-submitted" label="Agenda · 日报已提交" width={W} height={H + 280}>
+              <F label="Agenda · 日报已提交" sub="质量分 87 / 良好 · 改进建议清单只读"><CalendarAgendaSubmitted/></F>
+            </DCArtboard>
+            <DCArtboard id="month" label="月视图 sheet" width={W} height={H}>
+              <F label="月视图弹层" sub="点顶部「月/周」toggle 召出 · 色点表示类型 · 今天黑底高亮 · 图例条"><CalendarMonthSheet/></F>
+            </DCArtboard>
+            <DCArtboard id="scope" label="切换日历 sheet" width={W} height={H}>
+              <F label="切换日历 · 选人" sub="本人 + 同事(6 人 · 44 项)· 每人本周工作项数"><CalendarScopeSheet/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="create" title="② 新建工作项" subtitle="标题 + 类型 · 起止 · 全天 / 出差 · 工时 · 关联 · 行动记录 · 附件 · 共享给">
+            <DCArtboard id="create-empty" label="新建 · 空表单" width={W} height={H}>
+              <F label="新建工作项 · 空" sub="类型下拉默认其他 · 全天 / 出差 toggle · 关联可选"><CalendarItemCreate/></F>
+            </DCArtboard>
+            <DCArtboard id="create-filled" label="新建 · 已填(会议)" width={W} height={H}>
+              <F label="新建工作项 · 已填" sub="选了会议类型 chip · 9:00–10:00 · 关联项目 · 行动记录 · 共享给张贺"><CalendarItemCreateFilled/></F>
+            </DCArtboard>
+            <DCArtboard id="type-picker" label="类型选择 sheet" width={W} height={H}>
+              <F label="选择工作类型 · 6 组" sub="顶部组 chip · 当前组展开 grid(行销 · 4 类)· 其它组折叠预览"><CalendarTypePickerSheet/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="log" title="③ 日报提交" subtitle="自动摘要 + 补充说明 + @人 / # 项目 · 提交后展示质量分">
+            <DCArtboard id="log-submit" label="撰写日报" width={W} height={H}>
+              <F label="撰写日报" sub="3 数据卡 · 自动摘要(蓝底)· 补充说明输入态 · @/# chips · 提示条"><DailyLogSubmit/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="detail" title="④ 工作项详情 sheet" subtitle="点 Agenda 行打开 · 4 格 meta · 关联 · 行动记录 · 编辑 + 标记完成">
+            <DCArtboard id="detail" label="详情 · 进行中" width={W} height={H}>
+              <F label="工作项详情" sub="类型 + 状态 chip · 4 格 meta · 关联项目客户 · 行动记录 · 标记完成 CTA"><WorkItemDetailSheet/></F>
+            </DCArtboard>
+            <DCArtboard id="detail-completed" label="详情 · 已完成" width={W} height={H}>
+              <F label="详情 · 已完成态" sub="状态 chip 变绿 · 时长卡变绿 · 标记完成 → 取消完成"><WorkItemDetailSheetCompleted/></F>
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

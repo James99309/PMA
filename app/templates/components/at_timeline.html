@@ -1,0 +1,86 @@
+{#
+  AT 通用竖向时间线
+  ─────────────────────────────────────────────
+  用于:SN 生命周期 / PO/SO 变更日志 / 任何对象历史事件流
+
+  events: list of dict, each:
+    {
+      'icon':    'check' | 'edit' | 'box' | 'truck' | 'archive' | 'close' | ... (at_icon name)
+      'tone':    'neutral' | 'accent' | 'success' | 'warn' | 'danger' | 'info'
+      'title':   'xxx 操作'(必填,主标题)
+      'time':    '2026-05-24 14:30'(可选)
+      'desc':    '描述文字'(可选)
+      'meta':    '位置 / 引用单号 / 等'(可选)
+      'by':      '操作人姓名'(可选,右下角)
+    }
+  reverse: bool — 默认 false(最新在上)。需要从下往上时间排序传 true。
+
+  使用:
+    {% from 'components/at_timeline.html' import at_timeline %}
+    {{ at_timeline(events) }}
+
+  样式:与 AT 设计系统色板一致(--ink/--bg-elev/--line),无任何外部依赖
+#}
+{% from 'components/at_base.html' import at_icon %}
+
+
+{% set _TONE_MAP = {
+  'neutral': ('var(--ink)',     '#fff'),
+  'accent':  ('var(--accent)',  '#fff'),
+  'success': ('var(--success)', '#fff'),
+  'warn':    ('var(--warn)',    '#fff'),
+  'danger':  ('var(--danger)',  '#fff'),
+  'info':    ('var(--info)',    '#fff'),
+} %}
+
+
+{% macro at_timeline(events, reverse=false) %}
+  {% if not events %}
+    <div class="at-dim" style="text-align:center;padding:24px 12px;font-size:12.5px;">
+      暂无历史记录
+    </div>
+  {% else %}
+  <div style="display:flex;flex-direction:column;gap:0;">
+    {% set ordered = events if not reverse else (events|reverse|list) %}
+    {% for ev in ordered %}
+    {% set tone = _TONE_MAP.get(ev.tone, _TONE_MAP['neutral']) %}
+    <div style="display:flex;gap:14px;position:relative;
+                padding-bottom:{{ '0' if loop.last else '18px' }};">
+      {# 左侧 dot + 竖线 #}
+      <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+        <div style="width:28px;height:28px;border-radius:50%;
+                    background:{{ tone[0] }};color:{{ tone[1] }};
+                    display:flex;align-items:center;justify-content:center;
+                    box-shadow:0 0 0 3px var(--bg-page);position:relative;z-index:1;">
+          {{ at_icon(ev.icon or 'check', 13) }}
+        </div>
+        {% if not loop.last %}
+        <div style="flex:1;width:1px;background:var(--line-2);margin-top:2px;"></div>
+        {% endif %}
+      </div>
+
+      {# 右侧内容 #}
+      <div style="flex:1;min-width:0;padding-top:3px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:13px;font-weight:500;color:var(--ink);">{{ ev.title }}</span>
+          {% if ev.time %}
+          <span class="at-mono at-tab-num at-dim" style="font-size:11px;">{{ ev.time }}</span>
+          {% endif %}
+        </div>
+        {% if ev.desc %}
+        <div style="margin-top:4px;font-size:12.5px;color:var(--ink-2);line-height:1.5;">
+          {{ ev.desc }}
+        </div>
+        {% endif %}
+        {% if ev.meta %}
+        <div class="at-dim" style="margin-top:4px;font-size:11.5px;">{{ ev.meta }}</div>
+        {% endif %}
+        {% if ev.by %}
+        <div class="at-dim" style="margin-top:3px;font-size:11px;">— {{ ev.by }}</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endmacro %}

@@ -442,6 +442,62 @@ total_amount = order.total_amount / 10000  # 转换为万元
 created_time = order.created_at.strftime('%Y-%m-%d %H:%M')
 ```
 
+## ⚡ 查询性能规范(N+1 防控)
+
+### **背景**
+SQLAlchemy 默认 `lazy='select'`,意味着每次访问关联属性都触发一次 SQL。在列表/嵌套循环里会引发 N+1。本项目曾长期被该问题困扰,2026-05 加 hook 自动检测。
+
+### **强制规则**
+1. **任何 `query.paginate(...)` / `Model.query.xxx.all()` 后,如果调用方(模板或后续代码)会遍历对象并访问关联,必须加 `.options(joinedload(Model.relation))` 或 `selectinload(...)`。**
+2. **任何 helper 函数中循环对象嵌套访问 `obj.children.subrelation`,在源头查询处用 `selectinload(parent).selectinload(child.relation)`。**
+3. **禁止改模型 `lazy='joined'` 求一劳永逸** — 会让所有路径强制 JOIN,反而拖慢只用 ID 的场景。
+
+### **决策表**
+| 场景 | 写法 |
+|---|---|
+| 列表页 + 模板循环访问 `o.customer.name` | `Model.query.options(joinedload(Model.customer)).paginate(...)` |
+| 详情页 + 模板访问 `o.children` 后循环每个 child 的关联 | `Model.query.options(selectinload(Model.children).selectinload(Child.relation)).get(id)` |
+| 详情页 + 仅访问 `o.a` `o.b` 两个 1对1 | `Model.query.options(joinedload(Model.a), joinedload(Model.b)).get(id)` |
+| 只用对象 ID 字段不访问关联 | 无需 options |
+
+### **示例**
+```python
+# ❌ 错(N 次额外查询)
+orders = SalesOrder.query.paginate(page=1, per_page=30)
+# 模板: {% for o in orders %} {{ o.customer.company_name }} {% endfor %}
+
+# ✅ 对(1 次 JOIN)
+from sqlalchemy.orm import joinedload
+orders = SalesOrder.query \
+    .options(joinedload(SalesOrder.customer)) \
+    .paginate(page=1, per_page=30)
+```
+
+### **何时无需加 options(注释说明)**
+若确认该 query 后续不会触发 lazy load,在 query 上方加注释跳过检查:
+```python
+# eager-loaded by ORM relation defaults — 后续仅用 ID 字段
+ids = [r.id for r in SomeModel.query.all()]
+```
+
+### **自动检测 — Hook**
+`.claude/hooks/ai_quality_check.sh` 在 AI 每次 Edit/Write 后跑:
+- 检测 `.paginate()` / `.all()` / `.first()` 是否伴随 `.options(...)`
+- 检测模板里 `for X in obj` 内部的多级属性访问(lazy load 嫌疑)
+- 检测 `{% from X import Y %}` 中 Y 是否真实存在于 X(防 profile bug 类幻想宏)
+- 警告反馈给 AI,AI 自动 review 并加上或解释
+
+### **疑似 N+1 排查命令**
+```bash
+# 看一个请求触发了多少 SQL
+SQLALCHEMY_ECHO=True python run.py 2>&1 | grep -c "INFO sqlalchemy.engine"
+
+# 跑慢查询日志(已有 >0.5s warning)
+tail -f /tmp/pma-flask.log | grep "慢查询"
+```
+
+---
+
 ## 🚨 故障排除指南
 
 ### **备份工具常见问题**

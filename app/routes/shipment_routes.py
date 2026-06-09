@@ -21,92 +21,10 @@ shipment_bp = Blueprint('shipment', __name__, url_prefix='/shipment')
 
 
 # ============== 页面路由 ==============
-
-@shipment_bp.route('/')
-@login_required
-@permission_required('shipment', 'view')
-def list_view():
-    """发货记录列表页"""
-    # 获取筛选参数
-    status = request.args.get('status', '')
-    search = request.args.get('search', '').strip()
-    purchase_order_id = request.args.get('purchase_order_id', type=int)
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
-
-    # 基础查询
-    query = Shipment.query
-
-    # 状态筛选
-    if status:
-        query = query.filter(Shipment.status == status)
-
-    # 采购订单筛选
-    if purchase_order_id:
-        query = query.filter(Shipment.purchase_order_id == purchase_order_id)
-
-    # 搜索
-    if search:
-        query = query.filter(
-            db.or_(
-                Shipment.shipment_number.ilike(f'%{search}%'),
-                Shipment.tracking_number.ilike(f'%{search}%'),
-                Shipment.carrier.ilike(f'%{search}%')
-            )
-        )
-
-    # 排序和分页
-    query = query.order_by(Shipment.created_at.desc())
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    shipments = pagination.items
-
-    # 获取统计数据
-    stats = ShipmentService.get_shipment_statistics()
-
-    return render_template(
-        'shipment/tw_list.html',
-        shipments=shipments,
-        pagination=pagination,
-        stats=stats,
-        current_status=status,
-        search=search
-    )
-
-
-@shipment_bp.route('/<int:shipment_id>')
-@login_required
-@permission_required('shipment', 'view')
-def detail_view(shipment_id):
-    """发货记录详情页"""
-    import json as json_mod
-
-    shipment = Shipment.query.get_or_404(shipment_id)
-
-    # 获取物流时间线
-    timeline = ShipmentService.get_tracking_timeline(shipment_id)
-
-    # 解析文档 JSON 供模板使用
-    courier_docs = []
-    if shipment.documents:
-        try:
-            courier_docs = json_mod.loads(shipment.documents)
-        except (json_mod.JSONDecodeError, TypeError):
-            pass
-
-    receipt_docs = []
-    if shipment.delivery_proof:
-        try:
-            receipt_docs = json_mod.loads(shipment.delivery_proof)
-        except (json_mod.JSONDecodeError, TypeError):
-            pass
-
-    return render_template(
-        'shipment/tw_detail.html',
-        shipment=shipment,
-        timeline=timeline,
-        courier_docs=courier_docs,
-        receipt_docs=receipt_docs
-    )
+# 独立「发货记录」列表/详情页已移除：
+#   - 发货从采购单详情页发起（含签收/上传凭证）
+#   - 发货进度在客户订单详情页追踪，发货详情走 api_get_shipment 弹模态
+# 仅保留下方 API 供采购单详情页 / 客户订单追踪页调用。
 
 
 # ============== API路由 ==============
@@ -175,8 +93,7 @@ def api_create():
             'success': True,
             'message': f'发货单 {shipment.shipment_number} 创建成功',
             'shipment_id': shipment.id,
-            'shipment_number': shipment.shipment_number,
-            'redirect_url': url_for('shipment.detail_view', shipment_id=shipment.id)
+            'shipment_number': shipment.shipment_number
         })
 
     except Exception as e:
@@ -189,10 +106,20 @@ def api_create():
 @permission_required('shipment', 'view')
 def api_get_shipment(shipment_id):
     """获取发货单详情"""
+    import json as json_mod
     shipment = Shipment.query.get(shipment_id)
 
     if not shipment:
         return jsonify({'success': False, 'message': '发货单不存在'})
+
+    def _parse_json(raw):
+        if not raw:
+            return []
+        try:
+            val = json_mod.loads(raw)
+            return val if isinstance(val, list) else []
+        except (json_mod.JSONDecodeError, TypeError):
+            return []
 
     return jsonify({
         'success': True,
@@ -215,6 +142,7 @@ def api_get_shipment(shipment_id):
             'total_quantity': shipment.total_quantity,
             'received_by': shipment.received_by,
             'received_date': shipment.received_date.strftime('%Y-%m-%d %H:%M') if shipment.received_date else '',
+            'delivery_proof': _parse_json(shipment.delivery_proof),
             'details': [{
                 'id': d.id,
                 'product_name': d.product_name,
@@ -222,7 +150,8 @@ def api_get_shipment(shipment_id):
                 'quantity': d.quantity,
                 'unit': d.unit,
                 'received_quantity': d.received_quantity,
-                'status': d.status
+                'status': d.status,
+                'serial_numbers': _parse_json(d.serial_numbers)
             } for d in shipment.details]
         }
     })
@@ -232,13 +161,22 @@ def api_get_shipment(shipment_id):
 @login_required
 @permission_required('shipment', 'edit')
 def api_delete_shipment(shipment_id):
-    """删除发货单（仅 pending 且无快递单时可删）"""
+    """删除发货单（仅 pending 状态可删 - 即未签收且未确认发货）
+
+    放开了"无快递单"约束:pending 阶段即便已上传快递单(如发货前预先附了
+    截图/PDF)仍允许删除,文件会随发货单一起回收;签收完成(received)的
+    发货单始终不可删。
+    """
     try:
         shipment = Shipment.query.get_or_404(shipment_id)
         if shipment.status != 'pending':
             return jsonify({'success': False, 'message': '只能删除待发货状态的发货单'})
-        if shipment.documents:
-            return jsonify({'success': False, 'message': '已上传快递单的发货单不能删除'})
+
+        # 回收发货时登记的 SN(否则下次重发同一 SN 会因"已存在"被拒)
+        from app.models.product_serial_number import ProductSerialNumber
+        sn_records = ProductSerialNumber.query.filter_by(shipment_id=shipment.id).all()
+        for sn in sn_records:
+            db.session.delete(sn)
 
         # 恢复 PO 明细的 dispatched_quantity 和 SO 明细的 shipped_quantity
         from app.models.sales_order import SalesOrderDetail
@@ -255,6 +193,7 @@ def api_delete_shipment(shipment_id):
 
         db.session.delete(shipment)
         db.session.commit()
+        logger.info(f"发货单 {shipment.shipment_number} 已删除,回收 {len(sn_records)} 个 SN")
         return jsonify({'success': True, 'message': '发货单已删除'})
     except Exception as e:
         db.session.rollback()
@@ -387,25 +326,29 @@ def api_confirm_receive_with_file(shipment_id):
         if not shipment:
             return jsonify({'success': False, 'message': '发货单不存在'})
 
-        if shipment.status not in ['shipped', 'in_transit', 'delivered']:
+        # 允许 pending 状态直接签收(分批发货场景:每个发货单创建后可独立签收,无需先确认发货)
+        if shipment.status not in ['pending', 'shipped', 'in_transit', 'delivered']:
             return jsonify({'success': False, 'message': f'当前状态 {shipment.status_label} 不允许签收'})
 
-        # 处理签收回执文件
+        # 处理签收回执文件(支持多文件)
         delivery_proof = []
-        file = request.files.get('file')
-        if file and file.filename:
+        files = (request.files.getlist('files')
+                 or ([request.files.get('file')] if request.files.get('file') else []))
+        files = [f for f in files if f and f.filename]
+        if files:
             from app.helpers.purchase_order_helpers import upload_file_to_storage
             po = shipment.purchase_order
             if po:
-                file_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'pdf'
                 content_types = {'pdf': 'application/pdf', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png'}
-                content_type = content_types.get(file_ext, 'application/octet-stream')
-                unique_id = uuid.uuid4().hex[:8]
-                filename = f"receipt_{datetime.now().strftime('%Y%m%d')}_{unique_id}.{file_ext}"
-                file_content = file.read()
-                file_url = upload_file_to_storage(po, file_content, filename, content_type, subfolder='receipt')
-                if file_url:
-                    delivery_proof.append({'name': file.filename, 'url': file_url})
+                for f in files:
+                    file_ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'pdf'
+                    content_type = content_types.get(file_ext, 'application/octet-stream')
+                    unique_id = uuid.uuid4().hex[:8]
+                    filename = f"receipt_{datetime.now().strftime('%Y%m%d')}_{unique_id}.{file_ext}"
+                    file_content = f.read()
+                    file_url = upload_file_to_storage(po, file_content, filename, content_type, subfolder='receipt')
+                    if file_url:
+                        delivery_proof.append({'name': f.filename, 'url': file_url})
 
         received_by = request.form.get('received_by', current_user.real_name or current_user.username)
         notes = request.form.get('notes', '')
@@ -466,30 +409,25 @@ def _check_auto_acceptance(shipment):
         po.acceptance_date = datetime.now()
         po.actual_arrival_date = datetime.now()
 
-        # 备货型明细自动入"厂商"自有仓库
-        # 注意:po.company_id 是【供应商】,不是入库目标!入库目标 = company_type='vendor'
-        from app.utils.inventory_helpers import update_inventory
-        from app.models.customer import Company as _Company
-        vendor_co = _Company.query.filter_by(
-            company_type='vendor', is_deleted=False
-        ).order_by(_Company.id).first()
-        if vendor_co:
-            for detail in po.details:
-                if not detail.sales_order_detail_id:
-                    qty = detail.dispatched_quantity or detail.quantity or 0
-                    if qty > 0:
-                        update_inventory(
-                            company_id=vendor_co.id,
-                            product_id=detail.product_id,
-                            quantity_change=qty,
-                            transaction_type='in',
-                            reference_type='order',
-                            reference_id=po.id,
-                            description=f'采购订单 {po.order_number} 全部签收自动入库',
-                            user_id=shipment.created_by_id
-                        )
-        else:
-            logger.warning(f"未配置厂商公司(company_type='vendor'),采购订单 {po.order_number} 全部签收自动入库已跳过")
+        # 备货型明细自动入"厂商"自营仓库(系统级,不在 companies 表)
+        from app.utils.inventory_helpers import update_inventory, link_serials_to_inventory
+        for detail in po.details:
+            if not detail.sales_order_detail_id:
+                qty = detail.dispatched_quantity or detail.quantity or 0
+                if qty > 0:
+                    ok, _msg, inv = update_inventory(
+                        company_id=None,
+                        target_type='vendor',
+                        product_id=detail.product_id,
+                        quantity_change=qty,
+                        transaction_type='in',
+                        reference_type='order',
+                        reference_id=po.id,
+                        description=f'采购订单 {po.order_number} 全部签收自动入库',
+                        user_id=shipment.created_by_id
+                    )
+                    if ok and inv:
+                        link_serials_to_inventory(detail.id, inv.id, shipment.created_by_id)
 
         db.session.commit()
         logger.info(f"采购订单 {po.order_number} 所有发货单已签收，自动推进验收入库")
@@ -650,8 +588,13 @@ def api_get_dispatchable_details(po_id):
         return jsonify({'success': False, 'message': '采购订单不存在'})
 
     target_so_id = request.args.get('sales_order_id', type=int)
+    target = request.args.get('target', '').strip()  # 'warehouse' = 入备库模式
 
     from app.models.sales_order import SalesOrder, SalesOrderDetail
+    from collections import defaultdict
+    # 跨 PO 行累计扣减:防止多个 PO 行(通过显式关联 + product_id fallback)同时
+    # 占用同一个 SO detail 的剩余可发量,导致发货界面行数超过 SO 实际能力
+    so_detail_allocated = defaultdict(int)
     dispatchable_details = []
     for detail in po.details:
         # PO可发 = 总量 - 已发出量
@@ -662,17 +605,32 @@ def api_get_dispatchable_details(po_id):
         so_remaining = None
         matched_so_detail_id = detail.sales_order_detail_id
 
-        if target_so_id:
-            # 指定了目标SO：只显示能匹配该SO的产品
+        if target == 'warehouse':
+            # 入备库模式:计算"超买"部分 = po_remaining - so_remaining_to_ship
+            #   - 无 SO 关联:整个 po_remaining 都可入库
+            #   - 有 SO 关联:扣掉 SO 还需要发的,剩下的是多订的备库部分
+            so_left = 0
             if detail.sales_order_detail_id:
-                # PO明细已关联SO明细，检查是否属于目标SO
+                so_detail = SalesOrderDetail.query.get(detail.sales_order_detail_id)
+                if so_detail:
+                    so_left = so_detail.remaining_to_ship or 0
+            remaining = max(0, po_remaining - so_left)
+            if remaining <= 0:
+                continue
+            matched_so_detail_id = None  # 入库不挂 SO
+            # 落到下面统一 append
+
+        elif target_so_id:
+            # 指定了目标SO:只显示能匹配该SO的产品
+            if detail.sales_order_detail_id:
+                # PO明细已关联SO明细,检查是否属于目标SO
                 so_detail = SalesOrderDetail.query.get(detail.sales_order_detail_id)
                 if so_detail and so_detail.sales_order_id == target_so_id:
                     so_remaining = so_detail.remaining_to_ship
                 else:
-                    continue  # 不属于目标SO，跳过
+                    continue  # 不属于目标SO,跳过
             else:
-                # PO明细未关联SO，尝试按product_id匹配目标SO的明细
+                # PO明细未关联SO,尝试按product_id匹配目标SO的明细
                 so_detail = SalesOrderDetail.query.filter_by(
                     sales_order_id=target_so_id,
                     product_id=detail.product_id
@@ -681,18 +639,26 @@ def api_get_dispatchable_details(po_id):
                     so_remaining = so_detail.remaining_to_ship
                     matched_so_detail_id = so_detail.id
                 else:
-                    continue  # 目标SO中没有这个产品，跳过
+                    continue  # 目标SO中没有这个产品,跳过
+            # 实际可发 = min(PO可发, SO可发)
+            remaining = min(po_remaining, so_remaining) if so_remaining is not None else po_remaining
         else:
-            # 未指定SO（入仓库模式）：显示所有可发明细
+            # 未指定:显示所有可发(默认行为,前端通常不会走这条)
             if detail.sales_order_detail_id:
                 so_detail = SalesOrderDetail.query.get(detail.sales_order_detail_id)
                 if so_detail:
                     so_remaining = so_detail.remaining_to_ship
+            remaining = min(po_remaining, so_remaining) if so_remaining is not None else po_remaining
 
-        # 实际可发 = min(PO可发, SO可发)
-        remaining = min(po_remaining, so_remaining) if so_remaining is not None else po_remaining
+        # 跨行累计扣减:本 PO 行能拿到的可发量需扣去前面行已分配给同 SO detail 的量
+        if matched_so_detail_id and so_remaining is not None:
+            already = so_detail_allocated[matched_so_detail_id]
+            effective_so_remaining = max(0, so_remaining - already)
+            remaining = min(remaining, effective_so_remaining)
 
         if remaining > 0:
+            if matched_so_detail_id:
+                so_detail_allocated[matched_so_detail_id] += remaining
             dispatchable_details.append({
                 'id': detail.id,
                 'product_id': detail.product_id,
@@ -730,7 +696,7 @@ def api_create_from_po():
         if request.content_type and 'application/json' in request.content_type:
             data = request.get_json()
             details = data.get('details', [])
-            courier_file = None
+            courier_files = []
         else:
             data = request.form.to_dict()
             details_str = data.get('details', '[]')
@@ -738,7 +704,19 @@ def api_create_from_po():
                 details = json_mod.loads(details_str)
             except (json_mod.JSONDecodeError, TypeError):
                 details = []
-            courier_file = request.files.get('courier_document')
+            # 多文件优先 getlist('courier_documents');退而 get('courier_document')
+            courier_files = request.files.getlist('courier_documents')
+            if not courier_files:
+                single = request.files.get('courier_document')
+                courier_files = [single] if single else []
+            courier_files = [f for f in courier_files if f and f.filename]
+
+        # 快递单必传(发货凭证强制留档,避免出现"发了但没凭证"的盲发货单)
+        if not courier_files:
+            return jsonify({
+                'success': False,
+                'message': '请上传快递单(发货凭证必传)'
+            }), 400
 
         purchase_order_id = data.get('purchase_order_id')
         if purchase_order_id:
@@ -769,20 +747,21 @@ def api_create_from_po():
             if not sales_order:
                 return jsonify({'success': False, 'message': '客户订单不存在'})
 
-        # 处理快递单文件上传
-        courier_doc_info = None
-        if courier_file and courier_file.filename:
+        # 处理快递单文件上传(支持多文件)
+        courier_docs = []
+        if courier_files:
             from app.helpers.purchase_order_helpers import upload_file_to_storage
             import uuid
-            file_ext = courier_file.filename.rsplit('.', 1)[-1].lower() if '.' in courier_file.filename else 'pdf'
             content_types = {'pdf': 'application/pdf', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png'}
-            content_type = content_types.get(file_ext, 'application/octet-stream')
-            unique_id = uuid.uuid4().hex[:8]
-            filename = f"courier_{datetime.now().strftime('%Y%m%d')}_{unique_id}.{file_ext}"
-            file_content = courier_file.read()
-            file_url = upload_file_to_storage(po, file_content, filename, content_type, subfolder='courier')
-            if file_url:
-                courier_doc_info = {'name': courier_file.filename, 'url': file_url}
+            for f in courier_files:
+                file_ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'pdf'
+                content_type = content_types.get(file_ext, 'application/octet-stream')
+                unique_id = uuid.uuid4().hex[:8]
+                filename = f"courier_{datetime.now().strftime('%Y%m%d')}_{unique_id}.{file_ext}"
+                file_content = f.read()
+                file_url = upload_file_to_storage(po, file_content, filename, content_type, subfolder='courier')
+                if file_url:
+                    courier_docs.append({'name': f.filename, 'url': file_url})
 
         # 创建发货单
         shipment = Shipment(
@@ -803,8 +782,8 @@ def api_create_from_po():
         )
 
         # 保存快递单文档信息
-        if courier_doc_info:
-            shipment.documents = json_mod.dumps([courier_doc_info])
+        if courier_docs:
+            shipment.documents = json_mod.dumps(courier_docs, ensure_ascii=False)
 
         # 处理日期
         if data.get('ship_date'):
@@ -925,8 +904,7 @@ def api_create_from_po():
             'success': True,
             'message': f'发货单 {shipment.shipment_number} 创建成功',
             'shipment_id': shipment.id,
-            'shipment_number': shipment.shipment_number,
-            'redirect_url': url_for('shipment.detail_view', shipment_id=shipment.id)
+            'shipment_number': shipment.shipment_number
         })
 
     except Exception as e:
@@ -939,12 +917,36 @@ def api_create_from_po():
 @login_required
 @permission_required('shipment', 'view')
 def api_available_sales_orders():
-    """获取可选的客户订单列表（状态为 confirmed 或 preparing）"""
+    """获取可选的客户订单列表(状态为 confirmed/preparing/shipped/delivered)
+
+    可选参数 purchase_order_id:若传入,只返回与该 PO 有关联的客户订单
+    (即 PO 明细的 sales_order_detail_id 指向的 SO),用于发货模态防止误选无关 SO。
+    """
     search = request.args.get('search', '').strip()
+    po_id = request.args.get('purchase_order_id', type=int)
+
+    # 若指定 PO,先用 PO 明细收集关联的 SO id 集合
+    po_so_ids = None
+    if po_id:
+        from app.models.inventory import PurchaseOrderDetail
+        from app.models.sales_order import SalesOrderDetail as SOD
+        po_details = PurchaseOrderDetail.query.filter_by(order_id=po_id).all()
+        so_detail_ids = {d.sales_order_detail_id for d in po_details if d.sales_order_detail_id}
+        if so_detail_ids:
+            sod_rows = SOD.query.filter(SOD.id.in_(so_detail_ids)).all()
+            po_so_ids = {r.sales_order_id for r in sod_rows if r.sales_order_id}
+        else:
+            po_so_ids = set()  # PO 全是备货部分(无 SO 关联)
 
     query = SalesOrder.query.filter(
         SalesOrder.status.in_(['confirmed', 'preparing', 'shipped', 'delivered'])
     )
+
+    if po_so_ids is not None:
+        if not po_so_ids:
+            # 该 PO 没有任何 SO 关联(全备货)→ 返回空列表
+            return jsonify({'success': True, 'orders': []})
+        query = query.filter(SalesOrder.id.in_(po_so_ids))
 
     if search:
         query = query.filter(
@@ -956,9 +958,27 @@ def api_available_sales_orders():
     orders = query.order_by(SalesOrder.created_at.desc()).limit(50).all()
 
     # 只返回还有未发完明细的SO
+    # 注:remaining_to_ship 只在"确认发货"时才扣减,但 pending(已创建未确认)
+    # 的发货单也应视为已占用,否则同一 SO 会被重复创建发货单
+    from collections import defaultdict
+    from app.models.shipment import Shipment, ShipmentDetail
     available_orders = []
     for o in orders:
-        has_remaining = any(d.remaining_to_ship > 0 for d in o.details)
+        # 计算 pending 发货单中每个 SO detail 已占用的数量
+        pending_allocated = defaultdict(int)
+        pending_shipments = Shipment.query.filter(
+            Shipment.sales_order_id == o.id,
+            Shipment.status == 'pending'
+        ).all()
+        for ps in pending_shipments:
+            for sd in ps.details:
+                if sd.sales_order_detail_id:
+                    pending_allocated[sd.sales_order_detail_id] += (sd.quantity or 0)
+
+        has_remaining = any(
+            (d.remaining_to_ship - pending_allocated[d.id]) > 0
+            for d in o.details
+        )
         if has_remaining:
             available_orders.append(o)
 

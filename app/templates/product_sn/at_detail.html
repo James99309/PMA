@@ -1,0 +1,227 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_section, at_info_grid %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_purchase_order.html' import at_stage_strip %}
+{% from 'components/at_timeline.html' import at_timeline %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ sn.serial_number }} · 序列号</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='product_sn') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- Topbar -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="{{ url_for('product_sn.list_view') }}" style="font-size:13px;color:var(--ink-3);">库存中心</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('product_sn.list_view') }}" style="font-size:13px;color:var(--ink-3);">序号管理</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span class="at-mono" style="font-size:13px;color:var(--ink);">{{ sn.serial_number }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} 暗色
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 80px;">
+
+  <!-- 页眉 -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;
+              margin-bottom:28px;flex-wrap:wrap;gap:16px;">
+    <div>
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        SERIAL NUMBER · 序列号
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;">
+        <h1 class="at-serif at-mono"
+            style="margin:0;font-size:34px;font-weight:500;letter-spacing:-0.005em;
+                   line-height:1.1;font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
+          {{ sn.serial_number }}
+        </h1>
+        {{ at_pill(status_meta.label, tone=status_meta.tone, dot=true) }}
+      </div>
+      <div class="at-muted" style="margin-top:10px;font-size:13px;
+                                    display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
+        <span>{{ sn.product.product_name if sn.product else '—' }}</span>
+        {% if sn.product and sn.product.model %}
+        <span style="color:var(--line-2);">|</span>
+        <span class="at-mono" style="color:var(--ink-2);">{{ sn.product.model }}</span>
+        {% endif %}
+        {% if sn.batch_number %}
+        <span style="color:var(--line-2);">|</span>
+        <span>批次 <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ sn.batch_number }}</span></span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      {{ at_btn('返回', variant='ghost', icon_l='back', tag='a',
+                href=url_for('product_sn.list_view')) }}
+      {# 仅 registered 态显示入库按钮(入库后状态推进到 in_stock) #}
+      {% if sn.status == 'registered' %}
+        {{ at_btn('入库', variant='accent', icon_l='archive', onclick='atSnStockIn()') }}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 5 阶段条 -->
+  <div style="margin-bottom:24px;">
+    {{ at_stage_strip(stages, sticky=false) }}
+  </div>
+
+  <!-- 基本信息 + 硬件参数 -->
+  <div style="margin-bottom:20px;">
+    {% call at_section('基本信息') %}
+      {{ at_info_grid(items=[
+        {'k': '序列号',   'v': sn.serial_number, 'mono': true, 'strong': true},
+        {'k': '产品名称', 'v': sn.product.product_name if sn.product else '—'},
+        {'k': '产品型号', 'v': sn.product.model if sn.product else '—', 'mono': true},
+        {'k': '批次号',   'v': sn.batch_number or '—', 'mono': true},
+        {'k': '硬件版本', 'v': sn.hardware_version or '—', 'mono': true},
+        {'k': '固件版本', 'v': sn.firmware_version or '—', 'mono': true},
+        {'k': 'MAC 地址', 'v': sn.mac_address or '—', 'mono': true},
+        {'k': '生产日期', 'v': sn.manufacture_date.strftime('%Y-%m-%d') if sn.manufacture_date else '—', 'mono': true}
+      ], cols=4) }}
+    {% endcall %}
+  </div>
+
+  <!-- 采购 + 入库 -->
+  {# 供应商 fallback:SN.supplier 没数据时,显示 PO.company 并标注来源 #}
+  {% set _supplier_display = '—' %}
+  {% if sn.supplier %}
+    {% set _supplier_display = sn.supplier.company_name %}
+  {% elif sn.purchase_order and sn.purchase_order.company %}
+    {% set _supplier_display = sn.purchase_order.company.company_name ~ ' (自 PO)' %}
+  {% endif %}
+  {# 入库公司 fallback:inventory.company 无数据时,留空提示 #}
+  {% set _inv_company_display = sn.inventory.company.company_name if (sn.inventory and sn.inventory.company) else '—' %}
+
+  <div style="margin-bottom:20px;">
+    {% call at_section('采购 · 入库') %}
+      {{ at_info_grid(items=[
+        {'k': '采购订单',  'v': sn.purchase_order.order_number if sn.purchase_order else '—', 'mono': true},
+        {'k': '供应商',    'v': _supplier_display},
+        {'k': '入库公司',  'v': _inv_company_display},
+        {'k': '仓库位置',  'v': sn.warehouse_location or '—', 'mono': true},
+        {'k': '入库日期',  'v': sn.warehouse_in_date.strftime('%Y-%m-%d') if sn.warehouse_in_date else '—', 'mono': true},
+        {'k': '入库操作',  'v': (sn.received_by.real_name or sn.received_by.username) if sn.received_by else '—'}
+      ], cols=3) }}
+    {% endcall %}
+  </div>
+
+  <!-- 出库 + 客户(仅出库或已交付才显示) -->
+  {% if sn.status in ['shipped', 'delivered', 'returned'] or sn.customer_id %}
+  <div style="margin-bottom:20px;">
+    {% call at_section('出库 · 交付') %}
+      {{ at_info_grid(items=[
+        {'k': '客户订单',   'v': sn.sales_order.order_number if sn.sales_order else '—', 'mono': true},
+        {'k': '发货单',     'v': sn.shipment.shipment_number if sn.shipment else '—', 'mono': true},
+        {'k': '出库日期',   'v': sn.ship_out_date.strftime('%Y-%m-%d') if sn.ship_out_date else '—', 'mono': true},
+        {'k': '出库操作',   'v': (sn.shipped_by.real_name or sn.shipped_by.username) if sn.shipped_by else '—'},
+        {'k': '目的地',     'v': sn.destination or '—'},
+        {'k': '客户',       'v': sn.customer.company_name if sn.customer else '—'},
+        {'k': '关联项目',   'v': sn.project.project_name if sn.project else '—'}
+      ], cols=3) }}
+    {% endcall %}
+  </div>
+  {% endif %}
+
+  <!-- 质保(有质保数据才显示) -->
+  {% if sn.warranty_start_date or sn.warranty_end_date %}
+  <div style="margin-bottom:20px;">
+    {% call at_section('质保') %}
+      {{ at_info_grid(items=[
+        {'k': '质保开始', 'v': sn.warranty_start_date.strftime('%Y-%m-%d') if sn.warranty_start_date else '—', 'mono': true},
+        {'k': '质保结束', 'v': sn.warranty_end_date.strftime('%Y-%m-%d') if sn.warranty_end_date else '—', 'mono': true},
+        {'k': '状态',     'v': '在保' if sn.is_in_warranty else ('过保' if sn.is_in_warranty == False else '—')},
+        {'k': '质保备注', 'v': sn.warranty_notes or '—'}
+      ], cols=4) }}
+    {% endcall %}
+  </div>
+  {% endif %}
+
+  <!-- 生命周期 -->
+  <div style="margin-bottom:20px;">
+    {% set tl_subtitle = '' %}
+    {% if timeline and timeline|length > 0 %}
+      {% set tl_subtitle = '<span class="at-mono at-tab-num">' ~ timeline|length ~ ' 条记录</span>' %}
+    {% endif %}
+    {% call at_section('生命周期', subtitle=tl_subtitle) %}
+      {{ at_timeline(timeline) }}
+    {% endcall %}
+  </div>
+
+  <!-- 元数据 -->
+  <div style="margin-bottom:20px;">
+    {% call at_section('元数据') %}
+      {{ at_info_grid(items=[
+        {'k': '创建人',   'v': (sn.created_by.real_name or sn.created_by.username) if sn.created_by else '—'},
+        {'k': '创建时间', 'v': sn.created_at.strftime('%Y-%m-%d %H:%M') if sn.created_at else '—', 'mono': true},
+        {'k': '更新时间', 'v': sn.updated_at.strftime('%Y-%m-%d %H:%M') if sn.updated_at else '—', 'mono': true}
+      ], cols=3) }}
+    {% endcall %}
+  </div>
+
+</main>
+
+</div>
+</div>
+
+<script>
+function atSnStockIn() {
+  ATConfirm.show({
+    title: '序列号入库',
+    icon: 'check',
+    variant: 'accent',
+    message: '填写仓库位置后将该 SN 入库,状态推进至「库存中」。',
+    confirmText: '确认入库',
+    cancelText: '取消',
+    input: {
+      label: '仓库位置',
+      placeholder: '例如:A-01-03',
+      required: true,
+      multiline: false,
+      maxLength: 100,
+    },
+    onConfirm: (warehouseLocation) => {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      fetch('/product-sn/api/{{ sn.id }}/stock-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({ warehouse_location: warehouseLocation }),
+      })
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            ATToast.success('入库成功');
+            setTimeout(() => location.reload(), 700);
+          } else {
+            ATToast.error('入库失败', res.message || '');
+          }
+        })
+        .catch(err => ATToast.error('入库失败', String(err)));
+    },
+  });
+}
+</script>
+
+</body>
+</html>

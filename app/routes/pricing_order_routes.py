@@ -312,14 +312,20 @@ def excel_edit_pricing_order(order_id):
             back_url = url_for('pricing_order.list_pricing_orders')
 
         # 结算目标公司 — 业务规则:
-        # - 厂商直签(is_direct_contract=True) → 厂商自有公司(companies.company_type='vendor')
+        # - 厂商直签(is_direct_contract=True) → 厂商(系统级,不在 companies 表,
+        #   取自字典 type='company' AND is_vendor=true,构造轻量对象供模板展示)
         # - 渠道(否则) → distributor 优先,fallback 到 dealer
         # 不允许 user 切换 —— 业务上是固定的
         target_settle_company = None
         if pricing_order.is_direct_contract:
-            target_settle_company = Company.query.filter_by(
-                company_type='vendor', is_deleted=False
-            ).order_by(Company.id).first()
+            from types import SimpleNamespace
+            from app.models.dictionary import Dictionary
+            vd = Dictionary.query.filter_by(
+                type='company', is_vendor=True, is_active=True
+            ).order_by(Dictionary.sort_order).first()
+            if vd:
+                # id=None 表示"系统级,无 Company FK 关联"
+                target_settle_company = SimpleNamespace(id=None, company_name=vd.value)
         else:
             target_settle_company = pricing_order.distributor or pricing_order.dealer
 
@@ -1483,6 +1489,51 @@ def list_pricing_orders():
                          list_config=list_config,
                          can_view_settlement=can_view_settlement,
                          now_year=datetime.now().year)
+
+
+@pricing_order_bp.route('/at_list')
+@login_required
+def at_list_view():
+    """AT 风格批价单列表 — 复用现有 _build_pricing_order_query / _apply_pricing_order_filters"""
+    from sqlalchemy import or_
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 30
+    tab = request.args.get('tab', 'all')
+    search = request.args.get('search', '').strip()
+
+    base = _build_pricing_order_query(current_user)
+
+    TAB_STATUS_MAP = {
+        'draft':    'draft',
+        'pending':  'pending',
+        'approved': 'approved',
+        'rejected': 'rejected',
+    }
+    tab_counts = {'all': base.count()}
+    for k, v in TAB_STATUS_MAP.items():
+        tab_counts[k] = base.filter(PricingOrder.status == v).count()
+
+    q = base
+    if tab in TAB_STATUS_MAP:
+        q = q.filter(PricingOrder.status == TAB_STATUS_MAP[tab])
+
+    if search:
+        like = f'%{search}%'
+        q = q.filter(or_(
+            PricingOrder.order_number.ilike(like),
+            Project.project_name.ilike(like),
+        )).outerjoin(Project, Project.id == PricingOrder.project_id)
+
+    pagination = q.order_by(PricingOrder.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False,
+    )
+
+    return render_template('pricing_order/at_list.html',
+                           pricing_orders=pagination.items,
+                           pagination=pagination,
+                           tab_counts=tab_counts,
+                           current_tab=tab,
+                           search=search)
 
 
 @pricing_order_bp.route('/api/list')

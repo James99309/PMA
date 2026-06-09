@@ -1,0 +1,217 @@
+{#
+  AT 客户表单模态(创建 + 编辑共用)
+  ──────────────────────────────────────────────────
+  对齐 TW _company_form_fields.html 字段集,纯 AT 设计语言。
+
+  调用:
+    {% from 'components/at_customer_modal.html' import at_customer_form_modal %}
+    {{ at_customer_form_modal('atCreateCustomerModal', mode='create') }}
+    {{ at_customer_form_modal('atEditCustomerModal',   mode='edit')   }}
+
+  JS API(in at-customer-form.js):
+    atOpenCustomerForm('create')                  — 新建
+    atOpenCustomerForm('edit', companyId)         — 编辑(自动加载现有数据)
+    atSubmitCustomerForm('create'|'edit', modalId)
+
+  字段:
+    企业名称 ⭐(create: AI 回填 + 查重) / 地址 ⭐(地图定位) / 行业 /
+    企业类型 ⭐ / 来源 ⭐ / 备注
+
+  依赖:
+    - at_modal_shell / at_field(at_purchase_order.html)
+    - ATToast、AddressPicker、MapPicker、(create态) AiFormEnrich
+    - 后端:
+        GET  /customer/api/company/options
+        GET  /customer/api/company/<id>           (edit)
+        POST /customer/api/company/create         (create)
+        POST /customer/api/company/<id>/update    (edit)
+        GET  /customer/api/similar-companies      (create AI)
+        POST /customer/api/ai-enrich              (create AI)
+#}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
+{% from 'components/at_base.html' import at_btn, at_icon %}
+
+{% macro at_customer_form_modal(modal_id, mode='create') %}
+  {% set _is_edit = (mode == 'edit') %}
+  {% set _title = '编辑客户' if _is_edit else '新建客户' %}
+  {% set _submit_label = '保存修改' if _is_edit else '创建客户' %}
+  {% set _icon = 'pen' if _is_edit else 'plus' %}
+  {% set _p = modal_id ~ '__' %}
+  {% set _submit_btn_id = modal_id ~ '_submit' %}
+  {% set footer = '<button onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
+                ~ 'style="padding:8px 16px;border-radius:8px;background:transparent;'
+                ~ 'border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;'
+                ~ 'margin-right:8px;">取消</button>'
+                ~ '<button id="' ~ _submit_btn_id ~ '" '
+                ~ 'onclick="atSubmitCustomerForm(\'' ~ mode ~ '\', \'' ~ modal_id ~ '\')" '
+                ~ 'style="padding:8px 18px;border-radius:8px;background:var(--accent);'
+                ~ 'color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;'
+                ~ 'display:inline-flex;align-items:center;gap:6px;">'
+                ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+                ~ ('<path d="M5 13l4 4L19 7"/>' if _is_edit else '<path d="M12 5v14M5 12h14"/>')
+                ~ '</svg> ' ~ _submit_label ~ '</button>' %}
+  {% call at_modal_shell(modal_id, _title, icon=_icon, width=720, footer_html=footer) %}
+    {% set _inp = "width:100%;box-sizing:border-box;height:34px;padding:0 10px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
+                   font-size:13px;outline:none;transition:border-color 120ms;" %}
+    {% set _ta  = _inp ~ ';height:auto;padding:8px 10px;resize:vertical;min-height:80px;line-height:1.5;' %}
+
+    {# 企业名称 — 必填 + (create) AI 智能回填 + 查重 #}
+    {% call at_field('企业名称', required=true, hint=('输入名称后可点 AI 智能回填行业/类型/地址' if not _is_edit else '修改后会重新查重')) %}
+      <div style="display:flex;gap:8px;position:relative;">
+        <div style="position:relative;flex:1;">
+          <input type="text" id="{{ _p }}name" data-field-code="company_name"
+                 autocomplete="off" placeholder="请输入企业名称(必填)" style="{{ _inp }}">
+          <div id="{{ _p }}similarList" class="hidden"
+               style="position:absolute;top:100%;left:0;right:0;z-index:10;
+                      margin-top:4px;background:var(--bg-elev);border:1px solid var(--line-2);
+                      border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,0.12);
+                      max-height:220px;overflow-y:auto;font-size:12.5px;"></div>
+        </div>
+        {% if not _is_edit %}
+        <button type="button" id="{{ _p }}aiBtn" disabled
+                title="先输入企业名称"
+                style="flex-shrink:0;padding:0 12px;height:34px;border-radius:6px;
+                       border:1px solid var(--line-2);background:var(--bg-sunk);
+                       color:var(--ink-4);font-size:12px;font-weight:500;cursor:not-allowed;
+                       opacity:0.6;display:inline-flex;align-items:center;gap:5px;
+                       transition:all 120ms;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+          </svg>
+          AI
+        </button>
+        {% endif %}
+      </div>
+      {% if not _is_edit %}
+      <div id="{{ _p }}aiPanel" class="hidden"
+           style="margin-top:10px;padding:12px;border:1px solid var(--accent-soft);
+                  border-radius:8px;background:var(--accent-tint);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:12.5px;font-weight:500;color:var(--ink);">AI 建议</span>
+          <button type="button" id="{{ _p }}aiClose"
+                  style="background:transparent;border:0;color:var(--ink-3);cursor:pointer;
+                         padding:2px;border-radius:4px;font-size:14px;line-height:1;">✕</button>
+        </div>
+        <div id="{{ _p }}aiContent" style="font-size:12.5px;color:var(--ink-2);
+                                            display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+      {% endif %}
+    {% endcall %}
+
+    {# 地址 — 必填 + 地图定位 #}
+    {% call at_field('地址', required=true, hint='可直接输入,或点右侧定位按钮在地图上选取') %}
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="{{ _p }}address" data-field-code="address" autocomplete="off"
+               placeholder="输入地址,或点击右侧定位按钮" style="{{ _inp }}">
+        <button type="button"
+                onclick="if(window.AddressPicker){var _n=(document.getElementById('{{ _p }}name')||{}).value||'';AddressPicker.open('{{ _p }}address',{initialQuery:_n.trim()});}"
+                title="地图定位"
+                style="flex-shrink:0;padding:0 12px;height:34px;border-radius:6px;
+                       border:1px solid var(--line-2);background:var(--bg-elev);
+                       color:var(--ink-3);cursor:pointer;
+                       display:inline-flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            <circle cx="12" cy="11" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <input type="hidden" id="{{ _p }}address_country">
+      <input type="hidden" id="{{ _p }}address_region">
+      <input type="hidden" id="{{ _p }}address_city">
+      <input type="hidden" id="{{ _p }}address_latitude">
+      <input type="hidden" id="{{ _p }}address_longitude">
+    {% endcall %}
+
+    {# 行业 + 企业类型 #}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      {% call at_field('行业') %}
+        <select id="{{ _p }}industry" data-field-code="industry" style="{{ _inp }}">
+          <option value="">请选择行业</option>
+        </select>
+      {% endcall %}
+      {% call at_field('企业类型', required=true) %}
+        <select id="{{ _p }}companyType" data-field-code="company_type" style="{{ _inp }}">
+          <option value="">请选择企业类型</option>
+        </select>
+      {% endcall %}
+    </div>
+
+    {# 来源 + 归属人 并排 #}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      {% call at_field('来源', required=true) %}
+        <select id="{{ _p }}source" data-field-code="source" style="{{ _inp }}">
+          <option value="">请选择来源</option>
+        </select>
+      {% endcall %}
+      {# 归属人 — 创建态默认当前用户;编辑态:can_change_owner 时下拉可选,否则 readonly 显示 #}
+      {% call at_field('归属人', hint='默认当前用户;有权限可转交') %}
+        <select id="{{ _p }}ownerId" style="{{ _inp }}">
+          <option value="">— 加载中… —</option>
+        </select>
+      {% endcall %}
+    </div>
+
+    {# 备注 #}
+    {% call at_field('备注') %}
+      <textarea id="{{ _p }}notes" data-field-code="notes" rows="3"
+                placeholder="请输入备注信息" style="{{ _ta }}"></textarea>
+    {% endcall %}
+
+    {# Tailwind class 兼容样式(create 态 AI 面板用) #}
+    {% if not _is_edit %}
+    <style>
+      #{{ modal_id }} .hidden { display: none !important; }
+      #{{ modal_id }} #{{ _p }}aiContent button.bg-primary,
+      #{{ modal_id }} #{{ _p }}aiContent button[id^="_aiApplyBtn"] {
+        flex: 1; padding: 8px 14px; border-radius: 6px;
+        background: var(--accent); color: #fff; border: 0;
+        font-size: 12.5px; font-weight: 500; cursor: pointer;
+        transition: background 120ms;
+      }
+      #{{ modal_id }} #{{ _p }}aiContent button.bg-primary:hover,
+      #{{ modal_id }} #{{ _p }}aiContent button[id^="_aiApplyBtn"]:hover {
+        background: var(--ink);
+      }
+      #{{ modal_id }} #{{ _p }}aiContent label.flex {
+        display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer;
+      }
+      #{{ modal_id }} #{{ _p }}aiContent input[type="radio"] {
+        accent-color: var(--accent); margin: 0;
+      }
+      #{{ modal_id }} #{{ _p }}aiContent .text-xs { font-size: 11px; color: var(--ink-3); margin: 0; }
+      #{{ modal_id }} #{{ _p }}aiContent .text-sm { font-size: 12.5px; color: var(--ink); margin: 0; }
+      #{{ modal_id }} #{{ _p }}aiContent .text-slate-500,
+      #{{ modal_id }} #{{ _p }}aiContent .text-slate-400 { color: var(--ink-3); }
+      #{{ modal_id }} #{{ _p }}aiContent .text-slate-800,
+      #{{ modal_id }} #{{ _p }}aiContent .text-slate-200 { color: var(--ink); }
+      #{{ modal_id }} #{{ _p }}aiContent .text-sm p { margin-top: 2px; color: var(--ink); }
+      #{{ modal_id }} #{{ _p }}aiContent .space-y-1 > * + * { margin-top: 4px; }
+      #{{ modal_id }} #{{ _p }}aiContent .pt-1 { padding-top: 4px; }
+      #{{ modal_id }} #{{ _p }}aiContent .gap-2 { gap: 8px; }
+      #{{ modal_id }} #{{ _p }}aiContent .flex { display: flex; }
+      #{{ modal_id }} #{{ _p }}aiContent .mb-1 { margin-bottom: 4px; }
+      #{{ modal_id }} #{{ _p }}similarList a,
+      #{{ modal_id }} #{{ _p }}similarList > div {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+        color: var(--ink); text-decoration: none; transition: background 100ms;
+      }
+      #{{ modal_id }} #{{ _p }}similarList a:last-child,
+      #{{ modal_id }} #{{ _p }}similarList > div:last-child { border-bottom: 0; }
+      #{{ modal_id }} #{{ _p }}similarList a:hover { background: var(--bg-page); }
+      #{{ modal_id }} #{{ _p }}similarList .text-slate-800 { color: var(--ink); }
+      #{{ modal_id }} #{{ _p }}similarList .text-slate-500,
+      #{{ modal_id }} #{{ _p }}similarList .text-slate-400 { color: var(--ink-3); }
+      #{{ modal_id }} #{{ _p }}similarList .text-xs { font-size: 11px; }
+      #{{ modal_id }} #{{ _p }}similarList .text-red-500 { color: var(--danger); }
+      #{{ modal_id }} #{{ _p }}similarList .text-yellow-500 { color: var(--warn); }
+      #{{ modal_id }} #{{ _p }}similarList .font-medium { font-weight: 500; }
+      #{{ modal_id }} #{{ _p }}similarList .ml-1 { margin-left: 4px; }
+    </style>
+    {% endif %}
+  {% endcall %}
+{% endmacro %}

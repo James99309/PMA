@@ -1,0 +1,132 @@
+{#
+  AT 订单明细表 · 可复用组件
+
+  10 列可编辑明细表 + 拖拽排序 + 行内点击替换 + 货币切换 + 大字合计
+  适用场景:采购订单 / 报价单 / 批价单 / 销售订单 等需要"挑产品 + 编明细"的表单
+
+  使用:
+    1. 模板顶部 import:
+       {% from 'components/at_item_table.html' import at_item_table_section %}
+
+    2. 在表单中渲染:
+       {{ at_item_table_section() }}
+
+    3. 引入控制器 JS:
+       <script src="{{ url_for('static', filename='js/at-item-table.js') }}"></script>
+
+    4. 初始化(调用方提供「添加产品」和「客户需求导入」两个动作):
+       ATItemTable.init({
+         onAddProduct: function (replaceKey) {
+           // 通常打开产品挑选器:
+           ATProductPicker.open({
+             replaceMode: !!replaceKey,
+             onPick: (p) => replaceKey
+               ? ATItemTable.replaceItem(replaceKey, p)
+               : ATItemTable.addItem(p)
+           });
+         },
+         onImportNeeds: function () { /* 打开需求池 */ },
+         onChange:      function (items, total, currency) { /* 联动表单提交状态 */ }
+       });
+
+    5. 提交时取数据:
+       const body = {
+         currency: ATItemTable.getCurrency(),
+         details:  ATItemTable.getItems(),
+         ...
+       };
+
+  组件 API(window.ATItemTable):
+    init(opts)             一次初始化(可重复调用,会覆盖回调)
+    addItem(p)             添加一个产品到末尾
+    replaceItem(key, p)    按 key 替换某行的产品信息(保留 qty)
+    removeItem(key)        删除某行
+    setItems(arr)          整体替换 items
+    getItems()             获取当前 items 数组(每条:{product_id, product_name, ...})
+    getCurrency()          货币代码 CNY/USD/EUR/HKD
+    getTotal()             合计金额(数字)
+    isEmpty()              true 无明细
+    clear()                清空
+#}
+
+{% from 'components/at_base.html' import at_icon %}
+
+
+{% macro at_item_table_section() %}
+  <div style="margin-top:22px;background:var(--bg-page);border:1px solid var(--line);
+              border-radius:10px;overflow:hidden;">
+    <div style="overflow-x:auto;">
+      <table style="width:100%;min-width:1020px;font-size:13px;border-collapse:separate;border-spacing:0;">
+        <thead>
+          <tr>
+            {% for l, a, w in [
+              ('',          'left',  '30px'),
+              ('产品名称',  'left',  '220px'),
+              ('型号',      'left',  '130px'),
+              ('编码',      'left',  '120px'),
+              ('规格描述',  'left',  '260px'),
+              ('数量',      'right', '76px'),
+              ('单位',      'left',  '64px'),
+              ('单价',      'right', '110px'),
+              ('金额',      'right', '120px'),
+              ('',          'left',  '36px')
+            ] %}
+            <th style="text-align:{{ a }};padding:10px 12px 12px;font-size:10.5px;font-weight:500;
+                       color:var(--ink-4);letter-spacing:0.06em;text-transform:uppercase;
+                       {% if w %}width:{{ w }};{% endif %}white-space:nowrap;">
+              {% if l == '产品名称' %}产品名称 <span style="color:var(--danger);">*</span>{% else %}{{ l }}{% endif %}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody id="atItBody">
+          <tr id="atItEmpty">
+            <td colspan="10" style="padding:0;">
+              <button type="button" id="atItEmptyAdd"
+                      onmouseenter="this.style.background='var(--bg-hover)'"
+                      onmouseleave="this.style.background='transparent'"
+                      style="width:100%;padding:18px 14px;display:flex;align-items:center;justify-content:flex-start;gap:10px;
+                             color:var(--ink-3);font-size:13px;border-top:1px solid var(--line-soft);
+                             background:transparent;border-left:0;border-right:0;border-bottom:0;cursor:pointer;transition:background 100ms;">
+                {{ at_icon('plus', 14) }} 点击选择产品…
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="padding:10px 14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;">
+      <button type="button" id="atItAddBtn"
+              style="height:28px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;
+                     background:transparent;color:var(--ink);border:1px solid var(--line-2);
+                     border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">
+        {{ at_icon('plus', 14) }} 添加产品
+      </button>
+      <button type="button" id="atItImportBtn"
+              style="height:28px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;
+                     background:transparent;color:var(--ink);border:1px solid var(--line-2);
+                     border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">
+        {{ at_icon('cart', 14) }} 从客户需求导入
+      </button>
+      <div style="flex:1;"></div>
+      <span class="at-dim" style="font-size:12px;">货币</span>
+      <div style="display:inline-flex;align-items:center;height:30px;padding:0 8px 0 10px;
+                  background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
+                  font-size:12px;position:relative;min-width:100px;box-sizing:border-box;">
+        <select id="atItCurrency"
+                style="appearance:none;border:0;outline:none;background:transparent;
+                       color:var(--ink);font:inherit;padding-right:18px;width:100%;">
+          <option value="CNY">人民币</option>
+          <option value="USD">美元</option>
+          <option value="EUR">欧元</option>
+          <option value="HKD">港币</option>
+        </select>
+        <span style="position:absolute;right:6px;color:var(--ink-3);pointer-events:none;">{{ at_icon('chevd', 12) }}</span>
+      </div>
+      <span class="at-dim" style="font-size:12px;margin-left:14px;">合计金额</span>
+      <span class="at-mono at-tab-num" id="atItTotal"
+            style="font-size:18px;font-weight:600;color:var(--ink);">¥0.00</span>
+    </div>
+  </div>
+{% endmacro %}

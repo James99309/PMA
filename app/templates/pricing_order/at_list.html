@@ -1,0 +1,121 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
+
+{% block sidebar_active %}pricing_order{% endblock %}
+{% block page_title %}批价单{% endblock %}
+{% block category_label %}PRICING · 订单中心{% endblock %}
+{% block page_description %}从报价单或项目发起的批价审批流,审批通过即可生成结算单。{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">订单中心</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">批价单</span>
+{% endblock %}
+
+{% block tabs %}
+{% set _tabs = [
+  {'k':'all',      'l':'全部',   'c':tab_counts.all},
+  {'k':'draft',    'l':'草稿',   'c':tab_counts.draft},
+  {'k':'pending',  'l':'审批中', 'c':tab_counts.pending},
+  {'k':'approved', 'l':'已批准', 'c':tab_counts.approved},
+  {'k':'rejected', 'l':'已驳回', 'c':tab_counts.rejected}
+] %}
+{% for t in _tabs %}
+{% set active = (current_tab == t.k) %}
+<a href="{{ url_for('pricing_order.at_list_view', tab=t.k, search=search) }}"
+   style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
+          position:relative;text-decoration:none;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;white-space:nowrap;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ t.l }}</span>
+  <span class="at-tab-num at-mono"
+        style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
+</a>
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+<form method="get" action="{{ url_for('pricing_order.at_list_view') }}"
+      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <input type="hidden" name="tab" value="{{ current_tab }}">
+  {{ at_input(name='search', value=search, placeholder='搜索批价单号 / 项目名…', icon_l='search', width='320px') }}
+  {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
+</form>
+{% endblock %}
+
+{% block thead %}
+{% for h, a in [('批价单号','left'),('项目','left'),('批价总额','right'),('折扣率','right'),
+                ('状态','left'),('负责人','left'),('创建时间','left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% for o in pricing_orders %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+{% set currency_sym = '$' if (o.currency or '') == 'USD' else '¥' %}
+<tr class="at-row" data-href="{{ url_for('pricing_order.edit_pricing_order', order_id=o.id) }}"
+    onclick="location.href=this.dataset.href"
+    style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
+      {{ o.order_number }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:300px;color:var(--ink-2);font-size:12.5px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    {{ o.project.project_name if o.project else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <span class="at-mono at-tab-num"
+          style="color:{{ 'var(--ink)' if o.pricing_total_amount else 'var(--ink-4)' }};font-size:13px;">
+      {{ currency_sym }}{{ '{:,.2f}'.format(o.pricing_total_amount or 0) }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="color:var(--ink-3);font-size:12.5px;">
+      {% if o.pricing_total_discount_rate %}{{ '{:.1f}'.format(o.pricing_total_discount_rate * 100) }}%{% else %}—{% endif %}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    {{ at_status_pill(o.status, scope='pricing_order') }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
+    {{ (o.creator.real_name or o.creator.username) if o.creator else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '—' }}
+    </span>
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    没有符合筛选条件的批价单
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block pagination %}
+{% if pagination.pages > 1 %}
+<span class="at-mono at-dim" style="font-size:11.5px;">
+  第 {{ pagination.page }} / {{ pagination.pages }} 页
+</span>
+<div style="display:flex;gap:6px;">
+  {% if pagination.has_prev %}
+    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+              href=url_for('pricing_order.at_list_view', tab=current_tab, page=pagination.prev_num, search=search)) }}
+  {% endif %}
+  {% if pagination.has_next %}
+    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+              href=url_for('pricing_order.at_list_view', tab=current_tab, page=pagination.next_num, search=search)) }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -5,12 +5,28 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def update_inventory(company_id, product_id, quantity_change, transaction_type, description=None, reference_type=None, reference_id=None, user_id=None):
+
+def get_vendor_warehouse_label():
+    """返回厂商自营仓库的展示名称(取自字典 type='company' AND is_vendor=true 的 value)。
+
+    厂商在系统中只存在于 dictionaries 表(不在 companies),这里读字典作为单一
+    数据来源,UI 展示时用 "{value} · 自营仓" 形态;字典为空时返回 "厂商自营仓"。
+    """
+    from app.models.dictionary import Dictionary
+    d = Dictionary.query.filter_by(
+        type='company', is_vendor=True, is_active=True
+    ).order_by(Dictionary.sort_order).first()
+    base = (d.value if d else '厂商') if d else '厂商'
+    return f"{base} · 自营仓"
+
+def update_inventory(company_id, product_id, quantity_change, transaction_type,
+                     description=None, reference_type=None, reference_id=None, user_id=None,
+                     target_type='customer'):
     """
     更新库存数量并记录变动
-    
+
     Args:
-        company_id: 公司ID
+        company_id: 公司ID (target_type='vendor' 时忽略,可传 None)
         product_id: 产品ID
         quantity_change: 变动数量（正数入库，负数出库）
         transaction_type: 变动类型 ('in', 'out', 'settlement', 'adjustment')
@@ -18,25 +34,35 @@ def update_inventory(company_id, product_id, quantity_change, transaction_type, 
         reference_type: 关联单据类型
         reference_id: 关联单据ID
         user_id: 操作用户ID
-        
+        target_type: 'customer' (默认, 落到 company_id 的公司仓) 或
+                     'vendor' (落到厂商自营仓库, is_vendor_warehouse=true, company_id=NULL)
+
     Returns:
         tuple: (success, message, inventory_obj)
     """
     try:
-        # 查找或创建库存记录
-        inventory = Inventory.query.filter_by(
-            company_id=company_id, 
-            product_id=product_id
-        ).first()
-        
+        # 查找或创建库存记录(按 target_type 分流)
+        if target_type == 'vendor':
+            inventory = Inventory.query.filter_by(
+                is_vendor_warehouse=True,
+                product_id=product_id
+            ).first()
+        else:
+            inventory = Inventory.query.filter_by(
+                company_id=company_id,
+                product_id=product_id,
+                is_vendor_warehouse=False
+            ).first()
+
         if not inventory:
             # 如果是出库或结算操作且没有库存记录，则失败
             if quantity_change < 0:
                 return False, "库存不足，无法进行出库操作", None
-                
+
             # 创建新的库存记录
             inventory = Inventory(
-                company_id=company_id,
+                company_id=(None if target_type == 'vendor' else company_id),
+                is_vendor_warehouse=(target_type == 'vendor'),
                 product_id=product_id,
                 quantity=0,
                 created_by_id=user_id
@@ -71,13 +97,31 @@ def update_inventory(company_id, product_id, quantity_change, transaction_type, 
         
         db.session.commit()
         
-        logger.info(f"库存更新成功：公司ID {company_id}，产品ID {product_id}，变动 {quantity_change}")
+        _target_label = '[厂商仓]' if target_type == 'vendor' else f'公司ID {company_id}'
+        logger.info(f"库存更新成功：{_target_label}，产品ID {product_id}，变动 {quantity_change}")
         return True, "库存更新成功", inventory
-        
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"库存更新失败：{str(e)}")
         return False, f"库存更新失败：{str(e)}", None
+
+
+def link_serials_to_inventory(purchase_detail_id, inventory_id, user_id=None):
+    """备货入库后，将该采购明细下尚未绑定库存的序列号绑定到对应库存记录。
+
+    序列号在创建发货单时已写入 ProductSerialNumber（关联 purchase_detail_id），
+    但入库时未回填 inventory_id —— 此处补上，使库存/SN管理器能追踪 SN 的入库归属。
+    不提交事务，由调用方统一 commit。
+    """
+    from app.models.product_serial_number import ProductSerialNumber
+    updates = {'inventory_id': inventory_id}
+    if user_id:
+        updates['received_by_id'] = user_id
+    ProductSerialNumber.query.filter_by(
+        purchase_detail_id=purchase_detail_id,
+        inventory_id=None
+    ).update(updates, synchronize_session=False)
 
 def process_settlement(company_id, settlement_items, description=None, user_id=None):
     """

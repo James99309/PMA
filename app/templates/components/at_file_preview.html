@@ -1,0 +1,64 @@
+{#
+  通用文件预览模态(AT 设计系统)
+
+  用法:
+    1. 在页面底部 include 一次:{{ at_file_preview_modal() }}
+    2. 加载 JS:<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+    3. 任何地方调用 ATFilePreview.open(label, files, notes) 唤起
+
+  files: [{name, url, size?, type?, uploaded_at?}]
+  label: 显示在标题左上的 pill(可空)
+  notes: 文件预览下方备注(可空)
+
+  特性:
+    - 单文件 → 580px 宽,直接展示
+    - 多文件 → 820px 宽,左侧文件列表 + 右侧 pane
+    - 图片直显、PDF 用 iframe、其他类型显示文件类型色块占位
+    - 备注块在文件信息下方(若有)
+#}
+{% from 'components/at_base.html' import at_icon %}
+
+{% macro at_file_preview_modal(modal_id='atFilePreview') %}
+  <style>
+    @keyframes at-fade-in   { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes at-scale-in  { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  </style>
+  <div id="{{ modal_id }}"
+       onclick="if (event.target === this) ATFilePreview.close()"
+       style="position:fixed;inset:0;z-index:100;display:none;
+              background:rgba(31,30,27,0.32);backdrop-filter:blur(2px);
+              align-items:center;justify-content:center;padding:20px;
+              animation:at-fade-in 180ms ease;">
+    <div id="{{ modal_id }}Shell"
+         style="width:100%;max-width:580px;max-height:90vh;
+                display:flex;flex-direction:column;
+                background:var(--bg-elev);border-radius:12px;
+                box-shadow:0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px var(--line);
+                animation:at-scale-in 200ms cubic-bezier(.2,.7,.2,1);
+                overflow:hidden;">
+      <header style="padding:18px 22px 12px;display:flex;align-items:center;gap:10px;">
+        <span style="width:30px;height:30px;border-radius:7px;
+                     background:var(--accent-tint);color:var(--accent);
+                     display:inline-flex;align-items:center;justify-content:center;">
+          {{ at_icon('file', 16) }}
+        </span>
+        <h3 class="at-serif" id="{{ modal_id }}Title"
+            style="margin:0;font-size:18px;font-weight:500;letter-spacing:0.01em;flex:1;">附件预览</h3>
+        <button onclick="ATFilePreview.close()"
+                style="color:var(--ink-3);padding:4px;border-radius:6px;">
+          {{ at_icon('close', 18) }}
+        </button>
+      </header>
+      <div id="{{ modal_id }}Body"
+           style="padding:8px 22px 16px;overflow-y:auto;flex:1;min-height:0;"></div>
+      <footer style="padding:10px 22px 18px;display:flex;justify-content:flex-end;gap:8px;">
+        <button onclick="ATFilePreview.close()"
+                style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;
+                       background:transparent;color:var(--ink);border:1px solid var(--line-2);
+                       border-radius:6px;font-size:13px;font-weight:500;letter-spacing:0.01em;">
+          关闭
+        </button>
+      </footer>
+    </div>
+  </div>
+{% endmacro %}

@@ -1,9 +1,9 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
 {% from 'components/tw_tabs.html' import render_tw_tabs, render_tw_tabs_script with context %}
-{% from 'components/tw_info_card.html' import render_tw_info_card with context %}
-{% from 'components/tw_card_shell.html' import render_tw_card_shell with context %}
-{% from 'components/tw_buttons.html' import render_tw_button with context %}
+{% from 'components/tw_info_card.html' import tw_info_card with context %}
+{% from 'components/tw_card_shell.html' import tw_card_shell with context %}
+{% from 'components/tw_buttons.html' import tw_btn with context %}
 {% from 'components/tw_permission_panel.html' import render_tw_permission_readonly_table with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_user_status_badge, render_tw_user_role_badge, render_tw_permission_level_badge with context %}
 <!DOCTYPE html>
@@ -104,7 +104,7 @@
 
         <!-- 账户设置 -->
         <div x-show="activeTab === 'account'" x-cloak>
-            {% call render_tw_card_shell(title=_('编辑个人信息'), icon='edit') %}
+            {% call tw_card_shell(title=_('编辑个人信息')) %}
             <form method="POST" action="{{ url_for('user.profile') }}" class="max-w-xl space-y-6">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -261,7 +261,7 @@
 
                 <!-- 提交按钮 -->
                 <div class="pt-4">
-                    {{ render_tw_button(_('保存更改'), type='submit', icon='save', variant='primary') }}
+                    {{ tw_btn(_('保存更改'), type='submit', icon='save', variant='primary') }}
                 </div>
             </form>
             {% endcall %}
@@ -269,7 +269,7 @@
 
         <!-- 模块权限 -->
         <div x-show="activeTab === 'perm'" x-cloak>
-            {% call render_tw_card_shell(title=_('当前权限'), icon='verified_user') %}
+            {% call tw_card_shell(title=_('当前权限')) %}
             <!-- 提示信息 -->
             <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <div class="flex items-start gap-3">
@@ -308,7 +308,7 @@
 
         <!-- 数据归属权限 -->
         <div x-show="activeTab === 'aff'" x-cloak>
-            {% call render_tw_card_shell(title=_('数据归属权限'), icon='group') %}
+            {% call tw_card_shell(title=_('数据归属权限')) %}
             <!-- 提示信息 -->
             <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <div class="flex items-start gap-3">
@@ -374,7 +374,7 @@
 
         <!-- 绩效管理 -->
         <div x-show="activeTab === 'performance'" x-cloak>
-            {% call render_tw_card_shell(title=_('个人绩效管理'), icon='trending_up') %}
+            {% call tw_card_shell(title=_('个人绩效管理')) %}
             <!-- 入口卡片 -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <!-- 绩效统计 -->
@@ -388,7 +388,7 @@
                             <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('查看我的绩效数据和完成情况') }}</p>
                             {% if has_permission('performance', 'view') %}
                             <div class="mt-4">
-                                {{ render_tw_button(_('查看绩效统计'), url=url_for('performance.index'), icon='visibility', variant='primary', size='sm') }}
+                                {{ tw_btn(_('查看绩效统计'), href=url_for('performance.index'), icon='visibility', variant='primary', size='sm') }}
                             </div>
                             {% endif %}
                         </div>
@@ -406,7 +406,7 @@
                             <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('设置和管理我的绩效目标') }}</p>
                             {% if has_permission('performance', 'create') or has_permission('performance', 'edit') %}
                             <div class="mt-4">
-                                {{ render_tw_button(_('设置目标'), url=url_for('performance.target_settings'), icon='settings', variant='success', size='sm') }}
+                                {{ tw_btn(_('设置目标'), href=url_for('performance.target_settings'), icon='settings', variant='success', size='sm') }}
                             </div>
                             {% endif %}
                         </div>

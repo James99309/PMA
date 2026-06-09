@@ -132,7 +132,8 @@ def index():
     expense_monthly_stats = []
     expense_year_total = 0
     user_settlement_currency = current_user.settlement_currency or Config.DEFAULT_CURRENCY
-    user_currency_symbol = get_currency_symbol(user_settlement_currency)
+    user_currency_symbol = get_currency_symbol(user_settlement_currency)  # 仅报销用(用户结算货币)
+    db_currency_symbol = get_currency_symbol(Config.DEFAULT_CURRENCY)     # 统计用(数据库底层货币,跟 PMA_DB_TYPE 走)
     # 获取 CNY → 用户结算货币 的汇率
     user_exchange_rate = exchange_rate_service.get_exchange_rate('CNY', user_settlement_currency)
     if current_user.has_permission('expense', 'view'):
@@ -210,7 +211,21 @@ def index():
         logger.warning(f"获取AI启用状态失败: {str(e)}")
         ai_enabled = False
 
-    return render_template('index.html',
+    # AT 仪表盘 — 一次性聚合全部数据(对齐设计稿 DASH schema)
+    from app.helpers.at_dashboard_helpers import build_dashboard, role_layout
+    dash = build_dashboard(
+        current_user,
+        monthly_stats=expense_monthly_stats,
+        year_total=expense_year_total,
+        db_currency_symbol=db_currency_symbol,         # 统计用(数据库底层货币)
+        expense_currency_symbol=user_currency_symbol,  # 报销用(用户结算货币)
+    )
+    layout = role_layout(current_user)
+
+    # ?legacy=1 fallback 到老 tw 仪表盘(过渡期保留,出问题可回退)
+    template = 'index.html' if request.args.get('legacy') == '1' else 'main/at_dashboard.html'
+
+    return render_template(template,
                          now=datetime.now(),
                          recent_projects=recent_projects,
                          recent_quotations=recent_quotations,
@@ -225,7 +240,10 @@ def index():
                          last_upgrade_time=last_upgrade_time,
                          show_manual_download=show_manual_download,
                          ai_enabled=ai_enabled,
-                         whats_new_features=whats_new_features)
+                         whats_new_features=whats_new_features,
+                         # AT 新增
+                         dash=dash,
+                         layout=layout)
 
 @main.route('/api/recent_work_records')
 @login_required

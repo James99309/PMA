@@ -1,0 +1,228 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles, at_action_timeline %}
+{% from 'components/at_contact_modal.html' import at_contact_form_modal %}
+{% from 'components/at_action_modal.html' import at_action_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ contact.name }} · 联系人详情</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-contact-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-action-modal.js') }}"></script>
+{{ at_detail_styles() }}
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='customer') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+{# 顶栏面包屑 #}
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="max-width:1400px;margin:0 auto;padding:14px 40px;display:flex;align-items:center;gap:8px;">
+    <a href="{{ url_for('customer.at_list_view') }}"
+       style="font-size:13px;color:var(--ink-3);text-decoration:none;">客户管理</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('customer.at_view_company', company_id=company.id) }}"
+       style="font-size:13px;color:var(--ink-3);text-decoration:none;">{{ company.company_name }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);">{{ contact.name }}</span>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 80px;min-width:0;">
+
+  {# Hero 区 #}
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px;">
+    <div style="flex:1;min-width:0;">
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        CONTACT · {{ company.company_name }}
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <h1 class="at-serif" style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.15;">
+          {{ contact.name }}
+        </h1>
+        {% if contact.is_primary %}
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+                     border-radius:4px;background:var(--accent-tint);color:var(--accent);
+                     font-size:11px;font-weight:500;">主要联系人</span>
+        {% endif %}
+      </div>
+      <div style="margin-top:8px;color:var(--ink-3);font-size:13px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        {% if contact.position %}<span>{{ contact.position }}</span>{% endif %}
+        {% if contact.department %}<span style="color:var(--ink-4);">·</span><span>{{ contact.department }}</span>{% endif %}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if perms.can_edit %}
+        {{ at_btn('编辑', variant='ghost', size='sm', icon_l='pen',
+                  onclick='atOpenEditContact()') }}
+      {% endif %}
+      {% if perms.can_delete %}
+        <button type="button" onclick='atConfirmDeleteContact({{ contact.id }}, {{ contact.name|tojson }})'
+                style="height:32px;padding:0 12px;border-radius:6px;
+                       border:1px solid var(--danger-soft, #f1d4cf);background:var(--bg-elev);
+                       color:var(--danger);font-size:12px;font-weight:500;cursor:pointer;
+                       display:inline-flex;align-items:center;gap:5px;">
+          {{ at_icon('cancel', 13) }} 删除
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 主体两栏:档案 / 跟进 #}
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:24px;align-items:start;">
+
+    {# 左栏:档案 #}
+    <section class="at-section">
+      <header class="at-section-h">
+        <h3 class="at-section-title">联系人档案</h3>
+      </header>
+      <div class="at-section-body" style="padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;">
+        {% set _label = "display:block;font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px;" %}
+        <div>
+          <span style="{{ _label }}">部门</span>
+          <div style="font-size:13.5px;color:var(--ink);">{{ contact.department or '—' }}</div>
+        </div>
+        <div>
+          <span style="{{ _label }}">职位</span>
+          <div style="font-size:13.5px;color:var(--ink);">{{ contact.position or '—' }}</div>
+        </div>
+        <div>
+          <span style="{{ _label }}">电话</span>
+          <div style="font-size:13.5px;color:var(--ink);" class="at-mono">
+            {% if contact.phone %}<a href="tel:{{ contact.phone }}" style="color:var(--accent);text-decoration:none;">{{ contact.phone }}</a>{% else %}—{% endif %}
+          </div>
+        </div>
+        <div>
+          <span style="{{ _label }}">邮箱</span>
+          <div style="font-size:13.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;">
+            {% if contact.email %}<a href="mailto:{{ contact.email }}" style="color:var(--accent);text-decoration:none;">{{ contact.email }}</a>{% else %}—{% endif %}
+          </div>
+        </div>
+        <div>
+          <span style="{{ _label }}">所属企业</span>
+          <div style="font-size:13.5px;">
+            <a href="{{ url_for('customer.at_view_company', company_id=company.id) }}"
+               style="color:var(--accent);text-decoration:none;">{{ company.company_name }}</a>
+          </div>
+        </div>
+        <div>
+          <span style="{{ _label }}">负责人</span>
+          <div style="font-size:13.5px;color:var(--ink);">
+            {{ (contact.owner.real_name or contact.owner.username) if contact.owner else '未指定' }}
+          </div>
+        </div>
+        {% if contact.notes %}
+        <div style="grid-column:span 2;padding-top:12px;border-top:1px solid var(--line-soft);">
+          <span style="{{ _label }}">备注</span>
+          <div style="font-size:13px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap;">{{ contact.notes }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    {# 右栏:跟进记录 #}
+    <div>
+      {{ at_action_timeline(
+            actions,
+            add_url=('javascript:atOpenContactAddAction()') if perms.can_create_action else none,
+            max_height='640px',
+            show_context=true) }}
+    </div>
+  </div>
+
+</main>
+
+</div>
+</div>
+
+{# 编辑联系人 modal #}
+{% if perms.can_edit %}
+{{ at_contact_form_modal('atEditContactModal', mode='edit') }}
+<script>
+window.atOpenEditContact = function () {
+  atOpenContactForm('edit', {
+    contactId:  {{ contact.id }},
+    name:       {{ contact.name|tojson }},
+    department: {{ (contact.department or '')|tojson }},
+    position:   {{ (contact.position or '')|tojson }},
+    phone:      {{ (contact.phone or '')|tojson }},
+    email:      {{ (contact.email or '')|tojson }},
+    notes:      {{ (contact.notes or '')|tojson }},
+    is_primary: {{ ('true' if contact.is_primary else 'false') }}
+  });
+};
+</script>
+{% endif %}
+
+{# 删除联系人 #}
+{% if perms.can_delete %}
+<script>
+window.atConfirmDeleteContact = function (contactId, contactName) {
+  ATConfirm.show({
+    title: '删除联系人',
+    message: '确认删除联系人「' + contactName + '」?\n此操作无法撤销,关联的跟进记录会保留但失去联系人指向。',
+    variant: 'danger', icon: 'trash',
+    confirmText: '确认删除', cancelText: '取消',
+    onConfirm: async function () {
+      try {
+        var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+        var resp = await fetch('/customer/api/contacts/' + contactId + '/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }
+        });
+        var data = await resp.json();
+        if (data.success) {
+          ATToast.success('已删除', '返回客户详情…');
+          setTimeout(function () {
+            location.href = '/customer/' + (data.company_id || {{ company.id }}) + '/at_view';
+          }, 400);
+        } else {
+          ATToast.error(data.message || '删除失败');
+        }
+      } catch (e) { ATToast.error('网络错误,请重试'); }
+    }
+  });
+};
+</script>
+{% endif %}
+
+{# 添加跟进记录 modal(contact scope)#}
+{% if perms.can_create_action %}
+{{ at_action_modal('atActionModal', scope='contact') }}
+<script>
+window.atOpenContactAddAction = function () {
+  atOpenActionModal({
+    modalId:     'atActionModal',
+    scope:       'contact',
+    contextId:   {{ contact.id }},
+    contextName: {{ contact.name|tojson }},
+    apiEndpoint: '/customer/api/contacts/{{ contact.id }}/add_action',
+    projects: [
+      {% for prj in projects %}{ id: {{ prj.id }}, name: {{ prj.project_name|tojson }} }{% if not loop.last %},{% endif %}{% endfor %}
+    ],
+    sidebarInfo: {
+      title: '联系人信息',
+      items: [
+        { label: '联系人',   value: {{ contact.name|tojson }} },
+        { label: '所属企业', value: {{ company.company_name|tojson }} },
+        { label: '职位',     value: {{ (contact.position or '-')|tojson }} }
+      ]
+    }
+  });
+};
+</script>
+{% endif %}
+
+</body>
+</html>

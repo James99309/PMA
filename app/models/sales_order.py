@@ -4,12 +4,13 @@
 从批价单转换而来，包含物流交付信息
 """
 from app import db
+from app.utils.lockable import LockableMixin
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 
-class SalesOrder(db.Model):
+class SalesOrder(LockableMixin, db.Model):
     """客户订单表 - 从批价单转换，管理发货和交付"""
     __tablename__ = 'sales_orders'
 
@@ -69,7 +70,7 @@ class SalesOrder(db.Model):
     pricing_order = relationship('PricingOrder', backref='sales_orders')
     project = relationship('Project', backref='sales_orders')
     customer = relationship('Company', backref='customer_sales_orders')
-    created_by = relationship('User', backref='created_sales_orders')
+    created_by = relationship('User', foreign_keys=[created_by_id], backref='created_sales_orders')
 
     def __repr__(self):
         return f'<SalesOrder {self.order_number}>'
@@ -110,9 +111,10 @@ class SalesOrderDetail(db.Model):
     pricing_detail_id = Column(Integer, ForeignKey('pricing_order_details.id'), nullable=True)  # 来源批价单明细
     product_id = Column(Integer, ForeignKey('products.id'), nullable=False)
 
-    # 产品信息（冗余存储）
+    # 产品信息（冗余存储 - 创建时快照,避免产品库改名/改 MN 影响订单）
     product_name = Column(String(200), nullable=False)
     product_model = Column(String(100), nullable=True)
+    product_mn = Column(String(100), nullable=True)  # 物料编码 MN, 创建时从 Product.product_mn 落地
     specification = Column(Text, nullable=True)  # 产品规格
 
     # 数量和价格

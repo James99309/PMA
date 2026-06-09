@@ -1,0 +1,115 @@
+{# 配置矩阵局部模板 — 供 atRefreshMatrixPanel() 使用 #}
+{% macro _lock(size=10) %}<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>{% endmacro %}
+{% macro _grid(size=40) %}<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>{% endmacro %}
+
+{% if configurations %}
+{# 分类 tab 筛选 #}
+<div style="display:flex;gap:0;overflow-x:auto;padding:0 20px;">
+  <button id="atm-cat-all" class="atm-cat-pill active" onclick="atMatFilter('all')">
+    全部<span class="atm-cat-count">{{ all_items|length }}</span>
+  </button>
+  {% for category in categories if items_by_category.get(category.id) %}
+  <button id="atm-cat-{{ category.id }}" class="atm-cat-pill"
+          onclick="atMatFilter('{{ category.id }}')">
+    {{ category.name }}<span class="atm-cat-count">{{ items_by_category.get(category.id)|length }}</span>
+  </button>
+  {% endfor %}
+</div>
+{# 矩阵表格 #}
+<div class="atm-wrap" style="padding:0 22px 16px;">
+  <table class="atm-table">
+    <thead>
+      <tr>
+        <th class="atm-s1" style="padding-left:16px;">规格名称</th>
+        <th class="atm-s2" style="text-align:center;">单位</th>
+        {% for config in configurations %}
+        <th class="atm-col-head">
+          <div style="font-size:12.5px;font-weight:600;color:var(--ink);font-family:var(--font-mono,monospace);">
+            {{ config.config_code }}</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-top:2px;font-weight:400;display:flex;align-items:center;gap:3px;">
+            {{ config.region_name.split('(')[0].strip() if config.region_name else '—' }}
+            {% if config.mn_locked %}{{ _lock(10) }}{% endif %}
+          </div>
+          <div id="atm-mn-{{ config.id }}"
+               style="font-size:10.5px;font-family:var(--font-mono,monospace);
+                      color:{{ 'var(--warning,#d97706)' if config.mn_locked else 'var(--ink-4)' }};
+                      margin-top:2px;display:flex;align-items:center;gap:3px;">
+            {{ config.mn_code or '—' }}
+            {% if config.mn_locked %}{{ _lock(9) }}{% endif %}
+          </div>
+        </th>
+        {% endfor %}
+        <th style="width:100%;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for category in categories %}
+      {% set cat_items = items_by_category.get(category.id, []) %}
+      {% if cat_items %}
+      {% for item in cat_items %}
+      <tr data-row-cat="{{ category.id }}">
+        <td class="atm-s1" style="padding-left:16px;">
+          <div style="display:flex;align-items:flex-start;gap:6px;">
+            <div style="flex:1;">
+              <div style="font-size:12.5px;color:var(--ink);">{{ item.spec_dict.name }}</div>
+              {% if item.spec_dict.name_en %}
+              <div style="font-size:11px;color:var(--ink-4);">{{ item.spec_dict.name_en }}</div>
+              {% endif %}
+              {% if item.is_required %}
+              <span style="font-size:10px;color:var(--accent);">必填</span>
+              {% endif %}
+            </div>
+            {% if item.id in code_position_map %}
+            {% set pos = code_position_map[item.id] %}
+            <span data-code-item="{{ item.id }}"
+                  style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;min-width:18px;font-size:11px;font-weight:700;border-radius:50%;background:var(--ink-4);color:#fff;flex-shrink:0;margin-top:1px;transition:background .15s;"
+                  title="MN编码第{{ pos.start_pos }}位{% if pos.length > 1 %}–{{ pos.start_pos + pos.length - 1 }}位{% endif %}">{{ pos.index }}</span>
+            {% endif %}
+          </div>
+        </td>
+        <td class="atm-s2" style="font-size:12px;color:var(--ink-3);text-align:center;">
+          {{ item.spec_dict.unit or '—' }}
+        </td>
+        {% for config in configurations %}
+        {% set saved_val = config_values_matrix.get(config.id, {}).get(item.id, '') %}
+        <td style="min-width:132px;">
+          {% set opts = definition_indicators.get(item.spec_dict_id, []) %}
+          {% if config.mn_locked or (not opts and not saved_val) %}
+            <span class="atm-locked-val">{{ saved_val or (item.general_value or '—') }}</span>
+          {% else %}
+            <select class="atm-select"
+                    data-config="{{ config.id }}"
+                    data-item="{{ item.id }}"
+                    data-orig="{{ saved_val }}"
+                    onchange="atMatChange(this)">
+              <option value="">{{ item.general_value or '—' }}</option>
+              {% if saved_val and saved_val not in opts|map(attribute='value')|list %}
+              <option value="{{ saved_val }}" selected>{{ saved_val }}</option>
+              {% endif %}
+              {% for opt in opts %}
+              <option value="{{ opt.value }}" {{ 'selected' if opt.value == saved_val else '' }}>{{ opt.value }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div style="padding:80px 24px;text-align:center;color:var(--ink-4);">
+  {{ _grid(40) }}
+  <p style="margin-top:12px;font-size:14px;">尚无配置版本</p>
+  {% if can_edit %}
+  <button onclick="atSelectTab('atSpecTabs','configs');setTimeout(atConfigOpenCreate,100)"
+          style="margin-top:16px;height:34px;padding:0 18px;border-radius:6px;
+                 background:var(--accent);color:#fff;border:0;font-size:13px;cursor:pointer;">
+    新建配置版本
+  </button>
+  {% endif %}
+</div>
+{% endif %}
