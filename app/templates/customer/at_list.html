@@ -36,7 +36,9 @@
 {% if has_permission('customer', 'view') %}
 {{ at_btn('智能合并', variant='ghost', icon_l='users', tag='a', href=url_for('customer.customer_merge_tool')) }}
 {% endif %}
+{% if has_permission('customer', 'create') %}
 {{ at_btn('新建客户', variant='primary', icon_l='plus', onclick="atOpenCustomerForm('create')") }}
+{% endif %}
 {% endblock %}
 
 {% block tabs %}
@@ -166,4 +168,14 @@
 {{ at_customer_form_modal('atCreateCustomerModal', mode='create') }}
 {{ render_map_picker_modal() }}
 <style>#mapPickerModal { z-index: 200 !important; }</style>
+{% if has_permission('customer', 'create') %}
+<script>
+/* 从仪表盘「新建客户」进入时自动弹出新建窗口（?action=create） */
+document.addEventListener('DOMContentLoaded', function () {
+  if (new URLSearchParams(window.location.search).get('action') !== 'create') return;
+  window.history.replaceState({}, '', window.location.pathname);
+  setTimeout(function () { if (window.atOpenCustomerForm) atOpenCustomerForm('create'); }, 300);
+});
+</script>
+{% endif %}
 {% endblock %}

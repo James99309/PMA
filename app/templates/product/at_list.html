@@ -13,6 +13,7 @@
 {% endblock %}
 
 {% block page_actions %}
+{% if has_permission('product', 'create') %}
 <button onclick="atImport.openCfgModal()"
         style="height:34px;padding:0 14px;border-radius:6px;border:none;cursor:pointer;
                display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;
@@ -20,6 +21,7 @@
         onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">
   {{ at_icon('plus', 14) }} 引入产品
 </button>
+{% endif %}
 {% endblock %}
 
 {% block tabs %}

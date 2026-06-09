@@ -4,7 +4,7 @@
   按 dashboard-redesign-spec §5 落地:
     [左] Logo(可省) + 国旗角标
     [中] 全局搜索 ⌘K
-    [右] [+ 创建] · 任务 · 通知 · 工作日历 · 帮助 · 语言 · 主题
+    [右] [+ 创建] · 工作日历 · 上传 · 任务 · 语言 · 主题
 
   用法:
     {% from 'components/at_topbar.html' import at_topbar %}
@@ -105,7 +105,7 @@
         <div style="padding:8px 12px 4px;font-size:11px;color:var(--ink-3);letter-spacing:0.08em;
                     text-transform:uppercase;font-weight:500;">快速创建</div>
 
-        {% set _qc_style = 'display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;
+        {% set _qc_style = 'box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;
                             border:0;border-radius:6px;background:transparent;color:var(--ink);
                             font-size:13px;text-align:left;text-decoration:none;cursor:pointer;font:inherit;' %}
         {% macro qc(icon, label, href) %}
@@ -119,16 +119,16 @@
 
         {# Primary 6 项 #}
         {% if has_permission('customer', 'create') %}
-          {{ qc('users', '新建客户', url_for('customer.list_companies') ~ '?action=create') }}
+          {{ qc('users', '新建客户', url_for('customer.at_list_view') ~ '?action=create') }}
         {% endif %}
         {% if has_permission('project', 'create') %}
-          {{ qc('flask', '新建项目', url_for('project.list_projects') ~ '?action=create') }}
+          {{ qc('flask', '新建项目', url_for('project.at_list_view') ~ '?action=create') }}
         {% endif %}
         {% if has_permission('quotation', 'create') %}
-          {{ qc('pen', '新建报价', url_for('quotation.list_quotations') ~ '?action=create') }}
+          {{ qc('pen', '新建报价', url_for('quotation.at_new_quotation')) }}
         {% endif %}
         {% if has_permission('expense', 'create') %}
-          {{ qc('money', '提交报销', url_for('expense.expense_list') ~ '?action=create') }}
+          {{ qc('money', '提交报销', url_for('expense.at_new_expense')) }}
         {% endif %}
 
         <div style="height:1px;background:var(--line);margin:4px 8px;"></div>
@@ -145,9 +145,11 @@
     {{ _icon_btn('clock', '工作日历', href='/worklog/calendar',
                  dot_color=('var(--accent)' if (unread_calendar | default(false)) else '')) }}
 
-    {# 帮助 / What's New #}
-    {{ _icon_btn('help', '帮助 · What\'s New',
-                 onclick='if(window.atTopbarHelp)atTopbarHelp.toggle()') }}
+    {# 上传（文件管理 TW 页） #}
+    {{ _icon_btn('upload', '上传 · 文件管理', href='/files') }}
+
+    {# 任务（任务管理 TW 页） #}
+    {{ _icon_btn('check', '任务', href=url_for('task.task_management')) }}
 
     {# 分隔线 #}
     <span style="width:1px;height:22px;background:var(--line);margin:0 4px;"></span>

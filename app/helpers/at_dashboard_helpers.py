@@ -30,48 +30,47 @@ def _ago(dt):
 
 
 # ─── Scope(我的/团队/公司/系统)──────────────────────────
-def _get_dash_scope(user):
-    """决定仪表盘第二个 scope chip 的元数据。
+# 权限级别 → 仪表盘范围档位标签 / 排序
+_DASH_LEVEL_LABELS = {'system': '系统', 'company': '公司', 'department': '团队'}
+_DASH_LEVEL_RANK = {'personal': 0, 'department': 1, 'company': 2, 'system': 3}
 
-    返回 {
-      'mine':       {'key':'mine','label':'我的','owner_ids':[user.id]},
-      'secondary':  {'key':'team|company|system','label':'团队|公司|系统','owner_ids':[...] or None} | None
-    }
 
-    规则(按优先级):
-      - admin                                  → 系统(owner_ids=None,代表全平台)
-      - quotation 权限级别 = 'company' / CEO角色 → 公司
-      - is_department_manager=True             → 团队(部门内)
-      - 其他                                   → 无 secondary(普通员工只看我的)
-    """
-    mine = {'key': 'mine', 'label': '我的', 'owner_ids': [user.id]}
-    secondary = None
+def _user_level(user, module):
     try:
-        role = (getattr(user, 'role', '') or '').lower()
-        if role == 'admin':
-            secondary = {'key': 'system', 'label': '系统', 'owner_ids': None}
-        else:
-            # 走 PMA 权限系统(quotation 模块做主键判断,3 卡常用)
-            level = None
-            try:
-                level = user.get_permission_level('quotation')
-            except Exception:
-                pass
-            if role == 'ceo' or level == 'company':
-                from app.utils.access_control import get_company_user_ids
-                secondary = {
-                    'key': 'company', 'label': '公司',
-                    'owner_ids': get_company_user_ids(user, include_affiliations=True),
-                }
-            elif getattr(user, 'is_department_manager', False):
-                from app.utils.access_control import get_department_user_ids
-                secondary = {
-                    'key': 'team', 'label': '团队',
-                    'owner_ids': get_department_user_ids(user, include_affiliations=True),
-                }
-    except Exception as e:
-        import logging; logging.warning(f'_get_dash_scope err: {e}')
-    return {'mine': mine, 'secondary': secondary}
+        return user.get_permission_level(module) or 'personal'
+    except Exception:
+        return 'personal'
+
+
+def _viewable_id_clause(model, user):
+    """返回 `model.id IN (get_viewable_data 可见 id 子查询)` 的过滤子句。
+
+    get_viewable_data 已封装：权限级别 + 数据归属 + 共享 + content_filters(如渠道/project_type),
+    与各列表页完全一致,绝不越权。
+    """
+    from app.utils.access_control import get_viewable_data
+    from app import db
+    vq = get_viewable_data(model, user)
+    sub = vq.with_entities(model.id).subquery()
+    return model.id.in_(db.session.query(sub.c.id))
+
+
+def _get_dash_scope(user):
+    """仪表盘范围档位元数据(供模板渲染"我的 / 次级" chip)。
+
+    次级档位标签 = 用户在仪表盘相关模块(project/quotation/expense)中的**最高权限级别**:
+      system→系统 / company→公司 / department→团队 / personal→无次级(只看"我的")。
+
+    注意:这里只决定"档位标签 + 是否显示次级 chip";实际数据范围由 build_dashboard
+    用 get_viewable_data 按各自模块取(权限级别+归属+共享+content_filters 全生效),绝不越权。
+    """
+    mine = {'key': 'mine', 'label': '我的'}
+    levels = [_user_level(user, m) for m in ('project', 'quotation', 'expense')]
+    top = max(levels, key=lambda l: _DASH_LEVEL_RANK.get(l, 0))
+    secondary = None
+    if _DASH_LEVEL_RANK.get(top, 0) > 0:
+        secondary = {'key': 'team', 'label': _DASH_LEVEL_LABELS.get(top, '团队')}
+    return {'mine': mine, 'secondary': secondary, 'top_level': top}
 
 
 # ─── 待办 8 条 ─────────────────────────────────────────
@@ -333,20 +332,17 @@ def _build_today_stats(user):
 
 
 # ─── 销售漏斗 ─── 我的项目(近 12 月)5 阶段聚合 + 流失统计
-def _build_funnel(user, owner_ids=None):
+def _build_funnel(user, scope_filter=None):
     """
-    数据源:Project.owner_id IN owner_ids (默认 [user.id])
-            Project.created_at >= 今天 - 12 个月
-    owner_ids=None → 全平台(admin/系统态)
+    数据源:Project + 关联 Quotation 植入额,近 12 个月。
+    scope_filter: SQLAlchemy 过滤子句,由 build_dashboard 按"我的/可见范围"传入
+                  (我的=owner==user;可见=get_viewable_data 的 id 集合,含权限级别+归属+共享+content_filters)
     """
     from sqlalchemy import func
     from datetime import datetime, timedelta
     from app import db
     from app.models.project import Project
     from app.models.quotation import Quotation
-
-    if owner_ids is None and (getattr(user, 'role', '') or '').lower() != 'admin':
-        owner_ids = [user.id]
 
     cutoff = datetime.now() - timedelta(days=365)
 
@@ -360,8 +356,8 @@ def _build_funnel(user, owner_ids=None):
     ).filter(
         Project.created_at >= cutoff,
     )
-    if owner_ids is not None:
-        q = q.filter(Project.owner_id.in_(owner_ids))
+    if scope_filter is not None:
+        q = q.filter(scope_filter)
     rows = q.group_by(Project.current_stage).all()
 
     stage_data = {r.current_stage: {'count': int(r.cnt or 0), 'amount': float(r.amt or 0)} for r in rows}
@@ -413,19 +409,17 @@ _PROJ_STAGE_MAP = {
 }
 
 
-def _build_projects(user, owner_ids=None):
-    """owner_ids 控制范围;None+非admin → [user.id];admin/系统态可传 None=全部"""
+def _build_projects(user, scope_filter=None):
+    """scope_filter: SQLAlchemy 过滤子句(我的=owner==user;可见=get_viewable_data id 集合)"""
     from datetime import date
     items = []
     due_soon_count = 0
     today = date.today()
-    if owner_ids is None and (getattr(user, 'role', '') or '').lower() != 'admin':
-        owner_ids = [user.id]
     try:
         from app.models.project import Project
         q = Project.query
-        if owner_ids is not None:
-            q = q.filter(Project.owner_id.in_(owner_ids))
+        if scope_filter is not None:
+            q = q.filter(scope_filter)
         rows = q.order_by(Project.updated_at.desc()).limit(6).all()
         for p in rows:
             stage_key = getattr(p, 'current_stage', None) or 'discover'
@@ -455,16 +449,14 @@ def _build_projects(user, owner_ids=None):
 
 
 # ─── 我的报价 ────────────────────────────────────────────
-def _build_quotes(user, owner_ids=None):
-    """owner_ids 控制范围;None+非admin → [user.id]"""
+def _build_quotes(user, scope_filter=None):
+    """scope_filter: SQLAlchemy 过滤子句(我的=owner==user;可见=get_viewable_data id 集合)"""
     quotes, counts = [], {'newThisMonth': 0, 'awaitConfirm': 0, 'wonThisMonth': 0}
-    if owner_ids is None and (getattr(user, 'role', '') or '').lower() != 'admin':
-        owner_ids = [user.id]
     try:
         from app.models.quotation import Quotation
         base = Quotation.query
-        if owner_ids is not None:
-            base = base.filter(Quotation.owner_id.in_(owner_ids))
+        if scope_filter is not None:
+            base = base.filter(scope_filter)
         month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         counts['newThisMonth'] = base.filter(Quotation.created_at >= month_start).count()
@@ -497,27 +489,21 @@ def _build_quotes(user, owner_ids=None):
 
 
 # ─── 报销(年度 + 12 月折线 + 最近 3 笔) ────────────
-def _build_expense(user, monthly_stats, year_total, currency_symbol, owner_ids=None):
-    """报销:owner_ids 控制范围;None+非admin → [user.id]
-       注意:报销默认权限规则是个人财务隔离,但仪表盘"团队"chip 是显式仪表盘聚合视角,
-       由调用方(build_dashboard)按 scope 显式传入 owner_ids。
-       monthly_stats/year_total 由 main.py 算好,只用于"我的";"团队"态需要重算。
+def _build_expense(user, monthly_stats, year_total, currency_symbol, scope_filter=None, mine=True):
+    """报销:scope_filter 控制范围(我的=owner==user;可见=get_viewable_data,含权限级别+归属+content_filters)。
+       mine=True 用 main.py 传入的 monthly/year_total;非 mine 态(可见范围)重算。
     """
     from app.models.expense import Expense
     from sqlalchemy import func, extract
     from app import db
 
-    if owner_ids is None and (getattr(user, 'role', '') or '').lower() != 'admin':
-        owner_ids = [user.id]
-    is_mine_scope = (owner_ids == [user.id])
-
     now = datetime.now()
 
-    # 团队/公司/系统态:重算 monthly + year_total(我的态用 main.py 传入的)
-    if not is_mine_scope:
+    # 可见范围态:重算 monthly + year_total(我的态用 main.py 传入的)
+    if not mine:
         q = db.session.query(Expense).filter(Expense.is_deleted == False)
-        if owner_ids is not None:
-            q = q.filter(Expense.owner_id.in_(owner_ids))
+        if scope_filter is not None:
+            q = q.filter(scope_filter)
         rows = q.filter(extract('year', Expense.created_at) == now.year).all()
         monthly_stats = [0] * 12
         year_total = 0
@@ -535,8 +521,8 @@ def _build_expense(user, monthly_stats, year_total, currency_symbol, owner_ids=N
             extract('year', Expense.created_at) == now.year - 1,
             extract('month', Expense.created_at) <= now.month,
         )
-        if owner_ids is not None:
-            q_last = q_last.filter(Expense.owner_id.in_(owner_ids))
+        if scope_filter is not None:
+            q_last = q_last.filter(scope_filter)
         year_total_last = float(q_last.scalar() or 0)
     except Exception:
         pass
@@ -544,8 +530,8 @@ def _build_expense(user, monthly_stats, year_total, currency_symbol, owner_ids=N
     recent = []
     try:
         rq = Expense.query.filter(Expense.is_deleted == False)
-        if owner_ids is not None:
-            rq = rq.filter(Expense.owner_id.in_(owner_ids))
+        if scope_filter is not None:
+            rq = rq.filter(scope_filter)
         for e in rq.order_by(Expense.updated_at.desc()).limit(3).all():
             stat_map = {
                 'draft': ('草稿', 'neutral'), 'pending': ('待审批', 'warn'),
@@ -687,26 +673,30 @@ def build_dashboard(user, monthly_stats=None, year_total=None,
         db_currency_symbol = currency_symbol
     if expense_currency_symbol is None:
         expense_currency_symbol = db_currency_symbol
+    from app.models.project import Project
+    from app.models.quotation import Quotation
+    from app.models.expense import Expense
+
     scope = _get_dash_scope(user)
 
-    # 我的(默认)
-    mine_owner_ids = scope['mine']['owner_ids']
-    funnel_m, conv_m, yoy_m, loss_m = _build_funnel(user, mine_owner_ids)
-    projects_m, proj_counts_m = _build_projects(user, mine_owner_ids)
-    quotes_m, quote_counts_m = _build_quotes(user, mine_owner_ids)
-    expense_m = _build_expense(user, monthly_stats or [0]*12, year_total or 0, expense_currency_symbol, mine_owner_ids)
+    # 我的(默认):owner == user
+    funnel_m, conv_m, yoy_m, loss_m = _build_funnel(user, Project.owner_id == user.id)
+    projects_m, proj_counts_m = _build_projects(user, Project.owner_id == user.id)
+    quotes_m, quote_counts_m = _build_quotes(user, Quotation.owner_id == user.id)
+    expense_m = _build_expense(user, monthly_stats or [0]*12, year_total or 0,
+                               expense_currency_symbol, Expense.owner_id == user.id, mine=True)
 
-    # 团队/公司/系统(若用户有权限)
+    # 次级(可见范围):全程走 get_viewable_data —— 权限级别 + 归属 + 共享 + content_filters,绝不越权
     funnel_s = projects_s = quotes_s = expense_s = None
     conv_s = yoy_s = 0
     loss_s = None
     proj_counts_s = quote_counts_s = None
     if scope['secondary']:
-        sec_ids = scope['secondary']['owner_ids']
-        funnel_s, conv_s, yoy_s, loss_s = _build_funnel(user, sec_ids)
-        projects_s, proj_counts_s = _build_projects(user, sec_ids)
-        quotes_s, quote_counts_s = _build_quotes(user, sec_ids)
-        expense_s = _build_expense(user, monthly_stats or [0]*12, year_total or 0, expense_currency_symbol, sec_ids)
+        funnel_s, conv_s, yoy_s, loss_s = _build_funnel(user, _viewable_id_clause(Project, user))
+        projects_s, proj_counts_s = _build_projects(user, _viewable_id_clause(Project, user))
+        quotes_s, quote_counts_s = _build_quotes(user, _viewable_id_clause(Quotation, user))
+        expense_s = _build_expense(user, None, None, expense_currency_symbol,
+                                   _viewable_id_clause(Expense, user), mine=False)
 
     return {
         'currency': db_currency_symbol,  # 顶层货币 — 用于所有统计(漏斗/项目/报价/KPI),跟 PMA_DB_TYPE 走

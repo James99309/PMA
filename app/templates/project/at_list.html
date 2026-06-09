@@ -16,7 +16,9 @@
 
 {% block page_actions %}
 {{ at_btn('市场情报库', variant='ghost', icon_l='search', tag='a', href=url_for('prospect.list_view')) }}
+{% if has_permission('project', 'create') %}
 {{ at_btn('新建项目', variant='primary', icon_l='plus', onclick="atOpenProjectForm('create')") }}
+{% endif %}
 {% endblock %}
 
 {% block extra_head %}
@@ -158,4 +160,14 @@
 {{ render_map_picker_modal() }}
 {# 地图选择器原 z-index=50,AT modal=100,默认会被盖住 → 提到 200 显示在最顶层 #}
 <style>#mapPickerModal { z-index: 200 !important; }</style>
+{% if has_permission('project', 'create') %}
+<script>
+/* 从仪表盘「新建项目」进入时自动弹出新建窗口（?action=create） */
+document.addEventListener('DOMContentLoaded', function () {
+  if (new URLSearchParams(window.location.search).get('action') !== 'create') return;
+  window.history.replaceState({}, '', window.location.pathname);
+  setTimeout(function () { if (window.atOpenProjectForm) atOpenProjectForm('create'); }, 300);
+});
+</script>
+{% endif %}
 {% endblock %}

@@ -13,8 +13,10 @@
 {% endblock %}
 
 {% block page_actions %}
+{% if has_permission('product_code', 'create') %}
 {{ at_btn('新建模板', variant='primary', icon_l='plus', tag='a',
           href=url_for('spec_template.at_create_template_page')) }}
+{% endif %}
 {% endblock %}
 
 {% block total_count %}{{ total_count }}{% endblock %}

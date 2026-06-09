@@ -1,0 +1,181 @@
+{#
+  AT 风格鉴权页公共布局（登录/忘记密码/重置/激活/注册 等 pre-auth 页面共用）
+  ─────────────────────────────────────────────────────────────
+  提供：AT 主题样式 + 居中卡片 + 语言切换 + 地区徽标 + PMA Logo + Flash。
+  子页填充：
+    {% block auth_title %}     卡片大标题（衬线）
+    {% block auth_subtitle %}  副标题
+    {% block auth_form %}      表单主体
+    {% block auth_extra %}     卡片底部附加（如"返回登录"）
+    {% block auth_accent %}    强调色覆盖（节日主题等，放进 <style>）
+    {% block auth_js %}        页面专属 JS
+  可选变量：show_region（默认 True 显示地区徽标）
+#}
+<!DOCTYPE html>
+<html lang="{{ current_locale }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}PMA{% endblock %}</title>
+    <script>try{if(localStorage.getItem('at-dark')==='1')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+    <style>
+        :root { --accent-grad: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); }
+        {% block auth_accent %}{% endblock %}
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; font-family: var(--font-sans);
+            background: var(--bg-page); color: var(--ink);
+            -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+            min-height: 100vh;
+        }
+        .at-login-wrap { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+        .at-login-col { width: 100%; max-width: 380px; }
+        .at-login-card {
+            background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius-lg);
+            padding: 32px 28px; box-shadow: 0 1px 2px rgba(31,30,27,0.04), 0 12px 32px rgba(31,30,27,0.06);
+        }
+        /* 语言切换 */
+        .at-lang { position: relative; }
+        .at-lang-btn { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 0; cursor: pointer; font: inherit; font-size: 13px; color: var(--ink-3); transition: color 120ms; }
+        .at-lang-btn:hover { color: var(--ink); }
+        .dropdown-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 148px; padding: 5px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 12px 32px rgba(31,30,27,0.12); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity 120ms, transform 120ms, visibility 120ms; }
+        .dropdown-menu.show { opacity: 1; visibility: visible; transform: translateY(0); }
+        .language-option { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--ink); text-decoration: none; cursor: pointer; transition: background 100ms; }
+        .language-option:hover { background: var(--bg-hover); }
+        .language-option svg { width: 15px; height: 15px; stroke: var(--accent); }
+        /* 品牌 / 标题 */
+        .at-brand-logo { height: 52px; width: auto; margin: 0 auto 16px; display: block; }
+        .at-welcome { font-family: var(--font-serif); font-size: 25px; font-weight: 600; color: var(--ink); margin: 0; letter-spacing: 0.01em; }
+        .at-subtitle { color: var(--ink-3); margin: 6px 0 0; font-size: 13px; line-height: 1.6; }
+        .at-region-text { font-size: 13px; font-weight: 500; color: var(--ink-3); }
+        /* 表单 */
+        .form-input { width: 100%; height: 44px; padding: 0 14px; background: var(--bg-page); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; font-family: inherit; outline: none; transition: border-color 120ms, box-shadow 120ms; }
+        .form-input::placeholder { color: var(--ink-4); }
+        .form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); background: var(--bg-elev); }
+        .form-input.is-invalid { border-color: var(--danger); }
+        .password-wrapper { position: relative; }
+        .password-wrapper .form-input { padding-right: 44px; }
+        .password-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; cursor: pointer; color: var(--ink-3); border-radius: var(--radius-sm); transition: color 120ms, background 120ms; }
+        .password-toggle:hover { color: var(--ink); background: var(--bg-hover); }
+        .password-toggle svg { width: 18px; height: 18px; }
+        .invalid-feedback { display: none; margin-top: 5px; font-size: 12px; color: var(--danger); }
+        .is-invalid ~ .invalid-feedback { display: block; }
+        .password-wrapper:has(.is-invalid) ~ .invalid-feedback { display: block; }
+        .form-label { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; font-weight: 500; }
+        .checkbox-round { width: 16px; height: 16px; border-radius: var(--radius-sm); border: 1px solid var(--line-2); accent-color: var(--accent); cursor: pointer; }
+        .at-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+        .at-link { font-weight: 500; color: var(--accent); text-decoration: none; transition: opacity 120ms; }
+        .at-link:hover { opacity: 0.8; }
+        .login-btn { width: 100%; height: 46px; margin-top: 4px; background: var(--accent-grad); color: #fff; border: 0; border-radius: var(--radius); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: opacity 120ms, transform 60ms; letter-spacing: 0.02em; }
+        .login-btn:hover { opacity: 0.92; }
+        .login-btn:active { transform: translateY(1px); }
+        /* Flash */
+        .alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 14px; border: 1px solid var(--line); }
+        .alert-danger, .alert-error { background: var(--danger-soft); border-color: var(--danger-soft); color: var(--danger); }
+        .alert-success { background: var(--success-soft); border-color: var(--success-soft); color: var(--success); }
+        .alert-info, .alert-warning { background: var(--accent-tint); border-color: var(--accent-soft); color: var(--accent); }
+        .at-foot { text-align: center; margin-top: 22px; font-size: 12px; color: var(--ink-4); }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+        [hidden] { display: none !important; }
+        {% block auth_style %}{% endblock %}
+    </style>
+</head>
+<body class="at-page">
+    <div class="at-login-wrap">
+        <div class="at-login-col">
+            <!-- 语言切换器 -->
+            <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+                <div class="at-lang">
+                    <button type="button" id="languageDropdown" class="at-lang-btn">
+                        <svg style="width:15px;height:15px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+                        <span id="currentLanguageText">{{ _('简体中文') }}</span>
+                        <svg style="width:12px;height:12px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="dropdown-menu" id="languageMenu">
+                        <a href="#" class="language-option" data-lang="zh"><span>简体中文</span><svg id="check-zh" style="visibility: hidden;" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></a>
+                        <a href="#" class="language-option" data-lang="en"><span>English</span><svg id="check-en" style="visibility: hidden;" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="at-login-card">
+                <div style="text-align:center;margin-bottom:26px;">
+                    {% if show_region | default(true) %}
+                    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:18px;">
+                        {% if currency_config.is_ovs %}
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <svg style="width:24px;height:17px;border-radius:2px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);flex-shrink:0" viewBox="0 0 36 24"><rect width="36" height="12" fill="#ED2939"/><rect y="12" width="36" height="12" fill="#FFF"/><path d="M8.5,2.5a4,4 0 0,0 0,7 a3.2,3.2 0 0,1 0,-7" fill="#FFF"/></svg>
+                            <svg style="width:24px;height:17px;border-radius:2px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);flex-shrink:0" viewBox="0 0 36 24"><rect width="36" height="24" fill="#FFF"/><rect width="36" height="1.72" fill="#CC0001"/><rect width="36" height="1.72" fill="#CC0001" y="3.43"/><rect width="36" height="1.72" fill="#CC0001" y="6.86"/><rect width="36" height="1.72" fill="#CC0001" y="10.29"/><rect width="36" height="1.72" fill="#CC0001" y="13.71"/><rect width="36" height="1.72" fill="#CC0001" y="17.14"/><rect width="36" height="1.72" fill="#CC0001" y="20.57"/><rect width="18" height="13.71" fill="#010066"/><path d="M8,3a4,4 0 0,0 0,7.5 a3.2,3.2 0 0,1 0,-7.5" fill="#FFC726"/><polygon points="11,6 11.7,8.2 14,8.2 12.2,9.5 12.8,11.7 11,10.3 9.2,11.7 9.8,9.5 8,8.2 10.3,8.2" fill="#FFC726"/></svg>
+                            <svg style="width:24px;height:17px;border-radius:2px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);flex-shrink:0" viewBox="0 0 36 24"><rect width="36" height="12" fill="#CE1126"/><rect y="12" width="36" height="12" fill="#FFF"/></svg>
+                            <svg style="width:24px;height:17px;border-radius:2px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);flex-shrink:0" viewBox="0 0 36 24"><rect width="36" height="24" fill="#FFF"/><rect width="36" height="4" fill="#ED1C24"/><rect width="36" height="4" fill="#ED1C24" y="20"/><rect width="36" height="8" fill="#241D4F" y="8"/></svg>
+                        </div>
+                        <span class="at-region-text">{{ _('亚太地区') }}</span>
+                        {% else %}
+                        <svg style="width:24px;height:17px;border-radius:2px;box-shadow:0 0 0 0.5px rgba(0,0,0,0.12);flex-shrink:0" viewBox="0 0 36 24"><rect width="36" height="24" fill="#DE2910"/><g fill="#FFDE00"><polygon points="6,3 6.9,5.8 9.8,5.8 7.5,7.5 8.3,10.3 6,8.6 3.7,10.3 4.5,7.5 2.2,5.8 5.1,5.8"/><polygon points="12,1.2 12.4,2.4 13.6,2.4 12.6,3.2 13,4.3 12,3.6 11,4.3 11.4,3.2 10.4,2.4 11.6,2.4"/><polygon points="14.5,3.5 14.9,4.7 16.1,4.7 15.1,5.5 15.5,6.6 14.5,5.9 13.5,6.6 13.9,5.5 12.9,4.7 14.1,4.7"/><polygon points="14.5,7 14.9,8.2 16.1,8.2 15.1,9 15.5,10.1 14.5,9.4 13.5,10.1 13.9,9 12.9,8.2 14.1,8.2"/><polygon points="12,10 12.4,11.2 13.6,11.2 12.6,12 13,13.1 12,12.4 11,13.1 11.4,12 10.4,11.2 11.6,11.2"/></g></svg>
+                        <span class="at-region-text">{{ _('中国区') }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <img src="{{ url_for('static', filename='images/pma-logo.png') }}" alt="PMA" class="at-brand-logo">
+                    <h1 class="at-welcome">{% block auth_title %}{% endblock %}</h1>
+                    <p class="at-subtitle">{% block auth_subtitle %}{% endblock %}</p>
+                </div>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                {% block auth_form %}{% endblock %}
+            </div>
+
+            {% block auth_extra %}{% endblock %}
+            <div class="at-foot">PMA · {{ _('销售项目管理系统') }}</div>
+        </div>
+    </div>
+
+    <script>
+        // 语言切换（所有鉴权页共用）
+        document.getElementById('languageDropdown').addEventListener('click', function(e) {
+            e.stopPropagation();
+            document.getElementById('languageMenu').classList.toggle('show');
+        });
+        document.addEventListener('click', function() { document.getElementById('languageMenu').classList.remove('show'); });
+        function updateLanguageDisplay() {
+            const currentLang = document.documentElement.lang || 'zh';
+            const langText = document.getElementById('currentLanguageText');
+            const checkZh = document.getElementById('check-zh');
+            const checkEn = document.getElementById('check-en');
+            if (currentLang === 'en') { langText.textContent = 'English'; checkZh.style.visibility = 'hidden'; checkEn.style.visibility = 'visible'; }
+            else { langText.textContent = '简体中文'; checkZh.style.visibility = 'visible'; checkEn.style.visibility = 'hidden'; }
+        }
+        document.querySelectorAll('.language-option').forEach(function(option) {
+            option.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                const selectedLang = this.getAttribute('data-lang');
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || document.querySelector('input[name="csrf_token"]')?.value;
+                if (!csrfToken) { alert('{{ _("语言切换失败：安全令牌未找到") }}'); return; }
+                fetch('/language/switch', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }, body: JSON.stringify({ language: selectedLang }) })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        try { localStorage.setItem('language_changed', JSON.stringify({ timestamp: Date.now(), language: selectedLang, method: 'auth_page' })); } catch(e) {}
+                        window.location.reload();
+                    } else { alert(data.message || '{{ _("语言切换失败") }}'); }
+                })
+                .catch(() => alert('{{ _("语言切换失败，请稍后重试") }}'));
+            });
+        });
+        document.addEventListener('DOMContentLoaded', updateLanguageDisplay);
+        window.addEventListener('storage', function(e) { if (e.key === 'language_changed') updateLanguageDisplay(); });
+    </script>
+    {% block auth_js %}{% endblock %}
+</body>
+</html>
