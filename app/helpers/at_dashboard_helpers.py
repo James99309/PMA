@@ -357,14 +357,17 @@ def _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix):
     from app import db
     from app.models.task import Task
 
-    def _total(s, e):  # 目标=本期指派给我的任务(非取消)
+    # 「我的任务」口径:指派给我 OR 我协助(与任务模块一致)
+    _mine = _my_task_filter(user)
+
+    def _total(s, e):  # 目标=本期我的任务(非取消)
         return db.session.query(func.count(Task.id)).filter(
-            Task.assignee_id == user.id, Task.is_deleted == False, Task.status != 'cancelled',
+            _mine, Task.is_deleted == False, Task.status != 'cancelled',
             Task.created_at >= s, Task.created_at < e).scalar() or 0
 
-    def _done(s, e):  # 完成=本期完成的任务
+    def _done(s, e):  # 完成=本期完成的我的任务
         return db.session.query(func.count(Task.id)).filter(
-            Task.assignee_id == user.id, Task.is_deleted == False,
+            _mine, Task.is_deleted == False,
             Task.status == 'completed', Task.completed_at >= s, Task.completed_at < e).scalar() or 0
 
     total = _total(start, end)
@@ -905,13 +908,26 @@ def _team_scope(user):
     return {'has_team': has_team, 'ids': ids, 'label': label}
 
 
-def _tasks_payload(user, assignee_ids, with_assignee=False):
-    """一组 assignee 的任务:状态计数 + 前 6 项(未完成优先、按截止升序)。"""
+def _my_task_filter(user):
+    """「我的任务」过滤:指派给我 OR 我在协助人(shared_with_users)里。
+    shared_with_users 为 JSON 列,用 JSONB @> 做数组包含(同 access_control 口径)。"""
+    from sqlalchemy import cast, text
+    from sqlalchemy.dialects.postgresql import JSONB
+    from app import db
     from app.models.task import Task
-    if not assignee_ids:
+    return db.or_(
+        Task.assignee_id == user.id,
+        cast(Task.shared_with_users, JSONB).op('@>')(text(f"'[{int(user.id)}]'::jsonb")),
+    )
+
+
+def _tasks_payload(user, task_filter, with_assignee=False):
+    """按过滤条件取任务:状态计数 + 前 6 项(未完成优先、按截止升序)。"""
+    from app.models.task import Task
+    if task_filter is None:
         return {'counts': {'all': 0, 'in_progress': 0, 'pending': 0, 'pending_review': 0, 'completed': 0},
                 'items': []}
-    tasks = Task.query.filter(Task.assignee_id.in_(assignee_ids), Task.is_deleted == False,
+    tasks = Task.query.filter(task_filter, Task.is_deleted == False,
                               Task.status != 'cancelled').all()
     counts = {'all': len(tasks), 'in_progress': 0, 'pending': 0, 'pending_review': 0, 'completed': 0}
     for t in tasks:
@@ -945,12 +961,14 @@ def _tasks_payload(user, assignee_ids, with_assignee=False):
 
 
 def _build_tasks(user):
-    """「任务」卡:我的任务 + (部门负责人额外)团队任务(可见成员被指派的任务)。"""
+    """「任务」卡:我的任务(被指派 ∪ 我协助)+ (部门负责人额外)团队任务(成员被指派)。"""
+    from app import db
+    from app.models.task import Task
     ts = _team_scope(user)
     out = {'has_team': ts['has_team'], 'teamLabel': ts['label'],
-           'mine': _tasks_payload(user, [user.id])}
+           'mine': _tasks_payload(user, _my_task_filter(user))}
     if ts['has_team']:
-        out['team'] = _tasks_payload(user, ts['ids'], with_assignee=True)
+        out['team'] = _tasks_payload(user, Task.assignee_id.in_(ts['ids']), with_assignee=True)
     return out
 
 
