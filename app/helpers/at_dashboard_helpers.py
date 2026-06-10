@@ -980,9 +980,9 @@ def role_layout(user):
     if role in ('finance', 'finance_director', 'finace_director', 'finance_supervisor'):
         return {'cards': ['todo', 'kpi', 'expense', 'worklog'], 'kpi_variant': 'finance'}
     if role == 'solution_manager':
-        return {'cards': ['todo', 'kpi', 'task', 'implant', 'worklog'], 'kpi_variant': 'solution'}
+        return {'cards': ['todo', 'kpi', 'task', 'implant', 'expense', 'worklog'], 'kpi_variant': 'solution'}
     if role == 'product_manager':
-        return {'cards': ['todo', 'kpi', 'task', 'implant', 'worklog'], 'kpi_variant': 'product'}
+        return {'cards': ['todo', 'kpi', 'task', 'implant', 'expense', 'worklog'], 'kpi_variant': 'product'}
     # 默认:销售及其余角色
     return {'cards': ['todo', 'kpi', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
             'kpi_variant': 'default'}
@@ -1026,9 +1026,17 @@ def build_dashboard(user, monthly_stats=None, year_total=None,
         'worklog': _build_worklog(user) if 'worklog' in cards else None,
     }
 
-    sales_cards = cards & {'funnel', 'projects', 'quotes'}
-    if sales_cards or 'expense' in cards and variant != 'finance':
-        # —— 销售 / 总览:全量(保留原 mine + secondary 双套 scopeData,绝不越权)——
+    sales_trio = cards & {'funnel', 'projects', 'quotes'}
+    if variant == 'finance' and 'expense' in cards:
+        # —— 财务:全公司报销进度(可见范围),单视图(无"我的/团队"切换)——
+        expense_fin = _build_expense(user, None, None, expense_currency_symbol,
+                                     _viewable_id_clause(Expense, user), mine=False)
+        out['expense'] = expense_fin
+        out['scope'] = {'mine': scope['mine'], 'secondary': None, 'top_level': scope.get('top_level')}
+        out['scopeData'] = {'mine': {'expense': expense_fin}, 'secondary': None}
+
+    elif sales_trio:
+        # —— 销售 / 总览:漏斗/项目/报价/报销全量(保留 mine + secondary 双套,绝不越权)——
         funnel_m, conv_m, yoy_m, loss_m = _build_funnel(user, Project.owner_id == user.id)
         projects_m, proj_counts_m = _build_projects(user, Project.owner_id == user.id)
         quotes_m, quote_counts_m = _build_quotes(user, Quotation.owner_id == user.id)
@@ -1065,13 +1073,13 @@ def build_dashboard(user, monthly_stats=None, year_total=None,
             },
         })
 
-    # —— 财务:全公司报销进度(可见范围),单视图(无"我的/团队"切换)——
-    if 'expense' in cards and variant == 'finance':
-        expense_fin = _build_expense(user, None, None, expense_currency_symbol,
-                                     _viewable_id_clause(Expense, user), mine=False)
-        out['expense'] = expense_fin
+    elif 'expense' in cards:
+        # —— 解决方案/产品经理:仅「我的报销」个人面板(单视图,不算销售卡)——
+        expense_m = _build_expense(user, monthly_stats or [0]*12, year_total or 0,
+                                   expense_currency_symbol, Expense.owner_id == user.id, mine=True)
+        out['expense'] = expense_m
         out['scope'] = {'mine': scope['mine'], 'secondary': None, 'top_level': scope.get('top_level')}
-        out['scopeData'] = {'mine': {'expense': expense_fin}, 'secondary': None}
+        out['scopeData'] = {'mine': {'expense': expense_m}, 'secondary': None}
 
     # —— 经理新卡(P3 实现 builder;此处按需调用)——
     if 'task' in cards:
