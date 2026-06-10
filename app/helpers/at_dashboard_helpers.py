@@ -884,31 +884,19 @@ _TASK_STATUS_TONE = {'pending': 'neutral', 'in_progress': 'info', 'paused': 'war
 
 
 def _team_scope(user):
-    """「团队」范围:按权限级别(system/company/department)取成员 id + 标签。
-    个人级(personal)→ has_team=False,不显示开关。
-    部门负责人=department、企业管理人员=company/system,与销售卡 scope 同口径。"""
-    from app import db
-    from app.models.user import User
-    levels = [_user_level(user, m) for m in ('project', 'quotation', 'expense')]
-    top = max(levels, key=lambda l: _DASH_LEVEL_RANK.get(l, 0))
-    rank = _DASH_LEVEL_RANK.get(top, 0)
-    if rank <= 0 and user.role != 'admin':
-        return {'has_team': False, 'ids': [user.id], 'label': '团队'}
-    # 按级别圈成员
-    q = db.session.query(User.id)
-    if user.role == 'admin' or top == 'system':
-        label = '系统'
-    elif top == 'company' and getattr(user, 'company_name', None):
-        q = q.filter(User.company_name == user.company_name); label = '公司'
-    elif top == 'department' and getattr(user, 'department', None) and getattr(user, 'company_name', None):
-        q = q.filter(User.department == user.department,
-                     User.company_name == user.company_name); label = '团队'
-    else:
-        return {'has_team': False, 'ids': [user.id], 'label': '团队'}
-    ids = [r[0] for r in q.all()]
+    """「团队」范围:基于**组织管理关系**(部门负责人 / 归属上级 / admin),
+    不是数据查看权限级别 —— 看得到很多数据 ≠ 带团队。
+    get_viewable_user_ids() 已编码:admin=全员、部门负责人=本部门成员、归属链=下属。
+    只能看到自己 → has_team=False,不显示「我的/团队」开关。"""
+    try:
+        ids = [i for i in (user.get_viewable_user_ids() or []) if i]
+    except Exception:
+        ids = [user.id]
     if user.id not in ids:
         ids.append(user.id)
-    return {'has_team': len(set(ids) - {user.id}) > 0, 'ids': ids, 'label': label}
+    has_team = len(set(ids) - {user.id}) > 0
+    label = '系统' if user.role == 'admin' else '团队'
+    return {'has_team': has_team, 'ids': ids, 'label': label}
 
 
 def _tasks_payload(user, assignee_ids, with_assignee=False):
