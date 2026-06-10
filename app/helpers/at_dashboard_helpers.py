@@ -333,8 +333,10 @@ def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
     }
 
 
-def _build_kpis(user, currency_symbol='¥'):
-    """返回 3 套粒度: month / quarter / year(前端 tab 切换)"""
+def _build_kpis(user, currency_symbol='¥', variant='default'):
+    """返回 3 套粒度: month / quarter / year(前端 tab 切换)。
+    variant: default(销售) / solution / product / finance / overview —— P2 起按变体分流指标,
+             P1 阶段所有变体暂用销售口径。"""
     from datetime import datetime
     now = datetime.now()
     y, m = now.year, now.month
@@ -712,15 +714,38 @@ def _build_worklog(user):
 
 
 # ─── 角色化布局 ──────────────────────────────────────────
+def _build_tasks(user):
+    """「任务」卡:我的任务(assignee==user),状态 tab。P3 完整实现,P1 先占位。"""
+    return {'items': [], 'counts': {'all': 0, 'in_progress': 0, 'pending': 0, 'pending_review': 0, 'completed': 0}}
+
+
+def _build_implant(user, variant='solution'):
+    """「植入」卡:solution=按报价单(我创建∪我确认);product=我管理分类下产品植入度。
+    P3 完整实现,P1 先占位。"""
+    return {'variant': variant, 'items': [], 'total': 0}
+
+
 def role_layout(user):
+    """角色 → 仪表盘卡片集合 + KPI 变体(唯一事实源)。
+
+    返回 {'cards': [...卡片 key 按渲染顺序...], 'kpi_variant': '...'}。
+    模板按 cards 决定显隐;build_dashboard 按 cards 决定算什么(只算要显示的)。
+    卡片 key:todo / kpi / funnel / projects / quotes / expense / task / implant / worklog
+    KPI 变体:default(销售) / solution / product / finance / overview
+    """
     role = (user.role or '').lower()
-    if role == 'ceo':
-        return {'row1': ['funnel', 'kpi', 'todo'], 'row2': ['projects', 'quotes', 'expense'], 'row3': ['worklog']}
-    if role in ('finance_director', 'finace_director', 'finance'):
-        return {'row1': ['todo', 'expense', 'kpi'], 'row2': ['quotes', 'projects', 'funnel'], 'row3': ['worklog']}
-    if role in ('sm', 'sales_manager'):
-        return {'row1': ['todo', 'quotes', 'funnel'], 'row2': ['kpi', 'projects', 'expense'], 'row3': ['worklog']}
-    return {'row1': ['todo', 'kpi', 'funnel'], 'row2': ['projects', 'quotes', 'expense'], 'row3': ['worklog']}
+    if role in ('ceo', 'admin'):
+        return {'cards': ['todo', 'kpi', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
+                'kpi_variant': 'overview'}
+    if role in ('finance', 'finance_director', 'finace_director', 'finance_supervisor'):
+        return {'cards': ['todo', 'kpi', 'expense', 'worklog'], 'kpi_variant': 'finance'}
+    if role == 'solution_manager':
+        return {'cards': ['todo', 'kpi', 'task', 'implant', 'worklog'], 'kpi_variant': 'solution'}
+    if role == 'product_manager':
+        return {'cards': ['todo', 'kpi', 'task', 'implant', 'worklog'], 'kpi_variant': 'product'}
+    # 默认:销售及其余角色
+    return {'cards': ['todo', 'kpi', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
+            'kpi_variant': 'default'}
 
 
 # ─── 主入口 ────────────────────────────────────────────
@@ -745,57 +770,73 @@ def build_dashboard(user, monthly_stats=None, year_total=None,
     from app.models.quotation import Quotation
     from app.models.expense import Expense
 
+    layout = role_layout(user)
+    cards = set(layout['cards'])
+    variant = layout['kpi_variant']
     scope = _get_dash_scope(user)
 
-    # 我的(默认):owner == user
-    funnel_m, conv_m, yoy_m, loss_m = _build_funnel(user, Project.owner_id == user.id)
-    projects_m, proj_counts_m = _build_projects(user, Project.owner_id == user.id)
-    quotes_m, quote_counts_m = _build_quotes(user, Quotation.owner_id == user.id)
-    expense_m = _build_expense(user, monthly_stats or [0]*12, year_total or 0,
-                               expense_currency_symbol, Expense.owner_id == user.id, mine=True)
-
-    # 次级(可见范围):全程走 get_viewable_data —— 权限级别 + 归属 + 共享 + content_filters,绝不越权
-    funnel_s = projects_s = quotes_s = expense_s = None
-    conv_s = yoy_s = 0
-    loss_s = None
-    proj_counts_s = quote_counts_s = None
-    if scope['secondary']:
-        funnel_s, conv_s, yoy_s, loss_s = _build_funnel(user, _viewable_id_clause(Project, user))
-        projects_s, proj_counts_s = _build_projects(user, _viewable_id_clause(Project, user))
-        quotes_s, quote_counts_s = _build_quotes(user, _viewable_id_clause(Quotation, user))
-        expense_s = _build_expense(user, None, None, expense_currency_symbol,
-                                   _viewable_id_clause(Expense, user), mine=False)
-
-    return {
-        'currency': db_currency_symbol,  # 顶层货币 — 用于所有统计(漏斗/项目/报价/KPI),跟 PMA_DB_TYPE 走
-        'todos': _build_todos(user),
-        'kpis':  _build_kpis(user, db_currency_symbol),
-        'todayStats': _build_today_stats(user),
-        # 默认填 mine,兼容旧模板
-        'funnel': funnel_m,
-        'funnelConversion': conv_m,
-        'funnelLoss': loss_m,
-        'funnelYoY': yoy_m,
-        'projects': projects_m,
-        'projectCounts': proj_counts_m,
-        'quotes': quotes_m,
-        'quoteCounts': quote_counts_m,
-        'expense': expense_m,
-        # 新:scope 元数据 + 两套数据(secondary 可为 None)
+    # 所有角色共有:待办 / KPI / 工作日志(KPI 变体按角色,P2 起分流)
+    out = {
+        'currency': db_currency_symbol,  # 顶层货币 — 统计用,跟 PMA_DB_TYPE 走
+        'layout': layout,
         'scope': scope,
-        'scopeData': {
-            'mine': {
-                'funnel': funnel_m, 'funnelConversion': conv_m, 'funnelLoss': loss_m,
-                'projects': projects_m, 'projectCounts': proj_counts_m,
-                'quotes': quotes_m, 'quoteCounts': quote_counts_m,
-                'expense': expense_m,
-            },
-            'secondary': None if not scope['secondary'] else {
-                'funnel': funnel_s, 'funnelConversion': conv_s, 'funnelLoss': loss_s,
-                'projects': projects_s, 'projectCounts': proj_counts_s,
-                'quotes': quotes_s, 'quoteCounts': quote_counts_s,
-                'expense': expense_s,
-            },
-        },
-        'worklog': _build_worklog(user),
+        'todos': _build_todos(user) if 'todo' in cards else [],
+        'kpis':  _build_kpis(user, db_currency_symbol, variant) if 'kpi' in cards else None,
+        'todayStats': _build_today_stats(user) if 'kpi' in cards else None,
+        'worklog': _build_worklog(user) if 'worklog' in cards else None,
     }
+
+    sales_cards = cards & {'funnel', 'projects', 'quotes'}
+    if sales_cards or 'expense' in cards and variant != 'finance':
+        # —— 销售 / 总览:全量(保留原 mine + secondary 双套 scopeData,绝不越权)——
+        funnel_m, conv_m, yoy_m, loss_m = _build_funnel(user, Project.owner_id == user.id)
+        projects_m, proj_counts_m = _build_projects(user, Project.owner_id == user.id)
+        quotes_m, quote_counts_m = _build_quotes(user, Quotation.owner_id == user.id)
+        expense_m = _build_expense(user, monthly_stats or [0]*12, year_total or 0,
+                                   expense_currency_symbol, Expense.owner_id == user.id, mine=True)
+        funnel_s = projects_s = quotes_s = expense_s = None
+        conv_s = yoy_s = 0
+        loss_s = None
+        proj_counts_s = quote_counts_s = None
+        if scope['secondary']:
+            funnel_s, conv_s, yoy_s, loss_s = _build_funnel(user, _viewable_id_clause(Project, user))
+            projects_s, proj_counts_s = _build_projects(user, _viewable_id_clause(Project, user))
+            quotes_s, quote_counts_s = _build_quotes(user, _viewable_id_clause(Quotation, user))
+            expense_s = _build_expense(user, None, None, expense_currency_symbol,
+                                       _viewable_id_clause(Expense, user), mine=False)
+        out.update({
+            'funnel': funnel_m, 'funnelConversion': conv_m, 'funnelLoss': loss_m, 'funnelYoY': yoy_m,
+            'projects': projects_m, 'projectCounts': proj_counts_m,
+            'quotes': quotes_m, 'quoteCounts': quote_counts_m,
+            'expense': expense_m,
+            'scopeData': {
+                'mine': {
+                    'funnel': funnel_m, 'funnelConversion': conv_m, 'funnelLoss': loss_m,
+                    'projects': projects_m, 'projectCounts': proj_counts_m,
+                    'quotes': quotes_m, 'quoteCounts': quote_counts_m,
+                    'expense': expense_m,
+                },
+                'secondary': None if not scope['secondary'] else {
+                    'funnel': funnel_s, 'funnelConversion': conv_s, 'funnelLoss': loss_s,
+                    'projects': projects_s, 'projectCounts': proj_counts_s,
+                    'quotes': quotes_s, 'quoteCounts': quote_counts_s,
+                    'expense': expense_s,
+                },
+            },
+        })
+
+    # —— 财务:全公司报销进度(可见范围),单视图(无"我的/团队"切换)——
+    if 'expense' in cards and variant == 'finance':
+        expense_fin = _build_expense(user, None, None, expense_currency_symbol,
+                                     _viewable_id_clause(Expense, user), mine=False)
+        out['expense'] = expense_fin
+        out['scope'] = {'mine': scope['mine'], 'secondary': None, 'top_level': scope.get('top_level')}
+        out['scopeData'] = {'mine': {'expense': expense_fin}, 'secondary': None}
+
+    # —— 经理新卡(P3 实现 builder;此处按需调用)——
+    if 'task' in cards:
+        out['task'] = _build_tasks(user)
+    if 'implant' in cards:
+        out['implant'] = _build_implant(user, variant)
+
+    return out
