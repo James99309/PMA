@@ -99,6 +99,29 @@ def get_personal_viewable_user_ids(user):
     return list(set(viewable_user_ids))
 
 
+def _pinyin_sort_key(name):
+    """姓名排序键:中文按拼音,英文/数字原样;无 pypinyin 时退回小写原串。"""
+    name = name or ''
+    try:
+        from pypinyin import lazy_pinyin
+        return ''.join(lazy_pinyin(name)).lower()
+    except Exception:
+        return name.lower()
+
+
+def build_owner_filter_options(owner_ids):
+    """负责人筛选下拉选项:在职在前、离职在后(灰色 muted),组内按拼音首字母排序,
+    离职 label 加「（离职）」。供 AT 列表(项目/客户/报价)筛选面板复用。"""
+    if not owner_ids:
+        return []
+    users = User.query.filter(User.id.in_(owner_ids)).all()
+    users.sort(key=lambda u: (not u.is_active, _pinyin_sort_key(u.real_name or u.username)))
+    return [{'value': u.id,
+             'label': (u.real_name or u.username or str(u.id)) + ('（离职）' if not u.is_active else ''),
+             'muted': not u.is_active}
+            for u in users]
+
+
 def get_managed_departments(user):
     """
     获取用户管理的部门列表（兼容新旧两种方式）

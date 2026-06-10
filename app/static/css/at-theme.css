@@ -160,7 +160,9 @@ body.at-page[data-headline-font="sans"] .at-serif {
 
 /* 强制清除 Tailwind Forms 插件对 input focus 的蓝色边框/外发光 */
 .at-input-wrap input:focus,
-.at-input-wrap input:focus-visible {
+.at-input-wrap input:focus-visible,
+.at-ss-display:focus,
+.at-ss-display:focus-visible {
   outline: none !important;
   box-shadow: none !important;
   border-color: transparent !important;

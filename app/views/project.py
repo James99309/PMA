@@ -300,8 +300,27 @@ def at_list_view():
     per_page = 30
     tab = request.args.get('tab', 'all')
     search = request.args.get('search', '').strip()
+    # 多选:同名多个 query 参数(阶段维度已由 tab 表达,这里不再重复筛选)
+    owner_values = [v for v in request.args.getlist('owner') if v.strip()]
+    ptype_values = [v for v in request.args.getlist('ptype') if v.strip()]
 
     base = get_viewable_data(Project, current_user).filter(Project.is_deleted == False)
+
+    # ── 筛选选项(基于可见数据 → 天然含权限+归属);能看到他人数据才显示筛选 ──
+    from app.utils.dictionary_helpers import project_type_label
+    from app.utils.access_control import build_owner_filter_options
+    _owner_ids = [r[0] for r in base.with_entities(Project.owner_id).distinct().all() if r[0]]
+    show_filter = any(oid != current_user.id for oid in _owner_ids)
+    owner_options = build_owner_filter_options(_owner_ids)
+    type_options = [(t, project_type_label(t)) for t in sorted(
+        {x[0] for x in base.with_entities(Project.project_type).distinct().all() if x[0]})]
+
+    # ── 应用筛选(多选 → IN)──
+    _owner_ids_sel = [int(v) for v in owner_values if v.isdigit()]
+    if _owner_ids_sel:
+        base = base.filter(Project.owner_id.in_(_owner_ids_sel))
+    if ptype_values:
+        base = base.filter(Project.project_type.in_(ptype_values))
 
     # tab → current_stage
     TAB_STAGE_MAP = {
@@ -332,12 +351,27 @@ def at_list_view():
         page=page, per_page=per_page, error_out=False,
     )
 
+    # 非空查询参数(供 tab/分页链接保留筛选+搜索状态;多选 → 列表值)
+    list_qs = {}
+    if search:
+        list_qs['search'] = search
+    if owner_values:
+        list_qs['owner'] = owner_values
+    if ptype_values:
+        list_qs['ptype'] = ptype_values
+
     return render_template('project/at_list.html',
                            projects=pagination.items,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,
-                           search=search)
+                           search=search,
+                           show_filter=show_filter,
+                           owner_options=owner_options,
+                           owner_values=owner_values,
+                           type_options=type_options,
+                           ptype_values=ptype_values,
+                           list_qs=list_qs)
 
 
 

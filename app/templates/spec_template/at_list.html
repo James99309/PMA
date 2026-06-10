@@ -70,7 +70,6 @@
   {{ at_input(name='search', value=search, placeholder='搜索模板名 / 型号…', icon_l='search', width='320px') }}
   {% if category_filter %}<input type="hidden" name="category" value="{{ category_filter }}">{% endif %}
   {% if subcategory_filter %}<input type="hidden" name="subcategory" value="{{ subcategory_filter }}">{% endif %}
-  {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
 </form>
 {% endblock %}
 

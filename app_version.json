@@ -1,7 +1,7 @@
 {
   "app_version": "3.0.3",
   "environment": "production",
-  "timestamp": "2026-06-09 20:14:09",
+  "timestamp": "2026-06-10 17:35:09",
   "modules": {
     "user": {
       "files": {
@@ -14,8 +14,8 @@
           "last_modified": "2026-05-15 15:01:09"
         },
         "app/permissions.py": {
-          "hash": "4ab5d1191816348aa07763489d8722ca",
-          "last_modified": "2026-02-12 22:50:04"
+          "hash": "9869a300f244737d80babcb17248b531",
+          "last_modified": "2026-06-10 15:09:20"
         },
         "app/utils/permissions.py": {
           "hash": "f51fae6a675827dac69156c59ce533db",
@@ -27,8 +27,8 @@
     "customer": {
       "files": {
         "app/views/customer.py": {
-          "hash": "be5ab6a9fc5a927d81b8dcc3fc65f714",
-          "last_modified": "2026-06-09 13:33:06"
+          "hash": "77f3facb12889983fcde8ce30d8ea8e7",
+          "last_modified": "2026-06-10 17:17:26"
         },
         "app/models/customer.py": {
           "hash": "30448192f3856a73d12ab2f97c886c79",
@@ -40,8 +40,8 @@
     "project": {
       "files": {
         "app/views/project.py": {
-          "hash": "4eddaf9b642c4f0856cb8ceedb610806",
-          "last_modified": "2026-06-09 13:33:06"
+          "hash": "fefa5bf6d471211b94cd9a905f9709f1",
+          "last_modified": "2026-06-10 17:24:21"
         },
         "app/models/project.py": {
           "hash": "df250006ac6c09b4ad9ef808ad008249",
@@ -53,12 +53,12 @@
     "quotation": {
       "files": {
         "app/views/quotation.py": {
-          "hash": "4f7c5ccaa268ff4877d69e87263362c1",
-          "last_modified": "2026-06-01 22:33:52"
+          "hash": "d080933b674e7c47c1c0c71fc275f8b9",
+          "last_modified": "2026-06-10 17:23:50"
         },
         "app/models/quotation.py": {
           "hash": "b198a5e0b1cdbb7f82c4f2b54d09aaa3",
-          "last_modified": "2026-05-26 23:49:46"
+          "last_modified": "2026-06-10 15:09:20"
         }
       },
       "status": "ok"
@@ -66,12 +66,12 @@
     "product": {
       "files": {
         "app/routes/product.py": {
-          "hash": "032b40767aca2dd894c976daebf9032f",
-          "last_modified": "2026-06-09 08:38:26"
+          "hash": "6c99966bdb49da8b3ad353fd0edcc0be",
+          "last_modified": "2026-06-10 15:09:20"
         },
         "app/models/product.py": {
           "hash": "8ec88fcdf37b042c5274f4700c9a75d9",
-          "last_modified": "2026-06-08 10:05:24"
+          "last_modified": "2026-06-10 15:09:20"
         }
       },
       "status": "ok"

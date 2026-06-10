@@ -313,9 +313,79 @@ def at_list_view():
     per_page = 30
     tab = request.args.get('tab', 'all')
     search = request.args.get('search', '').strip()
-    country = request.args.get('country', '').strip()
+    # 多选:同名多个 query 参数
+    owner_values = [v for v in request.args.getlist('owner') if v.strip()]
+    industry_values = [v for v in request.args.getlist('industry') if v.strip()]
 
     base = get_viewable_data(Company, current_user).filter(Company.is_deleted == False)
+
+    # ── 筛选选项(基于可见数据 → 含权限+归属);能看到他人数据才显示筛选 ──
+    from app.utils.access_control import build_owner_filter_options
+    _owner_ids = [r[0] for r in base.with_entities(Company.owner_id).distinct().all() if r[0]]
+    show_filter = any(oid != current_user.id for oid in _owner_ids)
+    owner_options = build_owner_filter_options(_owner_ids)
+    from app.utils.i18n import get_current_language
+    _lang = get_current_language()
+    industry_options = sorted(
+        [(k, INDUSTRY_LABELS.get(k, {}).get(_lang, k))
+         for k in {r[0] for r in base.with_entities(Company.industry).distinct().all() if r[0]}],
+        key=lambda o: o[1])
+
+    # ── 地区字段自适应 ──
+    # country 字段存在脏数据(同一国家有 'CN'/'中国'/'China' 多种写法),先归一再判定:
+    #   · 把所有写法映射到规范国家码(借 COUNTRY_LABELS 的 code + zh/en label 反查)
+    #   · 统计各规范国家的记录数,占比 ≥10% 才算「有实际存在的国家」(滤掉零星脏数据)
+    #   · 只有一个主导国家 → 按「省/州」(region)筛选;真正多国 → 按「国家」筛选
+    _country_norm = {}
+    for _code, _lbl in COUNTRY_LABELS.items():
+        _country_norm[_code.upper()] = _code
+        _country_norm[_lbl['zh']] = _code
+        _country_norm[_lbl['en'].upper()] = _code
+
+    def _norm_country(v):
+        if not v or not v.strip():
+            return None
+        v = v.strip()
+        return _country_norm.get(v) or _country_norm.get(v.upper()) or v
+
+    _canon_count = {}          # 规范国家 → 记录数
+    _canon_raws = {}           # 规范国家 → 原始写法列表(用于回查过滤)
+    for _raw, _n in base.with_entities(Company.country, func.count()).group_by(Company.country).all():
+        _canon = _norm_country(_raw)
+        if not _canon:
+            continue
+        _canon_count[_canon] = _canon_count.get(_canon, 0) + _n
+        _canon_raws.setdefault(_canon, []).append(_raw)
+    _total_geo = sum(_canon_count.values())
+    _significant = [c for c, n in _canon_count.items() if _total_geo and n / _total_geo >= 0.1]
+
+    if len(_significant) > 1:
+        geo_key = 'country'
+        geo_options = sorted(
+            [(c, COUNTRY_LABELS.get(c, {}).get(_lang, c)) for c in _canon_count],
+            key=lambda o: o[1])
+    else:
+        geo_key = 'region'
+        _regions = {r[0] for r in base.with_entities(Company.region).distinct().all()
+                    if r[0] and r[0].strip()}
+        geo_options = sorted([(r, r) for r in _regions], key=lambda o: o[1])
+    geo_values = [v for v in request.args.getlist(geo_key) if v.strip()]
+
+    # ── 应用筛选(负责人/行业/地区)──
+    _owner_ids_sel = [int(v) for v in owner_values if v.isdigit()]
+    if _owner_ids_sel:
+        base = base.filter(Company.owner_id.in_(_owner_ids_sel))
+    if industry_values:
+        base = base.filter(Company.industry.in_(industry_values))
+    if geo_values:
+        if geo_key == 'country':
+            # 选中的是规范国家码 → 展开为该国家的所有原始写法('CN'/'中国' 等)
+            _raws = []
+            for _c in geo_values:
+                _raws.extend(_canon_raws.get(_c, [_c]))
+            base = base.filter(Company.country.in_(_raws))
+        else:
+            base = base.filter(Company.region.in_(geo_values))
 
     # tab → company_type 映射(基于实际数据分布)
     TAB_TYPE_MAP = {
@@ -342,15 +412,19 @@ def at_list_view():
             Company.company_code.ilike(like),
         ))
 
-    if country:
-        q = q.filter(Company.country == country)
-
     pagination = q.order_by(Company.updated_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
 
-    # 国家选项(从字典)
-    country_options = get_country_options() or []
+    list_qs = {}
+    if search:
+        list_qs['search'] = search
+    if owner_values:
+        list_qs['owner'] = owner_values
+    if industry_values:
+        list_qs['industry'] = industry_values
+    if geo_values:
+        list_qs[geo_key] = geo_values
 
     return render_template('customer/at_list.html',
                            companies=pagination.items,
@@ -358,8 +432,15 @@ def at_list_view():
                            tab_counts=tab_counts,
                            current_tab=tab,
                            search=search,
-                           current_country=country,
-                           country_options=country_options)
+                           show_filter=show_filter,
+                           owner_options=owner_options,
+                           owner_values=owner_values,
+                           industry_options=industry_options,
+                           industry_values=industry_values,
+                           geo_key=geo_key,
+                           geo_options=geo_options,
+                           geo_values=geo_values,
+                           list_qs=list_qs)
 
 
 @customer.route('/api/companies/filter', methods=['GET'])

@@ -953,8 +953,21 @@ def at_list_view():
     per_page = 30
     tab = request.args.get('tab', 'all')
     search = request.args.get('search', '').strip()
+    # 多选:同名多个 query 参数(状态维度已由 tab 表达,这里不再重复筛选)
+    owner_values = [v for v in request.args.getlist('owner') if v.strip()]
 
     base = get_viewable_data(Quotation, current_user)
+
+    # ── 筛选选项(基于可见数据 → 含权限+归属);能看到他人数据才显示筛选 ──
+    from app.utils.access_control import build_owner_filter_options
+    _owner_ids = [r[0] for r in base.with_entities(Quotation.owner_id).distinct().all() if r[0]]
+    show_filter = any(oid != current_user.id for oid in _owner_ids)
+    owner_options = build_owner_filter_options(_owner_ids)
+
+    # ── 应用筛选(多选 → IN)──
+    _owner_ids_sel = [int(v) for v in owner_values if v.isdigit()]
+    if _owner_ids_sel:
+        base = base.filter(Quotation.owner_id.in_(_owner_ids_sel))
 
     # tab → confirmation_badge_status(待确认 tab 同时含已驳回,owner 可见驳回回流)
     TAB_BADGE_MAP = {
@@ -983,7 +996,12 @@ def at_list_view():
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,
-                           search=search)
+                           search=search,
+                           show_filter=show_filter,
+                           owner_options=owner_options,
+                           owner_values=owner_values,
+                           list_qs={k: v for k, v in {'search': search,
+                                    'owner': owner_values}.items() if v})
 
 
 @quotation.route('/api/quotations/filter', methods=['GET'])

@@ -53,7 +53,7 @@
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
-<a href="{{ url_for('project.at_list_view', tab=t.k, search=search) }}"
+<a href="{{ url_for('project.at_list_view', tab=t.k, **list_qs) }}"
    style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
           position:relative;text-decoration:none;
           color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
@@ -67,12 +67,26 @@
 {% endblock %}
 
 {% block filter_row %}
-<form method="get" action="{{ url_for('project.at_list_view') }}"
-      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
-  <input type="hidden" name="tab" value="{{ current_tab }}">
-  {{ at_input(name='search', value=search, placeholder='搜索项目名 / 授权码…', icon_l='search', width='320px') }}
-  {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
-</form>
+{% from 'components/at_filter_panel.html' import at_filter_panel %}
+<div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <form method="get" action="{{ url_for('project.at_list_view') }}"
+        style="display:flex;gap:10px;align-items:center;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
+    {% for v in ptype_values %}<input type="hidden" name="ptype" value="{{ v }}">{% endfor %}
+    {{ at_input(name='search', value=search, placeholder='搜索项目名 / 授权码…', icon_l='search', width='320px') }}
+  </form>
+  {% if show_filter %}
+  {{ at_filter_panel(
+       action_url=url_for('project.at_list_view'),
+       fields=[
+         {'key':'owner','label':'负责人','type':'user','items':owner_options,'values':owner_values},
+         {'key':'ptype','label':'类型','type':'select','options':type_options,'values':ptype_values},
+       ],
+       hidden={'tab':current_tab,'search':search},
+       panel_id='projFilterPanel') }}
+  {% endif %}
+</div>
 {% endblock %}
 
 {% block thead %}
@@ -145,11 +159,11 @@
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
     {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
-              href=url_for('project.at_list_view', tab=current_tab, page=pagination.prev_num, search=search)) }}
+              href=url_for('project.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
   {% endif %}
   {% if pagination.has_next %}
     {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
-              href=url_for('project.at_list_view', tab=current_tab, page=pagination.next_num, search=search)) }}
+              href=url_for('project.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
   {% endif %}
 </div>
 {% endif %}

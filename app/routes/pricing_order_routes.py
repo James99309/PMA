@@ -1483,12 +1483,24 @@ def list_pricing_orders():
 def at_list_view():
     """AT 风格批价单列表 — 复用现有 _build_pricing_order_query / _apply_pricing_order_filters"""
     from sqlalchemy import or_
+    from app.utils.access_control import build_owner_filter_options
+
     page = max(int(request.args.get('page', 1)), 1)
     per_page = 30
     tab = request.args.get('tab', 'all')
     search = request.args.get('search', '').strip()
+    # 多选:负责人(创建人);状态维度已由 tab 表达,不重复筛选
+    owner_values = [v for v in request.args.getlist('owner') if v.strip()]
 
     base = _build_pricing_order_query(current_user)
+
+    # 负责人筛选选项(基于可见数据);能看到他人数据才显示筛选
+    _owner_ids = [r[0] for r in base.with_entities(PricingOrder.created_by).distinct().all() if r[0]]
+    show_filter = any(oid != current_user.id for oid in _owner_ids)
+    owner_options = build_owner_filter_options(_owner_ids)
+    _owner_ids_sel = [int(v) for v in owner_values if v.isdigit()]
+    if _owner_ids_sel:
+        base = base.filter(PricingOrder.created_by.in_(_owner_ids_sel))
 
     TAB_STATUS_MAP = {
         'draft':    'draft',
@@ -1515,12 +1527,22 @@ def at_list_view():
         page=page, per_page=per_page, error_out=False,
     )
 
+    list_qs = {}
+    if search:
+        list_qs['search'] = search
+    if owner_values:
+        list_qs['owner'] = owner_values
+
     return render_template('pricing_order/at_list.html',
                            pricing_orders=pagination.items,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,
-                           search=search)
+                           search=search,
+                           show_filter=show_filter,
+                           owner_options=owner_options,
+                           owner_values=owner_values,
+                           list_qs=list_qs)
 
 
 @pricing_order_bp.route('/api/list')
