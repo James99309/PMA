@@ -352,27 +352,25 @@ def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
 
 
 def _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix):
-    """任务数 / 任务完成数(解决方案 + 产品经理共用)。"""
+    """任务:完成 / 目标(本期指派) 合成一个指标(完成率),解决方案 + 产品经理共用。"""
     from sqlalchemy import func
     from app import db
     from app.models.task import Task
 
-    def _new(s, e):
+    def _total(s, e):  # 目标=本期指派给我的任务(非取消)
         return db.session.query(func.count(Task.id)).filter(
-            Task.assignee_id == user.id, Task.is_deleted == False,
+            Task.assignee_id == user.id, Task.is_deleted == False, Task.status != 'cancelled',
             Task.created_at >= s, Task.created_at < e).scalar() or 0
 
-    def _done(s, e):
+    def _done(s, e):  # 完成=本期完成的任务
         return db.session.query(func.count(Task.id)).filter(
             Task.assignee_id == user.id, Task.is_deleted == False,
             Task.status == 'completed', Task.completed_at >= s, Task.completed_at < e).scalar() or 0
 
-    tn, tnp = _new(start, end), _new(prev_start, prev_end)
-    td, tdp = _done(start, end), _done(prev_start, prev_end)
-    return [
-        _kpi_item(f'{label_prefix}任务', tn, 0, ' 个', tnp, 'var(--accent)'),
-        _kpi_item(f'{label_prefix}任务完成', td, 0, ' 个', tdp, 'var(--success)'),
-    ]
+    total = _total(start, end)
+    done, done_p = _done(start, end), _done(prev_start, prev_end)
+    # value=完成数, target=目标(总数) → 进度条显示完成率
+    return [_kpi_item(f'{label_prefix}任务', done, total, ' 个', done_p, 'var(--accent)')]
 
 
 def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):
@@ -415,17 +413,25 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
             Action.created_at >= s, Action.created_at < e).scalar() or 0
 
     im, imp = _implant(start, end), _implant(prev_start, prev_end)
-    cf, cfp = _confirm(start, end), _confirm(prev_start, prev_end)
-    dg, dgp = _diagram(start, end), _diagram(prev_start, prev_end)
-    qc, qcp = _quote(start, end), _quote(prev_start, prev_end)
-    ac, acp = _action(start, end), _action(prev_start, prev_end)
+    # 项目参与(聚合):报价确认 + 图纸绘制 + 报价制作 + 项目跟进,合为一个指标
+    part = _confirm(start, end) + _diagram(start, end) + _quote(start, end) + _action(start, end)
+    part_p = (_confirm(prev_start, prev_end) + _diagram(prev_start, prev_end)
+              + _quote(prev_start, prev_end) + _action(prev_start, prev_end))
+    # 植入目标(PerformanceTarget.implant_amount_target 本期累加)
+    implant_target = 0
+    try:
+        from app.models.performance import PerformanceTarget
+        rows = PerformanceTarget.query.filter(
+            PerformanceTarget.user_id == user.id,
+            PerformanceTarget.year == start.year,
+            PerformanceTarget.month.in_(list(target_months))).all()
+        implant_target = sum(float(r.implant_amount_target or 0) for r in rows)
+    except Exception:
+        pass
     items = _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix)
     items += [
-        _kpi_item(f'{label_prefix}植入额', im, 0, cur, imp, 'var(--info)'),
-        _kpi_item(f'{label_prefix}报价确认', cf, 0, ' 个', cfp, 'var(--accent)'),
-        _kpi_item(f'{label_prefix}图纸绘制', dg, 0, ' 张', dgp, 'var(--info)'),
-        _kpi_item(f'{label_prefix}报价制作', qc, 0, ' 份', qcp, 'var(--success)'),
-        _kpi_item(f'{label_prefix}项目跟进', ac, 0, ' 条', acp, 'var(--warn)'),
+        _kpi_item(f'{label_prefix}植入额', im, implant_target, cur, imp, 'var(--success)'),
+        _kpi_item(f'{label_prefix}项目参与', part, 0, ' 次', part_p, 'var(--info)'),
     ]
     return items
 
