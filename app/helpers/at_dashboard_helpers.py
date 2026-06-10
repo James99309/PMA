@@ -883,10 +883,41 @@ _TASK_STATUS_TONE = {'pending': 'neutral', 'in_progress': 'info', 'paused': 'war
                      'pending_review': 'warn', 'completed': 'success'}
 
 
-def _build_tasks(user):
-    """「任务」卡:我的任务(assignee==user),状态计数 + 前 6 项(未完成优先、按截止升序)。"""
+def _team_scope(user):
+    """「团队」范围:按权限级别(system/company/department)取成员 id + 标签。
+    个人级(personal)→ has_team=False,不显示开关。
+    部门负责人=department、企业管理人员=company/system,与销售卡 scope 同口径。"""
+    from app import db
+    from app.models.user import User
+    levels = [_user_level(user, m) for m in ('project', 'quotation', 'expense')]
+    top = max(levels, key=lambda l: _DASH_LEVEL_RANK.get(l, 0))
+    rank = _DASH_LEVEL_RANK.get(top, 0)
+    if rank <= 0 and user.role != 'admin':
+        return {'has_team': False, 'ids': [user.id], 'label': '团队'}
+    # 按级别圈成员
+    q = db.session.query(User.id)
+    if user.role == 'admin' or top == 'system':
+        label = '系统'
+    elif top == 'company' and getattr(user, 'company_name', None):
+        q = q.filter(User.company_name == user.company_name); label = '公司'
+    elif top == 'department' and getattr(user, 'department', None) and getattr(user, 'company_name', None):
+        q = q.filter(User.department == user.department,
+                     User.company_name == user.company_name); label = '团队'
+    else:
+        return {'has_team': False, 'ids': [user.id], 'label': '团队'}
+    ids = [r[0] for r in q.all()]
+    if user.id not in ids:
+        ids.append(user.id)
+    return {'has_team': len(set(ids) - {user.id}) > 0, 'ids': ids, 'label': label}
+
+
+def _tasks_payload(user, assignee_ids, with_assignee=False):
+    """一组 assignee 的任务:状态计数 + 前 6 项(未完成优先、按截止升序)。"""
     from app.models.task import Task
-    tasks = Task.query.filter(Task.assignee_id == user.id, Task.is_deleted == False,
+    if not assignee_ids:
+        return {'counts': {'all': 0, 'in_progress': 0, 'pending': 0, 'pending_review': 0, 'completed': 0},
+                'items': []}
+    tasks = Task.query.filter(Task.assignee_id.in_(assignee_ids), Task.is_deleted == False,
                               Task.status != 'cancelled').all()
     counts = {'all': len(tasks), 'in_progress': 0, 'pending': 0, 'pending_review': 0, 'completed': 0}
     for t in tasks:
@@ -913,9 +944,20 @@ def _build_tasks(user):
             'due': t.due_date.strftime('%m-%d') if t.due_date else '—',
             'status': es, 'statusLabel': _TASK_STATUS_LABELS.get(es, es),
             'tone': _TASK_STATUS_TONE.get(es, 'neutral'), 'progress': prog,
+            'assignee': _fmt_user(t.assignee) if with_assignee else '',
             'route': f'/task/management?task={t.id}',
         })
-    return {'items': items, 'counts': counts}
+    return {'counts': counts, 'items': items}
+
+
+def _build_tasks(user):
+    """「任务」卡:我的任务 + (部门负责人额外)团队任务(可见成员被指派的任务)。"""
+    ts = _team_scope(user)
+    out = {'has_team': ts['has_team'], 'teamLabel': ts['label'],
+           'mine': _tasks_payload(user, [user.id])}
+    if ts['has_team']:
+        out['team'] = _tasks_payload(user, ts['ids'], with_assignee=True)
+    return out
 
 
 def _dash_periods():
@@ -942,6 +984,7 @@ def _build_implant(user, variant='solution'):
     from sqlalchemy import func
     from app import db
     from app.models.quotation import Quotation, QuotationDetail
+    from app.utils.access_control import get_viewable_data
 
     periods = {}
 
@@ -965,28 +1008,43 @@ def _build_implant(user, variant='solution'):
                 total = sum(float(r[2]) for r in rows)
                 items = [{'name': n or '—', 'count': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
             periods[pk] = {'total': total, 'items': items}
-        return {'variant': 'product', 'sub': '我负责分类的产品', 'periods': periods}
+        return {'variant': 'product', 'sub': '我负责分类的产品',
+                'has_team': False, 'mine': {'periods': periods}}
 
-    # solution:我创建 ∪ 我确认的报价,按报价明细产品聚合(同产品经理前端)
+    # solution:按报价明细产品聚合;我的=我创建∪我确认,团队=我可见范围的报价(部门负责人)
     from app.models.quotation_confirmation_task import QuotationConfirmationTask
+
+    def _solution_periods(quote_filter):
+        out = {}
+        for pk, (s, e) in _dash_periods().items():
+            rows = db.session.query(
+                QuotationDetail.product_name,
+                func.count(QuotationDetail.id),
+                func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0),
+            ).join(Quotation, Quotation.id == QuotationDetail.quotation_id)\
+             .filter(quote_filter,
+                     QuotationDetail.implant_subtotal > 0,
+                     Quotation.created_at >= s, Quotation.created_at < e)\
+             .group_by(QuotationDetail.product_name)\
+             .order_by(func.sum(QuotationDetail.implant_subtotal).desc()).all()
+            total = sum(float(r[2]) for r in rows)
+            items = [{'name': n or '—', 'count': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
+            out[pk] = {'total': total, 'items': items}
+        return out
+
     confirmed_q = db.session.query(QuotationConfirmationTask.quotation_id).filter(
         QuotationConfirmationTask.assignee_id == user.id,
         QuotationConfirmationTask.status == 'confirmed')
-    for pk, (s, e) in _dash_periods().items():
-        rows = db.session.query(
-            QuotationDetail.product_name,
-            func.count(QuotationDetail.id),
-            func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0),
-        ).join(Quotation, Quotation.id == QuotationDetail.quotation_id)\
-         .filter(db.or_(Quotation.owner_id == user.id, Quotation.id.in_(confirmed_q)),
-                 QuotationDetail.implant_subtotal > 0,
-                 Quotation.created_at >= s, Quotation.created_at < e)\
-         .group_by(QuotationDetail.product_name)\
-         .order_by(func.sum(QuotationDetail.implant_subtotal).desc()).all()
-        total = sum(float(r[2]) for r in rows)
-        items = [{'name': n or '—', 'count': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
-        periods[pk] = {'total': total, 'items': items}
-    return {'variant': 'solution', 'sub': '我创建 / 确认的报价', 'periods': periods}
+    ts = _team_scope(user)
+    res = {'variant': 'solution', 'sub': '我创建 / 确认的报价',
+           'has_team': ts['has_team'], 'teamLabel': ts['label'],
+           'mine': {'periods': _solution_periods(
+               db.or_(Quotation.owner_id == user.id, Quotation.id.in_(confirmed_q)))}}
+    if ts['has_team']:
+        team_q = get_viewable_data(Quotation, user).with_entities(Quotation.id).subquery()
+        res['team'] = {'periods': _solution_periods(
+            Quotation.id.in_(db.session.query(team_q.c.id)))}
+    return res
 
 
 def role_layout(user):

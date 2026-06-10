@@ -260,101 +260,144 @@
     {% if 'task' in layout.cards %}
     <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px;">
 
-      {# ─────── TaskCard ─────── #}
-      {% set _tc = dash.task.counts %}
+      {# ─────── TaskCard(我的/团队 开关 — 部门负责人/企业管理人员)─────── #}
       <section class="dash-card">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            <h3 class="dash-card-title">我的任务</h3>
-            <div class="dash-card-sub">共 {{ _tc.all }} 项 · {{ _tc.in_progress }} 进行中</div>
+            <h3 class="dash-card-title">
+              <span data-scope-title="mine">我的任务</span>
+              {% if dash.task.has_team %}<span data-scope-title="team" hidden>{{ dash.task.teamLabel }}任务</span>{% endif %}
+            </h3>
+            <div class="dash-card-sub">
+              <span data-scope-title="mine">共 {{ dash.task.mine.counts.all }} 项 · {{ dash.task.mine.counts.in_progress }} 进行中</span>
+              {% if dash.task.has_team %}<span data-scope-title="team" hidden>共 {{ dash.task.team.counts.all }} 项 · {{ dash.task.team.counts.in_progress }} 进行中</span>{% endif %}
+            </div>
           </div>
-        </header>
-        <div class="dash-card-body">
-          {% set _ttabs = [
-            {'k':'all','label':'全部','n':_tc.all},
-            {'k':'in_progress','label':'进行中','n':_tc.in_progress},
-            {'k':'pending','label':'待开始','n':_tc.pending},
-            {'k':'pending_review','label':'待审核','n':_tc.pending_review},
-            {'k':'completed','label':'已完成','n':_tc.completed}
-          ] %}
-          <div data-dash-tabs="task"
-               style="display:flex;gap:4px;margin-bottom:14px;padding:3px;background:var(--bg-page);border-radius:8px;">
-            {% for t in _ttabs %}
-            <button type="button" data-tab="{{ t.k }}" onclick="atDashFilter('task','{{ t.k }}')"
-                    style="flex:1;padding:5px 6px;border-radius:6px;font-size:11px;font-weight:500;
-                           border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+          {% if dash.task.has_team %}
+          <div style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;flex-shrink:0;">
+            {% for sc in [{'k':'mine','l':'我的'},{'k':'team','l':dash.task.teamLabel}] %}
+            <button type="button" data-card-scope-btn="{{ sc.k }}" onclick="atDashCardScope(this,'{{ sc.k }}')"
+                    style="padding:4px 10px;font-size:11px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
                            color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
                            background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
-                           box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">
-              <span>{{ t.label }}</span>
-              <span class="dash-tab-num"
-                    style="padding:0 4px;font-size:10px;border-radius:4px;color:var(--ink-3);
-                           background:{{ 'var(--bg-page)' if loop.first else 'transparent' }};">{{ t.n }}</span>
-            </button>
+                           box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">{{ sc.l }}</button>
             {% endfor %}
           </div>
-          <ul data-dash-list="task" style="list-style:none;margin:0;padding:0;">
-            {% for it in dash.task['items'] %}
-            <li data-type="{{ it.status }}" class="dash-list-item" data-href="{{ it.route }}">
-              {{ at_pill(it.statusLabel, tone=it.tone, dot=true) }}
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:13px;color:var(--ink);font-weight:500;line-height:1.35;
-                            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.title }}</div>
-                <div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:8px;">
-                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;">{{ it.project }}</span>
-                  <span style="color:var(--ink-4);">·</span><span>截止 {{ it.due }}</span>
+          {% endif %}
+        </header>
+        <div class="dash-card-body">
+          {% for sc in (['mine','team'] if dash.task.has_team else ['mine']) %}
+          {% set _td = dash.task[sc] %}
+          {% set _tc = _td.counts %}
+          <div data-scope-block="{{ sc }}"{% if sc != 'mine' %} hidden{% endif %}>
+            {% set _ttabs = [
+              {'k':'all','label':'全部','n':_tc.all},
+              {'k':'in_progress','label':'进行中','n':_tc.in_progress},
+              {'k':'pending','label':'待开始','n':_tc.pending},
+              {'k':'pending_review','label':'待审核','n':_tc.pending_review},
+              {'k':'completed','label':'已完成','n':_tc.completed}
+            ] %}
+            <div data-dash-tabs="task-{{ sc }}"
+                 style="display:flex;gap:4px;margin-bottom:14px;padding:3px;background:var(--bg-page);border-radius:8px;">
+              {% for t in _ttabs %}
+              <button type="button" data-tab="{{ t.k }}" onclick="atDashFilter('task-{{ sc }}','{{ t.k }}')"
+                      style="flex:1;padding:5px 6px;border-radius:6px;font-size:11px;font-weight:500;
+                             border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+                             color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
+                             background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
+                             box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">
+                <span>{{ t.label }}</span>
+                <span class="dash-tab-num"
+                      style="padding:0 4px;font-size:10px;border-radius:4px;color:var(--ink-3);
+                             background:{{ 'var(--bg-page)' if loop.first else 'transparent' }};">{{ t.n }}</span>
+              </button>
+              {% endfor %}
+            </div>
+            <ul data-dash-list="task-{{ sc }}" style="list-style:none;margin:0;padding:0;">
+              {% for it in _td['items'] %}
+              <li data-type="{{ it.status }}" class="dash-list-item" data-href="{{ it.route }}">
+                {{ at_pill(it.statusLabel, tone=it.tone, dot=true) }}
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;color:var(--ink);font-weight:500;line-height:1.35;
+                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.title }}</div>
+                  <div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:8px;">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;">{{ it.project }}</span>
+                    {% if it.assignee %}<span style="color:var(--ink-4);">·</span><span>{{ it.assignee }}</span>{% endif %}
+                    <span style="color:var(--ink-4);">·</span><span>截止 {{ it.due }}</span>
+                  </div>
                 </div>
-              </div>
-              <span class="dash-tab-num" style="font-size:11px;color:var(--ink-3);flex-shrink:0;margin-top:2px;">{{ it.progress }}%</span>
-            </li>
-            {% else %}
-            <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无任务</li>
-            {% endfor %}
-          </ul>
+                <span class="dash-tab-num" style="font-size:11px;color:var(--ink-3);flex-shrink:0;margin-top:2px;">{{ it.progress }}%</span>
+              </li>
+              {% else %}
+              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无任务</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endfor %}
         </div>
       </section>
 
-      {# ─────── ImplantCard(植入产值,月/季/年切换;solution/product 同前端,按产品聚合)─────── #}
+      {# ─────── ImplantCard(植入产值;月/季/年 + 我的/团队[解决方案,权限驱动])─────── #}
       {% set _im = dash.implant %}
       <section class="dash-card">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">植入产值</h3>
-            <div class="dash-card-sub">{{ _im.sub }}</div>
+            <div class="dash-card-sub">
+              <span data-scope-title="mine">{{ _im.sub }}</span>
+              {% if _im.has_team %}<span data-scope-title="team" hidden>{{ _im.teamLabel }}报价</span>{% endif %}
+            </div>
           </div>
-          <div data-dash-tabs="implant"
-               style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
-            {% for p in [{'k':'month','label':'本月'},{'k':'quarter','label':'本季'},{'k':'year','label':'本年'}] %}
-            <button type="button" data-tab="{{ p.k }}" onclick="atDashImplantSwitch('{{ p.k }}')"
-                    style="padding:4px 10px;font-size:11.5px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
-                           color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
-                           background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
-                           box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">{{ p.label }}</button>
-            {% endfor %}
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+            {% if _im.has_team %}
+            <div style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
+              {% for sc in [{'k':'mine','l':'我的'},{'k':'team','l':_im.teamLabel}] %}
+              <button type="button" data-card-scope-btn="{{ sc.k }}" onclick="atDashCardScope(this,'{{ sc.k }}')"
+                      style="padding:4px 9px;font-size:11px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
+                             color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
+                             background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
+                             box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">{{ sc.l }}</button>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <div data-dash-tabs="implant"
+                 style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
+              {% for p in [{'k':'month','label':'本月'},{'k':'quarter','label':'本季'},{'k':'year','label':'本年'}] %}
+              <button type="button" data-tab="{{ p.k }}" onclick="atDashImplantSwitch('{{ p.k }}')"
+                      style="padding:4px 9px;font-size:11px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
+                             color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
+                             background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
+                             box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">{{ p.label }}</button>
+              {% endfor %}
+            </div>
           </div>
         </header>
         <div class="dash-card-body">
-          {% for pk in ['month', 'quarter', 'year'] %}
-          {% set _ip = _im.periods[pk] %}
-          <div data-implant-period="{{ pk }}" style="display:{{ 'block' if pk == 'month' else 'none' }};">
-            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px;">
-              <span style="font-size:11px;color:var(--ink-3);">植入产值</span>
-              <span class="dash-tab-num at-serif" style="font-size:26px;font-weight:500;letter-spacing:-0.01em;color:var(--ink);">
-                {{ dash.currency }}{{ '{:,.0f}'.format(_ip.total) }}
-              </span>
+          {% for sc in (['mine', 'team'] if _im.has_team else ['mine']) %}
+          <div data-scope-block="{{ sc }}"{% if sc != 'mine' %} hidden{% endif %}>
+            {% for pk in ['month', 'quarter', 'year'] %}
+            {% set _ip = _im[sc].periods[pk] %}
+            <div data-implant-period="{{ pk }}" style="display:{{ 'block' if pk == 'month' else 'none' }};">
+              <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px;">
+                <span style="font-size:11px;color:var(--ink-3);">植入产值</span>
+                <span class="dash-tab-num at-serif" style="font-size:26px;font-weight:500;letter-spacing:-0.01em;color:var(--ink);">
+                  {{ dash.currency }}{{ '{:,.0f}'.format(_ip.total) }}
+                </span>
+              </div>
+              <ul style="list-style:none;margin:0;padding:0;">
+                {% for it in _ip['items'] %}
+                <li style="padding:10px 4px;border-top:{{ '0' if loop.first else '1px solid var(--line)' }};
+                           display:flex;align-items:center;gap:10px;font-size:12.5px;">
+                  <span style="flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ it.name }}</span>
+                  <span style="font-size:11px;color:var(--ink-4);flex-shrink:0;">×{{ it.count }}</span>
+                  <span class="dash-tab-num" style="color:var(--ink);font-weight:500;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
+                </li>
+                {% else %}
+                <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">本期暂无植入</li>
+                {% endfor %}
+              </ul>
             </div>
-            <ul style="list-style:none;margin:0;padding:0;">
-              {% for it in _ip['items'] %}
-              <li style="padding:10px 4px;border-top:{{ '0' if loop.first else '1px solid var(--line)' }};
-                         display:flex;align-items:center;gap:10px;font-size:12.5px;">
-                <span style="flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ it.name }}</span>
-                <span style="font-size:11px;color:var(--ink-4);flex-shrink:0;">×{{ it.count }}</span>
-                <span class="dash-tab-num" style="color:var(--ink);font-weight:500;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
-              </li>
-              {% else %}
-              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">本期暂无植入</li>
-              {% endfor %}
-            </ul>
+            {% endfor %}
           </div>
           {% endfor %}
         </div>
@@ -815,6 +858,24 @@
     });
     document.querySelectorAll('[data-implant-period]').forEach(el => {
       el.style.display = (el.dataset.implantPeriod === period) ? 'block' : 'none';
+    });
+  };
+
+  // 单卡「我的 / 团队」切换(任务卡、植入卡;权限驱动)— 仅作用于按钮所在卡片
+  window.atDashCardScope = function(btn, scope) {
+    const card = btn.closest('.dash-card');
+    if (!card) return;
+    card.querySelectorAll('[data-card-scope-btn]').forEach(b => {
+      const on = b.dataset.cardScopeBtn === scope;
+      b.style.background = on ? 'var(--bg-elev)' : 'transparent';
+      b.style.color      = on ? 'var(--ink)'    : 'var(--ink-3)';
+      b.style.boxShadow  = on ? '0 1px 2px rgba(31,30,27,0.06)' : 'none';
+    });
+    card.querySelectorAll('[data-scope-block]').forEach(el => {
+      el.hidden = (el.dataset.scopeBlock !== scope);
+    });
+    card.querySelectorAll('[data-scope-title]').forEach(el => {
+      el.hidden = (el.dataset.scopeTitle !== scope);
     });
   };
 
