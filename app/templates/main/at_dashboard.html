@@ -314,46 +314,49 @@
         </div>
       </section>
 
-      {# ─────── ImplantCard(solution=按报价单 / product=按负责产品)─────── #}
+      {# ─────── ImplantCard(植入产值,月/季/年切换;solution/product 同前端,按产品聚合)─────── #}
       {% set _im = dash.implant %}
       <section class="dash-card">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            <h3 class="dash-card-title">{{ '产品植入度' if _im.variant == 'product' else '我的植入' }}</h3>
-            <div class="dash-card-sub">
-              {{ '我负责分类的产品' if _im.variant == 'product' else '我创建 / 确认的报价' }}
-              · 合计 {{ dash.currency }}{{ '{:,.0f}'.format(_im.total) }}
-            </div>
+            <h3 class="dash-card-title">植入产值</h3>
+            <div class="dash-card-sub">{{ _im.sub }}</div>
+          </div>
+          <div data-dash-tabs="implant"
+               style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
+            {% for p in [{'k':'month','label':'本月'},{'k':'quarter','label':'本季'},{'k':'year','label':'本年'}] %}
+            <button type="button" data-tab="{{ p.k }}" onclick="atDashImplantSwitch('{{ p.k }}')"
+                    style="padding:4px 10px;font-size:11.5px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
+                           color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
+                           background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
+                           box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">{{ p.label }}</button>
+            {% endfor %}
           </div>
         </header>
         <div class="dash-card-body">
-          <ul style="list-style:none;margin:0;padding:0;">
-            {% if _im.variant == 'product' %}
-              {% for it in _im['items'] %}
-              <li style="padding:11px 4px;border-top:{{ '0' if loop.first else '1px solid var(--line)' }};
+          {% for pk in ['month', 'quarter', 'year'] %}
+          {% set _ip = _im.periods[pk] %}
+          <div data-implant-period="{{ pk }}" style="display:{{ 'block' if pk == 'month' else 'none' }};">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px;">
+              <span style="font-size:11px;color:var(--ink-3);">植入产值</span>
+              <span class="dash-tab-num at-serif" style="font-size:26px;font-weight:500;letter-spacing:-0.01em;color:var(--ink);">
+                {{ dash.currency }}{{ '{:,.0f}'.format(_ip.total) }}
+              </span>
+            </div>
+            <ul style="list-style:none;margin:0;padding:0;">
+              {% for it in _ip['items'] %}
+              <li style="padding:10px 4px;border-top:{{ '0' if loop.first else '1px solid var(--line)' }};
                          display:flex;align-items:center;gap:10px;font-size:12.5px;">
                 <span style="flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ it.name }}</span>
                 <span style="font-size:11px;color:var(--ink-4);flex-shrink:0;">×{{ it.count }}</span>
                 <span class="dash-tab-num" style="color:var(--ink);font-weight:500;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
               </li>
               {% else %}
-              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无植入数据</li>
+              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">本期暂无植入</li>
               {% endfor %}
-            {% else %}
-              {% for it in _im['items'] %}
-              <li class="dash-list-item" data-href="{{ it.route }}">
-                <div style="flex:1;min-width:0;">
-                  <div style="font-size:13px;color:var(--ink);font-weight:500;
-                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.customer }}</div>
-                  <div class="at-mono" style="font-size:11px;color:var(--ink-4);margin-top:2px;">{{ it.number }}</div>
-                </div>
-                <span class="dash-tab-num" style="color:var(--ink);font-weight:500;font-size:13px;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
-              </li>
-              {% else %}
-              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无植入数据</li>
-              {% endfor %}
-            {% endif %}
-          </ul>
+            </ul>
+          </div>
+          {% endfor %}
         </div>
       </section>
 
@@ -799,6 +802,19 @@
     });
     document.querySelectorAll('[data-kpi-period]').forEach(el => {
       el.style.display = (el.dataset.kpiPeriod === period) ? 'flex' : 'none';
+    });
+  };
+
+  // 植入产值 月/季/年 切换 — 同 KPI 逻辑
+  window.atDashImplantSwitch = function(period) {
+    document.querySelectorAll('[data-dash-tabs="implant"] button').forEach(btn => {
+      const on = btn.dataset.tab === period;
+      btn.style.background = on ? 'var(--bg-elev)' : 'transparent';
+      btn.style.color      = on ? 'var(--ink)'    : 'var(--ink-3)';
+      btn.style.boxShadow  = on ? '0 1px 2px rgba(31,30,27,0.06)' : 'none';
+    });
+    document.querySelectorAll('[data-implant-period]').forEach(el => {
+      el.style.display = (el.dataset.implantPeriod === period) ? 'block' : 'none';
     });
   };
 

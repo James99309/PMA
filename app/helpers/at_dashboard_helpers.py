@@ -918,51 +918,75 @@ def _build_tasks(user):
     return {'items': items, 'counts': counts}
 
 
+def _dash_periods():
+    """月 / 季 / 年 三个时间窗口 (start, end),与 KPI 同口径。"""
+    now = datetime.now()
+    y, m = now.year, now.month
+    month_start = datetime(y, m, 1)
+    month_end = datetime(y + 1, 1, 1) if m == 12 else datetime(y, m + 1, 1)
+    q = (m - 1) // 3 + 1
+    qs_m = (q - 1) * 3 + 1
+    qe_m = qs_m + 3
+    quarter_start = datetime(y, qs_m, 1)
+    quarter_end = datetime(y + 1, qe_m - 12, 1) if qe_m > 12 else datetime(y, qe_m, 1)
+    year_start = datetime(y, 1, 1)
+    year_end = datetime(y + 1, 1, 1)
+    return {'month': (month_start, month_end),
+            'quarter': (quarter_start, quarter_end),
+            'year': (year_start, year_end)}
+
+
 def _build_implant(user, variant='solution'):
-    """「植入」卡:solution=按报价单(我创建∪我确认);product=我管理分类下产品植入度。"""
+    """「植入产值」卡(月/季/年切换,按产品聚合 implant_subtotal,solution/product 同前端):
+       product = 我管理分类下产品;solution = 我创建 ∪ 我确认的报价里的产品。"""
     from sqlalchemy import func
     from app import db
+    from app.models.quotation import Quotation, QuotationDetail
+
+    periods = {}
 
     if variant == 'product':
-        from app.models.quotation import QuotationDetail
         from app.models.product import Product
         my_cat_ids = [c.id for c in getattr(user, 'managed_categories', [])]
-        items, total = [], 0
-        if my_cat_ids:
-            rows = db.session.query(
-                Product.product_name,
-                func.count(QuotationDetail.id),
-                func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0),
-            ).join(QuotationDetail, QuotationDetail.product_mn == Product.product_mn)\
-             .filter(Product.category_id.in_(my_cat_ids), QuotationDetail.implant_subtotal > 0)\
-             .group_by(Product.product_name)\
-             .order_by(func.sum(QuotationDetail.implant_subtotal).desc()).all()
-            total = sum(float(r[2]) for r in rows)
-            for name, cnt, amt in rows[:6]:
-                items.append({'name': name or '—', 'count': int(cnt), 'amount': float(amt)})
-        return {'variant': 'product', 'items': items, 'total': total}
+        for pk, (s, e) in _dash_periods().items():
+            items, total = [], 0
+            if my_cat_ids:
+                rows = db.session.query(
+                    Product.product_name,
+                    func.count(QuotationDetail.id),
+                    func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0),
+                ).join(QuotationDetail, QuotationDetail.product_mn == Product.product_mn)\
+                 .join(Quotation, Quotation.id == QuotationDetail.quotation_id)\
+                 .filter(Product.category_id.in_(my_cat_ids),
+                         QuotationDetail.implant_subtotal > 0,
+                         Quotation.created_at >= s, Quotation.created_at < e)\
+                 .group_by(Product.product_name)\
+                 .order_by(func.sum(QuotationDetail.implant_subtotal).desc()).all()
+                total = sum(float(r[2]) for r in rows)
+                items = [{'name': n or '—', 'count': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
+            periods[pk] = {'total': total, 'items': items}
+        return {'variant': 'product', 'sub': '我负责分类的产品', 'periods': periods}
 
-    # solution:按报价单(owner==我 OR 我确认过),植入额降序
-    from app.models.quotation import Quotation
+    # solution:我创建 ∪ 我确认的报价,按报价明细产品聚合(同产品经理前端)
     from app.models.quotation_confirmation_task import QuotationConfirmationTask
     confirmed_q = db.session.query(QuotationConfirmationTask.quotation_id).filter(
         QuotationConfirmationTask.assignee_id == user.id,
         QuotationConfirmationTask.status == 'confirmed')
-    qs = Quotation.query.filter(
-        db.or_(Quotation.owner_id == user.id, Quotation.id.in_(confirmed_q)),
-        Quotation.implant_total_amount > 0,
-    ).order_by(Quotation.implant_total_amount.desc()).all()
-    total = sum(float(q.implant_total_amount or 0) for q in qs)
-    items = []
-    for q in qs[:6]:
-        items.append({
-            'number': q.quotation_number,
-            'customer': q.customer.company_name if q.customer else '—',
-            'amount': float(q.implant_total_amount or 0),
-            'status': q.approval_status or '—',
-            'route': f'/quotation/{q.id}/at_view',
-        })
-    return {'variant': 'solution', 'items': items, 'total': total}
+    for pk, (s, e) in _dash_periods().items():
+        rows = db.session.query(
+            QuotationDetail.product_name,
+            func.count(QuotationDetail.id),
+            func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0),
+        ).join(Quotation, Quotation.id == QuotationDetail.quotation_id)\
+         .filter(db.or_(Quotation.owner_id == user.id, Quotation.id.in_(confirmed_q)),
+                 QuotationDetail.implant_subtotal > 0,
+                 Quotation.created_at >= s, Quotation.created_at < e)\
+         .group_by(QuotationDetail.product_name)\
+         .order_by(func.sum(QuotationDetail.implant_subtotal).desc()).all()
+        total = sum(float(r[2]) for r in rows)
+        items = [{'name': n or '—', 'count': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
+        periods[pk] = {'total': total, 'items': items}
+    return {'variant': 'solution', 'sub': '我创建 / 确认的报价', 'periods': periods}
 
 
 def role_layout(user):
