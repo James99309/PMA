@@ -1849,7 +1849,6 @@ def save_pricing_details(order_id):
                 unit_price=pricing_detail.unit_price,
                 quantity=pricing_detail.quantity,
                 discount_rate=pricing_detail.discount_rate,
-                item_note=pricing_detail.item_note or '',
                 pricing_detail_id=pricing_detail.id
             )
             settlement_detail.calculate_prices()
