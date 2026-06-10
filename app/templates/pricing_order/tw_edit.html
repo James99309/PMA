@@ -1060,23 +1060,19 @@ const PricingEditor = (() => {
           if (subEl2) subEl2.textContent = _fmt(sp * qty);
           _recalcSettlementTotal();
         }
-        if (e.target.matches('.cell-market,.cell-discount')) {
-          // 批价 = market × disc% → 结算价跟随批价，折扣率/面价同步显示
-          const spInput = sRow.querySelector('.cell-settle-price');
-          if (spInput && spInput !== document.activeElement) spInput.value = price.toFixed(2);
+        if (e.target.matches('.cell-market')) {
+          // 面价是同一产品属性 → 结算面价跟随;但结算折扣独立,用结算自己的折扣重算结算价/小计,绝不改结算折扣
           if (sRow.cells[6]) sRow.cells[6].textContent = market > 0 ? _fmt(market) : '0.00';
-          // 结算折扣%：若是可编辑 input 则改 value，否则改文本（避免清空 input 元素）
-          const sDiscInput = sRow.querySelector('.cell-settle-discount');
-          if (sDiscInput) {
-            if (sDiscInput !== document.activeElement) sDiscInput.value = disc.toFixed(1);
-          } else if (sRow.cells[7]) {
-            sRow.cells[7].textContent = disc.toFixed(1) + '%';
-          }
+          const sDisc = parseFloat(sRow.querySelector('.cell-settle-discount')?.value) || 0;
+          const sPrice = market * sDisc / 100;
+          const spInput = sRow.querySelector('.cell-settle-price');
+          if (spInput && spInput !== document.activeElement) spInput.value = sPrice.toFixed(2);
           const q = parseInt(sRow.cells[5]?.textContent) || qty;
           const subEl2 = sRow.querySelector('.cell-settle-subtotal');
-          if (subEl2) subEl2.textContent = _fmt(price * q);
+          if (subEl2) subEl2.textContent = _fmt(sPrice * q);
           _recalcSettlementTotal();
         }
+        // ⚠️ 批价折扣(cell-discount)变更不再同步到结算 —— 结算折扣由用户在结算 tab 独立设置
       }
     }
   });
@@ -1296,6 +1292,7 @@ const PricingEditor = (() => {
       const model  = tr.querySelector('.cell-model')?.value || '';
       if (!model) return;
       rows.push({
+        id:            tr.dataset.id || null,   // 已有明细带 id → 后端按 id 原地更新(不删重建)
         product_name:  model,
         product_mn:    tr.querySelector('.cell-mn')?.value || '',
         brand:         tr.querySelector('.cell-brand')?.value || '',
