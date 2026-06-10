@@ -78,13 +78,13 @@
     {# 是否有"次级(团队/公司/系统)"范围 — 全局定义,供各 scoped 卡复用(财务单视图时为 false) #}
     {% set _has_sec = (dash.scope.secondary is not none) %}
 
-    {# ══════════════════ Row 1 · TodoCard + KPICard(2 列) ══════════════════ #}
-    <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px;">
+    {# ══════════════════ Row 1 · TodoCard + KPICard(KPI 可选) ══════════════════ #}
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
 
       {# ─────── TodoCard ─────── #}
       {% set _todos = dash.todos %}
       {% set _urgent_count = _todos | selectattr('urgent') | list | length %}
-      <section class="dash-card">
+      <section class="dash-card" style="flex:3 1 380px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">我的待办</h3>
@@ -162,10 +162,11 @@
         </div>
       </section>
 
-      {# ─────── KPICard(月/季/年 tab 切换;helper 一次返 3 套) ─────── #}
+      {# ─────── KPICard(可选:无 kpi 卡的角色[admin]不渲染) ─────── #}
+      {% if 'kpi' in layout.cards %}
       {% set _kpis = dash.kpis %}
       {% set _today = dash.todayStats %}
-      <section class="dash-card">
+      <section class="dash-card" style="flex:2 1 320px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">我的 KPI</h3>
@@ -253,10 +254,11 @@
           {% endif %}{# /今日 micro stats #}
         </div>
       </section>
+      {% endif %}{# /kpi 可选 #}
     </div>
 
 
-    {# ══════════════════ Row M · Task + Implant(2 列)— 仅解决方案/产品经理 ══════════════════ #}
+    {# ══════════════════ Row M · Task + Implant(2 列)— 仅解决方案/产品经理/管理员 ══════════════════ #}
     {% if 'task' in layout.cards %}
     <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px;">
 
@@ -265,7 +267,7 @@
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">
-              <span data-scope-title="mine">我的任务</span>
+              <span data-scope-title="mine">{{ dash.task.title | default('我的任务') }}</span>
               {% if dash.task.has_team %}<span data-scope-title="team" hidden>{{ dash.task.teamLabel }}任务</span>{% endif %}
             </h3>
             <div class="dash-card-sub">
@@ -407,14 +409,14 @@
     {% endif %}
 
 
-    {# ══════════════════ Row 2 · Funnel + Projects + Quotes(3 列)— 仅销售/总览角色 ══════════════════ #}
-    {% if 'funnel' in layout.cards %}
-    <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+    {# ══════════════════ Row 2 · Funnel + Projects + Quotes(各卡可选) ══════════════════ #}
+    {% if 'funnel' in layout.cards or 'projects' in layout.cards or 'quotes' in layout.cards %}
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
 
-      {# ─────── FunnelCard ─────── #}
+      {# ─────── FunnelCard(可选)─────── #}
       {% set _tones = ['#C15F3C', '#D97757', '#B8742E', '#2A5F8F', '#2F7155'] %}
-      {% set _has_sec = dash.scope.secondary is not none %}
-      <section class="dash-card dash-card-scoped" data-dash-block="funnel">
+      {% if 'funnel' in layout.cards %}
+      <section class="dash-card dash-card-scoped" data-dash-block="funnel" style="flex:1.4 1 360px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">销售漏斗</h3>
@@ -494,9 +496,11 @@
         {% endfor %}
         </div>{# /dash-card-body #}
       </section>
+      {% endif %}{# /funnel 可选 #}
 
-      {# ─────── ProjectsCard ─────── #}
-      <section class="dash-card dash-card-scoped" data-dash-block="projects">
+      {# ─────── ProjectsCard(可选)─────── #}
+      {% if 'projects' in layout.cards %}
+      <section class="dash-card dash-card-scoped" data-dash-block="projects" style="flex:1 1 280px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             {{ dash_scope_title('项目', _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
@@ -545,9 +549,11 @@
           {% endfor %}
         </div>
       </section>
+      {% endif %}{# /projects 可选 #}
 
-      {# ─────── QuotesCard ─────── #}
-      <section class="dash-card dash-card-scoped" data-dash-block="quotes">
+      {# ─────── QuotesCard(可选)─────── #}
+      {% if 'quotes' in layout.cards %}
+      <section class="dash-card dash-card-scoped" data-dash-block="quotes" style="flex:1 1 280px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             {{ dash_scope_title('报价', _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
@@ -601,6 +607,7 @@
         {% endfor %}
         </div>
       </section>
+      {% endif %}{# /quotes 可选 #}
 
     </div>
     {% endif %}

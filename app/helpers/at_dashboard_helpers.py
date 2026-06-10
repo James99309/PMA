@@ -961,11 +961,15 @@ def _tasks_payload(user, task_filter, with_assignee=False):
 
 
 def _build_tasks(user):
-    """「任务」卡:我的任务(被指派 ∪ 我协助)+ (部门负责人额外)团队任务(成员被指派)。"""
+    """「任务」卡:我的任务(被指派 ∪ 我协助)+ (部门负责人额外)团队任务(成员被指派)。
+    管理员 → 全局任务(所有任务,无开关)。"""
     from app import db
     from app.models.task import Task
+    if user.role == 'admin':
+        return {'has_team': False, 'title': '全局任务',
+                'mine': _tasks_payload(user, Task.id.isnot(None), with_assignee=True)}
     ts = _team_scope(user)
-    out = {'has_team': ts['has_team'], 'teamLabel': ts['label'],
+    out = {'has_team': ts['has_team'], 'teamLabel': ts['label'], 'title': '我的任务',
            'mine': _tasks_payload(user, _my_task_filter(user))}
     if ts['has_team']:
         out['team'] = _tasks_payload(user, Task.assignee_id.in_(ts['ids']), with_assignee=True)
@@ -1044,6 +1048,11 @@ def _build_implant(user, variant='solution'):
             out[pk] = {'total': total, 'items': items}
         return out
 
+    if variant == 'admin':
+        # 管理员:全局植入产值(全公司所有报价),无开关
+        return {'variant': 'admin', 'sub': '全公司报价', 'has_team': False,
+                'mine': {'periods': _solution_periods(Quotation.id.isnot(None))}}
+
     confirmed_q = db.session.query(QuotationConfirmationTask.quotation_id).filter(
         QuotationConfirmationTask.assignee_id == user.id,
         QuotationConfirmationTask.status == 'confirmed')
@@ -1068,7 +1077,11 @@ def role_layout(user):
     KPI 变体:default(销售) / solution / product / finance / overview
     """
     role = (user.role or '').lower()
-    if role in ('ceo', 'admin'):
+    if role == 'admin':
+        # 管理员:全局视角 — 去 KPI/项目/报价,加 全局任务 + 全局植入产值
+        return {'cards': ['todo', 'funnel', 'task', 'implant', 'expense', 'worklog'],
+                'kpi_variant': 'admin'}
+    if role == 'ceo':
         return {'cards': ['todo', 'kpi', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
                 'kpi_variant': 'overview'}
     if role in ('finance', 'finance_director', 'finace_director', 'finance_supervisor'):
