@@ -185,13 +185,8 @@
         <div class="dash-card-body">
           {# 3 套粒度,默认 month 显示,其余 display:none #}
           {% for period_key in ['month', 'quarter', 'year'] %}
-          {% set _set = _kpis[period_key] %}
-          {% set _kpi_items = [
-            {'data': _set.salesGoal,  'tone': _set.salesGoal.tone,  'delta': _set.salesGoal.delta,  'deltaTone': _set.salesGoal.deltaTone},
-            {'data': _set.quoteWin,   'tone': _set.quoteWin.tone,   'delta': _set.quoteWin.delta,   'deltaTone': _set.quoteWin.deltaTone},
-            {'data': _set.activeCust, 'tone': _set.activeCust.tone, 'delta': _set.activeCust.delta, 'deltaTone': _set.activeCust.deltaTone},
-            {'data': _set.budget,     'tone': _set.budget.tone,     'delta': _set.budget.delta,     'deltaTone': _set.budget.deltaTone}
-          ] %}
+          {# KPI 列表契约:_kpis[period] 直接是指标项列表(按角色变体,数量不定)#}
+          {% set _kpi_items = _kpis[period_key] %}
           <div data-kpi-period="{{ period_key }}"
                style="display:{{ 'flex' if period_key == 'month' else 'none' }};flex-direction:column;gap:14px;">
             {% for it in _kpi_items %}
@@ -238,7 +233,8 @@
           </div>
           {% endfor %}
 
-          {# Today's micro stats #}
+          {# Today's micro stats — 销售向,仅销售/总览角色显示 #}
+          {% if layout.kpi_variant in ['default', 'overview'] and _today %}
           <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);
                       display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
             <div style="font-size:10.5px;color:var(--ink-3);grid-column:1 / -1;margin-bottom:2px;">
@@ -254,6 +250,7 @@
             </div>
             {% endfor %}
           </div>
+          {% endif %}{# /今日 micro stats #}
         </div>
       </section>
     </div>

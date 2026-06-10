@@ -240,6 +240,27 @@ def _build_todos(user):
 
 # ─── KPI ─── 直查业务表实时聚合(避开 PMA 内置 KPI 配置的字段名 bug)
 #            返回 3 套粒度:本月 / 本季 / 本年,前端 tab 切换显示
+def _kpi_delta(current, previous):
+    """同比一周期 → (文案, tone)。"""
+    if previous <= 0:
+        return ('—' if current == 0 else '新增', 'success' if current > 0 else 'neutral')
+    pct = round((float(current) - float(previous)) / float(previous) * 100)
+    if pct == 0:
+        return ('持平', 'neutral')
+    sign = '+' if pct > 0 else ''
+    return (f'{sign}{pct}%', 'success' if pct > 0 else 'warn')
+
+
+def _kpi_item(label, value, target, unit, prev, tone, delta=None):
+    """构造一个 KPI 指标项(列表契约)。delta=('文案','tone') 可显式覆盖(快照型指标用)。"""
+    if delta is None:
+        d, dt = _kpi_delta(value, prev)
+    else:
+        d, dt = delta
+    return {'data': {'label': label, 'value': int(value), 'target': int(target), 'unit': unit},
+            'tone': tone, 'delta': d, 'deltaTone': dt}
+
+
 def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
                     target_months, currency_symbol='¥'):
     """对一个时间窗口算 4 项 KPI(actual + 上一周期 actual + 累加 target)"""
@@ -317,26 +338,167 @@ def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
     cd, cdt = _delta(cust_a, cust_p)
 
     # target=0 表示"未设目标",模板灰色显示;不再 fallback 到 1
-    return {
-        'salesGoal':  {'label': f'{label_prefix}销售额',
-                       'value': int(sales_a), 'target': int(sales_t), 'unit': currency_symbol,
-                       'delta': sd, 'deltaTone': sdt, 'tone': 'var(--accent)'},
-        'quoteWin':   {'label': f'{label_prefix}植入额',
-                       'value': int(implant_a), 'target': int(implant_t), 'unit': currency_symbol,
-                       'delta': id_, 'deltaTone': idt, 'tone': 'var(--success)'},
-        'activeCust': {'label': f'{label_prefix}新项目',
-                       'value': int(proj_a), 'target': int(proj_t), 'unit': ' 个',
-                       'delta': pd, 'deltaTone': pdt, 'tone': 'var(--info)'},
-        'budget':     {'label': f'{label_prefix}新客户',
-                       'value': int(cust_a), 'target': int(cust_t), 'unit': ' 户',
-                       'delta': cd, 'deltaTone': cdt, 'tone': 'var(--warn)'},
-    }
+    # 列表契约:每项 {data:{label,value,target,unit}, tone, delta, deltaTone}(模板通用循环)
+    return [
+        {'data': {'label': f'{label_prefix}销售额', 'value': int(sales_a), 'target': int(sales_t), 'unit': currency_symbol},
+         'tone': 'var(--accent)', 'delta': sd, 'deltaTone': sdt},
+        {'data': {'label': f'{label_prefix}植入额', 'value': int(implant_a), 'target': int(implant_t), 'unit': currency_symbol},
+         'tone': 'var(--success)', 'delta': id_, 'deltaTone': idt},
+        {'data': {'label': f'{label_prefix}新项目', 'value': int(proj_a), 'target': int(proj_t), 'unit': ' 个'},
+         'tone': 'var(--info)', 'delta': pd, 'deltaTone': pdt},
+        {'data': {'label': f'{label_prefix}新客户', 'value': int(cust_a), 'target': int(cust_t), 'unit': ' 户'},
+         'tone': 'var(--warn)', 'delta': cd, 'deltaTone': cdt},
+    ]
+
+
+def _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix):
+    """任务数 / 任务完成数(解决方案 + 产品经理共用)。"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.task import Task
+
+    def _new(s, e):
+        return db.session.query(func.count(Task.id)).filter(
+            Task.assignee_id == user.id, Task.is_deleted == False,
+            Task.created_at >= s, Task.created_at < e).scalar() or 0
+
+    def _done(s, e):
+        return db.session.query(func.count(Task.id)).filter(
+            Task.assignee_id == user.id, Task.is_deleted == False,
+            Task.status == 'completed', Task.completed_at >= s, Task.completed_at < e).scalar() or 0
+
+    tn, tnp = _new(start, end), _new(prev_start, prev_end)
+    td, tdp = _done(start, end), _done(prev_start, prev_end)
+    return [
+        _kpi_item(f'{label_prefix}任务', tn, 0, ' 个', tnp, 'var(--accent)'),
+        _kpi_item(f'{label_prefix}任务完成', td, 0, ' 个', tdp, 'var(--success)'),
+    ]
+
+
+def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):
+    """解决方案经理:任务 + 植入额(我创建∪我确认,去重) + 项目参与度(确认/图纸/报价/跟进)。"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.quotation import Quotation
+    from app.models.quotation_confirmation_task import QuotationConfirmationTask
+    from app.models.system_diagram import SystemDiagram
+    from app.models.action import Action
+
+    confirmed_q = db.session.query(QuotationConfirmationTask.quotation_id).filter(
+        QuotationConfirmationTask.assignee_id == user.id,
+        QuotationConfirmationTask.status == 'confirmed')
+
+    def _implant(s, e):  # 报价级:owner==我 OR 我确认过(单行天然去重)
+        return db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0)).filter(
+            db.or_(Quotation.owner_id == user.id, Quotation.id.in_(confirmed_q)),
+            Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0
+
+    def _confirm(s, e):
+        return db.session.query(func.count(QuotationConfirmationTask.id)).filter(
+            QuotationConfirmationTask.assignee_id == user.id,
+            QuotationConfirmationTask.status == 'confirmed',
+            QuotationConfirmationTask.confirmed_at >= s, QuotationConfirmationTask.confirmed_at < e).scalar() or 0
+
+    def _diagram(s, e):
+        return db.session.query(func.count(SystemDiagram.id)).filter(
+            SystemDiagram.owner_id == user.id,
+            SystemDiagram.created_at >= s, SystemDiagram.created_at < e).scalar() or 0
+
+    def _quote(s, e):
+        return db.session.query(func.count(Quotation.id)).filter(
+            Quotation.owner_id == user.id,
+            Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0
+
+    def _action(s, e):
+        return db.session.query(func.count(Action.id)).filter(
+            Action.owner_id == user.id,
+            Action.created_at >= s, Action.created_at < e).scalar() or 0
+
+    im, imp = _implant(start, end), _implant(prev_start, prev_end)
+    cf, cfp = _confirm(start, end), _confirm(prev_start, prev_end)
+    dg, dgp = _diagram(start, end), _diagram(prev_start, prev_end)
+    qc, qcp = _quote(start, end), _quote(prev_start, prev_end)
+    ac, acp = _action(start, end), _action(prev_start, prev_end)
+    items = _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix)
+    items += [
+        _kpi_item(f'{label_prefix}植入额', im, 0, cur, imp, 'var(--info)'),
+        _kpi_item(f'{label_prefix}报价确认', cf, 0, ' 个', cfp, 'var(--accent)'),
+        _kpi_item(f'{label_prefix}图纸绘制', dg, 0, ' 张', dgp, 'var(--info)'),
+        _kpi_item(f'{label_prefix}报价制作', qc, 0, ' 份', qcp, 'var(--success)'),
+        _kpi_item(f'{label_prefix}项目跟进', ac, 0, ' 条', acp, 'var(--warn)'),
+    ]
+    return items
+
+
+def _kpi_metrics_product(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):
+    """产品经理:任务 + 负责产品植入额(我管理分类下产品,按报价明细 implant_subtotal)。"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.quotation import Quotation, QuotationDetail
+    from app.models.product import Product
+
+    my_cat_ids = [c.id for c in getattr(user, 'managed_categories', [])]
+
+    def _pm_implant(s, e):
+        if not my_cat_ids:
+            return 0
+        return db.session.query(func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0)).join(
+            Quotation, Quotation.id == QuotationDetail.quotation_id).join(
+            Product, Product.product_mn == QuotationDetail.product_mn).filter(
+            Product.category_id.in_(my_cat_ids),
+            Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0
+
+    im, imp = _pm_implant(start, end), _pm_implant(prev_start, prev_end)
+    items = _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix)
+    items.append(_kpi_item(f'{label_prefix}负责产品植入额', im, 0, cur, imp, 'var(--info)'))
+    return items
+
+
+def _kpi_metrics_finance(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):
+    """财务:待审批报销数 + 本期报销总额 + 已支付 + 待支付(全公司)。"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.expense import Expense
+
+    pending_cnt = db.session.query(func.count(Expense.id)).filter(
+        Expense.is_deleted == False, Expense.status == 'pending').scalar() or 0
+
+    def _claimed(s, e):  # 本期报销总额(非草稿,按创建期)
+        return db.session.query(func.coalesce(func.sum(Expense.total_amount), 0)).filter(
+            Expense.is_deleted == False, Expense.status != 'draft',
+            Expense.created_at >= s, Expense.created_at < e).scalar() or 0
+
+    def _paid(s, e):  # 本期已支付(按支付日期)
+        return db.session.query(func.coalesce(
+            func.sum(func.coalesce(Expense.payment_amount, Expense.total_amount)), 0)).filter(
+            Expense.is_deleted == False, Expense.payment_status == 'paid',
+            Expense.payment_date >= s, Expense.payment_date < e).scalar() or 0
+
+    unpaid = db.session.query(func.coalesce(func.sum(Expense.total_amount), 0)).filter(
+        Expense.is_deleted == False, Expense.status == 'approved',
+        Expense.payment_status != 'paid').scalar() or 0
+
+    cl, clp = _claimed(start, end), _claimed(prev_start, prev_end)
+    pd_, pdp = _paid(start, end), _paid(prev_start, prev_end)
+    return [
+        _kpi_item('待审批报销', pending_cnt, 0, ' 单', 0, 'var(--accent)', delta=('—', 'neutral')),
+        _kpi_item(f'{label_prefix}报销总额', cl, 0, cur, clp, 'var(--info)'),
+        _kpi_item(f'{label_prefix}已支付', pd_, 0, cur, pdp, 'var(--success)'),
+        _kpi_item('待支付', unpaid, 0, cur, 0, 'var(--warn)', delta=('—', 'neutral')),
+    ]
+
+
+_KPI_VARIANT_FUNC = {
+    'default':  _kpi_one_period,
+    'overview': _kpi_one_period,
+    'solution': _kpi_metrics_solution,
+    'product':  _kpi_metrics_product,
+    'finance':  _kpi_metrics_finance,
+}
 
 
 def _build_kpis(user, currency_symbol='¥', variant='default'):
-    """返回 3 套粒度: month / quarter / year(前端 tab 切换)。
-    variant: default(销售) / solution / product / finance / overview —— P2 起按变体分流指标,
-             P1 阶段所有变体暂用销售口径。"""
+    """返回 3 套粒度: month / quarter / year(前端 tab 切换),按 variant 分流指标集。"""
     from datetime import datetime
     now = datetime.now()
     y, m = now.year, now.month
@@ -369,13 +531,14 @@ def _build_kpis(user, currency_symbol='¥', variant='default'):
     prev_y_start = datetime(y - 1, 1, 1)
     prev_y_end   = year_start
 
+    fn = _KPI_VARIANT_FUNC.get(variant, _kpi_one_period)
     return {
-        'month':   _kpi_one_period(user, month_start, month_end, prev_m_start, prev_m_end,
-                                    f'{m}月', [m], currency_symbol),
-        'quarter': _kpi_one_period(user, quarter_start, quarter_end, prev_q_start, prev_q_end,
-                                    f'Q{q} ', quarter_months, currency_symbol),
-        'year':    _kpi_one_period(user, year_start, year_end, prev_y_start, prev_y_end,
-                                    f'{y}年 ', list(range(1, 13)), currency_symbol),
+        'month':   fn(user, month_start, month_end, prev_m_start, prev_m_end,
+                      f'{m}月', [m], currency_symbol),
+        'quarter': fn(user, quarter_start, quarter_end, prev_q_start, prev_q_end,
+                      f'Q{q} ', quarter_months, currency_symbol),
+        'year':    fn(user, year_start, year_end, prev_y_start, prev_y_end,
+                      f'{y}年 ', list(range(1, 13)), currency_symbol),
     }
 
 
