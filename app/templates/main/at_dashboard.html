@@ -713,10 +713,14 @@
               {% endif %}
             </div>
           </div>
+          {# 团队 tab 仅在有"非我的"工作记录时显示;@我的 仅在有 @我 时显示 #}
+          {% set _wl_has_team = (_wl | rejectattr('is_mine') | list | length) > 0 %}
+          {% set _wl_tabs = [{'k':'all','label':'全部'}, {'k':'mine','label':'我的'}] %}
+          {% if _wl_has_team %}{% set _ = _wl_tabs.append({'k':'team','label':'团队'}) %}{% endif %}
+          {% if _unread > 0 %}{% set _ = _wl_tabs.append({'k':'mention','label':'@ 我的'}) %}{% endif %}
           <div data-dash-tabs="worklog"
                style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
-            {% for f in [{'k':'all','label':'全部'},{'k':'mine','label':'我的'},
-                          {'k':'team','label':'团队'},{'k':'mention','label':'@ 我的'}] %}
+            {% for f in _wl_tabs %}
             <button type="button" onclick="atDashFilter('worklog','{{ f.k }}')"
                     style="padding:4px 10px;font-size:11.5px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
                            color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
