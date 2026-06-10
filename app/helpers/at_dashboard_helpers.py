@@ -877,15 +877,92 @@ def _build_worklog(user):
 
 
 # ─── 角色化布局 ──────────────────────────────────────────
+_TASK_STATUS_LABELS = {'pending': '待开始', 'in_progress': '进行中', 'paused': '已暂停',
+                       'pending_review': '待审核', 'completed': '已完成'}
+_TASK_STATUS_TONE = {'pending': 'neutral', 'in_progress': 'info', 'paused': 'warn',
+                     'pending_review': 'warn', 'completed': 'success'}
+
+
 def _build_tasks(user):
-    """「任务」卡:我的任务(assignee==user),状态 tab。P3 完整实现,P1 先占位。"""
-    return {'items': [], 'counts': {'all': 0, 'in_progress': 0, 'pending': 0, 'pending_review': 0, 'completed': 0}}
+    """「任务」卡:我的任务(assignee==user),状态计数 + 前 6 项(未完成优先、按截止升序)。"""
+    from app.models.task import Task
+    tasks = Task.query.filter(Task.assignee_id == user.id, Task.is_deleted == False,
+                              Task.status != 'cancelled').all()
+    counts = {'all': len(tasks), 'in_progress': 0, 'pending': 0, 'pending_review': 0, 'completed': 0}
+    for t in tasks:
+        es = t.effective_status
+        if es in counts:
+            counts[es] += 1
+
+    def _key(t):
+        return (t.effective_status == 'completed', t.due_date or datetime.max)
+
+    items = []
+    for t in sorted(tasks, key=_key)[:6]:
+        try:
+            total = t.subtasks.filter_by(is_deleted=False).count()
+            done = t.subtasks.filter_by(is_deleted=False, status='completed').count()
+        except Exception:
+            total = done = 0
+        es = t.effective_status
+        prog = 100 if es == 'completed' else (int(done / total * 100) if total else 0)
+        rel = (t.project.project_name if t.project else
+               (t.customer.company_name if t.customer else '—'))
+        items.append({
+            'id': t.id, 'title': t.title, 'project': rel,
+            'due': t.due_date.strftime('%m-%d') if t.due_date else '—',
+            'status': es, 'statusLabel': _TASK_STATUS_LABELS.get(es, es),
+            'tone': _TASK_STATUS_TONE.get(es, 'neutral'), 'progress': prog,
+            'route': f'/task/management?task={t.id}',
+        })
+    return {'items': items, 'counts': counts}
 
 
 def _build_implant(user, variant='solution'):
-    """「植入」卡:solution=按报价单(我创建∪我确认);product=我管理分类下产品植入度。
-    P3 完整实现,P1 先占位。"""
-    return {'variant': variant, 'items': [], 'total': 0}
+    """「植入」卡:solution=按报价单(我创建∪我确认);product=我管理分类下产品植入度。"""
+    from sqlalchemy import func
+    from app import db
+
+    if variant == 'product':
+        from app.models.quotation import QuotationDetail
+        from app.models.product import Product
+        my_cat_ids = [c.id for c in getattr(user, 'managed_categories', [])]
+        items, total = [], 0
+        if my_cat_ids:
+            rows = db.session.query(
+                Product.product_name,
+                func.count(QuotationDetail.id),
+                func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0),
+            ).join(QuotationDetail, QuotationDetail.product_mn == Product.product_mn)\
+             .filter(Product.category_id.in_(my_cat_ids), QuotationDetail.implant_subtotal > 0)\
+             .group_by(Product.product_name)\
+             .order_by(func.sum(QuotationDetail.implant_subtotal).desc()).all()
+            total = sum(float(r[2]) for r in rows)
+            for name, cnt, amt in rows[:6]:
+                items.append({'name': name or '—', 'count': int(cnt), 'amount': float(amt)})
+        return {'variant': 'product', 'items': items, 'total': total}
+
+    # solution:按报价单(owner==我 OR 我确认过),植入额降序
+    from app.models.quotation import Quotation
+    from app.models.quotation_confirmation_task import QuotationConfirmationTask
+    confirmed_q = db.session.query(QuotationConfirmationTask.quotation_id).filter(
+        QuotationConfirmationTask.assignee_id == user.id,
+        QuotationConfirmationTask.status == 'confirmed')
+    qs = Quotation.query.filter(
+        db.or_(Quotation.owner_id == user.id, Quotation.id.in_(confirmed_q)),
+        Quotation.implant_total_amount > 0,
+    ).order_by(Quotation.implant_total_amount.desc()).all()
+    total = sum(float(q.implant_total_amount or 0) for q in qs)
+    items = []
+    for q in qs[:6]:
+        items.append({
+            'number': q.quotation_number,
+            'customer': q.customer.company_name if q.customer else '—',
+            'amount': float(q.implant_total_amount or 0),
+            'status': q.approval_status or '—',
+            'route': f'/quotation/{q.id}/at_view',
+        })
+    return {'variant': 'solution', 'items': items, 'total': total}
 
 
 def role_layout(user):

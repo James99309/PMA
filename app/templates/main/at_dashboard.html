@@ -256,6 +256,111 @@
     </div>
 
 
+    {# ══════════════════ Row M · Task + Implant(2 列)— 仅解决方案/产品经理 ══════════════════ #}
+    {% if 'task' in layout.cards %}
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px;">
+
+      {# ─────── TaskCard ─────── #}
+      {% set _tc = dash.task.counts %}
+      <section class="dash-card">
+        <header class="dash-card-h">
+          <div style="flex:1;min-width:0;">
+            <h3 class="dash-card-title">我的任务</h3>
+            <div class="dash-card-sub">共 {{ _tc.all }} 项 · {{ _tc.in_progress }} 进行中</div>
+          </div>
+        </header>
+        <div class="dash-card-body">
+          {% set _ttabs = [
+            {'k':'all','label':'全部','n':_tc.all},
+            {'k':'in_progress','label':'进行中','n':_tc.in_progress},
+            {'k':'pending','label':'待开始','n':_tc.pending},
+            {'k':'pending_review','label':'待审核','n':_tc.pending_review},
+            {'k':'completed','label':'已完成','n':_tc.completed}
+          ] %}
+          <div data-dash-tabs="task"
+               style="display:flex;gap:4px;margin-bottom:14px;padding:3px;background:var(--bg-page);border-radius:8px;">
+            {% for t in _ttabs %}
+            <button type="button" data-tab="{{ t.k }}" onclick="atDashFilter('task','{{ t.k }}')"
+                    style="flex:1;padding:5px 6px;border-radius:6px;font-size:11px;font-weight:500;
+                           border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+                           color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
+                           background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
+                           box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">
+              <span>{{ t.label }}</span>
+              <span class="dash-tab-num"
+                    style="padding:0 4px;font-size:10px;border-radius:4px;color:var(--ink-3);
+                           background:{{ 'var(--bg-page)' if loop.first else 'transparent' }};">{{ t.n }}</span>
+            </button>
+            {% endfor %}
+          </div>
+          <ul data-dash-list="task" style="list-style:none;margin:0;padding:0;">
+            {% for it in dash.task['items'] %}
+            <li data-type="{{ it.status }}" class="dash-list-item" data-href="{{ it.route }}">
+              {{ at_pill(it.statusLabel, tone=it.tone, dot=true) }}
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;color:var(--ink);font-weight:500;line-height:1.35;
+                            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.title }}</div>
+                <div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:8px;">
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;">{{ it.project }}</span>
+                  <span style="color:var(--ink-4);">·</span><span>截止 {{ it.due }}</span>
+                </div>
+              </div>
+              <span class="dash-tab-num" style="font-size:11px;color:var(--ink-3);flex-shrink:0;margin-top:2px;">{{ it.progress }}%</span>
+            </li>
+            {% else %}
+            <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无任务</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+
+      {# ─────── ImplantCard(solution=按报价单 / product=按负责产品)─────── #}
+      {% set _im = dash.implant %}
+      <section class="dash-card">
+        <header class="dash-card-h">
+          <div style="flex:1;min-width:0;">
+            <h3 class="dash-card-title">{{ '产品植入度' if _im.variant == 'product' else '我的植入' }}</h3>
+            <div class="dash-card-sub">
+              {{ '我负责分类的产品' if _im.variant == 'product' else '我创建 / 确认的报价' }}
+              · 合计 {{ dash.currency }}{{ '{:,.0f}'.format(_im.total) }}
+            </div>
+          </div>
+        </header>
+        <div class="dash-card-body">
+          <ul style="list-style:none;margin:0;padding:0;">
+            {% if _im.variant == 'product' %}
+              {% for it in _im['items'] %}
+              <li style="padding:11px 4px;border-top:{{ '0' if loop.first else '1px solid var(--line)' }};
+                         display:flex;align-items:center;gap:10px;font-size:12.5px;">
+                <span style="flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ it.name }}</span>
+                <span style="font-size:11px;color:var(--ink-4);flex-shrink:0;">×{{ it.count }}</span>
+                <span class="dash-tab-num" style="color:var(--ink);font-weight:500;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
+              </li>
+              {% else %}
+              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无植入数据</li>
+              {% endfor %}
+            {% else %}
+              {% for it in _im['items'] %}
+              <li class="dash-list-item" data-href="{{ it.route }}">
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;color:var(--ink);font-weight:500;
+                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.customer }}</div>
+                  <div class="at-mono" style="font-size:11px;color:var(--ink-4);margin-top:2px;">{{ it.number }}</div>
+                </div>
+                <span class="dash-tab-num" style="color:var(--ink);font-weight:500;font-size:13px;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
+              </li>
+              {% else %}
+              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无植入数据</li>
+              {% endfor %}
+            {% endif %}
+          </ul>
+        </div>
+      </section>
+
+    </div>
+    {% endif %}
+
+
     {# ══════════════════ Row 2 · Funnel + Projects + Quotes(3 列)— 仅销售/总览角色 ══════════════════ #}
     {% if 'funnel' in layout.cards %}
     <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:16px;margin-bottom:16px;">
