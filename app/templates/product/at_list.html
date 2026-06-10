@@ -32,6 +32,8 @@
   {'k':'discontinued', 'l':'已停产',   'c':tab_counts.discontinued}
 ] %}
 {% for t in _tabs %}
+{# 状态 tab 仅在该状态对当前用户可见时显示(content_filters 配置);全部 tab 始终显示 #}
+{% if t.k == 'all' or t.k in (allowed_statuses or ['active']) %}
 {% set active = (current_tab == t.k) %}
 <a href="{{ url_for('product.at_list_view', tab=t.k, search=search) }}"
    style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
@@ -43,6 +45,7 @@
   <span class="at-tab-num at-mono"
         style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
 </a>
+{% endif %}
 {% endfor %}
 {% endblock %}
 

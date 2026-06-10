@@ -1404,6 +1404,17 @@ def get_content_filter_options():
                 'options': get_report_source_options()
             }
         },
+        # 产品模块筛选选项（按产品状态过滤；替代原写死的"仅 admin/产品经理/解决方案经理看停产/上架"）
+        'product': {
+            'status': {
+                'label': str(_l('产品状态')),
+                'options': [
+                    ('active', str(_l('生产中'))),
+                    ('upcoming', str(_l('即将上架'))),
+                    ('discontinued', str(_l('已停产'))),
+                ]
+            }
+        },
         # 批价单模块筛选选项
         'pricing_order': {
             'business_type': {

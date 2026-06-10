@@ -65,6 +65,37 @@ logger = logging.getLogger(__name__)
 bp = Blueprint('product', __name__)
 
 
+def _apply_product_status_filter(query, user):
+    """按 content_filters(产品模块 status 维度)过滤产品状态可见性。
+    替代原写死的"仅 admin/产品经理/解决方案经理可见停产/上架"——改为权限配置页可按角色/个人勾选。"""
+    from app.utils.access_control import apply_content_filters
+    return apply_content_filters(query, Product, 'product', user)
+
+
+def _product_status_visible(product, user):
+    """单个产品的状态对该用户是否可见(供详情守卫用,复用 content_filters 逻辑)。"""
+    return _apply_product_status_filter(
+        Product.query.filter(Product.id == product.id), user
+    ).first() is not None
+
+
+def _allowed_product_statuses(user):
+    """该用户可见的产品状态列表(从 content_filters 读),用于决定列表页 tab 显隐。"""
+    try:
+        role_perm, user_perm = user._get_cached_permissions('product')
+        cf = None
+        if user_perm and user_perm.content_filters:
+            cf = user_perm.content_filters
+        elif role_perm and role_perm.content_filters:
+            cf = role_perm.content_filters
+        if isinstance(cf, dict) and isinstance(cf.get('status'), list) and cf['status']:
+            return list(cf['status'])
+    except Exception:
+        pass
+    return ['active']  # 兜底:至少可见生产中
+
+
+
 # ============================================================================
 # MN编号重复检查函数 (从已废弃的product_management.py迁移 2025-12-26)
 # ============================================================================
@@ -353,9 +384,8 @@ def product_list():
         joinedload(Product.region_obj)
     )
 
-    # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
-    if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-        query = query.filter(Product.status == 'active')
+    # 产品状态可见性：由 content_filters(产品模块 status 维度)按角色/个人配置过滤
+    query = _apply_product_status_filter(query, current_user)
 
     # ============================================================
     # 3. 应用筛选（使用通用工具 + 手动处理特殊情况）
@@ -897,7 +927,8 @@ def at_list_view():
     tab = request.args.get('tab', 'all')
     search = request.args.get('search', '').strip()
 
-    base = Product.query
+    # 产品状态可见性：由 content_filters 按角色/个人配置过滤(tab 计数与列表都受限)
+    base = _apply_product_status_filter(Product.query, current_user)
 
     TAB_STATUS_MAP = {
         'active':       'active',
@@ -962,6 +993,7 @@ def at_list_view():
                            search=search,
                            default_brand=default_brand,
                            category_units=category_units,
+                           allowed_statuses=_allowed_product_statuses(current_user),
                            regions=form_data['regions'])
 
 
@@ -999,9 +1031,8 @@ def product_list_ajax():
             joinedload(Product.subcategory_obj)
         ).filter(Product.is_deleted == False)
 
-        # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            query = query.filter(Product.status == 'active')
+        # 产品状态可见性：由 content_filters 按角色/个人配置过滤
+        query = _apply_product_status_filter(query, current_user)
 
         # ============================================================
         # 4. 应用筛选条件
@@ -1112,10 +1143,8 @@ def get_products():
         # 去除数据所有权过滤
         # 如果用户通过了permission_required('product', 'view')装饰器，就应该能查看所有产品
         
-        # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            # 其他角色只能看到生产中的产品（status = 'active'）
-            query = query.filter(Product.status == 'active')
+        # 产品状态可见性：由 content_filters 按角色/个人配置过滤
+        query = _apply_product_status_filter(query, current_user)
         
         # 应用搜索条件
         if search_term:
@@ -1633,9 +1662,8 @@ def get_dashboard_data():
         # 基础查询，根据用户角色筛选可见产品
         base_query = Product.query
         
-        # 如果不是管理员、产品经理或解决方案经理，只显示生产中的产品
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            base_query = base_query.filter(Product.status == 'active')
+        # 产品状态可见性：由 content_filters 按角色/个人配置过滤
+        base_query = _apply_product_status_filter(base_query, current_user)
         
         # 按分类统计产品数量
         from app.models.product_code import ProductCategory
@@ -1647,9 +1675,8 @@ def get_dashboard_data():
             Product, Product.category_id == ProductCategory.id
         )
 
-        # 应用产品可见性筛选到类别统计
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            category_stats = category_stats.filter(Product.status == 'active')
+        # 应用产品可见性筛选到类别统计(content_filters)
+        category_stats = _apply_product_status_filter(category_stats, current_user)
 
         # 完成分组查询，按ProductCategory.id分组保持业务顺序
         category_stats = category_stats.group_by(
@@ -1686,10 +1713,8 @@ def get_dashboard_data():
             Product.type.isnot(None)
         )
         
-        # 应用产品可见性筛选
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            # 对于其他用户，只统计生产中的产品
-            type_stats_query = type_stats_query.filter(Product.status == 'active')
+        # 应用产品可见性筛选(content_filters)
+        type_stats_query = _apply_product_status_filter(type_stats_query, current_user)
         
         # 完成分组查询
         type_stats = type_stats_query.group_by(
@@ -3356,10 +3381,10 @@ def view_product_detail(id):
         # 获取产品详情
         product = Product.query.get_or_404(id)
 
-        # 检查产品停产状态的权限：只有产品经理、解决方案经理和管理员可以查看停产产品
-        if product.status == 'discontinued' and current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            logger.warning(f"用户 {current_user.username} 尝试查看停产产品详情: {id}")
-            flash(_('您没有权限查看已停产的产品'), 'danger')
+        # 产品状态可见性：由 content_filters 配置(不可见则拦截)
+        if not _product_status_visible(product, current_user):
+            logger.warning(f"用户 {current_user.username} 尝试查看不可见状态的产品详情: {id}")
+            flash(_('您没有权限查看该状态的产品'), 'danger')
             return redirect(url_for('product.product_list'))
 
         # 获取产品规格数据（包含缺失的编码规格）
