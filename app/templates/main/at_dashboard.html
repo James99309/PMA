@@ -323,9 +323,10 @@
                   <div style="font-size:13px;color:var(--ink);font-weight:500;line-height:1.35;
                               overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.title }}</div>
                   <div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:8px;">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;">{{ it.project }}</span>
-                    {% if it.assignee %}<span style="color:var(--ink-4);">·</span><span>{{ it.assignee }}</span>{% endif %}
-                    <span style="color:var(--ink-4);">·</span><span>截止 {{ it.due }}</span>
+                    {% set _meta = it.note or it.project %}
+                    {% if _meta %}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">{{ _meta }}</span><span style="color:var(--ink-4);">·</span>{% endif %}
+                    {% if it.assignee %}<span>{{ it.assignee }}</span><span style="color:var(--ink-4);">·</span>{% endif %}
+                    <span>截止 {{ it.due }}</span>
                   </div>
                 </div>
                 <span class="dash-tab-num" style="font-size:11px;color:var(--ink-3);flex-shrink:0;margin-top:2px;">{{ it.progress }}%</span>
@@ -421,7 +422,7 @@
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">销售漏斗</h3>
             <div class="dash-card-sub">
-              <span data-dash-sub="mine">我的项目 · 近 12 个月聚合</span>
+              <span data-dash-sub="mine">{{ '全部项目' if layout.kpi_variant == 'admin' else '我的项目' }} · 近 12 个月聚合</span>
               {% if _has_sec %}<span data-dash-sub="team" hidden>{{ dash.scope.secondary.label }}项目 · 近 12 个月聚合</span>{% endif %}
             </div>
           </div>

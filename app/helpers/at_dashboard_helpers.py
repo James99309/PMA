@@ -948,9 +948,18 @@ def _tasks_payload(user, task_filter, with_assignee=False):
         es = t.effective_status
         prog = 100 if es == 'completed' else (int(done / total * 100) if total else 0)
         rel = (t.project.project_name if t.project else
-               (t.customer.company_name if t.customer else '—'))
+               (t.customer.company_name if t.customer else ''))
+        # 最近进展:最新一条回复;无回复则用任务描述
+        try:
+            from app.models.task import TaskReply
+            lr = t.replies.filter_by(is_deleted=False).order_by(TaskReply.created_at.desc()).first()
+            raw = lr.content if lr else (t.description or '')
+        except Exception:
+            raw = t.description or ''
+        note = ' '.join((raw or '').split())[:40]
         items.append({
             'id': t.id, 'title': t.title, 'project': rel,
+            'note': note,
             'due': t.due_date.strftime('%m-%d') if t.due_date else '—',
             'status': es, 'statusLabel': _TASK_STATUS_LABELS.get(es, es),
             'tone': _TASK_STATUS_TONE.get(es, 'neutral'), 'progress': prog,
@@ -1141,6 +1150,17 @@ def build_dashboard(user, monthly_stats=None, year_total=None,
         out['expense'] = expense_fin
         out['scope'] = {'mine': scope['mine'], 'secondary': None, 'top_level': scope.get('top_level')}
         out['scopeData'] = {'mine': {'expense': expense_fin}, 'secondary': None}
+
+    elif variant == 'admin':
+        # —— 管理员:漏斗=全局(可见全部,单视图无开关);报销=个人 ——
+        fg, cg, yg, lg = _build_funnel(user, _viewable_id_clause(Project, user))
+        eg = _build_expense(user, monthly_stats or [0]*12, year_total or 0,
+                            expense_currency_symbol, Expense.owner_id == user.id, mine=True)
+        out['scope'] = {'mine': scope['mine'], 'secondary': None, 'top_level': scope.get('top_level')}
+        out.update({'funnel': fg, 'funnelConversion': cg, 'funnelLoss': lg, 'funnelYoY': yg,
+                    'expense': eg})
+        out['scopeData'] = {'mine': {'funnel': fg, 'funnelConversion': cg, 'funnelLoss': lg,
+                                     'expense': eg}, 'secondary': None}
 
     elif sales_trio:
         # —— 销售 / 总览:漏斗/项目/报价/报销全量(保留 mine + secondary 双套,绝不越权)——
