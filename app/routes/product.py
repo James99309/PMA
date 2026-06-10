@@ -1393,10 +1393,12 @@ def get_product_models():
         if not category or not product_name:
             return jsonify([])
         
-        # 查询指定类别和产品名称的产品（包括停产产品）
+        # 开单选择器第二级：仅显示上市(生产中)型号，停产/即将上架不可选
+        # （报价单、采购订单共用此接口；批价单/客户订单由报价单生成，自动一致）
         products = Product.query.filter_by(
             category=category,
-            product_name=product_name
+            product_name=product_name,
+            status='active'
         ).order_by(Product.id).all()
         
         logger.debug(f'找到 {len(products)} 个产品')
