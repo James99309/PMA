@@ -260,10 +260,10 @@
 
     {# ══════════════════ Row M · Task + Implant(2 列)— 仅解决方案/产品经理/管理员 ══════════════════ #}
     {% if 'task' in layout.cards %}
-    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px;">
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
 
       {# ─────── TaskCard(我的/团队 开关 — 部门负责人/企业管理人员)─────── #}
-      <section class="dash-card">
+      <section class="dash-card" style="flex:1.4 1 360px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">
@@ -340,9 +340,10 @@
         </div>
       </section>
 
-      {# ─────── ImplantCard(植入产值;月/季/年 + 我的/团队[解决方案,权限驱动])─────── #}
+      {# ─────── ImplantCard(可选:工程师等只有任务无植入)─────── #}
+      {% if 'implant' in layout.cards %}
       {% set _im = dash.implant %}
-      <section class="dash-card">
+      <section class="dash-card" style="flex:1 1 300px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">植入产值</h3>
@@ -405,6 +406,7 @@
           {% endfor %}
         </div>
       </section>
+      {% endif %}{# /implant 可选 #}
 
     </div>
     {% endif %}

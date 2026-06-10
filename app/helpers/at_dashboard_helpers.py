@@ -1093,13 +1093,24 @@ def role_layout(user):
     if role == 'ceo':
         return {'cards': ['todo', 'kpi', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
                 'kpi_variant': 'overview'}
-    if role in ('finance', 'finance_director', 'finace_director', 'finance_supervisor'):
+    # 财务 + 出纳:全公司报销进度 + 财务 KPI
+    if role in ('finance', 'finance_director', 'finace_director', 'finance_supervisor', 'treasurer'):
         return {'cards': ['todo', 'kpi', 'expense', 'worklog'], 'kpi_variant': 'finance'}
     if role == 'solution_manager':
         return {'cards': ['todo', 'kpi', 'task', 'implant', 'expense', 'worklog'], 'kpi_variant': 'solution'}
     if role == 'product_manager':
         return {'cards': ['todo', 'kpi', 'task', 'implant', 'expense', 'worklog'], 'kpi_variant': 'product'}
-    # 默认:销售及其余角色
+    # 工程师:对齐解决方案,但去掉植入卡(任务/图纸为主)
+    if role == 'engineer':
+        return {'cards': ['todo', 'kpi', 'task', 'expense', 'worklog'], 'kpi_variant': 'solution'}
+    # 商务助理:对齐销售,去掉 KPI 卡
+    if role == 'business_admin':
+        return {'cards': ['todo', 'funnel', 'projects', 'quotes', 'expense', 'worklog'], 'kpi_variant': 'default'}
+    # 市场 / 人事 / 采购供应链:先去销售卡 + KPI,留 待办·报销·工作记录(后续再定制专属卡)
+    if role in ('marketing_manager', 'marketingplan', 'hr_manager', 'hrdp_manager',
+                'supplychain_manager', 'buyer'):
+        return {'cards': ['todo', 'expense', 'worklog'], 'kpi_variant': 'minimal'}
+    # 默认:销售家族 + 服务经理 + 外部(代理商/普通用户)对齐销售
     return {'cards': ['todo', 'kpi', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
             'kpi_variant': 'default'}
 
