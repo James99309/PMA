@@ -498,13 +498,45 @@ class PerformanceService:
                     WHERE po.status = 'approved'
                       AND EXTRACT(year FROM po.approved_at) = :year
                     GROUP BY 1
+                ),
+                se_confirm AS (
+                    -- 报价确认量 + 销售配合广度(我确认的报价,按确认时间归月)
+                    SELECT EXTRACT(month FROM confirmed_at)::int AS month,
+                           COUNT(*) AS confirm_count,
+                           COUNT(DISTINCT owner_id) AS support_count
+                    FROM quotations
+                    WHERE confirmed_by = :user_id
+                      AND confirmed_at IS NOT NULL
+                      AND EXTRACT(year FROM confirmed_at) = :year
+                    GROUP BY 1
+                ),
+                se_quality AS (
+                    -- 确认质量:我确认的报价中,所属项目进入中标/批价/签约的占比(%)
+                    SELECT EXTRACT(month FROM q.confirmed_at)::int AS month,
+                           COUNT(*) AS total,
+                           COUNT(*) FILTER (
+                               WHERE pr.current_stage IN ('awarded', 'quoted', 'signed')
+                           ) AS won
+                    FROM quotations q
+                    LEFT JOIN projects pr ON q.project_id = pr.id
+                    WHERE q.confirmed_by = :user_id
+                      AND q.confirmed_at IS NOT NULL
+                      AND EXTRACT(year FROM q.confirmed_at) = :year
+                    GROUP BY 1
                 )
                 SELECT am.month,
                        COALESCE(si.amount, 0) AS se_implant_amount,
-                       COALESCE(ss.amount, 0) AS se_sales_amount
+                       COALESCE(ss.amount, 0) AS se_sales_amount,
+                       COALESCE(sc.confirm_count, 0) AS se_confirm_count,
+                       COALESCE(sc.support_count, 0) AS se_sales_support,
+                       CASE WHEN COALESCE(sq.total, 0) > 0
+                            THEN ROUND(sq.won * 100.0 / sq.total, 1)
+                            ELSE 0 END AS se_confirm_quality
                 FROM all_months am
                 LEFT JOIN se_implant si ON am.month = si.month
                 LEFT JOIN se_sales ss ON am.month = ss.month
+                LEFT JOIN se_confirm sc ON am.month = sc.month
+                LEFT JOIN se_quality sq ON am.month = sq.month
                 ORDER BY am.month
             """), {'user_id': user_id, 'year': year}).fetchall()
 
@@ -513,6 +545,9 @@ class PerformanceService:
                 stats = type('SEStats', (), {
                     'se_implant_amount_actual': float(row.se_implant_amount or 0),
                     'se_sales_amount_actual': float(row.se_sales_amount or 0),
+                    'se_confirm_count_actual': int(row.se_confirm_count or 0),
+                    'se_sales_support_actual': int(row.se_sales_support or 0),
+                    'se_confirm_quality_actual': float(row.se_confirm_quality or 0),
                 })()
                 monthly_stats.append(stats)
 
@@ -520,6 +555,9 @@ class PerformanceService:
                 monthly_stats.append(type('SEStats', (), {
                     'se_implant_amount_actual': 0,
                     'se_sales_amount_actual': 0,
+                    'se_confirm_count_actual': 0,
+                    'se_sales_support_actual': 0,
+                    'se_confirm_quality_actual': 0,
                 })())
 
             return monthly_stats
@@ -528,6 +566,9 @@ class PerformanceService:
             return [type('SEStats', (), {
                 'se_implant_amount_actual': 0,
                 'se_sales_amount_actual': 0,
+                'se_confirm_count_actual': 0,
+                'se_sales_support_actual': 0,
+                'se_confirm_quality_actual': 0,
             })() for _ in range(12)]
 
     @staticmethod

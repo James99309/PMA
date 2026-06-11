@@ -26,6 +26,13 @@
 <meta name="amap-security-key" content="{{ config.AMAP_SECURITY_KEY or '' }}">
 <title>{{ project.project_name }} · 项目详情</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+{# Material Symbols 字体(供阶段进度条图标);非阻塞加载 #}
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"></noscript>
+<style>
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+</style>
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
@@ -229,7 +236,7 @@
   </div>
   {% endif %}
   <div style="margin-bottom:20px;{% if abnormal_status %}filter:grayscale(1);opacity:0.55;pointer-events:none;{% endif %}">
-    {{ at_stage_strip(stages, sticky=false) }}
+    {{ at_stage_strip(stages, sticky=false, icon_set='material') }}
   </div>
 
   {# ── 主体 3 栏(1:2:1 — 对齐客户详情布局) ── #}
@@ -352,29 +359,45 @@
                     if perms.can_create_action else none,
             max_height='400px') }}
 
-      {# 共享设置卡 #}
+      {# 系统设计卡 — 项目级系统图(复用 system_diagram 模块;新建→选模板,编辑器「返回项目」回本页) #}
       {% call at_detail_section(
-            '共享设置',
-            count=(shared_users|length) if shared_users else 0,
-            create_url='javascript:atOpenProjectShare()' if perms.can_edit else none,
-            create_label='+ 管理共享') %}
-        {% if project.share_enabled and shared_users %}
-        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
-          {% for u in shared_users %}
-          <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;
-                         width:22px;height:22px;border-radius:50%;background:var(--accent-tint);
-                         color:var(--accent);font-size:11px;font-weight:600;">
-              {{ (u.real_name or u.username)[:1] | upper }}
-            </span>
-            <span style="color:var(--ink);flex:1;">{{ u.real_name or u.username }}</span>
-            <span class="at-dim" style="font-size:10.5px;">{{ get_role_display_name(u.role) if u.role else '' }}</span>
+            '系统设计',
+            count=project_diagrams|length,
+            create_url=(url_for('system_diagram.template_gallery', project_id=project.id)) if (perms.can_edit and project_diagrams) else none,
+            create_label='+ 新建') %}
+        {% if project_diagrams %}
+        <div style="padding:0;">
+          {% for d in project_diagrams %}
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 18px;
+                      border-bottom:{{ '0' if loop.last else '1px solid var(--line-soft)' }};">
+            <span style="color:var(--ink-3);flex-shrink:0;">{{ at_icon('grid', 14) }}</span>
+            <a href="{{ url_for('system_diagram.edit_editor', diagram_id=d.id) }}"
+               style="flex:1;min-width:0;text-decoration:none;">
+              <div style="font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;
+                          white-space:nowrap;" title="{{ d.name }}">{{ d.name }}</div>
+              <div class="at-dim" style="font-size:10.5px;">{{ d.updated_at.strftime('%Y-%m-%d %H:%M') if d.updated_at else '' }}</div>
+            </a>
+            {% if perms.can_edit %}
+            <button type="button" onclick='atProjDeleteDiagram({{ d.id }}, {{ d.name|tojson }})'
+                    title="删除" style="border:0;background:transparent;color:var(--ink-4);cursor:pointer;
+                    padding:2px;display:inline-flex;flex-shrink:0;"
+                    onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('trash', 14) }}</button>
+            {% endif %}
           </div>
           {% endfor %}
         </div>
         {% else %}
-        <div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">
-          未启用共享 — 仅项目负责人可见
+        <div style="text-align:center;padding:24px 18px;color:var(--ink-4);">
+          <div style="margin-bottom:8px;display:flex;justify-content:center;">{{ at_icon('grid', 22) }}</div>
+          <div style="font-size:12px;margin-bottom:12px;">暂无系统图</div>
+          {% if perms.can_edit %}
+          <a href="{{ url_for('system_diagram.template_gallery', project_id=project.id) }}"
+             style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 14px;border-radius:6px;
+                    border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);
+                    font-size:12px;font-weight:500;text-decoration:none;cursor:pointer;">
+            {{ at_icon('plus', 12) }}创建系统图
+          </a>
+          {% endif %}
         </div>
         {% endif %}
       {% endcall %}
@@ -415,6 +438,33 @@
       {% if perms.can_edit %}
       <input type="file" id="atProjFileInput" style="display:none;" onchange="atProjUploadDo(this)">
       {% endif %}
+
+      {# 共享设置卡(置于最下) #}
+      {% call at_detail_section(
+            '共享设置',
+            count=(shared_users|length) if shared_users else 0,
+            create_url='javascript:atOpenProjectShare()' if perms.can_edit else none,
+            create_label='+ 管理共享') %}
+        {% if project.share_enabled and shared_users %}
+        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+          {% for u in shared_users %}
+          <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+                         width:22px;height:22px;border-radius:50%;background:var(--accent-tint);
+                         color:var(--accent);font-size:11px;font-weight:600;">
+              {{ (u.real_name or u.username)[:1] | upper }}
+            </span>
+            <span style="color:var(--ink);flex:1;">{{ u.real_name or u.username }}</span>
+            <span class="at-dim" style="font-size:10.5px;">{{ get_role_display_name(u.role) if u.role else '' }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">
+          未启用共享 — 仅项目负责人可见
+        </div>
+        {% endif %}
+      {% endcall %}
     </div>
 
   </div>
@@ -448,6 +498,21 @@
         variant: 'danger', icon: 'trash', confirmText: '删除', cancelText: '取消',
         onConfirm: () => {
           fetch(`/api/attachments/project/${PROJECT_ID}/delete/${index}`, { method: 'POST' })
+            .then(r => r.json()).then(d => {
+              if (d.success) { ATToast.success('已删除'); setTimeout(() => location.reload(), 400); }
+              else ATToast.error(d.message || '删除失败');
+            }).catch(() => ATToast.error('删除失败,请重试'));
+        },
+      });
+    };
+
+    // ── 系统设计:删除项目系统图(复用 system_diagram 模块端点) ──
+    window.atProjDeleteDiagram = function (id, name) {
+      ATConfirm.show({
+        title: '删除系统图', message: `确认删除「${name}」?此操作不可恢复。`,
+        variant: 'danger', icon: 'trash', confirmText: '删除', cancelText: '取消',
+        onConfirm: () => {
+          fetch(`/system-diagram/api/${id}`, { method: 'DELETE', headers: { 'X-CSRFToken': _csrf() } })
             .then(r => r.json()).then(d => {
               if (d.success) { ATToast.success('已删除'); setTimeout(() => location.reload(), 400); }
               else ATToast.error(d.message || '删除失败');

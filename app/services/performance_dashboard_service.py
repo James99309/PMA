@@ -126,7 +126,8 @@ class PerformanceDashboardService:
 
             # 按需加载角色专属指标（仅在配置管理中启用后才计算）
             pm_codes = {'pm_implant_amount', 'pm_sales_amount'}
-            se_codes = {'se_implant_amount', 'se_sales_amount'}
+            se_codes = {'se_implant_amount', 'se_sales_amount',
+                        'se_confirm_count', 'se_sales_support', 'se_confirm_quality'}
             configured_set = set(configured_items) if configured_items else set()
 
             if configured_items and pm_codes & configured_set:
@@ -142,6 +143,9 @@ class PerformanceDashboardService:
                     if i < len(yearly_stats):
                         yearly_stats[i].se_implant_amount_actual = rs.se_implant_amount_actual
                         yearly_stats[i].se_sales_amount_actual = rs.se_sales_amount_actual
+                        yearly_stats[i].se_confirm_count_actual = getattr(rs, 'se_confirm_count_actual', 0)
+                        yearly_stats[i].se_sales_support_actual = getattr(rs, 'se_sales_support_actual', 0)
+                        yearly_stats[i].se_confirm_quality_actual = getattr(rs, 'se_confirm_quality_actual', 0)
 
             # 从手工录入表加载辅助指标（替代自动采集）
             manual_codes = {'se_response_rate', 'se_training_count', 'se_content_output', 'se_satisfaction'}
@@ -1365,6 +1369,9 @@ class PerformanceDashboardService:
                 'se_training_count': ('se_training_count_actual', 'se_training_count_target'),
                 'se_content_output': ('se_content_output_actual', 'se_content_output_target'),
                 'se_satisfaction': ('se_satisfaction_actual', 'se_satisfaction_target'),
+                'se_confirm_count': ('se_confirm_count_actual', 'se_confirm_count_target'),
+                'se_sales_support': ('se_sales_support_actual', 'se_sales_support_target'),
+                'se_confirm_quality': ('se_confirm_quality_actual', 'se_confirm_quality_target'),
             }
 
             # 客户活跃度：优先从快照取历史数据，当前月用实时计算
@@ -1563,13 +1570,22 @@ class PerformanceDashboardService:
         Returns:
             dict: {month: {target_field: value}} 或空字典
         """
-        from app.models.performance_config import UserPerformanceTarget
+        from app.models.performance_config import UserPerformanceTarget, RolePerformanceTarget
 
         user_targets = UserPerformanceTarget.query.filter_by(
             user_id=user_id, year=year
         ).all()
+        user_map = {t.item_code: t for t in user_targets}
 
-        if not user_targets:
+        # 角色默认目标(成员自动继承):个人覆盖 > 角色默认(逐字段合并)
+        role_map = {}
+        _user = User.query.get(user_id)
+        if _user and _user.role:
+            role_map = {t.item_code: t for t in RolePerformanceTarget.query.filter_by(
+                role_code=_user.role, year=year).all()}
+
+        all_codes = set(user_map) | set(role_map)
+        if not all_codes:
             return {}
 
         # 金额类 item_code 需要从万元转换为元（与 EmployeeSalaryConfig 回退逻辑一致）
@@ -1578,34 +1594,56 @@ class PerformanceDashboardService:
             'pm_implant_amount', 'pm_sales_amount',
             'se_implant_amount', 'se_sales_amount',
         }
+        # 比率/评分类:水平目标(level)——每期目标即该值本身,不做 /12、/3 摊分
+        rate_item_codes = {
+            'se_response_rate', 'customer_activity_rate',
+            'se_confirm_quality', 'se_satisfaction',
+        }
 
         targets_dict = {}
         for month in range(1, 13):
             targets_dict[month] = {}
 
-        for target in user_targets:
-            target_key = PerformanceDashboardService._map_item_code_to_target_key(target.item_code)
+        def _eff(code, user_field, role_field):
+            """逐字段有效值:个人覆盖非空 > 角色默认"""
+            ut, rt = user_map.get(code), role_map.get(code)
+            if ut is not None:
+                v = getattr(ut, user_field, None)
+                if v is not None:
+                    return v
+            if rt is not None:
+                return getattr(rt, role_field, None)
+            return None
+
+        for item_code in all_codes:
+            target_key = PerformanceDashboardService._map_item_code_to_target_key(item_code)
             if not target_key:
                 continue
 
             # 金额类目标存储单位为万元，需要 * 10000 转为元
-            is_amount = target.item_code in amount_item_codes
+            is_amount = item_code in amount_item_codes
             multiplier = 10000 if is_amount else 1
 
-            annual = float(target.annual_target_override or 0)
+            annual = float(_eff(item_code, 'annual_target_override', 'annual_target') or 0)
+            enable_m = bool(_eff(item_code, 'enable_monthly_override', 'enable_monthly'))
+            monthly_map = _eff(item_code, 'monthly_targets_override', 'monthly_targets') or {}
+            enable_q = bool(_eff(item_code, 'enable_quarterly_override', 'enable_quarterly'))
+
+            is_rate = item_code in rate_item_codes
 
             for month in range(1, 13):
                 monthly_val = 0
 
-                # 优先级: 月度配置 > 季度配置 > 年度平摊
-                if target.enable_monthly_override and target.monthly_targets_override:
-                    monthly_val = float(target.monthly_targets_override.get(str(month), 0) or 0)
-                elif target.enable_quarterly_override:
+                # 优先级: 月度配置 > 季度配置 > 年度
+                # 比率/评分类为水平目标:取值本身,不做摊分
+                if enable_m and monthly_map:
+                    monthly_val = float(monthly_map.get(str(month), 0) or 0)
+                elif enable_q:
                     quarter = (month - 1) // 3 + 1
-                    q_val = float(getattr(target, f'q{quarter}_target_override', 0) or 0)
-                    monthly_val = q_val / 3
+                    q_val = float(_eff(item_code, f'q{quarter}_target_override', f'q{quarter}_target') or 0)
+                    monthly_val = q_val if is_rate else (q_val / 3)
                 elif annual > 0:
-                    monthly_val = annual / 12
+                    monthly_val = annual if is_rate else (annual / 12)
 
                 targets_dict[month][target_key] = monthly_val * multiplier
 
@@ -1629,6 +1667,9 @@ class PerformanceDashboardService:
             'se_training_count': 'se_training_count_target',
             'se_content_output': 'se_content_output_target',
             'se_satisfaction': 'se_satisfaction_target',
+            'se_confirm_count': 'se_confirm_count_target',
+            'se_sales_support': 'se_sales_support_target',
+            'se_confirm_quality': 'se_confirm_quality_target',
         }
         return mapping.get(item_code)
 
@@ -1665,9 +1706,20 @@ class PerformanceDashboardService:
             'se_training_count': 'se_training_count',
             'se_content_output': 'se_content_output',
             'se_satisfaction': 'se_satisfaction',
+            'se_confirm_count': 'se_confirm_count',
+            'se_sales_support': 'se_sales_support',
+            'se_confirm_quality': 'se_confirm_quality',
         }
 
         try:
+            # 角色写死考核方案优先:有方案的角色考核项由方案决定,不再看勾选
+            from app.services.role_kpi_schemes import get_role_scheme_codes
+            user_obj = User.query.get(user_id)
+            if user_obj:
+                scheme_codes = get_role_scheme_codes(user_obj.role)
+                if scheme_codes:
+                    return [item_code_mapping.get(c, c) for c in scheme_codes]
+
             # 从用户绩效配置读取
             user_targets = UserPerformanceTarget.query.filter_by(
                 user_id=user_id, year=year
@@ -1788,20 +1840,47 @@ class PerformanceDashboardService:
             if not user:
                 return {}
 
-            # 获取角色绩效配置（含权重）
-            role_config = RolePerformanceConfig.query.filter_by(
-                role=user.role, is_active=True
-            ).first()
+            # 角色写死考核方案优先(含权重);无方案才走 DB 角色配置
+            from app.services.role_kpi_schemes import get_role_scheme
+            scheme = get_role_scheme(user.role)
+            if scheme:
+                from types import SimpleNamespace
+                from app.models.performance_config import PerformanceMetricsDefinition
+                _name_fallback = {
+                    'se_confirm_count': '报价确认量', 'se_sales_support': '销售配合广度',
+                    'se_confirm_quality': '确认质量', 'se_implant_amount': '方案植入额',
+                    'se_sales_amount': '方案批价额',
+                }
+                _defs = {m.metric_code: m.metric_name
+                         for m in PerformanceMetricsDefinition.query.filter(
+                             PerformanceMetricsDefinition.metric_code.in_(
+                                 [it['item_code'] for it in scheme])).all()}
+                # 权重:角色级覆盖(role_performance_targets.weight) > 岗位方案默认
+                from app.models.performance_config import RolePerformanceTarget
+                _w_over = {t.item_code: float(t.weight)
+                           for t in RolePerformanceTarget.query.filter_by(
+                               role_code=user.role, year=year).all()
+                           if getattr(t, 'weight', None) is not None}
+                items = [SimpleNamespace(
+                            item_code=it['item_code'],
+                            weight=_w_over.get(it['item_code'], it['weight']),
+                            item_name=_defs.get(it['item_code'])
+                                      or _name_fallback.get(it['item_code'], it['item_code']))
+                         for it in scheme]
+            else:
+                role_config = RolePerformanceConfig.query.filter_by(
+                    role=user.role, is_active=True
+                ).first()
 
-            if not role_config:
-                return {}
+                if not role_config:
+                    return {}
 
-            items = RolePerformanceItem.query.filter_by(
-                role_config_id=role_config.id, is_enabled=True
-            ).order_by(RolePerformanceItem.sort_order).all()
+                items = RolePerformanceItem.query.filter_by(
+                    role_config_id=role_config.id, is_enabled=True
+                ).order_by(RolePerformanceItem.sort_order).all()
 
-            if not items:
-                return {}
+                if not items:
+                    return {}
 
             # 获取完整看板数据（含所有指标的月度数据）
             dashboard_data = PerformanceDashboardService.get_dashboard_data(user_id, year, lite=False)
@@ -1825,6 +1904,9 @@ class PerformanceDashboardService:
                 'se_training_count': 'se_training_count',
                 'se_content_output': 'se_content_output',
                 'se_satisfaction': 'se_satisfaction',
+                'se_confirm_count': 'se_confirm_count',
+                'se_sales_support': 'se_sales_support',
+                'se_confirm_quality': 'se_confirm_quality',
             }
 
             result = {}
@@ -1848,7 +1930,7 @@ class PerformanceDashboardService:
                         q_target += month_data.get('target', 0) or 0
 
                     # 百分比类指标取平均值而非累加
-                    is_percentage = metric_code in ('se_response_rate', 'customer_activity_rate')
+                    is_percentage = metric_code in ('se_response_rate', 'customer_activity_rate', 'se_confirm_quality')
                     is_score = metric_code in ('se_satisfaction',)
                     if is_percentage or is_score:
                         months_with_data = sum(

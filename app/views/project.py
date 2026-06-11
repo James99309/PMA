@@ -197,8 +197,9 @@ def at_view_project(project_id):
     _stage_order = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
     _stage_labels = {'discover':'发现','embed':'植入','pre_tender':'标前','tendering':'标中',
                      'awarded':'中标','quoted':'批价','signed':'签约','lost':'失败','paused':'搁置'}
-    _stage_icons  = {'discover':'spark','embed':'pen','pre_tender':'doc','tendering':'doc',
-                     'awarded':'check','quoted':'cash','signed':'check'}
+    # 阶段图标 — 移植自 TW 项目阶段(Material Symbols);AT 阶段条 icon_set='material' 渲染
+    _stage_icons  = {'discover':'travel_explore','embed':'biotech','pre_tender':'manage_search',
+                     'tendering':'gavel','awarded':'emoji_events','quoted':'payments','signed':'handshake'}
     _history = ProjectStageHistory.query.filter_by(project_id=project_id)\
         .order_by(ProjectStageHistory.change_date.asc(), ProjectStageHistory.id.asc()).all()
     # 每个阶段的进入时间(以 to_stage 为准,首次进入)
@@ -305,6 +306,16 @@ def at_view_project(project_id):
         current_app.logger.warning(f"加载项目附件失败: {_att_err}")
         project_attachments = []
 
+    # 项目系统图(系统设计卡;复用 system_diagram 模块,只读加载)
+    try:
+        from app.models.system_diagram import SystemDiagram
+        project_diagrams = (SystemDiagram.query
+                            .filter_by(project_id=p.id, is_deleted=False)
+                            .order_by(SystemDiagram.updated_at.desc()).all())
+    except Exception as _dg_err:
+        current_app.logger.warning(f"加载项目系统图失败: {_dg_err}")
+        project_diagrams = []
+
     return render_template('project/at_view.html',
                            project=p,
                            related=related,
@@ -322,7 +333,8 @@ def at_view_project(project_id):
                            hold_target=hold_target,
                            can_request_hold=can_request_hold,
                            recover_stage=(last_normal if _abnormal else None),
-                           project_attachments=project_attachments)
+                           project_attachments=project_attachments,
+                           project_diagrams=project_diagrams)
 
 
 @project.route('/at_list')

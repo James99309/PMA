@@ -443,13 +443,13 @@ def _get_worklog_shared_ids(user_id, field='project_id'):
     from app.models.worklog import WorkItem
 
     target_field = getattr(WorkItem, field)
+    # 仅"被共享给该用户"的行程才让关联客户/项目在列表可见(与 can_view_company/project 一致)。
+    # 不再包含 owner_id==user_id —— 否则"自己给某客户/项目记过行程"会让其误显示在列表,
+    # 但详情(只认共享)拒绝,造成"列表看得到、点不进"(转移走后尤为明显)。
     return db.session.query(target_field).filter(
         target_field.isnot(None),
         WorkItem.is_deleted == False,
-        db.or_(
-            WorkItem.owner_id == user_id,
-            cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
-        )
+        cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
     ).distinct()
 
 def _get_task_linked_ids(user_id, field='project_id'):

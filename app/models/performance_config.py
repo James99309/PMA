@@ -457,6 +457,7 @@ class RolePerformanceTarget(db.Model):
 
     # 单位配置
     target_unit = Column(String(20), default='万元')              # 万元/个
+    weight = Column(Numeric(5, 2))                                # 考核权重%(角色级覆盖;空=用岗位方案默认)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -242,6 +242,38 @@ def index():
         return redirect(url_for('main.index'))
 
 
+@config_management_bp.route('/at/performance')
+@login_required
+def at_performance():
+    """AT 配置管理 · 绩效配置(目标设定)子页 — 新配置管理样板页
+
+    划界:本页只做"给人设目标"(个人级,角色方案锁定考核项);
+    角色/系统级(指标定义、方案权重)后续归 AT 配置管理其它子页。
+    后端全部复用 performance_config 的 JSON API,本路由仅供用户清单。
+    """
+    if not current_user.has_permission('config_management', 'view'):
+        abort(403)
+
+    from app.utils.dictionary_helpers import get_role_display_name
+    from app.services.role_kpi_schemes import get_role_scheme
+    from collections import Counter
+
+    # 角色清单(本页只配角色级:考核方案+默认目标;个人覆盖在账户详情页设置)
+    users = User.query.filter(User._is_active.is_(True)).all()
+    _role_counts = Counter(u.role for u in users if u.role)
+    roles_data = [{
+        'role': r,
+        'display': get_role_display_name(r),
+        'count': c,
+        'has_scheme': bool(get_role_scheme(r)),
+    } for r, c in sorted(_role_counts.items(), key=lambda x: -x[1])]
+
+    return render_template('config_management/at_performance.html',
+                           roles_data=roles_data,
+                           current_year=datetime.now().year,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
 # =============================================
 # 权限配置 API
 # =============================================

@@ -1023,9 +1023,16 @@ def api_get_role_targets(role_code, year):
         # 获取预置绩效项目（用于返回完整的项目列表）
         preset_items = get_preset_performance_items()
 
+        # 角色写死考核方案:有方案的角色只回方案项(锁定+权重+岗位默认目标兜底)
+        from app.services.role_kpi_schemes import get_role_scheme
+        scheme = get_role_scheme(role_code)
+        scheme_map = {it['item_code']: it for it in scheme} if scheme else {}
+
         # 构建响应数据
         items_data = []
         for item in preset_items:
+            if scheme and item['code'] not in scheme_map:
+                continue
             # 查找该项目的目标配置
             target = next((t for t in targets if t.item_code == item['code']), None)
 
@@ -1034,8 +1041,13 @@ def api_get_role_targets(role_code, year):
                 'item_name': item['name'],
                 'unit': item['unit'],
                 'data_type': item['data_type'],
-                'enabled': target is not None,
-                'annual_target': float(target.annual_target) if target and target.annual_target else None,
+                'description': item.get('description', ''),
+                'enabled': (target is not None) or bool(scheme),
+                'locked': bool(scheme),
+                'weight': (float(target.weight) if (target and getattr(target, 'weight', None) is not None)
+                           else (scheme_map[item['code']]['weight'] if scheme else None)),
+                'annual_target': float(target.annual_target) if target and target.annual_target
+                                 else (scheme_map[item['code']].get('default_annual') if scheme else None),
                 'enable_quarterly': target.enable_quarterly if target else False,
                 'q1_target': float(target.q1_target) if target and target.q1_target else None,
                 'q2_target': float(target.q2_target) if target and target.q2_target else None,
@@ -1045,6 +1057,10 @@ def api_get_role_targets(role_code, year):
                 'monthly_targets': target.monthly_targets if target else None
             }
             items_data.append(item_data)
+
+        if scheme:
+            _order = {it['item_code']: i for i, it in enumerate(scheme)}
+            items_data.sort(key=lambda d: _order.get(d['item_code'], 99))
 
         logger.info(f"返回 {len(items_data)} 个绩效项目配置")
 
@@ -1080,6 +1096,12 @@ def api_save_role_targets(role_code, year):
         items = data.get('items', [])
         if not items:
             return jsonify({'success': False, 'message': '未提供任何配置项'})
+
+        # 权重校验:启用项的权重合计不得超过 100%
+        _w_total = sum(float(it.get('weight') or 0) for it in items if it.get('enabled'))
+        if _w_total > 100.0001:
+            return jsonify({'success': False,
+                            'message': f'权重合计 {round(_w_total, 1)}% 超过 100%,请调整后再保存'}), 400
 
         # 验证并保存每个项目的目标配置
         saved_count = 0
@@ -1119,6 +1141,7 @@ def api_save_role_targets(role_code, year):
 
             # 更新目标值
             target.annual_target = item_data.get('annual_target')
+            target.weight = item_data.get('weight')   # 角色级权重覆盖(空=岗位方案默认)
             target.enable_quarterly = item_data.get('enable_quarterly', False)
             target.q1_target = item_data.get('q1_target')
             target.q2_target = item_data.get('q2_target')
@@ -1456,6 +1479,9 @@ def get_preset_performance_items():
         'pm_sales_amount': 'sell',
         'se_implant_amount': 'engineering',
         'se_sales_amount': 'handshake',
+        'se_confirm_count': 'task_alt',
+        'se_sales_support': 'group',
+        'se_confirm_quality': 'verified',
     }
 
     # 分类图标映射
@@ -2339,16 +2365,28 @@ def _batch_get_user_targets(user_ids, year):
     # 获取预置绩效项目
     preset_items = get_preset_performance_items()
 
+    # 角色写死考核方案:所有目标用户同角色且该角色有方案时,
+    # 项目由方案决定(锁定勾选、带权重、目标可用岗位默认值),不再自由勾选
+    from app.services.role_kpi_schemes import get_role_scheme
+    scheme = None
+    user_roles = {u.role for u in users if u}
+    if len(user_roles) == 1:
+        scheme = get_role_scheme(next(iter(user_roles)))
+    scheme_map = {it['item_code']: it for it in scheme} if scheme else {}
+
     # 确定共同的有效配置（如果多用户有不同值，显示为 None）
     items_data = []
     for item in preset_items:
         item_code = item['code']
+        if scheme and item_code not in scheme_map:
+            continue  # 方案角色只显示方案内项目
 
         # 收集所有用户对该项目的有效值
         annual_targets = []
         enabled_states = []
         quarterly_enabled_states = []
         q1_targets, q2_targets, q3_targets, q4_targets = [], [], [], []
+        monthly_enabled_states, monthly_dicts = [], []
 
         for user_id in user_ids:
             user = user_dict.get(user_id)
@@ -2393,6 +2431,17 @@ def _batch_get_user_targets(user_ids, year):
             enabled_states.append(effective_enabled)
             quarterly_enabled_states.append(effective_quarterly)
 
+            # 月度(个人覆盖 > 角色默认)
+            if user_target and user_target.enable_monthly_override is not None:
+                monthly_enabled_states.append(bool(user_target.enable_monthly_override))
+                monthly_dicts.append(user_target.monthly_targets_override or {})
+            elif role_target:
+                monthly_enabled_states.append(bool(getattr(role_target, 'enable_monthly', False)))
+                monthly_dicts.append(getattr(role_target, 'monthly_targets', None) or {})
+            else:
+                monthly_enabled_states.append(False)
+                monthly_dicts.append({})
+
         # 判断值是否一致
         def get_common_value(values):
             unique = set(v for v in values if v is not None)
@@ -2412,12 +2461,27 @@ def _batch_get_user_targets(user_ids, year):
             'q2_target': get_common_value(q2_targets),
             'q3_target': get_common_value(q3_targets),
             'q4_target': get_common_value(q4_targets),
-            'enable_monthly': False,
-            'monthly_targets': None,
+            # 月度:单用户返回真实有效值;多用户(批量)不回传以免误覆盖
+            'enable_monthly': any(monthly_enabled_states) if len(user_ids) == 1 else False,
+            'monthly_targets': (monthly_dicts[0] if (len(user_ids) == 1 and monthly_dicts) else None),
+            # 来源标记(单用户):该行是否存在个人覆盖(user_performance_targets 有行)
+            'overridden': (len(user_ids) == 1 and
+                           bool(user_targets_by_user.get(user_ids[0], {}).get(item_code))),
             # 标记值是否一致
             'values_consistent': len(set(v for v in annual_targets if v is not None)) <= 1
         }
+        if scheme:
+            sc = scheme_map[item_code]
+            item_data['enabled'] = True          # 方案项强制考核
+            item_data['locked'] = True           # 前端锁定勾选框
+            item_data['weight'] = sc['weight']   # 考核权重(%)
+            if item_data['annual_target'] is None:
+                item_data['annual_target'] = sc.get('default_annual')  # 岗位默认目标
         items_data.append(item_data)
+
+    if scheme:
+        _order = {it['item_code']: i for i, it in enumerate(scheme)}
+        items_data.sort(key=lambda d: _order.get(d['item_code'], 99))
 
     return jsonify({
         'success': True,
