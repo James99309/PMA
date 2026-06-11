@@ -422,6 +422,7 @@ def get_active_users():
                 'username': u.username,
                 'real_name': u.real_name,
                 'role': u.role,
+                'role_display': get_role_display_name(u.role) if u.role else '',
                 'company_name': u.company_name
             } for u in users]
         })

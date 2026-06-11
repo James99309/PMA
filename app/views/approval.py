@@ -901,7 +901,14 @@ def approve(instance_id):
             }), 404
         flash(_('找不到审批实例'), 'danger')
         return redirect(url_for('approval.center'))
-    
+
+    # 项目失败/搁置审核:审批人必须强制填写意见(同意/驳回都要)
+    if instance.object_type == 'project_hold' and not (comment or '').strip():
+        if is_ajax:
+            return jsonify({'success': False, 'message': '请填写审批意见（必填）'}), 400
+        flash(_('请填写审批意见（必填）'), 'danger')
+        return redirect(request.referrer or url_for('approval.center'))
+
     # 收集批价单相关数据
     pricing_order_data = {}
     if instance.object_type == 'pricing_order':

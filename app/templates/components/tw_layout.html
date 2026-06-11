@@ -33,6 +33,7 @@ Tailwind 统一布局组件
 #}
 {% from 'components/tw_user_menu.html' import render_tw_user_menu with context %}
 {% from 'components/tw_nav_menu.html' import render_tw_nav_menu with context %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% from 'components/tw_message_panel.html' import render_message_button, render_message_panel, render_message_panel_script %}
 {% from 'components/tw_task_modal.html' import render_task_create_button, render_task_create_modal, render_task_detail_modal, render_task_modal_script %}
 {% from 'components/tw_onboarding.html' import render_onboarding_resources, render_onboarding_script %}
@@ -424,23 +425,15 @@ document.addEventListener('submit', function(e) {
              x-transition:leave-end="opacity-0"
              x-cloak></div>
 
-        <!-- 侧边栏 -->
-        <aside :class="sidebarCollapsed ? '-translate-x-full sm:translate-x-0 sm:w-0' : 'translate-x-0 sm:w-64'"
-               class="fixed sm:relative inset-y-0 left-0 w-64 z-50 sm:z-auto overflow-hidden flex-shrink-0 transform sm:transform-none"
-               style="transition: transform 300ms ease-in-out, width 350ms cubic-bezier(0.4, 0, 0.2, 1);">
-            <div class="w-64 h-full flex flex-col bg-background-light dark:bg-black border-r border-slate-200 dark:border-slate-800 sm:border-r-0">
-                <!-- 菜单区域 -->
-                <nav class="flex-1 p-4 overflow-y-auto flex flex-col gap-1"
-                     @click.capture="window.innerWidth < 640 && $event.target.closest('a[href]') && localStorage.setItem('sidebarCollapsed', 'true')">
-                    {{ render_tw_nav_menu(active_page) }}
-                </nav>
-
-                <!-- 用户菜单 -->
-                <div class="p-4">
-                    {{ render_tw_user_menu(current_user, pending_approval_count, unread_notification_count|default(0)) }}
-                </div>
-            </div>
-        </aside>
+        <!-- 侧边栏 — 统一使用 AT 可折叠边栏(替代旧 TW 菜单);用户页脚/登出由 at_sidebar 自带 -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+        <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+        <style>
+          /* 嵌入 TW 外壳:顶部已有 64px(4rem) 固定 header,边栏高度需减去,避免底部用户菜单溢出视口。
+             仅在 render_tw_layout 内渲染,不影响 AT 页面(at_list_layout 自带全高边栏)。 */
+          .at-sidebar, .at-sidebar .at-sidebar-panel { height: calc(100vh - 4rem) !important; }
+        </style>
+        {{ at_sidebar(active_key=active_page) }}
 
         <!-- 主内容区 -->
         <main class="flex-1 overflow-y-auto bg-background-light dark:bg-black"

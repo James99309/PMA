@@ -82,6 +82,9 @@ class Project(SharingMixin, db.Model):
     # 通用共享字段
     shared_with_users = Column(JSON, default=list, nullable=True)  # 共享给的用户ID列表
     share_enabled = Column(Boolean, default=False, nullable=False)  # 是否启用共享
+
+    # 项目附件(通用实体附件;JSON: [{filename, url, size, type, uploaded_at}])
+    attachments = Column(Text, nullable=True)
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, default=get_local_time)
@@ -104,6 +107,17 @@ class Project(SharingMixin, db.Model):
 
     def __repr__(self):
         return f'<Project {self.project_name}>'
+
+    @property
+    def attachments_list(self):
+        """项目附件列表(供前端 render_file_upload 渲染已有文件)。"""
+        import json as _json
+        if not self.attachments:
+            return []
+        try:
+            return _json.loads(self.attachments)
+        except (ValueError, TypeError):
+            return []
 
     @property
     def formatted_report_time(self):

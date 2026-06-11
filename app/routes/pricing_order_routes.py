@@ -304,12 +304,15 @@ def excel_edit_pricing_order(order_id):
         gp = pricing_total - settlement_total
         gm = (gp / pricing_total * 100) if pricing_total > 0 else 0
 
-        # 返回目标：来源页或批价单列表
+        # 返回目标：优先回到来源报价单详情(新 AT / 旧 TW)，否则回批价单 AT 列表(新列表)
         referrer = request.referrer or ''
-        if pricing_order.quotation_id and url_for('quotation.view_quotation', id=pricing_order.quotation_id) in referrer:
-            back_url = url_for('quotation.view_quotation', id=pricing_order.quotation_id)
+        qid = pricing_order.quotation_id
+        if qid and url_for('quotation.at_view_quotation', id=qid) in referrer:
+            back_url = url_for('quotation.at_view_quotation', id=qid)
+        elif qid and url_for('quotation.view_quotation', id=qid) in referrer:
+            back_url = url_for('quotation.view_quotation', id=qid)
         else:
-            back_url = url_for('pricing_order.list_pricing_orders')
+            back_url = url_for('pricing_order.at_list_view')
 
         # 结算目标公司 — 业务规则:
         # - 厂商直签(is_direct_contract=True) → 厂商(系统级,不在 companies 表,
@@ -2558,7 +2561,7 @@ def export_pdf(order_id, pdf_type):
         from app.utils.access_control import can_view_pricing_order
         if not can_view_pricing_order(current_user, pricing_order):
             flash('您没有权限查看该批价单', 'danger')
-            return redirect(url_for('pricing_order.list_pricing_orders'))
+            return redirect(url_for('pricing_order.at_list_view'))
 
         # 优先尝试使用Word模板生成PDF
         use_word_template = request.args.get('template', 'word') == 'word'
@@ -2631,7 +2634,7 @@ def export_word(order_id, doc_type):
         from app.utils.access_control import can_view_pricing_order
         if not can_view_pricing_order(current_user, pricing_order):
             flash('您没有权限查看该批价单', 'danger')
-            return redirect(url_for('pricing_order.list_pricing_orders'))
+            return redirect(url_for('pricing_order.at_list_view'))
 
         # 生成Word文档
         include_notes = request.args.get('include_notes') == '1'

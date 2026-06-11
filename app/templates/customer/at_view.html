@@ -108,7 +108,7 @@
       <div style="margin-top:8px;color:var(--ink-3);font-size:13px;
                   display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         {% if company.country %}
-        <span>{{ at_icon('pin', 12) }} {{ company.country | country_label }}{% if company.city %} · {{ company.city }}{% endif %}</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;">{{ at_icon('pin', 12) }}{{ company.country | country_label }}{% if company.city %} · {{ company.city }}{% endif %}</span>
         {% endif %}
         {% if company.industry %}
         <span style="color:var(--ink-4);">·</span>

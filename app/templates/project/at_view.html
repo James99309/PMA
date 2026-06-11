@@ -11,6 +11,7 @@
 {% from 'components/at_project_modal.html' import at_project_form_modal %}
 {% from 'components/at_add_customer_modal.html' import at_add_customer_modal %}
 {% from 'components/at_action_modal.html' import at_action_modal %}
+{% from 'components/at_search_picker.html' import at_search_picker %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
 <!DOCTYPE html>
 <html lang="zh">
@@ -29,6 +30,7 @@
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-search-picker.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
 {# 编辑项目 modal 依赖 #}
 <script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
@@ -116,6 +118,15 @@
                                  ( ' · ' ~ project.locked_at.strftime('%Y-%m-%d %H:%M') if project.locked_at else '' ) %}
             <span title="{{ _lock_title }}">{{ at_pill('已锁定', tone='warn') }}</span>
           {% endif %}
+          {# 失败/搁置审核 chip — 仅审核中显示;点击查看审批流程(部门经理→总经理)+理由 #}
+          {% if hold_pending %}
+          {{ at_approval_dropdown(
+                object_type='project_hold', object_id=project.id,
+                status=hold_target, status_scope='project_hold',
+                api_base='/project/api/hold',
+                meta={'project_name': project.project_name or '', 'title': project.project_name or ''}
+              ) }}
+          {% endif %}
         {% endcall %}
       </div>
       <div style="margin-top:8px;color:var(--ink-3);font-size:13px;
@@ -153,6 +164,15 @@
                        background:var(--success);color:#fff;font-size:12px;font-weight:500;
                        display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
           {{ at_icon('check', 12) }}恢复正常
+        </button>
+      {% endif %}
+      {# 申请搁置/失败 — owner/admin、正常阶段、无进行中审核时显示;单入口,弹窗内选类型+填理由,走审批 #}
+      {% if can_request_hold %}
+        <button type="button" onclick="atOpenHoldModal()"
+                style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                       background:var(--bg-elev);color:var(--ink-2);font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('clock', 12) }}申请搁置/失败
         </button>
       {% endif %}
 
@@ -208,7 +228,7 @@
     </div>
   </div>
   {% endif %}
-  <div style="margin-bottom:20px;">
+  <div style="margin-bottom:20px;{% if abnormal_status %}filter:grayscale(1);opacity:0.55;pointer-events:none;{% endif %}">
     {{ at_stage_strip(stages, sticky=false) }}
   </div>
 
@@ -218,12 +238,17 @@
     {# ═══ 左栏:基本信息 + 关联客户 + 档案信息(sticky) ═══ #}
     <div style="position:sticky;top:80px;display:flex;flex-direction:column;gap:18px;">
 
+      {# 负责人/厂商负责人 行内「笔」编辑按钮(仅有改负责人权限时);复用 ATSearchPicker 选在职人员 #}
+      {% set _pen_style = 'border:0;background:transparent;color:var(--ink-4);cursor:pointer;padding:2px;display:inline-flex;flex-shrink:0;' %}
+      {% set _pen_owner %}{% if perms.can_change_owner %}<button type="button" onclick="atOpenPersonnelEdit('owner')" title="更换项目负责人" style="{{ _pen_style }}" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('pen', 13) }}</button>{% endif %}{% endset %}
+      {% set _pen_vendor %}{% if perms.can_change_owner %}<button type="button" onclick="atOpenPersonnelEdit('vendor')" title="更换厂商销售负责人" style="{{ _pen_style }}" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('pen', 13) }}</button>{% endif %}{% endset %}
+
       {{ at_info_panel('基本信息', [
         ('授权编号', project.authorization_code, 'at-mono'),
         ('项目类型', (project.project_type | project_type_label) if project.project_type else None),
         ('当前阶段', (project.current_stage | project_stage_label) if project.current_stage else None),
-        ('项目负责人', (project.owner.real_name or project.owner.username) if project.owner else None),
-        ('厂商销售负责人', (project.vendor_sales_manager.real_name or project.vendor_sales_manager.username) if project.vendor_sales_manager else None),
+        ('项目负责人', (project.owner.real_name or project.owner.username) if project.owner else None, '', _pen_owner|trim),
+        ('厂商销售负责人', (project.vendor_sales_manager.real_name or project.vendor_sales_manager.username) if project.vendor_sales_manager else None, '', _pen_vendor|trim),
         ('行业', (project.industry | industry_label) if project.industry else None),
         ('交期', project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else None, 'at-mono'),
         ('上报时间', project.report_time.strftime('%Y-%m-%d') if project.report_time else None, 'at-mono'),
@@ -274,6 +299,7 @@
       {# 档案信息(创建/更新时间)#}
       {{ at_info_panel('档案信息', [
         ('ID', '#' ~ project.id, 'at-mono'),
+        ('创建人', (project.creator.real_name or project.creator.username) if project.creator else None),
         ('创建时间', project.created_at.strftime('%Y-%m-%d %H:%M') if project.created_at else None, 'at-mono'),
         ('更新时间', project.updated_at.strftime('%Y-%m-%d %H:%M') if project.updated_at else None, 'at-mono'),
       ]) }}
@@ -324,7 +350,7 @@
             actions,
             add_url=('javascript:atOpenProjectAddAction()')
                     if perms.can_create_action else none,
-            max_height='540px') }}
+            max_height='400px') }}
 
       {# 共享设置卡 #}
       {% call at_detail_section(
@@ -352,6 +378,43 @@
         </div>
         {% endif %}
       {% endcall %}
+
+      {# 项目附件卡 — 复用通用附件后端 /api/attachments/project/<id> #}
+      {% call at_detail_section(
+            '项目附件',
+            count=(project_attachments|length),
+            create_url=('javascript:atProjUploadPick()') if perms.can_edit else none,
+            create_label='+ 上传') %}
+        {% if project_attachments %}
+        <div style="padding:0;">
+          {% for f in project_attachments %}
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 18px;
+                      border-bottom:{{ '0' if loop.last else '1px solid var(--line-soft)' }};">
+            <span style="color:var(--ink-3);flex-shrink:0;">{{ at_icon('file', 14) }}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;
+                          white-space:nowrap;" title="{{ f.filename }}">{{ f.filename }}</div>
+              <div class="at-dim" style="font-size:10.5px;">{{ (f.uploaded_at[:16] | replace('T', ' ')) if f.uploaded_at else '' }}{% if f.uploader %} · {{ f.uploader }}{% endif %}</div>
+            </div>
+            <a href="{{ f.url }}" target="_blank" rel="noopener" download="{{ f.filename }}" title="下载"
+               style="color:var(--ink-4);padding:2px;display:inline-flex;flex-shrink:0;"
+               onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('download', 14) }}</a>
+            {% if perms.can_edit %}
+            <button type="button" onclick='atProjDeleteAttachment({{ loop.index0 }}, {{ f.filename|tojson }})'
+                    title="删除" style="border:0;background:transparent;color:var(--ink-4);cursor:pointer;
+                    padding:2px;display:inline-flex;flex-shrink:0;"
+                    onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('trash', 14) }}</button>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">暂无附件</div>
+        {% endif %}
+      {% endcall %}
+      {% if perms.can_edit %}
+      <input type="file" id="atProjFileInput" style="display:none;" onchange="atProjUploadDo(this)">
+      {% endif %}
     </div>
 
   </div>
@@ -360,8 +423,39 @@
     const PROJECT_ID = {{ project.id }};
     const _CAN_EDIT  = {{ perms.can_edit | tojson }};
     const _CUR_STAGE = {{ (project.current_stage or 'discover') | tojson }};
+    const _HOLD_PENDING = {{ hold_pending | default(false) | tojson }};
+    const _RECOVER_STAGE = {{ recover_stage | default(none) | tojson }};  // 进入搁置/失败前的最后正常阶段
     const _STAGE_LABELS = {discover:'发现',embed:'植入',pre_tender:'标前',tendering:'标中',awarded:'中标',quoted:'批价',signed:'签约',lost:'失败',paused:'搁置'};
     const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+
+    // ── 项目附件:上传/删除(复用通用 /api/attachments/project/<id> 端点) ──
+    window.atProjUploadPick = function () {
+      var el = document.getElementById('atProjFileInput'); if (el) el.click();
+    };
+    window.atProjUploadDo = function (input) {
+      var file = input.files && input.files[0]; if (!file) return;
+      var fd = new FormData(); fd.append('file', file);
+      if (window.ATToast) ATToast.info && ATToast.info('上传中…');
+      fetch(`/api/attachments/project/${PROJECT_ID}/upload`, { method: 'POST', body: fd })
+        .then(r => r.json()).then(d => {
+          if (d.success) { ATToast.success('已上传'); setTimeout(() => location.reload(), 500); }
+          else ATToast.error(d.message || '上传失败');
+        }).catch(() => ATToast.error('上传失败,请重试')).finally(() => { input.value = ''; });
+    };
+    window.atProjDeleteAttachment = function (index, name) {
+      ATConfirm.show({
+        title: '删除附件', message: `确认删除「${name}」?此操作不可恢复。`,
+        variant: 'danger', icon: 'trash', confirmText: '删除', cancelText: '取消',
+        onConfirm: () => {
+          fetch(`/api/attachments/project/${PROJECT_ID}/delete/${index}`, { method: 'POST' })
+            .then(r => r.json()).then(d => {
+              if (d.success) { ATToast.success('已删除'); setTimeout(() => location.reload(), 400); }
+              else ATToast.error(d.message || '删除失败');
+            }).catch(() => ATToast.error('删除失败,请重试'));
+        },
+      });
+    };
+
     function _atProjUpdateStage(newStage, remarks, onSuccess) {
       fetch('/project/api/update_stage', {
         method: 'POST',
@@ -383,6 +477,7 @@
           const key    = node.dataset.stageKey;
           const status = node.dataset.stageStatus;
           if (key === _CUR_STAGE) return;  // 点当前阶段无操作
+          if (_HOLD_PENDING) { ATToast.error('失败/搁置审核进行中，阶段推进已锁定'); return; }
           const label  = _STAGE_LABELS[key] || key;
           const action = status === 'done' ? '回退到' : '推进到';
           ATConfirm.show({
@@ -400,16 +495,17 @@
     });
     // 从 lost/paused 恢复
     window.atProjRecover = function() {
+      // 恢复到进入搁置/失败前的最后正常阶段(后端 last_normal);兜底 discover
+      const _target = _RECOVER_STAGE || 'discover';
       ATConfirm.show({
         title: '恢复项目',
-        message: `项目当前为 [${_STAGE_LABELS[_CUR_STAGE]}] 状态,恢复到哪个阶段?可填写备注。`,
+        message: `项目当前为 [${_STAGE_LABELS[_CUR_STAGE]}] 状态,将恢复到搁置/失败前的阶段 [${_STAGE_LABELS[_target] || _target}]。可填写备注。`,
         variant: 'accent', icon: 'check',
-        confirmText: '恢复到最近正常阶段',
+        confirmText: `恢复到 ${_STAGE_LABELS[_target] || _target} 阶段`,
         cancelText:  '取消',
         input: { label: '备注(可选)', placeholder: '恢复原因…', multiline: true, rows: 3, maxLength: 500 },
         onConfirm: (remarks) => {
-          // 恢复到 discover(最稳)— owner 可以再点节点继续推进
-          _atProjUpdateStage('discover', remarks || '从异常态恢复');
+          _atProjUpdateStage(_target, remarks || '从异常态恢复');
         },
       });
     };
@@ -487,7 +583,52 @@
         },
       });
     };
-    // Hero 标失败 / 标搁置 — 留作以后接入
+    // 申请搁置/失败 — 单弹窗:选类型(搁置/失败)+ 强制理由 → 走审批(部门经理→总经理),通过后阶段才置灰
+    let _holdType = null;
+    function _holdResetPick() {
+      document.querySelectorAll('#atHoldModal [data-hold-type]').forEach(b => {
+        b.style.borderColor = 'var(--line-2)'; b.style.background = 'var(--bg-page)'; b.style.color = 'var(--ink)';
+      });
+    }
+    window.atHoldPick = function(t) {
+      _holdType = t; _holdResetPick();
+      const b = document.querySelector(`#atHoldModal [data-hold-type="${t}"]`);
+      const c = (t === 'lost') ? 'var(--danger)' : 'var(--warn)';
+      b.style.borderColor = c; b.style.color = c;
+      b.style.background = (t === 'lost') ? 'var(--danger-soft)' : 'var(--warn-soft)';
+    };
+    window.atOpenHoldModal = function() {
+      _holdType = null; _holdResetPick();
+      const r = document.getElementById('atHoldReason'); if (r) r.value = '';
+      const e = document.getElementById('atHoldErr'); if (e) e.style.display = 'none';
+      document.getElementById('atHoldModal').style.display = 'flex';
+    };
+    window.atCloseHoldModal = function() {
+      document.getElementById('atHoldModal').style.display = 'none';
+    };
+    window.atSubmitHold = function() {
+      const err = document.getElementById('atHoldErr');
+      const reason = (document.getElementById('atHoldReason').value || '').trim();
+      if (!_holdType) { err.textContent = '请选择「搁置」或「失败」'; err.style.display = 'block'; return; }
+      if (!reason)    { err.textContent = '请填写理由'; err.style.display = 'block'; return; }
+      const btn = document.getElementById('atHoldSubmitBtn'); btn.disabled = true; btn.textContent = '提交中…';
+      fetch(`/project/api/hold/${PROJECT_ID}/request`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'X-CSRFToken': _csrf()},
+        body: JSON.stringify({ target: _holdType, reason: reason }),
+      }).then(r => r.json()).then(d => {
+        if (d.success) {
+          ATToast.success(d.message || '已提交审核');
+          setTimeout(() => location.reload(), 600);
+        } else {
+          err.textContent = d.message || '提交失败'; err.style.display = 'block';
+          btn.disabled = false; btn.textContent = '提交审核';
+        }
+      }).catch(e => {
+        err.textContent = '请求失败，请重试'; err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '提交审核';
+      });
+    };
   </script>
 
 </main>
@@ -550,6 +691,138 @@ window.atOpenProjectShare = function () {
     usersTree:  {{ (shareable_users_tree or []) | tojson }}
   });
 };
+</script>
+{% endif %}
+
+{# 申请搁置/失败 弹窗 — 单框内选类型 + 填理由 #}
+{% if can_request_hold %}
+<div id="atHoldModal" onclick="if(event.target===this)atCloseHoldModal()"
+     style="display:none;position:fixed;inset:0;z-index:210;background:rgba(0,0,0,0.4);
+            align-items:center;justify-content:center;">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:min(440px,92vw);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;">申请搁置 / 失败</div>
+    <div style="font-size:12px;color:var(--ink-3);line-height:1.6;margin-bottom:16px;">
+      提交后发起审核：<b>部门经理 → 总经理</b>。审批通过后项目阶段才会置灰标记，期间阶段不变、可恢复。
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px;">
+      <button type="button" data-hold-type="paused" onclick="atHoldPick('paused')"
+              style="flex:1;height:42px;border-radius:8px;border:1.5px solid var(--line-2);
+                     background:var(--bg-page);color:var(--ink);font:inherit;font-size:13px;font-weight:500;
+                     cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+        {{ at_icon('clock', 14) }}搁置
+      </button>
+      <button type="button" data-hold-type="lost" onclick="atHoldPick('lost')"
+              style="flex:1;height:42px;border-radius:8px;border:1.5px solid var(--line-2);
+                     background:var(--bg-page);color:var(--ink);font:inherit;font-size:13px;font-weight:500;
+                     cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+        {{ at_icon('warn', 14) }}失败
+      </button>
+    </div>
+    <label style="display:block;font-size:12px;color:var(--ink-3);font-weight:500;margin-bottom:6px;">
+      理由 <span style="color:var(--danger);">*</span>
+    </label>
+    <textarea id="atHoldReason" rows="3" maxlength="500" placeholder="说明搁置 / 失败的原因…"
+              style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line-2);
+                     border-radius:8px;background:var(--bg-page);color:var(--ink);font:inherit;font-size:13px;
+                     outline:none;resize:vertical;"></textarea>
+    <div id="atHoldErr" style="display:none;margin-top:6px;font-size:12px;color:var(--danger);"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="atCloseHoldModal()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">取消</button>
+      <button type="button" id="atHoldSubmitBtn" onclick="atSubmitHold()"
+              style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">提交审核</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# 更换项目负责人 / 厂商负责人 — 复用 ATSearchPicker 选在职人员;提交走现有 change_owner 端点 #}
+{% if perms.can_change_owner %}
+<form id="atChangeOwnerForm" method="post" action="{{ url_for('project.change_project_owner', project_id=project.id) }}" style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="new_owner_id" id="coNewOwnerId" value="{{ project.owner_id or '' }}">
+  <input type="hidden" name="vendor_sales_manager_id" id="coVendorId" value="">
+</form>
+<div id="atPersonnelModal" onclick="if(event.target===this)atClosePersonnelModal()"
+     style="display:none;position:fixed;inset:0;z-index:210;background:rgba(0,0,0,0.4);
+            align-items:center;justify-content:center;">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:min(420px,92vw);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div id="atPersonnelTitle" style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;">更换人员</div>
+    <div id="atPersonnelHint" style="font-size:12px;color:var(--ink-3);line-height:1.6;margin-bottom:16px;"></div>
+    {{ at_search_picker('personnelPicker', placeholder='搜索在职人员…') }}
+    <div id="atPersonnelErr" style="display:none;margin-top:8px;font-size:12px;color:var(--danger);"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="atClosePersonnelModal()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">取消</button>
+      <button type="button" id="atPersonnelSubmit" onclick="atSubmitPersonnel()"
+              style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">确定</button>
+    </div>
+  </div>
+</div>
+<script>
+  // 更换 项目负责人 / 厂商销售负责人 —— 复用 ATSearchPicker + 现有 change_owner 端点
+  (function () {
+    var _kind = null, _pickedId = null, _picker = null;
+    var _OWNER_ID = {{ project.owner_id or 'null' }};
+    function _filterByInput(list) {
+      var term = (document.getElementById('personnelPicker').value || '').trim().toLowerCase();
+      var arr = (list || []).map(function (u) {
+        return { id: u.id, name: u.real_name || u.username, role: u.role_display || u.role || '', company: u.company_name || '' };
+      });
+      if (term) arr = arr.filter(function (u) {
+        return (u.name + ' ' + u.role + ' ' + u.company).toLowerCase().indexOf(term) >= 0;
+      });
+      // 按拼音排序(中文姓名按拼音,英文/数字随 locale 归并)
+      arr.sort(function (a, b) { return (a.name || '').localeCompare((b.name || ''), 'zh-Hans-CN-u-co-pinyin'); });
+      return arr.slice(0, 50);
+    }
+    window.atOpenPersonnelEdit = function (kind) {
+      _kind = kind; _pickedId = null;
+      var isOwner = kind === 'owner';
+      document.getElementById('atPersonnelTitle').textContent = isOwner ? '更换项目负责人' : '更换厂商销售负责人';
+      document.getElementById('atPersonnelHint').textContent = isOwner
+        ? '从在职人员中选择新的项目负责人。'
+        : '从厂商在职人员中选择新的厂商销售负责人。';
+      document.getElementById('atPersonnelErr').style.display = 'none';
+      // 数据源:负责人=在职用户;厂商=厂商用户
+      var url = isOwner ? '/user/api/users/active' : '/project/api/users?type=vendor';
+      _picker = ATSearchPicker({
+        inputId: 'personnelPicker', hiddenIdId: 'personnelPickerId',
+        clearId: 'personnelPickerClear', dropdownId: 'personnelPickerDropdown',
+        searchUrl: function () { return url; },     // 端点返回全量,客户端按输入过滤
+        suggestUrl: function () { return url; },
+        itemsFromResp: function (resp) { return _filterByInput(resp.data || resp.users || []); },
+        renderItem: function (it) { return { primary: it.name, secondary: (it.role || '') + (it.company ? ' · ' + it.company : '') }; },
+        itemName: function (it) { return it.name; },
+        onPick: function (it) { _pickedId = it.id; },
+        onClear: function () { _pickedId = null; },
+        label: '人员'
+      });
+      document.getElementById('personnelPicker').value = '';
+      document.getElementById('atPersonnelModal').style.display = 'flex';
+    };
+    window.atClosePersonnelModal = function () {
+      document.getElementById('atPersonnelModal').style.display = 'none';
+    };
+    window.atSubmitPersonnel = function () {
+      var err = document.getElementById('atPersonnelErr');
+      if (!_pickedId) { err.textContent = '请从下拉中选择一位人员'; err.style.display = 'block'; return; }
+      if (_kind === 'owner') {
+        document.getElementById('coNewOwnerId').value = _pickedId;   // 改负责人
+        document.getElementById('coVendorId').value = '';            // 厂商保持原值
+      } else {
+        document.getElementById('coNewOwnerId').value = _OWNER_ID || _pickedId;  // 负责人不变
+        document.getElementById('coVendorId').value = _pickedId;     // 改厂商负责人
+      }
+      document.getElementById('atChangeOwnerForm').submit();
+    };
+  })();
 </script>
 {% endif %}
 </body>

@@ -545,11 +545,11 @@
       icon: action === 'reject' ? 'warn' : 'send',
       confirmText: label, cancelText: '取消',
       input: {
-        label: action === 'reject' ? '驳回原因' : '审批意见(可选)',
-        placeholder: action === 'reject' ? '请说明驳回原因(必填)' : '可填可不填',
+        label: action === 'reject' ? '驳回原因' : '审批意见',
+        placeholder: action === 'reject' ? '请说明驳回原因(必填)' : '请写下你对本次申请的最终评判…',
         required: action === 'reject',
         multiline: true, rows: 3, maxLength: 500,
-        defaultValue: action === 'approve' ? '同意' : ''
+        defaultValue: ''
       },
       onConfirm: function (comment) {
         // 审批人 endpoint:/approval/approve/<instance_id> — 后端走 request.form,必须 form-urlencoded
@@ -635,9 +635,14 @@
   function bootstrap() {
     initAll();
     bindQuickActionButtons();
-    // 从仪表盘"待审批"代办跳转过来时,hash=#approval → 自动展开 chip dropdown
-    if (window.location.hash === '#approval') {
-      var root = document.querySelector('[data-at-approval]');
+    // 从仪表盘"待审批"代办跳转过来时,hash=#approval → 自动展开 chip dropdown。
+    // 支持 #approval(默认第一个 chip,如报备) 或 #approval-<object_type>(精确定位某审批 chip,
+    // 如 #approval-project_hold 打开"项目搁置/失败审核"chip,避免误开报备审批)。
+    if (window.location.hash.indexOf('#approval') === 0) {
+      var _wantType = window.location.hash.slice('#approval'.length).replace(/^-/, '');
+      var root = _wantType
+        ? document.querySelector('[data-at-approval][data-object-type="' + _wantType + '"]')
+        : document.querySelector('[data-at-approval]');
       if (root) {
         // 给页面初始渲染一点时间(layout shift 完成)再打开
         setTimeout(function () {

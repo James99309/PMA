@@ -88,7 +88,7 @@ def _build_todos(user):
         'expense': '报销单', 'purchase_order': '采购订单',
         'project': '项目立项', 'pricing_order': '批价单',
         'quotation': '报价单', 'sales_order': '客户订单',
-        'customer': '客户',
+        'customer': '客户', 'project_hold': '项目搁置/失败审核',
     }
 
     # 1) 待审批 — 复用 get_user_pending_approvals
@@ -96,6 +96,7 @@ def _build_todos(user):
     at_url_map = {
         'expense':         lambda i: f'/expense/{i}/at_view#approval',
         'project':         lambda i: f'/project/{i}/at_view#approval',
+        'project_hold':    lambda i: f'/project/{i}/at_view#approval-project_hold',
         'quotation':       lambda i: f'/quotation/{i}/at_view#approval',
         'purchase_order':  lambda i: f'/purchase-order/{i}#approval',
     }
@@ -109,11 +110,28 @@ def _build_todos(user):
             submitter = User.query.get(ai.created_by) if ai.created_by else None
             url_builder = at_url_map.get(ai.object_type)
             route_url = url_builder(ai.object_id) if url_builder else '#'
+            # 标题:审批流程名称 + 关联项目/对象名称(项目类带项目名;搁置/失败区分)
+            title = f'{obj_label} #{ai.object_id}'
+            if ai.object_type in ('project', 'project_hold'):
+                from app.models.project import Project
+                _proj = Project.query.get(ai.object_id)
+                _pname = _proj.project_name if _proj else None
+                _label = obj_label
+                if ai.object_type == 'project_hold':
+                    _tgt = (ai.template_snapshot or {}).get('hold_target')
+                    _label = '项目失败审核' if _tgt == 'lost' else ('项目搁置审核' if _tgt == 'paused' else obj_label)
+                title = f'{_label} · {_pname}' if _pname else f'{_label} #{ai.object_id}'
+            elif ai.object_type == 'pricing_order':
+                # 批价单显示批价单号(order_number)而非内部 ID
+                from app.models.pricing_order import PricingOrder
+                _po = PricingOrder.query.get(ai.object_id)
+                title = f'{obj_label} {_po.order_number}' if (_po and _po.order_number) else title
             out.append({
                 'id': f'AI{ai.id}', 'type': 'approval', 'typeLabel': '待审批', 'tone': 'warn',
-                'title': f'{obj_label} #{ai.object_id}',
-                'meta': '我作为当前节点审批人',
-                'who': _fmt_user(submitter),
+                'title': title,
+                # 待审批 tab 已表明身份,"我作为当前节点审批人"冗余 → 换成提交人账户名
+                'meta': _fmt_user(submitter),
+                'who': '—',
                 'when': _ago(ai.started_at),
                 'route': route_url, 'urgent': urgent,
             })

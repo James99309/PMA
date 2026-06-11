@@ -419,6 +419,11 @@ def create_app(config_class=Config):
     app.register_blueprint(worklog)
     csrf.exempt(worklog)  # 豁免工作日历蓝图的CSRF保护
 
+    # 注册通用实体附件蓝图(项目等复用同一套上传/删除)
+    from app.views.attachments import attachments_bp
+    app.register_blueprint(attachments_bp)
+    csrf.exempt(attachments_bp)  # 上传为 multipart,豁免 CSRF(与 worklog 一致)
+
     # 注册积分系统蓝图
     app.register_blueprint(points_bp)
 

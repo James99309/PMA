@@ -275,6 +275,36 @@ def at_view_project(project_id):
         or (p.vendor_sales_manager_id and p.vendor_sales_manager_id == current_user.id)
     )
 
+    # ─── 失败/搁置审核(project_hold) chip + 发起入口上下文 ───
+    from app.helpers.project_hold_helpers import get_pending_hold_instance
+    _hold_inst = get_pending_hold_instance(project_id)
+    hold_pending = _hold_inst is not None
+    hold_target = (_hold_inst.template_snapshot or {}).get('hold_target') if _hold_inst else None
+    # 仅 owner / admin、当前为正常阶段、且无进行中 hold 时,可发起申请
+    can_request_hold = (
+        (p.owner_id == current_user.id or current_user.role == 'admin')
+        and not _abnormal
+        and not hold_pending
+    )
+
+    # 项目附件:补全上传人姓名(新文件已存 uploaded_by_name,旧文件按 uploaded_by 反查)
+    project_attachments = []
+    try:
+        _raw = p.attachments_list
+        _uids = {a.get('uploaded_by') for a in _raw if a.get('uploaded_by')}
+        _umap = {}
+        if _uids:
+            from app.models.user import User as _U
+            for _u in _U.query.filter(_U.id.in_(_uids)).all():
+                _umap[_u.id] = _u.real_name or _u.username
+        for a in _raw:
+            a = dict(a)
+            a['uploader'] = a.get('uploaded_by_name') or _umap.get(a.get('uploaded_by')) or ''
+            project_attachments.append(a)
+    except Exception as _att_err:
+        current_app.logger.warning(f"加载项目附件失败: {_att_err}")
+        project_attachments = []
+
     return render_template('project/at_view.html',
                            project=p,
                            related=related,
@@ -287,7 +317,12 @@ def at_view_project(project_id):
                            shared_users=shared_users,
                            shareable_users_tree=shareable_users_tree,
                            approval=approval,
-                           can_submit_approval=can_submit_approval)
+                           can_submit_approval=can_submit_approval,
+                           hold_pending=hold_pending,
+                           hold_target=hold_target,
+                           can_request_hold=can_request_hold,
+                           recover_stage=(last_normal if _abnormal else None),
+                           project_attachments=project_attachments)
 
 
 @project.route('/at_list')
@@ -3868,9 +3903,12 @@ def submit_project_approval_standard(project_id):
         }), 500
 
 
-def _get_project_approval_flow_impl(project_id):
+def _get_project_approval_flow_impl(project_id, object_type='project'):
     """
     项目审批流原始数据获取 — 纯函数,返回 dict 而非 Flask Response。
+
+    object_type:'project'(报备审批,默认) 或 'project_hold'(失败/搁置审核)。
+    两者共用同一套流程构建逻辑,只是审批实例命名空间不同。
 
     跟 `purchase_order_routes._get_approval_flow_impl` 对齐范式,供:
       • `get_project_approval_flow` endpoint(thin jsonify wrapper)
@@ -3887,7 +3925,7 @@ def _get_project_approval_flow_impl(project_id):
     try:
         # 检查项目访问权限 - 优先检查是否为项目审批人
         from app.helpers.approval_helpers import is_current_approver
-        is_approver = is_current_approver('project', project_id, current_user.id)
+        is_approver = is_current_approver(object_type, project_id, current_user.id)
         
         if is_approver:
             # 如果是当前审批人，直接获取项目（绕过常规权限检查）
@@ -3902,7 +3940,7 @@ def _get_project_approval_flow_impl(project_id):
 
         # 获取审批实例
         from app.helpers.approval_helpers import get_object_approval_instance
-        approval_instance = get_object_approval_instance('project', project_id)
+        approval_instance = get_object_approval_instance(object_type, project_id)
 
         if not approval_instance:
             return {'success': True, 'has_approval': False, 'message': '项目暂无审批流程'}
@@ -4016,8 +4054,8 @@ def _get_project_approval_flow_impl(project_id):
             actual_status = 'recalled'
         
         _can_approve = any(stage.get('can_approve', False) for stage in stages_data)
-        _can_recall = can_recall_approval('project', project_id, current_user.id)
-        _can_resubmit = can_resubmit_approval('project', project_id, current_user.id)
+        _can_recall = can_recall_approval(object_type, project_id, current_user.id)
+        _can_resubmit = can_resubmit_approval(object_type, project_id, current_user.id)
         return {
             'success': True,
             'has_approval': True,
@@ -4139,6 +4177,105 @@ def resubmit_project_approval(project_id):
             'success': False,
             'message': f'重新提交失败：{str(e)}'
         }), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 项目失败/搁置审核 (object_type='project_hold') —— gated 审批,部门经理→总经理
+# ─────────────────────────────────────────────────────────────────────────────
+
+@project.route('/api/hold/<int:project_id>/request', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def request_project_hold(project_id):
+    """发起项目失败/搁置审核(申请)。body: {target: 'lost'|'paused', reason: str}"""
+    try:
+        viewable = get_viewable_data(Project, current_user)
+        project_obj = viewable.filter_by(id=project_id).first()
+        if not project_obj:
+            return jsonify({'success': False, 'message': '项目不存在或无权限访问'}), 404
+
+        # 仅 owner 或 admin 可发起
+        if project_obj.owner_id != current_user.id and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '只有项目负责人或管理员可发起失败/搁置审核'}), 403
+
+        data = request.get_json(silent=True) or {}
+        target = data.get('target')
+        reason = data.get('reason', '')
+
+        from app.helpers.project_hold_helpers import submit_project_hold, HOLD_TARGETS
+        instance, err = submit_project_hold(project_obj, target, reason, current_user.id)
+        if err:
+            return jsonify({'success': False, 'message': err}), 400
+        return jsonify({'success': True,
+                        'message': f'已提交{HOLD_TARGETS.get(target, "")}审核，等待部门经理 / 总经理审批',
+                        'instance_id': instance.id})
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"发起项目失败/搁置审核失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'发起失败：{str(e)}'}), 500
+
+
+@project.route('/api/hold/<int:project_id>/flow')
+@login_required
+@permission_required('project', 'view')
+def get_project_hold_flow(project_id):
+    """获取项目失败/搁置审核流程 — 复用通用构建 + 前置「发起申请」节点(含发起人理由)。"""
+    result = _get_project_approval_flow_impl(project_id, object_type='project_hold')
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+
+    # 前置「发起申请」节点:展示发起人 + 强制理由
+    if result.get('success') and result.get('has_approval') and result.get('approval_flow'):
+        try:
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.user import User as _U
+            inst = get_object_approval_instance('project_hold', project_id, include_rejected=True)
+            snap = (inst.template_snapshot or {}) if inst else {}
+            initiator = _U.query.get(snap.get('hold_initiator_id')) if snap.get('hold_initiator_id') else None
+            started = inst.started_at.isoformat() if inst and inst.started_at else None
+            origin_node = {
+                'id': 'initiator', 'stage_name': '发起申请', 'stage_order': 0,
+                'approver_name': (initiator.real_name or initiator.username) if initiator else '发起人',
+                'approver_id': initiator.id if initiator else None,
+                'status': 'approved', 'completed_time': started,
+                'comment': snap.get('hold_reason') or '', 'action': 'submit',
+                'arrived_at': started, 'can_approve': False,
+            }
+            result['approval_flow'].setdefault('stages', [])
+            result['approval_flow']['stages'].insert(0, origin_node)
+        except Exception as _e:
+            logging.warning(f"前置发起节点失败: {_e}")
+    return jsonify(result)
+
+
+@project.route('/api/hold/<int:project_id>/editable-fields')
+@login_required
+@permission_required('project', 'view')
+def get_project_hold_editable_fields(project_id):
+    """失败/搁置审核无「审核修改」场景,返回空字段(供下拉组件并发拉取)。"""
+    return jsonify({'success': True, 'fields': [], 'editable_fields': []})
+
+
+@project.route('/api/hold/<int:project_id>/recall', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def recall_project_hold(project_id):
+    """撤回进行中的失败/搁置审核(仅发起人或管理员)。"""
+    try:
+        from app.helpers.approval_helpers import get_object_approval_instance, recall_approval_process
+        inst = get_object_approval_instance('project_hold', project_id)
+        if not inst:
+            return jsonify({'success': False, 'message': '没有进行中的失败/搁置审核'}), 400
+        if inst.created_by != current_user.id and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '只有发起人或管理员可撤回'}), 403
+        if inst.status != ApprovalStatus.PENDING:
+            return jsonify({'success': False, 'message': '只有进行中的审核可撤回'}), 400
+        success, message = recall_approval_process('project_hold', project_id, current_user.id)
+        return jsonify({'success': success, 'message': message}), (200 if success else 500)
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"撤回失败/搁置审核失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'撤回失败：{str(e)}'}), 500
 
 
 @project.route('/<int:project_id>/generate_authorization', methods=['POST'])

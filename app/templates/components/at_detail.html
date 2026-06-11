@@ -121,12 +121,16 @@
         {% set label = row[0] %}
         {% set value = row[1] %}
         {% set vclass = row[2] if row|length > 2 else '' %}
+        {% set action = row[3] if row|length > 3 else '' %}
         <div>
           <div class="at-dim" style="font-size:11.5px;margin-bottom:5px;letter-spacing:0.04em;">{{ label }}</div>
-          <div{% if vclass %} class="{{ vclass }}"{% endif %} title="{{ value or '' }}"
-               style="font-size:13.5px;color:var(--ink);
-                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            {{ value or '—' }}
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div{% if vclass %} class="{{ vclass }}"{% endif %} title="{{ value or '' }}"
+                 style="font-size:13.5px;color:var(--ink);min-width:0;
+                        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {{ value or '—' }}
+            </div>
+            {% if action %}{{ action | safe }}{% endif %}
           </div>
         </div>
         {% endfor %}
@@ -137,9 +141,10 @@
         {% set label = row[0] %}
         {% set value = row[1] %}
         {% set vclass = row[2] if row|length > 2 else '' %}
+        {% set action = row[3] if row|length > 3 else '' %}
         <div class="at-info-row">
           <dt>{{ label }}</dt>
-          <dd{% if vclass %} class="{{ vclass }}"{% endif %} title="{{ value or '' }}">{{ value or '—' }}</dd>
+          <dd{% if vclass %} class="{{ vclass }}"{% endif %} title="{{ value or '' }}">{{ value or '—' }}{% if action %} {{ action | safe }}{% endif %}</dd>
         </div>
         {% endfor %}
       </dl>

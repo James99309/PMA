@@ -1644,6 +1644,11 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         
         # 基于部门权限控制，不再使用项目类型过滤
         # 所有用户都可以看到其权限范围内的项目审批，权限由access_control.py统一管理
+    elif object_type == 'project_hold':
+        # 项目失败/搁置审核(object_id 关联 Project)
+        query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
+            ApprovalInstance.object_type == 'project_hold'
+        )
     elif object_type == 'quotation':
         query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
             ApprovalInstance.object_type == 'quotation'
@@ -1667,53 +1672,12 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         query = query.join(DevProduct, ApprovalInstance.object_id == DevProduct.id).filter(
             ApprovalInstance.object_type == 'rd_product'
         )
-    else:
-        # 如果没有指定类型，查询所有类型的审批实例，确保业务对象存在
-        project_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'project'
-        ).join(Project, ApprovalInstance.object_id == Project.id)
-        
-        quotation_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'quotation'
-        ).join(Quotation, ApprovalInstance.object_id == Quotation.id)
-        
-        customer_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'customer'
-        ).join(Company, ApprovalInstance.object_id == Company.id)
-        
-        from app.models.expense import Expense
-        expense_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'expense'
-        ).join(Expense, ApprovalInstance.object_id == Expense.id)
-        
-        from app.models.pricing_order import PricingOrder
-        pricing_order_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'pricing_order'
-        ).join(PricingOrder, ApprovalInstance.object_id == PricingOrder.id)
-        
-        from app.models.inventory import PurchaseOrder
-        purchase_order_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'purchase_order'
-        ).join(PurchaseOrder, ApprovalInstance.object_id == PurchaseOrder.id)
+    # 不指定类型时:通用 —— 直接用 valid_instance_ids(已保证 PENDING + 当前用户是当前步骤审批人)。
+    # 不再按 object_type 白名单 JOIN 过滤:旧白名单每加一种审批类型都要手动登记,漏了就静默
+    # 从代办消失(project_hold 即如此);且计数 _calculate_pending_approval_count / 移动端
+    # _get_pending_instances_for_user 本就是通用的,这里对齐,任何现有/未来类型都不会再漏。
+    # (硬删除业务对象的孤儿实例极少,且渲染层会兜底跳过取不到对象的项。)
 
-        from app.models.dev_product import DevProduct
-        rd_product_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'rd_product'
-        ).join(DevProduct, ApprovalInstance.object_id == DevProduct.id)
-
-        # 只查询存在于任一子查询中的审批实例
-        query = query.filter(
-            or_(
-                ApprovalInstance.id.in_(project_subquery),
-                ApprovalInstance.id.in_(quotation_subquery),
-                ApprovalInstance.id.in_(customer_subquery),
-                ApprovalInstance.id.in_(expense_subquery),
-                ApprovalInstance.id.in_(pricing_order_subquery),
-                ApprovalInstance.id.in_(purchase_order_subquery),
-                ApprovalInstance.id.in_(rd_product_subquery)
-            )
-        )
-    
     # 按创建时间倒序排列
     query = query.order_by(ApprovalInstance.started_at.desc())
     
@@ -5549,7 +5513,37 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     project.status = 'rejected'
                 
                 current_app.logger.info(f"项目 {project.project_name} 状态已更新为: {project.status}")
-            
+
+        elif instance.object_type == 'project_hold':
+            # 项目失败/搁置审核(gated):仅当整条流程通过(instance.status==APPROVED)时,
+            # 才把 current_stage 改为目标(lost/paused);驳回则什么都不改(维持正常)。
+            from app.models.project import Project
+            project = Project.query.get(instance.object_id)
+            if project:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    snap = instance.template_snapshot or {}
+                    target_stage = snap.get('hold_target')
+                    if target_stage in ('lost', 'paused'):
+                        old_stage = project.current_stage
+                        project.current_stage = target_stage
+                        try:
+                            from app.models.projectpm_stage_history import ProjectStageHistory
+                            ProjectStageHistory.add_history_record(
+                                project_id=project.id,
+                                from_stage=old_stage,
+                                to_stage=target_stage,
+                                remarks=f"失败/搁置审核通过：{snap.get('hold_reason') or ''}".strip(),
+                                account_id=user_id,
+                                commit=False,
+                            )
+                        except Exception as _hist_err:
+                            current_app.logger.warning(f"记录失败/搁置阶段历史失败: {_hist_err}")
+                        current_app.logger.info(
+                            f"项目 {project.project_name} 失败/搁置审核通过: {old_stage} → {target_stage}")
+                elif action == ApprovalAction.REJECT:
+                    current_app.logger.info(
+                        f"项目 {project.project_name} 失败/搁置审核被驳回，维持原阶段")
+
         elif instance.object_type == 'customer':
             # 客户审批状态更新逻辑（如果需要的话）
             # 这里可以根据客户的具体需求来实现
