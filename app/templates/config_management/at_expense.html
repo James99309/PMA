@@ -1,0 +1,349 @@
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'expense' %}
+
+{% block config_title %}费用预算 · 角色默认{% endblock %}
+{% block config_desc %}按角色设置年度报销预算,成员默认继承;明细从总预算中分配(留空=不限,共享总预算);每行可按季/月分摊管控节奏。{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="position:relative;">
+      <button type="button" class="cm-role-btn" onclick="ebToggleRoleMenu(event)">
+        <span id="ebRoleName">选择角色</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="ebRoleMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="ebSub" class="at-dim" style="font-size:12px;"></span>
+    <span id="ebRoom" style="font-size:12px;"></span>
+    <div style="flex:1;"></div>
+    <select id="ebYear" onchange="ebLoad()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+            border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
+    </select>
+    {% if can_edit %}
+    <button type="button" id="ebSaveBtn" onclick="ebSave()"
+            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
+                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
+    {% endif %}
+  </div>
+
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
+    <table class="cm-sheet">
+      <thead>
+        <tr>
+          <th rowspan="2" style="width:150px;text-align:left;">预算项目</th>
+          <th rowspan="2" style="width:52px;">季/月</th>
+          <th rowspan="2" style="width:104px;">年度(元)</th>
+          <th colspan="3">1季度</th>
+          <th colspan="3">2季度</th>
+          <th colspan="3">3季度</th>
+          <th colspan="3">4季度</th>
+        </tr>
+        <tr>
+          <th>1月</th><th>2月</th><th>3月</th>
+          <th>4月</th><th>5月</th><th>6月</th>
+          <th>7月</th><th>8月</th><th>9月</th>
+          <th>10月</th><th>11月</th><th>12月</th>
+        </tr>
+      </thead>
+      <tbody id="ebTbody">
+        <tr><td colspan="15" class="at-dim" style="padding:26px;">请选择角色…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 明细额度从总预算分配(余量为 0 时只能调低/挪移),留空=不限共享总预算;
+    填年度后自动均分季/月,可调剂、合计封顶不超该行年度,未分配完年度数字置灰;点「季/月」切换粒度(自动换算)。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const ROLES = {{ roles_data | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const CUR_YEAR = {{ current_year }};
+  const CATS = [
+    ['total',         '年度总预算', true],
+    ['entertainment', '招待费',     false],
+    ['travel',        '差旅费',     false],
+    ['transport',     '交通费',     false],
+    ['office',        '办公费',     false],
+    ['communication', '通讯费',     false],
+    ['other',         '其他',       false],
+  ];
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  const r2 = v => Math.round(v * 100) / 100;
+  const fmt = v => (v == null || v === '') ? '' : Number(v).toLocaleString('zh-CN');
+
+  let _roleCode = null, _rows = [];   // _rows: [{key,name,isTotal,annual,gran,q{},m{}}]
+
+  function renderRoleMenu() {
+    document.getElementById('ebRoleMenu').innerHTML = ROLES.map(r => `
+      <div class="cm-role-item${r.role === _roleCode ? ' active' : ''}" onclick="ebSelectRole('${r.role}')">
+        <span class="material-symbols-outlined" style="color:var(--accent);">badge</span>
+        <span style="flex:1;">${esc(r.display)}</span>
+        <span class="at-dim at-mono" style="font-size:10.5px;">${r.count}人</span>
+      </div>`).join('');
+  }
+  window.ebToggleRoleMenu = function (e) {
+    e.stopPropagation();
+    const menu = document.getElementById('ebRoleMenu');
+    const show = menu.style.display === 'none';
+    if (show) renderRoleMenu();
+    menu.style.display = show ? 'block' : 'none';
+  };
+  document.addEventListener('click', () => {
+    const m = document.getElementById('ebRoleMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  const yearSel = document.getElementById('ebYear');
+  [CUR_YEAR - 1, CUR_YEAR, CUR_YEAR + 1].forEach(y => {
+    const o = document.createElement('option'); o.value = y; o.textContent = y + ' 年';
+    if (y === CUR_YEAR) o.selected = true; yearSel.appendChild(o);
+  });
+
+  window.ebSelectRole = function (role) {
+    _roleCode = role;
+    document.getElementById('ebRoleMenu').style.display = 'none';
+    ebLoad();
+  };
+
+  window.ebLoad = async function () {
+    if (!_roleCode) return;
+    const r = ROLES.find(x => x.role === _roleCode);
+    document.getElementById('ebRoleName').textContent = r ? r.display : _roleCode;
+    document.getElementById('ebSub').textContent = `角色默认预算 · ${r ? r.count : 0} 名成员继承`;
+    document.getElementById('ebTbody').innerHTML = '<tr><td colspan="15" class="at-dim" style="padding:26px;">加载中…</td></tr>';
+    try {
+      const d = await (await fetch(`/config-management/api/role/${_roleCode}/budget?year=${yearSel.value}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      const budget = d.data.budget || {};
+      const periods = d.data.period_budgets || {};
+      _rows = CATS.map(([key, name, isTotal]) => {
+        const pb = periods[key] || {};
+        const row = { key, name, isTotal,
+                      annual: (budget[key] != null && budget[key] !== 0) ? parseFloat(budget[key]) : null,
+                      gran: pb.gran === 'M' ? 'M' : 'Q', q: {}, m: {} };
+        const pv = pb.periods || {};
+        if (row.gran === 'M') { for (let i = 1; i <= 12; i++) if (pv[String(i)] != null) row.m[String(i)] = parseFloat(pv[String(i)]); }
+        else { for (let i = 1; i <= 4; i++) if (pv[String(i)] != null) row.q[String(i)] = parseFloat(pv[String(i)]); }
+        return row;
+      });
+      renderTable();
+    } catch (e) {
+      document.getElementById('ebTbody').innerHTML = `<tr><td colspan="15" style="padding:24px;color:var(--danger);">${esc(e.message)}</td></tr>`;
+    }
+  };
+
+  // ── 工具 ──
+  function qSum(it) { return [1,2,3,4].reduce((s,q) => s + (parseFloat(it.q[String(q)]) || 0), 0); }
+  function mSum(it) { let s=0; for (let i=1;i<=12;i++) s += parseFloat(it.m[String(i)]) || 0; return s; }
+  function hasQ(it) { return [1,2,3,4].some(q => it.q[String(q)] != null && it.q[String(q)] !== ''); }
+  function hasM(it) { for (let i=1;i<=12;i++) if (it.m[String(i)] != null && it.m[String(i)] !== '') return true; return false; }
+
+  function splitEven(total, n) {
+    const base = Math.floor(total / n * 100) / 100;
+    const arr = Array(n).fill(base);
+    arr[n - 1] = r2(total - base * (n - 1));
+    return arr;
+  }
+
+  // 明细余量(权重模式):总预算 - 明细年度合计;总预算未设 → 不限
+  function detailRoom(excludeKey) {
+    const total = _rows.find(x => x.isTotal);
+    const tv = parseFloat(total && total.annual);
+    if (isNaN(tv) || tv <= 0) return Infinity;
+    let used = 0;
+    _rows.forEach(x => { if (!x.isTotal && x.key !== excludeKey) used += parseFloat(x.annual) || 0; });
+    return Math.max(0, r2(tv - used));
+  }
+
+  function prefill(it) {
+    const annual = parseFloat(it.annual);
+    if (isNaN(annual) || annual <= 0) return;
+    const quarters = splitEven(annual, 4);
+    if (it.gran === 'M') {
+      if (hasM(it)) return;
+      quarters.forEach((qv, qi) => splitEven(qv, 3).forEach((mv, k) => { it.m[String(qi * 3 + k + 1)] = mv; }));
+    } else {
+      if (hasQ(it)) return;
+      quarters.forEach((qv, qi) => { it.q[String(qi + 1)] = qv; });
+    }
+  }
+
+  function periodCap(it, field) {
+    const annual = parseFloat(it.annual);
+    if (isNaN(annual) || annual <= 0) return Infinity;
+    let others = 0;
+    if (field[0] === 'q') {
+      for (let q = 1; q <= 4; q++) if ('q' + q !== field) others += parseFloat(it.q[String(q)]) || 0;
+    } else {
+      const cur = field.slice(1);
+      for (let i = 1; i <= 12; i++) if (String(i) !== cur) others += parseFloat(it.m[String(i)]) || 0;
+    }
+    return Math.max(0, r2(annual - others));
+  }
+
+  window.ebGran = function (i) {
+    const it = _rows[i];
+    const g = it.gran === 'Q' ? 'M' : 'Q';
+    if (g === 'M' && hasQ(it)) {
+      for (let q = 1; q <= 4; q++) {
+        const v = parseFloat(it.q[String(q)]);
+        if (!isNaN(v)) splitEven(v, 3).forEach((mv, k) => { it.m[String((q-1)*3 + k + 1)] = mv; });
+      }
+      it.q = {};
+    }
+    if (g === 'Q' && hasM(it)) {
+      for (let q = 1; q <= 4; q++) {
+        let s = 0, n = 0;
+        for (let k = 0; k < 3; k++) {
+          const v = parseFloat(it.m[String((q-1)*3 + k + 1)]);
+          if (!isNaN(v)) { s += v; n++; }
+        }
+        if (n) it.q[String(q)] = r2(s);
+      }
+      it.m = {};
+    }
+    it.gran = g;
+    prefill(it);
+    renderTable();
+  };
+
+  // ↑/↓ 步进:年度(明细按总预算余量封顶)、周期格(按行年度余量封顶)
+  window.ebKey = function (e, i, field) {
+    if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); return; }
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const it = _rows[i];
+    const raw = (e.target.textContent || '').replace(/[,\s]/g, '');
+    const step = 100;   // 金额步进 100 元
+    let v = (raw === '' ? 0 : (parseFloat(raw) || 0)) + (e.key === 'ArrowUp' ? step : -step);
+    if (v < 0) v = 0;
+    if (field === 'annual' && !it.isTotal) {
+      const cap = r2(detailRoom(it.key) + (parseFloat(it.annual) || 0) - (parseFloat(it.annual) || 0) + (parseFloat(it.annual) || 0));
+      const room = detailRoom(it.key);
+      if (v > room) v = room;          // 明细余量封顶
+      it.annual = v; updateRoom();
+      e.target.textContent = fmt(v); return;
+    }
+    if (field !== 'annual') {
+      const cap = periodCap(it, field);
+      if (v > cap) v = cap;
+    }
+    e.target.textContent = fmt(v);
+  };
+
+  window.ebCell = function (el, i, field) {
+    const raw = (el.textContent || '').replace(/[,\s元]/g, '');
+    const v = raw === '' ? null : (parseFloat(raw) || 0);
+    const it = _rows[i];
+    if (field === 'annual') {
+      if (v != null && !it.isTotal) {
+        const room = detailRoom(it.key);
+        if (v > room + 0.0001) {
+          ATToast.error(`预算余量不足:仅剩 ${fmt(room)} 元可分配`);
+          renderTable(); return;
+        }
+      }
+      it.annual = v;
+      prefill(it);
+    } else {
+      let nv = v;
+      if (nv != null) {
+        const cap = periodCap(it, field);
+        if (nv > cap + 0.0001) {
+          ATToast.error(`超出该行年度余量,已截为 ${fmt(cap)}`);
+          nv = cap;
+        }
+      }
+      if (field[0] === 'q') it.q[field.slice(1)] = nv;
+      else it.m[field.slice(1)] = nv;
+    }
+    renderTable();
+  };
+
+  function updateRoom() {
+    const room = detailRoom(null);
+    const el = document.getElementById('ebRoom');
+    if (room === Infinity) { el.textContent = ''; return; }
+    el.textContent = `预算余量 ${fmt(room)} 元`;
+    el.style.color = room === 0 ? 'var(--success)' : (room < 0 ? 'var(--danger)' : 'var(--ink-3)');
+  }
+
+  function renderTable() {
+    const ce = CAN_EDIT ? 'contenteditable spellcheck="false"' : '';
+    let html = '';
+    _rows.forEach((it, i) => {
+      const annual = parseFloat(it.annual) || 0;
+      const isM = it.gran === 'M';
+      const sum = isM ? mSum(it) : qSum(it);
+      const filled = isM ? hasM(it) : hasQ(it);
+      const bad = filled && annual && sum - annual > 0.01;
+      const underAlloc = annual > 0 && (annual - sum) > 0.01;
+      const badCls = bad ? 'cm-bad' : '';
+
+      let cells = '';
+      if (isM) {
+        for (let m = 1; m <= 12; m++) {
+          cells += `<td ${ce} class="${badCls}" onkeydown="ebKey(event,${i},'m${m}')" onblur="ebCell(this,${i},'m${m}')">${fmt(it.m[String(m)])}</td>`;
+        }
+      } else {
+        for (let q = 1; q <= 4; q++) {
+          cells += `<td colspan="3" ${ce} class="${badCls}" onkeydown="ebKey(event,${i},'q${q}')" onblur="ebCell(this,${i},'q${q}')">${fmt(it.q[String(q)])}</td>`;
+        }
+      }
+
+      html += `
+      <tr>
+        <td class="cm-name" style="${it.isTotal ? 'font-weight:600;' : ''}">${esc(it.name)}
+          ${it.isTotal ? '' : '<div class="at-dim" style="font-size:10px;">留空=不限</div>'}
+        </td>
+        <td>${CAN_EDIT
+              ? `<button type="button" class="cm-gran-btn" onclick="ebGran(${i})" title="点击切换分摊粒度">${isM ? '月' : '季'}</button>`
+              : `<span class="at-dim" style="font-size:11.5px;">${isM ? '月' : '季'}</span>`}</td>
+        <td ${ce} onkeydown="ebKey(event,${i},'annual')"
+            style="font-weight:${it.isTotal ? '600' : '500'};${underAlloc ? 'color:var(--ink-4);' : ''}"
+            ${underAlloc ? `title="尚有 ${fmt(annual - sum)} 元未分摊到${isM ? '月' : '季'}度"` : ''}
+            onblur="ebCell(this,${i},'annual')">${fmt(it.annual)}</td>
+        ${cells}
+      </tr>`;
+    });
+    document.getElementById('ebTbody').innerHTML = html;
+    updateRoom();
+  }
+
+  window.ebSave = async function () {
+    if (detailRoom(null) < 0) {
+      ATToast.error('明细合计超过总预算,请调整后再保存');
+      return;
+    }
+    const btn = document.getElementById('ebSaveBtn');
+    btn.disabled = true; btn.textContent = '保存中…';
+    const budget = {}, period_budgets = {};
+    _rows.forEach(it => {
+      budget[it.key] = (it.annual == null || it.annual === '') ? 0 : parseFloat(it.annual);
+      const isM = it.gran === 'M';
+      const periods = {};
+      if (isM) { for (let m = 1; m <= 12; m++) { const v = it.m[String(m)]; if (v != null && v !== '') periods[String(m)] = parseFloat(v) || 0; } }
+      else { for (let q = 1; q <= 4; q++) { const v = it.q[String(q)]; if (v != null && v !== '') periods[String(q)] = parseFloat(v) || 0; } }
+      if (Object.keys(periods).length) period_budgets[it.key] = { gran: it.gran, periods };
+    });
+    try {
+      const r = await fetch(`/config-management/api/role/${_roleCode}/budget`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ year: parseInt(yearSel.value), budget, period_budgets }),
+      });
+      const d = await r.json();
+      if (d.success) { ATToast.success('角色预算已保存'); ebLoad(); }
+      else ATToast.error(d.message || '保存失败');
+    } catch (e) { ATToast.error('保存失败,请重试'); }
+    btn.disabled = false; btn.textContent = '保存';
+  };
+
+  if (ROLES.length) ebSelectRole(ROLES[0].role);
+</script>
+{% endblock %}

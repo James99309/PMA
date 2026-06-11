@@ -1,6 +1,6 @@
 from app import db
 from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime, Numeric, ForeignKey, String
+from sqlalchemy import Column, Integer, DateTime, Numeric, ForeignKey, String, JSON
 from sqlalchemy.orm import relationship
 
 
@@ -20,6 +20,9 @@ class RoleExpenseBudget(db.Model):
     office_budget = Column(Numeric(15, 2), default=0, comment='办公费预算')
     communication_budget = Column(Numeric(15, 2), default=0, comment='通讯费预算')
     other_budget = Column(Numeric(15, 2), default=0, comment='其他费用预算')
+
+    # 季/月度分摊: {category: {"gran": "Q"|"M", "periods": {"1": 金额, ...}}};空=年度均摊
+    period_budgets = Column(JSON, nullable=True)
 
     # 元数据
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -80,6 +83,9 @@ class ExpenseBudget(db.Model):
     office_budget = Column(Numeric(15, 2), default=0, comment='办公费预算')
     communication_budget = Column(Numeric(15, 2), default=0, comment='通讯费预算')
     other_budget = Column(Numeric(15, 2), default=0, comment='其他费用预算')
+
+    # 季/月度分摊: {category: {"gran": "Q"|"M", "periods": {"1": 金额, ...}}};空=年度均摊
+    period_budgets = Column(JSON, nullable=True)
 
     # 元数据
     created_at = Column(DateTime, default=datetime.utcnow)

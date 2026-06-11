@@ -268,6 +268,18 @@ def at_permissions():
                            can_edit=current_user.has_permission('config_management', 'edit'))
 
 
+@config_management_bp.route('/at/expense')
+@login_required
+def at_expense():
+    """AT 配置管理 · 费用预算(角色年度预算+明细限制)。复用 /api/role/<role>/budget。"""
+    if not current_user.has_permission('config_management', 'view'):
+        abort(403)
+    return render_template('config_management/at_expense.html',
+                           roles_data=_at_roles_data(),
+                           current_year=datetime.now().year,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
 @config_management_bp.route('/at/performance')
 @login_required
 def at_performance():
@@ -1057,7 +1069,8 @@ def api_role_budget(role_code):
                         'office': 0,
                         'communication': 0,
                         'other': 0
-                    }
+                    },
+                    'period_budgets': (budget.period_budgets if budget else None) or {}
                 }
             })
         else:  # POST
@@ -1083,6 +1096,7 @@ def api_role_budget(role_code):
                 budget.office_budget = budget_data.get('office', 0)
                 budget.communication_budget = budget_data.get('communication', 0)
                 budget.other_budget = budget_data.get('other', 0)
+                budget.period_budgets = data.get('period_budgets') or None   # 季/月分摊
                 budget.updated_at = datetime.utcnow()
                 budget.updated_by = current_user.id
             else:
@@ -1097,6 +1111,7 @@ def api_role_budget(role_code):
                     office_budget=budget_data.get('office', 0),
                     communication_budget=budget_data.get('communication', 0),
                     other_budget=budget_data.get('other', 0),
+                    period_budgets=data.get('period_budgets') or None,
                     created_by=current_user.id
                 )
                 db.session.add(budget)
