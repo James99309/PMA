@@ -1,81 +1,11 @@
-{% from 'components/at_base.html' import at_icon, at_pill, at_avatar %}
-{% from 'components/at_sidebar.html' import at_sidebar with context %}
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="csrf-token" content="{{ csrf_token() }}">
-<title>绩效配置 · 配置管理</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
-{# Material Symbols(指标图标) #}
-<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<style>
-  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; font-size: 17px; }
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'performance' %}
 
-  /* ── 角色下拉 ── */
-  .cm-role-btn { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent;
-                 font:inherit; font-size:20px; font-weight:600; color:var(--ink); cursor:pointer; padding:2px 4px;
-                 border-radius:6px; }
-  .cm-role-btn:hover { background:var(--bg-hover); }
-  .cm-role-menu { position:absolute; top:calc(100% + 6px); left:0; min-width:260px; z-index:50;
-                  background:var(--bg-elev); border:1px solid var(--line); border-radius:10px;
-                  box-shadow:0 12px 32px rgba(0,0,0,0.12); padding:6px; max-height:380px; overflow-y:auto; }
-  .cm-role-item { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:6px;
-                  cursor:pointer; font-size:13px; color:var(--ink); }
-  .cm-role-item:hover { background:var(--bg-hover); }
-  .cm-role-item.active { background:var(--accent-tint); }
+{% block config_title %}绩效配置 · 角色目标{% endblock %}
+{% block config_desc %}考核项与权重由岗位方案固定;此处设置角色默认目标,成员自动继承,个别差异在账户详情页覆盖。{% endblock %}
 
-  /* ── Excel 式紧凑表格(只画右+下边框,杜绝相邻边框叠加重影) ── */
-  .cm-sheet { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; table-layout:fixed; }
-  .cm-sheet th, .cm-sheet td { border:0; border-right:1px solid var(--line); border-bottom:1px solid var(--line);
-                               padding:6px 8px; text-align:center;
-                               overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-  .cm-sheet tr > *:last-child { border-right:0; }
-  .cm-sheet tbody tr:last-child td { border-bottom:0; }
-  .cm-sheet thead th { background:var(--bg-sunk); font-size:11px; font-weight:500; color:var(--ink-2);
-                       letter-spacing:0.04em; padding:7px 6px; }
-  .cm-sheet td.cm-name { text-align:left; }
-  .cm-sheet td[contenteditable] { cursor:cell; background:var(--bg-page); }
-  .cm-sheet td[contenteditable]:hover { background:var(--bg-hover); }
-  .cm-sheet td[contenteditable]:focus { outline:2px solid var(--accent); outline-offset:-2px;
-                                        background:var(--bg-elev); }
-  .cm-sheet td.cm-bad { color:var(--danger); font-weight:500; }
-  .cm-sheet tr.cm-disabled td { opacity:0.45; }
-  .cm-gran-btn { border:0; background:transparent; font:inherit; font-size:11.5px; color:var(--ink-3);
-                 cursor:pointer; padding:2px 4px; border-bottom:1px dashed var(--line-2); }
-  .cm-gran-btn:hover { color:var(--accent); border-bottom-color:var(--accent); }
-</style>
-<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
-<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
-<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
-</head>
-<body class="at-page">
-
-<div style="display:flex;min-height:100vh;">
-{{ at_sidebar(active_key='config_management') }}
-<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
-
-<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);position:sticky;top:0;z-index:30;">
-  <div style="max-width:1500px;margin:0 auto;width:100%;box-sizing:border-box;padding:14px 32px;
-              display:flex;align-items:center;gap:8px;">
-    <a href="{{ url_for('config_management.index') }}" style="font-size:13px;color:var(--ink-3);text-decoration:none;">配置管理</a>
-    <span style="color:var(--ink-4);font-size:12px;">/</span>
-    <span style="font-size:13px;color:var(--ink);">绩效配置</span>
-  </div>
-</header>
-
-<main style="width:100%;box-sizing:border-box;max-width:1500px;margin:0 auto;padding:32px 40px 80px;min-width:0;">
-
-  <div style="margin-bottom:18px;">
-    <div class="at-dim at-mono" style="font-size:11px;letter-spacing:0.1em;margin-bottom:6px;">CONFIG · PERFORMANCE</div>
-    <h1 class="at-serif" style="margin:0;font-size:26px;font-weight:600;">绩效配置 · 角色目标</h1>
-    <div class="at-dim" style="font-size:12.5px;margin-top:6px;">
-      考核项与权重由岗位方案固定;此处设置角色默认目标,成员自动继承,个别差异在账户详情页覆盖。
-    </div>
-  </div>
-
-  {# 工具行:角色下拉(标题即选择器) + 年份 + 保存 #}
+{% block content %}
+  {# 工具行:角色下拉(标题即选择器) + 余量 + 年份 + 保存 #}
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
     <div style="position:relative;">
       <button type="button" class="cm-role-btn" onclick="cmToggleRoleMenu(event)">
@@ -97,7 +27,7 @@
     {% endif %}
   </div>
 
-  {# 表格(整宽) #}
+  {# 目标表格(整宽) #}
   <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
     <table class="cm-sheet">
       <thead>
@@ -128,10 +58,9 @@
     ⓘ 填年度后自动均分到季/月,可在周期间调剂,合计封顶不超年度(超出自动截断);
     比率类(%)为水平目标:各期同值可微调、不加总、封顶 100;点「季/月」切换粒度(自动换算)。
   </div>
-</main>
-</div>
-</div>
+{% endblock %}
 
+{% block scripts %}
 <script>
   const ROLES = {{ roles_data | tojson }};
   const CAN_EDIT = {{ can_edit | tojson }};
@@ -204,36 +133,6 @@
   function hasQ(it)  { return [1,2,3,4].some(q => it['q'+q+'_target'] != null && it['q'+q+'_target'] !== ''); }
   function hasM(it)  { for (let m=1;m<=12;m++) if (it.monthly_targets[String(m)] != null && it.monthly_targets[String(m)] !== '') return true; return false; }
 
-  // 粒度切换:季↔月(自动换算,不丢已填值)
-  // 数量/金额:季→月均拆三份、月→季合计;比率:水平复制(季值→3 个月同值、月→季取均值)
-  window.cmGran = function (i) {
-    const it = _items[i];
-    const g = it.gran === 'Q' ? 'M' : 'Q';
-    const rate = isRate(it);
-    if (g === 'M' && hasQ(it)) {
-      for (let q = 1; q <= 4; q++) {
-        const v = parseFloat(it['q'+q+'_target']);
-        if (!isNaN(v)) {
-          if (rate) { for (let k = 0; k < 3; k++) it.monthly_targets[String((q-1)*3 + k + 1)] = v; }
-          else splitEven(v, 3).forEach((mv, k) => { it.monthly_targets[String((q-1)*3 + k + 1)] = mv; });
-        }
-      }
-    }
-    if (g === 'Q' && hasM(it)) {
-      for (let q = 1; q <= 4; q++) {
-        let s = 0, n = 0;
-        for (let k = 0; k < 3; k++) {
-          const v = parseFloat(it.monthly_targets[String((q-1)*3 + k + 1)]);
-          if (!isNaN(v)) { s += v; n++; }
-        }
-        it['q'+q+'_target'] = n ? r2(rate ? s / n : s) : null;
-      }
-    }
-    it.gran = g;
-    prefill(it);   // 切换后若周期全空且已设年度 → 自动预填
-    renderTable();
-  };
-
   // ── 指标类型:比率类(%)为水平目标——不均分、不加总、各期可微调、封顶 100 ──
   const isRate = it => (it.unit === '%');
   const r2 = v => Math.round(v * 100) / 100;
@@ -282,6 +181,36 @@
     }
     return Math.max(0, r2(annual - others));
   }
+
+  // 粒度切换:季↔月(自动换算,不丢已填值)
+  // 数量/金额:季→月精确切割、月→季合计;比率:水平复制(季值→3 个月同值、月→季取均值)
+  window.cmGran = function (i) {
+    const it = _items[i];
+    const g = it.gran === 'Q' ? 'M' : 'Q';
+    const rate = isRate(it);
+    if (g === 'M' && hasQ(it)) {
+      for (let q = 1; q <= 4; q++) {
+        const v = parseFloat(it['q'+q+'_target']);
+        if (!isNaN(v)) {
+          if (rate) { for (let k = 0; k < 3; k++) it.monthly_targets[String((q-1)*3 + k + 1)] = v; }
+          else splitEven(v, 3).forEach((mv, k) => { it.monthly_targets[String((q-1)*3 + k + 1)] = mv; });
+        }
+      }
+    }
+    if (g === 'Q' && hasM(it)) {
+      for (let q = 1; q <= 4; q++) {
+        let s = 0, n = 0;
+        for (let k = 0; k < 3; k++) {
+          const v = parseFloat(it.monthly_targets[String((q-1)*3 + k + 1)]);
+          if (!isNaN(v)) { s += v; n++; }
+        }
+        it['q'+q+'_target'] = n ? r2(rate ? s / n : s) : null;
+      }
+    }
+    it.gran = g;
+    prefill(it);   // 切换后若周期全空且已设年度 → 自动预填
+    renderTable();
+  };
 
   // 键盘:↑/↓ 步进 1,Enter 提交;权重按余量封顶,周期格按年度余量/100 封顶,实时联动
   window.cmKey = function (e, i, field) {
@@ -459,5 +388,4 @@
   // 默认选中第一个角色(人数最多)
   if (ROLES.length) cmSelectRole(ROLES[0].role);
 </script>
-</body>
-</html>
+{% endblock %}

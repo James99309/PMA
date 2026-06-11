@@ -242,6 +242,32 @@ def index():
         return redirect(url_for('main.index'))
 
 
+def _at_roles_data():
+    """AT 配置子页通用:在职用户实际存在的角色清单(显示名+人数+是否有岗位方案)"""
+    from app.utils.dictionary_helpers import get_role_display_name
+    from app.services.role_kpi_schemes import get_role_scheme
+    from collections import Counter
+    users = User.query.filter(User._is_active.is_(True)).all()
+    counts = Counter(u.role for u in users if u.role)
+    return [{
+        'role': r,
+        'display': get_role_display_name(r),
+        'count': c,
+        'has_scheme': bool(get_role_scheme(r)),
+    } for r, c in sorted(counts.items(), key=lambda x: -x[1])]
+
+
+@config_management_bp.route('/at/permissions')
+@login_required
+def at_permissions():
+    """AT 配置管理 · 权限配置(角色默认权限矩阵)。复用 /api/role-permissions/<role>。"""
+    if not current_user.has_permission('config_management', 'view'):
+        abort(403)
+    return render_template('config_management/at_permissions.html',
+                           roles_data=_at_roles_data(),
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
 @config_management_bp.route('/at/performance')
 @login_required
 def at_performance():
