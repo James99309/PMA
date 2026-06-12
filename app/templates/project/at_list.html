@@ -112,8 +112,12 @@
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
       <span style="font-size:13px;font-weight:500;color:var(--ink);
                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.project_name }}</span>
+      {# 未跟进标识(橘色):有授权编号跟在编号后,否则单独占名称下一行 #}
+      {% set _od = overdue_days.get(p.id) if overdue_days else none %}
       {% if p.authorization_code %}
-      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ p.authorization_code }}</span>
+      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ p.authorization_code }}{% if _od %} <span style="color:var(--warn);font-weight:500;">· {{ _od }} 天未跟进</span>{% endif %}</span>
+      {% elif _od %}
+      <span style="font-size:11px;color:var(--warn);font-weight:500;">{{ _od }} 天未跟进</span>
       {% endif %}
     </div>
   </td>

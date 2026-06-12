@@ -106,6 +106,12 @@
           {{ company.company_name }}
         </h1>
         {{ at_pill(tm.label, tone=tm.tone) }}
+        {# 渠道身份审批中:目标身份待 商务助理→渠道经理→总经理 审批通过后生效 #}
+        {% if company.pending_company_type %}
+        <span title="渠道身份审批中(商务助理→渠道经理→总经理),通过后生效;可在审批中心查看进度">
+          {{ at_pill(('代理商' if company.pending_company_type == 'dealer' else '分销商') ~ ' · 审批中', tone='warn', dot=true) }}
+        </span>
+        {% endif %}
       </div>
       <div style="margin-top:8px;color:var(--ink-3);font-size:13px;
                   display:flex;align-items:center;gap:14px;flex-wrap:wrap;">

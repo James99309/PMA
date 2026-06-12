@@ -53,6 +53,10 @@ class Project(SharingMixin, db.Model):
     win_locked_at = Column(DateTime, nullable=True)
     win_locked_quotation_id = Column(Integer, ForeignKey('quotations.id'), nullable=True)  # 锁定关联的报价单
     win_locked_amount = Column(db.Float, nullable=True)                                    # 锁定金额快照
+
+    # 失败归因(失败审核流程中认定:步骤1部门经理→个人因素;步骤2总经理→管理失责)
+    fail_owner_fault = Column(Boolean, default=False, nullable=False)   # 个人因素为主
+    fail_mgmt_fault = Column(Boolean, default=False, nullable=False)    # 团队管理失责
     
     # 软删除
     is_deleted = Column(Boolean, default=False, nullable=False)

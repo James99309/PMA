@@ -1310,10 +1310,10 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
         quotation = Quotation.query.get_or_404(quotation_id)
         if not can_edit_data(quotation, current_user):
             flash(_('您没有权限编辑此报价单'), 'danger')
-            return redirect(url_for('quotation.view_quotation', id=quotation_id))
+            return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
         if quotation.is_locked:
             flash(_('报价单已被锁定，无法编辑'), 'warning')
-            return redirect(url_for('quotation.view_quotation', id=quotation_id))
+            return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
         # 准备产品明细 JSON（与 view_quotation 中逻辑保持一致）
         non_temp_mns = list({
@@ -4578,7 +4578,7 @@ def export_pdf(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单PDF失败: {str(e)}", exc_info=True)
         flash(_('导出PDF失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 @quotation.route('/download_pdf/<int:quotation_id>')
 @login_required
@@ -4633,7 +4633,7 @@ def download_pdf(quotation_id):
     except Exception as e:
         logger.error(f"下载报价单PDF失败: {str(e)}", exc_info=True)
         flash(_('下载PDF失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_word/<int:quotation_id>')
@@ -4672,7 +4672,7 @@ def export_word(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单Word失败: {str(e)}", exc_info=True)
         flash(_('导出Word失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_word_pdf/<int:quotation_id>')
@@ -4711,7 +4711,7 @@ def export_word_pdf(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单PDF(Word模板)失败: {str(e)}", exc_info=True)
         flash(_('导出PDF失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_excel/<int:quotation_id>')
@@ -4766,7 +4766,7 @@ def export_excel(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单Excel失败: {str(e)}", exc_info=True)
         flash(_('导出Excel失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_excel_pdf/<int:quotation_id>')
@@ -4821,7 +4821,7 @@ def export_excel_pdf(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单PDF失败: {str(e)}", exc_info=True)
         flash(_('导出PDF失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_pdf_with_info', methods=['POST'])

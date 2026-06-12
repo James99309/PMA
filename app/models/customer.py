@@ -60,6 +60,8 @@ class Company(SharingMixin, db.Model):
     company_type = db.Column(db.String(20))  # 企业类型（用户/经销商/系统集成商/设计院及顾问/总承包单位）
     source = db.Column(db.String(20))  # 来源（渠道报备/销售线索/市场拓展）
     status = db.Column(db.String(20))  # 状态
+    # 渠道身份审批暂存:申请 dealer/distributor 时目标类型存此,审批通过后写入 company_type
+    pending_company_type = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=get_local_time)
     updated_at = db.Column(db.DateTime, default=get_local_time)
     notes = db.Column(db.Text)  # 备注

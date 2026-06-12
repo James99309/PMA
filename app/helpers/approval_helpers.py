@@ -5544,6 +5544,24 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     current_app.logger.info(
                         f"项目 {project.project_name} 失败/搁置审核被驳回，维持原阶段")
 
+        elif instance.object_type == 'dealer_apply':
+            # 客户渠道身份审批:整条流程通过 → company_type=目标身份;驳回 → 仅清 pending
+            from app.models.customer import Company
+            comp = Company.query.get(instance.object_id)
+            if comp:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    snap = instance.template_snapshot or {}
+                    target = snap.get('dealer_target')
+                    if target in ('dealer', 'distributor'):
+                        comp.company_type = target
+                        comp.pending_company_type = None
+                        current_app.logger.info(
+                            f"客户 {comp.company_name} 渠道身份审批通过: company_type={target}")
+                elif action == ApprovalAction.REJECT:
+                    comp.pending_company_type = None
+                    current_app.logger.info(
+                        f"客户 {comp.company_name} 渠道身份审批被驳回,身份维持原状")
+
         elif instance.object_type == 'customer':
             # 客户审批状态更新逻辑（如果需要的话）
             # 这里可以根据客户的具体需求来实现
@@ -6584,7 +6602,28 @@ def recall_approval(object_type, object_id, user_id, reason=None):
         
         # 更新业务对象状态为草稿
         update_business_object_status(object_type, object_id, 'draft')
-        
+
+        # 客户渠道身份审批召回 → 清 pending(身份不变)
+        if object_type == 'dealer_apply':
+            try:
+                from app.models.customer import Company as _C
+                _comp = _C.query.get(object_id)
+                if _comp:
+                    _comp.pending_company_type = None
+            except Exception:
+                pass
+
+        # 项目失败审核召回 → 清除已打的失败归因标(流程作废)
+        if object_type == 'project_hold':
+            try:
+                from app.models.project import Project as _P
+                _proj = _P.query.get(object_id)
+                if _proj:
+                    _proj.fail_owner_fault = False
+                    _proj.fail_mgmt_fault = False
+            except Exception:
+                pass
+
         db.session.commit()
         
         current_app.logger.info(f"审批流程召回成功: {object_type}#{object_id}, 召回人: {user_id}")

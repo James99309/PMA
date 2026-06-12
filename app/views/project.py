@@ -527,8 +527,44 @@ def at_list_view():
     if ptype_values:
         list_qs['ptype'] = ptype_values
 
+    # 未跟进天数(当前页批量;排除 签约/暂停/失败;≥20 天才标识)
+    overdue_days = {}
+    try:
+        from sqlalchemy import func as _f
+        from app.models.action import Action
+        from app.models.projectpm_stage_history import ProjectStageHistory
+        from datetime import datetime as _dt, date as _date
+        _page_ids = [pp.id for pp in pagination.items
+                     if pp.current_stage not in ('signed', 'paused', 'lost')]
+        if _page_ids:
+            _last_act = dict(db.session.query(Action.project_id, _f.max(Action.date))
+                             .filter(Action.project_id.in_(_page_ids))
+                             .group_by(Action.project_id).all())
+            _no_act = [pid for pid in _page_ids if pid not in _last_act]
+            _since = {}
+            if _no_act:
+                _since = dict(db.session.query(ProjectStageHistory.project_id,
+                                               _f.max(ProjectStageHistory.change_date))
+                              .filter(ProjectStageHistory.project_id.in_(_no_act))
+                              .group_by(ProjectStageHistory.project_id).all())
+            _today, _now = _date.today(), _dt.now()
+            for pp in pagination.items:
+                if pp.id not in _page_ids:
+                    continue
+                _ld = _last_act.get(pp.id)
+                if _ld:
+                    _days = (_today - _ld).days
+                else:
+                    _b = _since.get(pp.id) or pp.created_at
+                    _days = (_now - _b).days if _b else None
+                if _days is not None and _days >= 20:
+                    overdue_days[pp.id] = _days
+    except Exception as _oe:
+        logger.warning(f'overdue calc err: {_oe}')
+
     return render_template('project/at_list.html',
                            projects=pagination.items,
+                           overdue_days=overdue_days,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,

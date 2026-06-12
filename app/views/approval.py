@@ -909,6 +909,26 @@ def approve(instance_id):
         flash(_('请填写审批意见（必填）'), 'danger')
         return redirect(request.referrer or url_for('approval.center'))
 
+    # 项目失败审核归因认定(同意时,可选):
+    #   步骤1 部门经理 → owner_fault(个人因素为主);步骤2 总经理 → mgmt_fault(团队管理失责)
+    #   驳回时清两标(项目不失败,归因作废)
+    if instance.object_type == 'project_hold':
+        try:
+            from app.models.project import Project as _P
+            _proj = _P.query.get(instance.object_id)
+            _attr = (request.form.get('attribution') or '').strip()
+            if _proj:
+                if action == ApprovalAction.APPROVE and _attr in ('owner_fault', 'mgmt_fault'):
+                    setattr(_proj, f'fail_{_attr}', True)
+                    current_app.logger.info(
+                        f"失败归因认定: 项目{_proj.id} fail_{_attr}=True by user {current_user.id}")
+                elif action == ApprovalAction.REJECT:
+                    _proj.fail_owner_fault = False
+                    _proj.fail_mgmt_fault = False
+            # 不单独 commit,随审批事务一并提交
+        except Exception as _attr_err:
+            current_app.logger.warning(f'失败归因处理失败: {_attr_err}')
+
     # 收集批价单相关数据
     pricing_order_data = {}
     if instance.object_type == 'pricing_order':

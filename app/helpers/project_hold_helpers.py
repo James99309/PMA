@@ -32,20 +32,27 @@ def resolve_hold_approvers(project):
     if not owner:
         return None, None, '项目没有负责人，无法发起审核'
 
-    # 部门经理 = owner 同部门同公司、is_department_manager=True 的用户
-    dept_mgr = (User.query
-                .filter_by(department=owner.department,
-                           company_name=owner.company_name,
-                           is_department_manager=True)
-                .first())
+    def _active_role(role):
+        """在职激活的该角色用户(优先同公司,其次全局)"""
+        q = User.query.filter(User.role == role, User._is_active.is_(True))
+        return (q.filter(User.company_name == owner.company_name).first() or q.first())
 
-    # 总经理 = role='ceo'（优先同公司，其次全局）
-    ceo = (User.query.filter_by(role='ceo', company_name=owner.company_name).first()
-           or User.query.filter_by(role='ceo').first())
-
+    # 总经理 = role='ceo'(终审,必需)
+    ceo = _active_role('ceo')
     if not ceo:
         return None, None, '未找到总经理(ceo)，请联系管理员配置后再发起'
-    return dept_mgr, ceo, None
+
+    # 第一步按业务线分流(2026-06-12 确认):
+    #   渠道业务(report_source=channel) → 渠道经理;岗位无人 → 营销总监代理
+    #   服务类(负责人属服务部门/服务经理) → 服务经理;岗位无人 → 直达总经理
+    #   其余(销售/营销报备) → 营销总监;岗位无人 → 直达总经理
+    if (project.report_source or '') == 'channel':
+        first = _active_role('channel_manager') or _active_role('sales_director')
+    elif '服务' in (owner.department or '') or owner.role == 'service_manager':
+        first = _active_role('service_manager')
+    else:
+        first = _active_role('sales_director')
+    return first, ceo, None
 
 
 def get_or_create_hold_template(created_by=None):
@@ -82,7 +89,7 @@ def get_or_create_hold_template(created_by=None):
         for s in steps:
             db.session.delete(s)
         db.session.flush()
-        step1 = ApprovalStep(process_id=tpl.id, step_order=1, step_name='部门经理审批',
+        step1 = ApprovalStep(process_id=tpl.id, step_order=1, step_name='业务线经理审批',
                              approver_type='submitter_designate', send_email=True)
         step2 = ApprovalStep(process_id=tpl.id, step_order=2, step_name='总经理审批',
                              approver_type='submitter_designate', send_email=True)
@@ -138,7 +145,7 @@ def submit_project_hold(project, target, reason, user_id):
 
     tpl, step1, step2 = get_or_create_hold_template(created_by=user_id)
 
-    # 部门经理这级是否有效:存在、且不是发起人、且不与总经理重复 —— 否则跳过该级
+    # 业务线经理这级是否有效:存在、且不是发起人、且不与总经理重复 —— 否则跳过该级
     step1_approver = dept_mgr if (dept_mgr and dept_mgr.id != user_id and dept_mgr.id != ceo.id) else None
     designated = {str(step2.id): ceo.id}
     if step1_approver:
@@ -158,13 +165,13 @@ def submit_project_hold(project, target, reason, user_id):
     instance.template_snapshot = snap
     flag_modified(instance, 'template_snapshot')
 
-    # 发起人即部门经理(或该部门无经理) → 跳过部门经理这级,直接从总经理开始
+    # 业务线经理缺位/重复 → 跳过该级,直接从总经理开始
     if not step1_approver:
         from app.models.approval import ApprovalRecord
         db.session.add(ApprovalRecord(
             instance_id=instance.id, step_id=step1.id, approver_id=user_id,
             action='skipped',
-            comment='发起人即部门经理或该部门未设经理，自动跳过部门经理审批'))
+            comment='业务线经理缺位或与发起人/终审人重复，自动跳过该级审批'))
         instance.current_step = step2.step_order  # 直接进入总经理审批
         # 通知总经理(start_approval_process 通知的是被跳过的首步,这里补发)
         try:

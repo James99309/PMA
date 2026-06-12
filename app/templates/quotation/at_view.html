@@ -221,6 +221,33 @@
     <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
       {{ at_btn('返回', variant='ghost', icon_l='back', tag='a',
                 href=url_for('quotation.at_list_view')) }}
+      {# 导出(复用既有 export_excel / export_excel_pdf 端点,模板随 SP8D/OVS 自动适配)#}
+      {% if not is_new and quotation.id %}
+      <div class="view-only" style="position:relative;display:inline-flex;">
+        <button type="button" onclick="qExportToggle(event)"
+                style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                       background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('download', 12) }}导出
+        </button>
+        <div id="qExportMenu" hidden
+             style="position:absolute;top:38px;right:0;z-index:900;min-width:170px;
+                    background:var(--bg-elev);border:1px solid var(--line);border-radius:9px;
+                    box-shadow:0 12px 32px rgba(31,30,27,0.16);padding:5px;">
+          <a href="{{ url_for('quotation.export_excel', quotation_id=quotation.id) }}"
+             style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:6px;
+                    font-size:12.5px;color:var(--ink-2);text-decoration:none;"
+             onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+            {{ at_icon('download', 13) }}Excel 报价单</a>
+          {# PDF 走 EVERTAC 模板生成器(download_pdf):SP8D 中文 / OVS 英文自动适配,强制下载 #}
+          <a href="{{ url_for('quotation.download_pdf', quotation_id=quotation.id) }}"
+             style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:6px;
+                    font-size:12.5px;color:var(--ink-2);text-decoration:none;"
+             onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+            {{ at_icon('download', 13) }}PDF 报价单</a>
+        </div>
+      </div>
+      {% endif %}
       {# 编辑按钮 + 技术确认 — 与产品明细 header 那组同步(都通过 data-mode 切换)#}
       {% if perms.can_edit and not quotation.is_locked %}
       <div class="view-only" style="display:inline-flex;gap:6px;align-items:center;">
@@ -800,6 +827,17 @@
     };
 
     // ─── 模式切换 ───────────────────────────────────────
+    // ── 导出下拉 ──
+    window.qExportToggle = function (e) {
+      e.stopPropagation();
+      const m = document.getElementById('qExportMenu');
+      if (m) m.hidden = !m.hidden;
+    };
+    document.addEventListener('click', () => {
+      const m = document.getElementById('qExportMenu');
+      if (m && !m.hidden) m.hidden = true;
+    });
+
     window.atQuoteEnterEdit = function() {
       document.querySelector('main').dataset.mode = 'edit';
       if (typeof _resetAllRowConfirms === 'function') _resetAllRowConfirms();

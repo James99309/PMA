@@ -242,19 +242,40 @@ def index():
         return redirect(url_for('main.index'))
 
 
+# 角色业务排序(2026-06-12 与用户确认):总经理最上,销售类(销售/客户销售/服务/
+# 营销总监/渠道)→ 商务助理 → 解决方案 → 产品 → 工程师 → 项目经理 → 市场 →
+# 财务 → 出纳/采购/供应链 → 人事 → 代理商;系统管理员不显示;未列角色排尾。
+_ROLE_ORDER = ['ceo',
+               'sales_manager', 'customer_sales', 'service_manager',
+               'sales_director', 'channel_manager',
+               'business_admin',
+               'solution_manager', 'product_manager', 'engineer', 'project_manager',
+               'marketing_manager', 'marketingplan',
+               'finace_director', 'finance_director', 'finance_supervisor', 'finance',
+               'treasurer', 'buyer', 'supplychain_manager',
+               'hr_manager', 'hrdp_manager',
+               'dealer', 'user']
+
+
+def _role_sort_key(role):
+    r = (role or '').lower()
+    return _ROLE_ORDER.index(r) if r in _ROLE_ORDER else 900
+
+
 def _at_roles_data():
-    """AT 配置子页通用:在职用户实际存在的角色清单(显示名+人数+是否有岗位方案)"""
+    """AT 配置子页通用:在职用户实际存在的角色清单(显示名+人数+是否有岗位方案);
+    按业务排序(_ROLE_ORDER),排除系统管理员"""
     from app.utils.dictionary_helpers import get_role_display_name
     from app.services.role_kpi_schemes import get_role_scheme
     from collections import Counter
     users = User.query.filter(User._is_active.is_(True)).all()
-    counts = Counter(u.role for u in users if u.role)
+    counts = Counter(u.role for u in users if u.role and u.role != 'admin')
     return [{
         'role': r,
         'display': get_role_display_name(r),
         'count': c,
         'has_scheme': bool(get_role_scheme(r)),
-    } for r, c in sorted(counts.items(), key=lambda x: -x[1])]
+    } for r, c in sorted(counts.items(), key=lambda x: _role_sort_key(x[0]))]
 
 
 @config_management_bp.route('/at/permissions')
@@ -582,22 +603,9 @@ def at_performance():
     if not current_user.has_permission('config_management', 'view'):
         abort(403)
 
-    from app.utils.dictionary_helpers import get_role_display_name
-    from app.services.role_kpi_schemes import get_role_scheme
-    from collections import Counter
-
-    # 角色清单(本页只配角色级:考核方案+默认目标;个人覆盖在账户详情页设置)
-    users = User.query.filter(User._is_active.is_(True)).all()
-    _role_counts = Counter(u.role for u in users if u.role)
-    roles_data = [{
-        'role': r,
-        'display': get_role_display_name(r),
-        'count': c,
-        'has_scheme': bool(get_role_scheme(r)),
-    } for r, c in sorted(_role_counts.items(), key=lambda x: -x[1])]
-
+    # 角色清单走公共 _at_roles_data(业务排序 + 排除系统管理员)
     return render_template('config_management/at_performance.html',
-                           roles_data=roles_data,
+                           roles_data=_at_roles_data(),
                            current_year=datetime.now().year,
                            can_edit=current_user.has_permission('config_management', 'edit'))
 

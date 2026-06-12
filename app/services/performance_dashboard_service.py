@@ -1593,11 +1593,16 @@ class PerformanceDashboardService:
             'sales_target', 'implant_amount',
             'pm_implant_amount', 'pm_sales_amount',
             'se_implant_amount', 'se_sales_amount',
+            'team_sales_amount', 'team_implant_amount',
+            'channel_sales_amount', 'channel_implant_amount',
         }
         # 比率/评分类:水平目标(level)——每期目标即该值本身,不做 /12、/3 摊分
         rate_item_codes = {
             'se_response_rate', 'customer_activity_rate',
             'se_confirm_quality', 'se_satisfaction',
+            'project_activity_rate', 'team_project_activity_rate',
+            'team_customer_activity_rate', 'fail_rate', 'team_fail_rate',
+            'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate',
         }
 
         targets_dict = {}
@@ -1670,6 +1675,25 @@ class PerformanceDashboardService:
             'se_confirm_count': 'se_confirm_count_target',
             'se_sales_support': 'se_sales_support_target',
             'se_confirm_quality': 'se_confirm_quality_target',
+            'project_activity_rate': 'project_activity_rate_target',
+            'team_project_activity_rate': 'team_project_activity_rate_target',
+            'quotation_count': 'quotation_count_target',
+            'customer_activity_rate': 'customer_activity_rate_target',
+            'team_sales_amount': 'team_sales_amount_target',
+            'team_implant_amount': 'team_implant_amount_target',
+            'team_new_projects': 'team_new_projects_target',
+            'team_new_customers': 'team_new_customers_target',
+            'team_customer_activity_rate': 'team_customer_activity_rate_target',
+            'fail_rate': 'fail_rate_target',
+            'team_fail_rate': 'team_fail_rate_target',
+            'channel_sales_amount': 'channel_sales_amount_target',
+            'channel_implant_amount': 'channel_implant_amount_target',
+            'channel_new_projects': 'channel_new_projects_target',
+            'channel_new_customers': 'channel_new_customers_target',
+            'channel_customer_activity_rate': 'channel_customer_activity_rate_target',
+            'channel_project_activity_rate': 'channel_project_activity_rate_target',
+            'channel_fail_rate': 'channel_fail_rate_target',
+            'channel_new_dealers': 'channel_new_dealers_target',
         }
         return mapping.get(item_code)
 
@@ -1709,6 +1733,23 @@ class PerformanceDashboardService:
             'se_confirm_count': 'se_confirm_count',
             'se_sales_support': 'se_sales_support',
             'se_confirm_quality': 'se_confirm_quality',
+            'project_activity_rate': 'project_activity_rate',
+            'team_project_activity_rate': 'team_project_activity_rate',
+            'team_sales_amount': 'team_sales_amount',
+            'team_implant_amount': 'team_implant_amount',
+            'team_new_projects': 'team_new_projects',
+            'team_new_customers': 'team_new_customers',
+            'team_customer_activity_rate': 'team_customer_activity_rate',
+            'fail_rate': 'fail_rate',
+            'team_fail_rate': 'team_fail_rate',
+            'channel_sales_amount': 'channel_sales_amount',
+            'channel_implant_amount': 'channel_implant_amount',
+            'channel_new_projects': 'channel_new_projects',
+            'channel_new_customers': 'channel_new_customers',
+            'channel_customer_activity_rate': 'channel_customer_activity_rate',
+            'channel_project_activity_rate': 'channel_project_activity_rate',
+            'channel_fail_rate': 'channel_fail_rate',
+            'channel_new_dealers': 'channel_new_dealers',
         }
 
         try:
@@ -1739,13 +1780,25 @@ class PerformanceDashboardService:
             if not user_targets:
                 return []
 
-            # 转换为看板指标代码
+            # 转换为看板指标代码(个人行 ∪ 角色默认行:
+            # 角色后续新增的默认考核项,对已有个人配置的成员同样生效)
             configured_codes = []
             for target in user_targets:
                 item_code = target.item_code
                 mapped_code = item_code_mapping.get(item_code, item_code)
                 if mapped_code not in configured_codes:
                     configured_codes.append(mapped_code)
+
+            try:
+                from app.models.performance_config import RolePerformanceTarget
+                if user_obj and user_obj.role:
+                    for rt in RolePerformanceTarget.query.filter_by(
+                            role_code=user_obj.role, year=year).all():
+                        mapped = item_code_mapping.get(rt.item_code, rt.item_code)
+                        if mapped not in configured_codes:
+                            configured_codes.append(mapped)
+            except Exception:
+                pass
 
             return configured_codes
 
@@ -1946,8 +1999,14 @@ class PerformanceDashboardService:
                         non_zero = [v for v in q_target_vals if v > 0]
                         q_target = non_zero[0] if non_zero else 0  # 目标取第一个非零值
 
-                    # 计算达成率（封顶100%）
-                    if q_target > 0:
+                    # 计算达成率（封顶100%）;反向指标(失败率类):实际 ≤ 目标 = 满分
+                    _INVERSE_CODES = {'fail_rate', 'team_fail_rate', 'channel_fail_rate'}
+                    if metric_code in _INVERSE_CODES:
+                        if q_target > 0:
+                            achievement_rate = 100 if q_actual <= q_target else min(q_target / q_actual * 100, 100)
+                        else:
+                            achievement_rate = 100 if q_actual <= 0 else 0
+                    elif q_target > 0:
                         achievement_rate = min(q_actual / q_target * 100, 100)
                     else:
                         achievement_rate = 100 if q_actual > 0 else 0

@@ -536,6 +536,25 @@
     if (!instanceId) { if (g.ATToast) ATToast.error('找不到审批实例 ID'); return; }
     if (!g.ATConfirm) { if (g.ATToast) ATToast.error('AT 弹窗组件未加载'); return; }
 
+    // 项目失败审核(lost)同意时的归因认定:
+    // 步骤1(部门经理)→ 个人因素为主;步骤2(总经理)→ 团队管理失责
+    var attribution = null, chkOpt = null;
+    if (action === 'approve' && root.dataset.objectType === 'project_hold'
+        && root.dataset.status === 'lost') {
+      var _steps = (flow && flow.steps) || [];
+      var _curIdx = -1;
+      for (var i = 0; i < _steps.length; i++) {
+        if (_steps[i].status === 'current') { _curIdx = i; break; }
+      }
+      if (_curIdx === 0) {
+        attribution = 'owner_fault';
+        chkOpt = { label: '认定:个人因素为主(计入项目负责人的个人失败率)' };
+      } else if (_curIdx === 1) {
+        attribution = 'mgmt_fault';
+        chkOpt = { label: '认定:团队管理失责(计入部门的团队失败率)' };
+      }
+    }
+
     ATConfirm.show({
       title: label + '审批',
       message: action === 'approve'
@@ -551,11 +570,13 @@
         multiline: true, rows: 3, maxLength: 500,
         defaultValue: ''
       },
-      onConfirm: function (comment) {
+      checkbox: chkOpt,
+      onConfirm: function (comment, checked) {
         // 审批人 endpoint:/approval/approve/<instance_id> — 后端走 request.form,必须 form-urlencoded
         var body = new URLSearchParams();
         body.append('action', action);
         body.append('comment', comment || '');
+        if (chkOpt && checked && attribution) body.append('attribution', attribution);
         body.append('csrf_token', csrf());
         fetch('/approval/approve/' + instanceId, {
           method: 'POST',

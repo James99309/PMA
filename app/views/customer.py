@@ -1935,6 +1935,10 @@ def api_create_company():
             if not current_user.has_permission('customer', 'change_owner'):
                 _owner_id = current_user.id  # 静默回退,不阻断创建
 
+        # 渠道身份(代理商/分销商)需审批:类型暂存 pending,审批通过后才正式生效
+        _req_type = data.get('company_type')
+        _needs_dealer_apply = _req_type in ('dealer', 'distributor')
+
         # 创建新公司
         company = Company(
             company_name=data.get('company_name'),
@@ -1945,7 +1949,8 @@ def api_create_company():
             latitude=data.get('latitude') or None,
             longitude=data.get('longitude') or None,
             industry=data.get('industry', ''),
-            company_type=data.get('company_type'),
+            company_type=(None if _needs_dealer_apply else _req_type),
+            pending_company_type=(_req_type if _needs_dealer_apply else None),
             source=data.get('source'),
             notes=data.get('notes', ''),
             status='active',
@@ -1976,6 +1981,18 @@ def api_create_company():
 
         db.session.commit()
 
+        # 渠道身份审批:商务助理→渠道经理→总经理(缺位跳级);通过后写入 company_type
+        _dealer_msg = ''
+        if _needs_dealer_apply:
+            try:
+                from app.helpers.dealer_apply_helpers import submit_dealer_apply
+                _inst, _da_err = submit_dealer_apply(company, _req_type, current_user.id)
+                _dealer_msg = ('；渠道身份审批已发起(商务助理→渠道经理→总经理)' if _inst
+                               else f'；渠道身份审批发起失败:{_da_err}')
+            except Exception as _da_e:
+                logger.warning(f'发起渠道身份审批失败: {_da_e}')
+                _dealer_msg = '；渠道身份审批发起失败,请在客户详情重试'
+
         # 记录创建历史
         try:
             ChangeTracker.log_create(company)
@@ -1996,7 +2013,7 @@ def api_create_company():
 
         return jsonify({
             'success': True,
-            'message': _('客户创建成功'),
+            'message': _('客户创建成功') + _dealer_msg,
             'data': {
                 'id': company.id,
                 'company_name': company.company_name
@@ -2036,12 +2053,23 @@ def api_update_company(company_id):
                          'city', 'latitude', 'longitude',
                          'industry', 'company_type', 'source', 'notes']
 
+        # 渠道身份(代理商/分销商)变更需审批:不直接改 company_type,
+        # 暂存 pending 并发起审批(商务助理→渠道经理→总经理)
+        _dealer_target = None
+        if 'company_type' in data and data['company_type'] in ('dealer', 'distributor') \
+                and data['company_type'] != company.company_type:
+            _dealer_target = data['company_type']
+
         for field in allowed_fields:
             if field in data:
+                if field == 'company_type' and _dealer_target:
+                    continue   # 走审批,不直接写
                 value = data[field]
                 if field in ('latitude', 'longitude') and value == '':
                     value = None
                 setattr(company, field, value)
+        if _dealer_target:
+            company.pending_company_type = _dealer_target
 
         # 归属人变更:校验 can_change_company_owner(创建人本人或上级管理者),
         # 无权限静默忽略(不阻断其他字段保存)
@@ -2064,6 +2092,17 @@ def api_update_company(company_id):
             company.supplier_code = generate_supplier_code(company.company_name, existing_codes)
 
         db.session.commit()
+
+        _dealer_msg = ''
+        if _dealer_target:
+            try:
+                from app.helpers.dealer_apply_helpers import submit_dealer_apply
+                _inst, _da_err = submit_dealer_apply(company, _dealer_target, current_user.id)
+                _dealer_msg = ('；渠道身份审批已发起,通过后生效' if _inst
+                               else f'；渠道身份审批:{_da_err}')
+            except Exception as _da_e:
+                logger.warning(f'发起渠道身份审批失败: {_da_e}')
+                _dealer_msg = '；渠道身份审批发起失败,请重试'
 
         # 记录变更历史
         try:
@@ -2089,7 +2128,7 @@ def api_update_company(company_id):
 
         return jsonify({
             'success': True,
-            'message': _('客户信息已更新'),
+            'message': _('客户信息已更新') + _dealer_msg,
             'data': {
                 'id': company.id,
                 'company_name': company.company_name

@@ -89,6 +89,7 @@ def _build_todos(user):
         'project': '项目立项', 'pricing_order': '批价单',
         'quotation': '报价单', 'sales_order': '客户订单',
         'customer': '客户', 'project_hold': '项目搁置/失败审核',
+        'dealer_apply': '渠道身份审批',
     }
 
     # 1) 待审批 — 复用 get_user_pending_approvals
@@ -99,6 +100,7 @@ def _build_todos(user):
         'project_hold':    lambda i: f'/project/{i}/at_view#approval-project_hold',
         'quotation':       lambda i: f'/quotation/{i}/at_view#approval',
         'purchase_order':  lambda i: f'/purchase-order/{i}#approval',
+        'dealer_apply':    None,   # 占位:下面按实例跳审批中心
     }
     try:
         from app.helpers.approval_helpers import get_user_pending_approvals
@@ -110,6 +112,9 @@ def _build_todos(user):
             submitter = User.query.get(ai.created_by) if ai.created_by else None
             url_builder = at_url_map.get(ai.object_type)
             route_url = url_builder(ai.object_id) if url_builder else '#'
+            if ai.object_type == 'dealer_apply':
+                # 渠道身份审批:跳审批中心实例详情(通用审批操作页)
+                route_url = f'/approval/detail/{ai.id}'
             # 标题:审批流程名称 + 关联项目/对象名称(项目类带项目名;搁置/失败区分)
             title = f'{obj_label} #{ai.object_id}'
             if ai.object_type in ('project', 'project_hold'):
@@ -178,44 +183,72 @@ def _build_todos(user):
         today = now.date()
         fu = []
 
-        # 4a) 中标(awarded)项目:owner 或 销售负责人 == 我;关联该项目最近一条 Action.date
-        #     >30 天;若从无跟进 → 用进入中标阶段时间(阶段历史),兜底项目创建时间
+        # 4a) 项目跟进分级提醒(排除 签约/暂停/失败):
+        #     ≥20 天未跟进 → 当事人(负责人/厂商销售);≥30 天 → 部门经理(部门成员的项目);
+        #     ≥35 天 → 总经理(ceo,全部项目)。同一项目命中多个视角取最低阈值。
+        #     口径:最近 Action.date;无跟进 → 进入当前阶段时间(阶段历史),兜底创建时间。
         from app.models.project import Project
         from app.models.action import Action
         from app.models.projectpm_stage_history import ProjectStageHistory
-        projs = Project.query.filter(
-            Project.is_deleted == False,
-            Project.current_stage == 'awarded',
-            _or(Project.owner_id == user.id, Project.vendor_sales_manager_id == user.id),
-        ).all()
-        proj_ids = [p.id for p in projs]
-        # 批量:每项目最近 Action.date(一次 group by,替代逐项目查询)
+        from app.models.user import User as _U
+        _EXCLUDE_STAGES = ('signed', 'paused', 'lost')
+        _base_f = [Project.is_deleted == False, ~Project.current_stage.in_(_EXCLUDE_STAGES)]
+
+        cand = {}   # pid → (project, threshold, meta_suffix)
+        # 视角1:当事人(20 天)
+        for p in Project.query.filter(*_base_f, _or(Project.owner_id == user.id,
+                                                    Project.vendor_sales_manager_id == user.id)).all():
+            cand[p.id] = (p, 20, '')
+        # 视角2:部门经理(30 天,部门成员的项目;同公司)
+        if user.is_department_manager and user.department:
+            _dept_ids = [u.id for u in _U.query.filter(
+                _U.department == user.department,
+                _U.company_name == user.company_name).all()]
+            if _dept_ids:
+                for p in Project.query.filter(*_base_f, Project.owner_id.in_(_dept_ids)).all():
+                    if p.id not in cand:
+                        cand[p.id] = (p, 30, '')
+        # 视角3:总经理(35 天,全部)
+        if user.role == 'ceo':
+            for p in Project.query.filter(*_base_f).all():
+                if p.id not in cand:
+                    cand[p.id] = (p, 35, '')
+
+        proj_ids = list(cand.keys())
+        # 批量:每项目最近 Action.date(一次 group by)
         last_action = {}
         if proj_ids:
             last_action = dict(db.session.query(Action.project_id, _f.max(Action.date))
                                .filter(Action.project_id.in_(proj_ids))
                                .group_by(Action.project_id).all())
-        # 批量:从无 Action 的项目 → 进入中标阶段时间(一次 group by)
+        # 批量:无跟进项目 → 进入当前阶段时间(最近一次阶段变更)
         no_act_ids = [pid for pid in proj_ids if pid not in last_action]
-        awarded_since = {}
+        stage_since = {}
         if no_act_ids:
-            awarded_since = dict(db.session.query(ProjectStageHistory.project_id, _f.max(ProjectStageHistory.change_date))
-                                 .filter(ProjectStageHistory.project_id.in_(no_act_ids),
-                                         ProjectStageHistory.to_stage == 'awarded')
-                                 .group_by(ProjectStageHistory.project_id).all())
-        for p in projs:
-            last_date = last_action.get(p.id)
+            stage_since = dict(db.session.query(ProjectStageHistory.project_id,
+                                                _f.max(ProjectStageHistory.change_date))
+                               .filter(ProjectStageHistory.project_id.in_(no_act_ids))
+                               .group_by(ProjectStageHistory.project_id).all())
+        _stage_zh = {'discover': '发现', 'embed': '植入', 'pre_tender': '标前',
+                     'tendering': '标中', 'awarded': '中标', 'quoted': '批价'}
+        for pid, (p, threshold, _suffix) in cand.items():
+            last_date = last_action.get(pid)
             if last_date:
                 days = (today - last_date).days
             else:
-                base = awarded_since.get(p.id) or p.created_at
+                base = stage_since.get(pid) or p.created_at
                 days = (now - base).days if base else None
-            if days is not None and days > 30:
+            if days is not None and days >= threshold:
+                _meta = _stage_zh.get(p.current_stage, p.current_stage or '')
+                if threshold >= 30 and p.owner_id != user.id:
+                    _own = _U.query.get(p.owner_id) if p.owner_id else None
+                    if _own:
+                        _meta += f' · {_own.real_name or _own.username}'
                 fu.append({
-                    'id': f'P{p.id}', 'type': 'action', 'typeLabel': '项目跟进', 'tone': 'danger',
-                    'title': f'{p.project_name} · {days} 天未跟进', 'meta': '中标',
+                    'id': f'P{pid}', 'type': 'action', 'typeLabel': '项目跟进', 'tone': 'danger',
+                    'title': f'{p.project_name} · {days} 天未跟进', 'meta': _meta,
                     'who': '—', 'when': f'{days}天',
-                    'route': f'/project/{p.id}/at_view', 'urgent': days > 60, '_d': days,
+                    'route': f'/project/{pid}/at_view', 'urgent': days >= threshold + 15, '_d': days,
                 })
 
         # 4b) 我的任务:指派给我 或 我创建;非已完成;最近一次交互
@@ -737,6 +770,58 @@ def _act_manual(code, agg='sum'):
         return round(sum(vals) / len(vals), 1) if agg == 'avg' else sum(vals)
     return fn
 
+def _act_project_activity(team=False):
+    """项目活跃度%(快照型,窗口无关):
+    负责(owner/厂商销售)的项目,排除 签约/暂停/失败,跟进未超 20 天的占比。
+    team=True(营销总监):范围扩为本部门成员(含本人)负责的项目。
+    口径与待办分级跟进提醒/列表未跟进标识完全一致。"""
+    def fn(user, s, e):
+        from sqlalchemy import func, or_
+        from datetime import datetime as _dt, date as _date
+        from app import db
+        from app.models.project import Project
+        from app.models.action import Action
+        from app.models.projectpm_stage_history import ProjectStageHistory
+        from app.models.user import User as _U
+        _EXCL = ('signed', 'paused', 'lost')
+        if team and user.department:
+            ids = [u.id for u in _U.query.filter(
+                _U.department == user.department,
+                _U.company_name == user.company_name).all()] or [user.id]
+        else:
+            ids = [user.id]
+        projs = Project.query.filter(
+            Project.is_deleted == False,
+            ~Project.current_stage.in_(_EXCL),
+            or_(Project.owner_id.in_(ids),
+                Project.vendor_sales_manager_id.in_(ids))).all()
+        if not projs:
+            return 100.0
+        pids = [p.id for p in projs]
+        last_act = dict(db.session.query(Action.project_id, func.max(Action.date))
+                        .filter(Action.project_id.in_(pids)).group_by(Action.project_id).all())
+        no_act = [pid for pid in pids if pid not in last_act]
+        since = {}
+        if no_act:
+            since = dict(db.session.query(ProjectStageHistory.project_id,
+                                          func.max(ProjectStageHistory.change_date))
+                         .filter(ProjectStageHistory.project_id.in_(no_act))
+                         .group_by(ProjectStageHistory.project_id).all())
+        today, now = _date.today(), _dt.now()
+        overdue = 0
+        for p_ in projs:
+            ld = last_act.get(p_.id)
+            if ld:
+                days = (today - ld).days
+            else:
+                b = since.get(p_.id) or p_.created_at
+                days = (now - b).days if b else 0
+            if days >= 20:
+                overdue += 1
+        return round((1 - overdue / len(projs)) * 100, 1)
+    return fn
+
+
 _KPI_ACTUAL_FNS = {
     'sales_amount':       _act_sales,
     'implant_amount':     _act_implant,
@@ -753,6 +838,9 @@ _KPI_ACTUAL_FNS = {
     'se_content_output':  _act_manual('se_content_output'),
     'se_response_rate':   _act_manual('se_response_rate', agg='avg'),
     'se_satisfaction':    _act_manual('se_satisfaction', agg='avg'),
+    'customer_activity_rate':     None,   # 下方注册(快照型)
+    'project_activity_rate':      _act_project_activity(team=False),
+    'team_project_activity_rate': _act_project_activity(team=True),
     'pm_sales_amount':    None,   # 占位,下方注册(需 SQL)
     # 未注册(快照/口径未定):customer_activity_rate / high_price_amount → actual 0
 }
@@ -785,8 +873,284 @@ def _act_pm_sales(user, s, e):
 
 _KPI_ACTUAL_FNS['pm_sales_amount'] = _act_pm_sales
 
+
+def _act_customer_activity(user, s, e):
+    """客户活跃度%(快照型,窗口无关):
+    我名下未删除客户中,状态为 高度活跃/活跃/正常 的占比
+    (companies.status 由每日 01:00 活跃度跑批维护;待跟进/沉睡/流失 计为不活跃)"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.customer import Company
+    rows = dict(db.session.query(Company.status, func.count(Company.id))
+                .filter(Company.owner_id == user.id, Company.is_deleted == False)
+                .group_by(Company.status).all())
+    total = sum(rows.values())
+    if not total:
+        return 100.0
+    active = sum(v for k, v in rows.items() if k in ('highly_active', 'active', 'normal'))
+    return round(active / total * 100, 1)
+
+
+_KPI_ACTUAL_FNS['customer_activity_rate'] = _act_customer_activity
+
+
+def _dept_member_ids(user):
+    """团队 = 本部门成员(含本人,同公司)"""
+    from app.models.user import User as _U
+    if not user.department:
+        return [user.id]
+    return [u.id for u in _U.query.filter(
+        _U.department == user.department,
+        _U.company_name == user.company_name).all()] or [user.id]
+
+
+def _act_team_sales(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.pricing_order import PricingOrder
+    return float(db.session.query(func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0)).filter(
+        PricingOrder.status == 'approved',
+        PricingOrder.created_by.in_(_dept_member_ids(user)),
+        PricingOrder.approved_at >= s, PricingOrder.approved_at < e).scalar() or 0)
+
+
+def _act_team_implant(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.quotation import Quotation
+    return float(db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0)).filter(
+        Quotation.owner_id.in_(_dept_member_ids(user)),
+        Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0)
+
+
+def _act_team_new_projects(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.project import Project
+    return db.session.query(func.count(Project.id)).filter(
+        Project.owner_id.in_(_dept_member_ids(user)),
+        Project.created_at >= s, Project.created_at < e).scalar() or 0
+
+
+def _act_team_new_customers(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.customer import Company
+    return db.session.query(func.count(Company.id)).filter(
+        Company.owner_id.in_(_dept_member_ids(user)),
+        Company.created_at >= s, Company.created_at < e).scalar() or 0
+
+
+def _act_team_customer_activity(user, s, e):
+    """团队客户活跃度%(快照):部门成员名下客户中 高活/活跃/正常 占比"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.customer import Company
+    rows = dict(db.session.query(Company.status, func.count(Company.id))
+                .filter(Company.owner_id.in_(_dept_member_ids(user)), Company.is_deleted == False)
+                .group_by(Company.status).all())
+    total = sum(rows.values())
+    if not total:
+        return 100.0
+    active = sum(v for k, v in rows.items() if k in ('highly_active', 'active', 'normal'))
+    return round(active / total * 100, 1)
+
+
+def _lost_this_year_ids(year):
+    """当年进入失败阶段的项目 id 集合(阶段历史 to_stage='lost' 当年)"""
+    from sqlalchemy import extract
+    from app import db
+    from app.models.projectpm_stage_history import ProjectStageHistory
+    rows = db.session.query(ProjectStageHistory.project_id).filter(
+        ProjectStageHistory.to_stage == 'lost',
+        extract('year', ProjectStageHistory.change_date) == year).distinct().all()
+    return {r[0] for r in rows}
+
+
+def _act_fail_rate(user, s, e):
+    """个人失败率%(反向,≤目标达标):
+    当年被认定「个人因素为主」的失败项目数 ÷ 本人负责(负责人/厂商销售)的项目总数"""
+    from sqlalchemy import or_
+    from app.models.project import Project
+    mine = Project.query.filter(
+        Project.is_deleted == False,
+        or_(Project.owner_id == user.id, Project.vendor_sales_manager_id == user.id)).all()
+    if not mine:
+        return 0.0
+    lost_ids = _lost_this_year_ids(s.year)
+    fault = sum(1 for p_ in mine
+                if p_.id in lost_ids and getattr(p_, 'fail_owner_fault', False))
+    return round(fault / len(mine) * 100, 1)
+
+
+def _act_team_fail_rate(user, s, e):
+    """团队失败率%(反向,≤目标达标):
+    当年被认定「团队管理失责」的失败数 ÷ 本部门当年失败项目总数"""
+    from sqlalchemy import or_
+    from app.models.project import Project
+    ids = _dept_member_ids(user)
+    lost_ids = _lost_this_year_ids(s.year)
+    if not lost_ids:
+        return 0.0
+    dept_lost = Project.query.filter(
+        Project.id.in_(list(lost_ids)),
+        or_(Project.owner_id.in_(ids), Project.vendor_sales_manager_id.in_(ids))).all()
+    if not dept_lost:
+        return 0.0
+    fault = sum(1 for p_ in dept_lost if getattr(p_, 'fail_mgmt_fault', False))
+    return round(fault / len(dept_lost) * 100, 1)
+
+
+# ── 渠道口径(全量 report_source/source='channel',不限负责人)──
+def _channel_project_filter():
+    from app.models.project import Project
+    return [Project.is_deleted == False, Project.report_source == 'channel']
+
+
+def _act_channel_sales(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.pricing_order import PricingOrder
+    from app.models.project import Project
+    return float(db.session.query(func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0))
+                 .join(Project, Project.id == PricingOrder.project_id)
+                 .filter(*_channel_project_filter(),
+                         PricingOrder.status == 'approved',
+                         PricingOrder.approved_at >= s, PricingOrder.approved_at < e).scalar() or 0)
+
+
+def _act_channel_implant(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.quotation import Quotation
+    from app.models.project import Project
+    return float(db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0))
+                 .join(Project, Project.id == Quotation.project_id)
+                 .filter(*_channel_project_filter(),
+                         Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0)
+
+
+def _act_channel_new_projects(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.project import Project
+    return db.session.query(func.count(Project.id)).filter(
+        *_channel_project_filter(),
+        Project.created_at >= s, Project.created_at < e).scalar() or 0
+
+
+def _dealer_user_ids():
+    """渠道客户维度的口径主体:代理商(dealer)账户"""
+    from app.models.user import User as _U
+    return [u.id for u in _U.query.filter(_U.role == 'dealer').all()] or [0]
+
+
+def _act_channel_new_customers(user, s, e):
+    # 渠道新增客户 = 代理商账户名下本期新建的客户(客户不分渠道,按创建账户归属)
+    from sqlalchemy import func
+    from app import db
+    from app.models.customer import Company
+    return db.session.query(func.count(Company.id)).filter(
+        Company.is_deleted == False, Company.owner_id.in_(_dealer_user_ids()),
+        Company.created_at >= s, Company.created_at < e).scalar() or 0
+
+
+def _act_channel_customer_activity(user, s, e):
+    # 渠道客户活跃度 = 代理商账户名下客户中 高活/活跃/正常 占比(快照)
+    from sqlalchemy import func
+    from app import db
+    from app.models.customer import Company
+    rows = dict(db.session.query(Company.status, func.count(Company.id))
+                .filter(Company.is_deleted == False, Company.owner_id.in_(_dealer_user_ids()))
+                .group_by(Company.status).all())
+    total = sum(rows.values())
+    if not total:
+        return 100.0
+    active = sum(v for k, v in rows.items() if k in ('highly_active', 'active', 'normal'))
+    return round(active / total * 100, 1)
+
+
+def _act_channel_project_activity(user, s, e):
+    """渠道项目活跃度%(快照):渠道项目(排除签约/暂停/失败)跟进未超 20 天占比"""
+    from sqlalchemy import func
+    from datetime import datetime as _dt, date as _date
+    from app import db
+    from app.models.project import Project
+    from app.models.action import Action
+    from app.models.projectpm_stage_history import ProjectStageHistory
+    projs = Project.query.filter(*_channel_project_filter(),
+                                 ~Project.current_stage.in_(('signed', 'paused', 'lost'))).all()
+    if not projs:
+        return 100.0
+    pids = [p_.id for p_ in projs]
+    last_act = dict(db.session.query(Action.project_id, func.max(Action.date))
+                    .filter(Action.project_id.in_(pids)).group_by(Action.project_id).all())
+    no_act = [pid for pid in pids if pid not in last_act]
+    since = {}
+    if no_act:
+        since = dict(db.session.query(ProjectStageHistory.project_id,
+                                      func.max(ProjectStageHistory.change_date))
+                     .filter(ProjectStageHistory.project_id.in_(no_act))
+                     .group_by(ProjectStageHistory.project_id).all())
+    today, now = _date.today(), _dt.now()
+    overdue = 0
+    for p_ in projs:
+        ld = last_act.get(p_.id)
+        days = (today - ld).days if ld else ((now - (since.get(p_.id) or p_.created_at)).days
+                                             if (since.get(p_.id) or p_.created_at) else 0)
+        if days >= 20:
+            overdue += 1
+    return round((1 - overdue / len(projs)) * 100, 1)
+
+
+def _act_channel_fail_rate(user, s, e):
+    """渠道失败率%(反向):当年失败的渠道项目 ÷ 渠道项目总数"""
+    from app.models.project import Project
+    total = Project.query.filter(*_channel_project_filter()).count()
+    if not total:
+        return 0.0
+    lost_ids = _lost_this_year_ids(s.year)
+    if not lost_ids:
+        return 0.0
+    lost_channel = Project.query.filter(*_channel_project_filter(),
+                                        Project.id.in_(list(lost_ids))).count()
+    return round(lost_channel / total * 100, 1)
+
+
+def _act_channel_new_dealers(user, s, e):
+    """渠道发展:本期新增的代理商/分销商客户数(company_type=dealer/distributor)"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.customer import Company
+    return db.session.query(func.count(Company.id)).filter(
+        Company.is_deleted == False,
+        Company.company_type.in_(('dealer', 'distributor')),
+        Company.created_at >= s, Company.created_at < e).scalar() or 0
+
+
+_KPI_ACTUAL_FNS.update({
+    'channel_new_dealers':            _act_channel_new_dealers,
+    'channel_sales_amount':           _act_channel_sales,
+    'channel_implant_amount':         _act_channel_implant,
+    'channel_new_projects':           _act_channel_new_projects,
+    'channel_new_customers':          _act_channel_new_customers,
+    'channel_customer_activity_rate': _act_channel_customer_activity,
+    'channel_project_activity_rate':  _act_channel_project_activity,
+    'channel_fail_rate':              _act_channel_fail_rate,
+    'fail_rate':                   _act_fail_rate,
+    'team_fail_rate':              _act_team_fail_rate,
+    'team_sales_amount':           _act_team_sales,
+    'team_implant_amount':         _act_team_implant,
+    'team_new_projects':           _act_team_new_projects,
+    'team_new_customers':          _act_team_new_customers,
+    'team_customer_activity_rate': _act_team_customer_activity,
+})
+
 # 率/评分类:目标为水平值(取单月,不累加);actual 同理由查询口径保证
-_KPI_RATE_CODES = {'customer_activity_rate', 'se_response_rate', 'se_confirm_quality', 'se_satisfaction'}
+_KPI_RATE_CODES = {'customer_activity_rate', 'se_response_rate', 'se_confirm_quality', 'se_satisfaction',
+                   'project_activity_rate', 'team_project_activity_rate', 'team_customer_activity_rate',
+                   'fail_rate', 'team_fail_rate',
+                   'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate'}
 
 
 def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):
