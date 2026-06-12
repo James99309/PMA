@@ -118,6 +118,7 @@
   }
   window.afToggleMenu = function (e) {
     e.stopPropagation();
+    if (typeof _locked !== 'undefined' && _locked) return;   // 详情页跳入:锁定不可切换
     const menu = document.getElementById('afUserMenu');
     const show = menu.style.display === 'none';
     if (show) renderMenu();
@@ -207,6 +208,20 @@
     btn.disabled = false; btn.textContent = '保存';
   };
 
-  if (usersOf().length) afSelect(usersOf()[0].id);
+  // ?user= 预选(账户详情页跳入):锁定该用户,禁止切换防误操作
+  const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));
+  const _locked = !!_pre;
+  if (_pre) {
+    _company = _pre.company || _company;
+    const cs = document.getElementById('afCompany');
+    if (cs) { cs.value = _company; cs.disabled = true; }
+    const btn = document.querySelector('.cm-role-btn');
+    btn.style.cursor = 'default';
+    btn.title = '从账户详情进入,已锁定到该用户;配置他人请从侧栏进入个人配置';
+    const ic = btn.querySelector('.material-symbols-outlined');
+    if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
+    afSelect(_pre.id);
+  }
+  else if (usersOf().length) afSelect(usersOf()[0].id);
 </script>
 {% endblock %}

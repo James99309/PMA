@@ -17,9 +17,9 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_avatar %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% set _config_tabs = [
-  ('performance', '绩效配置', url_for('config_management.at_performance')),
   ('permissions', '权限配置', url_for('config_management.at_permissions')),
   ('expense',     '部门预算', url_for('config_management.at_expense')),
+  ('performance', '绩效配置', url_for('config_management.at_performance')),
   ('salary',      '薪资配置', none),
   ('metrics',     '指标管理', none),
   ('global',      '全局配置', none),

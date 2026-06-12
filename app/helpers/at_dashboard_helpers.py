@@ -279,6 +279,28 @@ def _kpi_item(label, value, target, unit, prev, tone, delta=None):
             'tone': tone, 'delta': d, 'deltaTone': dt}
 
 
+def _framework_targets(user, year, target_months):
+    """从新绩效配置框架取目标(个人覆盖 > 角色默认;金额已转元)。
+
+    返回 {target_key: 本期累加值};完全未配置(无角色默认也无个人覆盖)返回 None,
+    调用方据此显示「KPI 未设定」空状态。仪表盘与绩效达成视图自此同一目标来源。
+    注意:跨月累加只对金额/数量类正确;比率类(如 se_confirm_quality)是水平目标,
+    累加无意义 — 消费方仅取金额/数量 key,新增消费时勿直接累加率类。
+    """
+    try:
+        from app.services.performance_dashboard_service import PerformanceDashboardService
+        tmap = PerformanceDashboardService.get_user_kpi_targets(user.id, year)
+    except Exception:
+        return None
+    if not tmap:
+        return None
+    out = {}
+    for m in target_months:
+        for k, v in (tmap.get(m) or {}).items():
+            out[k] = out.get(k, 0) + float(v or 0)
+    return out
+
+
 def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
                     target_months, currency_symbol='¥'):
     """对一个时间窗口算 4 项 KPI(actual + 上一周期 actual + 累加 target)"""
@@ -324,22 +346,15 @@ def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
     proj_a, proj_p       = _projects(start, end), _projects(prev_start, prev_end)
     cust_a, cust_p       = _customers(start, end),_customers(prev_start, prev_end)
 
-    # Target 累加(从 performance_targets 表本周期所含月份)
-    sales_t = implant_t = proj_t = cust_t = 0
-    try:
-        from app.models.performance import PerformanceTarget
-        rows = PerformanceTarget.query.filter(
-            PerformanceTarget.user_id == user.id,
-            PerformanceTarget.year == start.year,
-            PerformanceTarget.month.in_(list(target_months)),
-        ).all()
-        for r in rows:
-            sales_t   += float(r.sales_amount_target   or 0)
-            implant_t += float(r.implant_amount_target or 0)
-            proj_t    += int(r.new_projects_target     or 0)
-            cust_t    += int(r.new_customers_target    or 0)
-    except Exception:
-        pass
+    # Target:新绩效配置框架(个人覆盖>角色默认),与绩效达成视图同源;
+    # 完全未配置 → 返回空列表,模板显示「KPI 未设定」
+    ft = _framework_targets(user, start.year, target_months)
+    if ft is None:
+        return []
+    sales_t   = ft.get('sales_amount_target', 0)
+    implant_t = ft.get('implant_amount_target', 0)
+    proj_t    = ft.get('new_projects_target', 0)
+    cust_t    = ft.get('new_customers_target', 0)
 
     def _delta(current, previous):
         if previous <= 0:
@@ -395,65 +410,94 @@ def _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix):
 
 
 def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):
-    """解决方案经理:任务 + 植入额(我创建∪我确认,去重) + 项目参与度(确认/图纸/报价/跟进)。"""
-    from sqlalchemy import func
+    """解决方案经理:按岗位方案五项渲染(与绩效配置同源)——
+    报价确认 / 植入额 / 确认质量 / 销售支持 / 销售额;
+    actual 口径照抄 performance_service 的 SE 统计 CTE(窗口参数化),
+    target 来自新绩效配置框架(个人覆盖>角色默认)。未配置 → 空列表(KPI 未设定)。"""
+    from sqlalchemy import text
     from app import db
-    from app.models.quotation import Quotation
-    from app.models.quotation_confirmation_task import QuotationConfirmationTask
-    from app.models.system_diagram import SystemDiagram
-    from app.models.action import Action
 
-    confirmed_q = db.session.query(QuotationConfirmationTask.quotation_id).filter(
-        QuotationConfirmationTask.assignee_id == user.id,
-        QuotationConfirmationTask.status == 'confirmed')
-
-    def _implant(s, e):  # 报价级:owner==我 OR 我确认过(单行天然去重)
-        return db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0)).filter(
-            db.or_(Quotation.owner_id == user.id, Quotation.id.in_(confirmed_q)),
-            Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0
-
-    def _confirm(s, e):
-        return db.session.query(func.count(QuotationConfirmationTask.id)).filter(
-            QuotationConfirmationTask.assignee_id == user.id,
-            QuotationConfirmationTask.status == 'confirmed',
-            QuotationConfirmationTask.confirmed_at >= s, QuotationConfirmationTask.confirmed_at < e).scalar() or 0
-
-    def _diagram(s, e):
-        return db.session.query(func.count(SystemDiagram.id)).filter(
-            SystemDiagram.owner_id == user.id,
-            SystemDiagram.created_at >= s, SystemDiagram.created_at < e).scalar() or 0
-
-    def _quote(s, e):
-        return db.session.query(func.count(Quotation.id)).filter(
-            Quotation.owner_id == user.id,
-            Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0
-
-    def _action(s, e):
-        return db.session.query(func.count(Action.id)).filter(
-            Action.owner_id == user.id,
-            Action.created_at >= s, Action.created_at < e).scalar() or 0
-
-    im, imp = _implant(start, end), _implant(prev_start, prev_end)
-    # 项目参与(聚合):报价确认 + 图纸绘制 + 报价制作 + 项目跟进,合为一个指标
-    part = _confirm(start, end) + _diagram(start, end) + _quote(start, end) + _action(start, end)
-    part_p = (_confirm(prev_start, prev_end) + _diagram(prev_start, prev_end)
-              + _quote(prev_start, prev_end) + _action(prev_start, prev_end))
-    # 植入目标(PerformanceTarget.implant_amount_target 本期累加)
-    implant_target = 0
+    # 目标:金额/数量按窗口月份累加;质量(%)为水平目标取单月值
     try:
-        from app.models.performance import PerformanceTarget
-        rows = PerformanceTarget.query.filter(
-            PerformanceTarget.user_id == user.id,
-            PerformanceTarget.year == start.year,
-            PerformanceTarget.month.in_(list(target_months))).all()
-        implant_target = sum(float(r.implant_amount_target or 0) for r in rows)
+        from app.services.performance_dashboard_service import PerformanceDashboardService
+        tmap = PerformanceDashboardService.get_user_kpi_targets(user.id, start.year)
     except Exception:
-        pass
-    items = _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix)
-    items += [
-        _kpi_item(f'{label_prefix}植入额', im, implant_target, cur, imp, 'var(--success)'),
-        _kpi_item(f'{label_prefix}项目参与', part, 0, ' 次', part_p, 'var(--info)'),
+        tmap = {}
+    if not tmap:
+        return []
+    tsum = {}
+    for m in target_months:
+        for k, v in (tmap.get(m) or {}).items():
+            tsum[k] = tsum.get(k, 0) + float(v or 0)
+    first_m = list(target_months)[0]
+    quality_t = float((tmap.get(first_m) or {}).get('se_confirm_quality_target', 0) or 0)
+
+    _SE_SQL = text("""
+        WITH se_projects AS (
+            SELECT DISTINCT project_id FROM (
+                SELECT project_id FROM project_members
+                    WHERE user_id = :uid AND role = 'solution_engineer'
+                UNION
+                SELECT project_id FROM quotations
+                    WHERE confirmed_by = :uid AND project_id IS NOT NULL
+                UNION
+                SELECT project_id FROM work_items
+                    WHERE owner_id = :uid AND project_id IS NOT NULL
+                UNION
+                SELECT project_id FROM actions
+                    WHERE owner_id = :uid AND project_id IS NOT NULL
+            ) sp
+        ),
+        c AS (
+            SELECT COUNT(*) AS cnt, COUNT(DISTINCT owner_id) AS sup
+            FROM quotations
+            WHERE confirmed_by = :uid AND confirmed_at >= :s AND confirmed_at < :e
+        ),
+        ql AS (
+            SELECT COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE pr.current_stage IN ('awarded','quoted','signed')) AS won
+            FROM quotations q LEFT JOIN projects pr ON q.project_id = pr.id
+            WHERE q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e
+        ),
+        im AS (
+            SELECT COALESCE(SUM(qd.quantity * qd.market_price), 0) AS amt
+            FROM quotation_details qd
+            JOIN quotations q ON qd.quotation_id = q.id
+            JOIN se_projects sp ON q.project_id = sp.project_id
+            JOIN products p ON qd.product_mn = p.product_mn
+            WHERE p.is_vendor_product = true AND q.created_at >= :s AND q.created_at < :e
+        ),
+        sa AS (
+            SELECT COALESCE(SUM(po.pricing_total_amount), 0) AS amt
+            FROM pricing_orders po
+            JOIN se_projects sp ON po.project_id = sp.project_id
+            WHERE po.status = 'approved' AND po.approved_at >= :s AND po.approved_at < :e
+        )
+        SELECT c.cnt, c.sup, ql.total, ql.won, im.amt AS implant, sa.amt AS sales
+        FROM c, ql, im, sa
+    """)
+
+    def _win(s, e):
+        r = db.session.execute(_SE_SQL, {'uid': user.id, 's': s, 'e': e}).fetchone()
+        quality = round(r.won * 100.0 / r.total, 1) if (r.total or 0) > 0 else 0
+        return {'confirm': int(r.cnt or 0), 'support': int(r.sup or 0),
+                'quality': quality, 'implant': float(r.implant or 0), 'sales': float(r.sales or 0)}
+
+    a, p = _win(start, end), _win(prev_start, prev_end)
+
+    # 方案五项(顺序与岗位方案一致);target=0 视为该项未配置
+    spec = [
+        ('se_confirm_count_target',   f'{label_prefix}报价确认', a['confirm'], p['confirm'], ' 单',  'var(--accent)'),
+        ('se_implant_amount_target',  f'{label_prefix}植入额',   a['implant'], p['implant'], cur,    'var(--success)'),
+        ('se_confirm_quality_target', f'{label_prefix}确认质量', a['quality'], p['quality'], '%',    'var(--info)'),
+        ('se_sales_support_target',   f'{label_prefix}销售支持', a['support'], p['support'], ' 人',  'var(--warn)'),
+        ('se_sales_amount_target',    f'{label_prefix}销售额',   a['sales'],   p['sales'],   cur,    'var(--accent)'),
     ]
+    items = []
+    for key, label, val, prev, unit, tone in spec:
+        target = quality_t if key == 'se_confirm_quality_target' else tsum.get(key, 0)
+        items.append(_kpi_item(label, int(val) if unit != '%' else val,
+                               int(target) if unit != '%' else target, unit, prev, tone))
     return items
 
 
@@ -515,12 +559,304 @@ def _kpi_metrics_finance(user, start, end, prev_start, prev_end, label_prefix, t
     ]
 
 
+# ─── 配置驱动 KPI 引擎 ───────────────────────────────────
+# KPI 卡完全跟随绩效配置:有效考核项(岗位方案 > 个人配置行 > 角色默认行)有什么就渲染什么,
+# 一项都没有 → 空列表 → 模板「KPI 未设定」占位。目标来自新框架(个人覆盖>角色默认)。
+
+_KPI_TONES = ['var(--accent)', 'var(--success)', 'var(--info)', 'var(--warn)']
+
+# metric_code → 实际值窗口查询;未注册的指标(快照/未定义口径)actual 显示 0 灰显
+def _act_sales(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.pricing_order import PricingOrder
+    return float(db.session.query(func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0)).filter(
+        PricingOrder.status == 'approved', PricingOrder.created_by == user.id,
+        PricingOrder.approved_at >= s, PricingOrder.approved_at < e).scalar() or 0)
+
+def _act_implant(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.quotation import Quotation
+    return float(db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0)).filter(
+        Quotation.owner_id == user.id,
+        Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0)
+
+def _act_new_projects(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.project import Project
+    return db.session.query(func.count(Project.id)).filter(
+        Project.owner_id == user.id,
+        Project.created_at >= s, Project.created_at < e).scalar() or 0
+
+def _act_new_customers(user, s, e):
+    # 新增客户 = 我名下(owner_id)本期新建的公司,不过滤类型
+    # (companies 表无 created_by 列;旧口径 company_type=='customer' 在库里无此值恒为 0)
+    from sqlalchemy import func
+    from app import db
+    from app.models.customer import Company
+    return db.session.query(func.count(Company.id)).filter(
+        Company.owner_id == user.id,
+        Company.created_at >= s, Company.created_at < e).scalar() or 0
+
+def _act_quotation_count(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.quotation import Quotation
+    return db.session.query(func.count(Quotation.id)).filter(
+        Quotation.owner_id == user.id,
+        Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0
+
+def _act_pm_implant(user, s, e):
+    from sqlalchemy import func
+    from app import db
+    from app.models.quotation import Quotation, QuotationDetail
+    from app.models.product import Product
+    cat_ids = [c.id for c in getattr(user, 'managed_categories', [])]
+    if not cat_ids:
+        return 0
+    return float(db.session.query(func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0)).join(
+        Quotation, Quotation.id == QuotationDetail.quotation_id).join(
+        Product, Product.product_mn == QuotationDetail.product_mn).filter(
+        Product.category_id.in_(cat_ids),
+        Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0)
+
+# SE 五项:一次 SQL 出全窗口(口径照抄 performance_service SE CTE)
+_SE_WINDOW_SQL = """
+    WITH se_projects AS (
+        SELECT DISTINCT project_id FROM (
+            SELECT project_id FROM project_members
+                WHERE user_id = :uid AND role = 'solution_engineer'
+            UNION
+            SELECT project_id FROM quotations
+                WHERE confirmed_by = :uid AND project_id IS NOT NULL
+            UNION
+            SELECT project_id FROM work_items
+                WHERE owner_id = :uid AND project_id IS NOT NULL
+            UNION
+            SELECT project_id FROM actions
+                WHERE owner_id = :uid AND project_id IS NOT NULL
+        ) sp
+    ),
+    c AS (
+        SELECT COUNT(*) AS cnt, COUNT(DISTINCT owner_id) AS sup
+        FROM quotations
+        WHERE confirmed_by = :uid AND confirmed_at >= :s AND confirmed_at < :e
+    ),
+    ql AS (
+        SELECT COUNT(*) AS total,
+               COUNT(*) FILTER (WHERE pr.current_stage IN ('awarded','quoted','signed')) AS won
+        FROM quotations q LEFT JOIN projects pr ON q.project_id = pr.id
+        WHERE q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e
+    ),
+    im AS (
+        SELECT COALESCE(SUM(qd.quantity * qd.market_price), 0) AS amt
+        FROM quotation_details qd
+        JOIN quotations q ON qd.quotation_id = q.id
+        JOIN se_projects sp ON q.project_id = sp.project_id
+        JOIN products p ON qd.product_mn = p.product_mn
+        WHERE p.is_vendor_product = true AND q.created_at >= :s AND q.created_at < :e
+    ),
+    sa AS (
+        SELECT COALESCE(SUM(po.pricing_total_amount), 0) AS amt
+        FROM pricing_orders po
+        JOIN se_projects sp ON po.project_id = sp.project_id
+        WHERE po.status = 'approved' AND po.approved_at >= :s AND po.approved_at < :e
+    )
+    SELECT c.cnt, c.sup, ql.total, ql.won, im.amt AS implant, sa.amt AS sales
+    FROM c, ql, im, sa
+"""
+
+def _se_window(user, s, e, _cache={}):
+    from sqlalchemy import text
+    from app import db
+    key = (user.id, s, e)
+    if key not in _cache:
+        r = db.session.execute(text(_SE_WINDOW_SQL), {'uid': user.id, 's': s, 'e': e}).fetchone()
+        _cache.clear() if len(_cache) > 64 else None
+        _cache[key] = {
+            'se_confirm_count': int(r.cnt or 0),
+            'se_sales_support': int(r.sup or 0),
+            'se_confirm_quality': round(r.won * 100.0 / r.total, 1) if (r.total or 0) > 0 else 0,
+            'se_implant_amount': float(r.implant or 0),
+            'se_sales_amount': float(r.sales or 0),
+        }
+    return _cache[key]
+
+def _act_se(code):
+    return lambda user, s, e: _se_window(user, s, e)[code]
+
+def _act_manual(code, agg='sum'):
+    """手工录入指标(培训次数/内容产出/响应率/满意度):窗口内月度记录聚合"""
+    def fn(user, s, e):
+        from app.models.performance_manual_entry import PerformanceManualEntry
+        vals = []
+        d = s
+        while d < e:
+            ent = PerformanceManualEntry.query.filter_by(
+                user_id=user.id, year=d.year, metric_code=code,
+                period_type='monthly', period=d.month).first()
+            if ent and ent.value is not None:
+                vals.append(float(ent.value))
+            d = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
+        if not vals:
+            return 0
+        return round(sum(vals) / len(vals), 1) if agg == 'avg' else sum(vals)
+    return fn
+
+_KPI_ACTUAL_FNS = {
+    'sales_amount':       _act_sales,
+    'implant_amount':     _act_implant,
+    'new_projects':       _act_new_projects,
+    'new_customers':      _act_new_customers,
+    'quotation_count':    _act_quotation_count,
+    'pm_implant_amount':  _act_pm_implant,
+    'se_confirm_count':   _act_se('se_confirm_count'),
+    'se_sales_support':   _act_se('se_sales_support'),
+    'se_confirm_quality': _act_se('se_confirm_quality'),
+    'se_implant_amount':  _act_se('se_implant_amount'),
+    'se_sales_amount':    _act_se('se_sales_amount'),
+    'se_training_count':  _act_manual('se_training_count'),
+    'se_content_output':  _act_manual('se_content_output'),
+    'se_response_rate':   _act_manual('se_response_rate', agg='avg'),
+    'se_satisfaction':    _act_manual('se_satisfaction', agg='avg'),
+    'pm_sales_amount':    None,   # 占位,下方注册(需 SQL)
+    # 未注册(快照/口径未定):customer_activity_rate / high_price_amount → actual 0
+}
+
+def _act_pm_sales(user, s, e):
+    """产品批价额:我(产品 owner 或分类负责人)名下厂商产品的已批价明细金额
+    —— 口径照抄 performance_service.calculate_pm_yearly_statistics_batch 的 pm_sales CTE"""
+    from sqlalchemy import text
+    from app import db
+    r = db.session.execute(text("""
+        WITH product_pm AS (
+            SELECT p.product_mn,
+                   CASE WHEN u_owner.role = 'product_manager' THEN p.owner_id
+                        WHEN u_cat_mgr.role = 'product_manager' THEN pc.manager_id
+                        ELSE NULL END AS pm_id
+            FROM products p
+            LEFT JOIN users u_owner ON p.owner_id = u_owner.id
+            LEFT JOIN product_categories pc ON p.category_id = pc.id
+            LEFT JOIN users u_cat_mgr ON pc.manager_id = u_cat_mgr.id
+            WHERE p.is_vendor_product = true
+        )
+        SELECT COALESCE(SUM(pod.total_price), 0) AS amt
+        FROM pricing_order_details pod
+        JOIN pricing_orders po ON pod.pricing_order_id = po.id
+        JOIN product_pm pp ON pod.product_mn = pp.product_mn
+        WHERE pp.pm_id = :uid AND po.status = 'approved'
+          AND po.approved_at >= :s AND po.approved_at < :e
+    """), {'uid': user.id, 's': s, 'e': e}).fetchone()
+    return float(r.amt or 0)
+
+_KPI_ACTUAL_FNS['pm_sales_amount'] = _act_pm_sales
+
+# 率/评分类:目标为水平值(取单月,不累加);actual 同理由查询口径保证
+_KPI_RATE_CODES = {'customer_activity_rate', 'se_response_rate', 'se_confirm_quality', 'se_satisfaction'}
+
+
+def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):
+    """配置驱动 KPI:渲染该用户有效考核项(方案>个人行>角色默认行),目标走新框架。"""
+    from app.services.performance_dashboard_service import PerformanceDashboardService
+
+    year = start.year
+    # 1) 考核项集合(方案角色=方案;否则个人配置行;再否则回退角色默认行)
+    try:
+        codes = PerformanceDashboardService._get_configured_performance_items(user.id, year) or []
+    except Exception:
+        codes = []
+    if not codes and user.role:
+        try:
+            from app.models.performance_config import RolePerformanceTarget
+            rows = RolePerformanceTarget.query.filter_by(role_code=user.role, year=year).all()
+            mapping = {'sales_target': 'sales_amount'}
+            codes = [mapping.get(r.item_code, r.item_code) for r in rows
+                     if getattr(r, 'enabled', True) is not False]
+        except Exception:
+            pass
+    if not codes:
+        return []          # → 模板「KPI 未设定」
+
+    # 2) 目标(个人覆盖>角色默认;金额已转元)
+    try:
+        tmap = PerformanceDashboardService.get_user_kpi_targets(user.id, year) or {}
+    except Exception:
+        tmap = {}
+    first_m = list(target_months)[0]
+
+    # 非方案角色:只认「目标有值」的项 — 勾了项但目标全空的遗留行不算配置;
+    # 全部无值 → 占位「KPI 未设定」(方案角色考核项写死,始终全显)
+    try:
+        from app.services.role_kpi_schemes import get_role_scheme_codes
+        is_scheme = bool(get_role_scheme_codes(user.role)) if user.role else False
+    except Exception:
+        is_scheme = False
+    if not is_scheme:
+        def _has_target(code):
+            tkey = f'{code}_target'
+            return any(float((tmap.get(m) or {}).get(tkey, 0) or 0) > 0 for m in range(1, 13))
+        codes = [c for c in codes if _has_target(c)]
+        if not codes:
+            return []
+
+    # 3) 指标定义(名称/单位)
+    name_map, unit_map, dtype_map = {}, {}, {}
+    _ALIAS = {'sales_target': 'sales_amount'}   # 定义表 code → 看板 code
+    try:
+        from app.models.performance_config import PerformanceMetricsDefinition
+        for m in PerformanceMetricsDefinition.query.all():
+            for key in {m.metric_code, _ALIAS.get(m.metric_code, m.metric_code)}:
+                name_map[key] = m.metric_name
+                unit_map[key] = m.default_unit or ''
+                dtype_map[key] = m.data_type or ''
+    except Exception:
+        pass
+    _UNIT_DISPLAY = {'%': '%', '个': ' 个', '人': ' 人', '次': ' 次', '份': ' 份',
+                     '分': ' 分', '单': ' 单', '户': ' 户'}
+
+    items = []
+    for idx, code in enumerate(codes):
+        tkey = f'{code}_target'
+        if code in _KPI_RATE_CODES:
+            target = float((tmap.get(first_m) or {}).get(tkey, 0) or 0)
+        else:
+            target = sum(float((tmap.get(m) or {}).get(tkey, 0) or 0) for m in target_months)
+
+        fn = _KPI_ACTUAL_FNS.get(code)
+        val = fn(user, start, end) if fn else 0
+        prev = fn(user, prev_start, prev_end) if fn else 0
+
+        raw_unit = unit_map.get(code, '')
+        dtype = dtype_map.get(code, '')
+        if raw_unit in _UNIT_DISPLAY:
+            unit = _UNIT_DISPLAY[raw_unit]
+        elif dtype == 'amount':
+            unit = cur
+        elif dtype == 'percentage':
+            unit = '%'
+        elif dtype == 'count':
+            unit = ' 个'
+        elif dtype == 'score':
+            unit = ' 分'
+        else:
+            unit = cur if raw_unit in ('', '元', '万元') else f' {raw_unit}'
+        label = f"{label_prefix}{name_map.get(code, code)}"
+        is_pct = (unit == '%')
+        items.append(_kpi_item(label,
+                               val if is_pct else int(val),
+                               target if is_pct else int(target),
+                               unit, prev, _KPI_TONES[idx % len(_KPI_TONES)]))
+    return items
+
+
 _KPI_VARIANT_FUNC = {
-    'default':  _kpi_one_period,
-    'overview': _kpi_one_period,
-    'solution': _kpi_metrics_solution,
-    'product':  _kpi_metrics_product,
-    'finance':  _kpi_metrics_finance,
+    'default':  _kpi_config_driven,
+    'overview': _kpi_config_driven,
+    'solution': _kpi_config_driven,
+    'product':  _kpi_config_driven,
+    'finance':  _kpi_config_driven,     # 财务同样配置驱动:未配置 → KPI 未设定
 }
 
 
@@ -558,7 +894,7 @@ def _build_kpis(user, currency_symbol='¥', variant='default'):
     prev_y_start = datetime(y - 1, 1, 1)
     prev_y_end   = year_start
 
-    fn = _KPI_VARIANT_FUNC.get(variant, _kpi_one_period)
+    fn = _KPI_VARIANT_FUNC.get(variant, _kpi_config_driven)
     return {
         'month':   fn(user, month_start, month_end, prev_m_start, prev_m_end,
                       f'{m}月', [m], currency_symbol),

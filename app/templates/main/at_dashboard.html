@@ -186,14 +186,24 @@
           {% set _kpi_items = _kpis[period_key] %}
           <div data-kpi-period="{{ period_key }}"
                style="display:{{ 'flex' if period_key == 'month' else 'none' }};flex-direction:column;gap:14px;">
+            {% if not _kpi_items %}
+            {# 新绩效配置框架下该用户无任何目标(角色默认+个人覆盖均空)#}
+            <div style="padding:28px 12px;text-align:center;color:var(--ink-3);font-size:12.5px;">
+              <span class="material-symbols-outlined" style="font-size:26px;display:block;margin-bottom:6px;color:var(--ink-4);">flag</span>
+              KPI 未设定
+              <div class="at-dim" style="font-size:11px;margin-top:4px;">
+                请在 配置管理 → 绩效配置(角色默认)或 个人配置 → 绩效目标 中设定
+              </div>
+            </div>
+            {% endif %}
             {% for it in _kpi_items %}
             {% set _has_target = it.data.target and it.data.target > 0 %}
             {% set pct = ((it.data.value / it.data.target * 100) | round(0, 'floor') | int) if _has_target else 0 %}
             {% if pct > 100 %}{% set pct = 100 %}{% endif %}
             {% set _delta_bg = {'success':'var(--success-soft)','warn':'var(--warn-soft)','neutral':'var(--bg-page)'}[it.deltaTone] %}
             {% set _delta_fg = {'success':'var(--success)','warn':'var(--warn)','neutral':'var(--ink-3)'}[it.deltaTone] %}
-            {# 货币 unit(¥/$/MYR/€ 等):前缀;非货币(' 个'/' 户'):后缀 #}
-            {% set _is_money = it.data.unit not in [' 个', ' 户'] %}
+            {# 货币 unit(¥/$/MYR/€ 等):前缀;非货币(' 个'/' 户'/' 单'/' 人'/'%'):后缀 #}
+            {% set _is_money = it.data.unit not in [' 个', ' 户', ' 单', ' 人', '%'] %}
             {% set _display = (it.data.unit ~ '{:,.0f}'.format(it.data.value)) if _is_money
                               else (it.data.value|string ~ it.data.unit) %}
             {% set _of = (it.data.unit ~ '{:,.0f}'.format(it.data.target)) if _is_money

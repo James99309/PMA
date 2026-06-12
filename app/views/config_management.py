@@ -1182,6 +1182,9 @@ def api_save_user_permission_overrides(user_id):
         user = User.query.get(user_id)
         if not user:
             return jsonify({'success': False, 'message': '用户不存在'}), 404
+        # 企业隔离:非 admin 只能写本公司用户
+        if current_user.role != 'admin' and (user.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权配置其他公司用户的权限'}), 403
 
         data = request.get_json() or {}
         permissions_data = data.get('permissions', {})
@@ -1228,6 +1231,9 @@ def api_revert_user_permission_module(user_id, module):
         user = User.query.get(user_id)
         if not user:
             return jsonify({'success': False, 'message': '用户不存在'}), 404
+        # 企业隔离:非 admin 只能操作本公司用户
+        if current_user.role != 'admin' and (user.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权操作其他公司用户的权限'}), 403
 
         deleted = Permission.query.filter_by(user_id=user_id, module=module).delete()
         db.session.commit()

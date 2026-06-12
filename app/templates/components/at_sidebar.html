@@ -218,10 +218,10 @@
           <div class="at-sb-text at-sb-sub" style="margin-left:30px;margin-top:2px;margin-bottom:4px;
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
             {# 账户与字典 #}
-            {% if has_permission('user_management', 'view') %}{{ _sub_link(url_for('user.list_users'), '账户列表', 'user_list', active_key) }}{% endif %}
+            {% if has_permission('user_management', 'view') %}{{ _sub_link(url_for('user.at_list'), '账户列表', 'user_list', active_key) }}{% endif %}
             {% if has_permission('user_management', 'view') or has_permission('config_management', 'view') %}
-              {{ _sub_link(url_for('user.at_person_performance'), '个人配置', 'person_config', active_key) }}{% endif %}
-            {% if has_permission('config_management', 'view') %}{{ _sub_link(url_for('config_management.at_performance'), '配置管理', 'config_management', active_key) }}{% endif %}
+              {{ _sub_link(url_for('user.at_person_permissions'), '个人配置', 'person_config', active_key) }}{% endif %}
+            {% if has_permission('config_management', 'view') %}{{ _sub_link(url_for('config_management.at_permissions'), '配置管理', 'config_management', active_key) }}{% endif %}
             {% if has_permission('dictionary_management', 'view') %}
               {{ _sub_link(url_for('user.manage_roles'), '角色字典', 'role_dict', active_key) }}
               {{ _sub_link(url_for('user.manage_companies'), '企业字典', 'company_dict', active_key) }}

@@ -1,0 +1,322 @@
+{% extends 'components/at_person_layout.html' %}
+{% set person_active = 'ai' %}
+
+{% block person_title %}Claude AI 代理 · 个人{% endblock %}
+{% block person_desc %}为账户开通 Claude AI 代理(生成 token、邮件通知、同步网关):管理月度配额、查看用量、处理设备锁定;仅管理员可操作。{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ai-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  .ai-card { background:var(--bg-elev); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .ai-card-h { padding:13px 18px; font-size:13px; font-weight:500; color:var(--ink);
+               border-bottom:1px solid var(--line-soft); display:flex; align-items:center; gap:10px; }
+  .ai-card-b { padding:14px 18px; }
+  .ai-row { display:flex; gap:14px; padding:6px 0; font-size:12.5px; border-bottom:1px solid var(--line-soft); }
+  .ai-row:last-child { border-bottom:0; }
+  .ai-row dt { width:96px; flex-shrink:0; color:var(--ink-3); }
+  .ai-row dd { margin:0; color:var(--ink-2); flex:1; min-width:0; }
+  .ai-num { font-variant-numeric:tabular-nums; }
+  body.at-page .ai-btn { height:32px; padding:0 14px; border-radius:7px; border:1px solid var(--line-2);
+            background:var(--bg-elev); color:var(--ink-2); font:inherit; font-size:12.5px; cursor:pointer; }
+  body.at-page .ai-btn:hover { color:var(--ink); border-color:var(--ink-4); }
+  body.at-page .ai-btn.primary { border:0; background:var(--ink); color:var(--bg-page); font-weight:500; }
+  body.at-page .ai-btn.danger { border-color:var(--danger-soft); color:var(--danger); background:transparent; }
+  .ai-quota-input { width:130px; height:32px; padding:0 10px; background:var(--bg-page);
+            border:1px solid var(--line-2); border-radius:7px; font:inherit; font-size:12.5px;
+            color:var(--ink); outline:none; text-align:right; }
+  .ai-quota-input:focus { border-color:var(--accent); }
+  .ai-usage-t { width:100%; font-size:12px; border-collapse:collapse; }
+  .ai-usage-t th { text-align:right; padding:5px 8px; font-size:10.5px; color:var(--ink-3);
+                   font-weight:500; letter-spacing:0.06em; border-bottom:1px solid var(--line); }
+  .ai-usage-t th:first-child, .ai-usage-t td:first-child { text-align:left; }
+  .ai-usage-t td { text-align:right; padding:6px 8px; border-bottom:1px solid var(--line-soft);
+                   color:var(--ink-2); font-variant-numeric:tabular-nums; }
+  .ai-usage-t tr:last-child td { border-bottom:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
+                 background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
+      <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
+      {% if companies|length > 1 %}
+      <select id="aiCompany" onchange="aiCompanyChange(this.value)"
+              style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
+        {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <span>{{ companies[0] if companies else '未归属公司' }}</span>
+      {% endif %}
+    </span>
+    <div style="position:relative;">
+      <button type="button" class="cm-role-btn" onclick="aiToggleMenu(event)">
+        <span id="aiUserName">选择人员</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="aiUserMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="aiSub" class="at-dim" style="font-size:12px;"></span>
+    <div style="flex:1;"></div>
+    <button type="button" class="ai-btn" onclick="aiRefreshUsage()" title="从网关拉取最新用量">↻ 刷新用量</button>
+  </div>
+
+  <div id="aiPanel">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;
+         background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;">请选择人员…</div>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 开通会生成专属 token、邮件发送给用户并同步到代理网关;配额 0 = 使用全局默认;
+    token 明文仅本人可见,他人只见前缀;设备锁定:token 绑定首个使用设备,异常时可解锁。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const USERS = {{ users_data | tojson }};
+  const COMPANIES = {{ companies | tojson }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  const fmtT = n => n >= 1e6 ? (n/1e6).toFixed(2) + 'M' : n >= 1e3 ? (n/1e3).toFixed(1) + 'K' : String(n || 0);
+
+  let _userId = null, _state = null;
+  let _company = COMPANIES[0] || '';
+  const usersOf = () => USERS.filter(u => u.company === _company);
+
+  window.aiCompanyChange = function (c) {
+    _company = c;
+    const list = usersOf();
+    if (list.length) aiSelect(list[0].id);
+    else {
+      _userId = null;
+      document.getElementById('aiUserName').textContent = '选择人员';
+      document.getElementById('aiPanel').innerHTML =
+        '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;">该公司暂无在职人员</div>';
+    }
+  };
+
+  function renderMenu() {
+    const term = (document.getElementById('aiMenuSearch') ? document.getElementById('aiMenuSearch').value : '').trim().toLowerCase();
+    const list = usersOf().filter(u => !term ||
+      (u.name + ' ' + u.department + ' ' + u.role_display).toLowerCase().includes(term));
+    const groups = {};
+    list.forEach(u => (groups[u.department] = groups[u.department] || []).push(u));
+    let html = `<input id="aiMenuSearch" class="pp-search" type="text" placeholder="搜索人员 / 部门…" autocomplete="off"
+                       value="${esc(term)}" onclick="event.stopPropagation()" oninput="renderMenu();
+                       this.focus();this.setSelectionRange(this.value.length,this.value.length)">`;
+    Object.keys(groups).forEach(dep => {
+      html += `<div class="pp-dep">${esc(dep)}</div>`;
+      groups[dep].forEach(u => {
+        html += `<div class="cm-role-item${u.id === _userId ? ' active' : ''}" onclick="aiSelect(${u.id})">
+                   <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
+                          border-radius:50%;background:var(--accent-tint);color:var(--accent);font-size:11px;font-weight:600;">
+                     ${esc(u.name[0] || '?')}</span>
+                   <span style="flex:1;">${esc(u.name)}</span>
+                   ${u.ai_enabled ? '<span style="width:7px;height:7px;border-radius:4px;background:var(--success);" title="已开通"></span>' : ''}
+                   <span class="at-dim" style="font-size:10.5px;">${esc(u.role_display)}</span>
+                 </div>`;
+      });
+    });
+    document.getElementById('aiUserMenu').innerHTML = html || '<div class="at-dim" style="padding:18px;text-align:center;font-size:12px;">无匹配</div>';
+  }
+  window.aiToggleMenu = function (e) {
+    e.stopPropagation();
+    if (typeof _locked !== 'undefined' && _locked) return;
+    const menu = document.getElementById('aiUserMenu');
+    const show = menu.style.display === 'none';
+    if (show) renderMenu();
+    menu.style.display = show ? 'block' : 'none';
+  };
+  document.addEventListener('click', () => {
+    const m = document.getElementById('aiUserMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  window.aiSelect = function (id) {
+    _userId = id;
+    document.getElementById('aiUserMenu').style.display = 'none';
+    aiLoad();
+  };
+
+  async function api(path, method, body) {
+    const r = await fetch(`/user/api/${_userId}/claude-ai${path}`, {
+      method: method || 'GET',
+      headers: Object.assign({ 'X-CSRFToken': _csrf() },
+        body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return r.json();
+  }
+
+  window.aiLoad = async function () {
+    if (!_userId) return;
+    const u = USERS.find(x => x.id === _userId);
+    document.getElementById('aiUserName').textContent = u ? u.name : '';
+    document.getElementById('aiSub').textContent = u ? `${u.role_display} · ${u.department}` : '';
+    try {
+      _state = await api('');
+      renderPanel();
+    } catch (e) {
+      document.getElementById('aiPanel').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;
+             background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;">加载失败,请重试</div>`;
+    }
+  };
+
+  function renderPanel() {
+    const s = _state;
+    const usage = s.usage || {};
+    const rows = [['今日', usage.today], ['近 7 天', usage.last_7_days],
+                  ['近 30 天', usage.last_30_days], ['本月', usage.this_month]];
+    const monthTotal = (usage.this_month || {}).total || 0;
+    const pct = s.effective_quota ? Math.min(100, Math.round(monthTotal / s.effective_quota * 100)) : 0;
+
+    document.getElementById('aiPanel').innerHTML = `
+    <div class="ai-grid">
+      <div class="ai-card">
+        <div class="ai-card-h">代理状态
+          ${s.enabled
+            ? '<span style="padding:1px 8px;border-radius:999px;font-size:10.5px;background:var(--success-soft);color:var(--success);">已开通</span>'
+            : '<span style="padding:1px 8px;border-radius:999px;font-size:10.5px;background:var(--bg-sunk);color:var(--ink-3);">未开通</span>'}
+        </div>
+        <div class="ai-card-b">
+          <dl style="margin:0 0 14px;">
+            <div class="ai-row"><dt>Token</dt>
+              <dd class="at-mono">${s.has_token ? esc(s.token_preview) : '—'}</dd></div>
+            <div class="ai-row"><dt>开通时间</dt><dd>${s.enabled_at || '—'}</dd></div>
+            <div class="ai-row"><dt>设备锁定</dt>
+              <dd>${s.locked_device_id
+                ? `<span class="at-mono">${esc(s.locked_device_id)}</span>
+                   <button type="button" class="ai-btn" style="height:24px;padding:0 8px;font-size:11px;margin-left:8px;"
+                           onclick="aiUnlock()">解锁</button>`
+                : '<span class="at-dim">未锁定</span>'}</dd></div>
+            <div class="ai-row"><dt>月度配额</dt>
+              <dd style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <input class="ai-quota-input ai-num" id="aiQuota" type="number" min="0" step="1000000"
+                       value="${s.quota || 0}" title="0 = 用全局默认(${fmtT(s.default_quota)})">
+                <button type="button" class="ai-btn" onclick="aiSaveQuota()">保存</button>
+                <span class="at-dim" style="font-size:11px;">生效 ${fmtT(s.effective_quota)} tokens/月</span>
+              </dd></div>
+          </dl>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            ${s.enabled
+              ? `<button type="button" class="ai-btn" onclick="aiResetToken()">重置 Token</button>
+                 <button type="button" class="ai-btn danger" onclick="aiDisable()">禁用代理</button>`
+              : `<button type="button" class="ai-btn primary" onclick="aiEnable()">开通代理</button>`}
+          </div>
+          ${!s.has_email ? '<div style="font-size:11px;color:var(--warn);margin-top:10px;">⚠ 该用户未设置邮箱,无法发送 token 通知邮件</div>' : ''}
+        </div>
+      </div>
+
+      <div class="ai-card">
+        <div class="ai-card-h">用量
+          <span class="at-dim" style="font-size:11px;font-weight:400;">本月已用 ${fmtT(monthTotal)} / ${fmtT(s.effective_quota)}(${pct}%)</span>
+        </div>
+        <div class="ai-card-b">
+          <div style="height:6px;border-radius:4px;background:var(--bg-sunk);margin-bottom:12px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;border-radius:4px;
+                 background:${pct >= 90 ? 'var(--danger)' : pct >= 70 ? 'var(--warn)' : 'var(--success)'};"></div>
+          </div>
+          <table class="ai-usage-t">
+            <thead><tr><th>周期</th><th>请求</th><th>输入</th><th>输出</th><th>合计</th></tr></thead>
+            <tbody>
+              ${rows.map(([l, d]) => { d = d || {}; return `
+                <tr><td>${l}</td><td>${(d.requests || 0).toLocaleString()}</td>
+                    <td>${fmtT(d.input || 0)}</td><td>${fmtT(d.output || 0)}</td>
+                    <td style="color:var(--ink);font-weight:500;">${fmtT(d.total || 0)}</td></tr>`; }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  window.aiEnable = function () {
+    const u = USERS.find(x => x.id === _userId);
+    ATConfirm.show({
+      title: '开通 Claude AI 代理',
+      message: `为 ${u.name} 生成专属 token,邮件发送至其邮箱,并同步到代理网关。`,
+      variant: 'accent', confirmText: '开通', cancelText: '取消',
+      onConfirm: async () => {
+        const quota = parseInt((document.getElementById('aiQuota') || {}).value) || 0;
+        const d = await api('/enable', 'POST', { quota });
+        if (d.success) {
+          ATToast.success(`已开通${d.email_sent ? ',邮件已发送' : ',但邮件发送失败'}${d.sync_ok ? '' : ';网关同步失败:' + (d.sync_msg || '')}`);
+          const uu = USERS.find(x => x.id === _userId); if (uu) uu.ai_enabled = true;
+          aiLoad();
+        } else ATToast.error(d.message || '开通失败');
+      },
+    });
+  };
+
+  window.aiDisable = function () {
+    const u = USERS.find(x => x.id === _userId);
+    ATConfirm.show({
+      title: '禁用 AI 代理', message: `禁用 ${u.name} 的 Claude AI 代理,token 立即失效。`,
+      variant: 'danger', confirmText: '禁用', cancelText: '取消',
+      onConfirm: async () => {
+        const d = await api('/disable', 'POST', {});
+        if (d.success) {
+          ATToast.success('已禁用' + (d.sync_ok ? '' : ';网关同步失败'));
+          const uu = USERS.find(x => x.id === _userId); if (uu) uu.ai_enabled = false;
+          aiLoad();
+        } else ATToast.error(d.message || '操作失败');
+      },
+    });
+  };
+
+  window.aiResetToken = function () {
+    ATConfirm.show({
+      title: '重置 Token', message: '旧 token 立即失效,新 token 邮件发送给用户。',
+      variant: 'accent', icon: 'history', confirmText: '重置', cancelText: '取消',
+      onConfirm: async () => {
+        const d = await api('/reset-token', 'POST', {});
+        if (d.success) { ATToast.success(`已重置(${d.token_preview})${d.email_sent ? ',邮件已发送' : ',邮件发送失败'}`); aiLoad(); }
+        else ATToast.error(d.message || '操作失败');
+      },
+    });
+  };
+
+  window.aiSaveQuota = async function () {
+    const quota = parseInt(document.getElementById('aiQuota').value) || 0;
+    const d = await api('/quota', 'POST', { quota });
+    if (d.success) { ATToast.success('配额已更新' + (d.sync_ok ? '' : ';网关同步失败')); aiLoad(); }
+    else ATToast.error(d.message || '保存失败');
+  };
+
+  window.aiUnlock = function () {
+    ATConfirm.show({
+      title: '解锁设备', message: '清除该 token 的设备绑定,下次使用的设备将重新锁定。',
+      variant: 'accent', confirmText: '解锁', cancelText: '取消',
+      onConfirm: async () => {
+        const d = await api('/unlock-device', 'POST', {});
+        if (d.success) { ATToast.success('已解锁'); aiLoad(); }
+        else ATToast.error(d.message || '操作失败');
+      },
+    });
+  };
+
+  window.aiRefreshUsage = async function () {
+    if (!_userId) return;
+    const d = await api('/refresh-usage', 'POST', {});
+    if (d.success) { ATToast.success('用量已刷新'); aiLoad(); }
+    else ATToast.error(d.message || '刷新失败');
+  };
+
+  // ?user= 预选(账户详情页跳入):锁定该用户
+  const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));
+  const _locked = !!_pre;
+  if (_pre) {
+    _company = _pre.company || _company;
+    const cs = document.getElementById('aiCompany');
+    if (cs) { cs.value = _company; cs.disabled = true; }
+    const btn = document.querySelector('.cm-role-btn');
+    btn.style.cursor = 'default';
+    btn.title = '从账户详情进入,已锁定到该用户';
+    const ic = btn.querySelector('.material-symbols-outlined');
+    if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
+    aiSelect(_pre.id);
+  }
+  else if (usersOf().length) aiSelect(usersOf()[0].id);
+</script>
+{% endblock %}

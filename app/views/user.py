@@ -848,7 +848,7 @@ def create_user():
                 logger.warning(f"记录用户创建历史失败: {str(track_err)}")
             
             flash('用户创建成功', 'success')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_user_detail', user_id=user.id))
         except Exception as db_error:
             db.session.rollback()
             logger.error(f"[用户创建] 失败: {str(db_error)}", exc_info=True)
@@ -865,7 +865,7 @@ def edit_user(user_id):
         user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
         if not user:
             flash('用户不存在或无权限编辑', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
         user_data = user.to_dict()
         return render_template('user/edit.html', user=user_data, is_edit=True)
     # POST请求 - 处理编辑表单提交
@@ -873,11 +873,11 @@ def edit_user(user_id):
         user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
         if not user:
             flash('用户不存在或无权限编辑', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
         from app.utils.access_control import can_edit_data
         if not can_edit_data(user, current_user):
             flash('无权限编辑该用户', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
         real_name = request.form.get('real_name')
         company = request.form.get('company')
         email = request.form.get('email')
@@ -1031,7 +1031,7 @@ def edit_user(user_id):
                     flash('邀请邮件发送失败，请手动通知用户', 'warning')
             else:
                 flash('用户信息更新成功', 'success')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_user_detail', user_id=user_id))
         except Exception as db_error:
             db.session.rollback()
             logger.error(f"[用户编辑] 失败: {str(db_error)}", exc_info=True)
@@ -1048,11 +1048,11 @@ def delete_user(user_id):
     user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
     if not user:
         flash('用户不存在或无权限删除', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     # 禁止删除当前登录用户
     if current_user.id == user_id:
         flash('不能删除当前登录用户', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     logger.info(f"[用户删除] 操作人: {current_user.username}, 目标用户ID: {user_id}")
     try:
         # 删除前检查引用关系
@@ -1100,7 +1100,7 @@ def delete_user(user_id):
         db.session.rollback()
         logger.error(f"[用户删除] 失败: {str(e)}", exc_info=True)
         flash('删除用户时发生错误，请稍后重试', 'danger')
-    return redirect(url_for('user.list_users'))
+    return redirect(url_for('user.at_list'))
 
 @user_bp.route('/permissions/<int:user_id>', methods=['GET', 'POST'])
 @login_required
@@ -1110,7 +1110,7 @@ def manage_permissions(user_id):
         user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
         if not user:
             flash('用户不存在或无权限查看', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
         user_data = user.to_dict()
         modules = get_default_modules()
         
@@ -1237,7 +1237,7 @@ def manage_permissions(user_id):
             user = User.query.get(user_id)
             if not user:
                 flash('用户不存在', 'danger')
-                return redirect(url_for('user.list_users'))
+                return redirect(url_for('user.at_list'))
             
             # 获取用户的角色权限
             from app.models.role_permissions import RolePermission
@@ -1334,7 +1334,7 @@ def manage_permissions(user_id):
 def manage_affiliations():
     """重定向到用户列表"""
     flash('请通过用户管理界面设置用户的数据归属关系', 'info')
-    return redirect(url_for('user.list_users'))
+    return redirect(url_for('user.at_list'))
 
 @user_bp.route('/affiliations/<int:user_id>')
 @login_required
@@ -1342,11 +1342,11 @@ def manage_user_affiliations(user_id):
     """管理用户数据归属权限"""
     if current_user.role != 'admin' and current_user.id != user_id:
         flash('您没有权限执行此操作', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     target_user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
     if not target_user:
         flash('用户不存在或无权限查看', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     ROLE_DICT = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
 
     return render_template('user/affiliations.html',
@@ -1379,25 +1379,25 @@ def import_users():
     """批量导入用户"""
     if not current_user.has_permission('user_management', 'create'):
         flash('您没有批量导入用户的权限', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
         
     try:
         # 检查是否有文件上传
         if 'csv_file' not in request.files:
             flash('没有选择文件', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
             
         file = request.files['csv_file']
         
         # 检查文件名是否为空
         if file.filename == '':
             flash('没有选择文件', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
             
         # 检查文件类型
         if not file.filename.endswith('.csv'):
             flash('只支持CSV文件格式', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
             
         # 尝试使用API导入
         api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/import"
@@ -1423,7 +1423,7 @@ def import_users():
                 else:
                     flash(f'成功导入 {imported_count} 名用户', 'success')
                     
-                return redirect(url_for('user.list_users'))
+                return redirect(url_for('user.at_list'))
         except json.JSONDecodeError as e:
             logger.error(f"导入用户API响应JSON解析错误: {str(e)}")
             # 如果JSON解析失败，继续直接处理CSV文件
@@ -1500,16 +1500,16 @@ def import_users():
                 db.session.rollback()
                 logger.error(f"提交导入用户事务时出错: {str(commit_error)}")
                 flash('导入过程中发生错误，所有更改已回滚', 'danger')
-                return redirect(url_for('user.list_users'))
+                return redirect(url_for('user.at_list'))
         else:
             flash('没有用户被导入，请检查CSV文件格式', 'warning')
         
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
         
     except Exception as e:
         logger.error(f"导入用户时出错: {str(e)}")
         flash(f'导入过程中发生错误: {str(e)}', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 @user_bp.route('/manage-permissions', methods=['GET', 'POST'])
 @login_required
@@ -1668,7 +1668,7 @@ def manage_role_permissions():
     except Exception as e:
         logger.error(f"加载角色权限设置页面时出错: {str(e)}")
         flash('加载角色权限设置页面时出错，请稍后重试', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 @user_bp.route('/manage-roles', methods=['GET'])
 @login_required
@@ -1687,7 +1687,7 @@ def manage_roles():
     except Exception as e:
         logger.error(f"加载角色管理页面时出错: {str(e)}")
         flash('加载角色管理页面时出错，请稍后重试', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 @user_bp.route('/manage-companies', methods=['GET'])
 @login_required
@@ -1706,7 +1706,7 @@ def manage_companies():
     except Exception as e:
         logger.error(f"加载企业字典管理页面时出错: {str(e)}")
         flash('加载企业字典管理页面时出错，请稍后重试', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 @user_bp.route('/manage-departments', methods=['GET'])
 @login_required
@@ -1741,7 +1741,7 @@ def manage_departments():
     except Exception as e:
         logger.error(f"加载部门管理页面时出错: {str(e)}")
         flash('加载部门管理页面时出错，请稍后重试', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 
 @user_bp.route('/api/departments', methods=['GET'])
@@ -1872,7 +1872,7 @@ def user_detail(user_id):
     user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
     if not user:
         flash('用户不存在或无权限查看', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     
     # 检查用户是否为厂商用户
     is_vendor = user.is_vendor_user()
@@ -2190,7 +2190,7 @@ def batch_delete_users():
             return jsonify({'success': True, 'message': '批量删除完成', 'data': {'deleted': deleted, 'deactivated': deactivated}})
         else:
             flash(f'批量删除完成，已删除: {deleted}，已禁用: {deactivated}', 'success')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
             
     except Exception as e:
         db.session.rollback()
@@ -2200,7 +2200,7 @@ def batch_delete_users():
             return jsonify({'success': False, 'message': str(e), 'data': None}), 500
         else:
             flash(f'批量删除失败: {str(e)}', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
 
 def to_dict(self):
     """将用户信息转为字典，用于API响应"""
@@ -2378,7 +2378,7 @@ def send_invitation(user_id):
     user = User.query.get(user_id)
     if not user:
         flash('用户不存在', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     if user.is_active:
         flash('该用户已激活，无需发送邀请邮件', 'info')
         return redirect(url_for('user.user_detail', user_id=user_id))
@@ -2938,18 +2938,29 @@ def at_person_performance():
         abort(403)
 
     from app.services.role_kpi_schemes import get_role_scheme
-    users = User.query.filter(User._is_active.is_(True)).order_by(User.department, User.real_name).all()
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,
         'role': u.role or '',
         'role_display': get_role_display_name(u.role) if u.role else '',
         'department': u.department or '未分组',
+        'company': u.company_name or '',
         'has_scheme': bool(get_role_scheme(u.role)),
     } for u in users]
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
 
     return render_template('user/at_person_performance.html',
                            users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=is_admin,
                            current_year=datetime.now().year,
                            can_edit=current_user.has_permission('config_management', 'edit'))
 
@@ -2965,17 +2976,28 @@ def at_person_permissions():
         from flask import abort
         abort(403)
 
-    users = User.query.filter(User._is_active.is_(True)).order_by(User.department, User.real_name).all()
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,
         'role': u.role or '',
         'role_display': get_role_display_name(u.role) if u.role else '',
         'department': u.department or '未分组',
+        'company': u.company_name or '',
     } for u in users]
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
 
     return render_template('user/at_person_permissions.html',
                            users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=is_admin,
                            can_edit=current_user.has_permission('config_management', 'edit'))
 
 
@@ -3021,6 +3043,253 @@ def at_person_budget():
                            currency_symbol=get_currency_symbol(currency_code),
                            current_year=datetime.now().year,
                            can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+@user_bp.route('/at-list')
+@login_required
+@permission_required('user_management', 'view')
+def at_list():
+    """AT 风格账户列表(替代 tw_list);tabs=激活状态,筛选=角色/公司/部门"""
+    from sqlalchemy import or_
+
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 50
+    tab = request.args.get('tab', 'active')
+    search = request.args.get('search', '').strip()
+    role_values = [v for v in request.args.getlist('role') if v.strip()]
+    company_values = [v for v in request.args.getlist('company') if v.strip()]
+    dept_values = [v for v in request.args.getlist('dept') if v.strip()]
+
+    base = get_viewable_data(User, current_user)
+
+    # 筛选选项(基于可见范围)
+    role_options = [{'value': r, 'label': get_role_display_name(r) or r}
+                    for (r,) in base.with_entities(User.role).distinct().all() if r]
+    role_options.sort(key=lambda x: x['label'])
+    company_options = sorted({c for (c,) in base.with_entities(User.company_name).distinct().all() if c})
+    dept_options = sorted({d for (d,) in base.with_entities(User.department).distinct().all() if d})
+
+    if role_values:
+        base = base.filter(User.role.in_(role_values))
+    if company_values:
+        base = base.filter(User.company_name.in_(company_values))
+    if dept_values:
+        base = base.filter(User.department.in_(dept_values))
+    if search:
+        like = f'%{search}%'
+        base = base.filter(or_(User.username.ilike(like), User.real_name.ilike(like),
+                               User.email.ilike(like), User.company_name.ilike(like),
+                               User.department.ilike(like)))
+
+    tab_counts = {
+        'all': base.count(),
+        'active': base.filter(User._is_active.is_(True)).count(),
+        'inactive': base.filter(User._is_active.is_(False)).count(),
+    }
+    q = base
+    if tab == 'active':
+        q = q.filter(User._is_active.is_(True))
+    elif tab == 'inactive':
+        q = q.filter(User._is_active.is_(False))
+
+    pagination = q.order_by(User.updated_at.desc().nullslast()).paginate(
+        page=page, per_page=per_page, error_out=False)
+
+    users_view = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'username': u.username,
+        'role_display': get_role_display_name(u.role) if u.role else '—',
+        'department': u.department or '—',
+        'company': u.company_name or '—',
+        'email': u.email or '',
+        'phone': u.phone or '',
+        'is_active': bool(u._is_active),
+        'is_dept_manager': bool(u.is_department_manager),
+        # updated_at 在 User 模型里是 float 时间戳,统一在此格式化
+        'updated': (datetime.fromtimestamp(u.updated_at).strftime('%Y-%m-%d')
+                    if isinstance(u.updated_at, (int, float)) and u.updated_at
+                    else (u.updated_at.strftime('%Y-%m-%d') if u.updated_at else '—')),
+    } for u in pagination.items]
+
+    list_qs = {}
+    if search:
+        list_qs['search'] = search
+    if role_values:
+        list_qs['role'] = role_values
+    if company_values:
+        list_qs['company'] = company_values
+    if dept_values:
+        list_qs['dept'] = dept_values
+
+    # 新建账户模态框的字典选项(角色 key→显示名;公司/部门用值)
+    can_create = current_user.has_permission('user_management', 'create')
+    form_options = None
+    if can_create:
+        dicts = Dictionary.query.filter_by(is_active=True).all()
+        form_options = {
+            'roles': sorted([{'value': d.key, 'label': d.value} for d in dicts if d.type == 'role'],
+                            key=lambda x: x['label']),
+            'companies': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'company'],
+            'departments': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'department'],
+        }
+
+    return render_template('user/at_list.html',
+                           users=users_view,
+                           pagination=pagination,
+                           tab_counts=tab_counts,
+                           current_tab=tab,
+                           search=search,
+                           role_options=role_options,
+                           company_options=[{'value': c, 'label': c} for c in company_options],
+                           dept_options=[{'value': d, 'label': d} for d in dept_options],
+                           role_values=role_values,
+                           company_values=company_values,
+                           dept_values=dept_values,
+                           list_qs=list_qs,
+                           can_create=can_create,
+                           form_options=form_options)
+
+
+@user_bp.route('/at-detail/<int:user_id>')
+@login_required
+@permission_required('user_management', 'view')
+def at_user_detail(user_id):
+    """AT 风格账户详情:档案信息 + 账户操作;个人级配置跳「个人配置」四页签(?user= 预选)。"""
+    u = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+    if not u:
+        flash('用户不存在或无权限查看', 'danger')
+        return redirect(url_for('user.at_list'))
+
+    def _ts(v, fmt='%Y-%m-%d %H:%M'):
+        if not v:
+            return '—'
+        try:
+            return datetime.fromtimestamp(v).strftime(fmt) if isinstance(v, (int, float)) else v.strftime(fmt)
+        except Exception:
+            return '—'
+
+    info = {
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'username': u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '—',
+        'department': u.department or '—',
+        'company': u.company_name or '—',
+        'email': u.email or '',
+        'phone': u.phone or '',
+        'wechat': u.wechat_nickname or '',
+        'is_active': bool(u._is_active),
+        'is_dept_manager': bool(u.is_department_manager),
+        'created': _ts(u.created_at),
+        'last_login': _ts(u.last_login),
+    }
+    can_edit = current_user.has_permission('user_management', 'edit')
+    # 编辑模态:原始字段值(与 edit_user POST 字段对齐)+ 字典选项
+    edit_data, form_options = None, None
+    if can_edit:
+        edit_data = {
+            'username': u.username,
+            'real_name': u.real_name or '',
+            'role': u.role or '',
+            'department': u.department or '',
+            'company': u.company_name or '',
+            'email': u.email or '',
+            'phone': u.phone or '',
+            'settlement_currency': u.settlement_currency or '',
+            'is_active': bool(u._is_active),
+            'is_department_manager': bool(u.is_department_manager),
+            'cross_team_visible': bool(getattr(u, 'cross_team_visible', False)),
+            'cross_team_label': getattr(u, 'cross_team_label', '') or '',
+        }
+        dicts = Dictionary.query.filter_by(is_active=True).all()
+        form_options = {
+            'roles': sorted([{'value': d.key, 'label': d.value} for d in dicts if d.type == 'role'],
+                            key=lambda x: x['label']),
+            'companies': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'company'],
+            'departments': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'department'],
+        }
+    return render_template('user/at_detail.html',
+                           u=info,
+                           edit_data=edit_data,
+                           form_options=form_options,
+                           can_edit=can_edit,
+                           can_delete=current_user.has_permission('user_management', 'delete'),
+                           can_person_config=(current_user.has_permission('config_management', 'view')
+                                              or current_user.has_permission('user_management', 'view')))
+
+
+@user_bp.route('/at-config/ai')
+@login_required
+def at_person_ai():
+    """AT 个人配置 · Claude AI 代理(仅 admin):开通/配额/用量/设备锁定。
+    复用 /user/api/<id>/claude-ai* 全套既有 API。"""
+    if current_user.role != 'admin':
+        from flask import abort
+        abort(403)
+
+    users = User.query.filter(User._is_active.is_(True)) \
+        .order_by(User.company_name, User.department, User.real_name).all()
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+        'ai_enabled': bool(u.claude_ai_enabled),
+    } for u in users]
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+
+    return render_template('user/at_person_ai.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=True,
+                           can_edit=True)
+
+
+@user_bp.route('/at-api/users/<int:user_id>/toggle-active', methods=['POST'])
+@login_required
+@permission_required('user_management', 'edit')
+def at_api_toggle_user_active(user_id):
+    """启用/停用账户(AT 详情页操作)"""
+    try:
+        u = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+        if not u:
+            return jsonify({'success': False, 'message': '用户不存在或无权限'}), 404
+        if u.id == current_user.id:
+            return jsonify({'success': False, 'message': '不能停用自己的账户'}), 400
+        if u.role == 'admin' and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '无权操作管理员账户'}), 403
+        was_active = bool(u._is_active)
+        u._is_active = not was_active
+        db.session.commit()
+
+        msg = '账户已激活' if u._is_active else '账户已停用'
+        # 首次激活的新账户(从未登录过)→ 发邀请邮件(激活链接,用户自设密码);
+        # 老账户重新激活不发(已有密码)。邮件失败不回滚激活,只提示。
+        if u._is_active and not was_active and not u.last_login:
+            try:
+                from app.utils.email import send_user_invitation_email
+                sent = send_user_invitation_email({
+                    'id': u.id, 'username': u.username, 'real_name': u.real_name,
+                    'company_name': u.company_name, 'email': u.email, 'phone': u.phone,
+                    'department': u.department, 'is_department_manager': u.is_department_manager,
+                    'role': u.role,
+                })
+                msg += (',邀请邮件已发送至 ' + (u.email or '')) if sent \
+                    else ',但邀请邮件发送失败,请手动通知用户设置密码'
+            except Exception as mail_err:
+                logger.warning(f"激活邀请邮件发送失败: {mail_err}")
+                msg += ',但邀请邮件发送失败,请手动通知用户设置密码'
+        return jsonify({'success': True, 'is_active': bool(u._is_active), 'message': msg})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"切换账户状态失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
 
 
 @user_bp.route('/at-config/affiliation')

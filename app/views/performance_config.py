@@ -2269,6 +2269,10 @@ def api_clear_user_targets(user_id, year):
             if not is_supervisor:
                 return jsonify({'success': False, 'message': '无权限修改该用户的绩效目标'}), 403
 
+        # 企业隔离:非 admin 只能操作本公司用户
+        if current_user.role != 'admin' and (user.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权操作其他公司用户的目标'}), 403
+
         # 删除所有个人覆盖
         deleted_count = UserPerformanceTarget.query.filter_by(
             user_id=user_id,
@@ -2315,6 +2319,13 @@ def api_batch_user_targets():
             # ===== 保存操作需要edit权限 =====
             if not current_user.has_permission('config_management', 'edit'):
                 return jsonify({'success': False, 'message': '没有编辑权限'}), 403
+            # 企业隔离:非 admin 只能写本公司用户
+            if current_user.role != 'admin':
+                my_company = current_user.company_name or ''
+                others = User.query.filter(User.id.in_(user_ids),
+                                           User.company_name != my_company).count()
+                if others:
+                    return jsonify({'success': False, 'message': '无权配置其他公司用户的目标'}), 403
             return _batch_save_user_targets(user_ids, year, items)
         else:
             # ===== 获取操作只需要view权限 =====

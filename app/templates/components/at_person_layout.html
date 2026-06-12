@@ -13,11 +13,15 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_avatar %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% set _person_tabs = [
-  ('performance', '绩效目标', url_for('user.at_person_performance')),
-  ('budget',      '费用预算', url_for('user.at_person_budget')),
   ('permissions', '权限覆盖', url_for('user.at_person_permissions')),
   ('affiliation', '归属关系', url_for('user.at_person_affiliation')),
+  ('budget',      '费用预算', url_for('user.at_person_budget')),
+  ('performance', '绩效目标', url_for('user.at_person_performance')),
 ] %}
+{# AI 代理页签仅 admin 可见(开通/配额/用量/设备锁定,全部 admin-only API) #}
+{% if current_user.role == 'admin' %}
+  {% set _person_tabs = _person_tabs + [('ai', 'AI 代理', url_for('user.at_person_ai'))] %}
+{% endif %}
 {% set _active = person_active | default('') %}
 <!DOCTYPE html>
 <html lang="zh">
@@ -93,17 +97,26 @@
               display:flex;align-items:center;gap:8px;">
     <span style="font-size:13px;color:var(--ink);">个人配置</span>
     <div style="flex:1;"></div>
-    <a href="{{ url_for('user.list_users') }}"
+    {# 从账户详情锁定进入(?user=)→ 返回该账户详情;自由模式 → 账户列表 #}
+    {% set _back_user = request.args.get('user') %}
+    {% if _back_user and _back_user.isdigit() %}
+    <a href="{{ url_for('user.at_user_detail', user_id=_back_user | int) }}"
+       class="at-dim" style="font-size:12px;text-decoration:none;">返回账户详情 →</a>
+    {% else %}
+    <a href="{{ url_for('user.at_list') }}"
        class="at-dim" style="font-size:12px;text-decoration:none;">账户列表 →</a>
+    {% endif %}
   </div>
 </header>
 
 <main style="width:100%;box-sizing:border-box;max-width:1500px;margin:0 auto;padding:28px 40px 80px;min-width:0;">
 
   <nav class="cfg-tabs">
+    {# 从账户详情锁定进入(?user=)时,页签切换透传该参数,保持锁定同一用户 #}
+    {% set _user_qs = ('?user=' ~ request.args.get('user')) if request.args.get('user') else '' %}
     {% for key, label, url in _person_tabs %}
       {% if url %}
-        <a class="cfg-tab{{ ' on' if key == _active }}" href="{{ url }}">{{ label }}</a>
+        <a class="cfg-tab{{ ' on' if key == _active }}" href="{{ url }}{{ _user_qs }}">{{ label }}</a>
       {% else %}
         <span class="cfg-tab off" title="待开发">{{ label }}</span>
       {% endif %}
