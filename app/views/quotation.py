@@ -814,7 +814,9 @@ def at_view_quotation(id):
         _group_dict.setdefault(cat, []).append(d)
     grouped = []
     for cat, items in _group_dict.items():
+        # 分组小计 = 主行 + 各主行的子产品行(子行独立计价,计入总额 — 全库 89/90 语义)
         subtotal = sum((d.total_price or 0) for d in items)
+        subtotal += sum((c.total_price or 0) for d in items for c in (d.configurations or []))
         grouped.append({'label': cat, 'items': items, 'subtotal': subtotal, 'count': len(items)})
     # 排序:按 product_categories.display_order;自定义产品(无 order)排最后
     grouped.sort(key=lambda g: (

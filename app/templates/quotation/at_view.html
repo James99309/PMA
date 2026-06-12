@@ -897,7 +897,8 @@
       // 重算 tfoot:数量合计 + 小计 + 税额 + 总计 + 总折扣率(custom 行不参与折扣计算)
       const table = document.getElementById('quotationDetailTable');
       let qtyTotal = 0, subtotal = 0, marketTotal = 0, discountableSubtotal = 0;
-      table.querySelectorAll('tbody tr[data-detail-id]').forEach(tr => {
+      // 主产品行 + 子产品行(data-config-row,独立计价)一并累计
+      table.querySelectorAll('tbody tr[data-detail-id], tbody tr[data-config-row]').forEach(tr => {
         const qty = parseFloat(tr.dataset.quantity) || 0;
         const price = parseFloat(tr.dataset.unitPrice) || 0;
         const market = parseFloat(tr.dataset.marketPrice) || 0;
@@ -1316,9 +1317,9 @@
             }
             return merged;
           });
-        // 小计 = 主行 total_price 之和(子配置已计入主行)
+        // 小计 = 全部行(主行 + 子产品行)total_price 之和
+        // 子行独立计价计入总额(全库 89/90 报价单语义);原"只加主行"会把 amount 写坏
         const subtotalAmount = details
-          .filter(d => d.parent_item_id == null)
           .reduce((s, d) => s + (d.total_price || 0), 0);
         // 整单报价总额 = 含税合计 = 小计 × (1 + tax_rate/100)
         const taxRateVal = parseFloat(document.getElementById('qTaxRate')?.value) || 0;

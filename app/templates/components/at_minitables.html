@@ -322,10 +322,12 @@
           </div>
         </td>
       </tr>
-      {# 子配置行 #}
+      {# 子配置行(独立计价,计入合计 — data-config-row 供 _recomputeFooter 累计)#}
       {% if d.configurations %}
         {% for c in d.configurations %}
-        <tr style="background:var(--bg-page);cursor:default;">
+        <tr data-config-row data-quantity="{{ c.quantity or 0 }}" data-unit-price="{{ c.unit_price or 0 }}"
+            data-market-price="{{ c.market_price or 0 }}"
+            style="background:var(--bg-page);cursor:default;">
           <td class="at-mono at-tab-num" style="text-align:center;color:var(--ink-4);font-size:11px;">{{ idx.value }}.{{ loop.index }}</td>
           <td title="{{ c.product_name or '' }}">
             <div style="font-size:12.5px;color:var(--ink-2);line-height:1.4;
@@ -425,7 +427,8 @@
   {% set _subtotal = total_amount %}
   {% set _tax = (_subtotal * tax_rate / 100) if tax_rate else 0 %}
   {% set _grand = _subtotal + _tax %}
-  {% set _qty_total = (details | rejectattr('parent_item_id') | map(attribute='quantity') | sum) if details else 0 %}
+  {# 数量合计含子产品行(子行独立计价计量)#}
+  {% set _qty_total = (details | map(attribute='quantity') | sum) if details else 0 %}
   {# 14 列对齐设计稿:序号/产品名/型号/规格/品牌 = 5(colspan)· 数量 · 单位 · 市场价 · 折扣 · 单价 · 总价 · 编码 · 备注 · 操作 #}
   <tfoot>
     {# ─ 添加明细 action 行(edit-only)— 严格按设计稿 L688-707 #}
