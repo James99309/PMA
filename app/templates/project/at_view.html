@@ -125,6 +125,45 @@
                                  ( ' · ' ~ project.locked_at.strftime('%Y-%m-%d %H:%M') if project.locked_at else '' ) %}
             <span title="{{ _lock_title }}">{{ at_pill('已锁定', tone='warn') }}</span>
           {% endif %}
+          {# 成功锁定徽章:点击展开理由 / 锁定人 / 解除(签约即自动解除,防御性不渲染)#}
+          {% if project.win_locked and project.current_stage != 'signed' %}
+          <span style="position:relative;display:inline-flex;">
+            <button type="button" onclick="wlToggle(event)" title="锁定成功:点击查看锁定理由"
+                    style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+                           padding:2px;border:0;background:transparent;cursor:pointer;color:var(--warn);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+                <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></button>
+            <div id="wlPop" hidden
+                 style="position:absolute;top:calc(100% + 8px);left:0;z-index:900;width:300px;
+                        background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;
+                        box-shadow:0 12px 32px rgba(31,30,27,0.16);padding:14px 16px;text-align:left;">
+              <div style="font-size:11px;color:var(--ink-3);margin-bottom:5px;letter-spacing:0.05em;">锁定理由</div>
+              <div style="font-size:12.5px;color:var(--ink);line-height:1.6;white-space:pre-wrap;word-break:break-word;">{{ project.win_lock_reason or '—' }}</div>
+              {% if locked_quotation or project.win_locked_amount %}
+              <div style="margin-top:9px;padding:8px 10px;background:var(--bg-page);border-radius:7px;
+                          display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <span class="at-mono" style="font-size:11px;color:var(--ink-3);">{{ locked_quotation.number if locked_quotation else '报价单已删除' }}</span>
+                <span class="at-mono at-tab-num" style="font-size:12.5px;font-weight:600;color:var(--warn);">
+                  {{ ('$' if (locked_quotation and locked_quotation.currency == 'USD') else '¥') }}{{ '{:,.2f}'.format(project.win_locked_amount or (locked_quotation.amount if locked_quotation else 0)) }}</span>
+              </div>
+              {% endif %}
+              <div class="at-dim" style="font-size:11px;margin-top:9px;">
+                {{ win_locker_name or '—' }} · {{ project.win_locked_at.strftime('%Y-%m-%d %H:%M') if project.win_locked_at else '' }}
+                · 签约后自动解除
+              </div>
+              {% if can_win_lock %}
+              <button type="button" onclick="wlUnlock()"
+                      style="margin-top:11px;width:100%;height:30px;border-radius:6px;font:inherit;font-size:12px;
+                             border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);cursor:pointer;">
+                解除锁定</button>
+              {% endif %}
+            </div>
+          </span>
+          {% endif %}
           {# 失败/搁置审核 chip — 仅审核中显示;点击查看审批流程(部门经理→总经理)+理由 #}
           {% if hold_pending %}
           {{ at_approval_dropdown(
@@ -152,6 +191,10 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if can_win_lock and not project.win_locked and project.current_stage not in ('signed', 'lost')
+            and lock_quotations %}
+        {{ at_btn('锁定成功', variant='ghost', size='sm', icon_l='lock', onclick='wlLock()') }}
+      {% endif %}
       {% if perms.can_edit %}
         {{ at_btn('编辑', variant='ghost', size='sm', icon_l='pen',
                   onclick='atOpenProjectForm("edit", ' ~ project.id ~ ')') }}
@@ -576,6 +619,67 @@
     };
 
     // ─── 删除项目(对齐 TW 流程:先查依赖 → 列出关联 → 二次确认 → 跳列表) ───
+    // ── 成功锁定(锁单预判)──
+    window.wlToggle = function (e) {
+      e.stopPropagation();
+      const pop = document.getElementById('wlPop');
+      if (pop) pop.hidden = !pop.hidden;
+    };
+    document.addEventListener('click', () => {
+      const pop = document.getElementById('wlPop');
+      if (pop && !pop.hidden) pop.hidden = true;
+    });
+    window.wlLock = function () {
+      document.getElementById('wlModal').classList.add('open');
+      setTimeout(() => document.getElementById('wlReason').focus(), 50);
+    };
+    window.wlModalClose = function () {
+      document.getElementById('wlModal').classList.remove('open');
+    };
+    window.wlAmountSync = function () {
+      const sel = document.getElementById('wlQuotation');
+      if (!sel || sel.tagName !== 'SELECT') return;
+      const opt = sel.options[sel.selectedIndex];
+      const amt = parseFloat(opt.dataset.amount) || 0;
+      const sym = opt.dataset.cur === 'USD' ? '$' : '¥';
+      document.getElementById('wlAmount').textContent =
+        sym + amt.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    };
+    window.wlSubmit = async function () {
+      const reason = (document.getElementById('wlReason').value || '').trim();
+      const delivery = document.getElementById('wlDelivery').value;
+      const qel = document.getElementById('wlQuotation');
+      const quotationId = qel ? parseInt(qel.value) : null;
+      if (!reason) { ATToast.error('请填写锁定理由'); return; }
+      if (!quotationId) { ATToast.error('请选择锁定的报价单'); return; }
+      if (!delivery) { ATToast.error('请填写预计交付日期'); return; }
+      const btn = document.getElementById('wlSubmitBtn');
+      btn.disabled = true; btn.textContent = '锁定中…';
+      try {
+        const d = await (await fetch('/project/at-api/{{ project.id }}/win-lock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+          body: JSON.stringify({ reason: reason, delivery_forecast: delivery, quotation_id: quotationId }),
+        })).json();
+        if (d.success) { ATToast.success(d.message); setTimeout(() => location.reload(), 500); }
+        else { ATToast.error(d.message || '操作失败'); btn.disabled = false; btn.textContent = '锁定'; }
+      } catch (_) { ATToast.error('操作失败,请重试'); btn.disabled = false; btn.textContent = '锁定'; }
+    };
+    window.wlUnlock = function () {
+      ATConfirm.show({
+        title: '解除锁定', message: '解除「锁定成功」标记?',
+        variant: 'danger', confirmText: '解除', cancelText: '取消',
+        onConfirm: async () => {
+          try {
+            const d = await (await fetch('/project/at-api/{{ project.id }}/win-unlock', {
+              method: 'POST', headers: { 'X-CSRFToken': _csrf() } })).json();
+            if (d.success) { ATToast.success(d.message); setTimeout(() => location.reload(), 500); }
+            else ATToast.error(d.message || '操作失败');
+          } catch (_) { ATToast.error('操作失败,请重试'); }
+        },
+      });
+    };
+
     window.atConfirmDeleteProject = async function(projectId, projectName) {
       // 先查关联依赖(批价单 / 报价单 / 跟进 / 审批)
       let depMsg = '正在检查关联数据…';
@@ -889,6 +993,75 @@ window.atOpenProjectShare = function () {
     };
   })();
 </script>
+{% endif %}
+
+{# ── 成功锁定弹窗(理由 + 预计交付日期)── #}
+{% if can_win_lock and not project.win_locked %}
+<style>
+  .wl-overlay { position:fixed; inset:0; z-index:1000; background:rgba(31,30,27,0.4);
+                display:none; align-items:flex-start; justify-content:center; padding:14vh 16px; }
+  .wl-overlay.open { display:flex; }
+</style>
+<div id="wlModal" class="wl-overlay" onclick="if(event.target===this)wlModalClose()">
+  <div style="width:440px;max-width:100%;background:var(--bg-elev);border:1px solid var(--line);
+              border-radius:14px;box-shadow:0 24px 64px rgba(31,30,27,0.25);padding:20px 22px;">
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;">
+      {{ at_icon('lock', 15) }} 锁定成功</h3>
+    <div class="at-dim" style="font-size:12px;line-height:1.6;margin-bottom:14px;">
+      预判该项目必赢并锁定;所有项目展示处将带「锁定成功」徽章,签约时自动解除,也可人为解除。
+    </div>
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin-bottom:5px;">锁定理由 <span style="color:var(--danger);">*</span></label>
+    <textarea id="wlReason" rows="3" placeholder="为何判断该项目已锁定成功…"
+              style="width:100%;box-sizing:border-box;padding:9px 11px;background:var(--bg-page);
+                     border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                     color:var(--ink);outline:none;resize:vertical;"></textarea>
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">锁定报价单 <span style="color:var(--danger);">*</span></label>
+    {% if lock_quotations | length == 1 %}
+    {% set _q0 = lock_quotations[0] %}
+    <input type="hidden" id="wlQuotation" value="{{ _q0.id }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;height:36px;
+                padding:0 11px;background:var(--bg-sunk);border:1px solid var(--line-2);border-radius:7px;">
+      <span class="at-mono" style="font-size:12.5px;color:var(--ink-2);">{{ _q0.number }}</span>
+      <span class="at-mono at-tab-num" style="font-size:12.5px;font-weight:600;color:var(--ink);"
+            data-amount>{{ ('$' if _q0.currency == 'USD' else '¥') }}{{ '{:,.2f}'.format(_q0.amount) }}</span>
+    </div>
+    {% else %}
+    <select id="wlQuotation" class="at-mono" onchange="wlAmountSync()"
+            style="width:100%;box-sizing:border-box;height:36px;padding:0 11px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                   color:var(--ink);outline:none;">
+      {% for q in lock_quotations %}
+      <option value="{{ q.id }}" data-amount="{{ q.amount }}" data-cur="{{ q.currency }}">
+        {{ q.number }} · {{ ('$' if q.currency == 'USD' else '¥') }}{{ '{:,.2f}'.format(q.amount) }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;
+                padding:9px 12px;background:var(--warn-soft);border-radius:7px;">
+      <span style="font-size:11.5px;color:var(--ink-3);">锁定金额</span>
+      <span id="wlAmount" class="at-mono at-tab-num" style="font-size:15px;font-weight:600;color:var(--warn);">
+        {% set _qa = lock_quotations[0] if lock_quotations else none %}
+        {{ (('$' if _qa.currency == 'USD' else '¥') ~ '{:,.2f}'.format(_qa.amount)) if _qa else '—' }}</span>
+    </div>
+    <div class="at-dim" style="font-size:11px;margin-top:8px;">
+      操作人:{{ current_user.real_name or current_user.username }}(锁定后记录,徽章点击可见)
+    </div>
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">预计交付日期 <span style="color:var(--danger);">*</span>
+      <span class="at-dim" style="font-weight:400;">(确认后更新到项目交期)</span></label>
+    <input id="wlDelivery" type="date" value="{{ project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else '' }}"
+           style="width:100%;box-sizing:border-box;height:36px;padding:0 11px;background:var(--bg-page);
+                  border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                  color:var(--ink);outline:none;">
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="wlModalClose()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">取消</button>
+      <button type="button" id="wlSubmitBtn" onclick="wlSubmit()"
+              style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">锁定</button>
+    </div>
+  </div>
+</div>
 {% endif %}
 </body>
 </html>

@@ -144,6 +144,112 @@ def list_projects():
     """旧 TW 项目列表 — 已重定向到 AT 风格列表"""
     return redirect(url_for('project.at_list_view', **request.args))
 
+def _can_win_lock(p, user):
+    """成功锁定权限:项目负责人 / 厂商销售负责人 / 项目负责人的部门经理 / admin"""
+    if user.role == 'admin':
+        return True
+    if p.owner_id == user.id:
+        return True
+    if getattr(p, 'vendor_sales_manager_id', None) == user.id:
+        return True
+    if user.is_department_manager and p.owner and \
+            (user.department or '') == (p.owner.department or '') and \
+            (user.company_name or '') == (p.owner.company_name or ''):
+        return True
+    return False
+
+
+@project.route('/at-api/<int:project_id>/win-lock', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def at_api_win_lock(project_id):
+    """成功锁定(锁单预判):强制理由;签约阶段自动解除,亦可人为解除"""
+    p = Project.query.get_or_404(project_id)
+    if not _can_win_lock(p, current_user):
+        return jsonify({'success': False, 'message': '仅项目负责人/厂商销售负责人/部门经理可锁定成功'}), 403
+    if p.current_stage == 'signed':
+        return jsonify({'success': False, 'message': '项目已签约,无需锁定'}), 400
+    payload = request.get_json() or {}
+    reason = (payload.get('reason') or '').strip()
+    if not reason:
+        return jsonify({'success': False, 'message': '请填写锁定理由'}), 400
+    delivery_raw = (payload.get('delivery_forecast') or '').strip()
+    if not delivery_raw:
+        return jsonify({'success': False, 'message': '请填写预计交付日期'}), 400
+    try:
+        delivery_date = datetime.strptime(delivery_raw, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': '交付日期格式不正确'}), 400
+    # 锁定必须关联报价单:无报价单的项目不可锁;多报价单需指明锁定哪一单
+    from app.models.quotation import Quotation as _Q
+    proj_quotes = _Q.query.filter_by(project_id=p.id).order_by(_Q.created_at.desc()).all()
+    if not proj_quotes:
+        return jsonify({'success': False, 'message': '该项目尚无报价单,无法锁定成功'}), 400
+    qid = payload.get('quotation_id')
+    if len(proj_quotes) == 1 and not qid:
+        lock_q = proj_quotes[0]
+    else:
+        lock_q = next((q for q in proj_quotes if q.id == qid), None)
+        if not lock_q:
+            return jsonify({'success': False, 'message': '请选择锁定的报价单'}), 400
+    try:
+        from app.utils.change_tracker import ChangeTracker
+        old_values = {'win_locked': p.win_locked, 'win_lock_reason': p.win_lock_reason,
+                      'delivery_forecast': p.delivery_forecast}
+        p.win_locked = True
+        p.win_lock_reason = reason
+        p.win_locked_by = current_user.id
+        p.win_locked_at = datetime.now()
+        p.win_locked_quotation_id = lock_q.id
+        p.win_locked_amount = float(lock_q.amount or 0)   # 锁定金额快照
+        p.delivery_forecast = delivery_date   # 锁定即承诺交期,同步到项目详情
+        db.session.commit()
+        try:
+            ChangeTracker.log_update(p, old_values,
+                                     {'win_locked': True, 'win_lock_reason': reason,
+                                      'delivery_forecast': delivery_date})
+        except Exception:
+            pass
+        return jsonify({'success': True, 'message': '已锁定成功',
+                        'locked_by': current_user.real_name or current_user.username,
+                        'locked_at': p.win_locked_at.strftime('%Y-%m-%d %H:%M')})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'成功锁定失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@project.route('/at-api/<int:project_id>/win-unlock', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def at_api_win_unlock(project_id):
+    """人为解除成功锁定(权限同锁定)"""
+    p = Project.query.get_or_404(project_id)
+    if not _can_win_lock(p, current_user):
+        return jsonify({'success': False, 'message': '仅项目负责人/厂商销售负责人/部门经理可解除'}), 403
+    if not p.win_locked:
+        return jsonify({'success': False, 'message': '该项目未处于锁定成功状态'}), 400
+    try:
+        from app.utils.change_tracker import ChangeTracker
+        old_values = {'win_locked': True, 'win_lock_reason': p.win_lock_reason}
+        p.win_locked = False
+        p.win_lock_reason = None
+        p.win_locked_by = None
+        p.win_locked_at = None
+        p.win_locked_quotation_id = None
+        p.win_locked_amount = None
+        db.session.commit()
+        try:
+            ChangeTracker.log_update(p, old_values, {'win_locked': False, 'win_lock_reason': None})
+        except Exception:
+            pass
+        return jsonify({'success': True, 'message': '已解除锁定'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'解除成功锁定失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
 @project.route('/<int:project_id>/at_view')
 @login_required
 @permission_required('project', 'view')
@@ -316,8 +422,18 @@ def at_view_project(project_id):
         current_app.logger.warning(f"加载项目系统图失败: {_dg_err}")
         project_diagrams = []
 
+    _win_locker = User.query.get(p.win_locked_by) if p.win_locked_by else None
+    from app.models.quotation import Quotation as _Q
+    _lock_quotes = [{'id': q.id, 'number': q.quotation_number,
+                     'amount': float(q.amount or 0), 'currency': q.currency or 'CNY'}
+                    for q in _Q.query.filter_by(project_id=p.id).order_by(_Q.created_at.desc()).all()]
+    _locked_q = next((q for q in _lock_quotes if q['id'] == p.win_locked_quotation_id), None)
     return render_template('project/at_view.html',
                            project=p,
+                           can_win_lock=_can_win_lock(p, current_user),
+                           win_locker_name=(_win_locker.real_name or _win_locker.username) if _win_locker else '',
+                           lock_quotations=_lock_quotes,
+                           locked_quotation=_locked_q,
                            related=related,
                            companies=associated_companies,
                            actions=actions,
@@ -382,10 +498,14 @@ def at_list_view():
     tab_counts = {'all': base.count()}
     for k, stages in TAB_STAGE_MAP.items():
         tab_counts[k] = base.filter(Project.current_stage.in_(stages)).count()
+    # 锁定成功(锁单预判)tab:跨阶段标记,签约自动解除
+    tab_counts['win_locked'] = base.filter(Project.win_locked.is_(True)).count()
 
     q = base
     if tab in TAB_STAGE_MAP:
         q = q.filter(Project.current_stage.in_(TAB_STAGE_MAP[tab]))
+    elif tab == 'win_locked':
+        q = q.filter(Project.win_locked.is_(True))
 
     if search:
         like = f'%{search}%'
@@ -1800,6 +1920,15 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
         # 更新项目阶段
         project.current_stage = new_stage
 
+        # 签约 → 自动解除「成功锁定」(锁单预判已兑现)
+        if new_stage == 'signed' and getattr(project, 'win_locked', False):
+            project.win_locked = False
+            project.win_lock_reason = None
+            project.win_locked_by = None
+            project.win_locked_at = None
+            project.win_locked_quotation_id = None
+            project.win_locked_amount = None
+
         # 创建阶段历史记录
         try:
             from app.models.projectpm_stage_history import ProjectStageHistory
@@ -2061,6 +2190,15 @@ def update_project_stage():
         
         # 更新项目阶段
         project.current_stage = new_stage
+
+        # 签约 → 自动解除「成功锁定」(锁单预判已兑现)
+        if new_stage == 'signed' and getattr(project, 'win_locked', False):
+            project.win_locked = False
+            project.win_lock_reason = None
+            project.win_locked_by = None
+            project.win_locked_at = None
+            project.win_locked_quotation_id = None
+            project.win_locked_amount = None
 
         # 如果项目推进到签约阶段，自动锁定项目
         if new_stage == 'signed' and not project.is_locked:

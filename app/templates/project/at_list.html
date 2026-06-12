@@ -1,5 +1,5 @@
 {% extends 'components/at_list_layout.html' %}
-{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_win_lock_badge %}
 {% from 'components/at_project_modal.html' import at_project_form_modal %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
 
@@ -49,6 +49,7 @@
   {'k':'pre_tender', 'l':'标前',  'c':tab_counts.pre_tender},
   {'k':'tendering',  'l':'标中',  'c':tab_counts.tendering},
   {'k':'awarded',    'l':'中标',  'c':tab_counts.awarded},
+  {'k':'win_locked', 'l':'锁定成功', 'c':tab_counts.win_locked},
   {'k':'closed',     'l':'失败/暂停', 'c':tab_counts.closed}
 ] %}
 {% for t in _tabs %}
@@ -118,6 +119,7 @@
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
     {{ at_status_pill(p.current_stage or 'discover', scope='project') }}
+    {% if p.win_locked and p.current_stage != 'signed' %}{{ at_win_lock_badge(p.win_lock_reason or '', size='sm') }}{% endif %}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-3);font-size:12px;">
     {{ (p.project_type | project_type_label) if p.project_type else '—' }}

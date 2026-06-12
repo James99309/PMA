@@ -246,6 +246,38 @@ def _build_todos(user):
                     'route': f'/task/management?task={t.id}', 'urgent': days > 20, '_d': days,
                 })
 
+        # 4c) 锁定成功提醒 — 给「项目负责人的部门经理 / 总经理(ceo)/ 管理员」的跟进提醒
+        try:
+            from app.models.user import User as _User
+            wl_q = None
+            if user.role in ('admin', 'ceo'):
+                wl_q = Project.query.filter(Project.is_deleted == False,
+                                            Project.win_locked.is_(True),
+                                            Project.current_stage != 'signed')
+            elif user.is_department_manager and user.department:
+                # 我部门成员名下被锁定的项目
+                dept_ids = [u.id for u in _User.query.filter(
+                    _User.department == user.department,
+                    _User.company_name == user.company_name).all()]
+                if dept_ids:
+                    wl_q = Project.query.filter(Project.is_deleted == False,
+                                                Project.win_locked.is_(True),
+                                                Project.current_stage != 'signed',
+                                                Project.owner_id.in_(dept_ids))
+            if wl_q is not None:
+                for p_ in wl_q.order_by(Project.win_locked_at.desc()).limit(10).all():
+                    locker = _User.query.get(p_.win_locked_by) if p_.win_locked_by else None
+                    days_ = (now - p_.win_locked_at).days if p_.win_locked_at else 0
+                    fu.append({
+                        'id': f'WL{p_.id}', 'type': 'action', 'typeLabel': '锁定成功', 'tone': 'warn',
+                        'title': f'{p_.project_name}',
+                        'meta': (p_.win_lock_reason or '')[:50],
+                        'who': _fmt_user(locker), 'when': _ago(p_.win_locked_at),
+                        'route': f'/project/{p_.id}/at_view', 'urgent': False, '_d': days_,
+                    })
+        except Exception as _we:
+            import logging; logging.warning(f'todos winlock err: {_we}')
+
         fu.sort(key=lambda x: x['_d'], reverse=True)
         for it in fu[:50]:        # 安全上限;列表只展示 top 5,其余进"显示其余 N 项"
             it.pop('_d', None)
@@ -958,6 +990,13 @@ def _build_funnel(user, scope_filter=None):
 
     stage_data = {r.current_stage: {'count': int(r.cnt or 0), 'amount': float(r.amt or 0)} for r in rows}
 
+    # 锁定成功(锁单预判)按阶段计数 — 同 scope,签约阶段已自动解除不会出现
+    lq = db.session.query(Project.current_stage, func.count(Project.id)).filter(
+        Project.created_at >= cutoff, Project.win_locked.is_(True))
+    if scope_filter is not None:
+        lq = lq.filter(scope_filter)
+    locked_by_stage = {st: int(c or 0) for st, c in lq.group_by(Project.current_stage).all()}
+
     # 漏斗顺序:植入 → 标前 → 标中 → 中标 → 签约
     # (PMA 业务阶段:embed/植入是早期"方案植入"阶段,不是终态)
     # discover/quoted 不进漏斗;lost/paused 算流失
@@ -971,7 +1010,8 @@ def _build_funnel(user, scope_filter=None):
     funnel = []
     for key, label in STAGES:
         d = stage_data.get(key, {'count': 0, 'amount': 0})
-        funnel.append({'stage': label, 'count': d['count'], 'amount': int(d['amount'])})
+        funnel.append({'stage': label, 'count': d['count'], 'amount': int(d['amount']),
+                       'locked': locked_by_stage.get(key, 0)})
 
     # 流失统计(lost + paused)
     lost   = stage_data.get('lost',   {'count': 0, 'amount': 0})
@@ -999,7 +1039,8 @@ _PROJ_STAGE_MAP = {
     'pre_tender': {'label': '标前', 'tone': 'warn',    'pct': 40},
     'tendering':  {'label': '标中', 'tone': 'info',    'pct': 55},
     'awarded':    {'label': '中标', 'tone': 'success', 'pct': 70},
-    'signed':     {'label': '签约', 'tone': 'success', 'pct': 90},
+    'quoted':     {'label': '批价', 'tone': 'success', 'pct': 85},
+    'signed':     {'label': '签约', 'tone': 'success', 'pct': 100},
     'lost':       {'label': '失败', 'tone': 'danger',  'pct': 0},
     'paused':     {'label': '暂停', 'tone': 'neutral', 'pct': 50},
 }
@@ -1038,6 +1079,8 @@ def _build_projects(user, scope_filter=None):
                 'progress': meta['pct'],
                 'dueIn': due_in if due_in is not None else 0,
                 'dueRed': due_red,
+                'winLocked': bool(getattr(p, 'win_locked', False)) and p.current_stage != 'signed',
+                'winReason': getattr(p, 'win_lock_reason', None) or '',
             })
     except Exception as e:
         import logging; logging.warning(f'projects err: {e}')

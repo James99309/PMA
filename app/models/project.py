@@ -45,6 +45,14 @@ class Project(SharingMixin, db.Model):
     locked_reason = Column(String(100), nullable=True)  # 锁定原因
     locked_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # 锁定人
     locked_at = Column(DateTime, nullable=True)  # 锁定时间
+
+    # 成功锁定(锁单预判):负责人/厂商销售/部门经理可锁,签约自动解除,可人为解除
+    win_locked = Column(Boolean, default=False, nullable=False)
+    win_lock_reason = Column(Text, nullable=True)        # 锁定理由(强制)
+    win_locked_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    win_locked_at = Column(DateTime, nullable=True)
+    win_locked_quotation_id = Column(Integer, ForeignKey('quotations.id'), nullable=True)  # 锁定关联的报价单
+    win_locked_amount = Column(db.Float, nullable=True)                                    # 锁定金额快照
     
     # 软删除
     is_deleted = Column(Boolean, default=False, nullable=False)
@@ -103,7 +111,8 @@ class Project(SharingMixin, db.Model):
     vendor_sales_manager = relationship('User', foreign_keys=[vendor_sales_manager_id])
     
     # 修改关系定义，移除可能导致循环引用的配置
-    quotations = db.relationship('Quotation', back_populates='project', lazy='dynamic', cascade='all, delete-orphan')
+    quotations = db.relationship('Quotation', back_populates='project', lazy='dynamic',
+                                 cascade='all, delete-orphan', foreign_keys='Quotation.project_id')
 
     def __repr__(self):
         return f'<Project {self.project_name}>'

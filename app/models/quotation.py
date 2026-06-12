@@ -133,7 +133,7 @@ class Quotation(db.Model):
     confirmer = db.relationship('User', foreign_keys=[confirmed_by], backref='confirmed_quotations')
     
     # 关联关系
-    project = db.relationship('Project', back_populates='quotations')
+    project = db.relationship('Project', back_populates='quotations', foreign_keys='Quotation.project_id')
     customer = db.relationship('Company', backref='quotations')  # 客户关系
     contact = db.relationship('Contact', backref='quotations')  # 联系人关系
     details = db.relationship('QuotationDetail', backref='quotation', cascade='all, delete-orphan',

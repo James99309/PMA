@@ -8,7 +8,7 @@
   布局:Row1 todo + kpi(2 列)· Row2 funnel + projects + quotes(3 列)
         · Row3 expense + worklog(2 列)
 #}
-{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_avatar with context %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_avatar, at_win_lock_badge with context %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% from 'components/at_topbar.html' import at_topbar with context %}
 {% from 'components/at_risk_banner.html' import at_risk_banner %}
@@ -122,9 +122,11 @@
             {% endfor %}
           </div>
 
+          {# 全量渲染,超出 5 条高度内部滚动(替代「显示其余 N 项」) #}
           <ul data-dash-list="todo"
-              style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;">
-            {% for t in _todos[:5] %}
+              style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;
+                     max-height:330px;overflow-y:auto;">
+            {% for t in _todos %}
             {% set _has_route = t.route and t.route != '#' %}
             <li data-type="{{ t.type }}" class="dash-list-item"
                 {% if _has_route %}data-href="{{ t.route }}"{% endif %}
@@ -153,12 +155,7 @@
             {% endfor %}
           </ul>
 
-          {% if _todos | length > 5 %}
-          <button type="button" style="margin-top:8px;padding:8px 0;width:100%;font-size:12px;
-                  color:var(--accent);font-weight:500;border:0;border-top:1px solid var(--line);background:transparent;cursor:pointer;">
-            显示其余 {{ _todos|length - 5 }} 项
-          </button>
-          {% endif %}
+
         </div>
       </section>
 
@@ -476,6 +473,12 @@
               {% if not loop.last and drop is not none %}
               <div style="display:flex;align-items:center;gap:12px;padding-left:68px;height:12px;">
                 <div style="height:12px;width:1px;border-left:1px dashed var(--line-2);margin-left:-2px;"></div>
+                {% if s.locked %}
+                <span title="该阶段有 {{ s.locked }} 个项目已锁定成功"
+                      style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;color:var(--warn);font-weight:600;">
+                  {{ at_win_lock_badge('该阶段 ' ~ s.locked ~ ' 个锁定', size='sm') }}{{ s.locked }}
+                </span>
+                {% endif %}
                 <span style="font-size:10.5px;color:var(--ink-3);">
                   流失 <span class="dash-tab-num" style="color:var(--danger);">{{ drop }}%</span>
                 </span>
@@ -530,6 +533,7 @@
                        border-top:{{ '0' if loop.first else '1px solid var(--line)' }};">
               <div style="display:flex;align-items:center;gap:10px;width:100%;">
                 {{ at_pill(p.stage, tone=p.stageT, size='md') }}
+                {% if p.winLocked %}{{ at_win_lock_badge(p.winReason, size='sm') }}{% endif %}
                 <span style="flex:1;font-size:13px;color:var(--ink);font-weight:500;
                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ p.name }}</span>
                 {% if p.dueRed %}
