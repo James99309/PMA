@@ -32,7 +32,7 @@
   {%- elif active_key in ['pricing_order', 'sales_order', 'shipment', 'order', 'settlement', 'purchase_order', 'inventory', 'serial_number'] -%}sales
   {%- elif active_key in ['product', 'system_diagram', 'product_analysis'] -%}product
   {%- elif active_key in ['meeting_minutes', 'wiki', 'geo_monitor', 'cli_terminal'] -%}tools
-  {%- elif active_key in ['user_list', 'config_management', 'role_dict', 'company_dict', 'department_dict',
+  {%- elif active_key in ['user_list', 'person_config', 'config_management', 'role_dict', 'company_dict', 'department_dict',
                           'spec_template', 'product_code', 'origin_fields', 'spec_definition',
                           'announcement', 'admin', 'ai_usage', 'points_config', 'version',
                           'approval_config', 'history', 'backup', 'skill_list'] -%}settings
@@ -219,7 +219,9 @@
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
             {# 账户与字典 #}
             {% if has_permission('user_management', 'view') %}{{ _sub_link(url_for('user.list_users'), '账户列表', 'user_list', active_key) }}{% endif %}
-            {% if has_permission('config_management', 'view') %}{{ _sub_link(url_for('config_management.index'), '配置管理', 'config_management', active_key) }}{% endif %}
+            {% if has_permission('user_management', 'view') or has_permission('config_management', 'view') %}
+              {{ _sub_link(url_for('user.at_person_performance'), '个人配置', 'person_config', active_key) }}{% endif %}
+            {% if has_permission('config_management', 'view') %}{{ _sub_link(url_for('config_management.at_performance'), '配置管理', 'config_management', active_key) }}{% endif %}
             {% if has_permission('dictionary_management', 'view') %}
               {{ _sub_link(url_for('user.manage_roles'), '角色字典', 'role_dict', active_key) }}
               {{ _sub_link(url_for('user.manage_companies'), '企业字典', 'company_dict', active_key) }}

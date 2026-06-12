@@ -1,0 +1,237 @@
+{% extends 'components/at_person_layout.html' %}
+{% set person_active = 'budget' %}
+
+{% block person_title %}费用预算 · 个人{% endblock %}
+{% block person_desc %}个人预算从部门预算盘子中分配:年度总额不能超过部门待分配额度;部门已单列的明细个人强制保留,且不超过部门该明细的可用上限;表格与部门预算页共用同一组件。{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-budget-sheet.js') }}"></script>
+<style>
+  .eb-cats { display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; margin:0 0 12px; }
+  .eb-cats-label { font-size:11px; color:var(--ink-3); }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    {# 先选公司,再选个人;非 admin 锁定本公司 #}
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
+                 background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
+      <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
+      {% if is_admin and companies|length > 1 %}
+      <select id="pbCompany" onchange="pbCompanyChange(this.value)"
+              style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
+        {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <span>{{ (companies[0] if companies else user_company) or '未归属公司' }}</span>
+      {% endif %}
+    </span>
+    <div style="position:relative;">
+      <button type="button" class="cm-role-btn" onclick="pbToggleMenu(event)">
+        <span id="pbUserName">选择人员</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="pbUserMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="pbSub" class="at-dim" style="font-size:12px;"></span>
+    <span id="pbRoom" style="font-size:12px;"></span>
+    <div style="flex:1;"></div>
+    <select id="pbYear" onchange="pbLoad()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+            border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
+    </select>
+    {% if can_edit %}
+    <button type="button" id="pbSaveBtn" onclick="pbSave()"
+            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
+                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
+    {% endif %}
+  </div>
+
+  <div class="eb-cats">
+    <span class="eb-cats-label">细分科目(来自报销;带「锁」= 部门已单列,强制保留)</span>
+    <span id="pbCatChips" style="display:contents;"></span>
+  </div>
+
+  <div id="pbSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择人员…</div>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 顶部实时显示「部门待分配」(部门总额 − 同部门所有成员已分配,含本人当前输入);
+    部门单列明细的行下灰字显示该明细的部门预算与当前可分配;
+    输入超过上限会被直接截断到可分配额(个人年度 ≤ 部门待分配,明细 ≤ 该明细可分配,且细分合计 ≤ 个人年度);
+    货币:{{ currency_code }}({{ currency_symbol }})。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const USERS = {{ users_data | tojson }};          // 已按访问者公司过滤(admin=全部,带 company)
+  const COMPANIES = {{ companies | tojson }};
+  const CATS = {{ expense_categories | tojson }};
+  const CURRENCY_SYMBOL = {{ currency_symbol | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const CUR_YEAR = {{ current_year }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','"':'&quot;','>':'&gt;'})[c]);
+
+  let _userId = null, _noDeptBudget = false;
+  let _company = COMPANIES[0] || '';
+  const usersOf = () => USERS.filter(u => u.company === _company);
+
+  window.pbCompanyChange = function (c) {
+    _company = c;
+    const list = usersOf();
+    if (list.length) pbSelect(list[0].id);
+    else {
+      _userId = null;
+      document.getElementById('pbUserName').textContent = '选择人员';
+      document.getElementById('pbSub').textContent = '';
+      document.getElementById('pbRoom').textContent = '';
+      document.getElementById('pbCatChips').innerHTML = '';
+      document.getElementById('pbSheet').innerHTML =
+        '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">该公司暂无在职人员</div>';
+    }
+  };
+
+  // 公用预算表组件(与「配置管理·部门预算」同源;person 模式=部门上限约束+明细余额说明)
+  const bs = ATBudgetSheet({
+    container: 'pbSheet',
+    chipsContainer: 'pbCatChips',
+    canEdit: CAN_EDIT,
+    mode: 'person',
+    currencySymbol: CURRENCY_SYMBOL,
+    categories: CATS,
+    onChange: renderStats,
+  });
+
+  function renderStats(st) {
+    const el = document.getElementById('pbRoom');
+    const btn = document.getElementById('pbSaveBtn');
+    const over = st.overTotal || st.overDept || st.overCaps.length > 0;
+    if (btn) { btn.disabled = over; btn.style.opacity = over ? '0.4' : '1'; }
+    if (st.overCaps.length) {
+      el.style.color = 'var(--danger)';
+      const f = st.overCaps[0];
+      el.textContent = `「${f.name}」超出部门该明细可用上限 ${CURRENCY_SYMBOL}${Math.abs(f.left).toLocaleString('zh-CN')}`;
+    } else if (st.overDept) {
+      el.style.color = 'var(--danger)';
+      el.textContent = `个人年度超出部门可分配 ${CURRENCY_SYMBOL}${Math.abs(st.deptLeft).toLocaleString('zh-CN')}`;
+    } else if (st.overTotal) {
+      el.style.color = 'var(--danger)';
+      el.textContent = `细分超出个人总额 ${CURRENCY_SYMBOL}${Math.abs(st.room).toLocaleString('zh-CN')}`;
+    } else {
+      el.style.color = 'var(--ink-3)';
+      el.textContent = (st.deptLeft != null
+        ? `部门待分配 ${CURRENCY_SYMBOL}${st.deptLeft.toLocaleString('zh-CN')} · ` : '')
+        + `个人机动余量 ${CURRENCY_SYMBOL}${st.room.toLocaleString('zh-CN')}`;
+    }
+  }
+
+  // ── 人员下拉(限当前公司,搜索 + 部门分组) ──
+  function renderMenu() {
+    const term = (document.getElementById('pbSearch') ? document.getElementById('pbSearch').value : '').trim().toLowerCase();
+    const list = usersOf().filter(u => !term ||
+      (u.name + ' ' + u.department + ' ' + u.role_display).toLowerCase().includes(term));
+    const groups = {};
+    list.forEach(u => (groups[u.department] = groups[u.department] || []).push(u));
+    let html = `<input id="pbSearch" class="pp-search" type="text" placeholder="搜索人员 / 部门…" autocomplete="off"
+                       value="${esc(term)}" onclick="event.stopPropagation()" oninput="renderMenu();
+                       this.focus();this.setSelectionRange(this.value.length,this.value.length)">`;
+    Object.keys(groups).forEach(g => {
+      html += `<div class="pp-dep">${esc(g)}</div>`;
+      groups[g].forEach(u => {
+        html += `<div class="cm-role-item${u.id === _userId ? ' active' : ''}" onclick="pbSelect(${u.id})">
+                   <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
+                          border-radius:50%;background:var(--accent-tint);color:var(--accent);font-size:11px;font-weight:600;">
+                     ${esc(u.name[0] || '?')}</span>
+                   <span style="flex:1;">${esc(u.name)}</span>
+                   <span class="at-dim" style="font-size:10.5px;">${esc(u.role_display)}</span>
+                 </div>`;
+      });
+    });
+    document.getElementById('pbUserMenu').innerHTML = html || '<div class="at-dim" style="padding:18px;text-align:center;font-size:12px;">无匹配</div>';
+  }
+  window.pbToggleMenu = function (e) {
+    e.stopPropagation();
+    const menu = document.getElementById('pbUserMenu');
+    const show = menu.style.display === 'none';
+    if (show) renderMenu();
+    menu.style.display = show ? 'block' : 'none';
+  };
+  document.addEventListener('click', () => {
+    const m = document.getElementById('pbUserMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  const yearSel = document.getElementById('pbYear');
+  [CUR_YEAR - 1, CUR_YEAR, CUR_YEAR + 1].forEach(y => {
+    const o = document.createElement('option'); o.value = y; o.textContent = y + ' 年';
+    if (y === CUR_YEAR) o.selected = true; yearSel.appendChild(o);
+  });
+
+  window.pbSelect = function (id) {
+    _userId = id;
+    document.getElementById('pbUserMenu').style.display = 'none';
+    pbLoad();
+  };
+
+  window.pbLoad = async function () {
+    if (!_userId) return;
+    const u = USERS.find(x => x.id === _userId);
+    document.getElementById('pbUserName').textContent = u ? u.name : '';
+    try {
+      const d = await (await fetch(`/config-management/api/users/${_userId}/expense-budget?year=${yearSel.value}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      const cx = d.data.context || {};
+      _noDeptBudget = !!cx.no_dept_budget;
+      document.getElementById('pbSub').textContent = u
+        ? `${u.role_display} · ${cx.dept_name || u.department}${cx.dept_total != null
+            ? ` · 部门年度 ${CURRENCY_SYMBOL}${cx.dept_total.toLocaleString('zh-CN')}` : ''}`
+        : '';
+      if (_noDeptBudget) {
+        // 个人预算必须挂在部门预算之下:部门未配 → 禁止配置,引导先配部门
+        document.getElementById('pbRoom').textContent = '';
+        document.getElementById('pbCatChips').innerHTML = '';
+        const btn = document.getElementById('pbSaveBtn');
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
+        document.getElementById('pbSheet').innerHTML =
+          `<div style="padding:34px;text-align:center;font-size:12.5px;color:var(--ink-3);">
+             <span class="material-symbols-outlined" style="font-size:30px;display:block;margin-bottom:8px;color:var(--ink-4);">account_balance_wallet</span>
+             「${esc(cx.dept_name || u.department)}」${yearSel.value} 年尚未设置部门预算,无法配置个人预算。<br>
+             请先到 <a href="/config-management/at/expense" style="color:var(--accent);">配置管理 → 部门预算</a>
+             为该公司的此部门设置年度预算。
+           </div>`;
+        return;
+      }
+      bs.setData({ items: d.data.items || [], context: cx });
+    } catch (e) {
+      document.getElementById('pbSheet').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
+    }
+  };
+
+  window.pbSave = async function () {
+    if (!_userId) return;
+    const v = bs.validate();
+    if (!v.ok) { ATToast.error(v.msg); return; }
+    const btn = document.getElementById('pbSaveBtn');
+    btn.disabled = true; btn.textContent = '保存中…';
+    try {
+      const d = await (await fetch(`/config-management/api/users/${_userId}/expense-budget`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ year: parseInt(yearSel.value), items: bs.getPayloadItems() }),
+      })).json();
+      if (d.success) { ATToast.success(d.message || '已保存'); pbLoad(); }
+      else ATToast.error(d.message || '保存失败');
+    } catch (e) { ATToast.error('保存失败,请重试'); }
+    btn.disabled = false; btn.textContent = '保存';
+  };
+
+  if (usersOf().length) pbSelect(usersOf()[0].id);
+  else document.getElementById('pbSheet').innerHTML =
+    '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">当前公司暂无在职人员</div>';
+</script>
+{% endblock %}

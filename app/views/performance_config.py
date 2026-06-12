@@ -2454,6 +2454,7 @@ def _batch_get_user_targets(user_ids, year):
             'item_name': item['name'],
             'unit': item['unit'],
             'data_type': item['data_type'],
+            'description': item.get('description', ''),
             'enabled': any(enabled_states),
             'annual_target': get_common_value(annual_targets),
             'enable_quarterly': any(quarterly_enabled_states),

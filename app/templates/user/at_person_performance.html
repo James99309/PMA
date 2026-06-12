@@ -1,0 +1,214 @@
+{% extends 'components/at_person_layout.html' %}
+{% set person_active = 'performance' %}
+
+{% block person_title %}绩效目标 · 个人覆盖{% endblock %}
+{% block person_desc %}显示有效目标(个人覆盖 > 角色默认);只有改动过的项目会写入个人覆盖,未动的保持继承;行尾出现「↺ 继承」即该项已自定义,点击确认后恢复角色默认。{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="position:relative;">
+      <button type="button" class="cm-role-btn" onclick="ppToggleMenu(event)">
+        <span id="ppUserName">选择人员</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="ppUserMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="ppSub" class="at-dim" style="font-size:12px;"></span>
+    <span id="ppDirty" style="font-size:12px;color:var(--warn);"></span>
+    <div style="flex:1;"></div>
+    <select id="ppYear" onchange="ppLoad()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+            border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
+    </select>
+    {% if can_edit %}
+    <button type="button" onclick="ppClearAll()"
+            style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                   background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">清除全部覆盖</button>
+    <button type="button" id="ppSaveBtn" onclick="ppSave()"
+            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
+                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存覆盖</button>
+    {% endif %}
+  </div>
+
+  <div id="ppSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择人员…</div>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 改动任意格即转为个人覆盖(行首黄条,待保存);未改动的项目保持继承角色默认;
+    「↺ 继承」删除该项覆盖,「清除全部覆盖」恢复整年角色默认;表格操作与角色目标页一致(同一组件)。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const USERS = {{ users_data | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const CUR_YEAR = {{ current_year }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+
+  let _userId = null;
+
+  // 公用目标表格组件(与「配置管理·角色目标」同源;person 模式=权重只读+行尾继承)
+  const sheet = ATTargetSheet({
+    container: 'ppSheet',
+    canEdit: CAN_EDIT,
+    mode: 'person',
+    weightEditable: false,
+    showDesc: true,
+    onChange: () => {
+      const n = sheet.getDirty().length;
+      document.getElementById('ppDirty').textContent = n ? `${n} 项将写入个人覆盖(未保存)` : '';
+    },
+    onRevert: (it) => {
+      ATConfirm.show({
+        title: '恢复继承', message: `删除「${it.item_name}」的个人覆盖,恢复为角色默认?`,
+        variant: 'accent', icon: 'history', confirmText: '恢复继承', cancelText: '取消',
+        onConfirm: async () => {
+          try {
+            const d = await (await fetch('/performance/config/api/users/targets/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+              body: JSON.stringify({ user_ids: [_userId], year: parseInt(yearSel.value),
+                                     items: [{ item_code: it.item_code, enabled: false }] }),
+            })).json();
+            if (d.success) { ATToast.success('已恢复继承'); ppLoad(); }
+            else ATToast.error(d.message || '操作失败');
+          } catch (e) { ATToast.error('操作失败,请重试'); }
+        },
+      });
+    },
+  });
+
+  // ── 人员下拉(搜索+部门分组) ──
+  function renderMenu() {
+    const term = (document.getElementById('ppSearch') ? document.getElementById('ppSearch').value : '').trim().toLowerCase();
+    const list = USERS.filter(u => !term ||
+      (u.name + ' ' + u.department + ' ' + u.role_display).toLowerCase().includes(term));
+    const groups = {};
+    list.forEach(u => (groups[u.department] = groups[u.department] || []).push(u));
+    let html = `<input id="ppSearch" class="pp-search" type="text" placeholder="搜索人员 / 部门…" autocomplete="off"
+                       value="${esc(term)}" onclick="event.stopPropagation()" oninput="renderMenu();
+                       this.focus();this.setSelectionRange(this.value.length,this.value.length)">`;
+    Object.keys(groups).forEach(dep => {
+      html += `<div class="pp-dep">${esc(dep)}</div>`;
+      groups[dep].forEach(u => {
+        html += `<div class="cm-role-item${u.id === _userId ? ' active' : ''}" onclick="ppSelect(${u.id})">
+                   <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
+                          border-radius:50%;background:var(--accent-tint);color:var(--accent);font-size:11px;font-weight:600;">
+                     ${esc(u.name[0] || '?')}</span>
+                   <span style="flex:1;">${esc(u.name)}</span>
+                   ${u.has_scheme ? '<span title="该角色考核项由岗位方案固定" style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--warn-soft);color:var(--warn);">方案</span>' : ''}
+                   <span class="at-dim" style="font-size:10.5px;">${esc(u.role_display)}</span>
+                 </div>`;
+      });
+    });
+    document.getElementById('ppUserMenu').innerHTML = html || '<div class="at-dim" style="padding:18px;text-align:center;font-size:12px;">无匹配</div>';
+  }
+  window.ppToggleMenu = function (e) {
+    e.stopPropagation();
+    const menu = document.getElementById('ppUserMenu');
+    const show = menu.style.display === 'none';
+    if (show) renderMenu();
+    menu.style.display = show ? 'block' : 'none';
+  };
+  document.addEventListener('click', () => {
+    const m = document.getElementById('ppUserMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  const yearSel = document.getElementById('ppYear');
+  [CUR_YEAR - 1, CUR_YEAR, CUR_YEAR + 1].forEach(y => {
+    const o = document.createElement('option'); o.value = y; o.textContent = y + ' 年';
+    if (y === CUR_YEAR) o.selected = true; yearSel.appendChild(o);
+  });
+
+  window.ppSelect = function (id) {
+    _userId = id;
+    document.getElementById('ppUserMenu').style.display = 'none';
+    ppLoad();
+  };
+
+  window.ppLoad = async function () {
+    if (!_userId) return;
+    const u = USERS.find(x => x.id === _userId);
+    document.getElementById('ppUserName').textContent = u ? u.name : '';
+    document.getElementById('ppSub').textContent = u ? `${u.role_display} · ${u.department} · 有效目标(覆盖>角色默认)` : '';
+    document.getElementById('ppDirty').textContent = '';
+    try {
+      const d = await (await fetch('/performance/config/api/users/targets/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ user_ids: [_userId], year: parseInt(yearSel.value) }),
+      })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      sheet.setItems(d.data.items || []);
+    } catch (e) {
+      document.getElementById('ppSheet').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
+    }
+  };
+
+  // 清除该人全年全部覆盖
+  window.ppClearAll = function () {
+    if (!_userId) return;
+    const u = USERS.find(x => x.id === _userId);
+    ATConfirm.show({
+      title: '清除全部覆盖',
+      message: `清除 ${u ? u.name : ''} 在 ${yearSel.value} 年的全部个人目标覆盖,全部恢复为角色默认。`,
+      variant: 'danger', icon: 'trash', confirmText: '清除', cancelText: '取消',
+      onConfirm: async () => {
+        try {
+          const d = await (await fetch(`/performance/config/api/user/${_userId}/targets/${yearSel.value}/clear`, {
+            method: 'POST', headers: { 'X-CSRFToken': _csrf() } })).json();
+          if (d.success) { ATToast.success('已恢复角色默认'); ppLoad(); }
+          else ATToast.error(d.message || '操作失败');
+        } catch (e) { ATToast.error('操作失败,请重试'); }
+      },
+    });
+  };
+
+  // 保存:只提交变更行(未动的保持继承,不被误写成覆盖)
+  window.ppSave = async function () {
+    const dirty = sheet.getDirty();
+    if (!dirty.length) { ATToast.success('没有需要保存的变更'); return; }
+    const btn = document.getElementById('ppSaveBtn');
+    btn.disabled = true; btn.textContent = '保存中…';
+    const items = dirty.map(it => {
+      const isM = it.gran === 'M';
+      const monthly = {};
+      if (isM) for (let m = 1; m <= 12; m++) {
+        const v = it.monthly_targets[String(m)];
+        if (v != null && v !== '') monthly[String(m)] = parseFloat(v) || 0;
+      }
+      return {
+        item_code: it.item_code,
+        enabled: true,
+        annual_target: (it.annual_target == null || it.annual_target === '') ? null : parseFloat(it.annual_target),
+        enable_quarterly: !isM && [1,2,3,4].some(q => it['q'+q+'_target'] != null && it['q'+q+'_target'] !== ''),
+        q1_target: !isM ? (it.q1_target ?? null) : null,
+        q2_target: !isM ? (it.q2_target ?? null) : null,
+        q3_target: !isM ? (it.q3_target ?? null) : null,
+        q4_target: !isM ? (it.q4_target ?? null) : null,
+        enable_monthly: isM && Object.keys(monthly).length > 0,
+        monthly_targets: (isM && Object.keys(monthly).length) ? monthly : null,
+      };
+    });
+    try {
+      const d = await (await fetch('/performance/config/api/users/targets/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ user_ids: [_userId], year: parseInt(yearSel.value), items }),
+      })).json();
+      if (d.success) { ATToast.success(`已写入 ${items.length} 项个人覆盖`); ppLoad(); }
+      else ATToast.error(d.message || '保存失败');
+    } catch (e) { ATToast.error('保存失败,请重试'); }
+    btn.disabled = false; btn.textContent = '保存覆盖';
+  };
+
+  if (USERS.length) ppSelect(USERS[0].id);
+</script>
+{% endblock %}

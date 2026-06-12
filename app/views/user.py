@@ -2920,3 +2920,143 @@ def api_claude_ai_send_dxt(user_id):
     except Exception as e:
         logger.exception(f'send_dxt error user={user_id}: {e}')
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════
+# AT 个人配置(账户详情 · 个人级配置中心)
+# 划界:配置管理=角色默认/系统规则;此处=个人覆盖(目标/预算/权限)与归属
+# ═══════════════════════════════════════════════════════════
+
+@user_bp.route('/at-config/performance')
+@login_required
+def at_person_performance():
+    """AT 个人配置 · 绩效目标(个人覆盖,优先于角色默认)。
+    复用 performance_config 的 users/targets/batch(只提交变更项=未动的保持继承)。"""
+    if not (current_user.has_permission('user_management', 'view')
+            or current_user.has_permission('config_management', 'view')):
+        from flask import abort
+        abort(403)
+
+    from app.services.role_kpi_schemes import get_role_scheme
+    users = User.query.filter(User._is_active.is_(True)).order_by(User.department, User.real_name).all()
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'has_scheme': bool(get_role_scheme(u.role)),
+    } for u in users]
+
+    return render_template('user/at_person_performance.html',
+                           users_data=users_data,
+                           current_year=datetime.now().year,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+@user_bp.route('/at-config/permissions')
+@login_required
+def at_person_permissions():
+    """AT 个人配置 · 权限覆盖。
+    语义:有个人 Permission 行的模块=整模块覆盖(含显式拒绝),无行=继承角色默认;
+    保存走 overrides 端点(只写覆盖集,不补显式拒绝行),行级「↺ 继承」删单模块行。"""
+    if not (current_user.has_permission('user_management', 'view')
+            or current_user.has_permission('config_management', 'view')):
+        from flask import abort
+        abort(403)
+
+    users = User.query.filter(User._is_active.is_(True)).order_by(User.department, User.real_name).all()
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+    } for u in users]
+
+    return render_template('user/at_person_permissions.html',
+                           users_data=users_data,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+@user_bp.route('/at-config/budget')
+@login_required
+def at_person_budget():
+    """AT 个人配置 · 费用预算(挂部门预算之下:个人 ≤ 部门待分配,部门明细强制保留)。
+    企业隔离:非 admin 只列/只配本公司用户。"""
+    if not (current_user.has_permission('user_management', 'view')
+            or current_user.has_permission('config_management', 'view')):
+        from flask import abort
+        abort(403)
+
+    from app.models.expense import EXPENSE_CATEGORIES
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+    } for u in users]
+    # 公司清单:先选公司再选人;admin=全部公司,非 admin=本公司;
+    # 访问者所属公司(厂商)排最前 = admin 进入时的默认上下文
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+
+    currency_code = get_default_currency()
+    return render_template('user/at_person_budget.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=current_user.company_name or '',
+                           is_admin=is_admin,
+                           expense_categories=[{'code': c, 'name': n} for c, n in EXPENSE_CATEGORIES],
+                           currency_code=currency_code,
+                           currency_symbol=get_currency_symbol(currency_code),
+                           current_year=datetime.now().year,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+@user_bp.route('/at-config/affiliation')
+@login_required
+def at_person_affiliation():
+    """AT 个人配置 · 归属关系(该用户作为 viewer 可查看哪些 owner 的数据)。
+    复用 /user/api/get_selected_users 与 /user/api/save_affiliations(整包替换)。
+    企业隔离:非 admin 只列/只配本公司用户。"""
+    if not (current_user.has_permission('user_management', 'view')
+            or current_user.has_permission('config_management', 'view')):
+        from flask import abort
+        abort(403)
+
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+        'is_dept_manager': bool(u.is_department_manager),
+    } for u in users]
+    # 访问者所属公司(厂商)排最前 = admin 进入时的默认上下文
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+
+    return render_template('user/at_person_affiliation.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=current_user.company_name or '',
+                           is_admin=is_admin,
+                           can_edit=(is_admin or current_user.has_permission('user_management', 'edit')))
+
+

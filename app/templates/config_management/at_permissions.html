@@ -2,38 +2,10 @@
 {% set cfg_active = 'permissions' %}
 
 {% block config_title %}权限配置 · 角色默认{% endblock %}
-{% block config_desc %}按角色配置模块权限与数据范围,成员默认继承;个人例外在账户详情页覆盖。折扣权限/功能开关等高级项暂在旧版配置管理操作(本页保存不影响它们)。{% endblock %}
+{% block config_desc %}按角色配置模块权限与数据范围,成员默认继承;个人例外在「个人配置 · 权限覆盖」页操作。{% endblock %}
 
 {% block extra_head %}
-<style>
-  /* 紧凑权限矩阵 */
-  .pm-sheet td, .pm-sheet th { padding:4px 8px; }
-  .pm-sheet td.cm-name { font-size:12.5px; }
-  .pm-group td { background:var(--bg-sunk); text-align:left; font-size:10.5px; font-weight:500;
-                 color:var(--ink-3); letter-spacing:0.08em; padding:5px 10px; }
-  .pm-chk { width:14px; height:14px; accent-color:var(--accent); cursor:pointer; }
-  .pm-chk:disabled { cursor:default; }
-  /* 数据范围分段开关:公用 .at-seg(at-theme.css);本页紧凑微调(前缀对齐公共规则优先级) */
-  .pm-sheet .at-seg { padding:2px; gap:1px; }
-  body.at-page .pm-sheet .at-seg > button { padding:2px 9px; font-size:11px; }
-
-  /* 内容筛选(常驻显示):三列网格 = 标签 | 不限 | 选项流;
-     选项换行对齐选项列起点(不卷到「不限」下);纯文字,选中着色 */
-  .pm-filter-row td { background:var(--bg-sunk); text-align:left; padding:8px 14px 10px; }
-  .pm-flt-grid { display:grid; grid-template-columns:76px 40px 1fr; row-gap:5px; column-gap:10px;
-                 align-items:start; }
-  .pm-flt-label { font-size:11px; color:var(--ink-3); padding-top:1px; text-align:left; }
-  .pm-flt-chips { display:flex; flex-wrap:wrap; gap:2px 14px; }
-  body.at-page .pm-opt { font:inherit; font-size:11px; padding:0; border:0; background:transparent;
-            color:var(--ink-4); cursor:pointer; white-space:nowrap; transition:color 100ms; }
-  body.at-page .pm-opt:hover { color:var(--ink); }
-  body.at-page .pm-opt.on { color:var(--accent); font-weight:600; }
-  /* 折扣上限小数字格(contenteditable) */
-  .pm-num { display:inline-block; min-width:46px; padding:1px 6px; text-align:right;
-            background:var(--bg-page); border:1px solid var(--line-2); border-radius:5px;
-            font-size:11px; color:var(--ink); cursor:cell; }
-  .pm-num:focus { outline:2px solid var(--accent); outline-offset:-2px; background:var(--bg-elev); }
-</style>
+<script src="{{ url_for('static', filename='js/at-perm-sheet.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -54,26 +26,12 @@
     {% endif %}
   </div>
 
-  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
-    <table class="cm-sheet pm-sheet" style="min-width:680px;">
-      <thead>
-        <tr>
-          <th style="width:220px;text-align:left;">模块</th>
-          <th style="width:56px;">查看</th>
-          <th style="width:56px;">新建</th>
-          <th style="width:56px;">编辑</th>
-          <th style="width:56px;">删除</th>
-          <th style="width:178px;">数据范围</th>
-        </tr>
-      </thead>
-      <tbody id="pmTbody">
-        <tr><td colspan="6" class="at-dim" style="padding:26px;">请选择角色…</td></tr>
-      </tbody>
-    </table>
+  <div id="pmSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择角色…</div>
   </div>
   <div class="at-dim" style="font-size:11px;margin-top:8px;">
     ⓘ 数据范围:个人/部门/公司/系统;勾掉「查看」即整模块不可见;
-    内容筛选(支持的模块):点「展开」按值圈定可见内容,全选或全不选 = 不限。
+    内容筛选(支持的模块):按值圈定可见内容,「不限」= 不过滤;矩阵与个人权限覆盖页共用同一组件。
   </div>
 {% endblock %}
 
@@ -81,14 +39,22 @@
 <script>
   const ROLES = {{ roles_data | tojson }};
   const CAN_EDIT = {{ can_edit | tojson }};
-  const LEVELS = [['personal','个人'],['department','部门'],['company','公司'],['system','系统']];
-  // 天然只读模块(报表/操作型,业务上没有"新建/编辑/删除"概念):不渲染动作勾选,保存强制 false
-  const VIEW_ONLY_MODULES = ['product_analysis', 'change_history', 'approval', 'notification', 'cli_agent', 'backup'];
   const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 
-  let _roleCode = null, _modules = [], _perms = {}, _featurePerms = {};
-  let _filterOptions = {};   // 内容筛选选项字典
+  let _roleCode = null;
+
+  // 公用权限矩阵组件(与「个人配置·权限覆盖」同源;role 模式=无继承列)
+  const sheet = ATPermSheet({
+    container: 'pmSheet',
+    canEdit: CAN_EDIT,
+    mode: 'role',
+    onChange: updateSub,
+  });
+  function updateSub() {
+    document.getElementById('pmSub').textContent =
+      `已授权 ${sheet.countGranted()} / ${sheet.moduleCount()} 个模块`;
+  }
 
   function renderRoleMenu() {
     document.getElementById('pmRoleMenu').innerHTML = ROLES.map(r => `
@@ -116,220 +82,36 @@
     pmLoad();
   };
 
-  // 取/建某模块权限对象(保留 API 回传的全部字段,保存时原样回传防丢失)
-  function permOf(mid) {
-    if (!_perms[mid]) _perms[mid] = { module: mid, can_view: false, can_create: false,
-      can_edit: false, can_delete: false, can_change_owner: false, can_export_email: false,
-      permission_level: 'personal' };
-    return _perms[mid];
-  }
-
   window.pmLoad = async function () {
     if (!_roleCode) return;
     const r = ROLES.find(x => x.role === _roleCode);
     document.getElementById('pmRoleName').textContent = r ? r.display : _roleCode;
-    document.getElementById('pmTbody').innerHTML = '<tr><td colspan="6" class="at-dim" style="padding:26px;">加载中…</td></tr>';
     try {
       const d = await (await fetch(`/config-management/api/role-permissions/${_roleCode}`,
                                    { headers: { 'X-CSRFToken': _csrf() } })).json();
       if (!d.success) throw new Error(d.message || '加载失败');
-      _modules = d.data.modules || [];
-      _perms = d.data.permissions || {};
-      _featurePerms = d.data.feature_permissions || {};
-      _filterOptions = d.data.content_filter_options || {};
-      renderMatrix();
+      sheet.setData({
+        modules: d.data.modules || [],
+        permissions: d.data.permissions || {},          // 整包持有,保存原样回传防丢字段
+        featurePermissions: d.data.feature_permissions || {},
+        filterOptions: d.data.content_filter_options || {},
+      });
+      updateSub();
     } catch (e) {
-      document.getElementById('pmTbody').innerHTML = `<tr><td colspan="6" style="padding:24px;color:var(--danger);">${esc(e.message)}</td></tr>`;
+      document.getElementById('pmSheet').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
     }
-  };
-
-  function renderMatrix() {
-    if (!_modules.length) {
-      document.getElementById('pmTbody').innerHTML = '<tr><td colspan="6" class="at-dim" style="padding:26px;">无模块数据</td></tr>';
-      return;
-    }
-    const dis = CAN_EDIT ? '' : 'disabled';
-    let html = '', lastGroup = null, granted = 0;
-    _modules.forEach(m => {
-      const p = permOf(m.id);
-      if (p.can_view) granted++;
-      const group = m.group || '其他';
-      if (group !== lastGroup) {
-        html += `<tr class="pm-group"><td colspan="6">${esc(group)}</td></tr>`;
-        lastGroup = group;
-      }
-      const viewOnly = VIEW_ONLY_MODULES.includes(m.id);
-      const chk = (field) => (viewOnly && field !== 'can_view')
-        ? `<td class="at-dim" title="该模块为只读/操作型,无此动作">—</td>`
-        : `<td><input type="checkbox" class="pm-chk" ${p[field] ? 'checked' : ''} ${dis}
-                   onchange="pmSet('${m.id}','${field}',this.checked)"></td>`;
-      // 以筛选选项字典为唯一事实来源(模块表 supports_content_filter 标志滞后,不作依据)
-      const fOpts = _filterOptions[m.id];
-      const supportsFilter = !!fOpts;
-      html += `
-      <tr class="${p.can_view ? '' : 'cm-disabled'}">
-        <td class="cm-name" title="${esc(m.description || '')}">${esc(m.name)}</td>
-        ${chk('can_view')}${chk('can_create')}${chk('can_edit')}${chk('can_delete')}
-        <td>
-          <span class="at-seg${(!p.can_view || !CAN_EDIT) ? ' at-seg-off' : ''}">
-            ${LEVELS.map(([v, l]) => `<button type="button" class="${p.permission_level === v ? 'on' : ''}"
-                onclick="pmSet('${m.id}','permission_level','${v}')">${l}</button>`).join('')}
-          </span>
-        </td>
-      </tr>`;
-      // 扩展区(模块行下常驻):内容筛选 / 功能页签 / 更多权限 / 折扣权限,统一网格对齐
-      const features = Array.isArray(m.features) ? m.features : [];
-      const hasExtra = m.supports_owner_change || m.supports_export_email;
-      // 折扣 UI:批价单行配批价折扣;结算单(settlement)行配结算折扣
-      // (结算折扣按消费方口径存 settlement_order 行——该 id 的模块已停用不进矩阵,跨行写入)
-      const hasDiscount = (m.id === 'pricing_order' && m.supports_discount) || m.id === 'settlement';
-      if (supportsFilter || features.length || hasExtra || hasDiscount) {
-        const cf = p.content_filter || {};
-        let groupsHtml = '';
-        // 1) 内容筛选(「不限」=键缺省)
-        if (supportsFilter) Object.keys(fOpts).forEach(fk => {
-          const def = fOpts[fk];
-          if (!def || !Array.isArray(def.options)) return;   // 防御:join_config 等特殊结构
-          const selected = Array.isArray(cf[fk]) ? cf[fk] : null;   // null=不限
-          groupsHtml += `
-            <span class="pm-flt-label">${esc(def.label)}</span>
-            <button type="button" class="pm-opt${selected === null ? ' on' : ''}" ${CAN_EDIT ? '' : 'disabled'}
-                    style="justify-self:start;"
-                    onclick="pmFilterAll('${m.id}','${fk}')">不限</button>
-            <span class="pm-flt-chips">
-              ${def.options.map(([k, l]) => `
-                <button type="button" class="pm-opt${selected && selected.includes(k) ? ' on' : ''}" ${CAN_EDIT ? '' : 'disabled'}
-                        onclick="pmFilterToggle('${m.id}','${fk}','${k}')">${esc(l)}</button>`).join('')}
-            </span>`;
-        });
-        // 2) 功能页签(模块内部 tab 可见性;缺省=可见)
-        if (features.length) {
-          groupsHtml += `
-            <span class="pm-flt-label">功能页签</span>
-            <span></span>
-            <span class="pm-flt-chips">
-              ${features.map(f => `
-                <button type="button" class="pm-opt${featOn(m.id, f.feature_id) ? ' on' : ''}" ${CAN_EDIT ? '' : 'disabled'}
-                        title="点亮=该页签对此角色可见"
-                        onclick="pmFeatToggle('${m.id}','${f.feature_id}')">${esc(f.name)}</button>`).join('')}
-            </span>`;
-        }
-        // 3) 更多权限(改归属人/邮件导出)
-        if (hasExtra) {
-          groupsHtml += `
-            <span class="pm-flt-label">更多权限</span>
-            <span></span>
-            <span class="pm-flt-chips">
-              ${m.supports_owner_change ? `
-                <button type="button" class="pm-opt${p.can_change_owner ? ' on' : ''}" ${CAN_EDIT ? '' : 'disabled'}
-                        onclick="pmBool('${m.id}','can_change_owner')">改归属人</button>` : ''}
-              ${m.supports_export_email ? `
-                <button type="button" class="pm-opt${p.can_export_email ? ' on' : ''}" ${CAN_EDIT ? '' : 'disabled'}
-                        onclick="pmBool('${m.id}','can_export_email')">邮件导出</button>` : ''}
-            </span>`;
-        }
-        // 4) 折扣权限:各模块行下配各自下限(结算折扣值存 settlement_order 行,跨行读写)
-        //    仅当该模块同时具备「新建+编辑」权限时折扣才有效,否则锁定置灰
-        if (hasDiscount) {
-          const isSettle = m.id === 'settlement';
-          const storeMid = isSettle ? 'settlement_order' : 'pricing_order';
-          const dField = isSettle ? 'settlement_discount_limit' : 'pricing_discount_limit';
-          const dVal = permOf(storeMid)[dField];
-          const canSet = CAN_EDIT && p.can_create && p.can_edit;
-          groupsHtml += `
-            <span class="pm-flt-label">折扣权限</span>
-            <span></span>
-            <span class="pm-flt-chips" style="align-items:center;gap:6px;${canSet ? '' : 'opacity:0.45;'}"
-                  ${canSet ? '' : 'title="需先勾选该模块的「新建」和「编辑」权限,折扣下限才有效"'}>
-              <span class="at-dim" style="font-size:11px;">${isSettle ? '结算折扣下限' : '批价折扣下限'}</span>
-              <span class="pm-num" ${canSet ? 'contenteditable spellcheck="false"' : 'style="cursor:not-allowed;"'}
-                    onblur="pmNum(this,'${storeMid}','${dField}')">${dVal != null ? dVal : ''}</span>
-              <span class="at-dim" style="font-size:11px;">%(留空=不限)</span>
-            </span>`;
-        }
-        html += `<tr class="pm-filter-row${p.can_view ? '' : ' cm-disabled'}"><td colspan="6">
-                   <div class="pm-flt-grid">${groupsHtml}</div>
-                 </td></tr>`;
-      }
-    });
-    document.getElementById('pmTbody').innerHTML = html;
-    document.getElementById('pmSub').textContent = `已授权 ${granted} / ${_modules.length} 个模块`;
-  }
-
-  // 功能页签开关:缺省(未配置)= 可见
-  function featOn(mid, fid) {
-    const mp = _featurePerms[mid];
-    return !mp || mp[fid] === undefined ? true : !!mp[fid];
-  }
-  window.pmFeatToggle = function (mid, fid) {
-    if (!_featurePerms[mid]) _featurePerms[mid] = {};
-    _featurePerms[mid][fid] = !featOn(mid, fid);   // 显式落值(关闭需要显式 false)
-    renderMatrix();
-  };
-
-  // 布尔扩展权限(改归属人/邮件导出)
-  window.pmBool = function (mid, field) {
-    const p = permOf(mid);
-    p[field] = !p[field];
-    renderMatrix();
-  };
-
-  // 折扣上限(数字,空=不限)
-  window.pmNum = function (el, mid, field) {
-    const raw = (el.textContent || '').replace(/[%\s,]/g, '');
-    permOf(mid)[field] = raw === '' ? null : (parseFloat(raw) || 0);
-    renderMatrix();
-  };
-
-  // 内容筛选:「不限」= 删除该键(不过滤)
-  window.pmFilterAll = function (mid, fk) {
-    const p = permOf(mid);
-    if (p.content_filter) { delete p.content_filter[fk];
-      if (!Object.keys(p.content_filter).length) p.content_filter = null; }
-    renderMatrix();
-  };
-  // 内容筛选:选项切换;全选保持显式清单(全亮,与旧配置数据一致);
-  // 仅清空(一个不选)→ 回到「不限」(选零个=看不到任何内容,无意义)
-  window.pmFilterToggle = function (mid, fk, key) {
-    const p = permOf(mid);
-    let list = (p.content_filter && Array.isArray(p.content_filter[fk]))
-      ? [...p.content_filter[fk]] : [];
-    const idx = list.indexOf(key);
-    if (idx >= 0) list.splice(idx, 1); else list.push(key);
-    if (!p.content_filter) p.content_filter = {};
-    if (!list.length) delete p.content_filter[fk];
-    else p.content_filter[fk] = list;
-    if (!Object.keys(p.content_filter).length) p.content_filter = null;
-    renderMatrix();
-  };
-
-  window.pmSet = function (mid, field, value) {
-    const p = permOf(mid);
-    p[field] = value;
-    // 勾掉查看 → 连带关闭增删改(无查看则其余无意义);勾任意操作 → 自动带上查看
-    if (field === 'can_view' && !value) {
-      p.can_create = p.can_edit = p.can_delete = false;
-    }
-    if (field !== 'can_view' && field !== 'permission_level' && value && !p.can_view) {
-      p.can_view = true;
-    }
-    renderMatrix();
   };
 
   window.pmSave = async function () {
     const btn = document.getElementById('pmSaveBtn');
     btn.disabled = true; btn.textContent = '保存中…';
-    // 只读/操作型模块:动作权限强制 false(顺带清理历史脏数据)
-    VIEW_ONLY_MODULES.forEach(mid => {
-      const p = _perms[mid];
-      if (p) { p.can_create = false; p.can_edit = false; p.can_delete = false; }
-    });
     try {
-      // 整包回传:_perms 含 API 加载的全部字段(折扣/内容过滤/CLI 原样保留)
       const r = await fetch(`/config-management/api/role-permissions/${_roleCode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
-        body: JSON.stringify({ permissions: _perms, feature_permissions: _featurePerms }),
+        body: JSON.stringify({ permissions: sheet.getPermissions(),
+                               feature_permissions: sheet.getFeaturePermissions() }),
       });
       const d = await r.json();
       if (d.success) { ATToast.success('角色权限已保存'); pmLoad(); }

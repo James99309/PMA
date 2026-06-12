@@ -20,6 +20,9 @@
 
 | 工具文件 | 功能描述 | 使用场景 | 已用页面数 | 状态 |
 |---------|---------|---------|-----------|------|
+| at-target-sheet.js | AT 目标表格组件(Excel式,季/月分摊) | 角色绩效目标/个人目标覆盖等目标配置表 | 2 | ✅ 已文档化 🆕 |
+| at-perm-sheet.js | AT 权限矩阵组件(CRUD+数据范围+内容筛选+折扣) | 角色默认权限/个人权限覆盖配置页 | 2 | ✅ 已文档化 🆕 |
+| at-budget-sheet.js | AT 预算表组件(总额+科目chips+权重%+部门上限) | 部门预算/个人预算配置页 | 2 | ✅ 已文档化 🆕 |
 | trigger-dropdown.js | 触发式下拉搜索组件 | @提及用户、#引用项目等触发式搜索 | 1 | ✅ 已文档化 🆕 |
 | drag-sort.js | 轻量级拖拽排序工具 | 简单列表拖拽排序（无需依赖） | 1 | ✅ 已文档化 🆕 |
 | sortable-list.js | 通用拖拽排序组件 | 任何需要列表拖拽排序的页面 | 2 | ✅ 已文档化 |
@@ -3640,3 +3643,74 @@ QualityScorePopover.render('score-badge', scoreData, { position: 'right' });
 **版本**: 3.1.0
 **最后更新**: 2026-02-03
 **维护者**: Claude AI
+
+
+#### at-target-sheet.js
+
+**基本信息**
+- **文件路径**: `app/static/js/at-target-sheet.js`
+- **功能描述**: AT 风格 Excel 式目标表格组件:两级动态表头(任一行月考才展开 1-12 月)、季/月粒度切换(数量金额精确切割/比率%水平复制)、年度自动均分(季优先+末位吃余数)、周期调剂封顶、↑/↓ 步进、权重余量制(可选)、dirty 跟踪、个人模式行尾「↺ 继承」。
+- **使用场景**: 任何"按项目行 × 年/季/月列"的目标/额度配置表。
+
+**已使用页面**
+1. `config_management/at_performance.html` — 配置管理·角色绩效目标(weightEditable+showDesc)
+2. `user/at_person_performance.html` — 个人配置·绩效目标覆盖(mode='person',行尾继承)
+
+**API**
+```javascript
+const sheet = ATTargetSheet({ container, canEdit, mode:'role'|'person',
+                              weightEditable, showDesc, onChange(), onRevert(item) });
+sheet.setItems(items); sheet.getItems(); sheet.getDirty(); sheet.weightSum(); sheet.render();
+```
+item 形状:`{item_code,item_name,unit,locked,weight,annual_target,q1..q4_target,enable_quarterly,enable_monthly,monthly_targets{},overridden?,description?}`(组件内部追加 `gran`/`_dirty`)。
+
+**创建日期**: 2026-06-12
+
+
+#### at-perm-sheet.js
+
+**基本信息**
+- **文件路径**: `app/static/js/at-perm-sheet.js`
+- **功能描述**: AT 风格权限矩阵组件:模块分组行、查看/新建/编辑/删除联动(去查看清动作、勾动作带查看)、数据范围 `.at-seg` 分段开关、扩展区(内容筛选 标签|不限|纯文字选项 / 功能页签(仅 role) / 更多权限 / 批价+结算折扣下限,需新建+编辑才可设)、只读型模块(VIEW_ONLY_MODULES)动作渲染 — 并在保存强制 false。组件样式自注入(`#atPermSheetCSS`),使用页零 CSS。person 模式:行尾「↺ 继承」(已覆盖或有改动时出现)、dirty 行首黄条。
+- **使用场景**: 任何"模块 × 权限动作"的矩阵配置面。
+
+**已使用页面**
+1. `config_management/at_permissions.html` — 配置管理·角色默认权限(mode='role')
+2. `user/at_person_permissions.html` — 个人配置·权限覆盖(mode='person',行级继承)
+
+**API**
+```javascript
+const sheet = ATPermSheet({ container, canEdit, mode:'role'|'person',
+                            onChange(), onRevert(moduleId) });
+sheet.setData({ modules, permissions, featurePermissions, filterOptions, overridden });
+sheet.getPermissions(); sheet.getFeaturePermissions(); sheet.getDirty();
+sheet.isOverridden(mid); sheet.countGranted(); sheet.moduleCount();
+```
+- `permissions` 形状 = 角色 API 整包(组件原样持有,保存原样回传防丢字段);`overridden`(person)= `{module_id:true}`。
+- **个人覆盖语义**(配套后端,config_management.py):有个人 Permission 行的模块=整模块覆盖(含显式拒绝),无行=继承角色默认。专用端点 `POST /config-management/api/users/<id>/permissions/overrides`(只写覆盖集,**不补** none 拒绝行——区别于旧 batch-save)、`POST .../permissions/<module>/revert`(删单模块行=行级继承)、`POST .../permissions/reset`(清空全部覆盖)。
+
+**创建日期**: 2026-06-12
+
+
+#### at-budget-sheet.js
+
+**基本信息**
+- **文件路径**: `app/static/js/at-budget-sheet.js`(依赖 at-target-sheet.js)
+- **功能描述**: AT 预算表组件(ATTargetSheet 的预算包装):总额行 + 报销科目细分(chips 增删,样式自注入)、权重%驱动金额(基数行=总额,固定100%)、年/季/月粒度、保存 payload 映射、余量/上限统计。person 模式:部门上限约束(个人年度 ≤ 部门待分配、明细 ≤ 部门明细可用上限)、部门已单列明细强制锁定、科目行下灰字显示部门额度/他人已用/本人可用上限。
+- **使用场景**: 任何"总盘子 + 报销科目细分"的预算配置面。
+
+**已使用页面**
+1. `config_management/at_expense.html` — 配置管理·部门预算(mode='dept',含企业隔离/公司切换)
+2. `user/at_person_budget.html` — 个人配置·费用预算(mode='person',部门上限)
+
+**API**
+```javascript
+const bs = ATBudgetSheet({ container, chipsContainer, canEdit, currencySymbol,
+                           categories, mode:'dept'|'person', onChange(stats) });
+bs.setData({ items, context });   // context(person): {dept_total, dept_used_others, forced[], cat_caps{}, no_dept_budget}
+bs.getPayloadItems(); bs.stats(); bs.validate();
+```
+- 后端(config_management.py):`/api/department-budgets/<dept_id>`(企业隔离:非 admin 限本公司)、`/api/users/<id>/expense-budget`(校验:强制明细/Σ细分≤总额/个人≤部门待分配/明细≤部门明细上限;非 admin 限本公司用户)。
+- 数据:`department_expense_budgets`(总额+category_budgets JSON+period_budgets JSON),`expense_budgets.category_budgets`(个人,迁移 person_budget_categories_20260612)。
+
+**创建日期**: 2026-06-12

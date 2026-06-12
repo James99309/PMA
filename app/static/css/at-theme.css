@@ -189,3 +189,10 @@ body.at-page .at-seg > button:hover { color:var(--ink); }
 body.at-page .at-seg > button.on { background:var(--bg-elev); color:var(--ink); font-weight:600;
                       box-shadow:0 1px 2px rgba(31,30,27,0.06); }
 .at-seg.at-seg-off { opacity:0.35; pointer-events:none; }
+
+/* ── 行级「恢复继承」图标按钮 ──
+   at-target-sheet / at-perm-sheet 个人覆盖页公用:纯图标(history),title 提示语义。 */
+body.at-page .at-revert-btn { display:inline-flex; align-items:center; justify-content:center;
+                   border:0; background:transparent; padding:3px; border-radius:5px;
+                   cursor:pointer; color:var(--ink-3); line-height:0; transition:all 120ms; }
+body.at-page .at-revert-btn:hover { color:var(--accent); background:var(--bg-hover); }

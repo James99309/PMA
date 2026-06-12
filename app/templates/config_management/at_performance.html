@@ -2,10 +2,13 @@
 {% set cfg_active = 'performance' %}
 
 {% block config_title %}绩效配置 · 角色目标{% endblock %}
-{% block config_desc %}考核项与权重由岗位方案固定;此处设置角色默认目标,成员自动继承,个别差异在账户详情页覆盖。{% endblock %}
+{% block config_desc %}考核项与权重由岗位方案固定;此处设置角色默认目标,成员自动继承,个别差异在「个人配置」覆盖。{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
+{% endblock %}
 
 {% block content %}
-  {# 工具行:角色下拉(标题即选择器) + 余量 + 年份 + 保存 #}
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
     <div style="position:relative;">
       <button type="button" class="cm-role-btn" onclick="cmToggleRoleMenu(event)">
@@ -27,36 +30,12 @@
     {% endif %}
   </div>
 
-  {# 目标表格(整宽) #}
-  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
-    <table class="cm-sheet">
-      <thead>
-        <tr>
-          <th rowspan="2" style="width:170px;text-align:left;">考核项目</th>
-          <th rowspan="2" style="width:48px;">单位</th>
-          <th rowspan="2" style="width:48px;">权重</th>
-          <th rowspan="2" style="width:52px;">季/月</th>
-          <th rowspan="2" style="width:80px;">年度</th>
-          <th colspan="3">1季度</th>
-          <th colspan="3">2季度</th>
-          <th colspan="3">3季度</th>
-          <th colspan="3">4季度</th>
-        </tr>
-        <tr>
-          <th>1月</th><th>2月</th><th>3月</th>
-          <th>4月</th><th>5月</th><th>6月</th>
-          <th>7月</th><th>8月</th><th>9月</th>
-          <th>10月</th><th>11月</th><th>12月</th>
-        </tr>
-      </thead>
-      <tbody id="cmTbody">
-        <tr><td colspan="17" class="at-dim" style="padding:26px;">请选择角色…</td></tr>
-      </tbody>
-    </table>
+  <div id="cmSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择角色…</div>
   </div>
   <div class="at-dim" style="font-size:11px;margin-top:8px;">
-    ⓘ 填年度后自动均分到季/月,可在周期间调剂,合计封顶不超年度(超出自动截断);
-    比率类(%)为水平目标:各期同值可微调、不加总、封顶 100;点「季/月」切换粒度(自动换算)。
+    ⓘ 填年度后自动均分到季/月,可在周期间调剂,合计封顶不超年度;比率类(%)为水平目标;
+    权重可改,余量为 0 时只能调低/挪移;点「季/月」切换粒度(任一行月考时才展开月份表头)。
   </div>
 {% endblock %}
 
@@ -67,14 +46,28 @@
   const CUR_YEAR = {{ current_year }};
   const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
-  const fmt = v => (v == null || v === '') ? '' : (Math.round(v * 100) / 100);
 
-  let _roleCode = null, _items = [];
+  let _roleCode = null;
 
-  // ── 角色下拉 ──
+  // 公用目标表格组件(与「个人配置·绩效目标」同源)
+  const sheet = ATTargetSheet({
+    container: 'cmSheet',
+    canEdit: CAN_EDIT,
+    mode: 'role',
+    weightEditable: true,
+    showDesc: true,
+    onChange: updateWeightRoom,
+  });
+
+  function updateWeightRoom() {
+    const room = Math.round((100 - sheet.weightSum()) * 10) / 10;
+    const wEl = document.getElementById('cmWeightSum');
+    wEl.textContent = `权重余量 ${room}%`;
+    wEl.style.color = room === 0 ? 'var(--success)' : (room < 0 ? 'var(--danger)' : 'var(--ink-3)');
+  }
+
   function renderRoleMenu() {
-    const menu = document.getElementById('cmRoleMenu');
-    menu.innerHTML = ROLES.map(r => `
+    document.getElementById('cmRoleMenu').innerHTML = ROLES.map(r => `
       <div class="cm-role-item${r.role === _roleCode ? ' active' : ''}" onclick="cmSelectRole('${r.role}')">
         <span class="material-symbols-outlined" style="color:var(--accent);">badge</span>
         <span style="flex:1;">${esc(r.display)}</span>
@@ -90,8 +83,8 @@
     menu.style.display = show ? 'block' : 'none';
   };
   document.addEventListener('click', () => {
-    const menu = document.getElementById('cmRoleMenu');
-    if (menu) menu.style.display = 'none';
+    const m = document.getElementById('cmRoleMenu');
+    if (m) m.style.display = 'none';
   });
 
   const yearSel = document.getElementById('cmYear');
@@ -108,250 +101,29 @@
 
   window.cmLoad = async function () {
     if (!_roleCode) return;
-    const year = parseInt(yearSel.value);
     const r = ROLES.find(x => x.role === _roleCode);
     document.getElementById('cmRoleName').textContent = r ? r.display : _roleCode;
     document.getElementById('cmPanelSub').textContent = `角色默认目标 · ${r ? r.count : 0} 名成员继承`;
-    document.getElementById('cmTbody').innerHTML = '<tr><td colspan="17" class="at-dim" style="padding:26px;">加载中…</td></tr>';
     try {
-      const d = await (await fetch(`/performance/config/api/role/${_roleCode}/targets/${year}`,
+      const d = await (await fetch(`/performance/config/api/role/${_roleCode}/targets/${yearSel.value}`,
                                    { headers: { 'X-CSRFToken': _csrf() } })).json();
       if (!d.success) throw new Error(d.message || '加载失败');
-      _items = (d.data.items || []).map(it => {
-        it.monthly_targets = it.monthly_targets || {};
-        it.gran = it.enable_monthly ? 'M' : 'Q';   // 已设月度→月考,否则季考
-        return it;
-      });
-      renderTable();
-    } catch (e) {
-      document.getElementById('cmTbody').innerHTML = `<tr><td colspan="17" style="padding:24px;color:var(--danger);">${esc(e.message)}</td></tr>`;
-    }
-  };
-
-  function qSum(it) { return [1,2,3,4].reduce((s,q) => s + (parseFloat(it['q'+q+'_target']) || 0), 0); }
-  function mSum(it) { let s=0; for (let m=1;m<=12;m++) s += parseFloat(it.monthly_targets[String(m)]) || 0; return s; }
-  function hasQ(it)  { return [1,2,3,4].some(q => it['q'+q+'_target'] != null && it['q'+q+'_target'] !== ''); }
-  function hasM(it)  { for (let m=1;m<=12;m++) if (it.monthly_targets[String(m)] != null && it.monthly_targets[String(m)] !== '') return true; return false; }
-
-  // ── 指标类型:比率类(%)为水平目标——不均分、不加总、各期可微调、封顶 100 ──
-  const isRate = it => (it.unit === '%');
-  const r2 = v => Math.round(v * 100) / 100;
-
-  // 均分切割:把 total 切成 n 份(前 n-1 份向下取 2 位,末份吃余数,合计精确=total)
-  function splitEven(total, n) {
-    const base = Math.floor(total / n * 100) / 100;
-    const arr = Array(n).fill(base);
-    arr[n - 1] = r2(total - base * (n - 1));
-    return arr;
-  }
-
-  // 年度均分预填:仅当当前粒度的周期格全空时执行
-  // 比率→每期同值(水平);数量/金额→季优先切割(年→4季,每季→3月),月↔季往返精确无残渣
-  function prefill(it) {
-    const annual = parseFloat(it.annual_target);
-    if (isNaN(annual) || annual <= 0) return;
-    if (isRate(it)) {
-      if (it.gran === 'M') { if (!hasM(it)) for (let m = 1; m <= 12; m++) it.monthly_targets[String(m)] = annual; }
-      else { if (!hasQ(it)) for (let q = 1; q <= 4; q++) it['q'+q+'_target'] = annual; }
-      return;
-    }
-    const quarters = splitEven(annual, 4);
-    if (it.gran === 'M') {
-      if (hasM(it)) return;
-      quarters.forEach((qv, qi) => {
-        splitEven(qv, 3).forEach((mv, k) => { it.monthly_targets[String(qi * 3 + k + 1)] = mv; });
-      });
-    } else {
-      if (hasQ(it)) return;
-      quarters.forEach((qv, qi) => { it['q'+(qi+1)+'_target'] = qv; });
-    }
-  }
-
-  // 周期格可填上限:比率封顶 100;数量/金额按 "年度 - 其它周期已分" 封顶(调剂语义)
-  function periodCap(it, field) {
-    if (isRate(it)) return 100;
-    const annual = parseFloat(it.annual_target);
-    if (isNaN(annual) || annual <= 0) return Infinity;   // 未设年度则不限
-    let others = 0;
-    if (field[0] === 'q') {
-      for (let q = 1; q <= 4; q++) if ('q'+q !== field) others += parseFloat(it['q'+q+'_target']) || 0;
-    } else {
-      const cur = field.slice(1);
-      for (let m = 1; m <= 12; m++) if (String(m) !== cur) others += parseFloat(it.monthly_targets[String(m)]) || 0;
-    }
-    return Math.max(0, r2(annual - others));
-  }
-
-  // 粒度切换:季↔月(自动换算,不丢已填值)
-  // 数量/金额:季→月精确切割、月→季合计;比率:水平复制(季值→3 个月同值、月→季取均值)
-  window.cmGran = function (i) {
-    const it = _items[i];
-    const g = it.gran === 'Q' ? 'M' : 'Q';
-    const rate = isRate(it);
-    if (g === 'M' && hasQ(it)) {
-      for (let q = 1; q <= 4; q++) {
-        const v = parseFloat(it['q'+q+'_target']);
-        if (!isNaN(v)) {
-          if (rate) { for (let k = 0; k < 3; k++) it.monthly_targets[String((q-1)*3 + k + 1)] = v; }
-          else splitEven(v, 3).forEach((mv, k) => { it.monthly_targets[String((q-1)*3 + k + 1)] = mv; });
-        }
-      }
-    }
-    if (g === 'Q' && hasM(it)) {
-      for (let q = 1; q <= 4; q++) {
-        let s = 0, n = 0;
-        for (let k = 0; k < 3; k++) {
-          const v = parseFloat(it.monthly_targets[String((q-1)*3 + k + 1)]);
-          if (!isNaN(v)) { s += v; n++; }
-        }
-        it['q'+q+'_target'] = n ? r2(rate ? s / n : s) : null;
-      }
-    }
-    it.gran = g;
-    prefill(it);   // 切换后若周期全空且已设年度 → 自动预填
-    renderTable();
-  };
-
-  // 键盘:↑/↓ 步进 1,Enter 提交;权重按余量封顶,周期格按年度余量/100 封顶,实时联动
-  window.cmKey = function (e, i, field) {
-    if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); return; }
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-    e.preventDefault();
-    const raw = (e.target.textContent || '').replace(/[,%\s]/g, '');
-    let v = (raw === '' ? 0 : (parseFloat(raw) || 0)) + (e.key === 'ArrowUp' ? 1 : -1);
-    if (v < 0) v = 0;
-    const it = i != null ? _items[i] : null;
-    if (field === 'weight') {              // 权重:余量封顶,实时联动
-      const others = weightSum() - (it.enabled ? (parseFloat(it.weight) || 0) : 0);
-      const cap = r2(100 - others);
-      if (v > cap) v = cap;
-      it.weight = v;
+      sheet.setItems(d.data.items || []);
       updateWeightRoom();
-      e.target.textContent = v + '%';
-      return;
+    } catch (e) {
+      document.getElementById('cmSheet').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
     }
-    if (it && field && field !== 'annual') {   // 周期格:封顶(调剂不超年度/比率≤100)
-      const cap = periodCap(it, field);
-      if (v > cap) v = cap;
-    }
-    e.target.textContent = r2(v);
   };
-
-  // 单元格编辑:field='annual' | 'weight' | 'q1'..'q4' | 'm1'..'m12'
-  window.cmCell = function (el, i, field) {
-    const raw = (el.textContent || '').replace(/[,%\s]/g, '');
-    const v = raw === '' ? null : (parseFloat(raw) || 0);
-    const it = _items[i];
-    if (field === 'annual') {
-      it.annual_target = v;
-      prefill(it);                          // 周期格全空时自动均分/同值预填
-    }
-    else if (field === 'weight') {
-      const others = weightSum() - (it.enabled ? (parseFloat(it.weight) || 0) : 0);
-      const room = r2(100 - others);
-      if (v != null && it.enabled && v > room + 0.0001) {
-        ATToast.error(`权重余量不足:仅剩 ${room}% 可分配`);
-        renderTable();
-        return;
-      }
-      it.weight = v;
-    }
-    else {                                   // 周期格:封顶校验(超出→截到上限)
-      let nv = v;
-      if (nv != null) {
-        const cap = periodCap(it, field);
-        if (nv > cap + 0.0001) {
-          ATToast.error(isRate(it) ? '比率目标不能超过 100%' : `超出年度余量,已截为 ${cap}`);
-          nv = cap;
-        }
-      }
-      if (field[0] === 'q') it[field + '_target'] = nv;
-      else it.monthly_targets[field.slice(1)] = nv;
-    }
-    renderTable();
-  };
-
-  function weightSum() {
-    return _items.reduce((s, it) => s + (it.enabled ? (parseFloat(it.weight) || 0) : 0), 0);
-  }
-
-  function renderTable() {
-    if (!_items.length) {
-      document.getElementById('cmTbody').innerHTML = '<tr><td colspan="17" class="at-dim" style="padding:26px;">该角色暂无可配置的绩效项目</td></tr>';
-      return;
-    }
-    const ce = CAN_EDIT ? 'contenteditable spellcheck="false"' : '';
-    let html = '';
-    _items.forEach((it, i) => {
-      const annual = parseFloat(it.annual_target) || 0;
-      const isM = it.gran === 'M';
-      const rate = isRate(it);
-      const sum = isM ? mSum(it) : qSum(it);
-      const filled = isM ? hasM(it) : hasQ(it);
-      // 比率为水平目标,不做合计校验
-      const bad = !rate && filled && annual && sum - annual > 0.01;
-      const badCls = bad ? 'cm-bad' : '';
-      // 年度未分配完(周期合计<年度)→ 年度数字置灰提示
-      const underAlloc = !rate && annual > 0 && (annual - sum) > 0.01;
-
-      let cells = '';
-      if (isM) {
-        for (let m = 1; m <= 12; m++) {
-          cells += `<td ${ce} class="${badCls}" onkeydown="cmKey(event,${i},'m${m}')" onblur="cmCell(this,${i},'m${m}')">${fmt(it.monthly_targets[String(m)])}</td>`;
-        }
-      } else {
-        for (let q = 1; q <= 4; q++) {
-          cells += `<td colspan="3" ${ce} class="${badCls}" onkeydown="cmKey(event,${i},'q${q}')" onblur="cmCell(this,${i},'q${q}')">${fmt(it['q'+q+'_target'])}</td>`;
-        }
-      }
-
-      html += `
-      <tr class="${it.enabled ? '' : 'cm-disabled'}">
-        <td class="cm-name">
-          <div style="display:flex;align-items:center;gap:6px;">
-            ${it.locked ? '' : `<input type="checkbox" ${it.enabled ? 'checked' : ''} ${CAN_EDIT ? '' : 'disabled'}
-                 onchange="_items[${i}].enabled=this.checked;renderTable()" style="width:14px;height:14px;flex-shrink:0;">`}
-            <span style="font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;" title="${esc(it.item_name)}">${esc(it.item_name)}</span>
-          </div>
-          ${it.description ? `<div class="at-dim" style="font-size:10.5px;margin-top:2px;line-height:1.4;
-               white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"
-               title="${esc(it.description)}">${esc(it.description)}</div>` : ''}
-        </td>
-        <td class="at-dim" style="font-size:11.5px;">${esc(it.unit || '—')}</td>
-        <td ${CAN_EDIT ? `contenteditable spellcheck="false" onkeydown="cmKey(event,${i},'weight')"` : ''}
-            style="color:var(--accent);font-weight:600;" onblur="cmCell(this,${i},'weight')">${it.weight != null ? it.weight + '%' : ''}</td>
-        <td>${CAN_EDIT
-              ? `<button type="button" class="cm-gran-btn" onclick="cmGran(${i})" title="点击切换考核粒度">${isM ? '月' : '季'}</button>`
-              : `<span class="at-dim" style="font-size:11.5px;">${isM ? '月' : '季'}</span>`}</td>
-        <td ${ce} onkeydown="cmKey(event,${i},'annual')"
-            style="font-weight:500;${underAlloc ? 'color:var(--ink-4);' : ''}"
-            ${underAlloc ? `title="尚有 ${r2(annual - sum)} 未分配到${isM ? '月' : '季'}度"` : ''}
-            onblur="cmCell(this,${i},'annual')">${fmt(it.annual_target)}</td>
-        ${cells}
-      </tr>`;
-    });
-    document.getElementById('cmTbody').innerHTML = html;
-
-    updateWeightRoom();
-  }
-
-  // 权重余量指示(0=分配完毕,绿色;有余量=灰色提示)
-  function updateWeightRoom() {
-    const room = Math.round((100 - weightSum()) * 10) / 10;
-    const wEl = document.getElementById('cmWeightSum');
-    wEl.textContent = `权重余量 ${room}%`;
-    wEl.style.color = room === 0 ? 'var(--success)' : (room < 0 ? 'var(--danger)' : 'var(--ink-3)');
-  }
 
   window.cmSave = async function () {
-    if (weightSum() > 100.0001) {
-      ATToast.error(`权重余量为负(${Math.round((100 - weightSum()) * 10) / 10}%),请调整后再保存`);
+    if (sheet.weightSum() > 100.0001) {
+      ATToast.error(`权重余量为负,请调整后再保存`);
       return;
     }
     const btn = document.getElementById('cmSaveBtn');
     btn.disabled = true; btn.textContent = '保存中…';
-    const year = parseInt(yearSel.value);
-    const items = _items.map(it => {
+    const items = sheet.getItems().map(it => {
       const isM = it.gran === 'M';
       const monthly = {};
       if (isM) for (let m = 1; m <= 12; m++) {
@@ -360,10 +132,10 @@
       }
       return {
         item_code: it.item_code, item_name: it.item_name, unit: it.unit,
-        enabled: !!it.enabled,
+        enabled: it.enabled !== false,
         weight: (it.weight == null || it.weight === '') ? null : parseFloat(it.weight),
         annual_target: (it.annual_target == null || it.annual_target === '') ? null : parseFloat(it.annual_target),
-        enable_quarterly: !isM && hasQ(it),
+        enable_quarterly: !isM && [1,2,3,4].some(q => it['q'+q+'_target'] != null && it['q'+q+'_target'] !== ''),
         q1_target: !isM ? (it.q1_target ?? null) : null,
         q2_target: !isM ? (it.q2_target ?? null) : null,
         q3_target: !isM ? (it.q3_target ?? null) : null,
@@ -373,7 +145,7 @@
       };
     });
     try {
-      const r = await fetch(`/performance/config/api/role/${_roleCode}/targets/${year}`, {
+      const r = await fetch(`/performance/config/api/role/${_roleCode}/targets/${yearSel.value}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ items }),
@@ -385,7 +157,6 @@
     btn.disabled = false; btn.textContent = '保存';
   };
 
-  // 默认选中第一个角色(人数最多)
   if (ROLES.length) cmSelectRole(ROLES[0].role);
 </script>
 {% endblock %}

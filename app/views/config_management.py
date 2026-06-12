@@ -271,12 +271,302 @@ def at_permissions():
 @config_management_bp.route('/at/expense')
 @login_required
 def at_expense():
-    """AT 配置管理 · 费用预算(角色年度预算+明细限制)。复用 /api/role/<role>/budget。"""
+    """AT 配置管理 · 部门预算(年度总额 + 动态细分科目,科目限报销 EXPENSE_CATEGORIES)。"""
     if not current_user.has_permission('config_management', 'view'):
         abort(403)
+    from app.models.expense import Department, EXPENSE_CATEGORIES
+    from app.models.user import User
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+
+    # 企业隔离:非 admin 锁定本公司(只见/只配本公司部门);admin 可在公司间切换
+    is_admin = current_user.role == 'admin'
+    user_company = current_user.company_name or ''
+    q = Department.query.filter(Department.is_active.is_(True))
+    if not is_admin:
+        q = q.filter(Department.company_name == user_company)
+    depts = q.order_by(Department.company_name, Department.id).all()
+
+    member_counts = dict(db.session.query(User.department, db.func.count(User.id))
+                         .filter(User._is_active.is_(True)).group_by(User.department).all())
+    departments_data = [{
+        'id': d.id,
+        'name': d.name,
+        'company': d.company_name or '',
+        'manager': (d.manager.real_name or d.manager.username) if d.manager else '',
+        'count': member_counts.get(d.name, 0),
+    } for d in depts]
+    if is_admin:
+        # admin 可切换的公司全集 = 在职用户的公司 ∪ 已有部门的公司(没部门的切过去提示先建)
+        user_companies = {c for (c,) in db.session.query(User.company_name)
+                          .filter(User._is_active.is_(True), User.company_name.isnot(None),
+                                  User.company_name != '').distinct().all()}
+        companies = sorted(user_companies | {d['company'] for d in departments_data if d['company']})
+        # 排序:访问者公司(厂商)最前 → 有部门的 → 其余;= admin 进入时默认上下文
+        companies.sort(key=lambda c: (c != user_company,
+                                      0 if any(d['company'] == c for d in departments_data) else 1, c))
+    else:
+        companies = sorted({d['company'] for d in departments_data if d['company']})
+
+    currency_code = get_default_currency()   # 与数据库环境一致(sp8d=CNY / ovs=USD)
     return render_template('config_management/at_expense.html',
-                           roles_data=_at_roles_data(),
+                           departments_data=departments_data,
+                           companies=companies,
+                           user_company=user_company,
+                           is_admin=is_admin,
+                           expense_categories=[{'code': c, 'name': n} for c, n in EXPENSE_CATEGORIES],
+                           currency_code=currency_code,
+                           currency_symbol=get_currency_symbol(currency_code),
                            current_year=datetime.now().year,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+def _budget_to_item(code, name, annual, pb, unit, locked=False):
+    """预算行 → ATBudgetSheet item 形状(部门/个人预算 API 共用)"""
+    it = {'item_code': code, 'item_name': name, 'unit': unit, 'locked': locked,
+          'annual_target': float(annual or 0),
+          'q1_target': None, 'q2_target': None, 'q3_target': None, 'q4_target': None,
+          'enable_quarterly': False, 'enable_monthly': False, 'monthly_targets': {}}
+    p = (pb or {}).get(code) or {}
+    periods = p.get('periods') or {}
+    if p.get('gran') == 'M':
+        it['enable_monthly'] = True
+        it['monthly_targets'] = {str(m): periods.get(str(m)) for m in range(1, 13)
+                                 if periods.get(str(m)) is not None}
+    elif p.get('gran') == 'Q':
+        it['enable_quarterly'] = True
+        for q in range(1, 5):
+            it[f'q{q}_target'] = periods.get(str(q))
+    return it
+
+
+def _items_to_budget(items, cat_names):
+    """payload items → (total, cats, period_budgets);科目键校验由调用方做"""
+    total, cats, pb = 0.0, {}, {}
+    for it in items:
+        code = it.get('item_code')
+        annual = float(it.get('annual_target') or 0)
+        if code == 'total':
+            total = annual
+        else:
+            cats[code] = annual
+        if it.get('enable_monthly') and it.get('monthly_targets'):
+            pb[code] = {'gran': 'M', 'periods': {str(k): float(v) for k, v in it['monthly_targets'].items()
+                                                 if v is not None and v != ''}}
+        elif it.get('enable_quarterly'):
+            qs = {str(q): float(it.get(f'q{q}_target')) for q in range(1, 5)
+                  if it.get(f'q{q}_target') is not None and it.get(f'q{q}_target') != ''}
+            if qs:
+                pb[code] = {'gran': 'Q', 'periods': qs}
+    return total, cats, pb
+
+
+@config_management_bp.route('/api/department-budgets/<int:dept_id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('config_management', 'view')
+def api_department_budget(dept_id):
+    """部门预算读写。items 形状对齐 ATTargetSheet(item_code='total' 为总额行,其余为报销科目行)。
+
+    保存为整包替换:payload 没有的科目即被移除;科目键必须 ∈ EXPENSE_CATEGORIES。
+    """
+    try:
+        from app.models.expense import Department, EXPENSE_CATEGORIES
+        from app.models.expense_budget import DepartmentExpenseBudget
+
+        dept = Department.query.get(dept_id)
+        if not dept:
+            return jsonify({'success': False, 'message': '部门不存在'}), 404
+        # 企业隔离:非 admin 只能读写本公司部门的预算
+        if current_user.role != 'admin' and (dept.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权操作其他公司的部门预算'}), 403
+        cat_names = dict(EXPENSE_CATEGORIES)
+        from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+        unit = get_currency_symbol(get_default_currency())   # 货币随数据库环境(sp8d=¥ / ovs=$)
+
+        def to_item(code, name, annual, pb, locked=False):
+            return _budget_to_item(code, name, annual, pb, unit, locked)
+
+        if request.method == 'GET':
+            year = request.args.get('year', datetime.now().year, type=int)
+            b = DepartmentExpenseBudget.query.filter_by(department_id=dept_id, year=year).first()
+            cats = (b.category_budgets if b else None) or {}
+            pb = (b.period_budgets if b else None) or {}
+            items = [to_item('total', '年度总额', b.total_budget if b else 0, pb, locked=True)]
+            # 细分行按报销科目定义顺序输出
+            for code, name in EXPENSE_CATEGORIES:
+                if code in cats:
+                    items.append(to_item(code, name, cats[code], pb))
+            return jsonify({'success': True, 'data': {'department_id': dept_id, 'year': year, 'items': items}})
+
+        # POST
+        if not current_user.has_permission('config_management', 'edit'):
+            return jsonify({'success': False, 'message': '没有编辑权限'}), 403
+        data = request.get_json() or {}
+        year = data.get('year', datetime.now().year)
+        items = data.get('items', [])
+
+        for it in items:
+            if it.get('item_code') != 'total' and it.get('item_code') not in cat_names:
+                return jsonify({'success': False, 'message': f"非法科目: {it.get('item_code')}(必须来自报销科目)"}), 400
+        total, cats, pb = _items_to_budget(items, cat_names)
+
+        if sum(cats.values()) > total + 0.01:
+            return jsonify({'success': False,
+                            'message': f'细分合计 {sum(cats.values()):,.2f} 超过年度总额 {total:,.2f}'}), 400
+
+        b = DepartmentExpenseBudget.query.filter_by(department_id=dept_id, year=year).first()
+        if not b:
+            b = DepartmentExpenseBudget(department_id=dept_id, year=year, created_by=current_user.id)
+            db.session.add(b)
+        b.total_budget = total
+        b.category_budgets = cats or None
+        b.period_budgets = pb or None
+        b.updated_by = current_user.id
+        b.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'部门预算已保存({len(cats)} 个细分科目)'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"部门预算操作失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@config_management_bp.route('/api/users/<int:user_id>/expense-budget', methods=['GET', 'POST'])
+@login_required
+@permission_required('config_management', 'view')
+def api_user_expense_budget(user_id):
+    """个人费用预算(挂在部门预算之下)。
+
+    约束:个人年度 ≤ 部门总额 - 同部门其他成员已分配;部门已单列的明细个人强制保留,
+    且各明细 ≤ 部门该明细额度 - 其他成员该明细已分配;企业隔离同部门预算。
+    """
+    try:
+        from app.models.expense import Department, EXPENSE_CATEGORIES
+        from app.models.expense_budget import DepartmentExpenseBudget, ExpenseBudget
+        from app.models.user import User
+        from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+
+        target = User.query.get(user_id)
+        if not target:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        # 企业隔离:非 admin 只能配置本公司用户
+        if current_user.role != 'admin' and (target.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权操作其他公司用户的预算'}), 403
+
+        cat_names = dict(EXPENSE_CATEGORIES)
+        unit = get_currency_symbol(get_default_currency())
+        year = (request.args if request.method == 'GET' else (request.get_json() or {})) \
+            .get('year', datetime.now().year)
+        year = int(year)
+
+        # 部门上下文:users.department 文本 + 公司 匹配部门表
+        dept = Department.query.filter_by(name=target.department or '',
+                                          company_name=target.company_name or '',
+                                          is_active=True).first() if target.department else None
+        dept_budget = DepartmentExpenseBudget.query.filter_by(
+            department_id=dept.id, year=year).first() if dept else None
+        dept_cats = (dept_budget.category_budgets if dept_budget else None) or {}
+
+        # 同部门其他成员已分配(总额 + 各科目)
+        used_others_total, used_others_cat = 0.0, {}
+        if dept:
+            mate_ids = [u.id for u in User.query.filter(
+                User._is_active.is_(True), User.id != target.id,
+                User.department == target.department,
+                User.company_name == target.company_name).all()]
+            if mate_ids:
+                for eb in ExpenseBudget.query.filter(ExpenseBudget.user_id.in_(mate_ids),
+                                                     ExpenseBudget.year == year).all():
+                    # 只统计新机制写入的记录(category_budgets 非 NULL);
+                    # 旧个人预算功能的历史记录是独立口径,不占部门盘子
+                    if eb.category_budgets is None:
+                        continue
+                    used_others_total += float(eb.total_budget or 0)
+                    for c, v in (eb.category_budgets or {}).items():
+                        used_others_cat[c] = used_others_cat.get(c, 0.0) + float(v or 0)
+
+        context = {
+            'dept_name': dept.name if dept else (target.department or ''),
+            'no_dept_budget': dept_budget is None,
+            'dept_total': float(dept_budget.total_budget or 0) if dept_budget else None,
+            'dept_used_others': round(used_others_total, 2),
+            'forced': [c for c, _ in EXPENSE_CATEGORIES if c in dept_cats],
+            'cat_caps': {c: {'dept_amount': float(dept_cats[c] or 0),
+                             'used_others': round(used_others_cat.get(c, 0.0), 2)}
+                         for c in dept_cats},
+        }
+
+        if request.method == 'GET':
+            b = ExpenseBudget.query.filter_by(user_id=user_id, year=year).first()
+            cats = (b.category_budgets if b else None) or {}
+            pb = (b.period_budgets if b else None) or {}
+            items = [_budget_to_item('total', '年度总额', b.total_budget if b else 0, pb, unit, locked=True)]
+            for code, name in EXPENSE_CATEGORIES:
+                if code in cats or code in dept_cats:   # 部门单列的明细强制出现
+                    items.append(_budget_to_item(code, name, cats.get(code, 0), pb, unit, locked=True))
+            return jsonify({'success': True, 'data': {'user_id': user_id, 'year': year,
+                                                      'items': items, 'context': context}})
+
+        # POST
+        if not current_user.has_permission('config_management', 'edit'):
+            return jsonify({'success': False, 'message': '没有编辑权限'}), 403
+        # 个人预算必须挂在部门预算之下:部门未配置 → 禁止配置个人
+        if dept_budget is None:
+            return jsonify({'success': False,
+                            'message': f"「{context['dept_name'] or '未知部门'}」{year} 年尚未设置部门预算,"
+                                       f"请先在 配置管理 → 部门预算 中配置"}), 400
+        items = (request.get_json() or {}).get('items', [])
+        for it in items:
+            if it.get('item_code') != 'total' and it.get('item_code') not in cat_names:
+                return jsonify({'success': False, 'message': f"非法科目: {it.get('item_code')}(必须来自报销科目)"}), 400
+        total, cats, pb = _items_to_budget(items, cat_names)
+
+        # 校验1:部门单列的明细强制保留
+        missing = [cat_names[c] for c in context['forced'] if c not in cats]
+        if missing:
+            return jsonify({'success': False,
+                            'message': f"部门预算已单列明细「{'、'.join(missing)}」,个人必须保留配置"}), 400
+        # 校验2:细分合计 ≤ 个人总额
+        if sum(cats.values()) > total + 0.01:
+            return jsonify({'success': False,
+                            'message': f'细分合计 {sum(cats.values()):,.2f} 超过个人年度总额 {total:,.2f}'}), 400
+        # 校验3:个人年度 ≤ 部门可分配(部门总额 - 其他成员已分配)
+        if dept_budget is not None:
+            cap_total = float(dept_budget.total_budget or 0) - used_others_total
+            if total > cap_total + 0.01:
+                return jsonify({'success': False,
+                                'message': f'个人年度 {total:,.2f} 超过部门可分配额度 {cap_total:,.2f}'}), 400
+            # 校验4:各明细 ≤ 部门该明细可用上限
+            for c, v in cats.items():
+                if c in dept_cats:
+                    cap_c = float(dept_cats[c] or 0) - used_others_cat.get(c, 0.0)
+                    if v > cap_c + 0.01:
+                        return jsonify({'success': False,
+                                        'message': f'「{cat_names[c]}」{v:,.2f} 超过部门该明细可用上限 {cap_c:,.2f}'}), 400
+
+        b = ExpenseBudget.query.filter_by(user_id=user_id, year=year).first()
+        if not b:
+            b = ExpenseBudget(user_id=user_id, year=year, created_by=current_user.id)
+            db.session.add(b)
+        b.total_budget = total
+        b.category_budgets = cats   # 恒存 dict(空也存 {}):非 NULL = 新机制记录,计入部门盘子
+        b.period_budgets = pb or None
+        b.updated_by = current_user.id
+        b.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'个人预算已保存({len(cats)} 个细分科目)'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"个人预算操作失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@config_management_bp.route('/at/salary')
+@login_required
+def at_salary():
+    """AT 配置管理 · 薪资配置(职级/基础参数/阶梯规则/公式,系统级)。复用 /api/salary/* 全套。"""
+    if not current_user.has_permission('config_management', 'view'):
+        abort(403)
+    return render_template('config_management/at_salary.html',
                            can_edit=current_user.has_permission('config_management', 'edit'))
 
 
@@ -873,6 +1163,80 @@ def api_reset_user_permissions(user_id):
             'success': False,
             'message': f'重置失败: {str(e)}'
         }), 500
+
+
+@config_management_bp.route('/api/users/<int:user_id>/permissions/overrides', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def api_save_user_permission_overrides(user_id):
+    """保存个人权限覆盖集（行级继承语义）。
+
+    与 batch-save 的关键差异: payload 中没有的模块**不写行** = 继承角色默认。
+    (batch-save 会给缺失模块补 permission_level='none' 的显式拒绝行,是整套覆盖语义,
+     供旧版批量配置页使用;本端点专供「个人配置·权限覆盖」页。)
+    空 permissions = 清空全部覆盖,等价 reset。
+    """
+    try:
+        from app.models.user import User, Permission
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        data = request.get_json() or {}
+        permissions_data = data.get('permissions', {})
+
+        Permission.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+        records = []
+        for module, p in permissions_data.items():
+            records.append({
+                'user_id': user_id,
+                'module': module,
+                'can_view': p.get('can_view', False),
+                'can_create': p.get('can_create', False),
+                'can_edit': p.get('can_edit', False),
+                'can_delete': p.get('can_delete', False),
+                'can_change_owner': p.get('can_change_owner', False),
+                'can_export_email': p.get('can_export_email', False),
+                'permission_level': p.get('permission_level', 'personal'),
+                'pricing_discount_limit': p.get('pricing_discount_limit'),
+                'settlement_discount_limit': p.get('settlement_discount_limit'),
+                'content_filters': p.get('content_filter'),
+            })
+        if records:
+            db.session.bulk_insert_mappings(Permission, records)
+        db.session.commit()
+
+        logger.info(f"用户 {user_id} 个人权限覆盖已保存: {len(records)} 个模块,其余继承角色默认")
+        return jsonify({'success': True,
+                        'message': f'已写入 {len(records)} 个模块的个人覆盖' if records else '已清空全部覆盖'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存个人权限覆盖失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'}), 500
+
+
+@config_management_bp.route('/api/users/<int:user_id>/permissions/<module>/revert', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def api_revert_user_permission_module(user_id, module):
+    """删除单个模块的个人权限行,恢复继承角色默认（行级 ↺ 继承）"""
+    try:
+        from app.models.user import User, Permission
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        deleted = Permission.query.filter_by(user_id=user_id, module=module).delete()
+        db.session.commit()
+        return jsonify({'success': True,
+                        'message': '已恢复继承角色默认' if deleted else '该模块本就继承角色默认'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"恢复模块继承失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
 
 
 # =============================================
