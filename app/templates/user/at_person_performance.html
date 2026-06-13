@@ -37,7 +37,7 @@
       {% endif %}
     </span>
     <div style="position:relative;">
-      <button type="button" class="cm-role-btn" onclick="ppToggleMenu(event)">
+      <button type="button" id="ppPickerBtn" class="cm-role-btn">
         <span id="ppUserName">选择人员</span>
         <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
       </button>
@@ -57,7 +57,7 @@
   </div>
   {% endif %}
 
-  <div id="ppSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
+  <div id="ppSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
     <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择人员…</div>
   </div>
   <div class="at-dim" style="font-size:11px;margin-top:8px;">
@@ -197,42 +197,15 @@
     },
   });
 
-  // ── 人员下拉(搜索+部门分组) ──
-  function renderMenu() {
-    const term = (document.getElementById('ppSearch') ? document.getElementById('ppSearch').value : '').trim().toLowerCase();
-    const list = usersOf().filter(u => !term ||
-      (u.name + ' ' + u.department + ' ' + u.role_display).toLowerCase().includes(term));
-    const groups = {};
-    list.forEach(u => (groups[u.department] = groups[u.department] || []).push(u));
-    let html = `<input id="ppSearch" class="pp-search" type="text" placeholder="搜索人员 / 部门…" autocomplete="off"
-                       value="${esc(term)}" onclick="event.stopPropagation()" oninput="renderMenu();
-                       this.focus();this.setSelectionRange(this.value.length,this.value.length)">`;
-    Object.keys(groups).forEach(dep => {
-      html += `<div class="pp-dep">${esc(dep)}</div>`;
-      groups[dep].forEach(u => {
-        html += `<div class="cm-role-item${u.id === _userId ? ' active' : ''}" onclick="ppSelect(${u.id})">
-                   <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
-                          border-radius:50%;background:var(--accent-tint);color:var(--accent);font-size:11px;font-weight:600;">
-                     ${esc(u.name[0] || '?')}</span>
-                   <span style="flex:1;">${esc(u.name)}</span>
-                   ${u.has_scheme ? '<span title="该角色考核项由岗位方案固定" style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--warn-soft);color:var(--warn);">方案</span>' : ''}
-                   <span class="at-dim" style="font-size:10.5px;">${esc(u.role_display)}</span>
-                 </div>`;
-      });
-    });
-    document.getElementById('ppUserMenu').innerHTML = html || '<div class="at-dim" style="padding:18px;text-align:center;font-size:12px;">无匹配</div>';
-  }
-  window.ppToggleMenu = function (e) {
-    e.stopPropagation();
-    if (typeof _locked !== 'undefined' && _locked) return;   // 详情页跳入:锁定不可切换
-    const menu = document.getElementById('ppUserMenu');
-    const show = menu.style.display === 'none';
-    if (show) renderMenu();
-    menu.style.display = show ? 'block' : 'none';
-  };
-  document.addEventListener('click', () => {
-    const m = document.getElementById('ppUserMenu');
-    if (m) m.style.display = 'none';
+  // ── 人员下拉:公用组件(搜索+部门分组),替代原内联实现 ──
+  window.ppSelect = function (id) { _userId = id; ppLoad(); };
+  const _picker = AtPersonPicker.init({
+    button: 'ppPickerBtn', menu: 'ppUserMenu',
+    getUsers: usersOf, activeId: () => _userId, onSelect: ppSelect,
+    locked: () => (typeof _locked !== 'undefined' && _locked),   // 详情页锁定不可切换
+    rowBadge: u => u.has_scheme
+      ? '<span title="该角色考核项由岗位方案固定" style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--warn-soft);color:var(--warn);">方案</span>'
+      : '',
   });
 
   const yearSel = document.getElementById('ppYear');
@@ -241,11 +214,6 @@
     if (y === CUR_YEAR) o.selected = true; yearSel.appendChild(o);
   });
 
-  window.ppSelect = function (id) {
-    _userId = id;
-    document.getElementById('ppUserMenu').style.display = 'none';
-    ppLoad();
-  };
 
   window.ppLoad = async function () {
     if (!_userId) return;
@@ -351,6 +319,10 @@
                                    { headers: { 'X-CSRFToken': _csrf() } })).json();
       if (d.success) _stStatus = d.data || {};
     } catch (_) {}
+    // 已结算(approved)的季度 → 锁定表格该季目标格 + 手工实际录入
+    const locked = [];
+    for (let q = 1; q <= 4; q++) { const st = _stStatus[String(q)]; if (st && st.status === 'approved') locked.push(q); }
+    sheet.setLocks(locked);
     stRender();
   }
 
@@ -613,11 +585,14 @@
     _company = _pre.company || _company;
     const cs = document.getElementById('ppCompany');
     if (cs) { cs.value = _company; cs.disabled = true; }
+    // 审批模式下无 .cm-role-btn(人员切换按钮已隐藏),需判空防中断
     const btn = document.querySelector('.cm-role-btn');
-    btn.style.cursor = 'default';
-    btn.title = '从账户详情进入,已锁定到该用户;配置他人请从侧栏进入个人配置';
-    const ic = btn.querySelector('.material-symbols-outlined');
-    if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
+    if (btn) {
+      btn.style.cursor = 'default';
+      btn.title = '从账户详情进入,已锁定到该用户;配置他人请从侧栏进入个人配置';
+      const ic = btn.querySelector('.material-symbols-outlined');
+      if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
+    }
     ppSelect(_pre.id);
   }
   else if (usersOf().length) ppSelect(usersOf()[0].id);

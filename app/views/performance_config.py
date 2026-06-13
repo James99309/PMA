@@ -2688,14 +2688,39 @@ def get_simple_users_tree():
             'message': f'获取用户组织架构失败: {str(e)}'
         }), 500
 
-def _can_read_person_perf(user_id, year=None):
-    """读个人绩效数据放行:有配置/用户管理 view 权限,或为该人绩效结算当前审批人(只读)。"""
-    if (current_user.has_permission('config_management', 'view')
-            or current_user.has_permission('user_management', 'view')):
+def can_access_person_tab(user_id, feature_id, need_edit=False):
+    """个人配置某 tab 的数据 API 放行(供 budget/salary 等复用):纯功能开关驱动 ——
+    admin,或 person_config view/edit + 对应 feature + 目标在数据范围内。"""
+    u = current_user
+    if u.role == 'admin':
         return True
+    act = 'edit' if need_edit else 'view'
     try:
+        if u.has_permission('person_config', act) and u.has_feature('person_config', feature_id):
+            from app.models.user import User as _U
+            tgt = _U.query.get(user_id)
+            if tgt and u.can_view_person(tgt, 'person_config'):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _can_read_person_perf(user_id, year=None):
+    """读个人绩效数据放行(标准权限+数据范围,不再硬编码上级):
+    - person_config view 且目标在数据范围内(can_view_person)
+    - 兼容旧 config/user_management view(过渡)
+    - 该人绩效结算当前审批人(功能性兜底,审批不被卡)"""
+    try:
+        from app.models.user import User as _U
+        tgt = _U.query.get(user_id)
+        if tgt and current_user.can_view_person(tgt, 'person_config'):
+            return True
+        if (current_user.has_permission('config_management', 'view')
+                or current_user.has_permission('user_management', 'view')):
+            return True
         from app.helpers.perf_settlement_helpers import is_settlement_approver_of
-        return is_settlement_approver_of(current_user.id, user_id, year)
+        return is_settlement_approver_of(current_user.id, user_id)
     except Exception:
         return False
 

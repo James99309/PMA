@@ -293,6 +293,52 @@ class User(db.Model, UserMixin):
 
             return False
     
+    def get_data_scope(self, module):
+        """模块数据范围:system/company/department/personal(admin→system;未配置→personal)。"""
+        if self.role == 'admin':
+            return 'system'
+        try:
+            role_permission, personal_permission = self._get_cached_permissions(module)
+            perm = personal_permission or role_permission
+            return (perm.permission_level if perm and perm.permission_level else 'personal')
+        except Exception:
+            return 'personal'
+
+    def can_view_person(self, target_user, module):
+        """按模块数据范围判断能否查看某人(用于个人配置等以「人」为对象的页面)。"""
+        if self.role == 'admin':
+            return True
+        if not self.has_permission(module, 'view'):
+            return False
+        scope = self.get_data_scope(module)
+        if scope == 'system':
+            return True
+        if scope == 'company':
+            return (target_user.company_name or '') == (self.company_name or '')
+        if scope == 'department':
+            return ((target_user.company_name or '') == (self.company_name or '')
+                    and (target_user.department or '') == (self.department or ''))
+        return target_user.id == self.id   # personal
+
+    def has_feature(self, module_id, feature_id):
+        """模块内功能开关(tab 等):白名单制 —— admin 恒真;否则查 role_feature_permissions,
+        仅当存在记录且 is_enabled 时为真(未配置=隐藏)。"""
+        try:
+            if self.role == 'admin':
+                return True
+            from app.models.permission_module import RoleFeaturePermission
+            rec = RoleFeaturePermission.query.filter_by(
+                role=self.role, module_id=module_id, feature_id=feature_id).first()
+            return bool(rec and rec.is_enabled)
+        except Exception as e:
+            print(f'[ERROR][has_feature] {e}')
+            try:
+                from app import db
+                db.session.rollback()
+            except Exception:
+                pass
+            return self.role == 'admin'
+
     def has_cli_permission(self, module):
         """
         检查用户是否具有 CLI 查询该模块数据的权限

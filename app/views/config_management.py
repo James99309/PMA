@@ -278,11 +278,33 @@ def _at_roles_data():
     } for r, c in sorted(counts.items(), key=lambda x: _role_sort_key(x[0]))]
 
 
+# 配置管理 tab 顺序(功能开关 → 路由 endpoint);落地路由按此取首个可访问 tab
+_CONFIG_TAB_ORDER = [
+    ('cm_permission', 'config_management.at_permissions'),
+    ('cm_budget', 'config_management.at_expense'),
+    ('cm_performance', 'config_management.at_performance'),
+    ('cm_flow', 'config_management.at_flows'),
+    ('cm_salary', 'config_management.at_salary_structure'),
+]
+
+
+@config_management_bp.route('/at')
+@login_required
+def at_home():
+    """配置管理落地:重定向到当前用户第一个有权访问的 tab(避免落到无权的权限配置 → 403)。"""
+    if current_user.role != 'admin' and not current_user.has_permission('config_management', 'view'):
+        abort(403)
+    for feat, endpoint in _CONFIG_TAB_ORDER:
+        if current_user.role == 'admin' or current_user.has_feature('config_management', feat):
+            return redirect(url_for(endpoint))
+    abort(403)
+
+
 @config_management_bp.route('/at/permissions')
 @login_required
 def at_permissions():
     """AT 配置管理 · 权限配置(角色默认权限矩阵)。复用 /api/role-permissions/<role>。"""
-    if not current_user.has_permission('config_management', 'view'):
+    if not _config_tab_allowed('cm_permission'):
         abort(403)
     return render_template('config_management/at_permissions.html',
                            roles_data=_at_roles_data(),
@@ -293,7 +315,7 @@ def at_permissions():
 @login_required
 def at_expense():
     """AT 配置管理 · 部门预算(年度总额 + 动态细分科目,科目限报销 EXPENSE_CATEGORIES)。"""
-    if not current_user.has_permission('config_management', 'view'):
+    if not _config_tab_allowed('cm_budget'):
         abort(403)
     from app.models.expense import Department, EXPENSE_CATEGORIES
     from app.models.user import User
@@ -453,13 +475,16 @@ def api_department_budget(dept_id):
 
 @config_management_bp.route('/api/users/<int:user_id>/expense-budget', methods=['GET', 'POST'])
 @login_required
-@permission_required('config_management', 'view')
 def api_user_expense_budget(user_id):
     """个人费用预算(挂在部门预算之下)。
 
     约束:个人年度 ≤ 部门总额 - 同部门其他成员已分配;部门已单列的明细个人强制保留,
     且各明细 ≤ 部门该明细额度 - 其他成员该明细已分配;企业隔离同部门预算。
+    放行:person_config view+pc_budget+数据范围(写需 edit),或旧 config_management 权限。
     """
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_budget', need_edit=(request.method == 'POST')):
+        return jsonify({'success': False, 'message': '无权限'}), 403
     try:
         from app.models.expense import Department, EXPENSE_CATEGORIES
         from app.models.expense_budget import DepartmentExpenseBudget, ExpenseBudget
@@ -602,11 +627,20 @@ def _salary_guard():
         abort(403)
 
 
+def _config_tab_allowed(feature_id):
+    """配置管理某 tab 访问:admin / config_management view + 对应功能开关。"""
+    if current_user.role == 'admin':
+        return True
+    return (current_user.has_permission('config_management', 'view')
+            and current_user.has_feature('config_management', feature_id))
+
+
 @config_management_bp.route('/at/salary-structure')
 @login_required
 def at_salary_structure():
     """AT 配置管理 · 薪资配置(全局基础薪资结构:主子层级 + 发放方式,不含金额)。"""
-    _salary_guard()
+    if not _config_tab_allowed('cm_salary'):
+        abort(403)
     from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
     return render_template('config_management/at_salary_structure.html',
                            currency_symbol=get_currency_symbol(get_default_currency()),
@@ -684,7 +718,7 @@ def api_save_salary_structure():
 def at_flows():
     """AT 配置管理 · 流程配置(v1 只读):盘点全部审批流程,展示步骤图/参数/启用状态。
     不区分老的可配置模板与新的代码动态路由 — 统一以「步骤逻辑」展示;编辑能力后置。"""
-    if not current_user.has_permission('config_management', 'view'):
+    if not _config_tab_allowed('cm_flow'):
         abort(403)
 
     from app.models.approval import ApprovalProcessTemplate, ApprovalStep
@@ -783,7 +817,7 @@ def at_performance():
     角色/系统级(指标定义、方案权重)后续归 AT 配置管理其它子页。
     后端全部复用 performance_config 的 JSON API,本路由仅供用户清单。
     """
-    if not current_user.has_permission('config_management', 'view'):
+    if not _config_tab_allowed('cm_performance'):
         abort(403)
 
     # 角色清单走公共 _at_roles_data(业务排序 + 排除系统管理员)
@@ -3393,3 +3427,152 @@ def api_delete_manual_attachment(attachment_id):
         db.session.rollback()
         logger.error(f"删除附件失败: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# =============================================
+# 月度薪资审批(独立汇总表;配置管理 · 薪资审批 tab)
+# =============================================
+
+def _salary_run_companies():
+    """当前用户可见公司列表(admin 全部;否则仅本公司);返回 (companies, is_admin)。"""
+    is_admin = current_user.role == 'admin'
+    q = db.session.query(User.company_name).filter(
+        User._is_active.is_(True), User.company_name.isnot(None), User.company_name != '')
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    companies = sorted({c for (c,) in q.distinct().all() if c})
+    return companies, is_admin
+
+
+def _salary_run_company_ok(company):
+    """非 admin 仅能操作本公司。"""
+    return current_user.role == 'admin' or company == (current_user.company_name or '')
+
+
+@config_management_bp.route('/at/salary-approval')
+@login_required
+def at_salary_approval():
+    """AT 配置管理 · 薪资审批:按公司+月生成全员薪资表,提交审批(财务主管→财务总监→总经理),
+    提交即锁定该月个人薪资;可切月份查看各月状态/快照。"""
+    if not _config_tab_allowed('cm_salary'):
+        abort(403)
+    from app.utils.dictionary_helpers import get_default_currency
+    from app.models.salary_structure import SALARY_RUN_INITIATOR_ROLES
+    companies, is_admin = _salary_run_companies()
+    my_company = current_user.company_name or ''
+    can_submit = (current_user.role == 'admin'
+                  or current_user.role in SALARY_RUN_INITIATOR_ROLES
+                  or current_user.has_permission('config_management', 'edit'))
+    return render_template('config_management/at_salary_approval.html',
+                           companies=companies, is_admin=is_admin, user_company=my_company,
+                           can_submit=can_submit,
+                           currency_symbol=get_currency_symbol(get_default_currency()),
+                           current_year=datetime.now().year)
+
+
+@config_management_bp.route('/api/salary-runs/<int:year>')
+@login_required
+def api_salary_runs(year):
+    """某公司某年 12 个月的薪资审批状态(已生成的批次)。"""
+    if not _config_tab_allowed('cm_salary'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    company = (request.args.get('company') or current_user.company_name or '').strip()
+    if not _salary_run_company_ok(company):
+        return jsonify({'success': False, 'message': '无权访问该公司'}), 403
+    from app.models.salary_structure import SalaryRun
+    runs = SalaryRun.query.filter_by(company_name=company, year=year).all()
+    by_month = {r.month: {'id': r.id, 'status': r.status, 'is_locked': bool(r.is_locked),
+                          'total_amount': float(r.total_amount or 0), 'headcount': r.headcount or 0,
+                          'instance_id': r.approval_instance_id} for r in runs}
+    return jsonify({'success': True, 'data': {'company': company, 'year': year, 'months': by_month}})
+
+
+@config_management_bp.route('/api/salary-run/detail')
+@login_required
+def api_salary_run_detail():
+    """某公司某年某月薪资表明细:已生成→返回快照;未生成→实时预览(可发起)。"""
+    if not _config_tab_allowed('cm_salary'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    company = (request.args.get('company') or '').strip()
+    year = int(request.args.get('year') or 0)
+    month = int(request.args.get('month') or 0)
+    if not _salary_run_company_ok(company):
+        return jsonify({'success': False, 'message': '无权访问该公司'}), 403
+    if month not in range(1, 13):
+        return jsonify({'success': False, 'message': '无效月份'}), 400
+    from app.helpers.salary_run_helpers import get_run, build_month_snapshot
+    # 列头:结构叶子项(主项无子项 / 子项),按 sort_order
+    from app.models.salary_structure import SalaryStructureItem
+    struct = SalaryStructureItem.query.filter_by(is_active=True)\
+        .order_by(SalaryStructureItem.sort_order, SalaryStructureItem.id).all()
+    child_codes = {r.parent_code for r in struct if r.parent_code}
+    columns = [{'code': r.item_code, 'name': r.item_name}
+               for r in struct if r.item_code not in child_codes]
+    run = get_run(company, year, month)
+    if run and run.status in ('pending', 'approved'):
+        return jsonify({'success': True, 'data': {
+            'generated': True, 'status': run.status, 'is_locked': bool(run.is_locked),
+            'run_id': run.id, 'instance_id': run.approval_instance_id, 'columns': columns,
+            'rows': run.snapshot or [], 'total': float(run.total_amount or 0),
+            'headcount': run.headcount or 0, 'settled_at': run.settled_at.isoformat() if run.settled_at else None,
+        }})
+    # 未生成 / 草稿 / 已驳回 → 实时预览(可发起)
+    rows, total = build_month_snapshot(company, year, month)
+    return jsonify({'success': True, 'data': {
+        'generated': False, 'status': (run.status if run else None), 'columns': columns,
+        'rows': rows, 'total': total, 'headcount': len(rows),
+    }})
+
+
+@config_management_bp.route('/api/salary-run/submit', methods=['POST'])
+@login_required
+def api_salary_run_submit():
+    """生成并提交当月薪资审批(提交即锁定该公司该月个人薪资)。"""
+    from app.models.salary_structure import SALARY_RUN_INITIATOR_ROLES
+    if not (_config_tab_allowed('cm_salary') and (
+            current_user.role == 'admin' or current_user.role in SALARY_RUN_INITIATOR_ROLES
+            or current_user.has_permission('config_management', 'edit'))):
+        return jsonify({'success': False, 'message': '无权发起薪资审批'}), 403
+    data = request.get_json() or {}
+    company = (data.get('company') or '').strip()
+    year = int(data.get('year') or 0)
+    month = int(data.get('month') or 0)
+    if not _salary_run_company_ok(company):
+        return jsonify({'success': False, 'message': '无权访问该公司'}), 403
+    from app.helpers.salary_run_helpers import submit_salary_run
+    run, inst, err = submit_salary_run(company, year, month, current_user.id)
+    if err:
+        return jsonify({'success': False, 'message': err}), 400
+    return jsonify({'success': True, 'message': f'{year}年{month}月薪资已提交审批并锁定',
+                    'data': {'run_id': run.id, 'instance_id': run.approval_instance_id}})
+
+
+@config_management_bp.route('/api/salary-run-approval/<int:run_id>/flow')
+@login_required
+def api_salary_run_flow(run_id):
+    """薪资审批徽章流程数据(at-approval-dropdown 用)。"""
+    from app.helpers.salary_run_helpers import build_salary_run_flow
+    return jsonify(build_salary_run_flow(run_id, current_user.id))
+
+
+@config_management_bp.route('/api/salary-run-approval/<int:run_id>/editable-fields')
+@login_required
+def api_salary_run_editable_fields(run_id):
+    """薪资审批无可编辑字段(审批人只同意/驳回)。"""
+    return jsonify({'success': True, 'can_edit': False, 'editable_fields': []})
+
+
+@config_management_bp.route('/api/salary-run-approval/<int:run_id>/recall', methods=['POST'])
+@login_required
+def api_salary_run_recall(run_id):
+    """发起人(HR)召回月度薪资审批 → 解锁该公司该月个人薪资。"""
+    from app.models.salary_structure import SalaryRun
+    run = SalaryRun.query.get(run_id)
+    if not run:
+        return jsonify({'success': False, 'message': '薪资批次不存在'}), 404
+    if run.initiated_by != current_user.id and current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '仅发起人可召回'}), 403
+    reason = (request.get_json() or {}).get('reason', '')
+    from app.helpers.approval_helpers import recall_approval
+    res = recall_approval('salary_run', run_id, current_user.id, reason)
+    return jsonify(res)

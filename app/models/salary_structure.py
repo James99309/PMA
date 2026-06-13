@@ -102,3 +102,48 @@ class UserSalaryProfile(db.Model):
     updated_by = Column(Integer, ForeignKey('users.id'))
 
     __table_args__ = (UniqueConstraint('user_id', 'year', name='uq_user_salary_profile'),)
+
+
+# 薪资月度审批的审批链(角色,按顺序);用户确认 2026-06-13
+SALARY_RUN_APPROVER_ROLES = ['finance_supervisor', 'finace_director', 'ceo']
+SALARY_RUN_INITIATOR_ROLES = ('admin', 'hr_manager')
+
+
+class SalaryRun(db.Model):
+    """月度薪资审批批次(按 公司+年+月)。HR 生成当月全员薪资表 → 提交审批 →
+    财务主管 → 财务总监 → 总经理。提交即锁定该公司该月个人薪资(召回解锁,通过永久锁)。
+    snapshot 固化提交时各人各项当月应发,后续改标准额/结构/考核方法不影响已锁定月份。
+    """
+    __tablename__ = 'salary_runs'
+
+    id = Column(Integer, primary_key=True)
+    company_name = Column(String(200), nullable=False, index=True)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)              # 1-12
+    status = Column(String(20), default='pending')       # draft|pending|approved|rejected
+    is_locked = Column(Boolean, default=False)            # 提交即 True(锁定个人薪资该月);召回/驳回 False
+    snapshot = Column(JSON)                               # [{user_id,name,department,role,items:{code:amt},total}]
+    total_amount = Column(Numeric(15, 2))                # 批次应发合计(元)
+    headcount = Column(Integer)                           # 批次人数
+    initiated_by = Column(Integer, ForeignKey('users.id'))
+    approval_instance_id = Column(Integer)
+    settled_at = Column(DateTime)                         # 终审通过时间
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint('company_name', 'year', 'month', name='uq_salary_run'),)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'company_name': self.company_name,
+            'year': self.year,
+            'month': self.month,
+            'status': self.status,
+            'is_locked': bool(self.is_locked),
+            'total_amount': float(self.total_amount) if self.total_amount is not None else 0.0,
+            'headcount': self.headcount or 0,
+            'snapshot': self.snapshot or [],
+            'approval_instance_id': self.approval_instance_id,
+            'settled_at': self.settled_at.isoformat() if self.settled_at else None,
+        }

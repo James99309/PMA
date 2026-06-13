@@ -16,15 +16,23 @@
 #}
 {% from 'components/at_base.html' import at_icon, at_pill, at_avatar %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
-{% set _config_tabs = [
-  ('permissions', '权限配置', url_for('config_management.at_permissions')),
-  ('expense',     '部门预算', url_for('config_management.at_expense')),
-  ('performance', '绩效配置', url_for('config_management.at_performance')),
-  ('flows',       '流程配置', url_for('config_management.at_flows')),
-] %}
-{# 薪资敏感:tab 仅 admin/ceo/hr_manager 可见(页面/API 同步硬校验) #}
-{% if current_user.role in ('admin', 'ceo', 'hr_manager') %}
+{# tab 由 config_management 模块功能开关控制(权限矩阵·白名单) #}
+{% set _config_tabs = [] %}
+{% if current_user.has_feature('config_management', 'cm_permission') %}
+  {% set _config_tabs = _config_tabs + [('permissions', '权限配置', url_for('config_management.at_permissions'))] %}
+{% endif %}
+{% if current_user.has_feature('config_management', 'cm_budget') %}
+  {% set _config_tabs = _config_tabs + [('expense', '部门预算', url_for('config_management.at_expense'))] %}
+{% endif %}
+{% if current_user.has_feature('config_management', 'cm_performance') %}
+  {% set _config_tabs = _config_tabs + [('performance', '绩效配置', url_for('config_management.at_performance'))] %}
+{% endif %}
+{% if current_user.has_feature('config_management', 'cm_flow') %}
+  {% set _config_tabs = _config_tabs + [('flows', '流程配置', url_for('config_management.at_flows'))] %}
+{% endif %}
+{% if current_user.has_feature('config_management', 'cm_salary') %}
   {% set _config_tabs = _config_tabs + [('salary', '薪资配置', url_for('config_management.at_salary_structure'))] %}
+  {% set _config_tabs = _config_tabs + [('salary_approval', '薪资审批', url_for('config_management.at_salary_approval'))] %}
 {% endif %}
 {% set _config_tabs = _config_tabs + [
   ('metrics',     '指标管理', none),
@@ -102,20 +110,16 @@
 {{ at_sidebar(active_key='config_management') }}
 <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
 
-<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);position:sticky;top:0;z-index:30;">
-  <div style="max-width:1500px;margin:0 auto;width:100%;box-sizing:border-box;padding:14px 32px;
+<header style="background:var(--bg-elev);position:sticky;top:0;z-index:30;">
+  <div style="max-width:1500px;margin:0 auto;width:100%;box-sizing:border-box;padding:14px 32px 6px;
               display:flex;align-items:center;gap:8px;">
     <span style="font-size:13px;color:var(--ink);">配置管理</span>
     <div style="flex:1;"></div>
     <a href="{{ url_for('config_management.index') }}"
        class="at-dim" style="font-size:12px;text-decoration:none;">旧版配置管理 →</a>
   </div>
-</header>
-
-<main style="width:100%;box-sizing:border-box;max-width:1500px;margin:0 auto;padding:28px 40px 80px;min-width:0;">
-
-  {# ── 配置域 tab 导航 ── #}
-  <nav class="cfg-tabs">
+  {# ── 配置域 tab 导航(随 header 吸顶) ── #}
+  <nav class="cfg-tabs" style="max-width:1500px;margin:0 auto;padding:0 32px;box-sizing:border-box;">
     {% for key, label, url in _config_tabs %}
       {% if url %}
         <a class="cfg-tab{{ ' on' if key == _active }}" href="{{ url }}">{{ label }}</a>
@@ -124,6 +128,9 @@
       {% endif %}
     {% endfor %}
   </nav>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1500px;margin:0 auto;padding:24px 40px 80px;min-width:0;">
 
   <div style="margin-bottom:18px;">
     <h1 class="at-serif" style="margin:0;font-size:24px;font-weight:600;">{% block config_title %}{% endblock %}</h1>

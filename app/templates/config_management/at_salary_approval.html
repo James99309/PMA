@@ -1,0 +1,232 @@
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'salary_approval' %}
+
+{% block config_title %}薪资审批 · 月度{% endblock %}
+{% block config_desc %}HR 生成某公司当月全员薪资表并提交审批(财务主管 → 财务总监 → 总经理);提交即锁定该月个人薪资(召回解锁,通过永久固化)。可切换月份查看各月状态与已审批薪资表。{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
+<style>
+  .sa-month { border:1px solid var(--line-2); background:var(--bg-page); font:inherit; font-size:12px;
+              color:var(--ink-2); cursor:pointer; padding:5px 0; border-radius:6px; text-align:center; position:relative; }
+  .sa-month:hover { border-color:var(--accent); color:var(--accent); }
+  .sa-month.on { background:var(--ink); color:var(--bg-page); border-color:var(--ink); }
+  .sa-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-left:4px; vertical-align:middle; }
+  .sa-pending { background:var(--warn); } .sa-approved { background:var(--success); }
+  .sa-rejected { background:var(--danger); } .sa-draft { background:var(--ink-4); }
+  #saTable td.num, #saTable th.num { text-align:right; padding-right:10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
+                 background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
+      <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
+      {% if is_admin and companies|length > 1 %}
+      <select id="saCompany" onchange="saReload()"
+              style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
+        {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <span>{{ (companies[0] if companies else user_company) or '未归属公司' }}</span>
+      <input type="hidden" id="saCompany" value="{{ (companies[0] if companies else user_company) or '' }}">
+      {% endif %}
+    </span>
+    <select id="saYear" onchange="saReload()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+            border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;"></select>
+    <div style="flex:1;"></div>
+    <span id="saStatus" style="font-size:12px;"></span>
+    <span id="saChipBox"></span>
+    {% if can_submit %}
+    <button type="button" id="saSubmitBtn" onclick="saSubmit()" style="display:none;
+            height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
+            color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">生成并提交本月薪资</button>
+    {% endif %}
+  </div>
+
+  {# 12 个月切换 #}
+  <div id="saMonths" style="display:grid;grid-template-columns:repeat(12,1fr);gap:6px;margin-bottom:14px;"></div>
+
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 320px);min-height:220px;padding:1px;">
+    <table id="saTable" class="cm-sheet" style="min-width:720px;">
+      <thead id="saHead"></thead>
+      <tbody id="saBody"><tr><td class="at-dim" style="padding:26px;text-align:center;">加载中…</td></tr></tbody>
+      <tfoot id="saFoot"></tfoot>
+    </table>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 表为该公司该月全员应发(含落在本月的季度/年度绩效折算)。<b>提交审批后该月个人薪资即锁定不可编辑</b>,召回可解锁;终审通过后永久固化,后续改标准额/结构/考核方法不影响已固化月份。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const IS_ADMIN = {{ is_admin | tojson }};
+  const CAN_SUBMIT = {{ can_submit | tojson }};
+  const CUR_YEAR = {{ current_year }};
+  const SYM = {{ currency_symbol | tojson }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  const fmt = v => (v == null || v === '' || v === 0) ? '—' : SYM + Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+  const _ST_LABEL = { pending: '审批中', approved: '已固化', rejected: '已驳回', draft: '草稿' };
+
+  let _month = 0, _monthsStatus = {}, _detail = null;
+  const company = () => document.getElementById('saCompany').value || '';
+  const year = () => parseInt(document.getElementById('saYear').value);
+
+  const ySel = document.getElementById('saYear');
+  for (let y = CUR_YEAR - 1; y <= CUR_YEAR + 1; y++) {
+    const o = document.createElement('option'); o.value = y; o.textContent = y + ' 年';
+    if (y === CUR_YEAR) o.selected = true; ySel.appendChild(o);
+  }
+
+  function renderMonths() {
+    let h = '';
+    for (let m = 1; m <= 12; m++) {
+      const st = _monthsStatus[m];
+      const dot = st ? `<span class="sa-dot sa-${st.status}"></span>` : '';
+      h += `<button type="button" class="sa-month${m === _month ? ' on' : ''}" onclick="saPickMonth(${m})">${m}月${dot}</button>`;
+    }
+    document.getElementById('saMonths').innerHTML = h;
+  }
+
+  window.saReload = async function () {
+    if (!company()) return;
+    try {
+      const d = await (await fetch(`/config-management/api/salary-runs/${year()}?company=${encodeURIComponent(company())}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      _monthsStatus = (d.success && d.data.months) ? d.data.months : {};
+    } catch (_) { _monthsStatus = {}; }
+    if (!_month) { const now = new Date(); _month = (year() === now.getFullYear()) ? now.getMonth() + 1 : 1; }
+    renderMonths();
+    saLoadDetail();
+  };
+
+  window.saPickMonth = function (m) { _month = m; renderMonths(); saLoadDetail(); };
+
+  async function saLoadDetail() {
+    document.getElementById('saBody').innerHTML = '<tr><td class="at-dim" style="padding:26px;text-align:center;">加载中…</td></tr>';
+    document.getElementById('saChipBox').innerHTML = '';
+    document.getElementById('saStatus').textContent = '';
+    const sb = document.getElementById('saSubmitBtn');
+    if (sb) sb.style.display = 'none';
+    try {
+      const d = await (await fetch(
+        `/config-management/api/salary-run/detail?company=${encodeURIComponent(company())}&year=${year()}&month=${_month}`,
+        { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      _detail = d.data;
+      renderTable(d.data);
+      renderStatus(d.data);
+    } catch (e) {
+      document.getElementById('saBody').innerHTML =
+        `<tr><td style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  function renderStatus(d) {
+    const stEl = document.getElementById('saStatus');
+    const sb = document.getElementById('saSubmitBtn');
+    if (d.generated) {
+      stEl.innerHTML = `<span style="color:var(--ink-2);">${_month}月:<b>${_ST_LABEL[d.status] || d.status}</b> · ${d.headcount}人 · ${fmt(d.total)}</span>`;
+      // 审批徽章(审批中/已固化均展示流程)
+      document.getElementById('saChipBox').innerHTML = chip(d.run_id, d.status);
+      const wrap = document.querySelector('#saChipBox [data-at-approval]');
+      if (wrap && window.AtApprovalDropdown) window.AtApprovalDropdown.init(wrap);
+      if (sb) sb.style.display = 'none';
+    } else {
+      const tag = d.status === 'rejected' ? '(上次被驳回,可修改后重新提交)'
+                : d.status === 'draft' ? '(已召回,可重新提交)' : '(未生成)';
+      stEl.innerHTML = `<span class="at-dim">${_month}月 ${tag} · ${d.headcount}人 · ${fmt(d.total)}</span>`;
+      if (sb && CAN_SUBMIT) sb.style.display = d.headcount > 0 ? '' : 'none';
+    }
+  }
+
+  function chip(runId, status) {
+    const lbl = _ST_LABEL[status] || status;
+    const tone = status === 'approved' ? 'var(--success)' : status === 'rejected' ? 'var(--danger)' : 'var(--warn)';
+    return `<span class="at-approval-wrap" data-at-approval data-object-type="salary_run"
+              data-object-id="${runId}" data-api-base="/config-management/api/salary-run-approval"
+              data-status="${status}" data-meta='{"title":"月度薪资审批"}' style="position:relative;display:inline-flex;">
+      <button type="button" data-at-approval-chip style="border:0;background:transparent;padding:0;margin:0;cursor:pointer;
+              display:inline-flex;align-items:center;gap:3px;font:inherit;color:inherit;line-height:1;">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:4px;color:${tone};background:var(--bg-sunk);">${lbl}</span>
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style="opacity:0.55;margin-left:-2px;">
+          <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div data-at-approval-panel style="display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:60;
+           min-width:340px;max-width:420px;background:var(--bg-elev);border:1px solid var(--line);border-radius:8px;
+           box-shadow:0 12px 32px rgba(0,0,0,0.12);overflow:hidden;font-size:13px;">
+        <div data-at-approval-body style="max-height:60vh;overflow-y:auto;">
+          <div style="padding:32px 24px;text-align:center;color:var(--ink-4);font-size:12.5px;">加载中…</div></div>
+        <div data-at-approval-actions style="display:none;padding:10px 16px;border-top:1px solid var(--line);
+             background:var(--bg-page);gap:6px;flex-wrap:wrap;justify-content:flex-end;"></div>
+      </div>
+    </span>`;
+  }
+
+  function renderTable(d) {
+    const cols = d.columns || [];
+    let th = `<tr><th style="text-align:left;width:130px;position:sticky;left:0;background:var(--bg-sunk);z-index:3;">员工</th>
+              <th style="text-align:left;width:120px;">部门</th>`;
+    cols.forEach(c => th += `<th class="num" style="width:110px;">${esc(c.name)}</th>`);
+    th += `<th class="num" style="width:120px;">应发合计</th></tr>`;
+    document.getElementById('saHead').innerHTML = th;
+
+    const rows = d.rows || [];
+    if (!rows.length) {
+      document.getElementById('saBody').innerHTML =
+        `<tr><td colspan="${cols.length + 3}" class="at-dim" style="padding:26px;text-align:center;">该月无可发放薪资的人员(请先在个人薪资页配置标准金额)</td></tr>`;
+      document.getElementById('saFoot').innerHTML = '';
+      return;
+    }
+    let body = '';
+    rows.forEach(r => {
+      body += `<tr><td class="cm-name" style="position:sticky;left:0;background:var(--bg-elev);z-index:2;">${esc(r.name)}</td>
+        <td class="at-dim" style="font-size:11.5px;">${esc(r.department || '—')}</td>`;
+      cols.forEach(c => body += `<td class="num">${fmt((r.items || {})[c.code])}</td>`);
+      body += `<td class="num" style="font-weight:600;">${fmt(r.total)}</td></tr>`;
+    });
+    document.getElementById('saBody').innerHTML = body;
+
+    // 列合计
+    let foot = `<tr style="background:var(--bg-sunk);"><td class="cm-name" style="font-weight:600;position:sticky;left:0;background:var(--bg-sunk);z-index:2;">合计</td><td></td>`;
+    cols.forEach(c => {
+      const s = rows.reduce((a, r) => a + (Number((r.items || {})[c.code]) || 0), 0);
+      foot += `<td class="num" style="font-weight:600;">${fmt(s)}</td>`;
+    });
+    foot += `<td class="num" style="font-weight:700;">${fmt(d.total)}</td></tr>`;
+    document.getElementById('saFoot').innerHTML = foot;
+  }
+
+  window.saSubmit = function () {
+    if (!company()) { ATToast.error('请先选择公司'); return; }
+    ATConfirm.show({
+      title: `提交 ${year()}年${_month}月薪资审批`,
+      message: `将生成 ${company()} ${year()}年${_month}月 全员薪资表(${_detail ? _detail.headcount : 0}人,合计 ${_detail ? fmt(_detail.total) : '—'}),提交「财务主管 → 财务总监 → 总经理」审批。\n\n提交后该月个人薪资将锁定,不可编辑(召回可解锁)。确认提交?`,
+      variant: 'accent', icon: 'send', confirmText: '生成并提交', cancelText: '取消',
+      onConfirm: async () => {
+        try {
+          const d = await (await fetch('/config-management/api/salary-run/submit', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+            body: JSON.stringify({ company: company(), year: year(), month: _month }),
+          })).json();
+          if (d.success) { ATToast.success(d.message || '已提交'); saReload(); }
+          else ATToast.error(d.message || '提交失败');
+        } catch (_) { ATToast.error('提交失败,请重试'); }
+      },
+    });
+  };
+
+  // 审批中心 / 通知深链:?company=&year=&month= 预选
+  (function () {
+    const p = new URLSearchParams(location.search);
+    const co = p.get('company'), yr = p.get('year'), mo = p.get('month');
+    if (co) { const el = document.getElementById('saCompany'); if (el) { el.value = co; } }
+    if (yr) { ySel.value = yr; }
+    if (mo) { _month = parseInt(mo) || 0; }
+  })();
+  saReload();
+</script>
+{% endblock %}

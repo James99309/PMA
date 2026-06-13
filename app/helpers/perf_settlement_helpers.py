@@ -252,3 +252,25 @@ def is_settlement_approver_of(approver_id, target_user_id, year=None):
         if st.approval_instance_id and is_current_approver('perf_settlement', st.id, approver_id):
             return True
     return False
+
+
+def is_supervisor_of(viewer_id, target_user_id):
+    """viewer 是否为 target 的上级(可看下属绩效):归属上级 / 同部门负责人 / 总经理。"""
+    if viewer_id == target_user_id:
+        return False
+    from app.models.user import User, Affiliation
+    target = User.query.get(target_user_id)
+    viewer = User.query.get(viewer_id)
+    if not target or not viewer:
+        return False
+    # 1) 归属关系:owner=下属 → viewer=上级
+    if Affiliation.query.filter_by(owner_id=target_user_id, viewer_id=viewer_id).first():
+        return True
+    # 2) 同部门同公司的部门负责人
+    if (viewer.is_department_manager and target.department and viewer.department == target.department
+            and (viewer.company_name or '') == (target.company_name or '')):
+        return True
+    # 3) 总经理(ceo)可看本公司下属
+    if viewer.role == 'ceo' and (viewer.company_name or '') == (target.company_name or ''):
+        return True
+    return False

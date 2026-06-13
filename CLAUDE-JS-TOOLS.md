@@ -23,6 +23,7 @@
 | at-target-sheet.js | AT 目标表格组件(Excel式,季/月分摊) | 角色绩效目标/个人目标覆盖等目标配置表 | 2 | ✅ 已文档化 🆕 |
 | at-perm-sheet.js | AT 权限矩阵组件(CRUD+数据范围+内容筛选+折扣) | 角色默认权限/个人权限覆盖配置页 | 2 | ✅ 已文档化 🆕 |
 | at-budget-sheet.js | AT 预算表组件(总额+科目chips+权重%+部门上限) | 部门预算/个人预算配置页 | 2 | ✅ 已文档化 🆕 |
+| at-person-picker.js | AT 人员/部门选择器(搜索+部门分组下拉,焦点稳定) | 个人配置各页(权限/归属/预算/绩效/薪资/AI)人员选择 | 6 | ✅ 已文档化 🆕 |
 | trigger-dropdown.js | 触发式下拉搜索组件 | @提及用户、#引用项目等触发式搜索 | 1 | ✅ 已文档化 🆕 |
 | drag-sort.js | 轻量级拖拽排序工具 | 简单列表拖拽排序（无需依赖） | 1 | ✅ 已文档化 🆕 |
 | sortable-list.js | 通用拖拽排序组件 | 任何需要列表拖拽排序的页面 | 2 | ✅ 已文档化 |
@@ -3714,3 +3715,38 @@ bs.getPayloadItems(); bs.stats(); bs.validate();
 - 数据:`department_expense_budgets`(总额+category_budgets JSON+period_budgets JSON),`expense_budgets.category_budgets`(个人,迁移 person_budget_categories_20260612)。
 
 **创建日期**: 2026-06-12
+
+#### at-person-picker.js
+
+**基本信息**
+- **文件路径**: `app/static/js/at-person-picker.js`
+- **功能描述**: AT 人员/部门选择器下拉(搜索框 + 按部门分组的人员列表 + 选中高亮 + 可选每行徽章 + 可选锁定)。**菜单外壳只构建一次,输入时只刷新列表容器**,搜索框 DOM 不重建 → 原生保持焦点(修复旧内联实现"输入一个字符即丢焦点导致搜索失效"的 bug)。
+- **使用场景**: 个人配置各 tab 顶部"选择要配置的人员"下拉;任何"搜索+部门分组选人"的场景。
+
+**已使用页面**(替代各页内联 renderMenu/toggleMenu 复制实现)
+1. `user/at_person_permissions.html` — 权限覆盖
+2. `user/at_person_affiliation.html` — 归属关系
+3. `user/at_person_budget.html` — 费用预算
+4. `user/at_person_performance.html` — 绩效目标(rowBadge=方案;locked=审批/详情锁定)
+5. `user/at_person_salary.html` — 薪资
+6. `user/at_person_ai.html` — AI 代理(rowBadge=已开通点)
+（脚本已在公用壳 `components/at_person_layout.html` 引入,各页直接 `AtPersonPicker.init`）
+
+**API**
+```javascript
+const picker = AtPersonPicker.init({
+  button: 'xxPickerBtn' | el,   // 触发按钮
+  menu:   'xxUserMenu'  | el,   // 下拉容器(.cm-role-menu)
+  getUsers: () => [{id,name,department,role_display, ...}],  // 每次展开时取当前可选人员
+  activeId: () => _userId,      // 可选:当前选中 id(高亮)
+  onSelect: id => {...},        // 选中回调(选后菜单自动关闭)
+  rowBadge: u => '<span>…</span>',  // 可选:每行右侧徽章(各页不同)
+  locked:   () => bool,         // 可选:锁定不可展开(详情页锁定/审批模式)
+  placeholder: '搜索人员 / 部门…',
+});
+picker.refresh();   // 数据变化后刷新列表(仅菜单展开时)
+```
+- 复用样式类:`.cm-role-menu`/`.cm-role-item`/`.pp-dep`/`.pp-search`(定义于 at_person_layout)。
+- onSelect 若引用稍后定义的函数,用 `onSelect: id => xxSelect(id)` 晚绑定避免顺序问题。
+
+**创建日期**: 2026-06-13

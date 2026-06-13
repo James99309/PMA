@@ -2884,6 +2884,7 @@ def get_object_type_display(object_type):
         'inventory_stock': '库存',
         'performance_target': '绩效目标',
         'perf_settlement': '绩效结算',
+        'salary_run': '月度薪资审批',
         'dealer_apply': '客户渠道身份',
         'project_hold': '项目失败/搁置',
         'user': '用户',
@@ -5614,6 +5615,25 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     current_app.logger.info(
                         f"绩效结算被驳回: user={st.user_id} {st.year}Q{st.quarter}")
 
+        elif instance.object_type == 'salary_run':
+            # 月度薪资审批:终审通过 → 永久锁定(已在提交时锁);驳回 → 解锁可改后重提
+            from app.models.salary_structure import SalaryRun
+            run = SalaryRun.query.get(instance.object_id)
+            if run:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    from datetime import datetime as _dt
+                    run.status = 'approved'
+                    run.is_locked = True
+                    run.settled_at = _dt.utcnow()
+                    current_app.logger.info(
+                        f"月度薪资审批通过并固化: {run.company_name} {run.year}-{run.month} "
+                        f"人数={run.headcount} 合计={run.total_amount}")
+                elif action == ApprovalAction.REJECT:
+                    run.status = 'rejected'
+                    run.is_locked = False
+                    current_app.logger.info(
+                        f"月度薪资审批被驳回,解锁: {run.company_name} {run.year}-{run.month}")
+
         elif instance.object_type == 'customer':
             # 客户审批状态更新逻辑（如果需要的话）
             # 这里可以根据客户的具体需求来实现
@@ -6673,6 +6693,17 @@ def recall_approval(object_type, object_id, user_id, reason=None):
                 if _st:
                     _st.status = 'draft'
                     _st.is_locked = False
+            except Exception:
+                pass
+
+        # 月度薪资审批召回 → 草稿,解锁该公司该月个人薪资
+        if object_type == 'salary_run':
+            try:
+                from app.models.salary_structure import SalaryRun as _SR
+                _run = _SR.query.get(object_id)
+                if _run:
+                    _run.status = 'draft'
+                    _run.is_locked = False
             except Exception:
                 pass
 

@@ -2955,7 +2955,45 @@ def api_claude_ai_send_dxt(user_id):
 # ═══════════════════════════════════════════════════════════
 # AT 个人配置(账户详情 · 个人级配置中心)
 # 划界:配置管理=角色默认/系统规则;此处=个人覆盖(目标/预算/权限)与归属
+# tab 由 person_config 模块功能开关控制(白名单);数据范围用标准四级
 # ═══════════════════════════════════════════════════════════
+
+def _person_tab_allowed(feature_id):
+    """个人配置某 tab 访问:纯功能开关驱动(白名单)—— admin,或 person_config view + 对应 feature。
+    数据范围决定能配哪些人(页内人员列表按 scope 过滤)。"""
+    u = current_user
+    if u.role == 'admin':
+        return True
+    return u.has_permission('person_config', 'view') and u.has_feature('person_config', feature_id)
+
+
+# 个人配置 tab 顺序(功能开关 → 路由 endpoint);落地路由按此取首个可访问 tab
+_PERSON_TAB_ORDER = [
+    ('pc_permission', 'user.at_person_permissions'),
+    ('pc_affiliation', 'user.at_person_affiliation'),
+    ('pc_budget', 'user.at_person_budget'),
+    ('pc_performance', 'user.at_person_performance'),
+    ('pc_salary', 'user.at_person_salary'),
+    ('pc_ai', 'user.at_person_ai'),
+]
+
+
+@user_bp.route('/at-config')
+@login_required
+def at_person_home():
+    """个人配置落地:重定向到当前用户第一个有权访问的 tab(避免落到无权 tab → 403)。
+    透传 ?user= 锁定参数。"""
+    from flask import redirect, url_for, request, abort
+    if current_user.role != 'admin' and not current_user.has_permission('person_config', 'view'):
+        abort(403)
+    qs = {}
+    if request.args.get('user'):
+        qs['user'] = request.args.get('user')
+    for feat, endpoint in _PERSON_TAB_ORDER:
+        if current_user.role == 'admin' or current_user.has_feature('person_config', feat):
+            return redirect(url_for(endpoint, **qs))
+    abort(403)
+
 
 @user_bp.route('/at-config/performance')
 @login_required
@@ -2963,20 +3001,19 @@ def at_person_performance():
     """AT 个人配置 · 绩效目标(个人覆盖,优先于角色默认)。
     复用 performance_config 的 users/targets/batch(只提交变更项=未动的保持继承)。
     绩效结算审批人(无配置权限)可经 ?user=&settle_q= 进入,仅用于展开审批 chip。"""
-    _has_cfg = (current_user.has_permission('user_management', 'view')
-                or current_user.has_permission('config_management', 'view'))
+    _has_cfg = _person_tab_allowed('pc_performance')
     if not _has_cfg:
-        # 放行:当前用户是该 ?user 某季度绩效结算的待审批人
+        # 放行:?user 指定下属在数据范围内(标准四级)或为其绩效结算审批人
         _ok = False
         try:
             _tu = request.args.get('user', type=int)
-            _tq = request.args.get('settle_q', type=int)
-            if _tu and _tq:
-                from app.helpers.perf_settlement_helpers import get_settlement
-                from app.helpers.approval_helpers import is_current_approver
-                _st = get_settlement(_tu, datetime.now().year, _tq)
-                if _st and is_current_approver('perf_settlement', _st.id, current_user.id):
+            if _tu:
+                _tgt = User.query.get(_tu)
+                if _tgt and current_user.can_view_person(_tgt, 'person_config'):
                     _ok = True
+                if not _ok:
+                    from app.helpers.perf_settlement_helpers import is_settlement_approver_of
+                    _ok = is_settlement_approver_of(current_user.id, _tu)
         except Exception:
             _ok = False
         if not _ok:
@@ -2998,6 +3035,18 @@ def at_person_performance():
         'company': u.company_name or '',
         'has_scheme': bool(get_role_scheme(u.role)),
     } for u in users]
+    # 审批模式:确保被审批的下属在人员列表里(审批人权限范围可能不含 → 否则前端选不中)
+    if not _has_cfg:
+        _tu = request.args.get('user', type=int)
+        if _tu and not any(u['id'] == _tu for u in users_data):
+            _tgt = User.query.get(_tu)
+            if _tgt:
+                users_data.append({
+                    'id': _tgt.id, 'name': _tgt.real_name or _tgt.username,
+                    'role': _tgt.role or '', 'role_display': get_role_display_name(_tgt.role) if _tgt.role else '',
+                    'department': _tgt.department or '未分组', 'company': _tgt.company_name or '',
+                    'has_scheme': bool(get_role_scheme(_tgt.role)),
+                })
     my_company = current_user.company_name or ''
     companies = sorted({u['company'] for u in users_data if u['company']},
                        key=lambda c: (c != my_company, c))
@@ -3028,8 +3077,7 @@ def at_person_permissions():
     """AT 个人配置 · 权限覆盖。
     语义:有个人 Permission 行的模块=整模块覆盖(含显式拒绝),无行=继承角色默认;
     保存走 overrides 端点(只写覆盖集,不补显式拒绝行),行级「↺ 继承」删单模块行。"""
-    if not (current_user.has_permission('user_management', 'view')
-            or current_user.has_permission('config_management', 'view')):
+    if not _person_tab_allowed('pc_permission'):
         from flask import abort
         abort(403)
 
@@ -3063,8 +3111,7 @@ def at_person_permissions():
 def at_person_budget():
     """AT 个人配置 · 费用预算(挂部门预算之下:个人 ≤ 部门待分配,部门明细强制保留)。
     企业隔离:非 admin 只列/只配本公司用户。"""
-    if not (current_user.has_permission('user_management', 'view')
-            or current_user.has_permission('config_management', 'view')):
+    if not _person_tab_allowed('pc_budget'):
         from flask import abort
         abort(403)
 
@@ -3186,11 +3233,14 @@ def at_list():
     form_options = None
     if can_create:
         dicts = Dictionary.query.filter_by(is_active=True).all()
+        from app.models.expense import Department as _Dept
+        _depts = _Dept.query.filter_by(is_active=True).order_by(_Dept.company_name, _Dept.name).all()
         form_options = {
             'roles': sorted([{'value': d.key, 'label': d.value} for d in dicts if d.type == 'role'],
                             key=lambda x: x['label']),
             'companies': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'company'],
-            'departments': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'department'],
+            # 部门来自部门字典(Department 表),带公司用于联动过滤
+            'departments': [{'value': d.name, 'label': d.name, 'company': d.company_name or ''} for d in _depts],
         }
 
     return render_template('user/at_list.html',
@@ -3268,20 +3318,33 @@ def at_user_detail(user_id):
             'cross_team_label': getattr(u, 'cross_team_label', '') or '',
         }
         dicts = Dictionary.query.filter_by(is_active=True).all()
+        from app.models.expense import Department as _Dept
+        _depts = _Dept.query.filter_by(is_active=True).order_by(_Dept.company_name, _Dept.name).all()
         form_options = {
             'roles': sorted([{'value': d.key, 'label': d.value} for d in dicts if d.type == 'role'],
                             key=lambda x: x['label']),
             'companies': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'company'],
-            'departments': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'department'],
+            # 部门来自部门字典(Department 表),带公司用于联动过滤
+            'departments': [{'value': d.name, 'label': d.name, 'company': d.company_name or ''} for d in _depts],
         }
+    # 个人配置入口:逐 tab 按功能开关(白名单)gate;有 person_config 查看权 + 任一 feature 才显示该区块
+    _pc_view = current_user.has_permission('person_config', 'view')
+    pc_tabs = {
+        'pc_permission': current_user.has_feature('person_config', 'pc_permission'),
+        'pc_affiliation': current_user.has_feature('person_config', 'pc_affiliation'),
+        'pc_budget': current_user.has_feature('person_config', 'pc_budget'),
+        'pc_performance': current_user.has_feature('person_config', 'pc_performance'),
+        'pc_salary': current_user.has_feature('person_config', 'pc_salary'),
+        'pc_ai': current_user.has_feature('person_config', 'pc_ai'),
+    }
     return render_template('user/at_detail.html',
                            u=info,
                            edit_data=edit_data,
                            form_options=form_options,
                            can_edit=can_edit,
                            can_delete=current_user.has_permission('user_management', 'delete'),
-                           can_person_config=(current_user.has_permission('config_management', 'view')
-                                              or current_user.has_permission('user_management', 'view')))
+                           pc_tabs=pc_tabs,
+                           can_person_config=(_pc_view and any(pc_tabs.values())))
 
 
 # ── AT 个人配置 · 薪资(岗位结构套用 + 个人覆盖/专属项目;仅 admin/ceo/hr_manager) ──
@@ -3297,7 +3360,9 @@ def _salary_guard():
 @login_required
 def at_person_salary():
     """AT 个人配置 · 薪资:显示该人岗位的薪资结构(继承),金额可个人覆盖,可加专属项目。"""
-    _salary_guard()
+    if not _person_tab_allowed('pc_salary'):
+        from flask import abort
+        abort(403)
     from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
     is_admin = current_user.role == 'admin'
     q = User.query.filter(User._is_active.is_(True))
@@ -3330,7 +3395,9 @@ def at_person_salary():
 def api_get_person_salary(user_id, year):
     """个人薪资:套用全局结构(主子层级)+ 月度实发 + 试用期标记。
     主项有子项→每月金额=子项汇总(前端算);叶子项 HR 按月回填实发(monthly)。"""
-    _salary_guard()
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_salary'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
     try:
         from app.models.salary_structure import SalaryStructureItem, UserSalaryItem, UserSalaryProfile
 
@@ -3370,6 +3437,9 @@ def api_get_person_salary(user_id, year):
                 'amount': float(x.amount) if x.amount is not None else None,
                 'monthly': _monthly(x),
             })
+        # 薪资审批已锁定的月份(提交/通过 → 该月不可编辑)
+        from app.helpers.salary_run_helpers import locked_months as _locked_months_fn
+        lk = _locked_months_fn(u.company_name, year) if u.company_name else []
         # 试用期为账户级属性(账户创建/编辑设定);薪资页只读引用并高亮对应月份
         return jsonify({'success': True, 'data': {
             'items': items,
@@ -3378,6 +3448,7 @@ def api_get_person_salary(user_id, year):
             'in_probation': u.in_probation,
             'probation_start': u.probation_start.isoformat() if u.probation_start else None,
             'probation_end': u.probation_end.isoformat() if u.probation_end else None,
+            'locked_months': lk,
         }})
     except Exception as e:
         logger.exception(f'person-salary get error: {e}')
@@ -3388,13 +3459,32 @@ def api_get_person_salary(user_id, year):
 @login_required
 def api_save_person_salary(user_id, year):
     """保存个人薪资:结构项月度实发 + 个人专属项目整组替换 + 试用期开关/日期"""
-    _salary_guard()
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_salary', need_edit=True):
+        return jsonify({'success': False, 'message': '无权限'}), 403
     try:
         from app.models.salary_structure import SalaryStructureItem, UserSalaryItem, UserSalaryProfile
         data = request.get_json() or {}
         struct_rows = SalaryStructureItem.query.filter_by(is_active=True).all()
         struct_codes = {r.item_code for r in struct_rows}
         struct_cycle = {r.item_code: (r.pay_cycle or 'monthly') for r in struct_rows}
+
+        # 薪资审批已锁定的月份(提交/通过):该月各项实发不可改,保存时保留原值
+        from app.helpers.salary_run_helpers import locked_months as _locked_months_fn
+        _tu = User.query.get(user_id)
+        _locked = set(_locked_months_fn(_tu.company_name, year)) if (_tu and _tu.company_name) else set()
+
+        def _keep_locked(months, row):
+            if not _locked:
+                return months
+            existing = (row.monthly_amounts if row else None) or {}
+            for lm in _locked:
+                k = str(lm)
+                if k in existing:
+                    months[k] = existing[k]
+                else:
+                    months.pop(k, None)
+            return months
 
         def _num(v):
             return None if v in (None, '') else float(v)
@@ -3428,6 +3518,7 @@ def api_save_person_salary(user_id, year):
             cyc_override = sub_cyc if (sub_cyc and sub_cyc != struct_cycle.get(code)) else None
             row = UserSalaryItem.query.filter_by(user_id=user_id, year=year,
                                                  item_code=code, is_personal=False).first()
+            months = _keep_locked(months, row)   # 锁定月保留原值
             if amt is None and not months and cyc_override is None:
                 if row:
                     db.session.delete(row)
@@ -3482,9 +3573,9 @@ def api_save_person_salary(user_id, year):
 @user_bp.route('/at-config/ai')
 @login_required
 def at_person_ai():
-    """AT 个人配置 · Claude AI 代理(仅 admin):开通/配额/用量/设备锁定。
-    复用 /user/api/<id>/claude-ai* 全套既有 API。"""
-    if current_user.role != 'admin':
+    """AT 个人配置 · Claude AI 代理:开通/配额/用量/设备锁定。
+    由 person_config 功能开关 pc_ai 控制(默认仅 admin 勾选)。"""
+    if not _person_tab_allowed('pc_ai'):
         from flask import abort
         abort(403)
 
@@ -3557,8 +3648,7 @@ def at_person_affiliation():
     """AT 个人配置 · 归属关系(该用户作为 viewer 可查看哪些 owner 的数据)。
     复用 /user/api/get_selected_users 与 /user/api/save_affiliations(整包替换)。
     企业隔离:非 admin 只列/只配本公司用户。"""
-    if not (current_user.has_permission('user_management', 'view')
-            or current_user.has_permission('config_management', 'view')):
+    if not _person_tab_allowed('pc_affiliation'):
         from flask import abort
         abort(403)
 

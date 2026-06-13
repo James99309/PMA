@@ -1,17 +1,17 @@
 {
   "app_version": "3.0.3",
   "environment": "production",
-  "timestamp": "2026-06-13 14:57:35",
+  "timestamp": "2026-06-13 23:15:54",
   "modules": {
     "user": {
       "files": {
         "app/views/user.py": {
-          "hash": "46f6956118e7036ead4208abc0b8baaf",
-          "last_modified": "2026-06-13 14:52:19"
+          "hash": "05ca0dbe141a5069f9a6c4b108ee93fc",
+          "last_modified": "2026-06-13 22:00:45"
         },
         "app/models/user.py": {
-          "hash": "b2600b9bbe6ce2ce09614f7861c0a136",
-          "last_modified": "2026-06-13 11:21:44"
+          "hash": "42329b15255fc726befc6457a9361594",
+          "last_modified": "2026-06-13 16:21:44"
         },
         "app/permissions.py": {
           "hash": "9869a300f244737d80babcb17248b531",

@@ -50,7 +50,7 @@
       {% endif %}
     </span>
     <div style="position:relative;">
-      <button type="button" class="cm-role-btn" onclick="aiToggleMenu(event)">
+      <button type="button" id="aiPickerBtn" class="cm-role-btn">
         <span id="aiUserName">选择人员</span>
         <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
       </button>
@@ -95,41 +95,13 @@
     }
   };
 
-  function renderMenu() {
-    const term = (document.getElementById('aiMenuSearch') ? document.getElementById('aiMenuSearch').value : '').trim().toLowerCase();
-    const list = usersOf().filter(u => !term ||
-      (u.name + ' ' + u.department + ' ' + u.role_display).toLowerCase().includes(term));
-    const groups = {};
-    list.forEach(u => (groups[u.department] = groups[u.department] || []).push(u));
-    let html = `<input id="aiMenuSearch" class="pp-search" type="text" placeholder="搜索人员 / 部门…" autocomplete="off"
-                       value="${esc(term)}" onclick="event.stopPropagation()" oninput="renderMenu();
-                       this.focus();this.setSelectionRange(this.value.length,this.value.length)">`;
-    Object.keys(groups).forEach(dep => {
-      html += `<div class="pp-dep">${esc(dep)}</div>`;
-      groups[dep].forEach(u => {
-        html += `<div class="cm-role-item${u.id === _userId ? ' active' : ''}" onclick="aiSelect(${u.id})">
-                   <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
-                          border-radius:50%;background:var(--accent-tint);color:var(--accent);font-size:11px;font-weight:600;">
-                     ${esc(u.name[0] || '?')}</span>
-                   <span style="flex:1;">${esc(u.name)}</span>
-                   ${u.ai_enabled ? '<span style="width:7px;height:7px;border-radius:4px;background:var(--success);" title="已开通"></span>' : ''}
-                   <span class="at-dim" style="font-size:10.5px;">${esc(u.role_display)}</span>
-                 </div>`;
-      });
-    });
-    document.getElementById('aiUserMenu').innerHTML = html || '<div class="at-dim" style="padding:18px;text-align:center;font-size:12px;">无匹配</div>';
-  }
-  window.aiToggleMenu = function (e) {
-    e.stopPropagation();
-    if (typeof _locked !== 'undefined' && _locked) return;
-    const menu = document.getElementById('aiUserMenu');
-    const show = menu.style.display === 'none';
-    if (show) renderMenu();
-    menu.style.display = show ? 'block' : 'none';
-  };
-  document.addEventListener('click', () => {
-    const m = document.getElementById('aiUserMenu');
-    if (m) m.style.display = 'none';
+  // ── 人员下拉:公用组件(搜索+部门分组),替代原内联实现 ──
+  AtPersonPicker.init({
+    button: 'aiPickerBtn', menu: 'aiUserMenu',
+    getUsers: usersOf, activeId: () => _userId, onSelect: id => aiSelect(id),
+    locked: () => (typeof _locked !== 'undefined' && _locked),
+    rowBadge: u => u.ai_enabled
+      ? '<span style="width:7px;height:7px;border-radius:4px;background:var(--success);" title="已开通"></span>' : '',
   });
 
   window.aiSelect = function (id) {

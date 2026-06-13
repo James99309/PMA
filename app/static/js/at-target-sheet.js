@@ -81,6 +81,7 @@
                                 background: var(--bg-elev); }
       .cm-sheet .me-tgt:empty::before { content: attr(data-impl); color: var(--ink-4); font-style: italic; }
       .cm-sheet .me-tgt:focus::before { content: none; }
+      .cm-sheet .ts-locked { background: var(--bg-sunk); color: var(--ink-3); cursor: not-allowed; }
     `;
     document.head.appendChild(st);
   }
@@ -96,6 +97,13 @@
     const inverseCodes = cfg.inverseCodes || [];
     let items = [];
     let actuals = {};   // {item_code:{m:{},q:{},y}}
+    let lockedQ = new Set();   // 已结算锁定的季度(1..4):该季目标格只读、手工实际不可录
+    const fieldLocked = (field) => {
+      if (!field) return false;
+      if (field[0] === 'q') return lockedQ.has(parseInt(field.slice(1)));
+      if (field[0] === 'm') return lockedQ.has(Math.ceil(parseInt(field.slice(1)) / 3));
+      return false;   // 年度/权重不按季锁定
+    };
     const showScore = !!cfg.showScore;   // 表格底部季度加权得分行(基于实际/目标/权重自算)
 
     // 某期(kind:'y'|'q', idx)的加权得分:Σ(达成率×权重)/Σ(计入权重)×100;
@@ -396,10 +404,11 @@
         const meCell = (kind, idx, field, target) => {
           const inf = actInfo(it, kind, idx, target) || { cls: 'act-na', hasT: false, implied: null, v: null };
           const frac = inf.v != null && inf.hasT;
+          const lk = fieldLocked(field);
           return `<td ${kind === 'q' && monthMode ? 'colspan="3"' : ''} class="${badCls}">
-            <span class="me-act ${inf.cls}${frac ? ' me-frac' : ''}" data-mecell="${i}|${kind}|${idx}"
-                  title="手工指标:点击录入${kind === 'm' ? idx + '月' : idx + '季度'}实际值">${inf.v != null ? Math.round(inf.v) : ''}</span>
-            <span class="me-tgt" ${ceAttr} data-i="${i}" data-f="${field}"${inf.implied != null ? ` data-impl="${fmt(inf.implied)}"` : ''}>${fmt(target)}</span>
+            <span class="me-act ${inf.cls}${frac ? ' me-frac' : ''}${lk ? ' ts-locked' : ''}" data-mecell="${i}|${kind}|${idx}"
+                  title="${lk ? '该季度已结算锁定,不可修改' : '手工指标:点击录入' + (kind === 'm' ? idx + '月' : idx + '季度') + '实际值'}">${inf.v != null ? Math.round(inf.v) : ''}</span>
+            <span class="me-tgt${lk ? ' ts-locked' : ''}" ${lk ? '' : ceAttr} data-i="${i}" data-f="${field}"${inf.implied != null ? ` data-impl="${fmt(inf.implied)}"` : ''}>${fmt(target)}</span>
           </td>`;
         };
         let cells = '';
@@ -410,14 +419,16 @@
                        title="${isManual ? '手工指标:点击录入实际值' : '年粒度:不按季/月管控节奏'}">${fmt(it.annual_target)}</td>`;
         } else if (isM) {
           for (let m = 1; m <= 12; m++) {
+            const lk = fieldLocked('m' + m);
             cells += isManual ? meCell('m', m, 'm' + m, it.monthly_targets[String(m)])
-              : `<td ${ceAttr} class="${badCls}" data-i="${i}" data-f="m${m}"${actAttr(it, 'm', m, it.monthly_targets[String(m)])}>${fmt(it.monthly_targets[String(m)])}</td>`;
+              : `<td ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="该季度已结算锁定,不可修改"' : ''} data-i="${i}" data-f="m${m}"${actAttr(it, 'm', m, it.monthly_targets[String(m)])}>${fmt(it.monthly_targets[String(m)])}</td>`;
           }
         } else {
           // 月表头模式下季考行跨 3 列;纯季模式一格一列
           for (let q = 1; q <= 4; q++) {
+            const lk = fieldLocked('q' + q);
             cells += isManual ? meCell('q', q, 'q' + q, it['q' + q + '_target'])
-              : `<td ${monthMode ? 'colspan="3"' : ''} ${ceAttr} class="${badCls}" data-i="${i}" data-f="q${q}"${actAttr(it, 'q', q, it['q' + q + '_target'])}>${fmt(it['q' + q + '_target'])}</td>`;
+              : `<td ${monthMode ? 'colspan="3"' : ''} ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="该季度已结算锁定,不可修改"' : ''} data-i="${i}" data-f="q${q}"${actAttr(it, 'q', q, it['q' + q + '_target'])}>${fmt(it['q' + q + '_target'])}</td>`;
           }
         }
 
@@ -509,6 +520,9 @@
       el.querySelectorAll('[data-mecell]').forEach(td =>
         td.addEventListener('click', () => {
           const [i, kind, idx] = td.dataset.mecell.split('|');
+          const lk = kind === 'm' ? lockedQ.has(Math.ceil(parseInt(idx) / 3))
+                   : kind === 'q' ? lockedQ.has(parseInt(idx)) : false;
+          if (lk) { g.ATToast && ATToast.error('该季度已结算锁定,不可修改'); return; }
           cfg.onManualEdit && cfg.onManualEdit(items[parseInt(i)], { kind, idx: parseInt(idx) });
         }));
       el.querySelectorAll('[data-enable]').forEach(c =>
@@ -531,6 +545,7 @@
         render();
       },
       setActuals(map) { actuals = map || {}; render(); },
+      setLocks(quarters) { lockedQ = new Set((quarters || []).map(Number)); render(); },
       getActuals: () => actuals,
       // 各期加权得分(供季度结算发起取数):{year, quarters:[Q1..Q4]}
       getScores: () => ({ year: periodScore('y', 0), quarters: [1, 2, 3, 4].map(q => periodScore('q', q)) }),

@@ -106,21 +106,29 @@
       <section class="at-section" style="margin-bottom:0;">
         <header class="at-section-h"><h3 class="at-section-title">个人配置</h3></header>
         <div class="at-section-body" style="padding:8px;">
+          {# 每项:(标签, 图标, 链接, 对应功能开关 feature_id);无该开关 → 灰显不可点 #}
           {% set _cfg_links = [
-            ('权限覆盖', 'shield_person',          url_for('user.at_person_permissions', user=u.id)),
-            ('归属关系', 'lan',                    url_for('user.at_person_affiliation', user=u.id)),
-            ('费用预算', 'account_balance_wallet', url_for('user.at_person_budget', user=u.id)),
-            ('绩效目标', 'flag',                   url_for('user.at_person_performance', user=u.id)),
+            ('权限覆盖', 'shield_person',          url_for('user.at_person_permissions', user=u.id),  'pc_permission'),
+            ('归属关系', 'lan',                    url_for('user.at_person_affiliation', user=u.id),  'pc_affiliation'),
+            ('费用预算', 'account_balance_wallet', url_for('user.at_person_budget', user=u.id),       'pc_budget'),
+            ('绩效目标', 'flag',                   url_for('user.at_person_performance', user=u.id),  'pc_performance'),
+            ('薪资配置', 'payments',               url_for('user.at_person_salary', user=u.id),       'pc_salary'),
+            ('AI 代理', 'smart_toy',               url_for('user.at_person_ai', user=u.id),           'pc_ai'),
           ] %}
-          {% if current_user.role == 'admin' %}
-            {% set _cfg_links = _cfg_links + [('AI 代理', 'smart_toy', url_for('user.at_person_ai', user=u.id))] %}
-          {% endif %}
-          {% for label, icon, url in _cfg_links %}
-          <a class="ud-link" href="{{ url }}">
-            <span class="material-symbols-outlined">{{ icon }}</span>
-            <span style="flex:1;">{{ label }}</span>
-            {{ at_icon('chev', 13) }}
-          </a>
+          {% for label, icon, url, fid in _cfg_links %}
+            {% set _ok = (pc_tabs or {}).get(fid) %}
+            {% if _ok %}
+            <a class="ud-link" href="{{ url }}">
+              <span class="material-symbols-outlined">{{ icon }}</span>
+              <span style="flex:1;">{{ label }}</span>
+              {{ at_icon('chev', 13) }}
+            </a>
+            {% else %}
+            <span class="ud-link" style="opacity:.4;cursor:not-allowed;" title="无权限">
+              <span class="material-symbols-outlined">{{ icon }}</span>
+              <span style="flex:1;">{{ label }}</span>
+            </span>
+            {% endif %}
           {% endfor %}
         </div>
       </section>

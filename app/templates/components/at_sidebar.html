@@ -201,6 +201,7 @@
 
         {# ── 设置组(合并账户+产品配置+系统运维,扁平化二级) ── #}
         {% if has_permission('user_management', 'view') or has_permission('dictionary_management', 'view') or has_permission('config_management', 'view')
+              or has_permission('person_config', 'view')
               or has_permission('system_settings', 'edit') or has_permission('announcement', 'view')
               or has_permission('approval_config', 'view') or has_permission('change_history', 'view')
               or has_permission('backup', 'view') or has_permission('version_management', 'view')
@@ -219,9 +220,9 @@
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
             {# 账户与字典 #}
             {% if has_permission('user_management', 'view') %}{{ _sub_link(url_for('user.at_list'), '账户列表', 'user_list', active_key) }}{% endif %}
-            {% if has_permission('user_management', 'view') or has_permission('config_management', 'view') %}
-              {{ _sub_link(url_for('user.at_person_permissions'), '个人配置', 'person_config', active_key) }}{% endif %}
-            {% if has_permission('config_management', 'view') %}{{ _sub_link(url_for('config_management.at_permissions'), '配置管理', 'config_management', active_key) }}{% endif %}
+            {% if has_permission('person_config', 'view') %}
+              {{ _sub_link(url_for('user.at_person_home'), '个人配置', 'person_config', active_key) }}{% endif %}
+            {% if has_permission('config_management', 'view') %}{{ _sub_link(url_for('config_management.at_home'), '配置管理', 'config_management', active_key) }}{% endif %}
             {% if has_permission('dictionary_management', 'view') %}
               {{ _sub_link(url_for('user.manage_roles'), '角色字典', 'role_dict', active_key) }}
               {{ _sub_link(url_for('user.manage_companies'), '企业字典', 'company_dict', active_key) }}

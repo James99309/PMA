@@ -71,16 +71,17 @@
         </div>
         <div class="uc-field">
           <label>所属公司 <span class="req">*</span></label>
-          <select class="uc-select" name="company" required>
+          <select class="uc-select" name="company" required onchange="ucFilterDepts()">
             <option value="">选择公司…</option>
             {% for o in options.companies %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         <div class="uc-field">
           <label>部门归属</label>
+          {# 部门来自部门字典(Department 表),按所选公司联动 #}
           <select class="uc-select" name="department">
             <option value="">选择部门…</option>
-            {% for o in options.departments %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+            {% for o in options.departments %}<option value="{{ o.value }}" data-company="{{ o.company }}">{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         <div class="uc-field" style="display:flex;align-items:flex-end;padding-bottom:7px;">
@@ -163,6 +164,20 @@
     setTimeout(() => { const f = $('#ucUsername'); if (f && !f.readOnly) f.focus(); }, 50);
   }
 
+  // 部门按所选公司联动:仅显示该公司的部门(来自部门字典 Department 表)
+  window.ucFilterDepts = function () {
+    const form = document.getElementById('ucForm');
+    const co = form.company.value || '';
+    let curOk = false;
+    Array.from(form.department.options).forEach(opt => {
+      if (!opt.value) { opt.hidden = false; return; }   // 占位项
+      const match = (opt.getAttribute('data-company') || '') === co;
+      opt.hidden = !match;
+      if (match && opt.value === form.department.value) curOk = true;
+    });
+    if (!curOk) form.department.value = '';   // 切公司后原部门不属于该公司 → 清空
+  };
+
   window.ucToggleProb = function (on) {
     document.getElementById('ucProbStartField').hidden = !on;
     document.getElementById('ucProbEndField').hidden = !on;
@@ -178,6 +193,7 @@
     document.getElementById('ucEditZone').hidden = true;
     document.getElementById('ucActiveKeep').disabled = true;
     ucToggleProb(false);
+    ucFilterDepts();   // 公司未选 → 部门下拉先清空
     const un = $('#ucUsername');
     un.readOnly = false; un.value = ''; un.placeholder = '登录名(创建后不可改)';
     show();
@@ -196,6 +212,7 @@
     form.real_name.value = u.real_name || '';
     form.role.value = u.role || '';
     form.company.value = u.company || '';
+    ucFilterDepts();   // 先按公司过滤部门,再设当前部门
     form.department.value = u.department || '';
     form.email.value = u.email || '';
     form.phone.value = u.phone || '';

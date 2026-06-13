@@ -569,6 +569,18 @@ def convert_approval_item(item, tab):
                     result['detail_url'] = f'/user/at-config/performance?user={_st.user_id}&settle_q={_st.quarter}'
                 else:
                     result['approval_number'] = f'APV-{item.id}'
+            elif result['object_type'] == 'salary_run' and hasattr(item, 'object_id'):
+                # 月度薪资审批:编号 + 跳薪资审批 tab(锁定公司/年/月)
+                from app.models.salary_structure import SalaryRun
+                from urllib.parse import quote as _q
+                _run = SalaryRun.query.get(item.object_id)
+                if _run:
+                    result['approval_number'] = f'SAL-{_run.year}{_run.month:02d}'
+                    result['project_name'] = f"{_run.company_name} · {_run.year}年{_run.month}月薪资（{_run.headcount or 0}人）"
+                    result['detail_url'] = (f'/config-management/at/salary-approval'
+                                            f'?company={_q(_run.company_name or "")}&year={_run.year}&month={_run.month}')
+                else:
+                    result['approval_number'] = f'APV-{item.id}'
             else:
                 result['approval_number'] = f'APV-{item.id}'
 
@@ -771,6 +783,15 @@ def at_detail(instance_id):
                 ('季度得分', f"{st.score} 分"),
                 ('绩效基数', f"¥{float(st.base_amount or 0):,.0f}"),
                 ('折算绩效薪资', f"¥{float(st.settled_amount or 0):,.0f}"),
+            ]
+    elif instance.object_type == 'salary_run':
+        from app.models.salary_structure import SalaryRun
+        run = SalaryRun.query.get(instance.object_id)
+        if run:
+            summary['title'] = f"{run.company_name} · {run.year}年{run.month}月 薪资审批"
+            summary['lines'] = [
+                ('人数', f"{run.headcount or 0} 人"),
+                ('应发合计', f"¥{float(run.total_amount or 0):,.2f}"),
             ]
     if 'title' not in summary:
         summary['title'] = f"{summary['type']} #{instance.object_id}"

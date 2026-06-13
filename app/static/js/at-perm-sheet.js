@@ -98,8 +98,9 @@
       markDirty(mid); render(); fire();
     }
     function featOn(mid, fid) {
+      // 白名单:仅当显式 is_enabled=true 才算开;无记录/未配置 = 关(与后端 has_feature 一致)
       const mp = featPerms[mid];
-      return !mp || mp[fid] === undefined ? true : !!mp[fid];
+      return !!(mp && mp[fid]);
     }
     function featToggle(mid, fid) {
       if (!featPerms[mid]) featPerms[mid] = {};

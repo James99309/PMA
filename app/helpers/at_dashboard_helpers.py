@@ -90,6 +90,7 @@ def _build_todos(user):
         'quotation': '报价单', 'sales_order': '客户订单',
         'customer': '客户', 'project_hold': '项目搁置/失败审核',
         'dealer_apply': '渠道身份审批', 'perf_settlement': '绩效结算',
+        'salary_run': '月度薪资审批',
     }
 
     # 1) 待审批 — 复用 get_user_pending_approvals
