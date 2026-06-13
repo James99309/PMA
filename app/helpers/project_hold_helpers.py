@@ -183,3 +183,93 @@ def submit_project_hold(project, target, reason, user_id):
 
     db.session.commit()
     return instance, None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 项目报备审批(object_type='project')业务线路由 —— 2026-06-13 与用户确认:
+# 与失败审核同款分流(渠道→渠道经理[缺位营销总监代理]/服务→服务经理/其余→营销总监,
+# 缺位直达)→ 总经理终审;授权编号在整条通过时按项目类型自动生成
+# (channel_follow→CPJ / sales_focus→SPJ / business_opportunity→APJ),
+# 取代旧 branch 步骤的人工选择。旧模板停用,进行中的旧实例按各自快照走完。
+# ─────────────────────────────────────────────────────────────────────────────
+
+REPORT_TEMPLATE_NAME = '项目报备审批(业务线)'
+
+
+def get_or_create_report_template(created_by=None):
+    """幂等确保业务线报备模板 + 两步 submitter_designate 存在。"""
+    from app import db
+    from app.models.approval import ApprovalProcessTemplate, ApprovalStep
+    from app.models.user import User
+
+    tpl = ApprovalProcessTemplate.query.filter_by(
+        object_type='project', name=REPORT_TEMPLATE_NAME).first()
+    if not tpl:
+        creator_id = created_by
+        if not creator_id or not User.query.get(creator_id):
+            admin = User.query.filter_by(role='admin').first() or User.query.first()
+            creator_id = admin.id if admin else None
+        tpl = ApprovalProcessTemplate(
+            name=REPORT_TEMPLATE_NAME, object_type='project',
+            created_by=creator_id, is_active=True)
+        db.session.add(tpl)
+        db.session.flush()
+
+    steps = (ApprovalStep.query.filter_by(process_id=tpl.id)
+             .order_by(ApprovalStep.step_order).all())
+    if len(steps) < 2:
+        for s in steps:
+            db.session.delete(s)
+        db.session.flush()
+        step1 = ApprovalStep(process_id=tpl.id, step_order=1, step_name='业务线经理审批',
+                             approver_type='submitter_designate', send_email=True)
+        step2 = ApprovalStep(process_id=tpl.id, step_order=2, step_name='总经理审批',
+                             approver_type='submitter_designate', send_email=True)
+        db.session.add_all([step1, step2])
+        db.session.flush()
+        steps = [step1, step2]
+        db.session.commit()   # 模板独立落库,防内部 rollback 冲掉
+    return tpl, steps[0], steps[1]
+
+
+def submit_project_report_approval(project, user_id):
+    """发起业务线路由的项目报备审批。Returns (instance, err)。"""
+    from app import db
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.helpers.approval_helpers import start_approval_process
+    from app.models.approval import ApprovalRecord
+
+    first, ceo, err = resolve_hold_approvers(project)   # 与失败审核同一分流规则
+    if err:
+        return None, err
+
+    tpl, step1, step2 = get_or_create_report_template(created_by=user_id)
+    step1_approver = first if (first and first.id != user_id and first.id != ceo.id) else None
+    designated = {str(step2.id): ceo.id}
+    if step1_approver:
+        designated[str(step1.id)] = step1_approver.id
+
+    instance = start_approval_process(
+        'project', project.id, tpl.id, user_id,
+        auto_commit=False, designated_approvers=designated)
+    if not instance:
+        return None, '发起审批失败(可能已存在审批流程)'
+
+    snap = instance.template_snapshot or {}
+    snap['biz_line_route'] = True
+    instance.template_snapshot = snap
+    flag_modified(instance, 'template_snapshot')
+
+    # 业务线经理缺位/重复 → 跳级直达总经理
+    if not step1_approver:
+        db.session.add(ApprovalRecord(
+            instance_id=instance.id, step_id=step1.id, approver_id=user_id,
+            action='skipped',
+            comment='业务线经理缺位或与发起人/终审人重复，自动跳过该级审批'))
+        instance.current_step = step2.step_order
+        try:
+            from app.services.approval_message_service import ApprovalMessageService
+            ApprovalMessageService.send_approval_notification(instance, step2)
+        except Exception:
+            pass
+    return instance, None

@@ -6,6 +6,11 @@
 {% block category_label %}ACCOUNT · 系统设置{% endblock %}
 {% block page_description %}账户、角色与归属一览;个人级配置(目标/预算/权限/归属)在「个人配置」中操作。{% endblock %}
 
+{% block extra_head %}
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
+{% endblock %}
+
 {% block breadcrumb %}
 <a href="#" style="font-size:13px;color:var(--ink-3);">系统设置</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
@@ -94,6 +99,10 @@
           {% if u.is_dept_manager %}<span title="部门负责人"
                 style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:500;
                        background:var(--accent-tint);color:var(--accent);">负责人</span>{% endif %}
+          {% if u.in_probation %}<span title="新手 · 试用期{% if u.probation_end %}至 {{ u.probation_end }}{% endif %}"
+                style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
+                       background:var(--success-soft);color:var(--success);flex-shrink:0;">
+            <span class="material-symbols-outlined" style="font-size:15px;">eco</span></span>{% endif %}
         </span>
         <span class="at-mono" style="font-size:11px;color:var(--ink-4);">{{ u.username }}</span>
       </span>

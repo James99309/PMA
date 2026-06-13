@@ -25,6 +25,8 @@ from app.models.performance_config import (
 from app.models.expense import Expense, Department
 from app.models.expense_budget import ExpenseBudget
 from app.models.project_customer_association import ProjectCustomerAssociation
+from app.models.salary_structure import SalaryStructureItem, UserSalaryItem, UserSalaryProfile
+from app.models.performance_settlement import PerformanceSettlement
 from app.models.salary_config import (
     SalaryGradeConfig, SalaryGradeBandwidth, SalaryBaseParams, SalaryStepRules,
     SalaryFormulaConfig, SalesTeamConfig, EmployeeSalaryConfig,

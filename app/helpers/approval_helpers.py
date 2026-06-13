@@ -2883,6 +2883,9 @@ def get_object_type_display(object_type):
         'product_analysis': '产品分析',
         'inventory_stock': '库存',
         'performance_target': '绩效目标',
+        'perf_settlement': '绩效结算',
+        'dealer_apply': '客户渠道身份',
+        'project_hold': '项目失败/搁置',
         'user': '用户',
         'department': '部门'
     }
@@ -5505,6 +5508,20 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     if instance.status == ApprovalStatus.APPROVED:
                         # 流程完全通过
                         project.status = 'approved'
+                        # 业务线路由流程:授权编号按项目类型自动生成
+                        # (channel_follow→CPJ / sales_focus→SPJ / business_opportunity→APJ);
+                        # 旧 branch 流程在 branch 步骤已生成,_handle 对已有编号幂等直接返回
+                        if (instance.template_snapshot or {}).get('biz_line_route'):
+                            _BRANCH_BY_TYPE = {
+                                'channel_follow': 'channel_authorization',
+                                'sales_focus': 'project_authorization',
+                                'business_opportunity': 'business_authorization',
+                            }
+                            _ba = _BRANCH_BY_TYPE.get(project.project_type)
+                            try:
+                                _handle_project_authorization(instance, None, branch_action=_ba)
+                            except Exception as _auth_err:
+                                current_app.logger.error(f"自动生成授权编号失败: {_auth_err}", exc_info=True)
                     else:
                         # 还在审批中
                         project.status = 'pending'
@@ -5562,11 +5579,46 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     current_app.logger.info(
                         f"客户 {comp.company_name} 渠道身份审批被驳回,身份维持原状")
 
+        elif instance.object_type == 'perf_settlement':
+            # 季度绩效结算:整条通过 → 折算金额写入薪资绩效项该季末月 + 锁定;驳回 → 标记
+            from app.models.performance_settlement import PerformanceSettlement
+            st = PerformanceSettlement.query.get(instance.object_id)
+            if st:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    from datetime import datetime as _dt
+                    from app.models.salary_structure import UserSalaryItem
+                    _Q_END = {1: 3, 2: 6, 3: 9, 4: 12}
+                    end_m = str(_Q_END[st.quarter])
+                    row = UserSalaryItem.query.filter_by(
+                        user_id=st.user_id, year=st.year,
+                        item_code='performance_salary', is_personal=False).first()
+                    if not row:
+                        row = UserSalaryItem(user_id=st.user_id, year=st.year,
+                                             item_code='performance_salary', is_personal=False,
+                                             created_by=user_id)
+                        db.session.add(row)
+                    m = dict(row.monthly_amounts or {})
+                    m[end_m] = float(st.settled_amount or 0)
+                    row.monthly_amounts = m
+                    from sqlalchemy.orm.attributes import flag_modified as _fm
+                    _fm(row, 'monthly_amounts')
+                    st.status = 'approved'
+                    st.is_locked = True
+                    st.settled_at = _dt.utcnow()
+                    current_app.logger.info(
+                        f"绩效结算通过: user={st.user_id} {st.year}Q{st.quarter} "
+                        f"得分={st.score} 折算={st.settled_amount} → 薪资{end_m}月")
+                elif action == ApprovalAction.REJECT:
+                    st.status = 'rejected'
+                    st.is_locked = False
+                    current_app.logger.info(
+                        f"绩效结算被驳回: user={st.user_id} {st.year}Q{st.quarter}")
+
         elif instance.object_type == 'customer':
             # 客户审批状态更新逻辑（如果需要的话）
             # 这里可以根据客户的具体需求来实现
             pass
-            
+
         elif instance.object_type == 'purchase_order':
             # 更新订单的状态（订单审批状态通过通用审批系统管理，不在订单表中存储）
             from app.models.inventory import PurchaseOrder
@@ -6610,6 +6662,17 @@ def recall_approval(object_type, object_id, user_id, reason=None):
                 _comp = _C.query.get(object_id)
                 if _comp:
                     _comp.pending_company_type = None
+            except Exception:
+                pass
+
+        # 绩效结算召回 → 标记为草稿,解锁(尚未结算)
+        if object_type == 'perf_settlement':
+            try:
+                from app.models.performance_settlement import PerformanceSettlement as _PS
+                _st = _PS.query.get(object_id)
+                if _st:
+                    _st.status = 'draft'
+                    _st.is_locked = False
             except Exception:
                 pass
 

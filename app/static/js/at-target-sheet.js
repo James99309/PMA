@@ -21,7 +21,12 @@
  *                                     //   改基数行年度→全部权重行重算;手改行金额→反算权重
  *     onChange()                      // 任意变更后回调(刷新余量/dirty 指示)
  *     onRevert(item)                  // person:点「↺ 继承」(确认逻辑由调用方做)
+ *     showActuals: true|false,        // 数据格显示「实际 / 目标」双值(实际值只读,经 setActuals 注入)
+ *     manualCodes: ['pm_dev_rate'],   // 手工采集指标:周期格点击弹录入(不可直接打字),年度格仍编辑目标
+ *     inverseCodes: ['fail_rate'],    // 反向指标:实际 ≤ 目标 = 达标(失败率类)
+ *     onManualEdit(item, {kind,idx})  // 手工指标周期格点击(kind:'m'|'q'|'y';弹录入框由调用方做)
  *   });
+ *   sheet.setActuals(map);            // {item_code:{m:{1..12},q:{1..4},y}} 后重渲;null 期不显示
  *   sheet.setItems(items);            // [{item_code,item_name,unit,locked,weight,annual_target,
  *                                     //   q1..q4_target,enable_quarterly,enable_monthly,
  *                                     //   monthly_targets{},overridden?,description?,
@@ -47,13 +52,111 @@
     return arr;
   }
 
+  // 「实际 / 目标」双值样式(组件自带,注入一次)
+  if (!document.getElementById('at-ts-act-style')) {
+    const st = document.createElement('style');
+    st.id = 'at-ts-act-style';
+    st.textContent = `
+      .cm-sheet td[data-act] { vertical-align: middle; }
+      .cm-sheet td[data-act]::before { content: attr(data-act); display: block; font-size: 11px;
+                                       line-height: 1.5; }
+      .cm-sheet td[data-act-frac]::before { border-bottom: 1px solid var(--line-2);
+                                            margin-bottom: 2px; padding-bottom: 1px; }
+      .cm-sheet td[data-act-impl]::after { content: attr(data-act-impl); display: block;
+                                           color: var(--ink-4); font-style: italic; }
+      .cm-sheet td[data-act-impl]:focus::after { content: none; }
+      .cm-sheet td[data-act-cls="act-ok"]::before { color: var(--success); font-weight: 600; }
+      .cm-sheet td[data-act-cls="act-no"]::before { color: var(--warn); font-weight: 600; }
+      .cm-sheet td[data-act-cls="act-na"]::before { color: var(--ink-3); }
+      .cm-sheet td[data-mecell]:hover { background: var(--bg-hover); }
+      .cm-sheet .me-act { display: block; font-size: 11px; line-height: 1.5; min-height: 17px;
+                          cursor: pointer; border-radius: 4px; color: var(--ink-3); }
+      .cm-sheet .me-act:hover { background: var(--bg-hover); }
+      .cm-sheet .me-act.me-frac { border-bottom: 1px solid var(--line-2); border-radius: 4px 4px 0 0;
+                                  margin-bottom: 2px; padding-bottom: 1px; }
+      .cm-sheet .me-act.act-ok { color: var(--success); font-weight: 600; }
+      .cm-sheet .me-act.act-no { color: var(--warn); font-weight: 600; }
+      .cm-sheet .me-tgt { display: block; min-height: 17px; cursor: cell; }
+      .cm-sheet .me-tgt:focus { outline: 2px solid var(--accent); outline-offset: -1px;
+                                background: var(--bg-elev); }
+      .cm-sheet .me-tgt:empty::before { content: attr(data-impl); color: var(--ink-4); font-style: italic; }
+      .cm-sheet .me-tgt:focus::before { content: none; }
+    `;
+    document.head.appendChild(st);
+  }
+
   g.ATTargetSheet = function (cfg) {
     const el = typeof cfg.container === 'string' ? document.getElementById(cfg.container) : cfg.container;
     const canEdit = !!cfg.canEdit;
     const mode = cfg.mode || 'role';
     const weightEditable = !!cfg.weightEditable && canEdit;
     const granYear = !!cfg.granYear;
+    const showActuals = !!cfg.showActuals;
+    const manualCodes = cfg.manualCodes || [];
+    const inverseCodes = cfg.inverseCodes || [];
     let items = [];
+    let actuals = {};   // {item_code:{m:{},q:{},y}}
+    const showScore = !!cfg.showScore;   // 表格底部季度加权得分行(基于实际/目标/权重自算)
+
+    // 某期(kind:'y'|'q', idx)的加权得分:Σ(达成率×权重)/Σ(计入权重)×100;
+    // 无目标的项不计入(剔除其权重),避免目标=0 凭空满分。口径与表格「实际/目标」完全一致。
+    function periodScore(kind, idx) {
+      let wsum = 0, sc = 0;
+      items.forEach(it => {
+        if (it.enabled === false) return;
+        if (cfg.weightBaseCode && it.item_code === cfg.weightBaseCode) return;
+        const w = parseFloat(it.weight) || 0;
+        if (!w) return;
+        const a = actuals[it.item_code];
+        if (!a) return;
+        const actual = kind === 'y' ? a.y : (a.q || {})[idx];
+        if (actual == null) return;
+        // 目标:与 actInfo 一致(季度无显式目标时按年度推导:率类水平/数量均分)
+        let t = kind === 'y' ? parseFloat(it.annual_target) : parseFloat(it['q' + idx + '_target']);
+        if (isNaN(t) && kind === 'q') {
+          const ann = parseFloat(it.annual_target);
+          if (!isNaN(ann) && ann > 0) t = isRate(it) ? ann : r2(ann / 4);
+        }
+        if (isNaN(t) || t <= 0) return;   // 无目标 → 不计入
+        const rate = inverseCodes.includes(it.item_code)
+          ? (actual <= t + 0.0001 ? 1 : t / actual)
+          : Math.min(actual / t, 1);
+        sc += rate * w; wsum += w;
+      });
+      return wsum > 0 ? Math.round(sc / wsum * 1000) / 10 : null;
+    }
+
+    // 数据格的「实际值」前缀:有实际值时返回 data-act 属性(含分隔符)+ 达成着色 class
+    function actInfo(it, kind, idx, target) {
+      if (!showActuals) return null;
+      const a = actuals[it.item_code];
+      if (!a) return null;
+      const v = kind === 'y' ? a.y : (a[kind] || {})[idx];
+      let t = parseFloat(target);
+      // 周期目标未分摊时,按年度推导虚拟分母(率类=水平复制,数量金额=均分),灰显且聚焦即隐藏
+      let implied = null;
+      if (isNaN(t) && kind !== 'y') {
+        const annual = parseFloat(it.annual_target);
+        if (!isNaN(annual) && annual > 0) {
+          implied = isRate(it) ? annual : r2(annual / (kind === 'q' ? 4 : 12));
+          t = implied;
+        }
+      }
+      let cls = 'act-na';
+      if (v != null && !isNaN(t) && t > 0) {
+        const ok = inverseCodes.includes(it.item_code) ? v <= t + 0.0001 : v >= t - 0.0001;
+        cls = ok ? 'act-ok' : 'act-no';
+      }
+      return { v, implied, cls, hasT: !isNaN(t) };
+    }
+
+    function actAttr(it, kind, idx, target) {
+      const f = actInfo(it, kind, idx, target);
+      if (!f || f.v == null) return '';
+      return ` data-act="${Math.round(f.v)}" data-act-cls="${f.cls}"` +
+             (f.hasT ? ' data-act-frac="1"' : '') +
+             (f.implied != null ? ` data-act-impl="${fmt(f.implied)}" title="目标未分摊到${kind === 'q' ? '季' : '月'},按年度${isRate(it) ? '水平' : '均分'}推导;点击可填写显式目标"` : '');
+    }
 
     const baseItem = () => cfg.weightBaseCode ? items.find(x => x.item_code === cfg.weightBaseCode) : null;
     const baseAnnual = () => { const b = baseItem(); return b ? (parseFloat(b.annual_target) || 0) : 0; };
@@ -288,19 +391,33 @@
         const badCls = bad ? 'cm-bad' : '';
         const dirtyBar = it._dirty ? 'box-shadow:inset 2px 0 0 var(--warn);' : '';
 
+        // 手工采集行:格子拆两区——上=实际值(点击弹录入),下=目标(直接编辑;空时灰显推导值)
+        const isManual = showActuals && manualCodes.includes(it.item_code);
+        const meCell = (kind, idx, field, target) => {
+          const inf = actInfo(it, kind, idx, target) || { cls: 'act-na', hasT: false, implied: null, v: null };
+          const frac = inf.v != null && inf.hasT;
+          return `<td ${kind === 'q' && monthMode ? 'colspan="3"' : ''} class="${badCls}">
+            <span class="me-act ${inf.cls}${frac ? ' me-frac' : ''}" data-mecell="${i}|${kind}|${idx}"
+                  title="手工指标:点击录入${kind === 'm' ? idx + '月' : idx + '季度'}实际值">${inf.v != null ? Math.round(inf.v) : ''}</span>
+            <span class="me-tgt" ${ceAttr} data-i="${i}" data-f="${field}"${inf.implied != null ? ` data-impl="${fmt(inf.implied)}"` : ''}>${fmt(target)}</span>
+          </td>`;
+        };
         let cells = '';
         if (it.gran === 'Y') {
-          // 年粒度:数据区合并一格,只回显年度数(年度列编辑)
-          cells = `<td colspan="${periodCols}" class="at-dim" data-y="${i}"
-                       style="text-align:center;" title="年粒度:不按季/月管控节奏">${fmt(it.annual_target)}</td>`;
+          // 年粒度:数据区合并一格,只回显年度数(年度列编辑);手工行点击弹录入
+          cells = `<td colspan="${periodCols}" class="at-dim" data-y="${i}"${actAttr(it, 'y', 0, it.annual_target)}${isManual ? ` data-mecell="${i}|y|0"` : ''}
+                       style="text-align:center;${isManual ? 'cursor:pointer;' : ''}"
+                       title="${isManual ? '手工指标:点击录入实际值' : '年粒度:不按季/月管控节奏'}">${fmt(it.annual_target)}</td>`;
         } else if (isM) {
           for (let m = 1; m <= 12; m++) {
-            cells += `<td ${ceAttr} class="${badCls}" data-i="${i}" data-f="m${m}">${fmt(it.monthly_targets[String(m)])}</td>`;
+            cells += isManual ? meCell('m', m, 'm' + m, it.monthly_targets[String(m)])
+              : `<td ${ceAttr} class="${badCls}" data-i="${i}" data-f="m${m}"${actAttr(it, 'm', m, it.monthly_targets[String(m)])}>${fmt(it.monthly_targets[String(m)])}</td>`;
           }
         } else {
           // 月表头模式下季考行跨 3 列;纯季模式一格一列
           for (let q = 1; q <= 4; q++) {
-            cells += `<td ${monthMode ? 'colspan="3"' : ''} ${ceAttr} class="${badCls}" data-i="${i}" data-f="q${q}">${fmt(it['q' + q + '_target'])}</td>`;
+            cells += isManual ? meCell('q', q, 'q' + q, it['q' + q + '_target'])
+              : `<td ${monthMode ? 'colspan="3"' : ''} ${ceAttr} class="${badCls}" data-i="${i}" data-f="q${q}"${actAttr(it, 'q', q, it['q' + q + '_target'])}>${fmt(it['q' + q + '_target'])}</td>`;
           }
         }
 
@@ -331,6 +448,8 @@
               ${it.indent ? '<span style="color:var(--ink-4);flex-shrink:0;">└</span>' : ''}
               ${chk}
               <span style="font-weight:${it.strong ? 600 : 500};${it.strong ? 'font-size:13px;' : ''}color:var(--ink);overflow:hidden;text-overflow:ellipsis;" title="${esc(it.item_name)}">${esc(it.item_name)}</span>
+              ${isManual ? `<span class="material-symbols-outlined" title="手工采集指标:点击数据格上半部录入实际值"
+                  style="font-size:13px;color:var(--ink-4);flex-shrink:0;cursor:help;">stylus_note</span>` : ''}
             </div>
             ${(cfg.showDesc && it.description) ? `<div class="at-dim" style="font-size:10.5px;margin-top:2px;line-height:1.4;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${esc(it.description)}">${esc(it.description)}</div>` : ''}
           </td>
@@ -339,7 +458,7 @@
           <td>${canEdit
             ? `<button type="button" class="cm-gran-btn" data-gran="${i}" title="点击切换粒度${granYear ? '(年→季→月)' : ''}">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</button>`
             : `<span class="at-dim" style="font-size:11.5px;">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</span>`}</td>
-          <td ${ceAttr} data-i="${i}" data-f="annual"
+          <td ${ceAttr} data-i="${i}" data-f="annual"${it.gran === 'Y' ? '' : actAttr(it, 'y', 0, it.annual_target)}
               style="font-weight:500;${underAlloc ? 'color:var(--ink-4);' : ''}"
               ${underAlloc ? `title="尚有 ${r2(annual - sum)} 未分配到${isM ? '月' : '季'}度"` : ''}>${fmt(it.annual_target)}</td>
           ${cells}
@@ -347,10 +466,38 @@
         </tr>`;
       });
 
-      el.innerHTML = `<table class="cm-sheet"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+      // 底部行:权重合计(权重列,动态) + 各期加权得分(showScore 时)
+      let tfoot = '';
+      if (showScore || weightEditable) {
+        const _sc = v => {
+          if (v == null) return '<span class="at-dim">—</span>';
+          const c = v >= 80 ? 'var(--success)' : (v >= 60 ? 'var(--warn)' : 'var(--danger)');
+          return `<span style="font-weight:600;color:${c};">${fmt(v)}</span><span class="at-dim" style="font-size:10px;"> 分</span>`;
+        };
+        // 权重合计:应为 100%,偏离标橙
+        const wsTotal = weightSum();
+        const wsColor = Math.abs(wsTotal - 100) < 0.01 ? 'var(--success)' : 'var(--warn)';
+        const wsCell = weightEditable
+          ? `<td style="text-align:center;font-weight:600;color:${wsColor};" title="权重合计(应为 100%)">${fmt(wsTotal)}%</td>`
+          : '<td></td>';
+        let qCells = '';
+        for (let q = 1; q <= 4; q++) {
+          qCells += `<td ${monthMode ? 'colspan="3"' : ''} style="text-align:center;">${showScore ? _sc(periodScore('q', q)) : ''}</td>`;
+        }
+        const label = showScore ? '绩效得分 · 加权(达成率×权重,未设目标项不计入)' : '权重合计';
+        tfoot = `<tfoot><tr style="background:var(--bg-sunk);border-top:2px solid var(--line);">
+          <td colspan="2" class="cm-name" style="font-weight:600;">${label}</td>
+          ${wsCell}
+          <td></td>
+          <td style="text-align:center;">${showScore ? _sc(periodScore('y', 0)) : ''}</td>
+          ${qCells}
+          ${personCol ? '<td></td>' : ''}
+        </tr></tfoot>`;
+      }
+      el.innerHTML = `<table class="cm-sheet"><thead>${thead}</thead><tbody>${tbody}</tbody>${tfoot}</table>`;
 
       // 事件绑定(每次渲染重绑,表格规模小)
-      el.querySelectorAll('td[data-f]').forEach(td => {
+      el.querySelectorAll('[data-f]').forEach(td => {
         const i = parseInt(td.dataset.i), f = td.dataset.f;
         td.addEventListener('blur', () => commitCell(td, i, f));
         td.addEventListener('keydown', e => keyHandler(e, i, f));
@@ -359,6 +506,11 @@
         b.addEventListener('click', () => granToggle(parseInt(b.dataset.gran))));
       el.querySelectorAll('[data-revert]').forEach(b =>
         b.addEventListener('click', () => cfg.onRevert && cfg.onRevert(items[parseInt(b.dataset.revert)])));
+      el.querySelectorAll('[data-mecell]').forEach(td =>
+        td.addEventListener('click', () => {
+          const [i, kind, idx] = td.dataset.mecell.split('|');
+          cfg.onManualEdit && cfg.onManualEdit(items[parseInt(i)], { kind, idx: parseInt(idx) });
+        }));
       el.querySelectorAll('[data-enable]').forEach(c =>
         c.addEventListener('change', () => {
           const it = items[parseInt(c.dataset.enable)];
@@ -378,6 +530,10 @@
         });
         render();
       },
+      setActuals(map) { actuals = map || {}; render(); },
+      getActuals: () => actuals,
+      // 各期加权得分(供季度结算发起取数):{year, quarters:[Q1..Q4]}
+      getScores: () => ({ year: periodScore('y', 0), quarters: [1, 2, 3, 4].map(q => periodScore('q', q)) }),
       getItems: () => items,
       getDirty: () => items.filter(x => x._dirty),
       weightSum,

@@ -57,6 +57,13 @@
         {% if u.is_active %}{{ at_pill('已激活', tone='success', dot=true) }}
         {% else %}{{ at_pill('未激活', tone='neutral') }}{% endif %}
         {% if u.is_dept_manager %}{{ at_pill('部门负责人', tone='accent') }}{% endif %}
+        {% if u.in_probation %}
+        <span title="新手 · 试用期{% if u.probation_end %}至 {{ u.probation_end }}{% endif %}"
+              style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
+                     background:var(--success-soft);color:var(--success);vertical-align:middle;">
+          <span class="material-symbols-outlined" style="font-size:15px;">eco</span>
+        </span>
+        {% endif %}
       </h1>
       <div class="at-dim" style="font-size:12.5px;margin-top:4px;">
         <span class="at-mono">{{ u.username }}</span> · {{ u.role_display }} · {{ u.department }} · {{ u.company }}

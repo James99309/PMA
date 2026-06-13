@@ -2298,7 +2298,6 @@ def api_clear_user_targets(user_id, year):
 
 @performance_config_bp.route('/api/users/targets/batch', methods=['POST'])
 @login_required
-@permission_required('config_management', 'view')  # 基础权限是view，保存操作在内部检查edit权限
 def api_batch_user_targets():
     """批量获取或保存多个用户的绩效目标配置"""
     try:
@@ -2328,7 +2327,12 @@ def api_batch_user_targets():
                     return jsonify({'success': False, 'message': '无权配置其他公司用户的目标'}), 403
             return _batch_save_user_targets(user_ids, year, items)
         else:
-            # ===== 获取操作只需要view权限 =====
+            # ===== 获取操作:需 config/user view 权限,或为该人绩效结算审批人(只读单人) =====
+            _has_view = (current_user.has_permission('config_management', 'view')
+                         or current_user.has_permission('user_management', 'view'))
+            if not _has_view:
+                if not (len(user_ids) == 1 and _can_read_person_perf(user_ids[0], year)):
+                    return jsonify({'success': False, 'message': '无权限'}), 403
             return _batch_get_user_targets(user_ids, year)
 
     except Exception as e:
@@ -2486,9 +2490,15 @@ def _batch_get_user_targets(user_ids, year):
             sc = scheme_map[item_code]
             item_data['enabled'] = True          # 方案项强制考核
             item_data['locked'] = True           # 前端锁定勾选框
-            item_data['weight'] = sc['weight']   # 考核权重(%)
+            item_data['weight'] = sc['weight']   # 考核权重(%):默认方案权重
             if item_data['annual_target'] is None:
                 item_data['annual_target'] = sc.get('default_annual')  # 岗位默认目标
+        # 个人权重覆盖(单用户):有覆盖则优先;并标记 overridden 以出现「↺ 继承」
+        if len(user_ids) == 1:
+            _ut = user_targets_by_user.get(user_ids[0], {}).get(item_code)
+            if _ut is not None and getattr(_ut, 'weight_override', None) is not None:
+                item_data['weight'] = float(_ut.weight_override)
+                item_data['overridden'] = True
         items_data.append(item_data)
 
     if scheme:
@@ -2507,12 +2517,16 @@ def _batch_get_user_targets(user_ids, year):
 
 def _batch_save_user_targets(user_ids, year, items):
     """批量保存用户绩效目标（内部函数）"""
+    from app.services.role_kpi_schemes import get_role_scheme
     saved_count = 0
 
     for user_id in user_ids:
         user = User.query.get(user_id)
         if not user:
             continue
+        # 方案默认权重(用于判断个人权重是否覆盖:与默认相同则存 None 继承)
+        _scheme = get_role_scheme(user.role) if user.role else None
+        _def_weight = {it['item_code']: it.get('weight') for it in (_scheme or [])}
 
         for item_data in items:
             if not item_data.get('enabled'):
@@ -2549,6 +2563,13 @@ def _batch_save_user_targets(user_ids, year, items):
             target.q4_target_override = item_data.get('q4_target')
             target.enable_monthly_override = item_data.get('enable_monthly', False)
             target.monthly_targets_override = item_data.get('monthly_targets')
+            # 权重覆盖:与方案默认相同存 None(继承),不同则存覆盖
+            _w = item_data.get('weight')
+            _dw = _def_weight.get(item_data['item_code'])
+            if _w is None or (_dw is not None and abs(float(_w) - float(_dw)) < 0.001):
+                target.weight_override = None
+            else:
+                target.weight_override = float(_w)
             target.updated_by = current_user.id
             target.updated_at = datetime.utcnow()
 
@@ -2666,3 +2687,129 @@ def get_simple_users_tree():
             'success': False,
             'message': f'获取用户组织架构失败: {str(e)}'
         }), 500
+
+def _can_read_person_perf(user_id, year=None):
+    """读个人绩效数据放行:有配置/用户管理 view 权限,或为该人绩效结算当前审批人(只读)。"""
+    if (current_user.has_permission('config_management', 'view')
+            or current_user.has_permission('user_management', 'view')):
+        return True
+    try:
+        from app.helpers.perf_settlement_helpers import is_settlement_approver_of
+        return is_settlement_approver_of(current_user.id, user_id, year)
+    except Exception:
+        return False
+
+
+@performance_config_bp.route('/api/user/<int:user_id>/actuals/<int:year>')
+@login_required
+def api_user_actuals(user_id, year):
+    """个人目标页「实际/目标」双值显示的实际值数据源。
+
+    每个 item_code 返回 月(1-12)/季(1-4)/年 三套窗口各自计算的实际值
+    (率类/快照类按窗口直算才正确,不能由月值二次聚合);
+    未开始的期间返回 None(前端不显示);金额类 元→万元 与目标同单位。
+    codes 由前端传当前表格行,避免全量指标空算。
+    """
+    if not _can_read_person_perf(user_id, year):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        codes = [c for c in (request.args.get('codes') or '').split(',') if c]
+        if not codes:
+            return jsonify({'success': True, 'data': {}})
+
+        from app.helpers.at_dashboard_helpers import _KPI_ACTUAL_FNS
+        _ALIAS = {'sales_target': 'sales_amount'}     # 定义表 code → 看板 code
+        _AMOUNT = {
+            'sales_target', 'implant_amount',
+            'pm_implant_amount', 'pm_sales_amount',
+            'se_implant_amount', 'se_sales_amount',
+            'team_sales_amount', 'team_implant_amount',
+            'channel_sales_amount', 'channel_implant_amount',
+        }
+
+        now = datetime.now()
+        out = {}
+        for code in codes:
+            fn = _KPI_ACTUAL_FNS.get(_ALIAS.get(code, code))
+            if not fn:
+                continue
+            scale = 10000.0 if code in _AMOUNT else 1.0
+            row = {'m': {}, 'q': {}, 'y': None}
+            for m in range(1, 13):
+                s = datetime(year, m, 1)
+                if s > now:
+                    row['m'][m] = None
+                    continue
+                e = datetime(year + 1, 1, 1) if m == 12 else datetime(year, m + 1, 1)
+                row['m'][m] = round(fn(user, s, e) / scale, 2)
+            for q in range(1, 5):
+                sm = (q - 1) * 3 + 1
+                s = datetime(year, sm, 1)
+                if s > now:
+                    row['q'][q] = None
+                    continue
+                e = datetime(year + 1, 1, 1) if q == 4 else datetime(year, sm + 3, 1)
+                row['q'][q] = round(fn(user, s, e) / scale, 2)
+            if datetime(year, 1, 1) <= now:
+                row['y'] = round(fn(user, datetime(year, 1, 1), datetime(year + 1, 1, 1)) / scale, 2)
+            out[code] = row
+
+        return jsonify({'success': True, 'data': out})
+    except Exception as e:
+        logger.error(f"获取用户实际值失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@performance_config_bp.route('/api/user/<int:user_id>/settlement', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def api_submit_settlement(user_id):
+    """HR 发起季度绩效结算(得分由前端按当季显示传入,快照存档)。"""
+    try:
+        data = request.get_json() or {}
+        year = int(data.get('year') or datetime.now().year)
+        quarter = int(data.get('quarter') or 0)
+        score = data.get('score')
+        snapshot = data.get('snapshot') or []
+        from app.helpers.perf_settlement_helpers import submit_settlement
+        st, inst, err = submit_settlement(user_id, year, quarter, score, snapshot, current_user.id)
+        if err:
+            return jsonify({'success': False, 'message': err}), 400
+        return jsonify({'success': True, 'message': f'已发起 {year}Q{quarter} 绩效结算审批',
+                        'data': st.to_dict()})
+    except Exception as e:
+        logger.error(f"发起绩效结算失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@performance_config_bp.route('/api/user/<int:user_id>/settlements/<int:year>')
+@login_required
+def api_get_settlements(user_id, year):
+    """某用户某年各季度结算状态(绩效页面板 + 薪资页锁定用)。"""
+    if not _can_read_person_perf(user_id, year):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    try:
+        from app.models.performance_settlement import PerformanceSettlement
+        rows = PerformanceSettlement.query.filter_by(user_id=user_id, year=year).all()
+        return jsonify({'success': True, 'data': {str(r.quarter): r.to_dict() for r in rows}})
+    except Exception as e:
+        logger.error(f"获取结算状态失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@performance_config_bp.route('/api/settlement-approval/<int:settlement_id>/flow')
+@login_required
+def api_settlement_flow(settlement_id):
+    """绩效结算审批流(供 at_approval_dropdown chip 浮层渲染)。"""
+    from app.helpers.perf_settlement_helpers import build_settlement_flow
+    return jsonify(build_settlement_flow(settlement_id, current_user.id))
+
+
+@performance_config_bp.route('/api/settlement-approval/<int:settlement_id>/editable-fields')
+@login_required
+def api_settlement_editable_fields(settlement_id):
+    """绩效结算无可编辑字段(审批人只同意/驳回)。"""
+    return jsonify({'success': True, 'can_edit': False, 'editable_fields': []})

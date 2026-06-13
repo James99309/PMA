@@ -6,9 +6,22 @@
 
 {% block extra_head %}
 <script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
 {% endblock %}
 
 {% block content %}
+  {% if approver_mode %}
+  {# 审批人进入:仅审批本季绩效,锁定人员/年份,隐藏切换与编辑 #}
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+    <span style="font-size:10.5px;padding:2px 9px;border-radius:4px;background:var(--warn-soft);color:var(--warn);">审批模式</span>
+    <span id="ppUserName" style="font-size:15px;font-weight:600;color:var(--ink);">—</span>
+    <span id="ppSub" class="at-dim" style="font-size:12px;"></span>
+    <span class="at-dim" style="font-size:11.5px;">· 仅可审批本季绩效,其他配置已隐藏</span>
+    <select id="ppYear" style="display:none;"></select>
+    <div id="ppUserMenu" style="display:none;"></div>
+    <span id="ppDirty" style="display:none;"></span>
+  </div>
+  {% else %}
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
     {# 先选公司,再选个人;非 admin 锁定本公司 #}
     <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
@@ -37,22 +50,88 @@
             border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
     </select>
     {% if can_edit %}
-    <button type="button" onclick="ppClearAll()"
-            style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
-                   background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">清除全部覆盖</button>
     <button type="button" id="ppSaveBtn" onclick="ppSave()"
             style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
                    color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存覆盖</button>
     {% endif %}
   </div>
+  {% endif %}
 
   <div id="ppSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;padding:1px;">
     <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择人员…</div>
   </div>
   <div class="at-dim" style="font-size:11px;margin-top:8px;">
-    ⓘ 改动任意格即转为个人覆盖(行首黄条,待保存);未改动的项目保持继承角色默认;
-    「↺ 继承」删除该项覆盖,「清除全部覆盖」恢复整年角色默认;表格操作与角色目标页一致(同一组件)。
+    ⓘ 数据格显示「<b style="color:var(--success);">实际</b> / 目标」:实际值实时统计(绿=达标/橘=未达标,失败率类反向),
+    未设目标只显示实际;名称旁带 ✎ 的为手工采集指标,点击录入月度实际值;
+    改动目标格即转为个人覆盖(行首黄条,待保存),「↺ 继承」恢复角色默认。
   </div>
+
+  {# ── 季度绩效结算(HR 逐人发起 → 上级 → 总经理;通过折算绩效薪资并锁定) ── #}
+  <div style="margin-top:22px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <h2 class="at-serif" style="margin:0;font-size:16px;font-weight:600;">季度绩效结算</h2>
+      <span class="at-dim" style="font-size:11.5px;">按当季得分发起结算 → 直属上级 → 总经理;通过后折算绩效薪资写入薪资表并锁定该季</span>
+    </div>
+    <div id="stCards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;"></div>
+  </div>
+
+  {# ── 手工指标录入弹窗(✎ 触发) ── #}
+  <div id="meMask" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.35);
+                          align-items:center;justify-content:center;" onclick="if(event.target===this)meClose()">
+    <div style="width:560px;max-width:92vw;background:var(--bg-elev);border:1px solid var(--line);
+                border-radius:14px;padding:22px 24px;box-shadow:0 24px 64px rgba(0,0,0,0.25);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+        <h3 id="meTitle" class="at-serif" style="margin:0;font-size:15.5px;font-weight:600;"></h3>
+        <div style="flex:1;"></div>
+        <button type="button" onclick="meClose()" style="border:0;background:transparent;cursor:pointer;
+                color:var(--ink-3);display:inline-flex;"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div id="meUnit" class="at-dim" style="font-size:11.5px;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:14px;align-items:flex-start;">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--ink-3);width:130px;flex-shrink:0;">
+          实际值
+          <input id="meVal" type="number" step="any" {{ '' if can_edit else 'disabled' }}
+                 style="width:100%;box-sizing:border-box;height:32px;padding:0 9px;border:1px solid var(--line-2);
+                        border-radius:6px;background:var(--bg-page);font:inherit;font-size:13px;color:var(--ink);outline:none;">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--ink-3);flex:1;">
+          备注 / 说明(拖拽右下角可拉伸)
+          <textarea id="meNote" rows="3" maxlength="500" {{ '' if can_edit else 'disabled' }}
+                    placeholder="完成情况、口径说明、佐证摘要…"
+                    style="width:100%;box-sizing:border-box;min-height:64px;resize:vertical;padding:7px 9px;
+                           border:1px solid var(--line-2);border-radius:6px;background:var(--bg-page);
+                           font:inherit;font-size:12.5px;color:var(--ink);outline:none;line-height:1.55;"></textarea>
+        </label>
+      </div>
+      {# 佐证附件:即传即存,挂在当月录入记录上 #}
+      <div style="margin-top:12px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="font-size:11.5px;color:var(--ink-3);">佐证材料</span>
+          {% if can_edit %}
+          <button type="button" onclick="document.getElementById('meFile').click()"
+                  style="display:inline-flex;align-items:center;gap:4px;border:1px dashed var(--line-2);background:transparent;
+                         border-radius:6px;padding:2px 9px;font:inherit;font-size:11.5px;color:var(--accent);cursor:pointer;">
+            <span class="material-symbols-outlined" style="font-size:14px;">upload_file</span>上传
+          </button>
+          <input type="file" id="meFile" multiple style="display:none;" onchange="meUpload(this.files);this.value='';">
+          {% endif %}
+          <span id="meUpBusy" class="at-dim" style="font-size:11px;"></span>
+        </div>
+        <div id="meAtts" style="display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+        <button type="button" onclick="meClose()"
+                style="height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
+                       background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">关闭</button>
+        {% if can_edit %}
+        <button type="button" id="meSaveBtn" onclick="meSave()"
+                style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
+                       color:var(--bg-page);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;">保存并关闭</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -82,12 +161,18 @@
   };
 
   // 公用目标表格组件(与「配置管理·角色目标」同源;person 模式=权重只读+行尾继承)
+  const MANUAL = {{ manual_metrics | tojson }};
   const sheet = ATTargetSheet({
     container: 'ppSheet',
     canEdit: CAN_EDIT,
     mode: 'person',
-    weightEditable: false,
+    weightEditable: true,
     showDesc: true,
+    showActuals: true,
+    showScore: true,
+    manualCodes: MANUAL.map(m => m.code),
+    inverseCodes: ['fail_rate', 'team_fail_rate', 'channel_fail_rate'],
+    onManualEdit: (it, ctx) => meOpen(it, ctx),
     onChange: () => {
       const n = sheet.getDirty().length;
       document.getElementById('ppDirty').textContent = n ? `${n} 项将写入个人覆盖(未保存)` : '';
@@ -166,7 +251,7 @@
     if (!_userId) return;
     const u = USERS.find(x => x.id === _userId);
     document.getElementById('ppUserName').textContent = u ? u.name : '';
-    document.getElementById('ppSub').textContent = u ? `${u.role_display} · ${u.department} · 有效目标(覆盖>角色默认)` : '';
+    document.getElementById('ppSub').textContent = u ? `${u.role_display} · ${u.department}` : '';
     document.getElementById('ppDirty').textContent = '';
     try {
       const d = await (await fetch('/performance/config/api/users/targets/batch', {
@@ -176,6 +261,8 @@
       })).json();
       if (!d.success) throw new Error(d.message || '加载失败');
       sheet.setItems(d.data.items || []);
+      actLoad((d.data.items || []).map(i => i.item_code));
+      stLoad();
     } catch (e) {
       document.getElementById('ppSheet').innerHTML =
         `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
@@ -217,6 +304,7 @@
       return {
         item_code: it.item_code,
         enabled: true,
+        weight: (it.weight == null || it.weight === '') ? null : parseFloat(it.weight),
         annual_target: (it.annual_target == null || it.annual_target === '') ? null : parseFloat(it.annual_target),
         enable_quarterly: !isM && [1,2,3,4].some(q => it['q'+q+'_target'] != null && it['q'+q+'_target'] !== ''),
         q1_target: !isM ? (it.q1_target ?? null) : null,
@@ -237,6 +325,284 @@
       else ATToast.error(d.message || '保存失败');
     } catch (e) { ATToast.error('保存失败,请重试'); }
     btn.disabled = false; btn.textContent = '保存覆盖';
+  };
+
+  // ── 实际值注入(实际/目标双值显示) ──
+  async function actLoad(itemCodes) {
+    if (!itemCodes.length) { sheet.setActuals({}); return; }
+    try {
+      const d = await (await fetch(
+        `/performance/config/api/user/${_userId}/actuals/${yearSel.value}?codes=${itemCodes.join(',')}`,
+        { headers: { 'X-CSRFToken': _csrf() } })).json();
+      sheet.setActuals(d.success ? (d.data || {}) : {});
+    } catch (_) { sheet.setActuals({}); }
+    stRender();   // 实际值就绪后刷新结算面板(得分依赖实际值)
+  }
+
+  // ── 季度绩效结算面板 ──
+  let _stStatus = {};   // { '1': {status, score, settled_amount, is_locked}, ... }
+  const _ST_LABEL = { pending: '待审批', approved: '已结算', rejected: '已驳回', draft: '草稿' };
+  const _ST_TONE = { pending: 'var(--warn)', approved: 'var(--success)', rejected: 'var(--danger)', draft: 'var(--ink-3)' };
+
+  async function stLoad() {
+    _stStatus = {};
+    try {
+      const d = await (await fetch(`/performance/config/api/user/${_userId}/settlements/${yearSel.value}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (d.success) _stStatus = d.data || {};
+    } catch (_) {}
+    stRender();
+  }
+
+  function stRender() {
+    const box = document.getElementById('stCards');
+    if (!box) return;
+    const now = new Date();
+    const curQ = parseInt(yearSel.value) === now.getFullYear() ? Math.floor(now.getMonth() / 3) + 1 : 4;
+    const future = parseInt(yearSel.value) > now.getFullYear();
+    const scores = sheet.getScores ? sheet.getScores() : { quarters: [null, null, null, null] };
+    let html = '';
+    for (let q = 1; q <= 4; q++) {
+      const started = !future && q <= curQ;
+      const st = _stStatus[String(q)];
+      const score = scores.quarters[q - 1];
+      const scoreTxt = score == null ? '—' : score + ' 分';
+      let body, foot;
+      if (!started) {
+        body = '<span class="at-dim" style="font-size:11.5px;">未开始</span>';
+        foot = '';
+      } else if (st && st.status === 'approved') {
+        body = `<div style="font-size:12px;color:var(--ink-2);">得分 <b>${st.score}</b> · 折算 <b>${fmtY(st.settled_amount)}</b></div>`;
+        foot = `${stChip(st)}<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--success);">
+                  <span class="material-symbols-outlined" style="font-size:14px;">lock</span>已锁定</span>`;
+      } else if (st && st.status === 'pending') {
+        body = `<div style="font-size:12px;color:var(--ink-2);">得分 <b>${st.score}</b> · 折算 <b>${fmtY(st.settled_amount)}</b></div>`;
+        foot = stChip(st);
+      } else {
+        body = `<div style="font-size:12px;color:var(--ink-2);">当前得分 <b>${scoreTxt}</b></div>`;
+        const btn = CAN_EDIT
+          ? `<button type="button" onclick="stSubmit(${q})"
+                style="height:28px;padding:0 12px;border-radius:6px;border:0;background:var(--ink);
+                       color:var(--bg-page);font:inherit;font-size:12px;cursor:pointer;">发起结算</button>`
+          : '<span class="at-dim" style="font-size:11px;">未结算</span>';
+        foot = (st && st.status === 'rejected') ? (stChip(st) + btn) : btn;
+      }
+      html += `<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg-elev);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:13px;font-weight:600;">${q} 季度</span>
+        </div>
+        <div style="margin-bottom:10px;">${body}</div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">${foot}</div>
+      </div>`;
+    }
+    box.innerHTML = html;
+    // 动态 chip 初始化(点击展开审批流程浮层)
+    box.querySelectorAll('[data-at-approval]').forEach(el => {
+      if (window.AtApprovalDropdown) window.AtApprovalDropdown.init(el);
+    });
+    // 从待办/审批中心带 settle_q 进入 → 自动滚到该季度并展开审批 chip(仅一次)
+    const _sq = parseInt(new URLSearchParams(location.search).get('settle_q'));
+    if (_sq && !_settleAutoOpened) {
+      const card = box.children[_sq - 1];
+      const chipBtn = card && card.querySelector('[data-at-approval-chip]');
+      if (chipBtn) {
+        _settleAutoOpened = true;
+        setTimeout(() => { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); chipBtn.click(); }, 300);
+      }
+    }
+  }
+  let _settleAutoOpened = false;
+
+  // at_approval_dropdown chip(复刻组件 DOM,JS 填充流程浮层)
+  function stChip(st) {
+    const lbl = _ST_LABEL[st.status] || st.status, tone = _ST_TONE[st.status];
+    return `<span class="at-approval-wrap" data-at-approval data-object-type="perf_settlement"
+              data-object-id="${st.id}" data-api-base="/performance/config/api/settlement-approval"
+              data-status="${st.status}" data-meta='{"title":"绩效结算"}' style="position:relative;display:inline-flex;">
+      <button type="button" data-at-approval-chip style="border:0;background:transparent;padding:0;margin:0;cursor:pointer;
+              display:inline-flex;align-items:center;gap:3px;font:inherit;color:inherit;line-height:1;">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:4px;color:${tone};background:var(--bg-sunk);">${lbl}</span>
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style="opacity:0.55;margin-left:-2px;">
+          <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div data-at-approval-panel style="display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:60;
+           min-width:340px;max-width:420px;background:var(--bg-elev);border:1px solid var(--line);border-radius:8px;
+           box-shadow:0 12px 32px rgba(0,0,0,0.12);overflow:hidden;font-size:13px;">
+        <div data-at-approval-body style="max-height:60vh;overflow-y:auto;">
+          <div style="padding:32px 24px;text-align:center;color:var(--ink-4);font-size:12.5px;">加载中…</div></div>
+        <div data-at-approval-actions style="display:none;padding:10px 16px;border-top:1px solid var(--line);
+             background:var(--bg-page);gap:6px;flex-wrap:wrap;justify-content:flex-end;"></div>
+      </div>
+    </span>`;
+  }
+  const fmtY = v => v == null ? '—' : '¥' + Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+
+
+  window.stSubmit = function (q) {
+    const u = USERS.find(x => x.id === _userId);
+    const scores = sheet.getScores();
+    const score = scores.quarters[q - 1];
+    if (score == null) { ATToast.error('该季度暂无得分(无实际数据),无法发起结算'); return; }
+    // 快照:当前各项 code/name/weight + 该季实际(留痕)
+    const acts = sheet.getActuals();
+    const snapshot = sheet.getItems().filter(it => it.enabled !== false).map(it => ({
+      code: it.item_code, name: it.item_name, weight: it.weight,
+      actual: (acts[it.item_code] && acts[it.item_code].q) ? acts[it.item_code].q[q] : null,
+    }));
+    ATConfirm.show({
+      title: `发起 ${yearSel.value}Q${q} 绩效结算`,
+      message: `${u ? u.name : ''} ${q} 季度得分 ${score} 分。发起后将提交「直属上级 → 总经理」审批;通过后按绩效基数×得分%折算写入薪资并锁定该季,确认发起?`,
+      variant: 'accent', icon: 'send', confirmText: '发起结算', cancelText: '取消',
+      onConfirm: async () => {
+        try {
+          const d = await (await fetch(`/performance/config/api/user/${_userId}/settlement`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+            body: JSON.stringify({ year: parseInt(yearSel.value), quarter: q, score, snapshot }),
+          })).json();
+          if (d.success) { ATToast.success(d.message || '已发起'); stLoad(); }
+          else ATToast.error(d.message || '发起失败');
+        } catch (_) { ATToast.error('发起失败,请重试'); }
+      },
+    });
+  };
+
+  // ── 手工指标录入弹窗(点格子上半部触发):单期间录入 值+备注+佐证附件 ──
+  // 存储粒度随行走:季考行存季度记录,月考行存月记录;后台聚合两者通吃
+  let _meCode = null, _mePType = null, _mePeriod = null, _meEntry = null;
+
+  window.meOpen = async function (it, ctx) {
+    const meta = MANUAL.find(m => m.code === it.item_code);
+    if (!meta) return;
+    const year = parseInt(yearSel.value), now = new Date();
+    const curQ = Math.floor(now.getMonth() / 3) + 1;
+    const kind = (ctx && ctx.kind) || 'q', idx = ctx ? ctx.idx : 0;
+    let ptype, period, label;
+    if (kind === 'm') { ptype = 'monthly'; period = idx; label = `${idx} 月`; }
+    else if (kind === 'q') { ptype = 'quarterly'; period = idx; label = `${idx} 季度`; }
+    else {   // 年粒度格:录入当前季度(历史年份=4季度)
+      ptype = 'quarterly';
+      period = year < now.getFullYear() ? 4 : curQ;
+      label = `${period} 季度`;
+    }
+    // 未开始的期间拦截(已开始即可录,不必等期间结束)
+    const startM = ptype === 'monthly' ? period : (period - 1) * 3 + 1;
+    if (year > now.getFullYear() || (year === now.getFullYear() && startM > now.getMonth() + 1)) {
+      ATToast.error(`${label}尚未开始,只能录入已开始的期间`);
+      return;
+    }
+    _meCode = it.item_code; _mePType = ptype; _mePeriod = period; _meEntry = null;
+    document.getElementById('meTitle').textContent = `${meta.name} · ${year} 年 ${label}`;
+    document.getElementById('meUnit').textContent =
+      `${meta.unit ? '单位:' + meta.unit + ';' : ''}录入该${ptype === 'quarterly' ? '季度' : '月'}的实际值` +
+      `;${meta.is_rate ? '考核取已填期间均值' : '考核按期间累加'};值、备注、佐证材料均记录在后台`;
+    try {
+      const d = await (await fetch(`/config-management/api/manual-entries/${_userId}/${yearSel.value}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      _meEntry = ((d.data && d.data.entries) || []).find(e =>
+        e.metric_code === _meCode && e.period_type === _mePType && e.period === _mePeriod) || null;
+    } catch (_) {}
+    document.getElementById('meVal').value = _meEntry && _meEntry.value != null ? _meEntry.value : '';
+    document.getElementById('meNote').value = (_meEntry && _meEntry.note) || '';
+    meRenderAtts();
+    document.getElementById('meMask').style.display = 'flex';
+  };
+
+  function meRenderAtts() {
+    const atts = (_meEntry && _meEntry.attachments) || [];
+    document.getElementById('meAtts').innerHTML = atts.length ? atts.map(a => `
+      <div style="display:flex;align-items:center;gap:7px;padding:4px 9px;border:1px solid var(--line);
+                  border-radius:6px;background:var(--bg-page);font-size:12px;">
+        <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">attach_file</span>
+        <a href="/config-management/api/manual-entries/attachment/${a.id}/download" target="_blank" rel="noopener"
+           style="color:var(--ink);text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+           title="${esc(a.filename)}">${esc(a.filename)}</a>
+        <span class="at-dim" style="font-size:10.5px;flex-shrink:0;">${a.file_size ? Math.round(a.file_size / 1024) + ' KB' : ''}</span>
+        ${CAN_EDIT ? `<button type="button" onclick="meDelAtt(${a.id})" title="删除附件"
+           style="border:0;background:transparent;cursor:pointer;color:var(--ink-4);display:inline-flex;padding:0;">
+           <span class="material-symbols-outlined" style="font-size:15px;">close</span></button>` : ''}
+      </div>`).join('')
+      : '<div class="at-dim" style="font-size:11px;">暂无佐证材料</div>';
+  }
+
+  // 保存当前期间(值+备注);force=即使全空也建记录(附件需挂载点)
+  async function meCommit(silent, force) {
+    if (!CAN_EDIT || !_meCode) return true;
+    const raw = document.getElementById('meVal').value.trim();
+    const note = document.getElementById('meNote').value.trim();
+    const unchanged = _meEntry && String(_meEntry.value != null ? _meEntry.value : '') === raw
+                      && (_meEntry.note || '') === note;
+    if (unchanged) return true;
+    if (!_meEntry && raw === '' && note === '' && !force) return true;   // 空期间不建记录
+    try {
+      const d = await (await fetch(`/config-management/api/manual-entries/${_userId}/${yearSel.value}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ entries: [{ metric_code: _meCode, period_type: _mePType, period: _mePeriod,
+                                           value: raw === '' ? null : (parseFloat(raw) || 0), note }] }),
+      })).json();
+      if (!d.success) { ATToast.error(d.message || '保存失败'); return false; }
+      const saved = ((d.data && d.data.entries) || [])[0];
+      if (saved) _meEntry = saved;
+      if (!silent) ATToast.success('已保存');
+      return true;
+    } catch (_) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  window.meUpload = async function (files) {
+    files = Array.from(files || []);   // 快照:input 随后被清空,live FileList 会在 await 后变空
+    if (!files.length) return;
+    if (!_meEntry && !await meCommit(true, true)) return;   // 先落记录再挂附件
+    if (!_meEntry) return;
+    const busy = document.getElementById('meUpBusy');
+    for (const f of files) {
+      busy.textContent = `上传中:${f.name}…`;
+      try {
+        const fd = new FormData();
+        fd.append('file', f);
+        fd.append('entry_id', _meEntry.id);
+        const d = await (await fetch('/config-management/api/manual-entries/upload', {
+          method: 'POST', headers: { 'X-CSRFToken': _csrf() }, body: fd,
+        })).json();
+        if (d.success) (_meEntry.attachments = _meEntry.attachments || []).push(d.data);
+        else ATToast.error(d.message || `${f.name} 上传失败`);
+      } catch (_) { ATToast.error(`${f.name} 上传失败`); }
+    }
+    busy.textContent = '';
+    meRenderAtts();
+  };
+
+  window.meDelAtt = function (attId) {
+    ATConfirm.show({
+      title: '删除佐证材料', message: '删除该附件?此操作不可恢复。',
+      variant: 'danger', icon: 'delete', confirmText: '删除', cancelText: '取消',
+      onConfirm: async () => {
+        try {
+          const d = await (await fetch(`/config-management/api/manual-entries/attachment/${attId}`, {
+            method: 'DELETE', headers: { 'X-CSRFToken': _csrf() },
+          })).json();
+          if (d.success) {
+            if (_meEntry) _meEntry.attachments = (_meEntry.attachments || []).filter(a => a.id !== attId);
+            meRenderAtts();
+          } else ATToast.error(d.message || '删除失败');
+        } catch (_) { ATToast.error('删除失败,请重试'); }
+      },
+    });
+  };
+
+  window.meClose = async function () {
+    await meCommit(true);   // 关闭前暂存
+    document.getElementById('meMask').style.display = 'none';
+    _meCode = null; _meEntry = null;
+    actLoad(sheet.getItems().map(i => i.item_code));   // 回填表格实际值
+  };
+
+  window.meSave = async function () {
+    const btn = document.getElementById('meSaveBtn');
+    btn.disabled = true; btn.textContent = '保存中…';
+    const ok = await meCommit(false);
+    btn.disabled = false; btn.textContent = '保存并关闭';
+    if (ok) meClose();
   };
 
   // ?user= 预选(账户详情页跳入):锁定该用户,禁止切换防误操作;

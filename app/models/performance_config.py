@@ -541,6 +541,7 @@ class UserPerformanceTarget(db.Model):
     q4_target_override = Column(Numeric(15, 2))
     enable_monthly_override = Column(Boolean)
     monthly_targets_override = Column(JSON)
+    weight_override = Column(Numeric(5, 2))   # 个人权重覆盖(%);空=用角色/方案默认权重
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

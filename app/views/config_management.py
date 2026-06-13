@@ -591,6 +591,189 @@ def at_salary():
                            can_edit=current_user.has_permission('config_management', 'edit'))
 
 
+# ═══════════════════════════════════════════════════════════
+# AT 薪资配置(岗位结构化薪资:基础/绩效/其他项目,套用到个人)
+# 敏感数据:仅 admin / ceo / hr_manager(SALARY_ADMIN_ROLES)可见可配
+# ═══════════════════════════════════════════════════════════
+
+def _salary_guard():
+    from app.models.salary_structure import SALARY_ADMIN_ROLES
+    if current_user.role not in SALARY_ADMIN_ROLES:
+        abort(403)
+
+
+@config_management_bp.route('/at/salary-structure')
+@login_required
+def at_salary_structure():
+    """AT 配置管理 · 薪资配置(全局基础薪资结构:主子层级 + 发放方式,不含金额)。"""
+    _salary_guard()
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+    return render_template('config_management/at_salary_structure.html',
+                           currency_symbol=get_currency_symbol(get_default_currency()),
+                           can_edit=True)   # 能进来的三个角色即可编辑
+
+
+@config_management_bp.route('/api/salary-structure')
+@login_required
+def api_get_salary_structure():
+    """全局薪资结构(主项 + 子项;无金额);无配置时种子已含固定两项"""
+    _salary_guard()
+    try:
+        from app.models.salary_structure import SalaryStructureItem, SALARY_LOCKED_ITEMS
+        rows = SalaryStructureItem.query.filter_by(is_active=True)\
+            .order_by(SalaryStructureItem.sort_order, SalaryStructureItem.id).all()
+        items = [r.to_dict() for r in rows]
+        # 兜底:固定项缺失则补(不落库,前端保存时写入)
+        existing = {it['item_code'] for it in items}
+        for i, it in enumerate(SALARY_LOCKED_ITEMS):
+            if it['item_code'] not in existing:
+                items.insert(i, {'item_code': it['item_code'], 'item_name': it['item_name'],
+                                 'parent_code': None, 'pay_cycle': 'monthly',
+                                 'is_locked': True, 'sort_order': i})
+        return jsonify({'success': True, 'data': {'items': items}})
+    except Exception as e:
+        logger.error(f"获取薪资结构失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@config_management_bp.route('/api/salary-structure', methods=['POST'])
+@login_required
+def api_save_salary_structure():
+    """整棵结构保存(upsert + 删除不在载荷中的项;固定主项不可删)。
+    载荷 items:[{item_code, item_name, parent_code, pay_cycle}],按数组顺序定 sort_order。"""
+    _salary_guard()
+    try:
+        from app.models.salary_structure import SalaryStructureItem, SALARY_LOCKED_ITEMS
+        locked = {it['item_code']: it for it in SALARY_LOCKED_ITEMS}
+        items = (request.get_json() or {}).get('items', [])
+        keep = set()
+        for i, it in enumerate(items):
+            code = (it.get('item_code') or '').strip()
+            name = (it.get('item_name') or '').strip()
+            if not code:
+                import uuid
+                code = 'sal_' + uuid.uuid4().hex[:8]
+            if not name and code not in locked:
+                continue
+            keep.add(code)
+            row = SalaryStructureItem.query.filter_by(item_code=code).first()
+            if not row:
+                row = SalaryStructureItem(item_code=code, created_by=current_user.id)
+                db.session.add(row)
+            row.item_name = locked[code]['item_name'] if code in locked else name
+            row.parent_code = (it.get('parent_code') or None) if code not in locked else None
+            row.pay_cycle = it.get('pay_cycle') if it.get('pay_cycle') in ('monthly', 'quarterly', 'yearly') else 'monthly'
+            row.is_locked = code in locked
+            row.is_active = True
+            row.sort_order = i
+            row.updated_by = current_user.id
+        # 删除不在载荷中的项(固定主项始终保留)
+        for row in SalaryStructureItem.query.all():
+            if row.item_code not in keep and row.item_code not in locked:
+                db.session.delete(row)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '薪资结构已保存'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存薪资结构失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@config_management_bp.route('/at/flows')
+@login_required
+def at_flows():
+    """AT 配置管理 · 流程配置(v1 只读):盘点全部审批流程,展示步骤图/参数/启用状态。
+    不区分老的可配置模板与新的代码动态路由 — 统一以「步骤逻辑」展示;编辑能力后置。"""
+    if not current_user.has_permission('config_management', 'view'):
+        abort(403)
+
+    from app.models.approval import ApprovalProcessTemplate, ApprovalStep
+
+    OBJ_LABEL = {
+        'project': '项目报备', 'project_hold': '项目失败/搁置', 'dealer_apply': '客户渠道身份',
+        'quotation': '报价单', 'expense': '报销单', 'pricing_order': '批价单',
+        'purchase_order': '采购订单', 'sales_order': '销售订单', 'customer': '客户',
+    }
+    APPROVER_TYPE_LABEL = {
+        'user': '固定审批人', 'submitter_designate': '发起时系统指定',
+        'branch': '分支选择(审批人手选)', 'auto': '自动审批',
+    }
+    # 动态路由流程:审批人由代码按业务规则解析,覆盖模板步骤的描述
+    BUILTIN_SPECS = {
+        'project': {
+            'tag': '动态路由', 'steps': {
+                1: '按业务线分流:渠道(report_source=channel)→渠道经理,缺位由营销总监代理;'
+                   '服务类(负责人属服务部门)→服务经理,缺位直达总经理;其余→营销总监,缺位直达总经理',
+                2: '总经理(role=ceo,优先同公司);终审必经',
+            },
+            'notes': ['整条通过时按项目类型自动生成授权编号:渠道跟进→CPJ / 销售重点→SPJ / 业务机会→APJ',
+                      '第一步人选与发起人或总经理重复时自动跳级',
+                      '旧的 7 个可配置报备模板已全部停用,进行中的旧实例按各自快照走完'],
+        },
+        'project_hold': {
+            'tag': '动态路由', 'steps': {
+                1: '业务线分流(同项目报备):渠道→渠道经理(缺位营销总监代理)/服务→服务经理/其余→营销总监',
+                2: '总经理(role=ceo);终审必经',
+            },
+            'notes': ['发起人与各级审批人均强制填写意见',
+                      '失败审核「同意」时归因认定:步骤1 可勾「个人因素为主」(计入个人失败率);'
+                      '步骤2 可勾「团队管理失责」(计入团队失败率);驳回/召回自动清标',
+                      '整条通过才将项目置为 失败/搁置;恢复无需审批,回到进入时的阶段'],
+        },
+        'dealer_apply': {
+            'tag': '动态路由', 'steps': {
+                1: '商务助理(business_admin,优先同公司);缺位自动跳级',
+                2: '渠道经理(channel_manager);缺位自动跳级',
+                3: '总经理(role=ceo);终审必经',
+            },
+            'notes': ['新建/编辑客户选择 代理商/分销商 时自动发起;目标身份暂存,审批通过才写入客户类型',
+                      '驳回/召回清除暂存身份,客户维持原类型',
+                      '通过后客户计入渠道经理「渠道发展」考核'],
+        },
+    }
+
+    tpls = (ApprovalProcessTemplate.query
+            .order_by(ApprovalProcessTemplate.is_active.desc(), ApprovalProcessTemplate.object_type,
+                      ApprovalProcessTemplate.id).all())
+    flows = []
+    for t in tpls:
+        steps = (ApprovalStep.query.filter_by(process_id=t.id)
+                 .order_by(ApprovalStep.step_order).all())
+        spec = BUILTIN_SPECS.get(t.object_type) if t.is_active else None
+        items = []
+        for st in steps:
+            if spec and st.step_order in spec['steps']:
+                desc = spec['steps'][st.step_order]
+            else:
+                desc = APPROVER_TYPE_LABEL.get(st.approver_type or '', st.approver_type or '未配置')
+                if st.approver_user_id:
+                    u = User.query.get(st.approver_user_id)
+                    if u:
+                        desc = f'固定审批人:{u.real_name or u.username}'
+            items.append({'order': st.step_order, 'name': st.step_name,
+                          'desc': desc, 'email': bool(st.send_email)})
+        flows.append({
+            'id': t.id, 'name': t.name,
+            'object_type': t.object_type,
+            'object_label': OBJ_LABEL.get(t.object_type, t.object_type),
+            'active': bool(t.is_active),
+            'tag': (spec or {}).get('tag', '可配置模板'),
+            'steps': items,
+            'notes': (spec or {}).get('notes', []),
+        })
+    # 不走模板表的内置流程(说明性条目)
+    flows.append({
+        'id': None, 'name': '批价/结算审批(V2)', 'object_type': 'pricing_order_v2',
+        'object_label': '批价单', 'active': True, 'tag': '动态路由',
+        'steps': [{'order': 1, 'name': '动态流程', 'desc': '按批价流程类型(销售重点/渠道等)在创建时生成审批链,详见批价单详情页', 'email': True}],
+        'notes': ['流程快照随单生成,不走通用模板表'],
+    })
+
+    return render_template('config_management/at_flows.html',
+                           flows=flows,
+                           active_count=sum(1 for f in flows if f['active']))
+
+
 @config_management_bp.route('/at/performance')
 @login_required
 def at_performance():
@@ -3052,6 +3235,7 @@ def api_save_manual_entries(user_id, year):
         entries_data = data.get('entries', [])
 
         saved_count = 0
+        saved_entries = []
         for item in entries_data:
             metric_code = item.get('metric_code')
             period_type = item.get('period_type')
@@ -3088,10 +3272,12 @@ def api_save_manual_entries(user_id, year):
                     entered_by=current_user.id,
                 )
                 db.session.add(entry)
+            saved_entries.append(entry)
             saved_count += 1
 
         db.session.commit()
-        return jsonify({'success': True, 'message': f'已保存{saved_count}条数据'})
+        return jsonify({'success': True, 'message': f'已保存{saved_count}条数据',
+                        'data': {'entries': [e.to_dict() for e in saved_entries]}})
     except Exception as e:
         db.session.rollback()
         logger.error(f"保存手工录入数据失败: {e}", exc_info=True)
@@ -3162,6 +3348,30 @@ def api_upload_manual_attachment():
         db.session.rollback()
         logger.error(f"上传手工录入附件失败: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@config_management_bp.route('/api/manual-entries/attachment/<int:attachment_id>/download')
+@login_required
+@permission_required('config_management', 'view')
+def api_download_manual_attachment(attachment_id):
+    """下载/预览手工录入附件(经 smart_storage 代理,NAS 优先)"""
+    from flask import Response, abort
+    from app.models.performance_manual_entry import PerformanceManualAttachment
+    att = PerformanceManualAttachment.query.get(attachment_id)
+    if not att:
+        abort(404)
+    from app.utils.smart_storage_manager import get_smart_storage
+    data = get_smart_storage().download_file(att.storage_path, bucket_type='performance')
+    if not data:
+        abort(404)
+    import mimetypes
+    from urllib.parse import quote
+    mime = mimetypes.guess_type(att.filename)[0] or 'application/octet-stream'
+    # 浏览器可预览的内联展示(新 tab 直接看),其余类型走下载
+    previewable = mime.startswith(('image/', 'text/')) or mime == 'application/pdf'
+    dispo = 'inline' if previewable else 'attachment'
+    return Response(data, mimetype=mime, headers={
+        'Content-Disposition': f"{dispo}; filename*=UTF-8''{quote(att.filename)}"})
 
 
 @config_management_bp.route('/api/manual-entries/attachment/<int:attachment_id>', methods=['DELETE'])

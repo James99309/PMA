@@ -89,7 +89,7 @@ def _build_todos(user):
         'project': '项目立项', 'pricing_order': '批价单',
         'quotation': '报价单', 'sales_order': '客户订单',
         'customer': '客户', 'project_hold': '项目搁置/失败审核',
-        'dealer_apply': '渠道身份审批',
+        'dealer_apply': '渠道身份审批', 'perf_settlement': '绩效结算',
     }
 
     # 1) 待审批 — 复用 get_user_pending_approvals
@@ -112,11 +112,20 @@ def _build_todos(user):
             submitter = User.query.get(ai.created_by) if ai.created_by else None
             url_builder = at_url_map.get(ai.object_type)
             route_url = url_builder(ai.object_id) if url_builder else '#'
-            if ai.object_type == 'dealer_apply':
-                # 渠道身份审批:跳审批中心实例详情(通用审批操作页)
-                route_url = f'/approval/detail/{ai.id}'
+            if ai.object_type in ('dealer_apply',):
+                # 渠道身份审批:跳通用 AT 审批详情(流程图+审批操作)
+                route_url = f'/approval/at-detail/{ai.id}'
             # 标题:审批流程名称 + 关联项目/对象名称(项目类带项目名;搁置/失败区分)
             title = f'{obj_label} #{ai.object_id}'
+            if ai.object_type == 'perf_settlement':
+                # 绩效结算:标题=姓名·年Q季 绩效结算;点击进个人绩效页并自动展开审批 chip
+                from app.models.performance_settlement import PerformanceSettlement
+                _st = PerformanceSettlement.query.get(ai.object_id)
+                if _st:
+                    _su = User.query.get(_st.user_id)
+                    _sn = (_su.real_name or _su.username) if _su else ''
+                    title = f'{_sn} · {_st.year} Q{_st.quarter} 绩效结算'
+                    route_url = f'/user/at-config/performance?user={_st.user_id}&settle_q={_st.quarter}'
             if ai.object_type in ('project', 'project_hold'):
                 from app.models.project import Project
                 _proj = Project.query.get(ai.object_id)
@@ -753,21 +762,35 @@ def _act_se(code):
     return lambda user, s, e: _se_window(user, s, e)[code]
 
 def _act_manual(code, agg='sum'):
-    """手工录入指标(培训次数/内容产出/响应率/满意度):窗口内月度记录聚合"""
+    """手工录入指标(培训次数/内容产出/研发达成/批次质量等):窗口内按月聚合。
+    月度记录优先;该季度无任何月度记录时回退季度记录(sum 按 1/3 折算到月,avg 取原值),
+    与录入侧「季考行存季度记录、月考行存月记录」对应。"""
     def fn(user, s, e):
         from app.models.performance_manual_entry import PerformanceManualEntry
+        years = {s.year, (e - timedelta(days=1)).year}
+        ents = PerformanceManualEntry.query.filter(
+            PerformanceManualEntry.user_id == user.id,
+            PerformanceManualEntry.metric_code == code,
+            PerformanceManualEntry.year.in_(years),
+        ).all()
+        monthly = {(x.year, x.period): float(x.value)
+                   for x in ents if x.period_type == 'monthly' and x.value is not None}
+        quarterly = {(x.year, x.period): float(x.value)
+                     for x in ents if x.period_type == 'quarterly' and x.value is not None}
+        q_has_monthly = {(y, (m - 1) // 3 + 1) for (y, m) in monthly}
         vals = []
         d = s
         while d < e:
-            ent = PerformanceManualEntry.query.filter_by(
-                user_id=user.id, year=d.year, metric_code=code,
-                period_type='monthly', period=d.month).first()
-            if ent and ent.value is not None:
-                vals.append(float(ent.value))
+            q = (d.month - 1) // 3 + 1
+            if (d.year, d.month) in monthly:
+                vals.append(monthly[(d.year, d.month)])
+            elif (d.year, q) in quarterly and (d.year, q) not in q_has_monthly:
+                qv = quarterly[(d.year, q)]
+                vals.append(qv if agg == 'avg' else qv / 3.0)
             d = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
         if not vals:
             return 0
-        return round(sum(vals) / len(vals), 1) if agg == 'avg' else sum(vals)
+        return round(sum(vals) / len(vals), 1) if agg == 'avg' else round(sum(vals), 2)
     return fn
 
 def _act_project_activity(team=False):
@@ -841,6 +864,10 @@ _KPI_ACTUAL_FNS = {
     'customer_activity_rate':     None,   # 下方注册(快照型)
     'project_activity_rate':      _act_project_activity(team=False),
     'team_project_activity_rate': _act_project_activity(team=True),
+    'pm_dev_rate':        _act_manual('pm_dev_rate', agg='avg'),
+    'pm_quality_rate':    _act_manual('pm_quality_rate', agg='avg'),
+    'pm_support_count':   _act_manual('pm_support_count'),
+    'pm_new_launch':      None,   # 下方注册(自动)
     'pm_sales_amount':    None,   # 占位,下方注册(需 SQL)
     # 未注册(快照/口径未定):customer_activity_rate / high_price_amount → actual 0
 }
@@ -872,6 +899,23 @@ def _act_pm_sales(user, s, e):
     return float(r.amt or 0)
 
 _KPI_ACTUAL_FNS['pm_sales_amount'] = _act_pm_sales
+
+
+def _act_pm_new_launch(user, s, e):
+    """新品上市:负责范围(产品归属人/分类负责人)本期新建的在产厂商产品数"""
+    from sqlalchemy import func, or_, text
+    from app import db
+    r = db.session.execute(text("""
+        SELECT COUNT(*) FROM products p
+        LEFT JOIN product_categories pc ON p.category_id = pc.id
+        WHERE p.is_vendor_product = true AND p.status = 'active'
+          AND p.created_at >= :s AND p.created_at < :e
+          AND (p.owner_id = :uid OR pc.manager_id = :uid)
+    """), {'uid': user.id, 's': s, 'e': e}).scalar()
+    return int(r or 0)
+
+
+_KPI_ACTUAL_FNS['pm_new_launch'] = _act_pm_new_launch
 
 
 def _act_customer_activity(user, s, e):
@@ -1150,7 +1194,8 @@ _KPI_ACTUAL_FNS.update({
 _KPI_RATE_CODES = {'customer_activity_rate', 'se_response_rate', 'se_confirm_quality', 'se_satisfaction',
                    'project_activity_rate', 'team_project_activity_rate', 'team_customer_activity_rate',
                    'fail_rate', 'team_fail_rate',
-                   'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate'}
+                   'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate',
+                   'pm_dev_rate', 'pm_quality_rate'}
 
 
 def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):

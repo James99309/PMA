@@ -821,6 +821,19 @@ def create_user():
             logger.warning(f"[用户创建] 邮箱已存在: {email}")
             flash('邮箱已存在', 'danger')
             return render_template('user/edit.html', user=None, is_edit=False)
+        # 试用期(账户级):勾选后读起止日期
+        def _form_date(name):
+            v = (request.form.get(name) or '').strip()
+            if not v:
+                return None
+            try:
+                return datetime.strptime(v, '%Y-%m-%d').date()
+            except ValueError:
+                return None
+        prob_on = 'is_probation' in request.form
+        prob_start = _form_date('probation_start') if prob_on else None
+        prob_end = _form_date('probation_end') if prob_on else None
+
         user = User(
             username=username,
             real_name=real_name,
@@ -829,6 +842,8 @@ def create_user():
             phone=phone,
             department=department,
             is_department_manager=is_department_manager,
+            probation_start=prob_start,
+            probation_end=prob_end,
             role=role,
             settlement_currency=settlement_currency,
             is_active=False  # 新建用户默认未激活
@@ -926,6 +941,21 @@ def edit_user(user_id):
         user.settlement_currency = settlement_currency
         user.is_active = is_active
         user.is_department_manager = is_department_manager
+        # 试用期(账户级):勾选则存起止日期,取消则清空
+        def _form_date2(name):
+            v = (request.form.get(name) or '').strip()
+            if not v:
+                return None
+            try:
+                return datetime.strptime(v, '%Y-%m-%d').date()
+            except ValueError:
+                return None
+        if 'is_probation' in request.form:
+            user.probation_start = _form_date2('probation_start')
+            user.probation_end = _form_date2('probation_end')
+        else:
+            user.probation_start = None
+            user.probation_end = None
         # 跨系统镜像字段（admin only；mirror 用户本地不允许编辑这两项）
         if not bool(getattr(user, 'is_mirror', False)) and current_user.role == 'admin':
             user.cross_team_visible = cross_team_visible
@@ -2931,11 +2961,27 @@ def api_claude_ai_send_dxt(user_id):
 @login_required
 def at_person_performance():
     """AT 个人配置 · 绩效目标(个人覆盖,优先于角色默认)。
-    复用 performance_config 的 users/targets/batch(只提交变更项=未动的保持继承)。"""
-    if not (current_user.has_permission('user_management', 'view')
-            or current_user.has_permission('config_management', 'view')):
-        from flask import abort
-        abort(403)
+    复用 performance_config 的 users/targets/batch(只提交变更项=未动的保持继承)。
+    绩效结算审批人(无配置权限)可经 ?user=&settle_q= 进入,仅用于展开审批 chip。"""
+    _has_cfg = (current_user.has_permission('user_management', 'view')
+                or current_user.has_permission('config_management', 'view'))
+    if not _has_cfg:
+        # 放行:当前用户是该 ?user 某季度绩效结算的待审批人
+        _ok = False
+        try:
+            _tu = request.args.get('user', type=int)
+            _tq = request.args.get('settle_q', type=int)
+            if _tu and _tq:
+                from app.helpers.perf_settlement_helpers import get_settlement
+                from app.helpers.approval_helpers import is_current_approver
+                _st = get_settlement(_tu, datetime.now().year, _tq)
+                if _st and is_current_approver('perf_settlement', _st.id, current_user.id):
+                    _ok = True
+        except Exception:
+            _ok = False
+        if not _ok:
+            from flask import abort
+            abort(403)
 
     from app.services.role_kpi_schemes import get_role_scheme
     is_admin = current_user.role == 'admin'
@@ -2956,12 +3002,23 @@ def at_person_performance():
     companies = sorted({u['company'] for u in users_data if u['company']},
                        key=lambda c: (c != my_company, c))
 
+    # 手工录入指标清单(月度人工填报:研发达成/批次质量/上市支持/SE 培训等)
+    from app.models.performance_config import PerformanceMetricsDefinition
+    _MANUAL = ['se_response_rate', 'se_training_count', 'se_content_output', 'se_satisfaction',
+               'pm_dev_rate', 'pm_quality_rate', 'pm_support_count']
+    manual_metrics = [{'code': m.metric_code, 'name': m.metric_name,
+                       'unit': m.default_unit or '', 'is_rate': m.data_type == 'percentage'}
+                      for m in PerformanceMetricsDefinition.query.filter(
+                          PerformanceMetricsDefinition.metric_code.in_(_MANUAL)).all()]
+
     return render_template('user/at_person_performance.html',
                            users_data=users_data,
                            companies=companies,
                            user_company=my_company,
                            is_admin=is_admin,
+                           manual_metrics=manual_metrics,
                            current_year=datetime.now().year,
+                           approver_mode=(not _has_cfg),  # 审批人进入:仅审批,隐藏切换/其他 tab
                            can_edit=current_user.has_permission('config_management', 'edit'))
 
 
@@ -3106,6 +3163,8 @@ def at_list():
         'phone': u.phone or '',
         'is_active': bool(u._is_active),
         'is_dept_manager': bool(u.is_department_manager),
+        'in_probation': u.in_probation,
+        'probation_end': u.probation_end.isoformat() if u.probation_end else None,
         # updated_at 在 User 模型里是 float 时间戳,统一在此格式化
         'updated': (datetime.fromtimestamp(u.updated_at).strftime('%Y-%m-%d')
                     if isinstance(u.updated_at, (int, float)) and u.updated_at
@@ -3182,6 +3241,9 @@ def at_user_detail(user_id):
         'wechat': u.wechat_nickname or '',
         'is_active': bool(u._is_active),
         'is_dept_manager': bool(u.is_department_manager),
+        'in_probation': u.in_probation,
+        'probation_start': u.probation_start.isoformat() if u.probation_start else None,
+        'probation_end': u.probation_end.isoformat() if u.probation_end else None,
         'created': _ts(u.created_at),
         'last_login': _ts(u.last_login),
     }
@@ -3200,6 +3262,8 @@ def at_user_detail(user_id):
             'settlement_currency': u.settlement_currency or '',
             'is_active': bool(u._is_active),
             'is_department_manager': bool(u.is_department_manager),
+            'probation_start': u.probation_start.isoformat() if u.probation_start else None,
+            'probation_end': u.probation_end.isoformat() if u.probation_end else None,
             'cross_team_visible': bool(getattr(u, 'cross_team_visible', False)),
             'cross_team_label': getattr(u, 'cross_team_label', '') or '',
         }
@@ -3218,6 +3282,201 @@ def at_user_detail(user_id):
                            can_delete=current_user.has_permission('user_management', 'delete'),
                            can_person_config=(current_user.has_permission('config_management', 'view')
                                               or current_user.has_permission('user_management', 'view')))
+
+
+# ── AT 个人配置 · 薪资(岗位结构套用 + 个人覆盖/专属项目;仅 admin/ceo/hr_manager) ──
+
+def _salary_guard():
+    from app.models.salary_structure import SALARY_ADMIN_ROLES
+    if current_user.role not in SALARY_ADMIN_ROLES:
+        from flask import abort
+        abort(403)
+
+
+@user_bp.route('/at-config/salary')
+@login_required
+def at_person_salary():
+    """AT 个人配置 · 薪资:显示该人岗位的薪资结构(继承),金额可个人覆盖,可加专属项目。"""
+    _salary_guard()
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+    } for u in users]
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+    return render_template('user/at_person_salary.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=is_admin,
+                           currency_symbol=get_currency_symbol(get_default_currency()),
+                           current_year=datetime.now().year,
+                           can_edit=True)
+
+
+@user_bp.route('/api/person-salary/<int:user_id>/<int:year>')
+@login_required
+def api_get_person_salary(user_id, year):
+    """个人薪资:套用全局结构(主子层级)+ 月度实发 + 试用期标记。
+    主项有子项→每月金额=子项汇总(前端算);叶子项 HR 按月回填实发(monthly)。"""
+    _salary_guard()
+    try:
+        from app.models.salary_structure import SalaryStructureItem, UserSalaryItem, UserSalaryProfile
+
+        def _monthly(row):
+            m = (row.monthly_amounts or {}) if row else {}
+            # JSON key 可能是字符串,统一成 {1..12: float}
+            return {int(k): float(v) for k, v in m.items() if v not in (None, '')}
+
+        u = User.query.get(user_id)
+        if not u:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        struct = SalaryStructureItem.query.filter_by(is_active=True)\
+            .order_by(SalaryStructureItem.sort_order, SalaryStructureItem.id).all()
+        urows = UserSalaryItem.query.filter_by(user_id=user_id, year=year).all()
+        amap = {x.item_code: x for x in urows if not x.is_personal}    # 结构项金额
+        personal = [x for x in urows if x.is_personal]
+        child_codes = {r.parent_code for r in struct if r.parent_code}
+        items = []
+        for r in struct:
+            a = amap.get(r.item_code)
+            # 发放方式:个人覆盖(a.pay_cycle)优先,默认引用配置结构(r.pay_cycle)
+            cyc = (a.pay_cycle if (a and a.pay_cycle) else None) or (r.pay_cycle or 'monthly')
+            items.append({
+                'item_code': r.item_code, 'item_name': r.item_name,
+                'parent_code': r.parent_code, 'pay_cycle': cyc,
+                'default_cycle': r.pay_cycle or 'monthly',
+                'is_locked': bool(r.is_locked), 'is_personal': False,
+                'has_children': r.item_code in child_codes,
+                'amount': float(a.amount) if (a and a.amount is not None) else None,
+                'monthly': _monthly(a),
+            })
+        for x in sorted(personal, key=lambda p: (p.sort_order or 0, p.id)):
+            items.append({
+                'item_code': x.item_code, 'item_name': x.item_name or '',
+                'parent_code': None, 'pay_cycle': x.pay_cycle or 'monthly',
+                'is_locked': False, 'is_personal': True, 'has_children': False,
+                'amount': float(x.amount) if x.amount is not None else None,
+                'monthly': _monthly(x),
+            })
+        # 试用期为账户级属性(账户创建/编辑设定);薪资页只读引用并高亮对应月份
+        return jsonify({'success': True, 'data': {
+            'items': items,
+            'structure_configured': bool(struct),
+            'role': u.role or '', 'role_display': get_role_display_name(u.role) if u.role else '',
+            'in_probation': u.in_probation,
+            'probation_start': u.probation_start.isoformat() if u.probation_start else None,
+            'probation_end': u.probation_end.isoformat() if u.probation_end else None,
+        }})
+    except Exception as e:
+        logger.exception(f'person-salary get error: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@user_bp.route('/api/person-salary/<int:user_id>/<int:year>', methods=['POST'])
+@login_required
+def api_save_person_salary(user_id, year):
+    """保存个人薪资:结构项月度实发 + 个人专属项目整组替换 + 试用期开关/日期"""
+    _salary_guard()
+    try:
+        from app.models.salary_structure import SalaryStructureItem, UserSalaryItem, UserSalaryProfile
+        data = request.get_json() or {}
+        struct_rows = SalaryStructureItem.query.filter_by(is_active=True).all()
+        struct_codes = {r.item_code for r in struct_rows}
+        struct_cycle = {r.item_code: (r.pay_cycle or 'monthly') for r in struct_rows}
+
+        def _num(v):
+            return None if v in (None, '') else float(v)
+
+        def _cyc(v):
+            return v if v in ('monthly', 'quarterly', 'yearly') else None
+
+        def _months(raw):
+            """清理月度载荷 → {"1":float,...};空值剔除;无有效月返回 {}"""
+            out = {}
+            for k, v in (raw or {}).items():
+                if v in (None, ''):
+                    continue
+                try:
+                    mk = int(k)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= mk <= 12:
+                    out[str(mk)] = float(v)
+            return out
+
+        # 1) 结构项:标准金额 amount + 月度覆盖实发 monthly(两者皆空则删行)
+        for it in data.get('amounts', []):
+            code = it.get('item_code')
+            if code not in struct_codes:
+                continue
+            amt = _num(it.get('amount'))
+            months = _months(it.get('monthly'))
+            # 发放方式:与配置默认相同存 null(继承,配置改了跟随),不同则存覆盖
+            sub_cyc = _cyc(it.get('pay_cycle'))
+            cyc_override = sub_cyc if (sub_cyc and sub_cyc != struct_cycle.get(code)) else None
+            row = UserSalaryItem.query.filter_by(user_id=user_id, year=year,
+                                                 item_code=code, is_personal=False).first()
+            if amt is None and not months and cyc_override is None:
+                if row:
+                    db.session.delete(row)
+                continue
+            if not row:
+                row = UserSalaryItem(user_id=user_id, year=year, item_code=code,
+                                     is_personal=False, created_by=current_user.id)
+                db.session.add(row)
+            row.amount = amt
+            row.monthly_amounts = months
+            row.pay_cycle = cyc_override
+            row.updated_by = current_user.id
+
+        # 2) 个人专属项目:整组替换(载荷外的删除)
+        if 'personal' in data:
+            keep = set()
+            for i, it in enumerate(data.get('personal') or []):
+                name = (it.get('item_name') or '').strip()
+                if not name:
+                    continue
+                code = (it.get('item_code') or '').strip()
+                if not code:
+                    import uuid
+                    code = 'pers_' + uuid.uuid4().hex[:8]
+                keep.add(code)
+                row = UserSalaryItem.query.filter_by(user_id=user_id, year=year, item_code=code).first()
+                if not row:
+                    row = UserSalaryItem(user_id=user_id, year=year, item_code=code,
+                                         is_personal=True, created_by=current_user.id)
+                    db.session.add(row)
+                row.is_personal = True
+                row.item_name = name
+                row.pay_cycle = it.get('pay_cycle') if it.get('pay_cycle') in ('monthly', 'quarterly', 'yearly') else 'monthly'
+                row.amount = _num(it.get('amount'))
+                row.monthly_amounts = _months(it.get('monthly'))
+                row.sort_order = i
+                row.updated_by = current_user.id
+            for row in UserSalaryItem.query.filter_by(user_id=user_id, year=year, is_personal=True).all():
+                if row.item_code not in keep:
+                    db.session.delete(row)
+
+        # 试用期已挪到账户设置(账户创建/编辑),薪资页不再写入
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': '个人薪资已保存'})
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f'person-salary save error: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @user_bp.route('/at-config/ai')

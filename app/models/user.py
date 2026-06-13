@@ -28,6 +28,8 @@ class User(db.Model, UserMixin):
     phone = db.Column(db.String(20))  # 联系电话（带国家号）
     department = db.Column(db.String(100))  # 部门归属
     is_department_manager = db.Column(db.Boolean, default=False)  # 是否为部门负责人
+    probation_start = db.Column(db.Date)  # 试用期开始日期(账户级)
+    probation_end = db.Column(db.Date)    # 试用期结束日期;过期后试用期徽章自动消失
     role = db.Column(db.String(20), default='user')  # 用户角色
     is_profile_complete = db.Column(db.Boolean, default=False)  # 是否已完善信息
     wechat_openid = db.Column(db.String(64), unique=True)  # 微信ID
@@ -109,7 +111,15 @@ class User(db.Model, UserMixin):
     def is_active(self, value):
         """设置is_active属性"""
         self._is_active = bool(value)
-        
+
+    @property
+    def in_probation(self):
+        """当前是否处于试用期(有结束日期且今天未超过结束日期);结束后自动 False"""
+        if not self.probation_end:
+            return False
+        from datetime import date
+        return date.today() <= self.probation_end
+
     @property
     def name(self):
         """返回用户的名称，优先使用真实姓名，如果没有则使用用户名"""

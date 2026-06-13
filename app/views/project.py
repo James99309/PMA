@@ -4029,39 +4029,12 @@ def submit_project_approval_standard(project_id):
                 'message': '只有项目创建人可以提交审批'
             }), 403
         
-        # 导入审批相关函数
-        from app.helpers.approval_helpers import start_approval_process, get_available_templates
-        
-        # 获取可用的审批模板
-        templates = get_available_templates('project')
-        if not templates:
-            return jsonify({
-                'success': False,
-                'message': '未找到可用的项目审批模板'
-            }), 400
-        
-        # 获取请求数据
-        data = request.get_json() or {}
-        template_id = data.get('template_id')
-        
-        # 如果未指定模板，使用默认模板
-        if not template_id:
-            from app.models.approval import ApprovalProcessTemplate
-            default_template = ApprovalProcessTemplate.query.filter_by(
-                object_type='project',
-                is_active=True
-            ).first()
-            
-            if not default_template:
-                return jsonify({
-                    'success': False,
-                    'message': '未找到可用的项目审批模板'
-                }), 400
-                
-            template_id = default_template.id
-        
-        # 启动审批流程（使用 auto_commit=False 确保与项目状态更新在同一事务中）
-        approval_instance = start_approval_process('project', project_id, template_id, current_user.id, auto_commit=False)
+        # 业务线路由发起(2026-06-13):渠道→渠道经理/服务→服务经理/其余→营销总监
+        # (缺位跳级)→ 总经理;模板由代码 get-or-create,忽略前端 template_id
+        from app.helpers.project_hold_helpers import submit_project_report_approval
+        approval_instance, _rep_err = submit_project_report_approval(project_obj, current_user.id)
+        if not approval_instance and _rep_err:
+            return jsonify({'success': False, 'message': _rep_err}), 400
 
         if approval_instance:
             # 更新项目状态为待审批

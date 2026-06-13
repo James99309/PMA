@@ -148,7 +148,8 @@ class PerformanceDashboardService:
                         yearly_stats[i].se_confirm_quality_actual = getattr(rs, 'se_confirm_quality_actual', 0)
 
             # 从手工录入表加载辅助指标（替代自动采集）
-            manual_codes = {'se_response_rate', 'se_training_count', 'se_content_output', 'se_satisfaction'}
+            manual_codes = {'se_response_rate', 'se_training_count', 'se_content_output', 'se_satisfaction',
+                            'pm_dev_rate', 'pm_quality_rate', 'pm_support_count'}
             if configured_items and manual_codes & configured_set:
                 from app.models.performance_manual_entry import PerformanceManualEntry
                 entries = PerformanceManualEntry.query.filter_by(
@@ -1603,6 +1604,7 @@ class PerformanceDashboardService:
             'project_activity_rate', 'team_project_activity_rate',
             'team_customer_activity_rate', 'fail_rate', 'team_fail_rate',
             'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate',
+            'pm_dev_rate', 'pm_quality_rate',
         }
 
         targets_dict = {}
@@ -1694,6 +1696,10 @@ class PerformanceDashboardService:
             'channel_project_activity_rate': 'channel_project_activity_rate_target',
             'channel_fail_rate': 'channel_fail_rate_target',
             'channel_new_dealers': 'channel_new_dealers_target',
+            'pm_dev_rate': 'pm_dev_rate_target',
+            'pm_new_launch': 'pm_new_launch_target',
+            'pm_quality_rate': 'pm_quality_rate_target',
+            'pm_support_count': 'pm_support_count_target',
         }
         return mapping.get(item_code)
 
@@ -1750,6 +1756,10 @@ class PerformanceDashboardService:
             'channel_project_activity_rate': 'channel_project_activity_rate',
             'channel_fail_rate': 'channel_fail_rate',
             'channel_new_dealers': 'channel_new_dealers',
+            'pm_dev_rate': 'pm_dev_rate',
+            'pm_new_launch': 'pm_new_launch',
+            'pm_quality_rate': 'pm_quality_rate',
+            'pm_support_count': 'pm_support_count',
         }
 
         try:

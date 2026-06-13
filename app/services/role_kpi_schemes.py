@@ -56,6 +56,17 @@ ROLE_KPI_SCHEMES = {
 ROLE_KPI_SCHEMES['customer_sales'] = ROLE_KPI_SCHEMES['sales_manager']
 ROLE_KPI_SCHEMES['service_manager'] = ROLE_KPI_SCHEMES['sales_director']
 
+# 产品经理(2026-06-13 确认):植入为结果共享项(落地是解决方案功劳,权重压至30);
+# 研发计划/批次质量/上市支持为手工月度录入(PerformanceManualEntry,可附凭证);
+# 新品上市自动统计;不考批价额。
+ROLE_KPI_SCHEMES['product_manager'] = [
+    {'item_code': 'pm_implant_amount', 'weight': 30, 'default_annual': None},
+    {'item_code': 'pm_dev_rate',       'weight': 25, 'default_annual': 90},
+    {'item_code': 'pm_quality_rate',   'weight': 20, 'default_annual': 98},
+    {'item_code': 'pm_new_launch',     'weight': 15, 'default_annual': None},
+    {'item_code': 'pm_support_count',  'weight': 10, 'default_annual': None},
+]
+
 # 渠道经理:销售方案同构,但口径为全量渠道业务(report_source/source='channel',不限负责人)
 ROLE_KPI_SCHEMES['channel_manager'] = [
     {'item_code': 'channel_sales_amount',           'weight': 30, 'default_annual': None},

@@ -678,4 +678,6 @@
   } else {
     bootstrap();
   }
+  // 动态新增的 chip(如 JS 渲染的列表)可调用此初始化单个根元素
+  window.AtApprovalDropdown = { init: initOne };
 })(window);

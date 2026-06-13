@@ -21,6 +21,8 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>PMA · 仪表盘</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
@@ -63,8 +65,15 @@
         <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:4px;">
           DASHBOARD · 仪表盘
         </div>
-        <h1 class="at-serif" style="margin:0;font-size:30px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
+        <h1 class="at-serif" style="margin:0;font-size:30px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;
+                                    display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           欢迎回来,{{ (current_user.real_name or current_user.username) }}
+          {% if current_user.in_probation %}
+          <span title="新手 · 试用期{% if current_user.probation_end %}至 {{ current_user.probation_end }}{% endif %}"
+                style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
+                       background:var(--success-soft);color:var(--success);">
+            <span class="material-symbols-outlined" style="font-size:15px;">eco</span></span>
+          {% endif %}
         </h1>
         <div class="at-muted" style="margin-top:6px;font-size:13px;">
           {{ now.strftime('%Y 年 %m 月 %d 日') if now else '' }}
@@ -125,7 +134,7 @@
           {# 全量渲染,超出 5 条高度内部滚动(替代「显示其余 N 项」) #}
           <ul data-dash-list="todo"
               style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;
-                     max-height:330px;overflow-y:auto;">
+                     max-height:350px;overflow-y:auto;">
             {% for t in _todos %}
             {% set _has_route = t.route and t.route != '#' %}
             <li data-type="{{ t.type }}" class="dash-list-item"
@@ -182,7 +191,8 @@
           {# KPI 列表契约:_kpis[period] 直接是指标项列表(按角色变体,数量不定)#}
           {% set _kpi_items = _kpis[period_key] %}
           <div data-kpi-period="{{ period_key }}"
-               style="display:{{ 'flex' if period_key == 'month' else 'none' }};flex-direction:column;gap:14px;">
+               style="display:{{ 'flex' if period_key == 'month' else 'none' }};flex-direction:column;gap:14px;
+                      max-height:350px;overflow-y:auto;padding-right:4px;">
             {% if not _kpi_items %}
             {# 新绩效配置框架下该用户无任何目标(角色默认+个人覆盖均空)#}
             <div style="padding:28px 12px;text-align:center;color:var(--ink-3);font-size:12.5px;">

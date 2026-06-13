@@ -18,6 +18,10 @@
   ('budget',      '费用预算', url_for('user.at_person_budget')),
   ('performance', '绩效目标', url_for('user.at_person_performance')),
 ] %}
+{# 薪资页签仅 admin/ceo/hr_manager 可见(薪资敏感,页面/API 同步硬校验) #}
+{% if current_user.role in ('admin', 'ceo', 'hr_manager') %}
+  {% set _person_tabs = _person_tabs + [('salary', '薪资', url_for('user.at_person_salary'))] %}
+{% endif %}
 {# AI 代理页签仅 admin 可见(开通/配额/用量/设备锁定,全部 admin-only API) #}
 {% if current_user.role == 'admin' %}
   {% set _person_tabs = _person_tabs + [('ai', 'AI 代理', url_for('user.at_person_ai'))] %}
@@ -111,6 +115,8 @@
 
 <main style="width:100%;box-sizing:border-box;max-width:1500px;margin:0 auto;padding:28px 40px 80px;min-width:0;">
 
+  {# 审批人模式(经绩效结算放行进入):隐藏所有页签,仅审批当前绩效 #}
+  {% if not approver_mode %}
   <nav class="cfg-tabs">
     {# 从账户详情锁定进入(?user=)时,页签切换透传该参数,保持锁定同一用户 #}
     {% set _user_qs = ('?user=' ~ request.args.get('user')) if request.args.get('user') else '' %}
@@ -122,6 +128,7 @@
       {% endif %}
     {% endfor %}
   </nav>
+  {% endif %}
 
   <div style="margin-bottom:18px;">
     <h1 class="at-serif" style="margin:0;font-size:24px;font-weight:600;">{% block person_title %}{% endblock %}</h1>

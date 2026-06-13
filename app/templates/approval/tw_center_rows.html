@@ -43,9 +43,15 @@ render_tw_business_type_badge, render_tw_approver_badge with context %}
            class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
             {{ item.approval_number or ('APV-' ~ item.id) }}
         </a>
+        {% elif item.detail_url %}
+        {# 绩效结算等:跳专属页(个人绩效页 + 自动展开审批 chip) #}
+        <a href="{{ item.detail_url }}"
+           class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
+            {{ item.approval_number or ('APV-' ~ item.id) }}
+        </a>
         {% else %}
-        {# 其他类型暂时使用旧的审批详情页 #}
-        <a href="{{ url_for('approval.detail', instance_id=item.id) }}"
+        {# 渠道身份/失败搁置等无专属页:通用 AT 审批详情(流程图+审批操作) #}
+        <a href="{{ url_for('approval.at_detail', instance_id=item.id) }}"
            class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
             {{ item.approval_number or ('APV-' ~ item.id) }}
         </a>

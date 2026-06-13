@@ -20,7 +20,13 @@
   ('permissions', '权限配置', url_for('config_management.at_permissions')),
   ('expense',     '部门预算', url_for('config_management.at_expense')),
   ('performance', '绩效配置', url_for('config_management.at_performance')),
-  ('salary',      '薪资配置', none),
+  ('flows',       '流程配置', url_for('config_management.at_flows')),
+] %}
+{# 薪资敏感:tab 仅 admin/ceo/hr_manager 可见(页面/API 同步硬校验) #}
+{% if current_user.role in ('admin', 'ceo', 'hr_manager') %}
+  {% set _config_tabs = _config_tabs + [('salary', '薪资配置', url_for('config_management.at_salary_structure'))] %}
+{% endif %}
+{% set _config_tabs = _config_tabs + [
   ('metrics',     '指标管理', none),
   ('global',      '全局配置', none),
 ] %}
