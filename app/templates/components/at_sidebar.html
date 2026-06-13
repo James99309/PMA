@@ -253,7 +253,7 @@
 
       </nav>
 
-      {# User · 账户底栏(点击展开 popup 菜单:个人设置/绩效看板/审批中心/退出登录) #}
+      {# User · 账户底栏(点击展开 popup 菜单:绩效看板/退出登录) #}
       <div style="position:relative;flex-shrink:0;">
         <button type="button" id="atUserMenuTrigger"
                 style="width:100%;padding:12px 14px;border:0;background:transparent;
@@ -283,11 +283,6 @@
           {% set _menu_link_style = 'display:flex;align-items:center;gap:10px;padding:8px 10px;
                                      border-radius:6px;color:var(--ink);text-decoration:none;
                                      font-size:13px;transition:background 100ms;' %}
-          <a href="{{ url_for('user.profile') }}" style="{{ _menu_link_style }}"
-             onmouseover="this.style.background='var(--bg-page)'"
-             onmouseout="this.style.background='transparent'">
-            {{ at_icon('user', 14) }} 个人设置
-          </a>
           {% if has_permission('performance', 'view') %}
           <a href="{{ url_for('performance.index') }}" style="{{ _menu_link_style }}"
              onmouseover="this.style.background='var(--bg-page)'"
@@ -295,11 +290,6 @@
             {{ at_icon('chart', 14) }} 绩效看板
           </a>
           {% endif %}
-          <a href="{{ url_for('approval.center', from_notification=1) }}" style="{{ _menu_link_style }}"
-             onmouseover="this.style.background='var(--bg-page)'"
-             onmouseout="this.style.background='transparent'">
-            {{ at_icon('check', 14) }} 审批中心
-          </a>
           <div style="height:1px;background:var(--line);margin:4px 4px;"></div>
           <a href="{{ url_for('auth.logout') }}"
              style="display:flex;align-items:center;gap:10px;padding:8px 10px;
