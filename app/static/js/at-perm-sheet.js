@@ -170,7 +170,8 @@
           if (supportsFilter) Object.keys(fOpts).forEach(fk => {
             const def = fOpts[fk];
             if (!def || !Array.isArray(def.options)) return;
-            const selected = Array.isArray(cf[fk]) ? cf[fk] : null;
+            // 空数组视同不限(null):「不限」高亮,避免空列表显示成"既没选不限也没选值"
+            const selected = (Array.isArray(cf[fk]) && cf[fk].length) ? cf[fk] : null;
             groupsHtml += `
               <span class="pm-flt-label">${esc(def.label)}</span>
               <button type="button" class="pm-opt${selected === null ? ' on' : ''}" ${dis}

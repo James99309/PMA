@@ -307,21 +307,18 @@ def apply_content_filters(query, model_class, module_name, user):
 
         logger.debug(f"应用 {module_name} 模块的内容过滤: {content_filters}")
 
-        # 检查：模块定义的每个筛选字段，用户都必须配置
-        for filter_key in module_filter_options.keys():
-            if filter_key not in content_filters:
-                logger.debug(f"{module_name} 模块缺少必需的筛选字段 {filter_key}，返回空查询")
-                return query.filter(False)
+        # 缺某筛选字段 = 该维度「不限」(不过滤),不再因缺字段而全关
+        # (原"必须配齐每个字段否则全关"与"不限=全开"直觉冲突,已废弃)
 
-        # 动态应用过滤规则（AND 逻辑：所有字段都必须满足）
+        # 动态应用过滤规则（AND 逻辑：仅对"有具体值"的字段过滤;空/缺 = 不限）
         for filter_key, allowed_values in content_filters.items():
             if not isinstance(allowed_values, list):
                 continue
 
-            # 空列表 = 无权限
+            # 空列表 = 该维度「不限」(不过滤,全开),不再全关
             if not allowed_values:
-                logger.debug(f"{module_name}.{filter_key} 为空列表，返回空查询")
-                return query.filter(False)
+                logger.debug(f"{module_name}.{filter_key} 为空列表 → 视为不限,跳过该维度过滤")
+                continue
 
             # 获取该字段的配置
             filter_config = module_filter_options.get(filter_key, {})
