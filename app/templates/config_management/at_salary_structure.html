@@ -19,17 +19,13 @@
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
     <span id="ssDirty" style="font-size:12px;color:var(--warn);"></span>
     <div style="flex:1;"></div>
-    {% if can_edit %}
-    <button type="button" onclick="ssAddMain()"
-            style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
-                   background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">+ 添加主薪资项</button>
-    <button type="button" id="ssSaveBtn" onclick="ssSave()"
-            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存结构</button>
-    {% endif %}
+    <button type="button" id="ssAddBtn" onclick="ssAddMain()" style="display:none;
+            height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+            background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">+ 添加主薪资项</button>
+    <div id="ssEditBar"></div>
   </div>
 
-  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
+  <div id="ssSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
     <table class="cm-sheet" style="min-width:560px;">
       <thead><tr>
         <th style="text-align:left;">薪资项目</th>
@@ -55,11 +51,11 @@
   const CYC_NEXT = { monthly: 'quarterly', quarterly: 'yearly', yearly: 'monthly' };
   const LOCKED = ['base_salary', 'performance_salary'];
 
-  let _items = [], _dirty = false, _seq = 0;
+  let _items = [], _dirty = false, _seq = 0, guard = null;
   const newCode = () => 'c' + (Date.now() % 100000) + (_seq++);
 
   function setDirty() { document.getElementById('ssDirty').textContent = _dirty ? '有未保存的变更' : ''; }
-  function markDirty() { _dirty = true; setDirty(); }
+  function markDirty() { _dirty = true; setDirty(); if (typeof guard !== 'undefined' && guard) guard.markDirty(); }
 
   async function ssLoad() {
     try {
@@ -162,24 +158,31 @@
     if (els.length) els[els.length - 1].focus();
   };
 
-  window.ssSave = async function () {
+  async function ssSaveCore() {
     const payload = _items.map(it => ({
       item_code: it.item_code, item_name: it.item_name,
       parent_code: it.parent_code || null, pay_cycle: it.pay_cycle,
     }));
-    const btn = document.getElementById('ssSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
     try {
       const d = await (await fetch('/config-management/api/salary-structure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ items: payload }),
       })).json();
-      if (d.success) { ATToast.success(d.message || '已保存'); ssLoad(); }
-      else ATToast.error(d.message || '保存失败');
-    } catch (_) { ATToast.error('保存失败,请重试'); }
-    btn.disabled = false; btn.textContent = '保存结构';
-  };
+      if (d.success) { ATToast.success(d.message || '已保存'); _dirty = false; ssLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (_) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  // 编辑模式守卫:默认只读,点「编辑」才能改结构;保存确认;离开页提醒
+  guard = AtEditMode.init({
+    mount: 'ssEditBar', lockEl: 'ssSheet', canEdit: CAN_EDIT,
+    onSave: ssSaveCore,
+    onDiscard: function () { ssLoad(); },
+    onEnter: function () { const b = document.getElementById('ssAddBtn'); if (b) b.style.display = ''; },
+    onExit: function () { const b = document.getElementById('ssAddBtn'); if (b) b.style.display = 'none'; },
+    saveConfirm: { message: '确认保存薪资结构?' },
+  });
 
   ssLoad();
 </script>

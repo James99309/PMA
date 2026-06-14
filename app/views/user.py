@@ -1764,10 +1764,14 @@ def manage_departments():
             User._is_active == True
         ).order_by(User.company_name, User.real_name).all()
 
+        # HRBP 候选(人事经理角色;下拉过滤用)
+        hr_users = [u for u in users if u.role == 'hr_manager']
+
         return render_template('user/tw_department_management.html',
                                departments=departments,
                                companies=company_list,
-                               users=users)
+                               users=users,
+                               hr_users=hr_users)
     except Exception as e:
         logger.error(f"加载部门管理页面时出错: {str(e)}")
         flash('加载部门管理页面时出错，请稍后重试', 'danger')
@@ -1797,6 +1801,8 @@ def api_get_departments():
             'company_name': d.company_name,
             'manager_id': d.manager_id,
             'manager_name': d.manager.real_name if d.manager else None,
+            'hrbp_user_id': d.hrbp_user_id,
+            'hrbp_name': (d.hrbp.real_name or d.hrbp.username) if d.hrbp else None,
             'is_active': d.is_active
         } for d in departments]
     })
@@ -1827,11 +1833,13 @@ def api_create_department():
     # 生成代码
     code = f"{name[:10]}_{company_name[:4]}"
 
+    hrbp_user_id = data.get('hrbp_user_id')
     dept = Department(
         name=name,
         code=code,
         company_name=company_name,
         manager_id=int(manager_id) if manager_id else None,
+        hrbp_user_id=int(hrbp_user_id) if hrbp_user_id else None,
         is_active=True
     )
     db.session.add(dept)
@@ -1859,6 +1867,8 @@ def api_update_department(dept_id):
         dept.name = data['name'].strip()
     if 'manager_id' in data:
         dept.manager_id = int(data['manager_id']) if data['manager_id'] else None
+    if 'hrbp_user_id' in data:
+        dept.hrbp_user_id = int(data['hrbp_user_id']) if data['hrbp_user_id'] else None
     if 'is_active' in data:
         dept.is_active = data['is_active']
 
@@ -3027,6 +3037,11 @@ def at_person_performance():
     if not is_admin:
         q = q.filter(User.company_name == (current_user.company_name or ''))
     users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # HRBP 隔离:hr_manager 选人列表只列自己负责部门的成员
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,
@@ -3370,6 +3385,11 @@ def at_person_salary():
     if not is_admin:
         q = q.filter(User.company_name == (current_user.company_name or ''))
     users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # HRBP 隔离:hr_manager 选人列表只列自己负责部门的成员
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,

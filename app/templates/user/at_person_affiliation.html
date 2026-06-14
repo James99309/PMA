@@ -30,7 +30,7 @@
                  background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
       <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
       {% if is_admin and companies|length > 1 %}
-      <select id="afCompany" onchange="afCompanyChange(this.value)"
+      <select id="afCompany" onchange="afCompanyGuarded(this)"
               style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
         {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
       </select>
@@ -49,11 +49,7 @@
     <span id="afDirty" style="font-size:12px;color:var(--warn);"></span>
     <div style="flex:1;"></div>
     <input id="afSearch" class="af-search" type="text" placeholder="筛选人员 / 部门…" oninput="renderOwners()">
-    {% if can_edit %}
-    <button type="button" id="afSaveBtn" onclick="afSave()"
-            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
-    {% endif %}
+    <div id="afEditBar"></div>
   </div>
 
   <div id="afPanel" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;padding:18px 20px;">
@@ -74,7 +70,7 @@
   const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 
-  let _userId = null;                // 被配置者(viewer)
+  let _userId = null, guard = null;  // 被配置者(viewer)
   let _selected = new Set();         // 已点亮的 owner ids
   let _loaded = new Set();           // 加载时的集合(算 dirty)
   let _company = COMPANIES[0] || '';
@@ -100,9 +96,14 @@
   });
 
   window.afSelect = function (id) {
-    _userId = id;
-    document.getElementById('afUserMenu').style.display = 'none';
-    afLoad();
+    guard.attempt(function () {
+      _userId = id;
+      document.getElementById('afUserMenu').style.display = 'none';
+      afLoad();
+    });
+  };
+  window.afCompanyGuarded = function (sel) {
+    guard.attempt(function () { afCompanyChange(sel.value); }, function () { sel.value = _company; });
   };
 
   // ── owner 候选 chips(全集按 公司·部门 分组;排除 viewer 自己) ──
@@ -134,6 +135,7 @@
 
   window.afToggleOwner = function (id) {
     if (_selected.has(id)) _selected.delete(id); else _selected.add(id);
+    if (guard) guard.markDirty();
     renderOwners();
   };
 
@@ -162,21 +164,25 @@
     }
   };
 
-  window.afSave = async function () {
-    if (!_userId) return;
-    const btn = document.getElementById('afSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
+  async function afSaveCore() {
+    if (!_userId) return false;
     try {
       const d = await (await fetch(`/user/api/save_affiliations/${_userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ owner_ids: [..._selected] }),
       })).json();
-      if (d.success) { ATToast.success(d.message || '已保存'); afLoad(); }
-      else ATToast.error(d.message || '保存失败');
-    } catch (e) { ATToast.error('保存失败,请重试'); }
-    btn.disabled = false; btn.textContent = '保存';
-  };
+      if (d.success) { ATToast.success(d.message || '已保存'); afLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  guard = AtEditMode.init({
+    mount: 'afEditBar', lockEl: 'afPanel', canEdit: CAN_EDIT,
+    onSave: afSaveCore,
+    onDiscard: function () { afLoad(); },
+    saveConfirm: { message: '确认保存该人员的归属授权?' },
+  });
 
   // ?user= 预选(账户详情页跳入):锁定该用户,禁止切换防误操作
   const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));

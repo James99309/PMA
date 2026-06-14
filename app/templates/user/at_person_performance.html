@@ -28,7 +28,7 @@
                  background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
       <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
       {% if is_admin and companies|length > 1 %}
-      <select id="ppCompany" onchange="ppCompanyChange(this.value)"
+      <select id="ppCompany" onchange="ppCompanyGuarded(this)"
               style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
         {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
       </select>
@@ -46,14 +46,10 @@
     <span id="ppSub" class="at-dim" style="font-size:12px;"></span>
     <span id="ppDirty" style="font-size:12px;color:var(--warn);"></span>
     <div style="flex:1;"></div>
-    <select id="ppYear" onchange="ppLoad()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+    <select id="ppYear" onchange="ppYearGuarded(this)" style="height:32px;padding:0 8px;background:var(--bg-elev);
             border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
     </select>
-    {% if can_edit %}
-    <button type="button" id="ppSaveBtn" onclick="ppSave()"
-            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存覆盖</button>
-    {% endif %}
+    <div id="ppEditBar"></div>
   </div>
   {% endif %}
 
@@ -143,7 +139,8 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 
   const COMPANIES = {{ companies | tojson }};
-  let _userId = null;
+  let _userId = null, guard = null;
+  const _attempt = (fn) => guard ? guard.attempt(fn) : fn();
   let _company = COMPANIES[0] || '';
   const usersOf = () => USERS.filter(u => u.company === _company);
 
@@ -176,6 +173,7 @@
     onChange: () => {
       const n = sheet.getDirty().length;
       document.getElementById('ppDirty').textContent = n ? `${n} 项将写入个人覆盖(未保存)` : '';
+      if (guard) guard.markDirty();
     },
     onRevert: (it) => {
       ATConfirm.show({
@@ -198,7 +196,17 @@
   });
 
   // ── 人员下拉:公用组件(搜索+部门分组),替代原内联实现 ──
-  window.ppSelect = function (id) { _userId = id; ppLoad(); };
+  window.ppSelect = function (id) { _attempt(function () { _userId = id; ppLoad(); }); };
+  let _appliedYear = String(CUR_YEAR);
+  window.ppYearGuarded = function (sel) {
+    if (guard) guard.attempt(function () { _appliedYear = sel.value; ppLoad(); },
+                             function () { sel.value = _appliedYear; });
+    else { _appliedYear = sel.value; ppLoad(); }
+  };
+  window.ppCompanyGuarded = function (sel) {
+    if (guard) guard.attempt(function () { ppCompanyChange(sel.value); }, function () { sel.value = _company; });
+    else ppCompanyChange(sel.value);
+  };
   const _picker = AtPersonPicker.init({
     button: 'ppPickerBtn', menu: 'ppUserMenu',
     getUsers: usersOf, activeId: () => _userId, onSelect: ppSelect,
@@ -228,6 +236,20 @@
         body: JSON.stringify({ user_ids: [_userId], year: parseInt(yearSel.value) }),
       })).json();
       if (!d.success) throw new Error(d.message || '加载失败');
+      // 角色未定义绩效(无 KPI 方案且无角色级目标)→ 不显示绩效表,引导去配置管理定义
+      if (d.role_defined === false) {
+        const rd = u ? u.role_display : '该角色';
+        document.getElementById('ppSheet').innerHTML =
+          `<div style="padding:34px;text-align:center;font-size:12.5px;color:var(--ink-3);">
+             <span class="material-symbols-outlined" style="font-size:30px;display:block;margin-bottom:8px;color:var(--ink-4);">flag</span>
+             「${esc(rd)}」尚未定义绩效目标,无法配置个人覆盖。<br>
+             请先到 <a href="/config-management/at/performance" style="color:var(--accent);pointer-events:auto;">配置管理 → 绩效配置</a> 为该角色定义绩效目标。
+           </div>`;
+        document.getElementById('ppDirty').textContent = '';
+        const sc = document.getElementById('stCards'); if (sc) sc.innerHTML = '';
+        if (guard) guard.exit();   // 无可编辑内容,退出/锁定编辑态
+        return;
+      }
       sheet.setItems(d.data.items || []);
       actLoad((d.data.items || []).map(i => i.item_code));
       stLoad();
@@ -257,11 +279,9 @@
   };
 
   // 保存:只提交变更行(未动的保持继承,不被误写成覆盖)
-  window.ppSave = async function () {
+  async function ppSaveCore() {
     const dirty = sheet.getDirty();
-    if (!dirty.length) { ATToast.success('没有需要保存的变更'); return; }
-    const btn = document.getElementById('ppSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
+    if (!dirty.length) { ATToast.success('没有需要保存的变更'); return true; }
     const items = dirty.map(it => {
       const isM = it.gran === 'M';
       const monthly = {};
@@ -289,11 +309,20 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ user_ids: [_userId], year: parseInt(yearSel.value), items }),
       })).json();
-      if (d.success) { ATToast.success(`已写入 ${items.length} 项个人覆盖`); ppLoad(); }
-      else ATToast.error(d.message || '保存失败');
-    } catch (e) { ATToast.error('保存失败,请重试'); }
-    btn.disabled = false; btn.textContent = '保存覆盖';
-  };
+      if (d.success) { ATToast.success(`已写入 ${items.length} 项个人覆盖`); ppLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  // 编辑模式守卫(仅非审批模式):默认只读,点「编辑」才改目标;保存确认;切换/离开提醒
+  if (document.getElementById('ppEditBar')) {
+    guard = AtEditMode.init({
+      mount: 'ppEditBar', lockEl: 'ppSheet', canEdit: CAN_EDIT,
+      onSave: ppSaveCore,
+      onDiscard: function () { ppLoad(); },
+      saveConfirm: { message: '确认保存该人员的绩效目标覆盖?' },
+    });
+  }
 
   // ── 实际值注入(实际/目标双值显示) ──
   async function actLoad(itemCodes) {

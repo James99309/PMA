@@ -25,7 +25,7 @@
                  background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
       <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
       {% if is_admin and companies|length > 1 %}
-      <select id="psCompany" onchange="psCompanyChange(this.value)"
+      <select id="psCompany" onchange="psCompanyGuarded(this)"
               style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
         {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
       </select>
@@ -43,16 +43,12 @@
     <span id="psSub" class="at-dim" style="font-size:12px;"></span>
     <span id="psDirty" style="font-size:12px;color:var(--warn);"></span>
     <div style="flex:1;"></div>
-    <select id="psYear" onchange="psLoad()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+    <select id="psYear" onchange="psYearGuarded(this)" style="height:32px;padding:0 8px;background:var(--bg-elev);
             border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;"></select>
-    {% if can_edit %}
-    <button type="button" onclick="psAddPersonal()"
-            style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
-                   background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">+ 个人项目</button>
-    <button type="button" id="psSaveBtn" onclick="psSave()"
-            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
-    {% endif %}
+    <button type="button" id="psAddBtn" onclick="psAddPersonal()" style="display:none;
+            height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+            background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">+ 个人项目</button>
+    <div id="psEditBar"></div>
   </div>
 
   {# 试用期为账户属性(在账户设置中设定),此处只读引用并高亮对应月份 #}
@@ -64,7 +60,7 @@
     <span class="at-dim" style="font-size:11px;">· 高亮列为试用期月份(在账户设置中修改)</span>
   </div>
 
-  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
+  <div id="psSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
     <table id="psTable" class="cm-sheet" style="min-width:1360px;">
       <thead><tr id="psHead"></tr></thead>
       <tbody id="psTbody"><tr><td colspan="17" class="at-dim" style="padding:26px;text-align:center;">请选择人员…</td></tr></tbody>
@@ -92,7 +88,7 @@
   const CYC_NEXT = { monthly: 'quarterly', quarterly: 'yearly', yearly: 'monthly' };
   const EFF = { monthly: [1,2,3,4,5,6,7,8,9,10,11,12], quarterly: [3,6,9,12], yearly: [12] };
 
-  let _userId = null, _company = COMPANIES[0] || '';
+  let _userId = null, _company = COMPANIES[0] || '', guard = null;
   let _items = [], _dirtyCodes = new Set();
   let _isProbation = false, _probStart = null, _probEnd = null;
   let _settledMonths = new Set();   // 绩效结算已锁定的季末月(performance_salary 只读)
@@ -120,7 +116,16 @@
   };
 
   // 人员下拉:公用组件(搜索+部门分组),替代原内联实现
-  window.psSelect = function (id) { _userId = id; psLoad(); };
+  window.psSelect = function (id) { guard.attempt(function () { _userId = id; psLoad(); }); };
+  let _appliedYear = null;
+  window.psYearGuarded = function (sel) {
+    if (!_appliedYear) _appliedYear = sel.value;
+    guard.attempt(function () { _appliedYear = sel.value; psLoad(); },
+                  function () { sel.value = _appliedYear; });
+  };
+  window.psCompanyGuarded = function (sel) {
+    guard.attempt(function () { psCompanyChange(sel.value); }, function () { sel.value = _company; });
+  };
   const _picker = AtPersonPicker.init({
     button: 'psPickerBtn', menu: 'psUserMenu',
     getUsers: usersOf, activeId: () => _userId, onSelect: psSelect,
@@ -170,6 +175,7 @@
 
   function setDirty() {
     document.getElementById('psDirty').textContent = _dirtyCodes.size ? `${_dirtyCodes.size} 项变更未保存` : '';
+    if (guard && _dirtyCodes.size) guard.markDirty();
   }
 
   const kidsOf = code => _items.filter(x => !x.is_personal && x.parent_code === code);
@@ -414,8 +420,8 @@
     return `约 ${Math.round(days / 30.44 * 10) / 10} 个月`;
   }
 
-  window.psSave = async function () {
-    if (!_userId) return;
+  async function psSaveCore() {
+    if (!_userId) return false;
     const hasMonths = it => Object.values(it.monthly || {}).some(v => v != null && v !== '');
     const amounts = _items.filter(it => !it.is_personal && kidsOf(it.item_code).length === 0 &&
         (it.amount != null || hasMonths(it) || _dirtyCodes.has(it.item_code)))
@@ -423,19 +429,25 @@
     const personal = _items.filter(it => it.is_personal)
       .map(it => ({ item_code: it.item_code || null, item_name: it.item_name,
                     pay_cycle: it.pay_cycle, amount: it.amount, monthly: it.monthly }));
-    const btn = document.getElementById('psSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
     try {
       const d = await (await fetch(`/user/api/person-salary/${_userId}/${yearSel.value}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ amounts, personal }),
       })).json();
-      if (d.success) { ATToast.success(d.message || '已保存'); psLoad(); }
-      else ATToast.error(d.message || '保存失败');
-    } catch (_) { ATToast.error('保存失败,请重试'); }
-    btn.disabled = false; btn.textContent = '保存';
-  };
+      if (d.success) { ATToast.success(d.message || '已保存'); psLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (_) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  guard = AtEditMode.init({
+    mount: 'psEditBar', lockEl: 'psSheet', canEdit: CAN_EDIT,
+    onSave: psSaveCore,
+    onDiscard: function () { psLoad(); },
+    onEnter: function () { const b = document.getElementById('psAddBtn'); if (b) b.style.display = ''; },
+    onExit: function () { const b = document.getElementById('psAddBtn'); if (b) b.style.display = 'none'; },
+    saveConfirm: { message: '确认保存该人员的薪资?' },
+  });
 
   // ?user= 预选(账户详情跳入)
   const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));

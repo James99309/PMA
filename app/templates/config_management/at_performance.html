@@ -20,14 +20,10 @@
     <span id="cmPanelSub" class="at-dim" style="font-size:12px;"></span>
     <span id="cmWeightSum" style="font-size:12px;"></span>
     <div style="flex:1;"></div>
-    <select id="cmYear" onchange="cmLoad()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+    <select id="cmYear" onchange="cmYearGuarded(this)" style="height:32px;padding:0 8px;background:var(--bg-elev);
             border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
     </select>
-    {% if can_edit %}
-    <button type="button" id="cmSaveBtn" onclick="cmSave()"
-            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
-    {% endif %}
+    <div id="cmEditBar"></div>
   </div>
 
   <div id="cmSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
@@ -56,7 +52,7 @@
     mode: 'role',
     weightEditable: true,
     showDesc: true,
-    onChange: updateWeightRoom,
+    onChange: function () { updateWeightRoom(); if (guard) guard.markDirty(); },
   });
 
   function updateWeightRoom() {
@@ -94,9 +90,17 @@
   });
 
   window.cmSelectRole = function (role) {
-    _roleCode = role;
-    document.getElementById('cmRoleMenu').style.display = 'none';
-    cmLoad();
+    guard.attempt(function () {
+      _roleCode = role;
+      document.getElementById('cmRoleMenu').style.display = 'none';
+      cmLoad();
+    });
+  };
+
+  let _appliedYear = String(CUR_YEAR);
+  window.cmYearGuarded = function (sel) {
+    guard.attempt(function () { _appliedYear = sel.value; cmLoad(); },
+                  function () { sel.value = _appliedYear; });
   };
 
   window.cmLoad = async function () {
@@ -116,13 +120,12 @@
     }
   };
 
-  window.cmSave = async function () {
+  async function cmSaveCore() {
+    if (!_roleCode) return false;
     if (sheet.weightSum() > 100.0001) {
       ATToast.error(`权重余量为负,请调整后再保存`);
-      return;
+      return false;
     }
-    const btn = document.getElementById('cmSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
     const items = sheet.getItems().map(it => {
       const isM = it.gran === 'M';
       const monthly = {};
@@ -151,11 +154,17 @@
         body: JSON.stringify({ items }),
       });
       const d = await r.json();
-      if (d.success) { ATToast.success('角色默认目标已保存'); cmLoad(); }
-      else ATToast.error(d.message || '保存失败');
-    } catch (e) { ATToast.error('保存失败,请重试'); }
-    btn.disabled = false; btn.textContent = '保存';
-  };
+      if (d.success) { ATToast.success('角色默认目标已保存'); cmLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  const guard = AtEditMode.init({
+    mount: 'cmEditBar', lockEl: 'cmSheet', canEdit: CAN_EDIT,
+    onSave: cmSaveCore,
+    onDiscard: function () { cmLoad(); },
+    saveConfirm: { message: '确认保存该角色的绩效目标?' },
+  });
 
   if (ROLES.length) cmSelectRole(ROLES[0].role);
 </script>

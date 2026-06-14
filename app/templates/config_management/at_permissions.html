@@ -19,11 +19,8 @@
     </div>
     <span id="pmSub" class="at-dim" style="font-size:12px;"></span>
     <div style="flex:1;"></div>
-    {% if can_edit %}
-    <button type="button" id="pmSaveBtn" onclick="pmSave()"
-            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
-    {% endif %}
+    {# 编辑模式工具条(只读/编辑切换 + 保存确认),公用组件 at-edit-mode #}
+    <div id="pmEditBar"></div>
   </div>
 
   <div id="pmSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
@@ -49,7 +46,7 @@
     container: 'pmSheet',
     canEdit: CAN_EDIT,
     mode: 'role',
-    onChange: updateSub,
+    onChange: function () { updateSub(); if (guard) guard.markDirty(); },
   });
   function updateSub() {
     document.getElementById('pmSub').textContent =
@@ -77,9 +74,12 @@
   });
 
   window.pmSelectRole = function (role) {
-    _roleCode = role;
-    document.getElementById('pmRoleMenu').style.display = 'none';
-    pmLoad();
+    // 编辑且有未保存改动时切换角色会提醒(经编辑模式守卫)
+    guard.attempt(function () {
+      _roleCode = role;
+      document.getElementById('pmRoleMenu').style.display = 'none';
+      pmLoad();
+    });
   };
 
   window.pmLoad = async function () {
@@ -103,9 +103,9 @@
     }
   };
 
-  window.pmSave = async function () {
-    const btn = document.getElementById('pmSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
+  // 保存核心:返回 true=成功(供编辑模式守卫确认后调用并退出编辑)
+  async function pmSaveCore() {
+    if (!_roleCode) return false;
     try {
       const r = await fetch(`/config-management/api/role-permissions/${_roleCode}`, {
         method: 'POST',
@@ -114,11 +114,18 @@
                                feature_permissions: sheet.getFeaturePermissions() }),
       });
       const d = await r.json();
-      if (d.success) { ATToast.success('角色权限已保存'); pmLoad(); }
-      else ATToast.error(d.message || '保存失败');
-    } catch (e) { ATToast.error('保存失败,请重试'); }
-    btn.disabled = false; btn.textContent = '保存';
-  };
+      if (d.success) { ATToast.success('角色权限已保存'); pmLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  // 编辑模式守卫:默认只读,点「编辑」才能改;保存确认;切角色/离开页提醒
+  const guard = AtEditMode.init({
+    mount: 'pmEditBar', lockEl: 'pmSheet', canEdit: CAN_EDIT,
+    onSave: pmSaveCore,
+    onDiscard: function () { pmLoad(); },
+    saveConfirm: { message: '确认保存该角色的权限配置?' },
+  });
 
   if (ROLES.length) pmSelectRole(ROLES[0].role);
 </script>

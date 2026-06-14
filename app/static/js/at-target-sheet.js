@@ -285,7 +285,11 @@
           g.ATToast && ATToast.error(`超出可分配上限,已截为 ${r2(cap)}`);
           v = r2(cap);
         }
-        it.annual_target = v; prefill(it); markDirty(it);
+        it.annual_target = v;
+        // 改年度 → 按新值重新平铺到各季/月(清掉旧分摊,避免残留导致合计≠年度而置灰);
+        // 预算(weightBaseCode)由权重驱动分摊,不在此重置
+        if (!cfg.weightBaseCode && it.gran !== 'Y') resetSpread(it);
+        prefill(it); markDirty(it);
         if (cfg.weightBaseCode) {
           if (it.item_code === cfg.weightBaseCode) {
             // 基数行变化 → 所有权重行金额重算

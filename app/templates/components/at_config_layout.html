@@ -32,6 +32,8 @@
 {% endif %}
 {% if current_user.has_feature('config_management', 'cm_salary') %}
   {% set _config_tabs = _config_tabs + [('salary', '薪资配置', url_for('config_management.at_salary_structure'))] %}
+{% endif %}
+{% if current_user.has_feature('config_management', 'cm_salary_run') %}
   {% set _config_tabs = _config_tabs + [('salary_approval', '薪资审批', url_for('config_management.at_salary_approval'))] %}
 {% endif %}
 {% set _config_tabs = _config_tabs + [
@@ -103,6 +105,7 @@
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-edit-mode.js') }}"></script>
 </head>
 <body class="at-page">
 

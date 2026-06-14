@@ -1982,7 +1982,6 @@ class PerformanceDashboardService:
                 for item in items:
                     metric_code = code_mapping.get(item.item_code, item.item_code)
                     weight = float(item.weight or 0)
-                    total_weight += weight
 
                     # 汇总季度3个月的实际值和目标值
                     q_actual = 0
@@ -2009,17 +2008,17 @@ class PerformanceDashboardService:
                         non_zero = [v for v in q_target_vals if v > 0]
                         q_target = non_zero[0] if non_zero else 0  # 目标取第一个非零值
 
+                    # 无目标(该季未设/无计划)→ 整项剔除:不计入权重、不计分(与前端一致,不送分不扣分)
+                    if q_target <= 0:
+                        continue
+                    total_weight += weight
+
                     # 计算达成率（封顶100%）;反向指标(失败率类):实际 ≤ 目标 = 满分
                     _INVERSE_CODES = {'fail_rate', 'team_fail_rate', 'channel_fail_rate'}
                     if metric_code in _INVERSE_CODES:
-                        if q_target > 0:
-                            achievement_rate = 100 if q_actual <= q_target else min(q_target / q_actual * 100, 100)
-                        else:
-                            achievement_rate = 100 if q_actual <= 0 else 0
-                    elif q_target > 0:
-                        achievement_rate = min(q_actual / q_target * 100, 100)
+                        achievement_rate = 100 if q_actual <= q_target else min(q_target / q_actual * 100, 100)
                     else:
-                        achievement_rate = 100 if q_actual > 0 else 0
+                        achievement_rate = min(q_actual / q_target * 100, 100)
 
                     # 加权得分
                     weighted_score = achievement_rate * weight / 100

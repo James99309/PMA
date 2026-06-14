@@ -1654,7 +1654,12 @@ def validate_target_hierarchy(item_data):
     验证目标层级：
     - 季度合计 ≤ 年度
     - 月度合计 ≤ 季度
+    比率类(%)指标:各期为「水平目标」(每期独立,不累加,如每季 4% 失败率),
+    不做合计校验,否则会被误判超额而跳过保存(失败率/客户活跃度/项目活跃度等)。
     """
+    if (item_data.get('unit') or '') == '%':
+        return True, None
+
     annual = float(item_data.get('annual_target') or 0)
 
     if item_data.get('enable_quarterly'):
@@ -2318,6 +2323,9 @@ def api_batch_user_targets():
             # ===== 保存操作需要edit权限 =====
             if not current_user.has_permission('config_management', 'edit'):
                 return jsonify({'success': False, 'message': '没有编辑权限'}), 403
+            # 防自评:非 admin 不能编辑自己的绩效目标(录入人须 ≠ 被考核人,由上级录入)
+            if current_user.role != 'admin' and current_user.id in user_ids:
+                return jsonify({'success': False, 'message': '不能编辑自己的绩效目标,请由上级录入'}), 403
             # 企业隔离:非 admin 只能写本公司用户
             if current_user.role != 'admin':
                 my_company = current_user.company_name or ''
@@ -2325,9 +2333,21 @@ def api_batch_user_targets():
                                            User.company_name != my_company).count()
                 if others:
                     return jsonify({'success': False, 'message': '无权配置其他公司用户的目标'}), 403
+            # HRBP 隔离:hr_manager 只能配自己负责部门的人
+            from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+            if is_hrbp(current_user):
+                scope = hrbp_scope_user_ids(current_user)
+                if any(uid not in scope for uid in user_ids):
+                    return jsonify({'success': False, 'message': '只能配置你负责部门的成员绩效'}), 403
             return _batch_save_user_targets(user_ids, year, items)
         else:
             # ===== 获取操作:需 config/user view 权限,或为该人绩效结算审批人(只读单人) =====
+            from app.helpers.hrbp_helpers import is_hrbp as _is_hrbp, hrbp_scope_user_ids as _hrbp_ids
+            if _is_hrbp(current_user):
+                scope = _hrbp_ids(current_user)
+                if any(uid not in scope for uid in user_ids):
+                    return jsonify({'success': False, 'message': '只能查看你负责部门的成员绩效'}), 403
+                return _batch_get_user_targets(user_ids, year)
             _has_view = (current_user.has_permission('config_management', 'view')
                          or current_user.has_permission('user_management', 'view'))
             if not _has_view:
@@ -2505,8 +2525,15 @@ def _batch_get_user_targets(user_ids, year):
         _order = {it['item_code']: i for i, it in enumerate(scheme)}
         items_data.sort(key=lambda d: _order.get(d['item_code'], 99))
 
+    # 角色是否已定义绩效:有 KPI 方案 或 有角色级目标(否则个人页应提示去配置管理定义)
+    role_defined = bool(scheme)
+    if not role_defined and len(user_ids) == 1:
+        _u = user_dict.get(user_ids[0])
+        role_defined = bool(_u and _u.role and role_targets_by_role.get(_u.role))
+
     return jsonify({
         'success': True,
+        'role_defined': role_defined,
         'data': {
             'user_count': len(user_ids),
             'year': year,
@@ -2694,6 +2721,16 @@ def can_access_person_tab(user_id, feature_id, need_edit=False):
     u = current_user
     if u.role == 'admin':
         return True
+    # 防自评/自定薪:非 admin 不能"编辑"自己的绩效/薪资(录入人须 ≠ 被考核人;查看不限)
+    if need_edit and user_id == u.id and feature_id in ('pc_performance', 'pc_salary'):
+        return False
+    # HRBP 隔离(固定):hr_manager 的绩效/薪资只能访问自己负责部门的人
+    if feature_id in ('pc_performance', 'pc_salary'):
+        from app.helpers.hrbp_helpers import is_hrbp, in_hrbp_scope
+        if is_hrbp(u):
+            from app.models.user import User as _U2
+            if not in_hrbp_scope(u, _U2.query.get(user_id)):
+                return False
     act = 'edit' if need_edit else 'view'
     try:
         if u.has_permission('person_config', act) and u.has_feature('person_config', feature_id):
@@ -2714,6 +2751,10 @@ def _can_read_person_perf(user_id, year=None):
     try:
         from app.models.user import User as _U
         tgt = _U.query.get(user_id)
+        # HRBP 隔离(固定):hr_manager 只能看自己负责部门的人(本人始终可见)
+        from app.helpers.hrbp_helpers import is_hrbp, in_hrbp_scope
+        if is_hrbp(current_user):
+            return in_hrbp_scope(current_user, tgt)
         if tgt and current_user.can_view_person(tgt, 'person_config'):
             return True
         if (current_user.has_permission('config_management', 'view')

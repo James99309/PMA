@@ -20,7 +20,7 @@
                  background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
       <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
       {% if is_admin and companies|length > 1 %}
-      <select id="ebCompany" onchange="ebCompanyChange(this.value)"
+      <select id="ebCompany" onchange="ebCompanyGuarded(this)"
               style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
         {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
       </select>
@@ -38,16 +38,13 @@
     <span id="ebSub" class="at-dim" style="font-size:12px;"></span>
     <span id="ebRoom" style="font-size:12px;"></span>
     <div style="flex:1;"></div>
-    <select id="ebYear" onchange="ebLoad()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+    <select id="ebYear" onchange="ebYearGuarded(this)" style="height:32px;padding:0 8px;background:var(--bg-elev);
             border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
     </select>
-    {% if can_edit %}
-    <button type="button" id="ebSaveBtn" onclick="ebSave()"
-            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
-    {% endif %}
+    <div id="ebEditBar"></div>
   </div>
 
+  <div id="ebEditZone">
   <div class="eb-cats">
     <span class="eb-cats-label">细分科目(来自报销)</span>
     <span id="ebCatChips" style="display:contents;"></span>
@@ -55,6 +52,7 @@
 
   <div id="ebSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
     <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择部门…</div>
+  </div>
   </div>
   <div class="at-dim" style="font-size:11px;margin-top:8px;">
     ⓘ 「年度总额」为部门全年费用盘子;点亮上方科目即添加一行细分(熄灭=移除,保存生效);
@@ -87,13 +85,11 @@
     mode: 'dept',
     currencySymbol: CURRENCY_SYMBOL,
     categories: CATS,
-    onChange: renderStats,
+    onChange: function (st) { renderStats(st); if (guard) guard.markDirty(); },
   });
 
   function renderStats(st) {
     const el = document.getElementById('ebRoom');
-    const btn = document.getElementById('ebSaveBtn');
-    if (btn) { btn.disabled = st.overTotal; btn.style.opacity = st.overTotal ? '0.4' : '1'; }
     if (st.overTotal) {
       el.style.color = 'var(--danger)';
       el.textContent = `细分超出总额 ${CURRENCY_SYMBOL}${Math.abs(st.room).toLocaleString('zh-CN')},请调低细分或上调总额`;
@@ -144,9 +140,22 @@
   });
 
   window.ebSelect = function (id) {
-    _deptId = id;
-    document.getElementById('ebDeptMenu').style.display = 'none';
-    ebLoad();
+    guard.attempt(function () {
+      _deptId = id;
+      document.getElementById('ebDeptMenu').style.display = 'none';
+      ebLoad();
+    });
+  };
+
+  // 年份/公司切换守卫(编辑且脏时提醒;取消则回退 select 值)
+  let _appliedYear = String(CUR_YEAR);
+  window.ebYearGuarded = function (sel) {
+    guard.attempt(function () { _appliedYear = sel.value; ebLoad(); },
+                  function () { sel.value = _appliedYear; });
+  };
+  window.ebCompanyGuarded = function (sel) {
+    guard.attempt(function () { ebCompanyChange(sel.value); },
+                  function () { sel.value = _company; });
   };
 
   window.ebLoad = async function () {
@@ -166,23 +175,28 @@
     }
   };
 
-  window.ebSave = async function () {
-    if (!_deptId) return;
+  async function ebSaveCore() {
+    if (!_deptId) return false;
     const v = bs.validate();
-    if (!v.ok) { ATToast.error(v.msg); return; }
-    const btn = document.getElementById('ebSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
+    if (!v.ok) { ATToast.error(v.msg); return false; }
     try {
       const d = await (await fetch(`/config-management/api/department-budgets/${_deptId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ year: parseInt(yearSel.value), items: bs.getPayloadItems() }),
       })).json();
-      if (d.success) { ATToast.success(d.message || '已保存'); ebLoad(); }
-      else ATToast.error(d.message || '保存失败');
-    } catch (e) { ATToast.error('保存失败,请重试'); }
-    btn.disabled = false; btn.textContent = '保存';
-  };
+      if (d.success) { ATToast.success(d.message || '已保存'); ebLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  // 编辑模式守卫:默认只读,点「编辑」才能改;保存确认;切部门/年/公司/离开页提醒
+  const guard = AtEditMode.init({
+    mount: 'ebEditBar', lockEl: 'ebEditZone', canEdit: CAN_EDIT,
+    onSave: ebSaveCore,
+    onDiscard: function () { ebLoad(); },
+    saveConfirm: { message: '确认保存该部门的预算配置?' },
+  });
 
   if (deptsOf().length) ebSelect(deptsOf()[0].id);
   else document.getElementById('ebSheet').innerHTML =

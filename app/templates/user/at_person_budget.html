@@ -20,7 +20,7 @@
                  background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
       <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
       {% if is_admin and companies|length > 1 %}
-      <select id="pbCompany" onchange="pbCompanyChange(this.value)"
+      <select id="pbCompany" onchange="pbCompanyGuarded(this)"
               style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
         {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
       </select>
@@ -38,16 +38,13 @@
     <span id="pbSub" class="at-dim" style="font-size:12px;"></span>
     <span id="pbRoom" style="font-size:12px;"></span>
     <div style="flex:1;"></div>
-    <select id="pbYear" onchange="pbLoad()" style="height:32px;padding:0 8px;background:var(--bg-elev);
+    <select id="pbYear" onchange="pbYearGuarded(this)" style="height:32px;padding:0 8px;background:var(--bg-elev);
             border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
     </select>
-    {% if can_edit %}
-    <button type="button" id="pbSaveBtn" onclick="pbSave()"
-            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
-    {% endif %}
+    <div id="pbEditBar"></div>
   </div>
 
+  <div id="pbEditZone">
   <div class="eb-cats">
     <span class="eb-cats-label">细分科目(来自报销;带「锁」= 部门已单列,强制保留)</span>
     <span id="pbCatChips" style="display:contents;"></span>
@@ -55,6 +52,7 @@
 
   <div id="pbSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
     <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择人员…</div>
+  </div>
   </div>
   <div class="at-dim" style="font-size:11px;margin-top:8px;">
     ⓘ 顶部实时显示「部门待分配」(部门总额 − 同部门所有成员已分配,含本人当前输入);
@@ -75,7 +73,7 @@
   const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','"':'&quot;','>':'&gt;'})[c]);
 
-  let _userId = null, _noDeptBudget = false;
+  let _userId = null, _noDeptBudget = false, guard = null;
   let _company = COMPANIES[0] || '';
   const usersOf = () => USERS.filter(u => u.company === _company);
 
@@ -102,7 +100,7 @@
     mode: 'person',
     currencySymbol: CURRENCY_SYMBOL,
     categories: CATS,
-    onChange: renderStats,
+    onChange: function (st) { renderStats(st); if (guard) guard.markDirty(); },
   });
 
   function renderStats(st) {
@@ -142,9 +140,20 @@
   });
 
   window.pbSelect = function (id) {
-    _userId = id;
-    document.getElementById('pbUserMenu').style.display = 'none';
-    pbLoad();
+    guard.attempt(function () {
+      _userId = id;
+      document.getElementById('pbUserMenu').style.display = 'none';
+      pbLoad();
+    });
+  };
+  let _appliedYear = String(CUR_YEAR);
+  window.pbYearGuarded = function (sel) {
+    guard.attempt(function () { _appliedYear = sel.value; pbLoad(); },
+                  function () { sel.value = _appliedYear; });
+  };
+  window.pbCompanyGuarded = function (sel) {
+    guard.attempt(function () { pbCompanyChange(sel.value); },
+                  function () { sel.value = _company; });
   };
 
   window.pbLoad = async function () {
@@ -171,7 +180,7 @@
           `<div style="padding:34px;text-align:center;font-size:12.5px;color:var(--ink-3);">
              <span class="material-symbols-outlined" style="font-size:30px;display:block;margin-bottom:8px;color:var(--ink-4);">account_balance_wallet</span>
              「${esc(cx.dept_name || u.department)}」${yearSel.value} 年尚未设置部门预算,无法配置个人预算。<br>
-             请先到 <a href="/config-management/at/expense" style="color:var(--accent);">配置管理 → 部门预算</a>
+             请先到 <a href="/config-management/at/expense" style="color:var(--accent);pointer-events:auto;">配置管理 → 部门预算</a>
              为该公司的此部门设置年度预算。
            </div>`;
         return;
@@ -183,23 +192,27 @@
     }
   };
 
-  window.pbSave = async function () {
-    if (!_userId) return;
+  async function pbSaveCore() {
+    if (!_userId) return false;
     const v = bs.validate();
-    if (!v.ok) { ATToast.error(v.msg); return; }
-    const btn = document.getElementById('pbSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
+    if (!v.ok) { ATToast.error(v.msg); return false; }
     try {
       const d = await (await fetch(`/config-management/api/users/${_userId}/expense-budget`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ year: parseInt(yearSel.value), items: bs.getPayloadItems() }),
       })).json();
-      if (d.success) { ATToast.success(d.message || '已保存'); pbLoad(); }
-      else ATToast.error(d.message || '保存失败');
-    } catch (e) { ATToast.error('保存失败,请重试'); }
-    btn.disabled = false; btn.textContent = '保存';
-  };
+      if (d.success) { ATToast.success(d.message || '已保存'); pbLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  guard = AtEditMode.init({
+    mount: 'pbEditBar', lockEl: 'pbEditZone', canEdit: CAN_EDIT,
+    onSave: pbSaveCore,
+    onDiscard: function () { pbLoad(); },
+    saveConfirm: { message: '确认保存该人员的费用预算?' },
+  });
 
   // ?user= 预选(账户详情页跳入):锁定该用户,禁止切换防误操作
   const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));

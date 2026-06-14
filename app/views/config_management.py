@@ -285,6 +285,7 @@ _CONFIG_TAB_ORDER = [
     ('cm_performance', 'config_management.at_performance'),
     ('cm_flow', 'config_management.at_flows'),
     ('cm_salary', 'config_management.at_salary_structure'),
+    ('cm_salary_run', 'config_management.at_salary_approval'),
 ]
 
 
@@ -3212,6 +3213,12 @@ def send_app_invite(user_id):
 @permission_required('config_management', 'view')
 def api_get_manual_entries(user_id, year):
     """获取用户某年所有手工录入数据（含附件URL）"""
+    # HRBP 隔离:hr_manager 只能看自己负责部门成员的绩效手工数据
+    from app.helpers.hrbp_helpers import is_hrbp, in_hrbp_scope
+    if is_hrbp(current_user):
+        from app.models.user import User as _U
+        if not in_hrbp_scope(current_user, _U.query.get(user_id)):
+            return jsonify({'success': False, 'message': '只能查看你负责部门成员的绩效'}), 403
     try:
         from app.models.performance_manual_entry import PerformanceManualEntry
         from app.models.performance_config import PerformanceMetricsDefinition, RolePerformanceItem
@@ -3263,6 +3270,15 @@ def api_get_manual_entries(user_id, year):
 @permission_required('config_management', 'edit')
 def api_save_manual_entries(user_id, year):
     """批量保存手工录入数据（UPSERT）"""
+    # 防自评:非 admin 不能录入自己的绩效实际值(录入人须 ≠ 被考核人,由上级录入)
+    if current_user.role != 'admin' and user_id == current_user.id:
+        return jsonify({'success': False, 'message': '不能录入自己的绩效实际值,请由上级录入'}), 403
+    # HRBP 隔离:hr_manager 只能录入自己负责部门成员的绩效
+    from app.helpers.hrbp_helpers import is_hrbp, in_hrbp_scope
+    if is_hrbp(current_user):
+        from app.models.user import User as _U
+        if not in_hrbp_scope(current_user, _U.query.get(user_id)):
+            return jsonify({'success': False, 'message': '只能录入你负责部门成员的绩效'}), 403
     try:
         from app.models.performance_manual_entry import PerformanceManualEntry
         data = request.get_json()
@@ -3454,7 +3470,7 @@ def _salary_run_company_ok(company):
 def at_salary_approval():
     """AT 配置管理 · 薪资审批:按公司+月生成全员薪资表,提交审批(财务主管→财务总监→总经理),
     提交即锁定该月个人薪资;可切月份查看各月状态/快照。"""
-    if not _config_tab_allowed('cm_salary'):
+    if not _config_tab_allowed('cm_salary_run'):
         abort(403)
     from app.utils.dictionary_helpers import get_default_currency
     from app.models.salary_structure import SALARY_RUN_INITIATOR_ROLES
@@ -3474,7 +3490,7 @@ def at_salary_approval():
 @login_required
 def api_salary_runs(year):
     """某公司某年 12 个月的薪资审批状态(已生成的批次)。"""
-    if not _config_tab_allowed('cm_salary'):
+    if not _config_tab_allowed('cm_salary_run'):
         return jsonify({'success': False, 'message': '无权限'}), 403
     company = (request.args.get('company') or current_user.company_name or '').strip()
     if not _salary_run_company_ok(company):
@@ -3491,7 +3507,7 @@ def api_salary_runs(year):
 @login_required
 def api_salary_run_detail():
     """某公司某年某月薪资表明细:已生成→返回快照;未生成→实时预览(可发起)。"""
-    if not _config_tab_allowed('cm_salary'):
+    if not _config_tab_allowed('cm_salary_run'):
         return jsonify({'success': False, 'message': '无权限'}), 403
     company = (request.args.get('company') or '').strip()
     year = int(request.args.get('year') or 0)
@@ -3529,7 +3545,7 @@ def api_salary_run_detail():
 def api_salary_run_submit():
     """生成并提交当月薪资审批(提交即锁定该公司该月个人薪资)。"""
     from app.models.salary_structure import SALARY_RUN_INITIATOR_ROLES
-    if not (_config_tab_allowed('cm_salary') and (
+    if not (_config_tab_allowed('cm_salary_run') and (
             current_user.role == 'admin' or current_user.role in SALARY_RUN_INITIATOR_ROLES
             or current_user.has_permission('config_management', 'edit'))):
         return jsonify({'success': False, 'message': '无权发起薪资审批'}), 403

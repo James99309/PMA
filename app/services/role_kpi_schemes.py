@@ -80,6 +80,18 @@ ROLE_KPI_SCHEMES['channel_manager'] = [
 ]
 
 
+# 人事经理 / HRBP(2026-06-14 起,逐项构建):
+#   #1 团队绩效合格率 = 负责部门有考核成员当季得分≥60 占比(系统聚合,默认 80%)
+#   业务/技术 HRBP 的权重差异用「个人覆盖」调整;后续逐项加入(招聘/培训/考核/团建/流失/行政)
+ROLE_KPI_SCHEMES['hr_manager'] = [
+    {'item_code': 'team_pass_rate',      'weight': 35, 'default_annual': 80},  # 团队绩效合格率(系统聚合)
+    {'item_code': 'hr_recruit_count',    'weight': 25, 'default_annual': None},  # 招聘到岗,目标按季计划逐季填
+    {'item_code': 'hr_training_count',   'weight': 15, 'default_annual': 8},   # 培训:默认8次/年
+    {'item_code': 'hr_team_build_count', 'weight': 10, 'default_annual': 4},   # 团建:默认4次/年
+    {'item_code': 'hr_admin_count',      'weight': 15, 'default_annual': 24},  # 行政/合规:默认24次/年
+]
+
+
 def get_role_scheme(role):
     """返回角色的写死考核方案(list[dict]),无方案返回 None。"""
     return ROLE_KPI_SCHEMES.get(role)

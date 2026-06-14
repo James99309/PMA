@@ -1173,7 +1173,113 @@ def _act_channel_new_dealers(user, s, e):
         Company.created_at >= s, Company.created_at < e).scalar() or 0
 
 
+def _act_team_pass_rate(user, s, e):
+    """团队绩效合格率%(正向):HRBP(user)负责部门中【有考核成员】当季绩效得分 ≥ 60 的占比。
+    成员得分复用 PerformanceDashboardService.get_quarterly_scores;按请求(flask.g)缓存避免重复计算。"""
+    from flask import g
+    from app.helpers.hrbp_helpers import hrbp_department_keys
+    from app.models.user import User as _U
+    from app.services.performance_dashboard_service import PerformanceDashboardService as _PDS
+    PASS_LINE = 60.0
+    year = s.year
+    try:
+        cache = g._team_pass_cache
+    except Exception:
+        cache = {}
+        try:
+            g._team_pass_cache = cache
+        except Exception:
+            pass
+    key = (user.id, year)
+    if key not in cache:
+        member_ids = set()
+        for name, comp in hrbp_department_keys(user):
+            for m in _U.query.filter(_U.department == name, _U.company_name == comp,
+                                     _U._is_active.is_(True), _U.id != user.id).all():
+                member_ids.add(m.id)
+        num = {1: 0, 2: 0, 3: 0, 4: 0}
+        den = {1: 0, 2: 0, 3: 0, 4: 0}
+        for mid in member_ids:
+            sc = _PDS.get_quarterly_scores(mid, year) or {}
+            for q in (1, 2, 3, 4):
+                qd = sc.get('Q%d' % q)
+                tw = (qd.get('total_weight') or 0) if qd else 0
+                if tw <= 0:
+                    continue   # 无考核(无计入权重)→ 不计入分母
+                den[q] += 1
+                # 按计入权重归一为 0-100(与前端口径一致),再判合格线
+                score = (qd.get('total_score') or 0) / tw * 100
+                if score >= PASS_LINE:
+                    num[q] += 1
+        rates = {q: (round(num[q] / den[q] * 100, 1) if den[q] else 0.0) for q in (1, 2, 3, 4)}
+        valid = [rates[q] for q in (1, 2, 3, 4) if den[q]]
+        rates['y'] = round(sum(valid) / len(valid), 1) if valid else 0.0
+        cache[key] = rates
+    rates = cache[key]
+    span = (e.year - s.year) * 12 + (e.month - s.month)
+    if span >= 12:
+        return rates['y']
+    return rates[(s.month - 1) // 3 + 1]
+
+
+def _act_hr_recruit_count(user, s, e):
+    """招聘到岗次数:本人(assignee)审核通过的 hr_recruit 任务,按 completed_at 落窗口。"""
+    from app.models.task import Task
+    return Task.query.filter(
+        Task.assignee_id == user.id,
+        Task.task_type == 'hr_recruit',
+        Task.review_status == 'approved',
+        Task.is_deleted == False,
+        Task.completed_at.isnot(None),
+        Task.completed_at >= s,
+        Task.completed_at < e,
+    ).count()
+
+
+def _act_hr_training_count(user, s, e):
+    """培训组织次数:本人(assignee)已完成的 hr_training 任务,按 completed_at 落窗口(不需审核)。"""
+    from app.models.task import Task
+    return Task.query.filter(
+        Task.assignee_id == user.id,
+        Task.task_type == 'hr_training',
+        Task.status == 'completed',
+        Task.is_deleted == False,
+        Task.completed_at.isnot(None),
+        Task.completed_at >= s,
+        Task.completed_at < e,
+    ).count()
+
+
+def _act_hr_task_count(user, s, e, _task_type):
+    """通用:本人(assignee)已完成的某类 HR 任务计数(完成即计)。"""
+    from app.models.task import Task
+    return Task.query.filter(
+        Task.assignee_id == user.id,
+        Task.task_type == _task_type,
+        Task.status == 'completed',
+        Task.is_deleted == False,
+        Task.completed_at.isnot(None),
+        Task.completed_at >= s,
+        Task.completed_at < e,
+    ).count()
+
+
+def _act_hr_team_build_count(user, s, e):
+    """团队建设次数:hr_team_build 任务完成数。"""
+    return _act_hr_task_count(user, s, e, 'hr_team_build')
+
+
+def _act_hr_admin_count(user, s, e):
+    """行政/合规事务次数:hr_admin 任务完成数。"""
+    return _act_hr_task_count(user, s, e, 'hr_admin')
+
+
 _KPI_ACTUAL_FNS.update({
+    'team_pass_rate':                 _act_team_pass_rate,
+    'hr_recruit_count':               _act_hr_recruit_count,
+    'hr_training_count':              _act_hr_training_count,
+    'hr_team_build_count':            _act_hr_team_build_count,
+    'hr_admin_count':                 _act_hr_admin_count,
     'channel_new_dealers':            _act_channel_new_dealers,
     'channel_sales_amount':           _act_channel_sales,
     'channel_implant_amount':         _act_channel_implant,
@@ -1194,6 +1300,7 @@ _KPI_ACTUAL_FNS.update({
 # 率/评分类:目标为水平值(取单月,不累加);actual 同理由查询口径保证
 _KPI_RATE_CODES = {'customer_activity_rate', 'se_response_rate', 'se_confirm_quality', 'se_satisfaction',
                    'project_activity_rate', 'team_project_activity_rate', 'team_customer_activity_rate',
+                   'team_pass_rate',
                    'fail_rate', 'team_fail_rate',
                    'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate',
                    'pm_dev_rate', 'pm_quality_rate'}
