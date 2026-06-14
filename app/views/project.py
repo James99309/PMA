@@ -491,11 +491,16 @@ def at_list_view():
         'embed':      ['embed'],
         'pre_tender': ['pre_tender', 'quoted'],
         'tendering':  ['tendering'],
-        'awarded':    ['awarded', 'signed'],
+        'awarded':    ['awarded'],
+        'signed':     ['signed'],            # 签约(独立 tab)
         'closed':     ['lost', 'paused'],
     }
+    # 「全部」排除 搁置/失败/签约(只看进行中管道);NULL 阶段仍计入
+    _EXCLUDE_FROM_ALL = ['paused', 'lost', 'signed']
+    _all_filter = or_(Project.current_stage.is_(None),
+                      Project.current_stage.notin_(_EXCLUDE_FROM_ALL))
 
-    tab_counts = {'all': base.count()}
+    tab_counts = {'all': base.filter(_all_filter).count()}
     for k, stages in TAB_STAGE_MAP.items():
         tab_counts[k] = base.filter(Project.current_stage.in_(stages)).count()
     # 锁定成功(锁单预判)tab:跨阶段标记,签约自动解除
@@ -506,6 +511,8 @@ def at_list_view():
         q = q.filter(Project.current_stage.in_(TAB_STAGE_MAP[tab]))
     elif tab == 'win_locked':
         q = q.filter(Project.win_locked.is_(True))
+    else:  # 全部:排除 搁置/失败/签约
+        q = q.filter(_all_filter)
 
     if search:
         like = f'%{search}%'
