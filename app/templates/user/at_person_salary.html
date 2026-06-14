@@ -78,6 +78,10 @@
 <script>
   const USERS = {{ users_data | tojson }};
   const CAN_EDIT = {{ can_edit | tojson }};
+  const CURRENT_USER_ID = {{ current_user.id }};
+  const IS_ADMIN = {{ (current_user.role == 'admin') | tojson }};
+  // 防自定薪:非 admin 看自己的薪资 → 只读(本人薪资由上级/财务录入)
+  const _selfLock = () => CAN_EDIT && !IS_ADMIN && _userId === CURRENT_USER_ID;
   const CUR_YEAR = {{ current_year }};
   const COMPANIES = {{ companies | tojson }};
   const SYM = {{ currency_symbol | tojson }};
@@ -135,6 +139,12 @@
     if (!_userId) return;
     const u = USERS.find(x => x.id === _userId);
     document.getElementById('psUserName').textContent = u ? u.name : '';
+    // 防自定薪:看自己的薪资强制只读、隐藏编辑栏
+    const _eb = document.getElementById('psEditBar');
+    if (_selfLock()) {
+      if (guard) guard.exit();
+      if (_eb) _eb.style.display = 'none';
+    } else if (_eb) { _eb.style.display = ''; }
     _dirtyCodes = new Set(); setDirty();
     // 已结算锁定的绩效季末月(performance_salary 该月只读)
     _settledMonths = new Set();

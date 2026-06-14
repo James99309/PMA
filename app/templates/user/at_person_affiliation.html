@@ -64,7 +64,8 @@
 
 {% block scripts %}
 <script>
-  const USERS = {{ users_data | tojson }};          // 已按访问者公司过滤(admin=全部)
+  const USERS = {{ users_data | tojson }};          // 人员选择器:配置谁(HRBP 限本部门)
+  const CANDS = {{ cand_users_data | tojson }};     // 候选授权:点亮谁(全公司,不受 HRBP 部门限制)
   const COMPANIES = {{ companies | tojson }};
   const CAN_EDIT = {{ can_edit | tojson }};
   const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
@@ -110,7 +111,7 @@
   function renderOwners() {
     if (!_userId) return;
     const term = (document.getElementById('afSearch').value || '').trim().toLowerCase();
-    const cands = USERS.filter(u => u.id !== _userId && (!term ||
+    const cands = CANDS.filter(u => u.id !== _userId && u.company === _company && (!term ||
       (u.name + ' ' + u.department + ' ' + u.company).toLowerCase().includes(term)));
     const groups = {};
     cands.forEach(u => {

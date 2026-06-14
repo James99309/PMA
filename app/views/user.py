@@ -3713,29 +3713,37 @@ def at_person_affiliation():
     q = User.query.filter(User._is_active.is_(True))
     if not is_admin:
         q = q.filter(User.company_name == (current_user.company_name or ''))
-    users = q.order_by(User.company_name, User.department, User.real_name).all()
-    # 数据范围隔离:HRBP→负责部门;其余→person_config 级别(与绩效/薪资/费用/权限一致)
+    all_users = q.order_by(User.company_name, User.department, User.real_name).all()
+
+    def _ud(lst):
+        return [{
+            'id': u.id,
+            'name': u.real_name or u.username,
+            'role_display': get_role_display_name(u.role) if u.role else '',
+            'department': u.department or '未分组',
+            'company': u.company_name or '',
+            'is_dept_manager': bool(u.is_department_manager),
+        } for u in lst]
+
+    # 候选授权范围(点亮谁的数据可见)= 全公司,不受 HRBP 部门限制
+    #   ——归属本就是跨部门数据授权,候选不该被人事负责部门收窄
+    cand_users_data = _ud(all_users)
+    # 人员选择器(配置谁的归属)= 数据范围隔离:HRBP→负责部门;其余→person_config 级别
     from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
     if is_hrbp(current_user):
         _scope = hrbp_scope_user_ids(current_user)
-        users = [u for u in users if u.id in _scope]
+        picker = [u for u in all_users if u.id in _scope]
     else:
-        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
-    users_data = [{
-        'id': u.id,
-        'name': u.real_name or u.username,
-        'role_display': get_role_display_name(u.role) if u.role else '',
-        'department': u.department or '未分组',
-        'company': u.company_name or '',
-        'is_dept_manager': bool(u.is_department_manager),
-    } for u in users]
+        picker = [u for u in all_users if current_user.can_view_person(u, 'person_config')]
+    users_data = _ud(picker)
     # 访问者所属公司(厂商)排最前 = admin 进入时的默认上下文
     my_company = current_user.company_name or ''
-    companies = sorted({u['company'] for u in users_data if u['company']},
+    companies = sorted({u['company'] for u in cand_users_data if u['company']},
                        key=lambda c: (c != my_company, c))
 
     return render_template('user/at_person_affiliation.html',
                            users_data=users_data,
+                           cand_users_data=cand_users_data,
                            companies=companies,
                            user_company=current_user.company_name or '',
                            is_admin=is_admin,

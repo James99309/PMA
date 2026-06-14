@@ -114,6 +114,13 @@
     locked: () => (typeof _locked !== 'undefined' && _locked),
   });
 
+  // 清除全部覆盖:仅在「编辑态 且 确有个人覆盖」时显示(纯继承角色默认时无可清除)
+  function _updateClearBtn() {
+    const b = document.getElementById('ppClearBtn');
+    if (!b) return;
+    b.style.display = (guard && guard.isEditing() && Object.keys(_overridden).length > 0) ? '' : 'none';
+  }
+
   window.ppLoad = async function () {
     if (!_userId) return;
     const u = USERS.find(x => x.id === _userId);
@@ -152,6 +159,7 @@
       const nOver = Object.keys(_overridden).length;
       document.getElementById('ppSub').textContent =
         `${u.role_display} · ${u.department} · ${nOver ? nOver + ' 个模块已覆盖' : '全部继承角色默认'}`;
+      _updateClearBtn();
     } catch (e) {
       document.getElementById('ppSheet').innerHTML =
         `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
@@ -170,7 +178,7 @@
         try {
           const d = await (await fetch(`/config-management/api/users/${_userId}/permissions/reset`, {
             method: 'POST', headers: { 'X-CSRFToken': _csrf() } })).json();
-          if (d.success) { ATToast.success('已恢复角色默认'); ppLoad(); }
+          if (d.success) { ATToast.success('已恢复角色默认'); await ppLoad(); if (guard) guard.exit(); }
           else ATToast.error(d.message || '操作失败');
         } catch (e) { ATToast.error('操作失败,请重试'); }
       },
@@ -201,7 +209,7 @@
     mount: 'ppEditBar', lockEl: 'ppSheet', canEdit: CAN_EDIT,
     onSave: ppSaveCore,
     onDiscard: function () { ppLoad(); },
-    onEnter: function () { const b = document.getElementById('ppClearBtn'); if (b) b.style.display = ''; },
+    onEnter: function () { _updateClearBtn(); },
     onExit: function () { const b = document.getElementById('ppClearBtn'); if (b) b.style.display = 'none'; },
     saveConfirm: { message: '确认保存该人员的权限覆盖?' },
   });

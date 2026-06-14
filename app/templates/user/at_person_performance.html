@@ -134,6 +134,10 @@
 <script>
   const USERS = {{ users_data | tojson }};
   const CAN_EDIT = {{ can_edit | tojson }};
+  const CURRENT_USER_ID = {{ current_user.id }};
+  const IS_ADMIN = {{ (current_user.role == 'admin') | tojson }};
+  // 防自评:非 admin 看自己的绩效 → 只读(录入人须 ≠ 被考核人,本人绩效由上级录入)
+  const _selfLock = () => CAN_EDIT && !IS_ADMIN && _userId === CURRENT_USER_ID;
   const CUR_YEAR = {{ current_year }};
   const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
@@ -229,6 +233,13 @@
     document.getElementById('ppUserName').textContent = u ? u.name : '';
     document.getElementById('ppSub').textContent = u ? `${u.role_display} · ${u.department}` : '';
     document.getElementById('ppDirty').textContent = '';
+    // 防自评:看自己的绩效强制只读、隐藏编辑栏
+    const _eb = document.getElementById('ppEditBar');
+    if (_selfLock()) {
+      if (guard) guard.exit();
+      if (_eb) _eb.style.display = 'none';
+      document.getElementById('ppSub').textContent += ' · 本人绩效由上级录入(只读)';
+    } else if (_eb) { _eb.style.display = ''; }
     try {
       const d = await (await fetch('/performance/config/api/users/targets/batch', {
         method: 'POST',
