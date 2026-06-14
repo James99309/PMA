@@ -1,5 +1,6 @@
 {% extends 'components/at_list_layout.html' %}
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
+{% from 'components/quality_badge.html' import quality_badge %}
 
 {% block sidebar_active %}quotation{% endblock %}
 {% block page_title %}报价管理{% endblock %}
@@ -79,8 +80,9 @@
     onclick="location.href=this.dataset.href"
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
-    <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
-      {{ q.quotation_number }}
+    <span style="display:inline-flex;align-items:center;gap:7px;">
+      <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">{{ q.quotation_number }}</span>
+      {{ quality_badge(quality_scores.get(q.id) if quality_scores else none) }}
     </span>
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:220px;color:var(--ink-2);font-size:12.5px;

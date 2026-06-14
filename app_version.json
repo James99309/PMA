@@ -1,7 +1,7 @@
 {
   "app_version": "3.0.3",
   "environment": "production",
-  "timestamp": "2026-06-14 22:23:39",
+  "timestamp": "2026-06-14 22:31:56",
   "modules": {
     "user": {
       "files": {
@@ -40,8 +40,8 @@
     "project": {
       "files": {
         "app/views/project.py": {
-          "hash": "3e86951efbcf9051d9e9355f07836d40",
-          "last_modified": "2026-06-13 00:07:31"
+          "hash": "0e1e654d6d93e48614abf66b3fb68447",
+          "last_modified": "2026-06-14 22:30:52"
         },
         "app/models/project.py": {
           "hash": "bc33267df4cce2e5de7ff1a3d3e0e17f",
@@ -53,8 +53,8 @@
     "quotation": {
       "files": {
         "app/views/quotation.py": {
-          "hash": "78e8972d24179bcd5623e13c72b6c5f1",
-          "last_modified": "2026-06-14 21:19:47"
+          "hash": "373f8ea7afac27fbaff63fadef935708",
+          "last_modified": "2026-06-14 22:30:41"
         },
         "app/models/quotation.py": {
           "hash": "245277aa41d6486e7f8182b21b3fbdba",

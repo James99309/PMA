@@ -2,6 +2,7 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_win_lock_badge %}
 {% from 'components/at_project_modal.html' import at_project_form_modal %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+{% from 'components/quality_badge.html' import quality_badge %}
 
 {% block sidebar_active %}project{% endblock %}
 {% block page_title %}项目管理{% endblock %}
@@ -110,8 +111,11 @@
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:300px;">
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
-      <span style="font-size:13px;font-weight:500;color:var(--ink);
-                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.project_name }}</span>
+      <span style="display:flex;align-items:center;gap:7px;min-width:0;">
+        <span style="font-size:13px;font-weight:500;color:var(--ink);
+                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.project_name }}</span>
+        {{ quality_badge(quality_scores.get(p.id) if quality_scores else none, is_project=true) }}
+      </span>
       {# 未跟进标识(橘色):有授权编号跟在编号后,否则单独占名称下一行 #}
       {% set _od = overdue_days.get(p.id) if overdue_days else none %}
       {% if p.authorization_code %}

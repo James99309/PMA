@@ -562,9 +562,13 @@ def at_list_view():
     except Exception as _oe:
         logger.warning(f'overdue calc err: {_oe}')
 
+    from app.helpers.quality_score import project_quality_scores
+    quality_scores = project_quality_scores([p.id for p in pagination.items])
+
     return render_template('project/at_list.html',
                            projects=pagination.items,
                            overdue_days=overdue_days,
+                           quality_scores=quality_scores,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,

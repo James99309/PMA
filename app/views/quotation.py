@@ -1005,8 +1005,12 @@ def at_list_view():
         page=page, per_page=per_page, error_out=False,
     )
 
+    from app.helpers.quality_score import quotation_quality_scores
+    quality_scores = quotation_quality_scores([q.id for q in pagination.items])
+
     return render_template('quotation/at_list.html',
                            quotations=pagination.items,
+                           quality_scores=quality_scores,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,
