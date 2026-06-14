@@ -80,9 +80,8 @@
     onclick="location.href=this.dataset.href"
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
-    <span style="display:inline-flex;align-items:center;gap:7px;">
-      <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">{{ q.quotation_number }}</span>
-      {{ quality_badge(quality_scores.get(q.id) if quality_scores else none) }}
+    <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
+      {{ q.quotation_number }}
     </span>
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:220px;color:var(--ink-2);font-size:12.5px;
@@ -94,9 +93,12 @@
     {{ q.project.project_name if q.project else '—' }}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
-    <span class="at-mono at-tab-num"
-          style="color:{{ 'var(--ink)' if q.amount else 'var(--ink-4)' }};font-size:13px;">
-      {{ currency_sym }}{{ '{:,.0f}'.format(q.amount or 0) }}
+    <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;">
+      <span class="at-mono at-tab-num"
+            style="color:{{ 'var(--ink)' if q.amount else 'var(--ink-4)' }};font-size:13px;">
+        {{ currency_sym }}{{ '{:,.0f}'.format(q.amount or 0) }}
+      </span>
+      {{ quality_badge(quality_scores.get(q.id) if quality_scores else none) }}
     </span>
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">

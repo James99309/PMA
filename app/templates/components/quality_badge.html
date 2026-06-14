@@ -1,9 +1,8 @@
-{# 质量得分徽章(植入品质):0/无 不显示;<5 绿、5~<7 橙、≥7 蓝 #}
+{# 质量得分(植入品质):0/无 不显示;<5 绿、5~<7 橙、≥7 蓝。无底色,仅彩色数字 #}
 {% macro quality_badge(score, is_project=false) %}
 {%- if score and score > 0 -%}
 {%- set _c = 'var(--info)' if score >= 7 else ('var(--warn)' if score >= 5 else 'var(--success)') -%}
-<span title="质量得分(推荐产品系数和{{ '·项目取最高单' if is_project else '' }};及格3/良好5/优秀7)"
-      style="flex-shrink:0;display:inline-flex;align-items:center;font-size:10.5px;font-weight:600;line-height:1;
-             padding:2px 6px;border-radius:4px;color:{{ _c }};background:color-mix(in srgb, {{ _c }} 12%, transparent);">{{ '{:g}'.format(score) }}</span>
+<span class="at-mono" title="质量得分(推荐产品系数和{{ '·项目取最高单' if is_project else '' }};及格3/良好5/优秀7)"
+      style="flex-shrink:0;font-size:12px;font-weight:700;line-height:1;color:{{ _c }};">{{ '{:g}'.format(score) }}</span>
 {%- endif -%}
 {% endmacro %}

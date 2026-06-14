@@ -111,11 +111,8 @@
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:300px;">
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
-      <span style="display:flex;align-items:center;gap:7px;min-width:0;">
-        <span style="font-size:13px;font-weight:500;color:var(--ink);
-                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.project_name }}</span>
-        {{ quality_badge(quality_scores.get(p.id) if quality_scores else none, is_project=true) }}
-      </span>
+      <span style="font-size:13px;font-weight:500;color:var(--ink);
+                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.project_name }}</span>
       {# 未跟进标识(橘色):有授权编号跟在编号后,否则单独占名称下一行 #}
       {% set _od = overdue_days.get(p.id) if overdue_days else none %}
       {% if p.authorization_code %}
@@ -133,9 +130,12 @@
     {{ (p.project_type | project_type_label) if p.project_type else '—' }}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
-    <span class="at-mono at-tab-num"
-          style="color:{{ 'var(--ink)' if p.quotation_customer else 'var(--ink-4)' }};font-size:13px;">
-      {{ currency_sym }}{{ '{:,.0f}'.format(p.quotation_customer or 0) }}
+    <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;">
+      <span class="at-mono at-tab-num"
+            style="color:{{ 'var(--ink)' if p.quotation_customer else 'var(--ink-4)' }};font-size:13px;">
+        {{ currency_sym }}{{ '{:,.0f}'.format(p.quotation_customer or 0) }}
+      </span>
+      {{ quality_badge(quality_scores.get(p.id) if quality_scores else none, is_project=true) }}
     </span>
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
