@@ -93,12 +93,12 @@
     {{ q.project.project_name if q.project else '—' }}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
-    <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;">
+    <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;">
+      {{ quality_badge(quality_scores.get(q.id) if quality_scores else none) }}
       <span class="at-mono at-tab-num"
             style="color:{{ 'var(--ink)' if q.amount else 'var(--ink-4)' }};font-size:13px;">
         {{ currency_sym }}{{ '{:,.0f}'.format(q.amount or 0) }}
       </span>
-      {{ quality_badge(quality_scores.get(q.id) if quality_scores else none) }}
     </span>
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
