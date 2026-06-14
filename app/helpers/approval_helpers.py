@@ -291,15 +291,11 @@ def get_authorization_approver_by_project_type(project_type):
     
     # 查找第一个具有该角色的用户
     approver = User.query.filter_by(role=target_role).first()
-    
-    # 如果没找到对应角色的用户，使用总经理角色
+
+    # 如果没找到对应角色的用户，使用总经理角色(不再回退到 admin —— admin 不参与审批)
     if not approver:
         approver = User.query.filter_by(role='ceo').first()
-    
-    # 如果还是没找到，使用admin
-    if not approver:
-        approver = User.query.filter_by(role='admin').first()
-    
+
     return approver
 
 
@@ -324,43 +320,17 @@ def get_next_level_approver(user):
     
     current_app.logger.debug(f"查找用户 {user.username} 的上一级领导")
     
-    # 如果用户本身就是管理员，处理管理员审批逻辑
+    # 管理员发起 → 交由总经理审批(admin 不参与审批流程);无总经理则无上级(跳过)
     if user.role == 'admin':
-        current_app.logger.debug(f"用户 {user.username} 是管理员，处理管理员审批逻辑")
-        
-        # 优先查找主管理员（username='admin'）作为审批人
-        main_admin = User.query.filter_by(role='admin', username='admin').first()
-        
-        if main_admin:
-            if user.id != main_admin.id:
-                # 如果当前用户不是主管理员，由主管理员审批
-                current_app.logger.debug(f"找到主管理员作为审批人: {main_admin.username}")
-                return main_admin
-            else:
-                # 如果当前用户就是主管理员，返回自己（自审）
-                current_app.logger.debug(f"主管理员自审: {main_admin.username}")
-                return main_admin
-        else:
-            # 如果没有找到主管理员，查找ID最小的管理员作为主管理员
-            primary_admin = User.query.filter_by(role='admin').order_by(User.id.asc()).first()
-            if primary_admin:
-                if user.id != primary_admin.id:
-                    current_app.logger.debug(f"找到首个管理员作为审批人: {primary_admin.username}")
-                    return primary_admin
-                else:
-                    current_app.logger.debug(f"首个管理员自审: {primary_admin.username}")
-                    return primary_admin
-        
-        # 如果没有其他管理员，查找CEO
         ceo = User.query.filter_by(role='ceo').filter(User.id != user.id).first()
-        if ceo:
-            current_app.logger.debug(f"找到CEO作为托底审批人: {ceo.username}")
-            return ceo
-        
-        # 如果都没有，返回自己作为托底（自审模式）
-        current_app.logger.warning(f"管理员 {user.username} 没有找到其他审批人，返回自己作为托底")
-        return user
-    
+        current_app.logger.debug(f"管理员 {user.username} 发起,上级={ceo.username if ceo else '无(跳过)'}")
+        return ceo
+
+    # 总经理是组织最高层，无上级 → 返回 None(上级审批步将被自动跳过，不再回退到 admin)
+    if user.role == 'ceo':
+        current_app.logger.debug(f"用户 {user.username} 是总经理，无上级，上级审批步将跳过")
+        return None
+
     # 如果用户有部门且不是部门负责人，上一级是同企业同部门的部门负责人
     if user.department and user.company_name and not user.is_department_manager:
         # 方式1：查找 is_department_manager=True 的用户（主归属该部门的负责人）
@@ -418,14 +388,9 @@ def get_next_level_approver(user):
     if ceo:
         current_app.logger.debug(f"找到总经理: {ceo.username}")
         return ceo
-    
-    # 最后查找管理员
-    admin = User.query.filter_by(role='admin').filter(User.id != user.id).first()
-    if admin:
-        current_app.logger.debug(f"找到管理员: {admin.username}")
-        return admin
-    
-    current_app.logger.debug(f"未找到用户 {user.username} 的上一级领导")
+
+    # 查无总经理 → 无上级(上级审批步将跳过);不再回退到 admin —— admin 不参与审批流程
+    current_app.logger.debug(f"未找到用户 {user.username} 的上一级领导(无总经理),上级审批将跳过")
     return None
 
 
@@ -3620,6 +3585,7 @@ def start_approval_process(object_type, object_id, template_id, user_id=None,
                 # 第一步条件不满足/自审 → 跳过并寻找下一个可执行步骤
                 _create_skip_record(instance, first_step,
                     "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(first_step, instance)
+                    else "无上级审批人(发起人为最高层)，自动跳过" if _is_next_level_no_approver(first_step, instance)
                     else "条件不满足，自动跳过")
                 # 从首步序号(而非写死0)之后找下一可执行步, 否则 advance 会从 order=1
                 # 重新评估并二次记录同一首步 → skipped 记录重复 (引擎原有 quirk, 修正为单条)
@@ -4196,6 +4162,21 @@ def _is_self_review_auto_skip(step, instance):
         return False  # 解析审批人失败 → 不跳, 不影响原有逻辑
 
 
+def _is_next_level_no_approver(step, instance):
+    """next_level(上级审批)步是否解析不到上级 → 应跳过。
+    用于:发起人本身是总经理(无上级)等场景,避免回退到 admin 或卡死。
+    仅对 next_level 类型生效;user/auto 类型缺审批人属配置问题,不在此自动跳过。"""
+    if instance is None:
+        return False
+    atype = step.get('approver_type') if isinstance(step, dict) else getattr(step, 'approver_type', None)
+    if atype != 'next_level':
+        return False
+    try:
+        return get_step_actual_approver(step, instance) is None
+    except Exception:
+        return False  # 解析失败 → 不跳,不影响原有逻辑
+
+
 def _check_step_execution_condition(step, target_object, instance=None):
     """检查步骤的执行条件
 
@@ -4211,6 +4192,10 @@ def _check_step_execution_condition(step, target_object, instance=None):
     """
     # 发起人审自己的纯审核步 → 自动跳过 (详见 _is_self_review_auto_skip)
     if _is_self_review_auto_skip(step, instance):
+        return False
+
+    # next_level(上级审批)步解析不到上级(如发起人为总经理/无上级)→ 跳过该步,继续后续流程
+    if _is_next_level_no_approver(step, instance):
         return False
 
     if isinstance(step, dict):
@@ -4302,7 +4287,8 @@ def _advance_to_next_executable_step(instance, current_step_order, steps, target
             return next_step
         # 条件不满足/自审 → 创建跳过记录，继续找下一步
         _create_skip_record(instance, next_step,
-            "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(next_step, instance)
+            "无上级审批人(发起人为最高层)，自动跳过" if _is_next_level_no_approver(next_step, instance)
+            else "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(next_step, instance)
             else "条件不满足，自动跳过")
         next_order += 1
         next_step = _find_step_by_order(steps, next_order)

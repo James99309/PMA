@@ -2711,12 +2711,20 @@ def _assert_admin():
         return jsonify({'success': False, 'message': '仅管理员可操作'}), 403
     return None
 
+
+def _assert_ai_access(user_id, need_edit=False):
+    """Claude AI 代理管理放行:个人配置 pc_ai 功能开关驱动(admin 恒通过,否则需
+    person_config 权限 + pc_ai + 目标在数据范围内)。返回 403 响应或 None。"""
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_ai', need_edit=need_edit):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    return None
+
 @user_bp.route('/api/<int:user_id>/claude-ai', methods=['GET'])
 @login_required
-@permission_required('user', 'view')
 def api_claude_ai_get(user_id):
     """获取某用户的 Claude AI 代理状态 + 用量摘要 + 设备锁定状态"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id)
     if err: return err
     from app.services.ai_proxy_service import get_user_usage_summary, default_quota, get_device_lock_status
     user = User.query.get_or_404(user_id)
@@ -2741,10 +2749,9 @@ def api_claude_ai_get(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/enable', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'edit')
 def api_claude_ai_enable(user_id):
     """启用某用户的 Claude AI 代理（生成 token + 发邮件 + 推送 Mac mini）"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import enable_user
     user = User.query.get_or_404(user_id)
@@ -2771,10 +2778,9 @@ def api_claude_ai_enable(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/disable', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'edit')
 def api_claude_ai_disable(user_id):
     """禁用 Claude AI 代理"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import disable_user
     user = User.query.get_or_404(user_id)
@@ -2786,8 +2792,8 @@ def api_claude_ai_disable(user_id):
 @csrf.exempt
 @login_required
 def api_claude_ai_reset_token(user_id):
-    """重置 token：仅管理员可操作"""
-    err = _assert_admin();
+    """重置 token"""
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import reset_user_token
     user = User.query.get_or_404(user_id)
@@ -2807,10 +2813,9 @@ def api_claude_ai_reset_token(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/quota', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'edit')
 def api_claude_ai_quota(user_id):
-    """设置某用户的月度配额（admin 操作）"""
-    err = _assert_admin();
+    """设置某用户的月度配额"""
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import update_user_quota
     user = User.query.get_or_404(user_id)
@@ -2827,10 +2832,9 @@ def api_claude_ai_quota(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/refresh-usage', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'view')
 def api_claude_ai_refresh_usage(user_id):
     """从 Mac mini 拉取该用户最新用量（手动刷新）"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id)
     if err: return err
     from app.services.ai_proxy_service import _pull_user_daily_usage, get_user_usage_summary
     user = User.query.get_or_404(user_id)
@@ -2847,10 +2851,9 @@ def api_claude_ai_refresh_usage(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/unlock-device', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'edit')
 def api_claude_ai_unlock_device(user_id):
-    """解除该用户 token 的设备锁定（管理员操作）"""
-    err = _assert_admin();
+    """解除该用户 token 的设备锁定"""
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import clear_device_lock
     user = User.query.get_or_404(user_id)
@@ -2864,10 +2867,9 @@ def api_claude_ai_unlock_device(user_id):
 
 @user_bp.route('/api/<int:user_id>/claude-ai/requests', methods=['GET'])
 @login_required
-@permission_required('user', 'view')
 def api_claude_ai_requests(user_id):
     """获取该用户的 Claude AI 提问记录（从 Mac mini admin_server 拉取）"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id)
     if err: return err
     import requests as http_requests
     from app.services.ai_proxy_service import _admin_url
@@ -2930,11 +2932,10 @@ def api_claude_ai_download_dxt():
 
 @user_bp.route('/api/<int:user_id>/claude-ai/send-dxt', methods=['POST'])
 @login_required
-@permission_required('user', 'edit')
 @csrf.exempt
 def api_claude_ai_send_dxt(user_id):
     """发送 Claude Desktop 扩展文件（.dxt）给用户"""
-    err = _assert_admin()
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     user = User.query.get_or_404(user_id)
     if not user.claude_ai_token:
