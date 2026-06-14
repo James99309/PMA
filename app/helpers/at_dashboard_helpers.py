@@ -1861,12 +1861,51 @@ def _build_expense(user, monthly_stats, year_total, currency_symbol, scope_filte
     except Exception:
         pass
 
+    # 科目分类(本年,跟随 scope_filter);标签+配色对齐报销单表单
+    _CAT_META = {
+        'entertainment':        ('招待费',   '#ff6b6b'),
+        'local_transport':      ('市内交通', '#4ecdc4'),
+        'travel_accommodation': ('差旅住宿', '#45b7d1'),
+        'office_supplies':      ('办公用品', '#96ceb4'),
+        'communication':        ('通讯费',   '#ffeaa7'),
+        'fuel':                 ('油费',     '#dda0dd'),
+        'parking':              ('停车费',   '#98d8c8'),
+        'meals':                ('餐费',     '#f7dc6f'),
+        'other':                ('其他',     '#aab7b8'),
+    }
+    categories = []
+    try:
+        from app.models.expense import ExpenseDetail
+        cq = db.session.query(
+            ExpenseDetail.expense_category,
+            func.coalesce(func.sum(ExpenseDetail.current_amount), 0),
+        ).join(Expense, Expense.id == ExpenseDetail.expense_id).filter(
+            Expense.is_deleted == False,
+            Expense.status != 'draft',
+            extract('year', Expense.created_at) == now.year,
+        )
+        if scope_filter is not None:
+            cq = cq.filter(scope_filter)
+        crows = cq.group_by(ExpenseDetail.expense_category).all()
+        _ctot = sum(float(a or 0) for _, a in crows) or 0
+        for code, amt in crows:
+            amt = float(amt or 0)
+            if amt <= 0:
+                continue
+            lbl, color = _CAT_META.get(code, (code or '其他', '#aab7b8'))
+            categories.append({'label': lbl, 'color': color, 'amount': amt,
+                               'pct': round(amt / _ctot * 100) if _ctot else 0})
+        categories.sort(key=lambda x: x['amount'], reverse=True)
+    except Exception:
+        pass
+
     return {
         'yearTotal': year_total,
         'yearTotalLast': year_total_last,  # 去年 1月→当前月 累计(真实同比基数)
         'monthly': monthly_stats,
         'months': ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
         'recent': recent,
+        'categories': categories,
         'currency': currency_symbol,
     }
 
