@@ -2147,13 +2147,13 @@ def _build_implant(user, variant='solution'):
     return res
 
 
-def role_layout(user):
-    """角色 → 仪表盘卡片集合 + KPI 变体(唯一事实源)。
+def _role_base_layout(user):
+    """角色 → 基础卡片集合 + KPI 变体(KPI 卡是否出现由 role_layout 统一裁决)。
 
     返回 {'cards': [...卡片 key 按渲染顺序...], 'kpi_variant': '...'}。
-    模板按 cards 决定显隐;build_dashboard 按 cards 决定算什么(只算要显示的)。
     卡片 key:todo / kpi / funnel / projects / quotes / expense / task / implant / worklog
-    KPI 变体:default(销售) / solution / product / finance / overview
+    KPI 变体:default(销售) / solution / product / finance / overview / minimal
+    注意:除 CEO 外,各分支不再写死 'kpi';是否显示由 role_layout 按「是否配置绩效项」决定。
     """
     role = (user.role or '').lower()
     if role == 'admin':
@@ -2161,28 +2161,55 @@ def role_layout(user):
         return {'cards': ['todo', 'funnel', 'task', 'implant', 'expense', 'worklog'],
                 'kpi_variant': 'admin'}
     if role == 'ceo':
+        # CEO 维持现状:保留总览 KPI(此分支的 'kpi' 不受配置裁决影响)
         return {'cards': ['todo', 'kpi', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
                 'kpi_variant': 'overview'}
-    # 财务 + 出纳:全公司报销进度 + 财务 KPI
+    # 财务 + 出纳:全公司报销进度
     if role in ('finance', 'finance_director', 'finace_director', 'finance_supervisor', 'treasurer'):
-        return {'cards': ['todo', 'kpi', 'expense', 'worklog'], 'kpi_variant': 'finance'}
+        return {'cards': ['todo', 'expense', 'worklog'], 'kpi_variant': 'finance'}
     if role == 'solution_manager':
-        return {'cards': ['todo', 'kpi', 'task', 'implant', 'expense', 'worklog'], 'kpi_variant': 'solution'}
+        return {'cards': ['todo', 'task', 'implant', 'expense', 'worklog'], 'kpi_variant': 'solution'}
     if role == 'product_manager':
-        return {'cards': ['todo', 'kpi', 'task', 'implant', 'expense', 'worklog'], 'kpi_variant': 'product'}
+        return {'cards': ['todo', 'task', 'implant', 'expense', 'worklog'], 'kpi_variant': 'product'}
     # 工程师:对齐解决方案,但去掉植入卡(任务/图纸为主)
     if role == 'engineer':
-        return {'cards': ['todo', 'kpi', 'task', 'expense', 'worklog'], 'kpi_variant': 'solution'}
-    # 商务助理:对齐销售,去掉 KPI 卡
+        return {'cards': ['todo', 'task', 'expense', 'worklog'], 'kpi_variant': 'solution'}
+    # 商务助理:对齐销售
     if role == 'business_admin':
         return {'cards': ['todo', 'funnel', 'projects', 'quotes', 'expense', 'worklog'], 'kpi_variant': 'default'}
-    # 市场 / 人事 / 采购供应链:先去销售卡 + KPI,留 待办·报销·工作记录(后续再定制专属卡)
+    # 市场 / 人事 / 采购供应链:留 待办·报销·工作记录(KPI 卡按配置自动出现)
     if role in ('marketing_manager', 'marketingplan', 'hr_manager', 'hrdp_manager',
                 'supplychain_manager', 'buyer'):
-        return {'cards': ['todo', 'expense', 'worklog'], 'kpi_variant': 'minimal'}
+        return {'cards': ['todo', 'expense', 'worklog'], 'kpi_variant': 'default'}
     # 默认:销售家族 + 服务经理 + 外部(代理商/普通用户)对齐销售
-    return {'cards': ['todo', 'kpi', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
+    return {'cards': ['todo', 'funnel', 'projects', 'quotes', 'expense', 'worklog'],
             'kpi_variant': 'default'}
+
+
+def role_layout(user):
+    """角色 → 仪表盘卡片 + KPI 变体(唯一事实源)。
+
+    KPI 卡是否显示 = PerformanceDashboardService.has_kpi_config(user)(配置驱动):
+    有角色绩效方案 或 配了带目标的考核项 → 显示;否则不显示。新增角色无需改本函数。
+    例外:CEO 维持现状(总览 KPI 始终保留)。
+    """
+    lay = _role_base_layout(user)
+    role = (user.role or '').lower()
+    if role == 'ceo':
+        return lay   # CEO 不受配置裁决,保持原样
+    cards = list(lay['cards'])
+    try:
+        from app.services.performance_dashboard_service import PerformanceDashboardService
+        has_kpi = PerformanceDashboardService.has_kpi_config(user)
+    except Exception:
+        has_kpi = False
+    if has_kpi and 'kpi' not in cards:
+        i = (cards.index('todo') + 1) if 'todo' in cards else 0
+        cards.insert(i, 'kpi')         # 统一插在「待办」之后
+    elif not has_kpi and 'kpi' in cards:
+        cards.remove('kpi')
+    lay['cards'] = cards
+    return lay
 
 
 # ─── 主入口 ────────────────────────────────────────────

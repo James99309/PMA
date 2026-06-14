@@ -1738,6 +1738,52 @@ class PerformanceDashboardService:
         return mapping.get(item_code)
 
     @staticmethod
+    def has_kpi_config(user, year=None):
+        """单一事实源:该用户是否有「会渲染出来」的 KPI 考核项。
+
+        决定仪表盘 KPI 卡 / 绩效入口是否显示——配置驱动,不再按角色硬编码。
+        口径与 at_dashboard_helpers._kpi_config_driven 一致:
+          - 有角色方案(ROLE_KPI_SCHEMES) → 显示(考核项写死,始终全显)
+          - 否则:配了「个人覆盖 / 角色默认」考核项,且至少一项有目标(>0)→ 显示
+        """
+        if not user:
+            return False
+        from datetime import datetime
+        year = year or datetime.now().year
+        role = getattr(user, 'role', None) or ''
+        # 1) 方案角色:始终显示
+        try:
+            from app.services.role_kpi_schemes import get_role_scheme_codes
+            if get_role_scheme_codes(role):
+                return True
+        except Exception:
+            pass
+        # 2) 配置的考核项(个人覆盖;无则回退角色默认行)
+        try:
+            codes = PerformanceDashboardService._get_configured_performance_items(user.id, year) or []
+        except Exception:
+            codes = []
+        if not codes and role:
+            try:
+                from app.models.performance_config import RolePerformanceTarget
+                rows = RolePerformanceTarget.query.filter_by(role_code=role, year=year).all()
+                codes = [r.item_code for r in rows if getattr(r, 'enabled', True) is not False]
+            except Exception:
+                codes = []
+        if not codes:
+            return False
+        # 3) 非方案角色:至少一项配了目标(>0),否则视为未配置(避免空卡)
+        try:
+            tmap = PerformanceDashboardService.get_user_kpi_targets(user.id, year) or {}
+            for c in codes:
+                tkey = f'{c}_target'
+                if any(float((tmap.get(m) or {}).get(tkey, 0) or 0) > 0 for m in range(1, 13)):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    @staticmethod
     def _get_configured_performance_items(user_id, year):
         """
         获取用户配置的绩效项目代码列表
