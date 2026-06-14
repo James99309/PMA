@@ -516,7 +516,8 @@ def mobile_task_review(tid):
     from app.services import task_service
     try:
         t, _msg = task_service.review_task(
-            user, t, (data.get('action') or '').strip(), data.get('comment') or '')
+            user, t, (data.get('action') or '').strip(), data.get('comment') or '',
+            data.get('rating'))
     except ValueError as ve:
         return api_response(success=False, code=403, message=str(ve))
     except Exception as e:

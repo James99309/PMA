@@ -1,0 +1,70 @@
+{#
+=============================================================================
+通用任务审计组件(三档评价)
+=============================================================================
+审计人对完成的任务给出三档评价:低于预期 / 符合预期 / 超出预期。
+- 低于预期:必须填写原因(输入框默认占位提示「超期」)
+- 符合/超出:可选填意见
+- 驳回:退回重做(必须填意见),独立于评价
+对应 KPI 加权:低于0.5 / 符合1 / 超出1.5(SUM(review_score))。
+
+依赖宿主页面提供 submitTaskReview(action, comment, rating) 方法(Alpine 作用域内可见)。
+用法:
+  {% from 'components/tw_task_audit.html' import render_task_audit_panel %}
+  {{ render_task_audit_panel() }}
+=============================================================================
+#}
+
+{% macro render_task_audit_panel() %}
+<div x-data="{
+        rating: '', note: '', submitting: false,
+        get ph() { return this.rating === 'below' ? '{{ _('超期') }}' : '{{ _('评价意见（可选）') }}'; },
+        async submitRating() {
+            if (!this.rating) { alert('{{ _('请选择评价') }}'); return; }
+            if (this.rating === 'below' && !this.note.trim()) { alert('{{ _('低于预期必须填写原因') }}'); return; }
+            this.submitting = true;
+            try { await submitTaskReview('approve', this.note, this.rating); }
+            finally { this.submitting = false; }
+        },
+        async doReject() {
+            if (!this.note.trim()) { alert('{{ _('驳回时必须填写意见') }}'); return; }
+            this.submitting = true;
+            try { await submitTaskReview('reject', this.note); }
+            finally { this.submitting = false; }
+        }
+     }">
+    {# 三档评价按钮 #}
+    <div class="grid grid-cols-3 gap-2 mb-2">
+        <button type="button" @click="rating = 'below'"
+                :class="rating === 'below' ? 'ring-2 ring-rose-400 bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' : 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-100'"
+                class="px-2 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-600 transition">
+            {{ _('低于预期') }}
+        </button>
+        <button type="button" @click="rating = 'meet'"
+                :class="rating === 'meet' ? 'ring-2 ring-sky-400 bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300' : 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-100'"
+                class="px-2 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-600 transition">
+            {{ _('符合预期') }}
+        </button>
+        <button type="button" @click="rating = 'exceed'"
+                :class="rating === 'exceed' ? 'ring-2 ring-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-100'"
+                class="px-2 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-600 transition">
+            {{ _('超出预期') }}
+        </button>
+    </div>
+    {# 原因/意见(低于预期为必填,占位默认提示「超期」) #}
+    <textarea x-model="note" rows="2" :placeholder="ph"
+              class="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary mb-2"></textarea>
+    <p x-show="rating === 'below'" class="text-xs text-rose-500 mb-2" x-cloak>{{ _('低于预期需说明原因（默认可填「超期」）') }}</p>
+    {# 操作 #}
+    <div class="flex gap-2">
+        <button @click="submitRating()" :disabled="submitting || !rating"
+                class="px-4 py-1.5 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50">
+            {{ _('提交评价') }}
+        </button>
+        <button @click="doReject()" :disabled="submitting"
+                class="px-4 py-1.5 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition disabled:opacity-50">
+            {{ _('驳回') }}
+        </button>
+    </div>
+</div>
+{% endmacro %}

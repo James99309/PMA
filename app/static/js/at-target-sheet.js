@@ -44,6 +44,8 @@
   const r2 = v => Math.round(v * 100) / 100;
   const fmt = v => (v == null || v === '') ? '' : (Math.round(v * 100) / 100);
   const isRate = it => (it.unit === '%');
+  // 积分制:单项得分(水平值)× 实际累计,封顶权重;无目标拆分,锁定为「单项」
+  const isCumulative = it => (it.scoring_mode === 'cumulative');
 
   function splitEven(total, n) {
     const base = Math.floor(total / n * 100) / 100;
@@ -118,15 +120,22 @@
         const a = actuals[it.item_code];
         if (!a) return;
         const actual = kind === 'y' ? a.y : (a.q || {})[idx];
-        if (actual == null) return;
-        // 目标:与 actInfo 一致(季度无显式目标时按年度推导:率类水平/数量均分)
+        if (actual == null) return;   // 未开始期间不计入(任何计分方式通用)
+        const sm = it.scoring_mode || 'target';
+        // 积分制:单项得分(annual_target 视为水平值)× 实际累计,封顶权重;权重恒计入(不做=0分,不归一)
+        if (sm === 'cumulative') {
+          const perUnit = parseFloat(it.annual_target) || 1;
+          sc += Math.min(actual * perUnit, w); wsum += w;
+          return;
+        }
+        // 目标制/反向:季度无显式目标时按年度推导(率类水平/数量均分)
         let t = kind === 'y' ? parseFloat(it.annual_target) : parseFloat(it['q' + idx + '_target']);
         if (isNaN(t) && kind === 'q') {
           const ann = parseFloat(it.annual_target);
           if (!isNaN(ann) && ann > 0) t = isRate(it) ? ann : r2(ann / 4);
         }
-        if (isNaN(t) || t <= 0) return;   // 无目标 → 不计入
-        const rate = inverseCodes.includes(it.item_code)
+        if (isNaN(t) || t <= 0) return;   // 目标制无目标 → 不计入(剔除归一)
+        const rate = (sm === 'inverse' || inverseCodes.includes(it.item_code))
           ? (actual <= t + 0.0001 ? 1 : t / actual)
           : Math.min(actual / t, 1);
         sc += rate * w; wsum += w;
@@ -238,6 +247,14 @@
     // ── 交互 ──
     function granToggle(i) {
       const it = items[i];
+      if (isCumulative(it)) {
+        // 积分制:仅切换展示/计分粒度(年/季/月),单项得分为常量,不拆分目标
+        it.gran = granYear
+          ? (it.gran === 'Y' ? 'Q' : (it.gran === 'Q' ? 'M' : 'Y'))
+          : (it.gran === 'Q' ? 'M' : 'Q');
+        markDirty(it); render(); fire();
+        return;
+      }
       // granYear:年→季→月→年;否则 季↔月
       const gNew = granYear
         ? (it.gran === 'Y' ? 'Q' : (it.gran === 'Q' ? 'M' : 'Y'))
@@ -398,8 +415,9 @@
         const rate = isRate(it);
         const sum = isM ? mSum(it) : qSum(it);
         const filled = isM ? hasM(it) : hasQ(it);
-        const bad = it.gran !== 'Y' && !rate && filled && annual && sum - annual > 0.01;
-        const underAlloc = it.gran !== 'Y' && !rate && annual > 0 && (annual - sum) > 0.01;
+        const _cum = isCumulative(it);
+        const bad = !_cum && it.gran !== 'Y' && !rate && filled && annual && sum - annual > 0.01;
+        const underAlloc = !_cum && it.gran !== 'Y' && !rate && annual > 0 && (annual - sum) > 0.01;
         const badCls = bad ? 'cm-bad' : '';
         const dirtyBar = it._dirty ? 'box-shadow:inset 2px 0 0 var(--warn);' : '';
 
@@ -416,7 +434,22 @@
           </td>`;
         };
         let cells = '';
-        if (it.gran === 'Y') {
+        if (isCumulative(it)) {
+          // 积分制:按当前粒度(年/季/月)显示该期实际完成数(只读);得分=min(实际×单项得分, 权重)。年度列填单项得分。
+          const _av = (k, idx) => {
+            const a = actuals[it.item_code] || {};
+            const v = k === 'y' ? a.y : ((a[k] || {})[idx]);
+            return v != null ? Math.round(v) : '—';
+          };
+          const _ttl = '该期完成数(自动累计)·得分=min(实际×单项得分, 权重)';
+          if (it.gran === 'Y') {
+            cells = `<td colspan="${periodCols}" class="at-dim" style="text-align:center;" title="${_ttl}">${_av('y', 0)}</td>`;
+          } else if (isM) {
+            for (let m = 1; m <= 12; m++) cells += `<td class="at-dim" style="text-align:center;" title="${_ttl}">${_av('m', m)}</td>`;
+          } else {
+            for (let q = 1; q <= 4; q++) cells += `<td ${monthMode ? 'colspan="3"' : ''} class="at-dim" style="text-align:center;" title="${_ttl}">${_av('q', q)}</td>`;
+          }
+        } else if (it.gran === 'Y') {
           // 年粒度:数据区合并一格,只回显年度数(年度列编辑);手工行点击弹录入
           cells = `<td colspan="${periodCols}" class="at-dim" data-y="${i}"${actAttr(it, 'y', 0, it.annual_target)}${isManual ? ` data-mecell="${i}|y|0"` : ''}
                        style="text-align:center;${isManual ? 'cursor:pointer;' : ''}"
@@ -465,17 +498,18 @@
               <span style="font-weight:${it.strong ? 600 : 500};${it.strong ? 'font-size:13px;' : ''}color:var(--ink);overflow:hidden;text-overflow:ellipsis;" title="${esc(it.item_name)}">${esc(it.item_name)}</span>
               ${isManual ? `<span class="material-symbols-outlined" title="手工采集指标:点击数据格上半部录入实际值"
                   style="font-size:13px;color:var(--ink-4);flex-shrink:0;cursor:help;">stylus_note</span>` : ''}
+              ${isCumulative(it) ? `<span style="flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:6px;background:var(--bg-sunk,#eef);color:var(--ink-3,#667);" title="积分制:年度列填「单项得分」,每完成1个累计计分,封顶权重">单项得分</span>` : ''}
             </div>
             ${(cfg.showDesc && it.description) ? `<div class="at-dim" style="font-size:10.5px;margin-top:2px;line-height:1.4;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${esc(it.description)}">${esc(it.description)}</div>` : ''}
           </td>
           <td class="at-dim" style="font-size:11.5px;">${esc(it.unit || '—')}</td>
           ${weightCell}
           <td>${canEdit
-            ? `<button type="button" class="cm-gran-btn" data-gran="${i}" title="点击切换粒度${granYear ? '(年→季→月)' : ''}">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</button>`
+            ? `<button type="button" class="cm-gran-btn" data-gran="${i}" title="${isCumulative(it) ? '积分制:切换展示/计分粒度(年/季/月),单项得分不变' : '点击切换粒度' + (granYear ? '(年→季→月)' : '')}">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</button>`
             : `<span class="at-dim" style="font-size:11.5px;">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</span>`}</td>
-          <td ${ceAttr} data-i="${i}" data-f="annual"${it.gran === 'Y' ? '' : actAttr(it, 'y', 0, it.annual_target)}
+          <td ${ceAttr} data-i="${i}" data-f="annual"${(it.gran === 'Y' || isCumulative(it)) ? '' : actAttr(it, 'y', 0, it.annual_target)}
               style="font-weight:500;${underAlloc ? 'color:var(--ink-4);' : ''}"
-              ${underAlloc ? `title="尚有 ${r2(annual - sum)} 未分配到${isM ? '月' : '季'}度"` : ''}>${fmt(it.annual_target)}</td>
+              title="${isCumulative(it) ? '单项得分:每完成1个(按评价加权)得该分值,逐季累计封顶到权重;不做=0分' : (underAlloc ? '尚有 ' + r2(annual - sum) + ' 未分配到' + (isM ? '月' : '季') + '度' : '')}">${fmt(it.annual_target)}</td>
           ${cells}
           ${revertCell}
         </tr>`;
@@ -540,9 +574,14 @@
       setItems(list) {
         items = (list || []).map(it => {
           it.monthly_targets = it.monthly_targets || {};
-          // granYear 模式:无任何分摊的行 = 年粒度
-          it.gran = it.enable_monthly ? 'M'
-            : (granYear ? ((it.enable_quarterly || hasQ(it)) ? 'Q' : 'Y') : 'Q');
+          // 积分制与普通项一致:可切 年/季/月(单项得分为常量,切换不拆目标);默认季考核
+          if (isCumulative(it)) {
+            it.gran = it.enable_monthly ? 'M' : (it.enable_quarterly ? 'Q' : 'Q');
+          } else {
+            // granYear 模式:无任何分摊的行 = 年粒度
+            it.gran = it.enable_monthly ? 'M'
+              : (granYear ? ((it.enable_quarterly || hasQ(it)) ? 'Q' : 'Y') : 'Q');
+          }
           it._dirty = false;
           return it;
         });

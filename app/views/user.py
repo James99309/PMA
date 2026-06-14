@@ -2454,7 +2454,10 @@ def get_selected_users_api(user_id):
                 'message': '无权限访问此数据',
                 'data': []
             }), 403
-        
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能查看你负责部门的成员归属', 'data': []}), 403
+
         # 获取已有归属关系
         affiliations = Affiliation.query.filter_by(viewer_id=user_id).all()
         result = []
@@ -2496,7 +2499,11 @@ def save_affiliations_api(user_id):
                 'success': False,
                 'message': '无权限操作此数据'
             }), 403
-        
+        # HRBP 范围隔离:人事经理只能配置负责部门成员的归属
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员归属'}), 403
+
         # 检查用户是否存在
         target_user = UserModel.query.get(user_id)
         if not target_user:
@@ -3042,6 +3049,9 @@ def at_person_performance():
     if is_hrbp(current_user):
         _scope = hrbp_scope_user_ids(current_user)
         users = [u for u in users if u.id in _scope]
+    else:
+        # 个人配置数据范围隔离:personal→仅自己 / department→本部门 / company→本公司 / system→全部
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,
@@ -3069,8 +3079,7 @@ def at_person_performance():
 
     # 手工录入指标清单(月度人工填报:研发达成/批次质量/上市支持/SE 培训等)
     from app.models.performance_config import PerformanceMetricsDefinition
-    _MANUAL = ['se_response_rate', 'se_training_count', 'se_content_output', 'se_satisfaction',
-               'pm_dev_rate', 'pm_quality_rate', 'pm_support_count']
+    _MANUAL = ['se_response_rate', 'se_content_output', 'se_satisfaction']
     manual_metrics = [{'code': m.metric_code, 'name': m.metric_name,
                        'unit': m.default_unit or '', 'is_rate': m.data_type == 'percentage'}
                       for m in PerformanceMetricsDefinition.query.filter(
@@ -3102,6 +3111,13 @@ def at_person_permissions():
     if not is_admin:
         q = q.filter(User.company_name == (current_user.company_name or ''))
     users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # 数据范围隔离:HRBP→负责部门;其余→person_config 级别(与绩效/薪资/费用/归属一致)
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,
@@ -3139,6 +3155,13 @@ def at_person_budget():
     if not is_admin:
         q = q.filter(User.company_name == (current_user.company_name or ''))
     users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # 数据范围隔离:HRBP→负责部门;其余→person_config 级别(personal 仅自己)
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,
@@ -3390,6 +3413,9 @@ def at_person_salary():
     if is_hrbp(current_user):
         _scope = hrbp_scope_user_ids(current_user)
         users = [u for u in users if u.id in _scope]
+    else:
+        # 个人配置数据范围隔离:personal→仅自己 / department→本部门 / company→本公司 / system→全部
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,
@@ -3600,8 +3626,18 @@ def at_person_ai():
         from flask import abort
         abort(403)
 
-    users = User.query.filter(User._is_active.is_(True)) \
-        .order_by(User.company_name, User.department, User.real_name).all()
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # 数据范围隔离:HRBP→负责部门;其余→person_config 级别(与其它人事页一致)
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,
@@ -3678,6 +3714,13 @@ def at_person_affiliation():
     if not is_admin:
         q = q.filter(User.company_name == (current_user.company_name or ''))
     users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # 数据范围隔离:HRBP→负责部门;其余→person_config 级别(与绩效/薪资/费用/权限一致)
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
     users_data = [{
         'id': u.id,
         'name': u.real_name or u.username,

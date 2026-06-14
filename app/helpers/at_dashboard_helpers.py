@@ -153,6 +153,30 @@ def _build_todos(user):
     except Exception as e:
         import logging; logging.warning(f'todos approval err: {e}')
 
+    # 1b) 待我审核的任务(任务审计:TaskReviewer 为单一事实源,归入「待审批」)
+    try:
+        from app import db
+        from app.models.task import Task, TaskReviewer
+        from app.models.user import User
+        rows = db.session.query(Task, TaskReviewer).join(
+            TaskReviewer, TaskReviewer.task_id == Task.id).filter(
+            TaskReviewer.reviewer_id == user.id,
+            TaskReviewer.status == 'pending',
+            Task.review_status == 'pending_review',
+            Task.is_deleted == False,
+        ).order_by(Task.updated_at.desc()).all()
+        for t, tr in rows:
+            submitter = User.query.get(t.assignee_id) if t.assignee_id else None
+            out.append({
+                'id': f'TR{t.id}', 'type': 'approval', 'typeLabel': '待审核', 'tone': 'warn',
+                'title': f'任务审核 · {t.title}',
+                'meta': _fmt_user(submitter), 'who': '—',
+                'when': _ago(t.updated_at),
+                'route': f'/task/management?task_id={t.id}', 'urgent': False,
+            })
+    except Exception as e:
+        import logging; logging.warning(f'todos task-review err: {e}')
+
     # 2) 待确认产品 — SM 老任务,已废弃(报价单标准审批已并入「待我审批」列表)
     # 旧 QuotationConfirmationTask 数据保留在 DB,但仪表盘不再显示其 todo
     # 报价单的标准 ApprovalInstance 待审批,通过上面 get_user_pending_approvals 同款入口处理
@@ -173,6 +197,10 @@ def _build_todos(user):
         for m in msgs:
             from app.models.user import User
             sender = User.query.get(m.sender_id) if m.sender_id else None
+            # 可点击跳转:任务类 → 任务管理页并打开该任务
+            _route = '#'
+            if m.related_object_type == 'task' and m.related_object_id:
+                _route = f'/task/management?task_id={m.related_object_id}'
             out.append({
                 'id': f'M{m.id}', 'type': 'mention', 'typeLabel': type_label_map.get(m.message_type, '@我'),
                 'tone': 'info',
@@ -180,7 +208,7 @@ def _build_todos(user):
                 'meta': (m.content or '')[:60],
                 'who': _fmt_user(sender),
                 'when': _ago(m.created_at),
-                'route': '#', 'urgent': False,
+                'route': _route, 'urgent': False,
             })
     except Exception as e:
         import logging; logging.warning(f'todos mention err: {e}')
@@ -524,13 +552,28 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
             ) sp
         ),
         c AS (
-            SELECT COUNT(*) AS cnt, COUNT(DISTINCT owner_id) AS sup
+            SELECT COUNT(*) AS cnt
             FROM quotations
             WHERE confirmed_by = :uid AND confirmed_at >= :s AND confirmed_at < :e
         ),
+        spt AS (
+            SELECT COUNT(DISTINCT pr.owner_id) AS sup
+            FROM (
+                SELECT sd.project_id FROM system_diagrams sd
+                    WHERE sd.owner_id = :uid AND sd.is_deleted = false
+                      AND sd.updated_at >= :s AND sd.updated_at < :e
+                UNION
+                SELECT q.project_id FROM quotations q
+                    WHERE q.project_id IS NOT NULL
+                      AND ( (q.owner_id = :uid AND q.created_at >= :s AND q.created_at < :e)
+                         OR (q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e) )
+            ) pp
+            JOIN projects pr ON pp.project_id = pr.id
+            WHERE pr.owner_id IS NOT NULL
+        ),
         ql AS (
             SELECT COUNT(*) AS total,
-                   COUNT(*) FILTER (WHERE pr.current_stage IN ('awarded','quoted','signed')) AS won
+                   COUNT(*) FILTER (WHERE pr.current_stage = 'signed') AS won
             FROM quotations q LEFT JOIN projects pr ON q.project_id = pr.id
             WHERE q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e
         ),
@@ -548,25 +591,25 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
             JOIN se_projects sp ON po.project_id = sp.project_id
             WHERE po.status = 'approved' AND po.approved_at >= :s AND po.approved_at < :e
         )
-        SELECT c.cnt, c.sup, ql.total, ql.won, im.amt AS implant, sa.amt AS sales
-        FROM c, ql, im, sa
+        SELECT c.cnt, spt.sup AS sup, ql.total, ql.won, im.amt AS implant, sa.amt AS sales
+        FROM c, spt, ql, im, sa
     """)
 
     def _win(s, e):
         r = db.session.execute(_SE_SQL, {'uid': user.id, 's': s, 'e': e}).fetchone()
         quality = round(r.won * 100.0 / r.total, 1) if (r.total or 0) > 0 else 0
-        return {'confirm': int(r.cnt or 0), 'support': int(r.sup or 0),
-                'quality': quality, 'implant': float(r.implant or 0), 'sales': float(r.sales or 0)}
+        training = _act_hr_task_count(user, s, e, 'se_tech_training')  # 技术培训任务完成数
+        return {'support': int(r.sup or 0), 'quality': quality,
+                'implant': float(r.implant or 0), 'training': int(training or 0)}
 
     a, p = _win(start, end), _win(prev_start, prev_end)
 
-    # 方案五项(顺序与岗位方案一致);target=0 视为该项未配置
+    # 方案四项(顺序与岗位方案一致);target=0 视为该项未配置
     spec = [
-        ('se_confirm_count_target',   f'{label_prefix}报价确认', a['confirm'], p['confirm'], ' 单',  'var(--accent)'),
-        ('se_implant_amount_target',  f'{label_prefix}植入额',   a['implant'], p['implant'], cur,    'var(--success)'),
-        ('se_confirm_quality_target', f'{label_prefix}确认质量', a['quality'], p['quality'], '%',    'var(--info)'),
-        ('se_sales_support_target',   f'{label_prefix}销售支持', a['support'], p['support'], ' 人',  'var(--warn)'),
-        ('se_sales_amount_target',    f'{label_prefix}销售额',   a['sales'],   p['sales'],   cur,    'var(--accent)'),
+        ('se_implant_amount_target',  f'{label_prefix}植入额',       a['implant'],  p['implant'],  cur,   'var(--success)'),
+        ('se_confirm_quality_target', f'{label_prefix}确认质量',     a['quality'],  p['quality'],  '%',   'var(--info)'),
+        ('se_sales_support_target',   f'{label_prefix}销售配合广度', a['support'],  p['support'],  ' 人', 'var(--warn)'),
+        ('se_training_count_target',  f'{label_prefix}技术培训',     a['training'], p['training'], ' 次', 'var(--accent)'),
     ]
     items = []
     for key, label, val, prev, unit, tone in spec:
@@ -715,13 +758,29 @@ _SE_WINDOW_SQL = """
         ) sp
     ),
     c AS (
-        SELECT COUNT(*) AS cnt, COUNT(DISTINCT owner_id) AS sup
+        SELECT COUNT(*) AS cnt
         FROM quotations
         WHERE confirmed_by = :uid AND confirmed_at >= :s AND confirmed_at < :e
     ),
+    spt AS (
+        -- 销售配合广度 项目参与=系统设计 + 报价制作/确认 触达的项目,项目 owner 去重
+        SELECT COUNT(DISTINCT pr.owner_id) AS sup
+        FROM (
+            SELECT sd.project_id FROM system_diagrams sd
+                WHERE sd.owner_id = :uid AND sd.is_deleted = false
+                  AND sd.updated_at >= :s AND sd.updated_at < :e
+            UNION
+            SELECT q.project_id FROM quotations q
+                WHERE q.project_id IS NOT NULL
+                  AND ( (q.owner_id = :uid AND q.created_at >= :s AND q.created_at < :e)
+                     OR (q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e) )
+        ) pp
+        JOIN projects pr ON pp.project_id = pr.id
+        WHERE pr.owner_id IS NOT NULL
+    ),
     ql AS (
         SELECT COUNT(*) AS total,
-               COUNT(*) FILTER (WHERE pr.current_stage IN ('awarded','quoted','signed')) AS won
+               COUNT(*) FILTER (WHERE pr.current_stage = 'signed') AS won
         FROM quotations q LEFT JOIN projects pr ON q.project_id = pr.id
         WHERE q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e
     ),
@@ -739,8 +798,8 @@ _SE_WINDOW_SQL = """
         JOIN se_projects sp ON po.project_id = sp.project_id
         WHERE po.status = 'approved' AND po.approved_at >= :s AND po.approved_at < :e
     )
-    SELECT c.cnt, c.sup, ql.total, ql.won, im.amt AS implant, sa.amt AS sales
-    FROM c, ql, im, sa
+    SELECT c.cnt, spt.sup AS sup, ql.total, ql.won, im.amt AS implant, sa.amt AS sales
+    FROM c, spt, ql, im, sa
 """
 
 def _se_window(user, s, e, _cache={}):
@@ -858,16 +917,18 @@ _KPI_ACTUAL_FNS = {
     'se_confirm_quality': _act_se('se_confirm_quality'),
     'se_implant_amount':  _act_se('se_implant_amount'),
     'se_sales_amount':    _act_se('se_sales_amount'),
-    'se_training_count':  _act_manual('se_training_count'),
+    'se_training_count':  lambda u, s, e: _act_hr_task_count(u, s, e, 'se_tech_training'),  # 技术培训:任务完成计数
     'se_content_output':  _act_manual('se_content_output'),
     'se_response_rate':   _act_manual('se_response_rate', agg='avg'),
     'se_satisfaction':    _act_manual('se_satisfaction', agg='avg'),
     'customer_activity_rate':     None,   # 下方注册(快照型)
     'project_activity_rate':      _act_project_activity(team=False),
     'team_project_activity_rate': _act_project_activity(team=True),
-    'pm_dev_rate':        _act_manual('pm_dev_rate', agg='avg'),
-    'pm_quality_rate':    _act_manual('pm_quality_rate', agg='avg'),
-    'pm_support_count':   _act_manual('pm_support_count'),
+    # 研发计划达成/质量处理:完成且审核通过的研发/质量任务计数(达成率=完成÷目标)
+    'pm_dev_rate':        lambda u, s, e: _act_task_count_reviewed(u, s, e, 'pm_rd'),
+    'pm_quality_rate':    lambda u, s, e: _act_task_count_reviewed(u, s, e, 'pm_quality'),
+    # 上市支持:完成且审核通过的上市支持任务,按三档评价加权求和
+    'pm_support_count':   lambda u, s, e: _act_task_count_reviewed(u, s, e, 'pm_launch_support'),
     'pm_new_launch':      None,   # 下方注册(自动)
     'pm_sales_amount':    None,   # 占位,下方注册(需 SQL)
     # 未注册(快照/口径未定):customer_activity_rate / high_price_amount → actual 0
@@ -1223,17 +1284,8 @@ def _act_team_pass_rate(user, s, e):
 
 
 def _act_hr_recruit_count(user, s, e):
-    """招聘到岗次数:本人(assignee)审核通过的 hr_recruit 任务,按 completed_at 落窗口。"""
-    from app.models.task import Task
-    return Task.query.filter(
-        Task.assignee_id == user.id,
-        Task.task_type == 'hr_recruit',
-        Task.review_status == 'approved',
-        Task.is_deleted == False,
-        Task.completed_at.isnot(None),
-        Task.completed_at >= s,
-        Task.completed_at < e,
-    ).count()
+    """招聘到岗:本人(assignee)审核通过的 hr_recruit 任务,按三档评价加权求和。"""
+    return _act_task_count_reviewed(user, s, e, 'hr_recruit')
 
 
 def _act_hr_training_count(user, s, e):
@@ -1251,7 +1303,7 @@ def _act_hr_training_count(user, s, e):
 
 
 def _act_hr_task_count(user, s, e, _task_type):
-    """通用:本人(assignee)已完成的某类 HR 任务计数(完成即计)。"""
+    """通用:本人(assignee)已完成的某类任务计数(完成即计)。"""
     from app.models.task import Task
     return Task.query.filter(
         Task.assignee_id == user.id,
@@ -1262,6 +1314,25 @@ def _act_hr_task_count(user, s, e, _task_type):
         Task.completed_at >= s,
         Task.completed_at < e,
     ).count()
+
+
+def _act_task_count_reviewed(user, s, e, _task_type):
+    """通用:本人(assignee)完成且审核通过的某类任务,按三档评价加权求和。
+    review_score: 低于预期0.5/符合1/超出1.5;旧数据无评价兜底 1.0。"""
+    from sqlalchemy import func
+    from app.models.task import Task
+    total = Task.query.with_entities(
+        func.coalesce(func.sum(func.coalesce(Task.review_score, 1.0)), 0.0)
+    ).filter(
+        Task.assignee_id == user.id,
+        Task.task_type == _task_type,
+        Task.review_status == 'approved',
+        Task.is_deleted == False,
+        Task.completed_at.isnot(None),
+        Task.completed_at >= s,
+        Task.completed_at < e,
+    ).scalar()
+    return round(float(total or 0), 2)
 
 
 def _act_hr_team_build_count(user, s, e):
@@ -1302,8 +1373,7 @@ _KPI_RATE_CODES = {'customer_activity_rate', 'se_response_rate', 'se_confirm_qua
                    'project_activity_rate', 'team_project_activity_rate', 'team_customer_activity_rate',
                    'team_pass_rate',
                    'fail_rate', 'team_fail_rate',
-                   'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate',
-                   'pm_dev_rate', 'pm_quality_rate'}
+                   'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate'}
 
 
 def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):

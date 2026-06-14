@@ -866,7 +866,7 @@ def review_task(id):
         from app.services import task_service
         try:
             t, msg_text = task_service.review_task(
-                current_user, t, data.get('action'), data.get('comment'))
+                current_user, t, data.get('action'), data.get('comment'), data.get('rating'))
         except ValueError as ve:
             return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': msg_text, 'data': t.to_dict()})

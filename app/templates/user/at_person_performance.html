@@ -289,18 +289,20 @@
         const v = it.monthly_targets[String(m)];
         if (v != null && v !== '') monthly[String(m)] = parseFloat(v) || 0;
       }
+      // 积分制:无周期目标,粒度选择(年/季/月)直接由 gran 持久化到 enable 标志
+      const _cum = it.scoring_mode === 'cumulative';
       return {
         item_code: it.item_code,
         enabled: true,
         weight: (it.weight == null || it.weight === '') ? null : parseFloat(it.weight),
         annual_target: (it.annual_target == null || it.annual_target === '') ? null : parseFloat(it.annual_target),
-        enable_quarterly: !isM && [1,2,3,4].some(q => it['q'+q+'_target'] != null && it['q'+q+'_target'] !== ''),
-        q1_target: !isM ? (it.q1_target ?? null) : null,
-        q2_target: !isM ? (it.q2_target ?? null) : null,
-        q3_target: !isM ? (it.q3_target ?? null) : null,
-        q4_target: !isM ? (it.q4_target ?? null) : null,
-        enable_monthly: isM && Object.keys(monthly).length > 0,
-        monthly_targets: (isM && Object.keys(monthly).length) ? monthly : null,
+        enable_quarterly: _cum ? (it.gran === 'Q') : (!isM && [1,2,3,4].some(q => it['q'+q+'_target'] != null && it['q'+q+'_target'] !== '')),
+        q1_target: (!_cum && !isM) ? (it.q1_target ?? null) : null,
+        q2_target: (!_cum && !isM) ? (it.q2_target ?? null) : null,
+        q3_target: (!_cum && !isM) ? (it.q3_target ?? null) : null,
+        q4_target: (!_cum && !isM) ? (it.q4_target ?? null) : null,
+        enable_monthly: _cum ? (it.gran === 'M') : (isM && Object.keys(monthly).length > 0),
+        monthly_targets: (!_cum && isM && Object.keys(monthly).length) ? monthly : null,
       };
     });
     try {

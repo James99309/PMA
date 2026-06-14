@@ -1041,6 +1041,7 @@ def api_get_role_targets(role_code, year):
                 'item_name': item['name'],
                 'unit': item['unit'],
                 'data_type': item['data_type'],
+                'scoring_mode': item.get('scoring_mode', 'target'),
                 'description': item.get('description', ''),
                 'enabled': (target is not None) or bool(scheme),
                 'locked': bool(scheme),
@@ -1448,6 +1449,7 @@ def initialize_default_metrics():
 def get_preset_performance_items():
     """获取绩效项目列表（从数据库读取，支持动态配置）"""
     from app.models.performance_config import PerformanceMetricsDefinition
+    from app.helpers.scoring_modes import default_scoring_mode as _sm_default
 
     unit_config = get_performance_unit_config()
     amount_unit = unit_config['amount_unit']
@@ -1516,6 +1518,7 @@ def get_preset_performance_items():
             'name': m.metric_name,
             'unit': unit,
             'data_type': m.data_type,
+            'scoring_mode': (m.scoring_mode or _sm_default(m.metric_code)),
             'description': m.description or '',
             'icon': icon,
             'category': m.metric_category or '其他',
@@ -2036,6 +2039,8 @@ def create_performance_item_from_template_v2(role_config, template, scope_users,
 def api_get_user_targets(user_id, year):
     """获取用户的年度绩效目标配置（包含角色默认值和个人覆盖）"""
     try:
+        if not _can_read_person_perf(user_id, year):
+            return jsonify({'success': False, 'message': '无权限'}), 403
         logger.info(f"=== API: 获取用户目标配置 user_id={user_id}, year={year} ===")
 
         # 获取用户信息
@@ -2153,6 +2158,8 @@ def api_get_user_targets(user_id, year):
 def api_save_user_targets(user_id, year):
     """保存用户的年度绩效目标覆盖配置"""
     try:
+        if not can_access_person_tab(user_id, 'pc_performance', need_edit=True):
+            return jsonify({'success': False, 'message': '无权限'}), 403
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'message': '请求数据为空'})
@@ -2256,6 +2263,8 @@ def api_save_user_targets(user_id, year):
 def api_clear_user_targets(user_id, year):
     """清除用户的所有个人覆盖配置，恢复使用角色默认值"""
     try:
+        if not can_access_person_tab(user_id, 'pc_performance', need_edit=True):
+            return jsonify({'success': False, 'message': '无权限'}), 403
         logger.info(f"=== API: 清除用户目标覆盖 user_id={user_id}, year={year} ===")
 
         # 获取用户信息
@@ -2348,11 +2357,10 @@ def api_batch_user_targets():
                 if any(uid not in scope for uid in user_ids):
                     return jsonify({'success': False, 'message': '只能查看你负责部门的成员绩效'}), 403
                 return _batch_get_user_targets(user_ids, year)
-            _has_view = (current_user.has_permission('config_management', 'view')
-                         or current_user.has_permission('user_management', 'view'))
-            if not _has_view:
-                if not (len(user_ids) == 1 and _can_read_person_perf(user_ids[0], year)):
-                    return jsonify({'success': False, 'message': '无权限'}), 403
+            # 非 HRBP:逐人按数据范围校验(_can_read_person_perf 已含 person_config /
+            # config_management / user_management 各自 scope 的兜底,personal 不能越权看他人)
+            if any(not _can_read_person_perf(uid, year) for uid in user_ids):
+                return jsonify({'success': False, 'message': '无权限'}), 403
             return _batch_get_user_targets(user_ids, year)
 
     except Exception as e:
@@ -2489,6 +2497,7 @@ def _batch_get_user_targets(user_ids, year):
             'item_name': item['name'],
             'unit': item['unit'],
             'data_type': item['data_type'],
+            'scoring_mode': item.get('scoring_mode', 'target'),
             'description': item.get('description', ''),
             'enabled': any(enabled_states),
             'annual_target': get_common_value(annual_targets),
@@ -2757,9 +2766,10 @@ def _can_read_person_perf(user_id, year=None):
             return in_hrbp_scope(current_user, tgt)
         if tgt and current_user.can_view_person(tgt, 'person_config'):
             return True
-        if (current_user.has_permission('config_management', 'view')
-                or current_user.has_permission('user_management', 'view')):
-            return True
+        # 兼容旧 config/user_management view —— 但须遵守该模块数据范围(personal 不能越权看他人)
+        for _m in ('config_management', 'user_management'):
+            if current_user.has_permission(_m, 'view') and tgt and current_user.can_view_person(tgt, _m):
+                return True
         from app.helpers.perf_settlement_helpers import is_settlement_approver_of
         return is_settlement_approver_of(current_user.id, user_id)
     except Exception:

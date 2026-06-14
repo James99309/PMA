@@ -17,12 +17,15 @@
 # 销售个人方案(销售经理/客户销售共用)与团队管理方案(营销总监/服务经理共用)
 # 在 dict 尾部以同一列表引用挂载多角色,调整一处全部生效。
 ROLE_KPI_SCHEMES = {
+    # 解决方案经理(2026-06-14 重定义,4 项):
+    #   植入额(现有) / 确认质量=进入签约占比(仅 signed) /
+    #   销售配合广度=项目参与去重(系统设计+报价制作/确认 触达项目 → 项目 owner 去重) /
+    #   技术培训=完成的"技术培训"任务计数。去掉报价确认量(与质量分母冗余)、方案批价额(与确认质量重叠)。
     'solution_manager': [
-        {'item_code': 'se_confirm_count',   'weight': 30, 'default_annual': 240},
-        {'item_code': 'se_implant_amount',  'weight': 30, 'default_annual': 12000},
-        {'item_code': 'se_confirm_quality', 'weight': 15, 'default_annual': 30},
-        {'item_code': 'se_sales_support',   'weight': 15, 'default_annual': 60},
-        {'item_code': 'se_sales_amount',    'weight': 10, 'default_annual': 2000},
+        {'item_code': 'se_implant_amount',  'weight': 35, 'default_annual': 12000},
+        {'item_code': 'se_confirm_quality', 'weight': 30, 'default_annual': 30},
+        {'item_code': 'se_sales_support',   'weight': 20, 'default_annual': 20},
+        {'item_code': 'se_training_count',  'weight': 15, 'default_annual': 12},
     ],
     # 销售经理(2026-06-12 与用户确认固化):
     # 销售目标(批价)/植入额/新增客户/新增项目/客户活跃度/项目活跃度(共 6 项);
@@ -57,12 +60,14 @@ ROLE_KPI_SCHEMES['customer_sales'] = ROLE_KPI_SCHEMES['sales_manager']
 ROLE_KPI_SCHEMES['service_manager'] = ROLE_KPI_SCHEMES['sales_director']
 
 # 产品经理(2026-06-13 确认):植入为结果共享项(落地是解决方案功劳,权重压至30);
-# 研发计划/批次质量/上市支持为手工月度录入(PerformanceManualEntry,可附凭证);
-# 新品上市自动统计;不考批价额。
+# 研发计划达成/质量处理/上市支持(2026-06-14 改任务驱动):
+#   研发任务(pm_rd)/质量任务(pm_quality) 完成且审核通过才计;上市支持(pm_launch_support) 完成即计。
+#   研发/质量由"率%"改"计数",达成率=完成÷目标(计划数);default_annual 给参考计划数,配置页可调。
+# 植入额/新品上市自动统计;不考批价额。
 ROLE_KPI_SCHEMES['product_manager'] = [
     {'item_code': 'pm_implant_amount', 'weight': 30, 'default_annual': None},
-    {'item_code': 'pm_dev_rate',       'weight': 25, 'default_annual': 90},
-    {'item_code': 'pm_quality_rate',   'weight': 20, 'default_annual': 98},
+    {'item_code': 'pm_dev_rate',       'weight': 25, 'default_annual': 12},
+    {'item_code': 'pm_quality_rate',   'weight': 20, 'default_annual': 12},
     {'item_code': 'pm_new_launch',     'weight': 15, 'default_annual': None},
     {'item_code': 'pm_support_count',  'weight': 10, 'default_annual': None},
 ]

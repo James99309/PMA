@@ -353,12 +353,12 @@ function taskManagement() {
             }
         },
 
-        async submitTaskReview(action, comment) {
+        async submitTaskReview(action, comment, rating) {
             try {
                 const res = await fetch('/task/api/' + this.selectedTaskId + '/review', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action, comment: comment || '' }),
+                    body: JSON.stringify({ action, comment: comment || '', rating: rating || '' }),
                 });
                 const data = await res.json();
                 if (data.success) {

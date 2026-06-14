@@ -18,6 +18,7 @@ class PerformanceMetricsDefinition(db.Model):
     metric_name = Column(String(100), nullable=False)
     metric_category = Column(String(50), default='custom')
     data_type = Column(String(20), nullable=False)  # amount, count, percentage, score
+    scoring_mode = Column(String(20), nullable=True)  # target(默认)/inverse/cumulative;NULL 走代码兜底
     default_unit = Column(String(20))
     description = Column(Text)
     available_sources = Column(JSON)  # 可用数据源配置
@@ -40,6 +41,7 @@ class PerformanceMetricsDefinition(db.Model):
             'metric_name': self.metric_name,
             'metric_category': self.metric_category,
             'data_type': self.data_type,
+            'scoring_mode': self.scoring_mode,
             'default_unit': self.default_unit,
             'description': self.description,
             'available_sources': self.available_sources,

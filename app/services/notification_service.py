@@ -59,6 +59,26 @@ def notify_task_assigned(actor_id, recipient_id, task):
         logger.warning(f"notify_task_assigned 失败: {e}")
 
 
+def notify_task_review_request(actor_id, recipient_id, task):
+    """任务提交待审核 → 通知审计人(独立类型/文案,区别于普通任务指派;站内 + 站外推送)。"""
+    if not recipient_id or recipient_id == actor_id:
+        return
+    try:
+        from app.models.user import User
+        from app.models.message import Message
+        actor = User.query.get(actor_id)
+        nm = (actor.real_name or actor.username) if actor else '有人'
+        title = f'{nm} 提交了任务，待你审核'
+        content = getattr(task, 'title', '') or ''
+        db.session.add(Message(
+            sender_id=actor_id, recipient_id=recipient_id,
+            message_type='task_review_request', title=title, content=content,
+            related_object_type='task', related_object_id=getattr(task, 'id', None)))
+        _push(recipient_id, title, content, getattr(task, 'id', None))
+    except Exception as e:
+        logger.warning(f"notify_task_review_request 失败: {e}")
+
+
 def notify_task_completed(actor_id, recipient_id, task):
     """任务完成/审核结果 → 通知接收人(站内 Message + 站外推送)。"""
     if not recipient_id or recipient_id == actor_id:

@@ -30,6 +30,16 @@ def in_hrbp_scope(hrbp, target):
     return (target.department or '', target.company_name or '') in keys
 
 
+def hrbp_denies(actor, target_user_id):
+    """HRBP 越权拦截:actor 是 HRBP 且 target 不在其负责部门 → True(应拒)。
+    非 HRBP 一律返回 False(不拦,沿用各端点原有权限/范围)。
+    供个人配置类数据 API(权限/归属/绩效等)统一兜底,只收紧 HRBP,不影响 admin/配置管理矩阵。"""
+    if not is_hrbp(actor):
+        return False
+    from app.models.user import User
+    return not in_hrbp_scope(actor, User.query.get(target_user_id))
+
+
 def hrbp_scope_user_ids(hrbp):
     """该 HRBP 绩效/薪资可见的员工 id 集合(本人 + 负责部门在职成员)。"""
     from app.models.user import User

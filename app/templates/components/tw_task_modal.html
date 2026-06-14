@@ -15,6 +15,8 @@
 =============================================================================
 #}
 
+{% from 'components/tw_grouped_select.html' import tw_grouped_select_input with context %}
+
 {# ========== 通用可搜索用户选择器宏 ========== #}
 {# 用法: {{ render_user_search_picker(ref='xxx', ...) }}
    ref: x-ref 名，同一页面多个选择器时需唯一
@@ -83,12 +85,53 @@
         </div>
         <!-- 表单 -->
         <div class="flex-1 overflow-y-auto px-5 py-3 space-y-3">
-            <!-- 标题 -->
+            {# 标题:有岗位类型时用[类型 ▾]-[名称]组合;否则普通标题输入 #}
+            {% set _position_types = available_task_types | selectattr('group', 'equalto', 'position') | list %}
             <div>
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('任务标题') }} <span class="text-red-500">*</span></label>
+                {% if _position_types %}
+                {# 扁平类型选择(一级,无分组):[类型 ▾] - [名称] 组合 #}
+                <div class="relative">
+                    <div class="flex items-center h-10 rounded-lg border transition-colors border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary"
+                         :class="groupedSelect.showMenu ? 'ring-2 ring-primary/50 border-primary' : ''">
+                        <button type="button" @click="toggleGroupedMenu()"
+                                @keydown.escape="groupedSelect.showMenu = false"
+                                class="flex items-center gap-1.5 h-full pl-3 pr-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-l-lg transition-colors shrink-0 focus:outline-none">
+                            <span x-text="getGroupedSelectLabel()" class="font-medium"></span>
+                            <svg class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200" :class="groupedSelect.showMenu ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <span class="text-slate-400 dark:text-slate-500 select-none px-0.5">-</span>
+                        <input type="text" x-model="groupedSelect.inputContent" required
+                               class="flex-1 h-full bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-0 focus:outline-none pr-3"
+                               placeholder="{{ _('输入任务标题') }}">
+                    </div>
+                    <div x-show="groupedSelect.showMenu" x-cloak
+                         @click.outside="groupedSelect.showMenu = false"
+                         @keydown.escape.window="groupedSelect.showMenu = false"
+                         class="absolute left-0 top-full mt-1 w-56 max-h-72 overflow-y-auto bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-50">
+                        <div class="py-1">
+                            {% for t in available_task_types %}
+                            <button type="button" @click="selectGroupedItem('{{ t.code }}')"
+                                    class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-primary/10 dark:hover:bg-primary/20 transition-colors"
+                                    :class="groupedSelect.selectedValue === '{{ t.code }}' ? 'bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-light font-medium' : ''">
+                                <span class="w-4 flex justify-center">
+                                    <svg x-show="groupedSelect.selectedValue === '{{ t.code }}'" class="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </span>
+                                <span>{{ _(t.label) }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% else %}
                 <input type="text" x-model="form.title" maxlength="200"
                        class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary"
                        :placeholder="'{{ _('输入任务标题') }}'">
+                {% endif %}
             </div>
             <!-- 指派人 -->
             <div>
@@ -147,11 +190,13 @@
                            class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
                 </div>
             </div>
-            <!-- 审计对象（可选，多选会审） -->
+            <!-- 审计对象（多选会审；需审计类型必填） -->
             <div>
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     {{ _('审计对象') }}
-                    <span class="text-xs font-normal text-slate-400 ml-1">{{ _('可选，多人并行会审') }}</span>
+                    <span x-show="currentTypeNeedsReview" class="text-red-500">*</span>
+                    <span class="text-xs font-normal text-slate-400 ml-1"
+                          x-text="currentTypeNeedsReview ? '{{ _('该类型需审核通过才计入考核，必须指定审计对象') }}' : '{{ _('可选，多人并行会审') }}'"></span>
                 </label>
                 <div class="relative" x-ref="reviewerDropArea">
                     <div class="flex flex-wrap items-center gap-1 min-h-[34px] px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 focus-within:ring-2 focus-within:ring-amber-400/50 focus-within:border-amber-400">
@@ -187,8 +232,8 @@
                           class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary resize-y"
                           :placeholder="'{{ _('任务描述（可选）') }}'"></textarea>
             </div>
-            <!-- 关联项目/报价单 - 折叠区 -->
-            <div>
+            <!-- 关联项目/报价单 - 折叠区(仅业务类任务显示) -->
+            <div x-show="currentTypeAllowsLink">
                 <label class="inline-flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-300">
                     <input type="checkbox" x-model="showProjectSection" @change="if(!showProjectSection) clearProject()"
                            class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50">
@@ -387,15 +432,62 @@ function taskCreateModal() {
         showProjectDropdown: false,
         quotationOptions: [],
         pendingFiles: [],
+        // 标题分组下拉(类型-名称组合):仅当用户有岗位类型时渲染
+        taskTypeLabels: {{ task_type_labels_map | tojson }},
+        reviewRequiredCodes: {{ task_type_review_codes | tojson }},
+        noLinkCodes: {{ task_type_nolink_codes | tojson }},
+        groupedSelect: { selectedValue: 'general', inputContent: '', showMenu: false, expandedGroups: [] },
+        get useGroupedTitle() { return Object.keys(this.taskTypeLabels).length > 1; },
+        get currentType() { return this.useGroupedTitle ? this.groupedSelect.selectedValue : (this.form.task_type || 'general'); },
+        get currentTypeNeedsReview() { return this.reviewRequiredCodes.includes(this.currentType); },
+        get currentTypeAllowsLink() { return !this.noLinkCodes.includes(this.currentType); },
         form: {
             title: '',
             description: '',
             priority: 'normal',
+            task_type: 'general',
             start_date: '',
             due_date: '',
             project_id: null,
             quotation_id: '',
             customer_id: null,
+        },
+
+        // ===== 标题分组下拉方法(复用 tw_grouped_select 宏的接口) =====
+        toggleGroupedMenu() {
+            this.groupedSelect.showMenu = !this.groupedSelect.showMenu;
+            if (this.groupedSelect.showMenu && this.groupedSelect.selectedValue) {
+                this.expandGroupedForValue(this.groupedSelect.selectedValue);
+            }
+        },
+        toggleGroupedGroup(key) {
+            const i = this.groupedSelect.expandedGroups.indexOf(key);
+            if (i > -1) this.groupedSelect.expandedGroups.splice(i, 1);
+            else this.groupedSelect.expandedGroups = [key];
+        },
+        selectGroupedItem(value) {
+            this.groupedSelect.selectedValue = value;
+            this.groupedSelect.showMenu = false;
+            // 切到不可关联业务的类型 → 收起并清空项目/报价单关联
+            if (this.noLinkCodes.includes(value)) {
+                this.showProjectSection = false;
+                if (this.clearProject) this.clearProject();
+            }
+        },
+        getGroupedSelectLabel() {
+            return this.taskTypeLabels[this.groupedSelect.selectedValue] || this.groupedSelect.selectedValue || '';
+        },
+        expandGroupedForValue(value) {
+            // group key 形如 'daily:日常' / 'position:人事',按当前用户分组数据展开
+            const groups = {{ available_task_type_groups | tojson }};
+            for (const g of groups) {
+                if (g.options.some(o => o.value === value)) {
+                    if (!this.groupedSelect.expandedGroups.includes(g.key)) {
+                        this.groupedSelect.expandedGroups.push(g.key);
+                    }
+                    break;
+                }
+            }
         },
 
         init() {
@@ -452,6 +544,12 @@ function taskCreateModal() {
                 this.form.title = t.title || '';
                 this.form.description = t.description || '';
                 this.form.priority = t.priority || 'normal';
+                this.form.task_type = t.task_type || 'general';
+                if (this.useGroupedTitle) {
+                    this.groupedSelect.selectedValue = t.task_type || 'general';
+                    this.groupedSelect.inputContent = t.title || '';
+                    this.expandGroupedForValue(this.groupedSelect.selectedValue);
+                }
                 this.form.start_date = t.start_date ? t.start_date.slice(0, 10) : '';
                 // datetime-local 需要 'YYYY-MM-DDTHH:mm'
                 this.form.due_date = t.due_date ? t.due_date.slice(0, 16) : '';
@@ -514,7 +612,8 @@ function taskCreateModal() {
             const today = new Date();
             const defaultStart = today.getFullYear() + '-' + pad(today.getMonth()+1) + '-' + pad(today.getDate());
             this.editingTaskId = null;
-            this.form = { title: '', description: '', priority: 'normal', start_date: defaultStart, due_date: defaultDue, project_id: null, quotation_id: '', customer_id: null };
+            this.form = { title: '', description: '', priority: 'normal', task_type: 'general', start_date: defaultStart, due_date: defaultDue, project_id: null, quotation_id: '', customer_id: null };
+            this.groupedSelect = { selectedValue: 'general', inputContent: '', showMenu: false, expandedGroups: [] };
             this.userSearch = '';
             this.selectedUsers = [];
             this.reviewerSearch = '';
@@ -634,12 +733,21 @@ function taskCreateModal() {
         },
 
         async submit() {
+            // 组合标题模式:同步 类型→task_type、内容→title
+            if (this.useGroupedTitle) {
+                this.form.task_type = this.groupedSelect.selectedValue || 'general';
+                this.form.title = (this.groupedSelect.inputContent || '').trim();
+            }
             if (!this.form.title.trim()) {
                 if (window.showToast) window.showToast('{{ _("请输入任务标题") }}', 'error');
                 return;
             }
             if (this.selectedUsers.length === 0) {
                 if (window.showToast) window.showToast('{{ _("请选择指派人") }}', 'error');
+                return;
+            }
+            if (this.currentTypeNeedsReview && this.selectedReviewers.length === 0) {
+                if (window.showToast) window.showToast('{{ _("该任务类型需审核通过才计入考核，请指定审计对象") }}', 'error');
                 return;
             }
             this.submitting = true;

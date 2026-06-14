@@ -147,9 +147,38 @@ class PerformanceDashboardService:
                         yearly_stats[i].se_sales_support_actual = getattr(rs, 'se_sales_support_actual', 0)
                         yearly_stats[i].se_confirm_quality_actual = getattr(rs, 'se_confirm_quality_actual', 0)
 
+            # 技术培训(2026-06-14):se_training_count 改为"技术培训"任务完成数(按月),替代手工录入
+            if configured_items and 'se_training_count' in configured_set:
+                from app.helpers.at_dashboard_helpers import _act_hr_task_count
+                from datetime import date as _date
+                _u = User.query.get(user_id)
+                for i in range(12):
+                    m = i + 1
+                    s = _date(year, m, 1)
+                    e = _date(year + 1, 1, 1) if m == 12 else _date(year, m + 1, 1)
+                    if i < len(yearly_stats):
+                        yearly_stats[i].se_training_count_actual = _act_hr_task_count(_u, s, e, 'se_tech_training')
+
+            # 产品经理(2026-06-14):研发计划达成/质量处理/上市支持 改任务驱动 + 新品上市自动,
+            # 统一复用 _KPI_ACTUAL_FNS 按月计算(单一来源),让本路径与 AT 看板口径一致
+            _pm_auto_codes = {'pm_dev_rate', 'pm_quality_rate', 'pm_support_count', 'pm_new_launch'} & configured_set
+            if configured_items and _pm_auto_codes:
+                from app.helpers.at_dashboard_helpers import _KPI_ACTUAL_FNS
+                from datetime import date as _date
+                _u = User.query.get(user_id)
+                for code in _pm_auto_codes:
+                    fn = _KPI_ACTUAL_FNS.get(code)
+                    if not fn:
+                        continue
+                    for i in range(12):
+                        m = i + 1
+                        s = _date(year, m, 1)
+                        e = _date(year + 1, 1, 1) if m == 12 else _date(year, m + 1, 1)
+                        if i < len(yearly_stats):
+                            setattr(yearly_stats[i], f'{code}_actual', fn(_u, s, e))
+
             # 从手工录入表加载辅助指标（替代自动采集）
-            manual_codes = {'se_response_rate', 'se_training_count', 'se_content_output', 'se_satisfaction',
-                            'pm_dev_rate', 'pm_quality_rate', 'pm_support_count'}
+            manual_codes = {'se_response_rate', 'se_content_output', 'se_satisfaction'}
             if configured_items and manual_codes & configured_set:
                 from app.models.performance_manual_entry import PerformanceManualEntry
                 entries = PerformanceManualEntry.query.filter_by(
@@ -1364,6 +1393,10 @@ class PerformanceDashboardService:
                 'new_projects': ('new_projects_actual', 'new_projects_target'),
                 'pm_implant_amount': ('pm_implant_amount_actual', 'pm_implant_amount_target'),
                 'pm_sales_amount': ('pm_sales_amount_actual', 'pm_sales_amount_target'),
+                'pm_dev_rate': ('pm_dev_rate_actual', 'pm_dev_rate_target'),
+                'pm_quality_rate': ('pm_quality_rate_actual', 'pm_quality_rate_target'),
+                'pm_support_count': ('pm_support_count_actual', 'pm_support_count_target'),
+                'pm_new_launch': ('pm_new_launch_actual', 'pm_new_launch_target'),
                 'se_implant_amount': ('se_implant_amount_actual', 'se_implant_amount_target'),
                 'se_sales_amount': ('se_sales_amount_actual', 'se_sales_amount_target'),
                 'se_response_rate': ('se_response_rate_actual', 'se_response_rate_target'),
@@ -1604,7 +1637,8 @@ class PerformanceDashboardService:
             'project_activity_rate', 'team_project_activity_rate',
             'team_customer_activity_rate', 'fail_rate', 'team_fail_rate',
             'channel_customer_activity_rate', 'channel_project_activity_rate', 'channel_fail_rate',
-            'pm_dev_rate', 'pm_quality_rate',
+            # 积分制:单项得分为水平值(不按月/季摊分)
+            'pm_quality_rate', 'pm_new_launch', 'pm_support_count',
         }
 
         targets_dict = {}
@@ -1972,6 +2006,12 @@ class PerformanceDashboardService:
                 'se_confirm_quality': 'se_confirm_quality',
             }
 
+            # 计分方式单一事实源(scoring_mode + data_type),供下方分支
+            from app.helpers.scoring_modes import (
+                load_metric_meta as _load_meta, scoring_mode_of as _scoring_mode_of,
+                is_avg_aggregated as _is_avg_aggregated)
+            _metric_meta = _load_meta()
+
             result = {}
             for quarter in range(1, 5):
                 start_month = (quarter - 1) * 3  # 0-indexed into goal_achievement list
@@ -1982,52 +2022,56 @@ class PerformanceDashboardService:
                 for item in items:
                     metric_code = code_mapping.get(item.item_code, item.item_code)
                     weight = float(item.weight or 0)
+                    mode = _scoring_mode_of(metric_code, _metric_meta)
+                    _dtype = (_metric_meta.get(metric_code) or {}).get('data_type')
+                    is_avg = _is_avg_aggregated(_dtype)   # 率/评分类跨期取平均
 
-                    # 汇总季度3个月的实际值和目标值
-                    q_actual = 0
-                    q_target = 0
+                    # 汇总季度3个月:累加实际/目标 + 记录水平目标(首个非零)与有数据月数
+                    q_actual_sum = 0.0
+                    q_target_sum = 0.0
+                    level_target = 0.0
+                    months_with_data = 0
                     for m_idx in range(start_month, min(start_month + 3, len(goal_achievement))):
-                        month_data = goal_achievement[m_idx].get(metric_code, {})
-                        q_actual += month_data.get('actual', 0) or 0
-                        q_target += month_data.get('target', 0) or 0
+                        md = goal_achievement[m_idx].get(metric_code, {})
+                        a = md.get('actual', 0) or 0
+                        t = md.get('target', 0) or 0
+                        q_actual_sum += a
+                        q_target_sum += t
+                        if a > 0:
+                            months_with_data += 1
+                        if t > 0 and level_target == 0:
+                            level_target = t
 
-                    # 百分比类指标取平均值而非累加
-                    is_percentage = metric_code in ('se_response_rate', 'customer_activity_rate', 'se_confirm_quality')
-                    is_score = metric_code in ('se_satisfaction',)
-                    if is_percentage or is_score:
-                        months_with_data = sum(
-                            1 for m_idx in range(start_month, min(start_month + 3, len(goal_achievement)))
-                            if (goal_achievement[m_idx].get(metric_code, {}).get('actual', 0) or 0) > 0
-                        )
-                        if months_with_data > 0:
-                            q_actual = q_actual / months_with_data
-                        q_target_vals = [
-                            goal_achievement[m_idx].get(metric_code, {}).get('target', 0) or 0
-                            for m_idx in range(start_month, min(start_month + 3, len(goal_achievement)))
-                        ]
-                        non_zero = [v for v in q_target_vals if v > 0]
-                        q_target = non_zero[0] if non_zero else 0  # 目标取第一个非零值
-
-                    # 无目标(该季未设/无计划)→ 整项剔除:不计入权重、不计分(与前端一致,不送分不扣分)
-                    if q_target <= 0:
-                        continue
-                    total_weight += weight
-
-                    # 计算达成率（封顶100%）;反向指标(失败率类):实际 ≤ 目标 = 满分
-                    _INVERSE_CODES = {'fail_rate', 'team_fail_rate', 'channel_fail_rate'}
-                    if metric_code in _INVERSE_CODES:
-                        achievement_rate = 100 if q_actual <= q_target else min(q_target / q_actual * 100, 100)
+                    if mode == 'cumulative':
+                        # 积分制:单项得分(水平值)× 实际累计,封顶权重;权重恒计入(不做=0分,不归一)
+                        per_unit = level_target if level_target > 0 else 1.0
+                        total_weight += weight
+                        weighted_score = min(q_actual_sum * per_unit, weight)
+                        achievement_rate = round(weighted_score / weight * 100, 1) if weight > 0 else 0
+                        q_actual, q_target = q_actual_sum, per_unit
                     else:
-                        achievement_rate = min(q_actual / q_target * 100, 100)
+                        # 目标制/反向:率类取平均,其余累加;无目标→整项剔除(不计权重,与前端一致)
+                        if is_avg:
+                            q_actual = (q_actual_sum / months_with_data) if months_with_data > 0 else 0
+                            q_target = level_target
+                        else:
+                            q_actual, q_target = q_actual_sum, q_target_sum
+                        if q_target <= 0:
+                            continue
+                        total_weight += weight
+                        if mode == 'inverse':
+                            achievement_rate = 100 if q_actual <= q_target else min(q_target / q_actual * 100, 100)
+                        else:
+                            achievement_rate = min(q_actual / q_target * 100, 100)
+                        weighted_score = achievement_rate * weight / 100
 
-                    # 加权得分
-                    weighted_score = achievement_rate * weight / 100
                     total_score += weighted_score
 
                     quarter_items.append({
                         'code': metric_code,
                         'name': item.item_name,
                         'weight': weight,
+                        'mode': mode,
                         'target': round(q_target, 2),
                         'actual': round(q_actual, 2),
                         'achievement_rate': round(achievement_rate, 1),

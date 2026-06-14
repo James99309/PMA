@@ -1145,6 +1145,10 @@ def api_batch_get_user_permissions():
         user_ids = data.get('user_ids', [])
         if not user_ids:
             return jsonify({'success': False, 'message': '请选择至少一个用户'}), 400
+        # HRBP 范围隔离:人事经理只能查看负责部门成员的权限
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if any(hrbp_denies(current_user, uid) for uid in user_ids):
+            return jsonify({'success': False, 'message': '只能查看你负责部门的成员权限'}), 403
 
         # 获取模块列表
         modules = get_ordered_modules()
@@ -1291,6 +1295,10 @@ def api_batch_save_user_permissions():
         users = User.query.filter(User.id.in_(user_ids)).all()
         if len(users) != len(user_ids):
             return jsonify({'success': False, 'message': '部分用户不存在'}), 400
+        # HRBP 范围隔离:人事经理只能批量配置负责部门的成员
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if any(hrbp_denies(current_user, uid) for uid in user_ids):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员权限'}), 403
 
         # 获取所有权限模块列表
         all_modules = get_all_modules()
@@ -1370,6 +1378,9 @@ def api_reset_user_permissions(user_id):
         user = User.query.get(user_id)
         if not user:
             return jsonify({'success': False, 'message': '用户不存在'}), 404
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员权限'}), 403
 
         # 删除该用户的所有个人权限
         deleted_count = Permission.query.filter_by(user_id=user_id).delete()
@@ -1411,6 +1422,10 @@ def api_save_user_permission_overrides(user_id):
         # 企业隔离:非 admin 只能写本公司用户
         if current_user.role != 'admin' and (user.company_name or '') != (current_user.company_name or ''):
             return jsonify({'success': False, 'message': '无权配置其他公司用户的权限'}), 403
+        # HRBP 范围隔离:人事经理只能配置负责部门的成员(只收紧 HRBP,不影响 admin/配置管理矩阵)
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员权限'}), 403
 
         data = request.get_json() or {}
         permissions_data = data.get('permissions', {})
@@ -1460,6 +1475,9 @@ def api_revert_user_permission_module(user_id, module):
         # 企业隔离:非 admin 只能操作本公司用户
         if current_user.role != 'admin' and (user.company_name or '') != (current_user.company_name or ''):
             return jsonify({'success': False, 'message': '无权操作其他公司用户的权限'}), 403
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员权限'}), 403
 
         deleted = Permission.query.filter_by(user_id=user_id, module=module).delete()
         db.session.commit()
