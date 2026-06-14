@@ -657,7 +657,8 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
             t_tone = ('var(--success)' if val >= TIERED_GOOD
                       else 'var(--info)' if val >= TIERED_PASS else 'var(--warn)')
             items.append(_kpi_item(label, val, 0, unit, prev, t_tone, as_float=True,
-                                   data_extra={'tier': tier, 'pct': round(tiered_achievement(val))}))
+                                   data_extra={'tier': tier, 'pct': round(tiered_achievement(val)),
+                                               'pass': int(TIERED_PASS), 'good': int(TIERED_GOOD), 'excellent': 7}))
             continue
         target = tsum.get(key, 0)
         _keep_float = unit == '%'   # 率类保留小数,其余取整
@@ -1544,7 +1545,8 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
             t_tone = ('var(--success)' if val >= _TG
                       else 'var(--info)' if val >= _TP else 'var(--warn)')
             items.append(_kpi_item(label, val, 0, unit, prev, t_tone, as_float=True,
-                                   data_extra={'tier': tier, 'pct': round(_tach(val))}))
+                                   data_extra={'tier': tier, 'pct': round(_tach(val)),
+                                               'pass': int(_TP), 'good': int(_TG), 'excellent': 7}))
             continue
         is_pct = (unit == '%')
         items.append(_kpi_item(label,
