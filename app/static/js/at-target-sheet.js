@@ -46,6 +46,15 @@
   const isRate = it => (it.unit === '%');
   // 积分制:单项得分(水平值)× 实际累计,封顶权重;无目标拆分,锁定为「单项」
   const isCumulative = it => (it.scoring_mode === 'cumulative');
+  // 固定档位制(植入品质):阈值写死,无目标输入,实际(均值)按及格/良好两线换算
+  const isTiered = it => (it.scoring_mode === 'tiered');
+  const TIERED_PASS = 3, TIERED_GOOD = 5;   // 及格→50% / 良好→100%(优秀7仅展示)
+  const tieredAch = v => {            // 返回 0~1 达成率
+    v = parseFloat(v) || 0;
+    if (v >= TIERED_GOOD) return 1;
+    if (v >= TIERED_PASS) return 0.5 + (v - TIERED_PASS) / (TIERED_GOOD - TIERED_PASS) * 0.5;
+    return TIERED_PASS > 0 ? (v / TIERED_PASS) * 0.5 : 0;
+  };
 
   function splitEven(total, n) {
     const base = Math.floor(total / n * 100) / 100;
@@ -122,6 +131,11 @@
         const actual = kind === 'y' ? a.y : (a.q || {})[idx];
         if (actual == null) return;   // 未开始期间不计入(任何计分方式通用)
         const sm = it.scoring_mode || 'target';
+        // 固定档位制:阈值写死,实际(均值)按及格/良好换算;无目标,权重恒计入
+        if (sm === 'tiered') {
+          sc += tieredAch(actual) * w; wsum += w;
+          return;
+        }
         // 积分制:单项得分(annual_target 视为水平值)× 实际累计,封顶权重;权重恒计入(不做=0分,不归一)
         if (sm === 'cumulative') {
           const perUnit = parseFloat(it.annual_target) || 1;
@@ -416,8 +430,10 @@
         const sum = isM ? mSum(it) : qSum(it);
         const filled = isM ? hasM(it) : hasQ(it);
         const _cum = isCumulative(it);
-        const bad = !_cum && it.gran !== 'Y' && !rate && filled && annual && sum - annual > 0.01;
-        const underAlloc = !_cum && it.gran !== 'Y' && !rate && annual > 0 && (annual - sum) > 0.01;
+        const _tier = isTiered(it);
+        const _noSplit = _cum || _tier;   // 积分制/固定档位:无目标拆分
+        const bad = !_noSplit && it.gran !== 'Y' && !rate && filled && annual && sum - annual > 0.01;
+        const underAlloc = !_noSplit && it.gran !== 'Y' && !rate && annual > 0 && (annual - sum) > 0.01;
         const badCls = bad ? 'cm-bad' : '';
         const dirtyBar = it._dirty ? 'box-shadow:inset 2px 0 0 var(--warn);' : '';
 
@@ -434,7 +450,22 @@
           </td>`;
         };
         let cells = '';
-        if (isCumulative(it)) {
+        if (_tier) {
+          // 固定档位制(植入品质):阈值写死,各期只读回显「实际均值」;得分按及格3/良好5换算。
+          const _av = (k, idx) => {
+            const a = actuals[it.item_code] || {};
+            const v = k === 'y' ? a.y : ((a[k] || {})[idx]);
+            return v != null ? (Math.round(v * 10) / 10) : '—';
+          };
+          const _ttl = '本期确认报价的植入品质均值(只读)·及格3→50% / 良好5→100% / 优秀7';
+          if (it.gran === 'Y') {
+            cells = `<td colspan="${periodCols}" class="at-dim" style="text-align:center;" title="${_ttl}">${_av('y', 0)}</td>`;
+          } else if (isM) {
+            for (let m = 1; m <= 12; m++) cells += `<td class="at-dim" style="text-align:center;" title="${_ttl}">${_av('m', m)}</td>`;
+          } else {
+            for (let q = 1; q <= 4; q++) cells += `<td ${monthMode ? 'colspan="3"' : ''} class="at-dim" style="text-align:center;" title="${_ttl}">${_av('q', q)}</td>`;
+          }
+        } else if (isCumulative(it)) {
           // 积分制:按当前粒度(年/季/月)显示该期实际完成数(只读);得分=min(实际×单项得分, 权重)。年度列填单项得分。
           const _av = (k, idx) => {
             const a = actuals[it.item_code] || {};
@@ -499,6 +530,7 @@
               ${isManual ? `<span class="material-symbols-outlined" title="手工采集指标:点击数据格上半部录入实际值"
                   style="font-size:13px;color:var(--ink-4);flex-shrink:0;cursor:help;">stylus_note</span>` : ''}
               ${isCumulative(it) ? `<span style="flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:6px;background:var(--bg-sunk,#eef);color:var(--ink-3,#667);" title="积分制:年度列填「单项得分」,每完成1个累计计分,封顶权重">单项得分</span>` : ''}
+              ${_tier ? `<span style="flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:6px;background:var(--bg-sunk,#eef);color:var(--ink-3,#667);" title="固定档位:阈值写死不可配——及格3→50% / 良好5→100% / 优秀7;取当期确认报价的植入品质均值换算">固定档位</span>` : ''}
             </div>
             ${(cfg.showDesc && it.description) ? `<div class="at-dim" style="font-size:10.5px;margin-top:2px;line-height:1.4;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${esc(it.description)}">${esc(it.description)}</div>` : ''}
           </td>
@@ -507,9 +539,11 @@
           <td>${canEdit
             ? `<button type="button" class="cm-gran-btn" data-gran="${i}" title="${isCumulative(it) ? '积分制:切换展示/计分粒度(年/季/月),单项得分不变' : '点击切换粒度' + (granYear ? '(年→季→月)' : '')}">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</button>`
             : `<span class="at-dim" style="font-size:11.5px;">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</span>`}</td>
-          <td ${ceAttr} data-i="${i}" data-f="annual"${(it.gran === 'Y' || isCumulative(it)) ? '' : actAttr(it, 'y', 0, it.annual_target)}
+          ${_tier
+            ? `<td class="at-dim" style="text-align:center;font-size:11px;" title="固定档位:阈值写死不可配,无需设目标(及格3/良好5/优秀7)">固定 3/5/7</td>`
+            : `<td ${ceAttr} data-i="${i}" data-f="annual"${(it.gran === 'Y' || isCumulative(it)) ? '' : actAttr(it, 'y', 0, it.annual_target)}
               style="font-weight:500;${underAlloc ? 'color:var(--ink-4);' : ''}"
-              title="${isCumulative(it) ? '单项得分:每完成1个(按评价加权)得该分值,逐季累计封顶到权重;不做=0分' : (underAlloc ? '尚有 ' + r2(annual - sum) + ' 未分配到' + (isM ? '月' : '季') + '度' : '')}">${fmt(it.annual_target)}</td>
+              title="${isCumulative(it) ? '单项得分:每完成1个(按评价加权)得该分值,逐季累计封顶到权重;不做=0分' : (underAlloc ? '尚有 ' + r2(annual - sum) + ' 未分配到' + (isM ? '月' : '季') + '度' : '')}">${fmt(it.annual_target)}</td>`}
           ${cells}
           ${revertCell}
         </tr>`;

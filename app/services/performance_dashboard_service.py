@@ -2009,7 +2009,8 @@ class PerformanceDashboardService:
             # 计分方式单一事实源(scoring_mode + data_type),供下方分支
             from app.helpers.scoring_modes import (
                 load_metric_meta as _load_meta, scoring_mode_of as _scoring_mode_of,
-                is_avg_aggregated as _is_avg_aggregated)
+                is_avg_aggregated as _is_avg_aggregated,
+                tiered_achievement as _tiered_achievement)
             _metric_meta = _load_meta()
 
             result = {}
@@ -2042,7 +2043,15 @@ class PerformanceDashboardService:
                         if t > 0 and level_target == 0:
                             level_target = t
 
-                    if mode == 'cumulative':
+                    if mode == 'tiered':
+                        # 固定档位制(植入品质):实际取季度均值(水平值),按及格/良好两线换算;
+                        # 阈值写死,无目标,权重恒计入分母。
+                        q_actual = (q_actual_sum / months_with_data) if months_with_data > 0 else 0
+                        total_weight += weight
+                        achievement_rate = round(_tiered_achievement(q_actual), 1)
+                        weighted_score = achievement_rate * weight / 100
+                        q_target = 0
+                    elif mode == 'cumulative':
                         # 积分制:单项得分(水平值)× 实际累计,封顶权重;权重恒计入(不做=0分,不归一)
                         per_unit = level_target if level_target > 0 else 1.0
                         total_weight += weight

@@ -464,20 +464,38 @@ class PerformanceService:
                 WITH all_months AS (
                     SELECT generate_series(1, 12) AS month
                 ),
+                se_users AS (
+                    SELECT id FROM users WHERE role = 'solution_manager'
+                ),
+                collab AS (
+                    -- 每个 (项目, SE) 的确认数与总配合量(确认+系统设计+工作项+行动)
+                    SELECT project_id, se_id, SUM(cf) AS confirms, COUNT(*) AS vol
+                    FROM (
+                        SELECT project_id, confirmed_by AS se_id, 1 AS cf FROM quotations
+                            WHERE confirmed_by IN (SELECT id FROM se_users)
+                              AND project_id IS NOT NULL AND confirmed_at IS NOT NULL
+                        UNION ALL
+                        SELECT project_id, owner_id, 0 FROM system_diagrams
+                            WHERE owner_id IN (SELECT id FROM se_users)
+                              AND is_deleted = false AND project_id IS NOT NULL
+                        UNION ALL
+                        SELECT project_id, owner_id, 0 FROM work_items
+                            WHERE owner_id IN (SELECT id FROM se_users) AND project_id IS NOT NULL
+                        UNION ALL
+                        SELECT project_id, owner_id, 0 FROM actions
+                            WHERE owner_id IN (SELECT id FROM se_users) AND project_id IS NOT NULL
+                    ) parts
+                    GROUP BY project_id, se_id
+                ),
+                primary_se AS (
+                    -- 配合主方:确认数优先,其次总配合量,再次 se_id 最小(稳定唯一)
+                    SELECT DISTINCT ON (project_id) project_id, se_id
+                    FROM collab
+                    ORDER BY project_id, confirms DESC, vol DESC, se_id ASC
+                ),
                 se_projects AS (
-                    SELECT DISTINCT project_id FROM (
-                        SELECT project_id FROM project_members
-                            WHERE user_id = :user_id AND role = 'solution_engineer'
-                        UNION
-                        SELECT project_id FROM quotations
-                            WHERE confirmed_by = :user_id AND project_id IS NOT NULL
-                        UNION
-                        SELECT project_id FROM work_items
-                            WHERE owner_id = :user_id AND project_id IS NOT NULL
-                        UNION
-                        SELECT project_id FROM actions
-                            WHERE owner_id = :user_id AND project_id IS NOT NULL
-                    ) all_se_projects
+                    -- 仅「我作为配合主方」的项目计入植入额/批价额,避免共享项目重复计入
+                    SELECT project_id FROM primary_se WHERE se_id = :user_id
                 ),
                 se_implant AS (
                     SELECT EXTRACT(month FROM q.created_at)::int AS month,
@@ -532,27 +550,25 @@ class PerformanceService:
                     GROUP BY month
                 ),
                 se_quality AS (
-                    -- 确认质量(2026-06-14 改口径) 我确认的报价中所属项目进入签约的占比
-                    SELECT EXTRACT(month FROM q.confirmed_at)::int AS month,
-                           COUNT(*) AS total,
-                           COUNT(*) FILTER (
-                               WHERE pr.current_stage = 'signed'
-                           ) AS won
-                    FROM quotations q
-                    LEFT JOIN projects pr ON q.project_id = pr.id
-                    WHERE q.confirmed_by = :user_id
-                      AND q.confirmed_at IS NOT NULL
-                      AND EXTRACT(year FROM q.confirmed_at) = :year
-                    GROUP BY 1
+                    -- 植入品质(2026-06-14) 本月该 SE 确认的报价单,每单=出现过的推荐产品系数之和
+                    -- (去重不看数量,citation_coefficient>0 才计),取平均
+                    SELECT month, AVG(qscore) AS quality FROM (
+                        SELECT EXTRACT(month FROM q.confirmed_at)::int AS month, q.id,
+                               COALESCE(SUM(p.citation_coefficient), 0) AS qscore
+                        FROM quotations q
+                        LEFT JOIN (SELECT DISTINCT quotation_id, product_mn FROM quotation_details) dp ON dp.quotation_id = q.id
+                        LEFT JOIN products p ON p.product_mn = dp.product_mn AND p.citation_coefficient > 0
+                        WHERE q.confirmed_by = :user_id AND q.confirmed_at IS NOT NULL
+                          AND EXTRACT(year FROM q.confirmed_at) = :year
+                        GROUP BY 1, q.id
+                    ) per_q GROUP BY month
                 )
                 SELECT am.month,
                        COALESCE(si.amount, 0) AS se_implant_amount,
                        COALESCE(ss.amount, 0) AS se_sales_amount,
                        COALESCE(sc.confirm_count, 0) AS se_confirm_count,
                        COALESCE(sup.support_count, 0) AS se_sales_support,
-                       CASE WHEN COALESCE(sq.total, 0) > 0
-                            THEN ROUND(sq.won * 100.0 / sq.total, 1)
-                            ELSE 0 END AS se_confirm_quality
+                       COALESCE(ROUND(sq.quality, 2), 0) AS se_confirm_quality
                 FROM all_months am
                 LEFT JOIN se_implant si ON am.month = si.month
                 LEFT JOIN se_sales ss ON am.month = ss.month

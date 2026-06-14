@@ -7,6 +7,10 @@
 - target     目标制(默认):达成率 = min(实际÷目标, 100%) × 权重
 - inverse    反向目标制:实际 ≤ 目标 = 满分;否则 目标÷实际 × 权重(失败率类)
 - cumulative 积分制:得分 = min(实际 × 单项得分, 权重);权重恒计入分母(不做=0分,不归一)
+- tiered     固定档位制(无目标,阈值写死):实际(均值)按 及格/良好 两线换算达成率——
+             及格线(TIERED_PASS=3)→50%、良好线(TIERED_GOOD=5)→100%,两线间线性,
+             低于及格按比例(实际÷及格×50%),高于良好封顶 100%;权重恒计入分母。
+             用于「植入品质」:目标固定不可配,配置页不出目标输入。
 
 聚合方式(跨期取平均 vs 累加)仍由 data_type 决定:percentage/score → 取平均(水平值),
 其余 → 累加。
@@ -25,9 +29,29 @@ SCORING_MODE_DEFAULTS = {
     'pm_quality_rate': 'cumulative',
     'pm_new_launch': 'cumulative',
     'pm_support_count': 'cumulative',
+    # 固定档位制(无目标,阈值写死):植入品质
+    'se_confirm_quality': 'tiered',
 }
 
-VALID_MODES = ('target', 'inverse', 'cumulative')
+VALID_MODES = ('target', 'inverse', 'cumulative', 'tiered')
+
+# 固定档位阈值(植入品质,写死不可配):及格→50%、良好→100%
+TIERED_PASS = 3.0   # 及格线 → 达成率 50%
+TIERED_GOOD = 5.0   # 良好线 → 达成率 100%(优秀 7 仅作展示评价,KPI 封顶 100%)
+
+
+def tiered_achievement(avg):
+    """固定档位换算达成率(0~100):及格3→50、良好5→100,两线间线性,低于及格按比例,高于良好封顶。"""
+    try:
+        v = float(avg or 0)
+    except (TypeError, ValueError):
+        v = 0.0
+    p, g = TIERED_PASS, TIERED_GOOD
+    if v >= g:
+        return 100.0
+    if v >= p:
+        return 50.0 + (v - p) / (g - p) * 50.0
+    return (v / p) * 50.0 if p > 0 else 0.0
 
 
 def default_scoring_mode(code):

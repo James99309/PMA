@@ -927,8 +927,20 @@ def at_view_quotation(id):
     else:
         _at_ap_status = 'draft'
 
+    # 本报价单「质量得分」= 出现过的推荐产品(citation_coefficient>0)系数之和(去重不看数量)
+    from sqlalchemy import text as _text
+    _qscore = db.session.execute(_text(
+        "SELECT COALESCE(SUM(p.citation_coefficient),0) "
+        "FROM (SELECT DISTINCT product_mn FROM quotation_details WHERE quotation_id=:qid) dp "
+        "JOIN products p ON p.product_mn=dp.product_mn AND p.citation_coefficient>0"),
+        {'qid': q.id}).scalar() or 0
+    _qscore = round(float(_qscore), 1)
+    _qrating = '优秀' if _qscore >= 7 else ('良好' if _qscore >= 5 else ('及格' if _qscore >= 3 else '待提升'))
+
     return render_template('quotation/at_view.html',
                            quotation=q,
+                           quality_score=_qscore,
+                           quality_rating=_qrating,
                            is_new=False,
                            from_project=from_project_obj,
                            related=related,

@@ -204,20 +204,24 @@
             </div>
             {% endif %}
             {% for it in _kpi_items %}
-            {% set _has_target = it.data.target and it.data.target > 0 %}
-            {% set pct = ((it.data.value / it.data.target * 100) | round(0, 'floor') | int) if _has_target else 0 %}
+            {# 固定档位项(植入品质):无数字目标,显示等级 + 档位达成率(builder 预算 pct) #}
+            {% set _is_tiered = (it.data.tier is defined and it.data.tier) %}
+            {% set _has_target = (not _is_tiered) and it.data.target and it.data.target > 0 %}
+            {% set pct = it.data.pct if _is_tiered
+                         else (((it.data.value / it.data.target * 100) | round(0, 'floor') | int) if _has_target else 0) %}
             {% if pct > 100 %}{% set pct = 100 %}{% endif %}
+            {% set _scored = _has_target or _is_tiered %}
             {% set _delta_bg = {'success':'var(--success-soft)','warn':'var(--warn-soft)','neutral':'var(--bg-page)'}[it.deltaTone] %}
             {% set _delta_fg = {'success':'var(--success)','warn':'var(--warn)','neutral':'var(--ink-3)'}[it.deltaTone] %}
-            {# 货币 unit(¥/$/MYR/€ 等):前缀;非货币(' 个'/' 户'/' 单'/' 人'/'%'):后缀 #}
-            {% set _is_money = it.data.unit not in [' 个', ' 户', ' 单', ' 人', '%'] %}
+            {# 货币 unit(¥/$/MYR/€ 等):前缀;非货币(' 个'/' 户'/' 单'/' 人'/'%'/' 分'/' 次'):后缀 #}
+            {% set _is_money = it.data.unit not in [' 个', ' 户', ' 单', ' 人', '%', ' 分', ' 次'] %}
             {% set _display = (it.data.unit ~ '{:,.0f}'.format(it.data.value)) if _is_money
                               else (it.data.value|string ~ it.data.unit) %}
             {% set _of = (it.data.unit ~ '{:,.0f}'.format(it.data.target)) if _is_money
                          else (it.data.target|string ~ it.data.unit) %}
             {# 无目标时:进度条灰、不显示分母 / %、加"未设目标"提示 #}
-            {% set _bar_color = it.tone if _has_target else 'var(--line-2)' %}
-            {% set _bar_width = pct if _has_target else 100 %}
+            {% set _bar_color = it.tone if _scored else 'var(--line-2)' %}
+            {% set _bar_width = pct if _scored else 100 %}
             <div>
               <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px;">
                 <span style="font-size:12px;color:var(--ink-3);">{{ it.data.label }}</span>
@@ -227,19 +231,21 @@
               </div>
               <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
                 <span class="dash-tab-num at-serif" style="font-size:22px;font-weight:500;color:var(--ink);letter-spacing:-0.01em;">{{ _display }}</span>
-                {% if _has_target %}
+                {% if _is_tiered %}
+                <span style="font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:4px;color:{{ it.tone }};background:var(--bg-page);">{{ it.data.tier }}</span>
+                {% elif _has_target %}
                 <span class="at-dim" style="font-size:11px;">/ {{ _of }}</span>
                 {% else %}
                 <span class="at-dim" style="font-size:10.5px;font-style:italic;">未设目标</span>
                 {% endif %}
                 <span style="flex:1;"></span>
-                {% if _has_target %}
+                {% if _scored %}
                 <span class="at-mono dash-tab-num" style="font-size:11.5px;color:{{ it.tone }};font-weight:500;">{{ pct }}%</span>
                 {% endif %}
               </div>
               <div style="height:3px;background:var(--bg-page);border-radius:2px;overflow:hidden;">
                 <div style="width:{{ _bar_width }}%;height:100%;background:{{ _bar_color }};border-radius:2px;
-                            opacity:{{ '1' if _has_target else '0.5' }};
+                            opacity:{{ '1' if _scored else '0.5' }};
                             transition:width 600ms cubic-bezier(.2,.7,.2,1);"></div>
               </div>
             </div>

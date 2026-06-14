@@ -337,10 +337,9 @@
       'sub': (quotation.project_type | project_type_label) if quotation.project_type else '',
     },
     {
-      'label': '货币',
-      'value': (quotation.currency or 'CNY') | currency_label,
-      'sub': (quotation.currency or 'CNY') ~ ((' · 汇率 ' ~ ('{:.4f}'.format(quotation.exchange_rate))) if quotation.exchange_rate and quotation.exchange_rate != 1 else ''),
-      'mono': true,
+      'label': '质量得分',
+      'value': '{:g}'.format(quality_score|default(0)) ~ ' 分',
+      'sub': (quality_rating|default('—')) ~ '(植入品质 · 推荐产品系数和)',
     },
   ]) }}
 

@@ -23,7 +23,9 @@ ROLE_KPI_SCHEMES = {
     #   技术培训=完成的"技术培训"任务计数。去掉报价确认量(与质量分母冗余)、方案批价额(与确认质量重叠)。
     'solution_manager': [
         {'item_code': 'se_implant_amount',  'weight': 35, 'default_annual': 12000},
-        {'item_code': 'se_confirm_quality', 'weight': 30, 'default_annual': 30},
+        # se_confirm_quality 现为「植入品质」:确认报价的推荐产品系数和均值;
+        # 固定档位制(scoring_mode='tiered'),阈值写死(及格3→50%/良好5→100%/优秀7),无目标
+        {'item_code': 'se_confirm_quality', 'weight': 30, 'default_annual': None},
         {'item_code': 'se_sales_support',   'weight': 20, 'default_annual': 20},
         {'item_code': 'se_training_count',  'weight': 15, 'default_annual': 12},
     ],

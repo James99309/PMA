@@ -282,10 +282,46 @@
       {% call at_detail_section('产品二维码', body_padding='default') %}
         {{ at_product_qrcode(product) }}
       {% endcall %}
-      {{ at_info_panel('引用数量', [
-        ('设计用量', design_quantity),
-        ('成单用量', order_quantity),
-      ]) }}
+      {# 引用数量(含推荐系数:植入品质用,仅 CEO/admin 可设,其余只读) #}
+      <section class="at-section">
+        <header class="at-section-h"><h3 class="at-section-title">引用数量</h3></header>
+        <div class="at-section-body">
+          <dl style="margin:0;">
+            <div class="at-info-row">
+              <dt>推荐系数</dt>
+              <dd>
+                {% if can_set_citation %}
+                <input id="citationCoefInput" type="number" step="0.1" min="0"
+                       value="{{ '%g'|format(product.citation_coefficient) if product.citation_coefficient is not none else '' }}"
+                       placeholder="0"
+                       style="width:80px;padding:2px 6px;border:1px solid var(--line-2);border-radius:5px;background:var(--bg-elev);color:var(--ink);font:inherit;font-size:13px;"
+                       onchange="saveCitationCoef(this.value)">
+                <span id="citationCoefHint" class="at-dim" style="font-size:11px;margin-left:6px;">失焦即保存 · 0/空=不计入品质</span>
+                {% else %}
+                {{ '%g'|format(product.citation_coefficient) if product.citation_coefficient is not none else '—' }}
+                {% endif %}
+              </dd>
+            </div>
+            <div class="at-info-row"><dt>设计用量</dt><dd>{{ design_quantity }}</dd></div>
+            <div class="at-info-row"><dt>成单用量</dt><dd>{{ order_quantity }}</dd></div>
+          </dl>
+        </div>
+      </section>
+      {% if can_set_citation %}
+      <script>
+        async function saveCitationCoef(v) {
+          const hint = document.getElementById('citationCoefHint');
+          try {
+            const r = await (await fetch('{{ url_for("product.api_set_citation_coefficient", product_id=product.id) }}', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+              body: JSON.stringify({ citation_coefficient: v === '' ? null : parseFloat(v) }),
+            })).json();
+            if (hint) { hint.textContent = r.success ? '✓ 已保存' : (r.message || '保存失败'); hint.style.color = r.success ? 'var(--success)' : 'var(--danger)'; }
+          } catch (e) { if (hint) { hint.textContent = '保存失败,请重试'; hint.style.color = 'var(--danger)'; } }
+        }
+      </script>
+      {% endif %}
       {{ at_info_panel('元数据', [
         ('产品 ID',   product.id, 'at-mono'),
         ('创建人',    (product.owner.real_name or product.owner.username) if product.owner else '—'),

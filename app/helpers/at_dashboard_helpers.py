@@ -372,14 +372,26 @@ def _kpi_delta(current, previous):
     return (f'{sign}{pct}%', 'success' if pct > 0 else 'warn')
 
 
-def _kpi_item(label, value, target, unit, prev, tone, delta=None):
-    """构造一个 KPI 指标项(列表契约)。delta=('文案','tone') 可显式覆盖(快照型指标用)。"""
+def _kpi_item(label, value, target, unit, prev, tone, delta=None, as_float=False, data_extra=None):
+    """构造一个 KPI 指标项(列表契约)。delta=('文案','tone') 可显式覆盖(快照型指标用)。
+    as_float=True 时 value/target 保留 1 位小数(品质分等水平值);data_extra 合并进 data
+    (如固定档位项的 tier 等级 / pct 达成率)。"""
     if delta is None:
         d, dt = _kpi_delta(value, prev)
     else:
         d, dt = delta
-    return {'data': {'label': label, 'value': int(value), 'target': int(target), 'unit': unit},
-            'tone': tone, 'delta': d, 'deltaTone': dt}
+    if as_float:
+        v, t = round(float(value), 1), round(float(target), 1)
+        if v == int(v):
+            v = int(v)        # 整数值去掉 .0(0.0→0, 5.0→5),保留 1.3
+        if t == int(t):
+            t = int(t)
+    else:
+        v, t = int(value), int(target)
+    data = {'label': label, 'value': v, 'target': t, 'unit': unit}
+    if data_extra:
+        data.update(data_extra)
+    return {'data': data, 'tone': tone, 'delta': d, 'deltaTone': dt}
 
 
 def _framework_targets(user, year, target_months):
@@ -536,20 +548,38 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
     quality_t = float((tmap.get(first_m) or {}).get('se_confirm_quality_target', 0) or 0)
 
     _SE_SQL = text("""
-        WITH se_projects AS (
-            SELECT DISTINCT project_id FROM (
-                SELECT project_id FROM project_members
-                    WHERE user_id = :uid AND role = 'solution_engineer'
-                UNION
-                SELECT project_id FROM quotations
-                    WHERE confirmed_by = :uid AND project_id IS NOT NULL
-                UNION
-                SELECT project_id FROM work_items
-                    WHERE owner_id = :uid AND project_id IS NOT NULL
-                UNION
-                SELECT project_id FROM actions
-                    WHERE owner_id = :uid AND project_id IS NOT NULL
-            ) sp
+        WITH se_users AS (
+            SELECT id FROM users WHERE role = 'solution_manager'
+        ),
+        collab AS (
+            -- 每个 (项目, SE) 的确认数与总配合量(确认+系统设计+工作项+行动)
+            SELECT project_id, se_id, SUM(cf) AS confirms, COUNT(*) AS vol
+            FROM (
+                SELECT project_id, confirmed_by AS se_id, 1 AS cf FROM quotations
+                    WHERE confirmed_by IN (SELECT id FROM se_users)
+                      AND project_id IS NOT NULL AND confirmed_at IS NOT NULL
+                UNION ALL
+                SELECT project_id, owner_id, 0 FROM system_diagrams
+                    WHERE owner_id IN (SELECT id FROM se_users)
+                      AND is_deleted = false AND project_id IS NOT NULL
+                UNION ALL
+                SELECT project_id, owner_id, 0 FROM work_items
+                    WHERE owner_id IN (SELECT id FROM se_users) AND project_id IS NOT NULL
+                UNION ALL
+                SELECT project_id, owner_id, 0 FROM actions
+                    WHERE owner_id IN (SELECT id FROM se_users) AND project_id IS NOT NULL
+            ) parts
+            GROUP BY project_id, se_id
+        ),
+        primary_se AS (
+            -- 配合主方:确认数优先,其次总配合量,再次 se_id 最小(稳定唯一)
+            SELECT DISTINCT ON (project_id) project_id, se_id
+            FROM collab
+            ORDER BY project_id, confirms DESC, vol DESC, se_id ASC
+        ),
+        se_projects AS (
+            -- 仅「我作为配合主方」的项目计入植入额/批价额,避免共享项目重复计入
+            SELECT project_id FROM primary_se WHERE se_id = :uid
         ),
         c AS (
             SELECT COUNT(*) AS cnt
@@ -572,10 +602,16 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
             WHERE pr.owner_id IS NOT NULL
         ),
         ql AS (
-            SELECT COUNT(*) AS total,
-                   COUNT(*) FILTER (WHERE pr.current_stage = 'signed') AS won
-            FROM quotations q LEFT JOIN projects pr ON q.project_id = pr.id
-            WHERE q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e
+            -- 植入品质:本期确认报价单的"推荐产品系数和"平均(去重不看数量;无推荐产品=0)
+            SELECT COALESCE(AVG(qs.qscore), 0) AS quality
+            FROM (
+                SELECT q.id, COALESCE(SUM(p.citation_coefficient), 0) AS qscore
+                FROM quotations q
+                LEFT JOIN (SELECT DISTINCT quotation_id, product_mn FROM quotation_details) dp ON dp.quotation_id = q.id
+                LEFT JOIN products p ON p.product_mn = dp.product_mn AND p.citation_coefficient > 0
+                WHERE q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e
+                GROUP BY q.id
+            ) qs
         ),
         im AS (
             SELECT COALESCE(SUM(qd.quantity * qd.market_price), 0) AS amt
@@ -591,13 +627,13 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
             JOIN se_projects sp ON po.project_id = sp.project_id
             WHERE po.status = 'approved' AND po.approved_at >= :s AND po.approved_at < :e
         )
-        SELECT c.cnt, spt.sup AS sup, ql.total, ql.won, im.amt AS implant, sa.amt AS sales
+        SELECT c.cnt, spt.sup AS sup, ql.quality, im.amt AS implant, sa.amt AS sales
         FROM c, spt, ql, im, sa
     """)
 
     def _win(s, e):
         r = db.session.execute(_SE_SQL, {'uid': user.id, 's': s, 'e': e}).fetchone()
-        quality = round(r.won * 100.0 / r.total, 1) if (r.total or 0) > 0 else 0
+        quality = round(float(r.quality or 0), 2)  # 植入品质(推荐系数加权均值)
         training = _act_hr_task_count(user, s, e, 'se_tech_training')  # 技术培训任务完成数
         return {'support': int(r.sup or 0), 'quality': quality,
                 'implant': float(r.implant or 0), 'training': int(training or 0)}
@@ -607,15 +643,26 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
     # 方案四项(顺序与岗位方案一致);target=0 视为该项未配置
     spec = [
         ('se_implant_amount_target',  f'{label_prefix}植入额',       a['implant'],  p['implant'],  cur,   'var(--success)'),
-        ('se_confirm_quality_target', f'{label_prefix}确认质量',     a['quality'],  p['quality'],  '%',   'var(--info)'),
+        ('se_confirm_quality_target', f'{label_prefix}植入品质',     a['quality'],  p['quality'],  ' 分', 'var(--info)'),
         ('se_sales_support_target',   f'{label_prefix}销售配合广度', a['support'],  p['support'],  ' 人', 'var(--warn)'),
         ('se_training_count_target',  f'{label_prefix}技术培训',     a['training'], p['training'], ' 次', 'var(--accent)'),
     ]
+    from app.helpers.scoring_modes import tiered_achievement, TIERED_PASS, TIERED_GOOD
     items = []
     for key, label, val, prev, unit, tone in spec:
-        target = quality_t if key == 'se_confirm_quality_target' else tsum.get(key, 0)
-        items.append(_kpi_item(label, int(val) if unit != '%' else val,
-                               int(target) if unit != '%' else target, unit, prev, tone))
+        if key == 'se_confirm_quality_target':
+            # 植入品质:固定档位制,无数字目标;按均值给等级 + 达成率(及格3/良好5/优秀7)
+            tier = ('优秀' if val >= 7 else '良好' if val >= TIERED_GOOD
+                    else '及格' if val >= TIERED_PASS else '待提升')
+            t_tone = ('var(--success)' if val >= TIERED_GOOD
+                      else 'var(--info)' if val >= TIERED_PASS else 'var(--warn)')
+            items.append(_kpi_item(label, val, 0, unit, prev, t_tone, as_float=True,
+                                   data_extra={'tier': tier, 'pct': round(tiered_achievement(val))}))
+            continue
+        target = tsum.get(key, 0)
+        _keep_float = unit == '%'   # 率类保留小数,其余取整
+        items.append(_kpi_item(label, val if _keep_float else int(val),
+                               target if _keep_float else int(target), unit, prev, tone))
     return items
 
 
@@ -742,20 +789,36 @@ def _act_pm_implant(user, s, e):
 
 # SE 五项:一次 SQL 出全窗口(口径照抄 performance_service SE CTE)
 _SE_WINDOW_SQL = """
-    WITH se_projects AS (
-        SELECT DISTINCT project_id FROM (
-            SELECT project_id FROM project_members
-                WHERE user_id = :uid AND role = 'solution_engineer'
-            UNION
-            SELECT project_id FROM quotations
-                WHERE confirmed_by = :uid AND project_id IS NOT NULL
-            UNION
-            SELECT project_id FROM work_items
-                WHERE owner_id = :uid AND project_id IS NOT NULL
-            UNION
-            SELECT project_id FROM actions
-                WHERE owner_id = :uid AND project_id IS NOT NULL
-        ) sp
+    WITH se_users AS (
+        SELECT id FROM users WHERE role = 'solution_manager'
+    ),
+    collab AS (
+        SELECT project_id, se_id, SUM(cf) AS confirms, COUNT(*) AS vol
+        FROM (
+            SELECT project_id, confirmed_by AS se_id, 1 AS cf FROM quotations
+                WHERE confirmed_by IN (SELECT id FROM se_users)
+                  AND project_id IS NOT NULL AND confirmed_at IS NOT NULL
+            UNION ALL
+            SELECT project_id, owner_id, 0 FROM system_diagrams
+                WHERE owner_id IN (SELECT id FROM se_users)
+                  AND is_deleted = false AND project_id IS NOT NULL
+            UNION ALL
+            SELECT project_id, owner_id, 0 FROM work_items
+                WHERE owner_id IN (SELECT id FROM se_users) AND project_id IS NOT NULL
+            UNION ALL
+            SELECT project_id, owner_id, 0 FROM actions
+                WHERE owner_id IN (SELECT id FROM se_users) AND project_id IS NOT NULL
+        ) parts
+        GROUP BY project_id, se_id
+    ),
+    primary_se AS (
+        SELECT DISTINCT ON (project_id) project_id, se_id
+        FROM collab
+        ORDER BY project_id, confirms DESC, vol DESC, se_id ASC
+    ),
+    se_projects AS (
+        -- 仅「我作为配合主方」的项目计入植入额/批价额,避免共享项目重复计入
+        SELECT project_id FROM primary_se WHERE se_id = :uid
     ),
     c AS (
         SELECT COUNT(*) AS cnt
@@ -779,10 +842,17 @@ _SE_WINDOW_SQL = """
         WHERE pr.owner_id IS NOT NULL
     ),
     ql AS (
-        SELECT COUNT(*) AS total,
-               COUNT(*) FILTER (WHERE pr.current_stage = 'signed') AS won
-        FROM quotations q LEFT JOIN projects pr ON q.project_id = pr.id
-        WHERE q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e
+        -- 植入品质:本期该 SE 确认的报价单,每单 = 出现过的"推荐产品"系数之和(去重,不看数量),
+        -- 取所有确认报价的平均(无推荐产品的单计 0)。citation_coefficient>0 才计。
+        SELECT COALESCE(AVG(qs.qscore), 0) AS quality
+        FROM (
+            SELECT q.id, COALESCE(SUM(p.citation_coefficient), 0) AS qscore
+            FROM quotations q
+            LEFT JOIN (SELECT DISTINCT quotation_id, product_mn FROM quotation_details) dp ON dp.quotation_id = q.id
+            LEFT JOIN products p ON p.product_mn = dp.product_mn AND p.citation_coefficient > 0
+            WHERE q.confirmed_by = :uid AND q.confirmed_at >= :s AND q.confirmed_at < :e
+            GROUP BY q.id
+        ) qs
     ),
     im AS (
         SELECT COALESCE(SUM(qd.quantity * qd.market_price), 0) AS amt
@@ -798,7 +868,7 @@ _SE_WINDOW_SQL = """
         JOIN se_projects sp ON po.project_id = sp.project_id
         WHERE po.status = 'approved' AND po.approved_at >= :s AND po.approved_at < :e
     )
-    SELECT c.cnt, spt.sup AS sup, ql.total, ql.won, im.amt AS implant, sa.amt AS sales
+    SELECT c.cnt, spt.sup AS sup, ql.quality, im.amt AS implant, sa.amt AS sales
     FROM c, spt, ql, im, sa
 """
 
@@ -812,7 +882,7 @@ def _se_window(user, s, e, _cache={}):
         _cache[key] = {
             'se_confirm_count': int(r.cnt or 0),
             'se_sales_support': int(r.sup or 0),
-            'se_confirm_quality': round(r.won * 100.0 / r.total, 1) if (r.total or 0) > 0 else 0,
+            'se_confirm_quality': round(float(r.quality or 0), 2),  # 植入品质(推荐系数加权均值)
             'se_implant_amount': float(r.implant or 0),
             'se_sales_amount': float(r.sales or 0),
         }
@@ -1420,8 +1490,8 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
         if not codes:
             return []
 
-    # 3) 指标定义(名称/单位)
-    name_map, unit_map, dtype_map = {}, {}, {}
+    # 3) 指标定义(名称/单位/计分方式)
+    name_map, unit_map, dtype_map, smode_map = {}, {}, {}, {}
     _ALIAS = {'sales_target': 'sales_amount'}   # 定义表 code → 看板 code
     try:
         from app.models.performance_config import PerformanceMetricsDefinition
@@ -1430,8 +1500,12 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
                 name_map[key] = m.metric_name
                 unit_map[key] = m.default_unit or ''
                 dtype_map[key] = m.data_type or ''
+                smode_map[key] = getattr(m, 'scoring_mode', None)
     except Exception:
         pass
+    from app.helpers.scoring_modes import (
+        default_scoring_mode as _dsmode, tiered_achievement as _tach,
+        TIERED_PASS as _TP, TIERED_GOOD as _TG)
     _UNIT_DISPLAY = {'%': '%', '个': ' 个', '人': ' 人', '次': ' 次', '份': ' 份',
                      '分': ' 分', '单': ' 单', '户': ' 户'}
 
@@ -1462,6 +1536,16 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
         else:
             unit = cur if raw_unit in ('', '元', '万元') else f' {raw_unit}'
         label = f"{label_prefix}{name_map.get(code, code)}"
+        # 固定档位制(植入品质):无数字目标,按均值给等级 + 档位达成率(及格3/良好5/优秀7)
+        smode = smode_map.get(code) or _dsmode(code)
+        if smode == 'tiered':
+            tier = ('优秀' if val >= 7 else '良好' if val >= _TG
+                    else '及格' if val >= _TP else '待提升')
+            t_tone = ('var(--success)' if val >= _TG
+                      else 'var(--info)' if val >= _TP else 'var(--warn)')
+            items.append(_kpi_item(label, val, 0, unit, prev, t_tone, as_float=True,
+                                   data_extra={'tier': tier, 'pct': round(_tach(val))}))
+            continue
         is_pct = (unit == '%')
         items.append(_kpi_item(label,
                                val if is_pct else int(val),
