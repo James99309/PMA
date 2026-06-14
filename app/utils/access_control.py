@@ -297,12 +297,9 @@ def apply_content_filters(query, model_class, module_name, user):
             content_filters = role_permission.content_filters
             logger.debug(f"使用角色权限的 content_filters: {content_filters}")
         else:
-            # 没有任何 content_filters 配置
-            # 如果模块定义了内容筛选选项，则必须配置才能查看
-            if module_filter_options:
-                logger.debug(f"{module_name} 模块定义了内容筛选但用户未配置，返回空查询")
-                return query.filter(False)
-            # 模块没有定义内容筛选选项，不做过滤
+            # 没有任何 content_filters 配置 = 不限(不过滤,全开)
+            # (原"模块可筛选但未配置 → 全关"与"不限=全开"直觉冲突,已废弃;
+            #  全开仍受 permission_level 数据范围约束)
             return query
 
         logger.debug(f"应用 {module_name} 模块的内容过滤: {content_filters}")
