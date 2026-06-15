@@ -3,27 +3,27 @@
 {% from 'components/quality_badge.html' import quality_badge %}
 
 {% block sidebar_active %}quotation{% endblock %}
-{% block page_title %}报价管理{% endblock %}
-{% block category_label %}QUOTATION · 业务管理{% endblock %}
-{% block page_description %}管理报价单的提交、SM 确认、成交闭环。{% endblock %}
+{% block page_title %}{{ _('报价管理') }}{% endblock %}
+{% block category_label %}QUOTATION · {{ _('业务管理') }}{% endblock %}
+{% block page_description %}{{ _('管理报价单的提交、SM 确认、成交闭环。') }}{% endblock %}
 
 {% block breadcrumb %}
-<a href="#" style="font-size:13px;color:var(--ink-3);">业务管理</a>
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-<span style="font-size:13px;color:var(--ink);">报价管理</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('报价管理') }}</span>
 {% endblock %}
 
 {% block page_actions %}
-{{ at_btn('新建报价', variant='primary', icon_l='plus', tag='a',
+{{ at_btn(_('新建报价'), variant='primary', icon_l='plus', tag='a',
           href=url_for('quotation.at_new_quotation')) }}
 {% endblock %}
 
 {% block tabs %}
 {% set _tabs = [
-  {'k':'all',       'l':'全部',     'c':tab_counts.all},
-  {'k':'none',      'l':'草稿',     'c':tab_counts.none},
-  {'k':'pending',   'l':'待确认',   'c':tab_counts.pending},
-  {'k':'confirmed', 'l':'已确认',   'c':tab_counts.confirmed}
+  {'k':'all',       'l':_('全部'),     'c':tab_counts.all},
+  {'k':'none',      'l':_('草稿'),     'c':tab_counts.none},
+  {'k':'pending',   'l':_('待确认'),   'c':tab_counts.pending},
+  {'k':'confirmed', 'l':_('已确认'),   'c':tab_counts.confirmed}
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
@@ -47,13 +47,13 @@
         style="display:flex;gap:10px;align-items:center;">
     <input type="hidden" name="tab" value="{{ current_tab }}">
     {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
-    {{ at_input(name='search', value=search, placeholder='搜索报价单号…', icon_l='search', width='320px') }}
+    {{ at_input(name='search', value=search, placeholder=_('搜索报价单号…'), icon_l='search', width='320px') }}
   </form>
   {% if show_filter %}
   {{ at_filter_panel(
        action_url=url_for('quotation.at_list_view'),
        fields=[
-         {'key':'owner','label':'负责人','type':'user','items':owner_options,'values':owner_values},
+         {'key':'owner','label':_('负责人'),'type':'user','items':owner_options,'values':owner_values},
        ],
        hidden={'tab':current_tab,'search':search},
        panel_id='quotFilterPanel') }}
@@ -62,9 +62,9 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('报价单号','left'),('客户','left'),('项目','left'),
-                ('报价金额','right'),('植入额','right'),('状态','left'),
-                ('所属','left'),('更新','left')] %}
+{% for h, a in [(_('报价单号'),'left'),(_('客户'),'left'),(_('项目'),'left'),
+                (_('报价金额'),'right'),(_('植入额'),'right'),(_('状态'),'left'),
+                (_('所属'),'left'),(_('更新'),'left')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -122,7 +122,7 @@
 {% else %}
 <tr>
   <td colspan="8" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-    没有符合筛选条件的报价
+    {{ _('没有符合筛选条件的报价') }}
   </td>
 </tr>
 {% endfor %}
@@ -131,15 +131,15 @@
 {% block pagination %}
 {% if pagination.pages > 1 %}
 <span class="at-mono at-dim" style="font-size:11.5px;">
-  第 {{ pagination.page }} / {{ pagination.pages }} 页
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
 </span>
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
-    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
               href=url_for('quotation.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
   {% endif %}
   {% if pagination.has_next %}
-    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
               href=url_for('quotation.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
   {% endif %}
 </div>

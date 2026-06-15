@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 11:01+0800\n"
+"POT-Creation-Date: 2026-06-15 12:33+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -1350,7 +1350,8 @@ msgstr "Under Approval"
 #: app/templates/macros/ui_helpers.html:8712
 #: app/templates/macros/ui_helpers.html:8786
 #: app/templates/meeting/tw_meeting_minutes_detail.html:797
-#: app/templates/pricing_order/tw_list.html:215 app/views/approval.py:226
+#: app/templates/pricing_order/tw_list.html:215
+#: app/templates/quotation/at_list.html:24 app/views/approval.py:226
 #: app/views/approval.py:2157 app/views/quotation.py:429
 msgid "草稿"
 msgstr "Draft"
@@ -1392,6 +1393,7 @@ msgstr "Quotation number or project name"
 #: app/templates/product_analysis/tw_analysis.html:457
 #: app/templates/prospect/_tw_lost_list.html:34
 #: app/templates/prospect/tw_lost_panel.html:257
+#: app/templates/quotation/at_list.html:56
 #: app/templates/quotation/tw_quotation_detail.html:173
 #: app/templates/task/tw_task_management.html:324
 #: app/templates/task/tw_task_management.html:787 app/views/meeting.py:387
@@ -1436,6 +1438,7 @@ msgstr "All Representatives"
 #: app/templates/meeting/tw_meeting_minutes_list.html:145
 #: app/templates/product_code/tw_category_management.html:189
 #: app/templates/product_code/tw_category_management.html:238
+#: app/templates/quotation/at_list.html:66
 #: app/templates/star_graph/tw_star_graph.html:227
 #: app/templates/task/tw_task_management.html:316
 #: app/templates/user/tw_department_management.html:120
@@ -1783,6 +1786,7 @@ msgstr "You already have access to this resource"
 #: app/templates/components/tw_worklog_preview.html:540
 #: app/templates/index.html:297 app/templates/index.html:434
 #: app/templates/macros/approval_macros.html:408
+#: app/templates/quotation/at_list.html:65
 #: app/templates/sales_order/partials/_so_modal_fields.html:28
 #: app/templates/worklog/tw_calendar.html:1444 app/views/approval.py:214
 #: app/views/approval.py:2130 app/views/approval.py:2946
@@ -1800,6 +1804,7 @@ msgstr "Client"
 #: app/templates/macros/ui_helpers.html:3082
 #: app/templates/macros/ui_helpers.html:7917
 #: app/templates/product_analysis/tw_analysis.html:453
+#: app/templates/quotation/at_list.html:65
 #: app/templates/star_graph/tw_star_graph.html:165
 #: app/templates/star_graph/tw_star_graph.html:221
 #: app/templates/user/tw_detail.html:533
@@ -2315,6 +2320,8 @@ msgstr "Dashboard"
 #: app/templates/components/at_sidebar.html:121
 #: app/templates/components/tw_nav_menu.html:67
 #: app/templates/expense/at_list.html:6 app/templates/expense/at_list.html:10
+#: app/templates/quotation/at_list.html:7
+#: app/templates/quotation/at_list.html:11
 msgid "业务管理"
 msgstr "Business"
 
@@ -2611,8 +2618,9 @@ msgstr "Recent Quotations"
 
 #: app/templates/index.html:296
 #: app/templates/product_analysis/tw_analysis.html:509
+#: app/templates/quotation/at_list.html:65
 msgid "报价单号"
-msgstr "Quotation ID"
+msgstr "Quotation No."
 
 #: app/templates/components/at_minitables.html:52
 #: app/templates/components/at_minitables.html:103
@@ -3174,9 +3182,10 @@ msgstr "0K"
 #: app/templates/components/tw_performance_dashboard.html:1366
 #: app/templates/components/tw_performance_dashboard.html:2512
 #: app/templates/components/tw_performance_dashboard.html:2524
-#: app/templates/index.html:613 app/templates/user/tw_profile.html:424
+#: app/templates/index.html:613 app/templates/quotation/at_list.html:66
+#: app/templates/user/tw_profile.html:424
 msgid "植入额"
-msgstr "Implantation Amount"
+msgstr "Implant"
 
 #: app/templates/components/tw_performance_dashboard.html:1384
 #: app/templates/components/tw_performance_dashboard.html:2513
@@ -4954,6 +4963,7 @@ msgstr "Filter"
 #: app/templates/macros/approval_macros.html:433
 #: app/templates/product_analysis/tw_analysis.html:49
 #: app/templates/prospect/tw_list.html:220
+#: app/templates/quotation/at_list.html:23
 #: app/templates/spec_template/tw_list.html:100
 #: app/templates/spec_template/tw_list.html:159
 #: app/templates/spec_template/tw_list.html:180
@@ -5001,6 +5011,7 @@ msgstr "Stage"
 
 #: app/templates/components/at_minitables.html:29
 #: app/templates/components/at_minitables.html:103
+#: app/templates/quotation/at_list.html:67
 msgid "所属"
 msgstr "Owner"
 
@@ -5260,6 +5271,8 @@ msgstr "EVERTAC"
 
 #: app/templates/components/at_sidebar.html:128
 #: app/templates/components/tw_nav_menu.html:87
+#: app/templates/quotation/at_list.html:6
+#: app/templates/quotation/at_list.html:13
 #: app/templates/quotation/tw_quotation_detail.html:132
 msgid "报价管理"
 msgstr "Quotations"
@@ -5431,6 +5444,7 @@ msgstr "New Project"
 
 #: app/templates/components/at_topbar.html:128
 #: app/templates/macros/ui_helpers.html:390
+#: app/templates/quotation/at_list.html:17
 msgid "新建报价"
 msgstr "New Quotation"
 
@@ -5678,12 +5692,14 @@ msgstr "No action records"
 #: app/templates/components/tw_action_list.html:276
 #: app/templates/expense/at_list.html:130
 #: app/templates/product_analysis/tw_analysis.html:493
+#: app/templates/quotation/at_list.html:138
 msgid "上一页"
 msgstr "Previous"
 
 #: app/templates/components/tw_action_list.html:280
 #: app/templates/expense/at_list.html:134
 #: app/templates/product_analysis/tw_analysis.html:496
+#: app/templates/quotation/at_list.html:142
 msgid "下一页"
 msgstr "Next"
 
@@ -8831,6 +8847,7 @@ msgid "供应商确认"
 msgstr "Supplier"
 
 #: app/templates/components/tw_po_timeline.html:59
+#: app/templates/quotation/at_list.html:25
 #: app/templates/quotation/tw_list.html:176
 #: app/templates/quotation/tw_list_rows.html:12
 #: app/templates/quotation/tw_quotation_detail.html:274
@@ -13329,9 +13346,8 @@ msgid "提交、审批、付款一站式管理,个人财务隔离。"
 msgstr "Submit, approve and pay in one place — personal finances kept separate."
 
 #: app/templates/expense/at_list.html:26
-#, fuzzy
 msgid "待付款"
-msgstr "Pending Payment"
+msgstr "Unpaid"
 
 #: app/templates/expense/at_list.html:27 app/views/expense.py:421
 #: app/views/expense.py:612
@@ -13359,6 +13375,7 @@ msgstr "Customer · Project"
 # ===== 新功能说明书 (Features Guide) =====
 #: app/templates/expense/at_list.html:68 app/templates/guide/whats_new.html:209
 #: app/templates/prospect/tw_list.html:1386
+#: app/templates/quotation/at_list.html:67
 msgid "更新"
 msgstr "Updated"
 
@@ -13367,6 +13384,7 @@ msgid "没有符合筛选条件的报销"
 msgstr "No expenses match the filters"
 
 #: app/templates/expense/at_list.html:126
+#: app/templates/quotation/at_list.html:134
 #, python-format
 msgid "第 %(page)s / %(pages)s 页"
 msgstr "Page %(page)s / %(pages)s"
@@ -15526,6 +15544,7 @@ msgstr "Order status"
 
 #: app/templates/macros/approval_macros.html:438
 #: app/templates/macros/approval_macros.html:1002
+#: app/templates/quotation/at_list.html:26
 #: app/templates/quotation/tw_list.html:174
 #: app/templates/quotation/tw_list_rows.html:10
 #: app/templates/quotation/tw_quotation_detail.html:256
@@ -19720,6 +19739,22 @@ msgstr ""
 #, fuzzy
 msgid "恢复系统默认"
 msgstr "Use grade defaults"
+
+#: app/templates/quotation/at_list.html:8
+msgid "管理报价单的提交、SM 确认、成交闭环。"
+msgstr "Manage quotation submission, SM confirmation and deal closure."
+
+#: app/templates/quotation/at_list.html:50
+msgid "搜索报价单号…"
+msgstr "Search quotation no.…"
+
+#: app/templates/quotation/at_list.html:66
+msgid "报价金额"
+msgstr "Amount"
+
+#: app/templates/quotation/at_list.html:125
+msgid "没有符合筛选条件的报价"
+msgstr "No quotations match the filters"
 
 #: app/templates/quotation/tw_list.html:105
 msgid "创建报价单"
