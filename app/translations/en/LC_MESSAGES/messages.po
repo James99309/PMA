@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 15:11+0800\n"
+"POT-Creation-Date: 2026-06-15 15:15+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -6129,6 +6129,16 @@ msgstr "Notes"
 #: app/templates/customer/partials/_company_form_fields.html:125
 msgid "请输入备注信息"
 msgstr "Please enter notes"
+
+#: app/templates/components/at_dash_card.html:24
+#, python-format
+msgid "我的%(noun)s"
+msgstr "My %(noun)s"
+
+#: app/templates/components/at_dash_card.html:25
+#, python-format
+msgid "%(scope)s%(noun)s"
+msgstr "%(scope)s %(noun)s"
 
 #: app/templates/components/at_detail.html:67
 #: app/templates/knowledge/tw_wiki.html:616

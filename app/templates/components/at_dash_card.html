@@ -21,8 +21,8 @@
 {# 标题双套(mine 显示 / team hidden) #}
 {% macro dash_scope_title(noun, has_sec, secondary_label='') %}
 <h3 class="dash-card-title">
-  <span data-dash-title="mine">我的{{ noun }}</span>
-  {% if has_sec %}<span data-dash-title="team" hidden>{{ secondary_label }}{{ noun }}</span>{% endif %}
+  <span data-dash-title="mine">{{ _('我的%(noun)s', noun=noun) }}</span>
+  {% if has_sec %}<span data-dash-title="team" hidden>{{ _('%(scope)s%(noun)s', scope=secondary_label, noun=noun) }}</span>{% endif %}
 </h3>
 {% endmacro %}
 
