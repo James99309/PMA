@@ -60,12 +60,12 @@ class ProductDetailManager {
             // 货币配置
             currencyConfig: {
                 supportedCurrencies: [
-                    {code: "USD", name: "美元", symbol: "$"},
-                    {code: "CNY", name: "人民币", symbol: "¥"},
-                    {code: "SGD", name: "新加坡元", symbol: "S$"},
-                    {code: "MYR", name: "马来西亚林吉特", symbol: "RM"},
-                    {code: "IDR", name: "印尼盾", symbol: "Rp"},
-                    {code: "THB", name: "泰铢", symbol: "฿"}
+                    {code: "USD", name: t("美元"), symbol: "$"},
+                    {code: "CNY", name: t("人民币"), symbol: "¥"},
+                    {code: "SGD", name: t("新加坡元"), symbol: "S$"},
+                    {code: "MYR", name: t("马来西亚林吉特"), symbol: "RM"},
+                    {code: "IDR", name: t("印尼盾"), symbol: "Rp"},
+                    {code: "THB", name: t("泰铢"), symbol: "฿"}
                 ],
                 baseCurrency: "CNY",
                 defaultRates: {
@@ -116,17 +116,17 @@ class ProductDetailManager {
             
             // 表格列配置
             columns: [
-                { key: 'product_name', label: '产品名称', type: 'product-selector', required: true, width: '200px' },
-                { key: 'product_model', label: '产品型号', type: 'text', readonly: true, width: '150px' },
-                { key: 'product_desc', label: '规格', type: 'text', readonly: true, width: '120px' },
-                { key: 'brand', label: '品牌', type: 'text', readonly: true, width: '100px' },
-                { key: 'unit', label: '单位', type: 'text', readonly: true, width: '80px' },
-                { key: 'quantity', label: '数量', type: 'number', required: true, width: '80px' },
-                { key: 'market_price', label: '市场价', type: 'currency', width: '100px' },
-                { key: 'discount', label: '折扣率(%)', type: 'percentage', width: '100px' },
-                { key: 'unit_price', label: '单价', type: 'currency', readonly: false, width: '100px' },
-                { key: 'total_price', label: '小计', type: 'currency', readonly: true, width: '100px' },
-                { key: 'actions', label: '操作', type: 'actions', width: '80px' }
+                { key: 'product_name', label: t('产品名称'), type: 'product-selector', required: true, width: '200px' },
+                { key: 'product_model', label: t('产品型号'), type: 'text', readonly: true, width: '150px' },
+                { key: 'product_desc', label: t('规格'), type: 'text', readonly: true, width: '120px' },
+                { key: 'brand', label: t('品牌'), type: 'text', readonly: true, width: '100px' },
+                { key: 'unit', label: t('单位'), type: 'text', readonly: true, width: '80px' },
+                { key: 'quantity', label: t('数量'), type: 'number', required: true, width: '80px' },
+                { key: 'market_price', label: t('市场价'), type: 'currency', width: '100px' },
+                { key: 'discount', label: t('折扣率(%)'), type: 'percentage', width: '100px' },
+                { key: 'unit_price', label: t('单价'), type: 'currency', readonly: false, width: '100px' },
+                { key: 'total_price', label: t('小计'), type: 'currency', readonly: true, width: '100px' },
+                { key: 'actions', label: t('操作'), type: 'actions', width: '80px' }
             ],
             
             // 事件回调
@@ -250,7 +250,7 @@ class ProductDetailManager {
                 <div class="row justify-content-end">
                     <div class="col-md-3">
                         <div class="input-group">
-                            <span class="input-group-text">总计金额</span>
+                            <span class="input-group-text">${t('总计金额')}</span>
                             <input type="text" class="form-control" id="grandTotal" readonly>
                         </div>
                     </div>
@@ -674,11 +674,11 @@ class ProductDetailManager {
             
             if (marketPriceInput) {
                 marketPriceInput.classList.add('discontinued-price');
-                marketPriceInput.setAttribute('title', '该产品已停产');
+                marketPriceInput.setAttribute('title', t('该产品已停产'));
             }
             if (unitPriceInput) {
                 unitPriceInput.classList.add('discontinued-price');
-                unitPriceInput.setAttribute('title', '该产品已停产');
+                unitPriceInput.setAttribute('title', t('该产品已停产'));
             }
         }
         
@@ -900,7 +900,7 @@ class ProductDetailManager {
         input.type = 'text';
         input.className = 'form-control product-name';
         input.name = this.config.fieldMapping[column.key] + '[]';
-        input.placeholder = this.config.i18n?.clickToSelectProduct || '点击选择产品...';
+        input.placeholder = this.config.i18n?.clickToSelectProduct || t('点击选择产品...');
         input.required = column.required || false;
         input.value = value || '';
         input.dataset.rawValue = value || '';  // 添加rawValue属性
@@ -1006,7 +1006,7 @@ class ProductDetailManager {
             syncCheckbox.type = 'checkbox';
             syncCheckbox.className = 'form-check-input sync-quantity-checkbox';
             syncCheckbox.checked = true;
-            syncCheckbox.title = '同步主产品数量';
+            syncCheckbox.title = t('同步主产品数量');
             syncCheckbox.style.cursor = 'pointer';
             container.appendChild(syncCheckbox);
         }
@@ -1015,7 +1015,7 @@ class ProductDetailManager {
         removeBtn.type = 'button';
         removeBtn.className = 'btn btn-sm btn-outline-danger remove-row';
         removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
-        removeBtn.title = this.config.i18n?.deleteRow || '删除行';
+        removeBtn.title = this.config.i18n?.deleteRow || t('删除行');
 
         container.appendChild(removeBtn);
         return container;
@@ -1057,7 +1057,7 @@ class ProductDetailManager {
             linkIcon.className = 'config-link-icon';
             linkIcon.dataset.action = 'unlink';
             linkIcon.dataset.rowId = configRowId;
-            linkIcon.title = '点击取消关联';
+            linkIcon.title = t('点击取消关联');
             linkIcon.innerHTML = '<span class="link-normal">└─</span><span class="link-unlink">✕─</span>';
             firstTd.insertBefore(linkIcon, firstTd.firstChild);
         }
@@ -1184,7 +1184,7 @@ class ProductDetailManager {
 
         // 至少保留一行
         if (tbody.children.length <= 1) {
-            this.showError('至少需要保留一行产品明细');
+            this.showError(t('至少需要保留一行产品明细'));
             return;
         }
 
@@ -2356,7 +2356,7 @@ class ProductDetailManager {
                 errors.push({
                     row: rowIndex,
                     field: field,
-                    message: `${this.config.i18n?.rowPrefix || '第'}${rowIndex + 1}${this.config.i18n?.rowSuffix || '行的'}${this.getColumnLabel(field)}${this.config.i18n?.cannotBeEmpty || '不能为空'}`
+                    message: `${this.config.i18n?.rowPrefix || t('第')}${rowIndex + 1}${this.config.i18n?.rowSuffix || t('行的')}${this.getColumnLabel(field)}${this.config.i18n?.cannotBeEmpty || t('不能为空')}`
                 });
             }
         });
@@ -2368,7 +2368,7 @@ class ProductDetailManager {
                 errors.push({
                     row: rowIndex,
                     field: error.field,
-                    message: `${this.config.i18n?.rowPrefix || '第'}${rowIndex + 1}${this.config.i18n?.rowSuffix || '行'}：${error.message}`
+                    message: `${this.config.i18n?.rowPrefix || t('第')}${rowIndex + 1}${this.config.i18n?.rowSuffix || t('行')}${t('：')}${error.message}`
                 });
             });
         }
@@ -2379,7 +2379,7 @@ class ProductDetailManager {
                 errors.push({
                     row: rowIndex,
                     field: field,
-                    message: `第${rowIndex + 1}行的${this.getColumnLabel(field)}格式不正确`
+                    message: `${t('第')}${rowIndex + 1}${t('行的')}${this.getColumnLabel(field)}${t('格式不正确')}`
                 });
             }
         });
@@ -2556,7 +2556,7 @@ class ProductDetailManager {
             if (input) {
                 input.readOnly = false;
                 input.classList.add('manual-input-field');
-                input.setAttribute('title', this.config.i18n?.manualInputField || '手动输入字段，可以修改');
+                input.setAttribute('title', this.config.i18n?.manualInputField || t('手动输入字段，可以修改'));
                 console.log(`✅ 启用字段编辑: ${fieldKey}`);
             }
         });
@@ -2569,7 +2569,7 @@ class ProductDetailManager {
                 input.readOnly = true;
                 input.style.backgroundColor = '#f8f9fa';
                 input.style.color = '#6c757d';
-                input.setAttribute('title', this.config.i18n?.tempProductNoPrice || '临时产品无市场价和折扣');
+                input.setAttribute('title', this.config.i18n?.tempProductNoPrice || t('临时产品无市场价和折扣'));
                 console.log(`🔒 禁用字段: ${fieldKey}`);
             }
         });
@@ -2816,7 +2816,7 @@ class ProductDetailManager {
                     const fieldLabel = columnConfig ? columnConfig.label : fieldKey;
                     errors.push({
                         field: fieldKey,
-                        message: `${fieldLabel}不能为空（手动输入字段）`
+                        message: `${fieldLabel}${t('不能为空（手动输入字段）')}`
                     });
                 }
             }
