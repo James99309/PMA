@@ -303,7 +303,7 @@
         (_('行业'), (project.industry | industry_label) if project.industry else None),
         (_('交期'), project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else None, 'at-mono'),
         (_('上报时间'), project.report_time.strftime('%Y-%m-%d') if project.report_time else None, 'at-mono'),
-        (_('报价额'), '¥{:,.0f}'.format(project.quotation_customer or 0) if project.quotation_customer else None, 'at-mono'),
+        (_('报价额'), (get_currency_symbol(project.quotation_currency or get_default_currency()) ~ '{:,.0f}'.format(project.quotation_customer or 0)) if project.quotation_customer else None, 'at-mono'),
       ], columns=2) }}
 
       {# 关联客户(项目专属 — 反向多对多)#}
