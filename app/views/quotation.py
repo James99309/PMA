@@ -5943,7 +5943,10 @@ def at_get_quotation_approval_flow(quotation_id):
 def at_submit_quotation_approval(quotation_id):
     """提交报价单到标准审批流程(支持 submitter_designate)"""
     try:
-        from app.helpers.approval_helpers import start_approval_process, get_approval_templates
+        from app.helpers.approval_helpers import (
+            start_approval_process, get_approval_templates, get_object_approval_instance,
+        )
+        from app.models.approval import ApprovalStatus
 
         q = Quotation.query.get_or_404(quotation_id)
         if q.owner_id != current_user.id and current_user.role != 'admin':
@@ -5960,6 +5963,12 @@ def at_submit_quotation_approval(quotation_id):
             if not tpl_items:
                 return jsonify({'success': False, 'message': '没有可用的报价单审批模板'}), 400
             template_id = tpl_items[0].id
+
+        # 再次确认:旧 APPROVED 实例置 recalled(作废),否则 start 会因"已存在审批"拒绝
+        _prev = get_object_approval_instance('quotation', quotation_id)
+        if _prev and _prev.status == ApprovalStatus.APPROVED:
+            _prev.status = ApprovalStatus.RECALLED
+            db.session.commit()
 
         instance = start_approval_process(
             object_type='quotation',
@@ -6015,6 +6024,11 @@ def at_sm_confirm_quotation(quotation_id):
             tpl_id = items[0].id
             steps = get_designate_steps_info(tpl_id)
             designated = {str(s['step_id']): current_user.id for s in steps}
+            # 再次确认:旧 APPROVED 实例置 recalled(作废),否则 start 会因"已存在审批"拒绝
+            _prev = get_object_approval_instance('quotation', quotation_id)
+            if _prev and _prev.status == ApprovalStatus.APPROVED:
+                _prev.status = ApprovalStatus.RECALLED
+                db.session.commit()
             inst = start_approval_process('quotation', quotation_id, tpl_id, current_user.id,
                                           auto_commit=True, designated_approvers=designated)
             if not inst:
