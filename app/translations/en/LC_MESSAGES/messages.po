@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 12:33+0800\n"
+"POT-Creation-Date: 2026-06-15 12:40+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -388,10 +388,10 @@ msgstr "@Mentions"
 #: app/templates/expense/at_list.html:24 app/templates/index.html:378
 #: app/templates/macros/approval_macros.html:922
 #: app/templates/macros/ui_helpers.html:8709
-#: app/templates/macros/ui_helpers.html:8787 app/views/expense.py:395
-#: app/views/expense.py:588 app/views/quotation.py:415
+#: app/templates/macros/ui_helpers.html:8787 app/utils/status_meta.py:60
+#: app/views/expense.py:395 app/views/expense.py:588 app/views/quotation.py:415
 msgid "待审批"
-msgstr "Pending Approval"
+msgstr "Pending"
 
 #: app/data/features_guide_data.py:126
 #: app/templates/meeting/tw_meeting_minutes_detail.html:519
@@ -1319,7 +1319,8 @@ msgstr "pieces"
 #: app/routes/pricing_order_routes.py:1339
 #: app/routes/pricing_order_routes.py:1442 app/templates/index.html:379
 #: app/templates/macros/ui_helpers.html:8695
-#: app/templates/macros/ui_helpers.html:8710 app/views/quotation.py:401
+#: app/templates/macros/ui_helpers.html:8710 app/utils/status_meta.py:36
+#: app/utils/status_meta.py:79 app/views/quotation.py:401
 msgid "已批准"
 msgstr "Approved"
 
@@ -1332,10 +1333,11 @@ msgstr "Approved"
 #: app/templates/macros/approval_macros.html:467
 #: app/templates/macros/approval_macros.html:814
 #: app/templates/macros/approval_macros.html:883
-#: app/templates/pricing_order/tw_list.html:220 app/views/approval.py:227
-#: app/views/approval.py:2158
+#: app/templates/pricing_order/tw_list.html:220 app/utils/status_meta.py:25
+#: app/utils/status_meta.py:34 app/utils/status_meta.py:78
+#: app/views/approval.py:227 app/views/approval.py:2158
 msgid "审批中"
-msgstr "Under Approval"
+msgstr "In Review"
 
 #: app/routes/pricing_order_routes.py:1359
 #: app/routes/pricing_order_routes.py:1440
@@ -1351,8 +1353,12 @@ msgstr "Under Approval"
 #: app/templates/macros/ui_helpers.html:8786
 #: app/templates/meeting/tw_meeting_minutes_detail.html:797
 #: app/templates/pricing_order/tw_list.html:215
-#: app/templates/quotation/at_list.html:24 app/views/approval.py:226
-#: app/views/approval.py:2157 app/views/quotation.py:429
+#: app/templates/quotation/at_list.html:24 app/utils/status_meta.py:24
+#: app/utils/status_meta.py:33 app/utils/status_meta.py:48
+#: app/utils/status_meta.py:59 app/utils/status_meta.py:69
+#: app/utils/status_meta.py:77 app/utils/status_meta.py:129
+#: app/views/approval.py:226 app/views/approval.py:2157
+#: app/views/quotation.py:429
 msgid "草稿"
 msgstr "Draft"
 
@@ -1514,13 +1520,14 @@ msgid "创建时间"
 msgstr "Created"
 
 #: app/routes/product.py:494 app/routes/product.py:579
-#: app/templates/product/create.html:192 app/views/config_management.py:2099
+#: app/templates/product/create.html:192 app/utils/status_meta.py:38
+#: app/views/config_management.py:2099
 msgid "生产中"
-msgstr "In Production"
+msgstr "Producing"
 
 #: app/routes/product.py:495 app/routes/product.py:587
 #: app/templates/product/create.html:193 app/templates/product/tw_list.html:151
-#: app/templates/product/tw_list_rows.html:12
+#: app/templates/product/tw_list_rows.html:12 app/utils/status_meta.py:117
 #: app/views/config_management.py:2101
 msgid "已停产"
 msgstr "Discontinued"
@@ -4988,6 +4995,38 @@ msgstr "Apply"
 msgid "重置"
 msgstr "Reset"
 
+#: app/templates/components/at_list_layout.html:59
+msgid "暗色"
+msgstr ""
+
+#: app/templates/components/at_list_layout.html:92
+#: app/templates/components/tw_action_list.html:390
+#: app/templates/components/tw_performance_dashboard.html:872
+#: app/templates/components/tw_performance_dashboard.html:906
+#: app/templates/components/tw_performance_dashboard.html:1026
+#: app/templates/components/tw_performance_dashboard.html:1124
+#: app/templates/components/tw_spec_dictionary_modal.html:221
+#: app/templates/components/tw_vendor_user_selector.html:170
+#: app/templates/expense/partials/_expense_modal_fields.html:346
+#: app/templates/macros/ui_helpers.html:2157
+#: app/templates/macros/ui_helpers.html:8297
+#: app/templates/product_analysis/tw_analysis.html:489
+#: app/templates/prospect/tw_list.html:74
+#: app/templates/prospect/tw_list.html:923
+#: app/templates/spec_definition/tw_list.html:628
+#: app/templates/user/tw_detail.html:938
+msgid "共"
+msgstr "Total"
+
+#: app/templates/components/at_list_layout.html:92
+#: app/templates/product_analysis/tw_analysis.html:489
+#: app/templates/prospect/_tw_lost_list.html:22
+#: app/templates/prospect/tw_list.html:74
+#: app/templates/prospect/tw_list.html:252
+#: app/templates/prospect/tw_list.html:1022
+msgid "条"
+msgstr "items"
+
 #: app/templates/components/at_minitables.html:29
 #: app/templates/config_management/_salary_grades.html:23
 #: app/templates/config_management/_salary_grades.html:98
@@ -5242,9 +5281,9 @@ msgstr "Invoice"
 msgid "查看发票"
 msgstr "View Invoice"
 
-#: app/templates/components/at_minitables.html:584
+#: app/templates/components/at_minitables.html:584 app/utils/status_meta.py:123
 msgid "未上传"
-msgstr "Not uploaded"
+msgstr "Not Uploaded"
 
 #: app/templates/components/at_minitables.html:589
 #: app/templates/expense/create_expense.html:643
@@ -5730,24 +5769,6 @@ msgid "请选择"
 msgstr "Please select"
 
 #: app/templates/components/tw_action_list.html:390
-#: app/templates/components/tw_performance_dashboard.html:872
-#: app/templates/components/tw_performance_dashboard.html:906
-#: app/templates/components/tw_performance_dashboard.html:1026
-#: app/templates/components/tw_performance_dashboard.html:1124
-#: app/templates/components/tw_spec_dictionary_modal.html:221
-#: app/templates/components/tw_vendor_user_selector.html:170
-#: app/templates/expense/partials/_expense_modal_fields.html:346
-#: app/templates/macros/ui_helpers.html:2157
-#: app/templates/macros/ui_helpers.html:8297
-#: app/templates/product_analysis/tw_analysis.html:489
-#: app/templates/prospect/tw_list.html:74
-#: app/templates/prospect/tw_list.html:923
-#: app/templates/spec_definition/tw_list.html:628
-#: app/templates/user/tw_detail.html:938
-msgid "共"
-msgstr "Total"
-
-#: app/templates/components/tw_action_list.html:390
 #: app/templates/components/tw_data_table.html:231
 #: app/templates/components/tw_work_records.html:233
 #: app/templates/expense/tw_list.html:133
@@ -5979,9 +6000,9 @@ msgstr "Approval Process"
 #: app/templates/components/tw_layout.html:851
 #: app/templates/components/tw_po_timeline.html:329
 #: app/templates/macros/ui_helpers.html:8692
-#: app/templates/macros/ui_helpers.html:8774
+#: app/templates/macros/ui_helpers.html:8774 app/utils/status_meta.py:100
 msgid "进行中"
-msgstr "In Progress"
+msgstr "Active"
 
 #: app/templates/components/tw_approval_flow.html:63
 #: app/templates/components/tw_pricing_order_modal.html:855
@@ -5995,13 +6016,15 @@ msgstr "In Progress"
 #: app/templates/macros/approval_macros.html:816
 #: app/templates/macros/approval_macros.html:885
 #: app/templates/macros/approval_macros.html:1063
-#: app/templates/macros/ui_helpers.html:8788 app/views/approval.py:228
-#: app/views/approval.py:2159
+#: app/templates/macros/ui_helpers.html:8788 app/utils/status_meta.py:26
+#: app/utils/status_meta.py:61 app/utils/status_meta.py:122
+#: app/views/approval.py:228 app/views/approval.py:2159
 msgid "已通过"
 msgstr "Approved"
 
 #: app/templates/components/tw_approval_flow.html:67
 #: app/templates/components/tw_pricing_order_modal.html:857
+#: app/utils/status_meta.py:28 app/utils/status_meta.py:133
 #: app/views/approval.py:230
 msgid "已召回"
 msgstr "Recalled"
@@ -7693,7 +7716,7 @@ msgstr "Continue"
 #: app/templates/components/tw_meeting_panel.html:364
 #: app/templates/macros/ui_helpers.html:8698
 #: app/templates/macros/ui_helpers.html:8776
-#: app/templates/prospect/tw_lost_panel.html:18
+#: app/templates/prospect/tw_lost_panel.html:18 app/utils/status_meta.py:94
 #: app/views/product_analysis.py:1298
 msgid "暂停"
 msgstr "Paused"
@@ -7853,9 +7876,10 @@ msgstr "No pending tasks"
 #: app/templates/macros/ui_helpers.html:8775
 #: app/templates/worklog/tw_calendar.html:1057
 #: app/templates/worklog/tw_calendar.html:1355
-#: app/templates/worklog/tw_calendar.html:2968
+#: app/templates/worklog/tw_calendar.html:2968 app/utils/status_meta.py:42
+#: app/utils/status_meta.py:53 app/utils/status_meta.py:101
 msgid "已完成"
-msgstr "Completed"
+msgstr "Done"
 
 #: app/templates/components/tw_message_panel.html:189
 msgid "发起"
@@ -8594,30 +8618,33 @@ msgstr "Action Quality Trend"
 #: app/templates/project/statistics_dashboard_backup.html:152
 #: app/templates/prospect/tw_list.html:1253
 #: app/templates/prospect/tw_list.html:1542
-#: app/templates/prospect/tw_list.html:2083 app/views/product_analysis.py:1290
+#: app/templates/prospect/tw_list.html:2083 app/utils/status_meta.py:86
+#: app/views/product_analysis.py:1290
 msgid "发现"
-msgstr "Found"
+msgstr "Discover"
 
 #: app/templates/components/tw_performance_dashboard.html:2831
 #: app/templates/project/statistics_dashboard_backup.html:176
-#: app/views/product_analysis.py:1291
+#: app/utils/status_meta.py:87 app/views/product_analysis.py:1291
 msgid "植入"
-msgstr "Implant"
+msgstr "Embed"
 
 #: app/templates/components/tw_performance_dashboard.html:2831
+#: app/utils/status_meta.py:88
 msgid "标前"
-msgstr "Pre-tender"
+msgstr "Pre-Bid"
 
 #: app/templates/components/tw_performance_dashboard.html:2832
+#: app/utils/status_meta.py:90
 msgid "标中"
-msgstr "Tendering"
+msgstr "Bidding"
 
 #: app/templates/components/tw_performance_dashboard.html:2832
 #: app/templates/project/statistics_dashboard_backup.html:248
-#: app/templates/prospect/tw_lost_panel.html:14
+#: app/templates/prospect/tw_lost_panel.html:14 app/utils/status_meta.py:91
 #: app/views/product_analysis.py:1295
 msgid "中标"
-msgstr "Awarded"
+msgstr "Won"
 
 #: app/templates/components/tw_performance_dashboard.html:2832
 #: app/templates/project/statistics_dashboard_backup.html:272
@@ -8626,7 +8653,7 @@ msgstr "Price Approval"
 
 #: app/templates/components/tw_performance_dashboard.html:2833
 #: app/templates/project/statistics_dashboard_backup.html:77
-#: app/views/product_analysis.py:1296
+#: app/utils/status_meta.py:92 app/views/product_analysis.py:1296
 msgid "签约"
 msgstr "Signed"
 
@@ -8639,9 +8666,10 @@ msgstr "Signed"
 #: app/templates/macros/ui_helpers.html:9333
 #: app/templates/project/statistics_dashboard_backup.html:101
 #: app/templates/spec_template/tw_spec_config_matrix.html:1780
-#: app/templates/worklog/tw_calendar.html:2969 app/views/meeting.py:398
+#: app/templates/worklog/tw_calendar.html:2969 app/utils/status_meta.py:93
+#: app/views/meeting.py:398
 msgid "失败"
-msgstr "Failed"
+msgstr "Lost"
 
 #: app/templates/components/tw_performance_dashboard.html:2833
 #: app/templates/project/statistics_dashboard_backup.html:125
@@ -8853,9 +8881,9 @@ msgstr "Supplier"
 #: app/templates/quotation/tw_quotation_detail.html:274
 #: app/templates/quotation/tw_quotation_detail.html:778
 #: app/templates/quotation/tw_quotation_detail.html:838
-#: app/views/quotation.py:350
+#: app/utils/status_meta.py:70 app/views/quotation.py:350
 msgid "待确认"
-msgstr "Pending Confirmation"
+msgstr "To Confirm"
 
 #: app/templates/components/tw_po_timeline.html:70
 #, fuzzy
@@ -8863,7 +8891,8 @@ msgid "查看确认单"
 msgstr "Order"
 
 #: app/templates/components/tw_po_timeline.html:170
-#: app/templates/macros/approval_macros.html:439
+#: app/templates/macros/approval_macros.html:439 app/utils/status_meta.py:40
+#: app/utils/status_meta.py:51
 msgid "已发货"
 msgstr "Shipped"
 
@@ -9273,7 +9302,10 @@ msgid "创建订单"
 msgstr "Create Order"
 
 #: app/templates/components/tw_pricing_order_modal.html:856
-#: app/templates/expense/at_list.html:28
+#: app/templates/expense/at_list.html:28 app/utils/status_meta.py:27
+#: app/utils/status_meta.py:35 app/utils/status_meta.py:64
+#: app/utils/status_meta.py:72 app/utils/status_meta.py:80
+#: app/utils/status_meta.py:132
 msgid "已驳回"
 msgstr "Rejected"
 
@@ -10783,9 +10815,9 @@ msgstr "Status"
 #: app/templates/components/product/tw_product_modal.html:221
 #: app/templates/product/tw_list.html:153
 #: app/templates/product/tw_list_rows.html:14
-#: app/templates/product/tw_product_detail.html:19
+#: app/templates/product/tw_product_detail.html:19 app/utils/status_meta.py:115
 msgid "在售"
-msgstr "Active"
+msgstr "On Sale"
 
 #: app/templates/components/product/tw_product_modal.html:222
 #: app/templates/product/tw_list.html:149
@@ -13345,11 +13377,12 @@ msgstr "Process"
 msgid "提交、审批、付款一站式管理,个人财务隔离。"
 msgstr "Submit, approve and pay in one place — personal finances kept separate."
 
-#: app/templates/expense/at_list.html:26
+#: app/templates/expense/at_list.html:26 app/utils/status_meta.py:62
 msgid "待付款"
 msgstr "Unpaid"
 
-#: app/templates/expense/at_list.html:27 app/views/expense.py:421
+#: app/templates/expense/at_list.html:27 app/utils/status_meta.py:63
+#: app/utils/status_meta.py:110 app/views/expense.py:421
 #: app/views/expense.py:612
 msgid "已支付"
 msgstr "Paid"
@@ -14095,7 +14128,7 @@ msgid "拖拽文件到此处上传，或点击\"上传文件\"按钮"
 msgstr "Drag files here to upload, or click Upload Files"
 
 #: app/templates/files/tw_file_manager.html:497
-#: app/templates/files/tw_file_manager.html:578
+#: app/templates/files/tw_file_manager.html:578 app/utils/status_meta.py:81
 msgid "已归档"
 msgstr "Archived"
 
@@ -15481,7 +15514,9 @@ msgstr "No Associated Company"
 #: app/templates/macros/ui_helpers.html:8700
 #: app/templates/macros/ui_helpers.html:8777
 #: app/templates/worklog/tw_calendar.html:1057
-#: app/templates/worklog/tw_calendar.html:3197 app/views/worklog.py:329
+#: app/templates/worklog/tw_calendar.html:3197 app/utils/status_meta.py:43
+#: app/utils/status_meta.py:54 app/utils/status_meta.py:102
+#: app/views/worklog.py:329
 msgid "已取消"
 msgstr "Cancelled"
 
@@ -15552,6 +15587,8 @@ msgstr "Order status"
 #: app/templates/quotation/tw_quotation_detail.html:778
 #: app/templates/quotation/tw_quotation_detail.html:781
 #: app/templates/quotation/tw_quotation_detail.html:832
+#: app/utils/status_meta.py:37 app/utils/status_meta.py:49
+#: app/utils/status_meta.py:71 app/utils/status_meta.py:131
 #: app/views/quotation.py:351
 msgid "已确认"
 msgstr "Confirmed"
@@ -18169,14 +18206,6 @@ msgstr "All Clients"
 msgid "订单量"
 msgstr "Order Quantity"
 
-#: app/templates/product_analysis/tw_analysis.html:489
-#: app/templates/prospect/_tw_lost_list.html:22
-#: app/templates/prospect/tw_list.html:74
-#: app/templates/prospect/tw_list.html:252
-#: app/templates/prospect/tw_list.html:1022
-msgid "条"
-msgstr "items"
-
 #: app/templates/product_analysis/tw_analysis.html:581
 msgid "分布分析"
 msgstr "Distribution"
@@ -19579,9 +19608,8 @@ msgstr "Engaged"
 msgid "预招标"
 msgstr "Pre-tender"
 
-#: app/templates/prospect/tw_lost_panel.html:15
+#: app/templates/prospect/tw_lost_panel.html:15 app/utils/status_meta.py:89
 #: app/views/product_analysis.py:1294
-#, fuzzy
 msgid "已报价"
 msgstr "Quoted"
 
@@ -23096,6 +23124,59 @@ msgstr "Enter keywords to search"
 msgid "未指定公司"
 msgstr "Company not specified"
 
+#: app/utils/status_meta.py:39
+msgid "已测试"
+msgstr "Tested"
+
+#: app/utils/status_meta.py:41
+msgid "已入库"
+msgstr "Stored"
+
+#: app/utils/status_meta.py:50
+msgid "备货中"
+msgstr "Preparing"
+
+#: app/utils/status_meta.py:52
+msgid "已送达"
+msgstr "Delivered"
+
+#: app/utils/status_meta.py:99
+msgid "计划"
+msgstr "Planned"
+
+#: app/utils/status_meta.py:103
+msgid "已失效"
+msgstr "Expired"
+
+#: app/utils/status_meta.py:108
+msgid "未支付"
+msgstr "Unpaid"
+
+#: app/utils/status_meta.py:109 app/views/expense.py:408
+#: app/views/expense.py:600
+msgid "待支付"
+msgstr "To Pay"
+
+#: app/utils/status_meta.py:116 app/views/config_management.py:2100
+msgid "即将上架"
+msgstr "Upcoming"
+
+#: app/utils/status_meta.py:124
+msgid "未通过"
+msgstr "Failed"
+
+#: app/utils/status_meta.py:130
+msgid "确认中"
+msgstr "Confirming"
+
+#: app/utils/status_meta.py:138
+msgid "搁置审核中"
+msgstr "Hold Review"
+
+#: app/utils/status_meta.py:139
+msgid "失败审核中"
+msgstr "Loss Review"
+
 #: app/views/approval.py:193 app/views/approval.py:2205
 msgid "待我审批"
 msgstr "Pending My Approval"
@@ -23240,11 +23321,6 @@ msgstr "Project Stage"
 msgid "行业分类"
 msgstr "Industry"
 
-#: app/views/config_management.py:2100
-#, fuzzy
-msgid "即将上架"
-msgstr "Coming Soon"
-
 #: app/views/customer.py:1065
 msgid "您没有权限删除此企业"
 msgstr "You do not have permission to delete this company"
@@ -23363,10 +23439,6 @@ msgstr "All Projects"
 #: app/views/expense.py:604 app/views/expense.py:616
 msgid "单"
 msgstr "orders"
-
-#: app/views/expense.py:408 app/views/expense.py:600
-msgid "待支付"
-msgstr "Pending Payment"
 
 #: app/views/expense.py:642
 #, python-format

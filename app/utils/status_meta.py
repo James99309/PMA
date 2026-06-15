@@ -5,7 +5,7 @@
 设计原则:
 - 按业务 scope 命名空间,避免不同模块同名状态语义冲突(approved 在采购订单 vs 报销 vs 报价 略不同)
 - tone 对应 at_pill 的 tone(neutral/accent/success/warn/danger/info)
-- 提供 fallback:scope 未匹配或 value 未匹配 → ('—', 'neutral')
+- 提供 fallback:scope 未匹配或 value 未匹配 → (_l('—'), 'neutral')
 
 使用:
     from app.utils.status_meta import get_status_meta
@@ -16,125 +16,127 @@
     {{ at_status_pill(o.status, scope='purchase_order') }}
 """
 
+from flask_babel import lazy_gettext as _l
+
 
 # 审批通用(用于审批流卡片头部、approval_instance 状态)
 APPROVAL_STATUS_META = {
-    'draft':    ('草稿',     'neutral'),
-    'pending':  ('审批中',   'warn'),
-    'approved': ('已通过',   'success'),
-    'rejected': ('已驳回',   'danger'),
-    'recalled': ('已召回',   'neutral'),
+    'draft':    (_l('草稿'), 'neutral'),
+    'pending':  (_l('审批中'), 'warn'),
+    'approved': (_l('已通过'), 'success'),
+    'rejected': (_l('已驳回'), 'danger'),
+    'recalled': (_l('已召回'), 'neutral'),
 }
 
 # 采购订单(完整生命周期 12 个状态)
 PURCHASE_ORDER_STATUS_META = {
-    'draft':     ('草稿',   'neutral'),
-    'pending':   ('审批中', 'warn'),
-    'rejected':  ('已驳回', 'danger'),
-    'approved':  ('已批准', 'success'),
-    'confirmed': ('已确认', 'info'),
-    'producing': ('生产中', 'accent'),
-    'tested':    ('已测试', 'accent'),
-    'shipped':   ('已发货', 'info'),
-    'stored':    ('已入库', 'success'),
-    'completed': ('已完成', 'success'),
-    'cancelled': ('已取消', 'neutral'),
+    'draft':     (_l('草稿'), 'neutral'),
+    'pending':   (_l('审批中'), 'warn'),
+    'rejected':  (_l('已驳回'), 'danger'),
+    'approved':  (_l('已批准'), 'success'),
+    'confirmed': (_l('已确认'), 'info'),
+    'producing': (_l('生产中'), 'accent'),
+    'tested':    (_l('已测试'), 'accent'),
+    'shipped':   (_l('已发货'), 'info'),
+    'stored':    (_l('已入库'), 'success'),
+    'completed': (_l('已完成'), 'success'),
+    'cancelled': (_l('已取消'), 'neutral'),
 }
 
 # 销售/客户订单(履约周期 7 状态)
 SALES_ORDER_STATUS_META = {
-    'draft':     ('草稿',   'neutral'),
-    'confirmed': ('已确认', 'info'),
-    'preparing': ('备货中', 'accent'),
-    'shipped':   ('已发货', 'info'),
-    'delivered': ('已送达', 'success'),
-    'completed': ('已完成', 'success'),
-    'cancelled': ('已取消', 'danger'),
+    'draft':     (_l('草稿'), 'neutral'),
+    'confirmed': (_l('已确认'), 'info'),
+    'preparing': (_l('备货中'), 'accent'),
+    'shipped':   (_l('已发货'), 'info'),
+    'delivered': (_l('已送达'), 'success'),
+    'completed': (_l('已完成'), 'success'),
+    'cancelled': (_l('已取消'), 'danger'),
 }
 
 # 报销
 EXPENSE_STATUS_META = {
-    'draft':             ('草稿',   'neutral'),
-    'pending':           ('待审批', 'warn'),
-    'approved':          ('已通过', 'success'),
-    'awaiting_payment':  ('待付款', 'info'),
-    'paid':              ('已支付', 'success'),
-    'rejected':          ('已驳回', 'danger'),
+    'draft':             (_l('草稿'), 'neutral'),
+    'pending':           (_l('待审批'), 'warn'),
+    'approved':          (_l('已通过'), 'success'),
+    'awaiting_payment':  (_l('待付款'), 'info'),
+    'paid':              (_l('已支付'), 'success'),
+    'rejected':          (_l('已驳回'), 'danger'),
 }
 
 # 报价(确认徽章)
 QUOTATION_CONFIRMATION_META = {
-    'none':      ('草稿', 'neutral'),
-    'pending':   ('待确认', 'warn'),
-    'confirmed': ('已确认', 'success'),
-    'rejected':  ('已驳回', 'danger'),
+    'none':      (_l('草稿'), 'neutral'),
+    'pending':   (_l('待确认'), 'warn'),
+    'confirmed': (_l('已确认'), 'success'),
+    'rejected':  (_l('已驳回'), 'danger'),
 }
 
 # 批价单
 PRICING_ORDER_STATUS_META = {
-    'draft':    ('草稿',   'neutral'),
-    'pending':  ('审批中', 'warn'),
-    'approved': ('已批准', 'success'),
-    'rejected': ('已驳回', 'danger'),
-    'archived': ('已归档', 'neutral'),
+    'draft':    (_l('草稿'), 'neutral'),
+    'pending':  (_l('审批中'), 'warn'),
+    'approved': (_l('已批准'), 'success'),
+    'rejected': (_l('已驳回'), 'danger'),
+    'archived': (_l('已归档'), 'neutral'),
 }
 
 # 项目阶段
 PROJECT_STAGE_META = {
-    'discover':   ('发现', 'neutral'),
-    'embed':      ('植入', 'accent'),
-    'pre_tender': ('标前', 'warn'),
-    'quoted':     ('已报价', 'info'),
-    'tendering':  ('标中', 'info'),
-    'awarded':    ('中标', 'success'),
-    'signed':     ('签约', 'success'),
-    'lost':       ('失败', 'danger'),
-    'paused':     ('暂停', 'neutral'),
+    'discover':   (_l('发现'), 'neutral'),
+    'embed':      (_l('植入'), 'accent'),
+    'pre_tender': (_l('标前'), 'warn'),
+    'quoted':     (_l('已报价'), 'info'),
+    'tendering':  (_l('标中'), 'info'),
+    'awarded':    (_l('中标'), 'success'),
+    'signed':     (_l('签约'), 'success'),
+    'lost':       (_l('失败'), 'danger'),
+    'paused':     (_l('暂停'), 'neutral'),
 }
 
 # WorkItem(工作记录)状态
 WORKITEM_STATUS_META = {
-    'planned':     ('计划',   'neutral'),
-    'in_progress': ('进行中', 'info'),
-    'completed':   ('已完成', 'success'),
-    'cancelled':   ('已取消', 'neutral'),
-    'invalidated': ('已失效', 'neutral'),
+    'planned':     (_l('计划'), 'neutral'),
+    'in_progress': (_l('进行中'), 'info'),
+    'completed':   (_l('已完成'), 'success'),
+    'cancelled':   (_l('已取消'), 'neutral'),
+    'invalidated': (_l('已失效'), 'neutral'),
 }
 
 # 报销支付状态(payment_status)
 PAYMENT_STATUS_META = {
-    'unpaid':   ('未支付', 'neutral'),
-    'awaiting': ('待支付', 'warn'),
-    'paid':     ('已支付', 'success'),
+    'unpaid':   (_l('未支付'), 'neutral'),
+    'awaiting': (_l('待支付'), 'warn'),
+    'paid':     (_l('已支付'), 'success'),
 }
 
 # 产品库
 PRODUCT_STATUS_META = {
-    'active':       ('在售',   'success'),
-    'upcoming':     ('即将上架', 'info'),
-    'discontinued': ('已停产', 'neutral'),
+    'active':       (_l('在售'), 'success'),
+    'upcoming':     (_l('即将上架'), 'info'),
+    'discontinued': (_l('已停产'), 'neutral'),
 }
 
 # 测试报告状态(采购订单 factory_test_status)
 FACTORY_TEST_STATUS_META = {
-    'passed':  ('已通过', 'success'),
-    'pending': ('未上传', 'neutral'),
-    'failed':  ('未通过', 'danger'),
+    'passed':  (_l('已通过'), 'success'),
+    'pending': (_l('未上传'), 'neutral'),
+    'failed':  (_l('未通过'), 'danger'),
 }
 
 # 报价单技术确认审批(标准 ApprovalInstance,与 SM confirmation_badge 区分)
 QUOTATION_APPROVAL_STATUS_META = {
-    'draft':    ('草稿',     'neutral'),
-    'pending':  ('确认中',   'warn'),
-    'approved': ('已确认',   'success'),
-    'rejected': ('已驳回',   'danger'),
-    'recalled': ('已召回',   'neutral'),
+    'draft':    (_l('草稿'), 'neutral'),
+    'pending':  (_l('确认中'), 'warn'),
+    'approved': (_l('已确认'), 'success'),
+    'rejected': (_l('已驳回'), 'danger'),
+    'recalled': (_l('已召回'), 'neutral'),
 }
 
 # 项目失败/搁置审核 chip(审核中态;target 决定颜色)
 PROJECT_HOLD_STATUS_META = {
-    'paused': ('搁置审核中', 'warn'),
-    'lost':   ('失败审核中', 'danger'),
+    'paused': (_l('搁置审核中'), 'warn'),
+    'lost':   (_l('失败审核中'), 'danger'),
 }
 
 # ─── 注册表 ─────────────────────────────────────────────────
@@ -167,4 +169,4 @@ def get_status_meta(value, scope):
 
 def get_status_label(value, scope):
     """只取 label(常用于纯文本场景:Excel 导出、邮件等)"""
-    return get_status_meta(value, scope)[0]
+    return str(get_status_meta(value, scope)[0])
