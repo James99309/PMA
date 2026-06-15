@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 17:05+0800\n"
+"POT-Creation-Date: 2026-06-15 17:13+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -2221,6 +2221,7 @@ msgstr "Delete row"
 #: app/templates/components/at_product_sidebar.html:90
 #: app/templates/components/at_product_specs_relations.html:292
 #: app/templates/components/at_purchase_order.html:903
+#: app/templates/components/at_spec_import_modal.html:34
 #: app/templates/product/at_list.html:177
 msgid "加载中…"
 msgstr "Loading…"
@@ -2229,6 +2230,7 @@ msgstr "Loading…"
 #: app/templates/announcement/tw_list.html:455
 #: app/templates/backup/tw_index.html:87
 #: app/templates/components/at_product_sidebar.html:167
+#: app/templates/components/at_spec_import_modal.html:139
 #: app/templates/components/product/tw_product_modal.html:329
 #: app/templates/components/product/tw_spec_import_modal.html:194
 #: app/templates/components/product/tw_spec_import_modal.html:199
@@ -2362,6 +2364,7 @@ msgstr "Indonesian Rupiah"
 #: app/templates/components/at_purchase_order.html:659
 #: app/templates/components/at_purchase_order.html:836
 #: app/templates/components/at_sales_order.html:22
+#: app/templates/components/at_spec_import_modal.html:16
 #: app/templates/components/at_user_modal.html:149
 #: app/templates/components/product/tw_config_selector_modal.html:228
 #: app/templates/components/product/tw_product_modal.html:247
@@ -6368,6 +6371,7 @@ msgstr "Backup failed"
 #: app/templates/backup/tw_index.html:460
 #: app/templates/backup/tw_index.html:481 app/templates/cli/terminal.html:144
 #: app/templates/components/at_product_relation_modal.html:374
+#: app/templates/components/at_spec_import_modal.html:263
 #: app/templates/components/tw_approval_flow.html:224
 #: app/templates/components/tw_task_modal.html:597
 #: app/templates/components/tw_task_modal.html:787
@@ -7298,6 +7302,7 @@ msgid "产品信息已更新"
 msgstr "Product updated"
 
 #: app/templates/components/at_product_edit_modal.html:173
+#: app/templates/components/at_spec_import_modal.html:152
 #: app/templates/components/product/tw_spec_options_modal.html:557
 #: app/templates/components/product/tw_spec_options_modal.html:761
 #: app/templates/components/product/tw_spec_options_modal.html:962
@@ -7548,11 +7553,13 @@ msgstr "No default"
 
 #: app/templates/components/at_product_relation_modal.html:102
 msgid "互斥组内的产品只能选一个，适用于相同功能但规格不同的配件。"
-msgstr "Only one product can be selected within an exclusive group; use it for accessories with the same function but different specs."
-"Only one product can be selected within a mutually exclusive group, "
-"suited to accessories with the same function but different specs.Only one"
-" product can be selected from a mutual exclusion group, suitable for "
-"accessories with same function but different specs."
+msgstr ""
+"Only one product can be selected within an exclusive group; use it for "
+"accessories with the same function but different specs.Only one product "
+"can be selected within a mutually exclusive group, suited to accessories "
+"with the same function but different specs.Only one product can be "
+"selected from a mutual exclusion group, suitable for accessories with "
+"same function but different specs."
 
 #: app/templates/components/at_product_relation_modal.html:111
 msgid "从左侧产品树中选择产品"
@@ -7745,7 +7752,9 @@ msgstr "Delete exclusive group"
 
 #: app/templates/components/at_product_specs_relations.html:421
 msgid "确认删除整个互斥组？组内所有关联产品将被移出。"
-msgstr "Delete the entire exclusive group? All related products in it will be removed."
+msgstr ""
+"Delete the entire exclusive group? All related products in it will be "
+"removed."
 
 #: app/templates/components/at_project_modal.html:31
 #: app/templates/macros/ui_helpers.html:400 app/templates/project/edit.html:107
@@ -8596,6 +8605,74 @@ msgstr "Skills"
 #: app/templates/components/at_sidebar.html:332
 msgid "固定展开"
 msgstr "Pin"
+
+#: app/templates/components/at_spec_import_modal.html:23
+#: app/templates/components/at_spec_import_modal.html:256
+#: app/templates/components/at_spec_import_modal.html:262
+#: app/templates/components/product/tw_spec_import_modal.html:137
+msgid "确认引入"
+msgstr "Confirm Import"
+
+# 规格引入模态框翻译
+#: app/templates/components/at_spec_import_modal.html:27
+#: app/templates/components/product/tw_spec_import_modal.html:33
+msgid "从配置引入规格"
+msgstr "Import Specs from Config"
+
+#: app/templates/components/at_spec_import_modal.html:57
+msgid "编码规格（必选）"
+msgstr "Code Specs (Required)"
+
+#: app/templates/components/at_spec_import_modal.html:67
+msgid "其他规格（可选）"
+msgstr "Other Specs (Optional)"
+
+#: app/templates/components/at_spec_import_modal.html:71
+#: app/templates/components/at_spec_import_modal.html:208
+#: app/templates/components/product/tw_spec_import_modal.html:92
+#: app/templates/components/tw_role_user_selector.html:139
+#: app/templates/config_management/tw_index.html:1005
+#: app/templates/macros/approval_macros.html:70
+#: app/templates/prospect/tw_list.html:643
+#: app/templates/system_diagram/tw_editor.html:474
+#: app/templates/system_diagram/tw_editor.html:534
+#: app/templates/user/affiliations.html:62
+#: app/templates/user/affiliations.html:108
+msgid "全选"
+msgstr "Select All"
+
+#: app/templates/components/at_spec_import_modal.html:85
+msgid "引入后将替换产品现有的全部规格，操作不可撤销。"
+msgstr "This replaces all existing product specs and cannot be undone."
+
+#: app/templates/components/at_spec_import_modal.html:191
+#: app/templates/components/product/tw_spec_import_modal.html:82
+msgid "无编码规格"
+msgstr "No code specs"
+
+#: app/templates/components/at_spec_import_modal.html:208
+#: app/templates/components/product/tw_spec_import_modal.html:92
+#: app/templates/prospect/tw_list.html:646
+msgid "取消全选"
+msgstr "Deselect All"
+
+#: app/templates/components/at_spec_import_modal.html:239
+msgid "导入中…"
+msgstr "Importing…"
+
+#: app/templates/components/at_spec_import_modal.html:253
+msgid "规格已引入"
+msgstr "Specs imported"
+
+#: app/templates/components/at_spec_import_modal.html:257
+#: app/templates/components/at_spec_import_modal.html:258
+#: app/templates/components/product/tw_spec_import_modal.html:256
+#: app/templates/components/product/tw_spec_import_modal.html:260
+#: app/templates/prospect/tw_list.html:1094
+#: app/templates/spec_template/tw_configurations.html:888
+#: app/templates/spec_template/tw_list.html:520
+msgid "导入失败"
+msgstr "Import failed"
 
 #: app/templates/components/at_topbar.html:78
 msgid "搜索客户、项目、报价、SN、产品…"
@@ -12447,18 +12524,6 @@ msgstr "Has personal override"
 msgid "跳转"
 msgstr "Jump to"
 
-#: app/templates/components/product/tw_spec_import_modal.html:92
-#: app/templates/components/tw_role_user_selector.html:139
-#: app/templates/config_management/tw_index.html:1005
-#: app/templates/macros/approval_macros.html:70
-#: app/templates/prospect/tw_list.html:643
-#: app/templates/system_diagram/tw_editor.html:474
-#: app/templates/system_diagram/tw_editor.html:534
-#: app/templates/user/affiliations.html:62
-#: app/templates/user/affiliations.html:108
-msgid "全选"
-msgstr "Select All"
-
 #: app/templates/components/product/tw_config_selector_modal.html:198
 #: app/templates/components/tw_role_user_selector.html:141
 #: app/templates/product/at_list.html:200
@@ -13462,43 +13527,17 @@ msgstr "Select products to associate from the product tree on the left"
 msgid "请输入互斥组名称"
 msgstr "Please enter group name"
 
-# 规格引入模态框翻译
-#: app/templates/components/product/tw_spec_import_modal.html:33
-msgid "从配置引入规格"
-msgstr "Import Specs from Config"
-
 #: app/templates/components/product/tw_spec_import_modal.html:62
 msgid "编码规格"
 msgstr "Code Specs"
-
-#: app/templates/components/product/tw_spec_import_modal.html:82
-msgid "无编码规格"
-msgstr "No code specs"
 
 #: app/templates/components/product/tw_spec_import_modal.html:90
 msgid "其他规格"
 msgstr "Other Specs"
 
-#: app/templates/components/product/tw_spec_import_modal.html:92
-#: app/templates/prospect/tw_list.html:646
-msgid "取消全选"
-msgstr "Deselect All"
-
 #: app/templates/components/product/tw_spec_import_modal.html:117
 msgid "引入后将替换产品现有的所有规格"
 msgstr "Import will replace all existing product specs"
-
-#: app/templates/components/product/tw_spec_import_modal.html:137
-msgid "确认引入"
-msgstr "Confirm Import"
-
-#: app/templates/components/product/tw_spec_import_modal.html:256
-#: app/templates/components/product/tw_spec_import_modal.html:260
-#: app/templates/prospect/tw_list.html:1094
-#: app/templates/spec_template/tw_configurations.html:888
-#: app/templates/spec_template/tw_list.html:520
-msgid "导入失败"
-msgstr "Import failed"
 
 #: app/templates/components/product/tw_spec_list.html:62
 #: app/templates/components/product/tw_spec_list.html:128
@@ -15455,7 +15494,7 @@ msgstr ""
 #: app/templates/customer/at_view.html:241
 #: app/templates/project/at_view.html:491
 msgid "+ 管理共享"
-msgstr "+ Manage Sharing"
+msgstr "+ Share"
 
 #: app/templates/customer/at_view.html:258
 msgid "未启用共享 — 仅归属人及管理者可见"
@@ -21484,9 +21523,10 @@ msgstr "SN Stock-In"
 
 #: app/templates/product_sn/at_detail.html:195
 msgid "填写仓库位置后将该 SN 入库,状态推进至「库存中」。"
-msgstr "Enter the warehouse location to stock in this SN, advancing its status to \"In Stock\"."
+msgstr ""
 "Enter the warehouse location to stock in this SN, advancing its status to"
-" \"In Stock\"."
+" \"In Stock\".Enter the warehouse location to stock in this SN, advancing"
+" its status to \"In Stock\"."
 
 #: app/templates/product_sn/at_detail.html:196
 msgid "确认入库"
@@ -21686,9 +21726,10 @@ msgstr "Current project status:"
 
 #: app/templates/project/at_view.html:277
 msgid "进度条下方显示恢复前的最后正常阶段;点击节点可恢复"
-msgstr "The last normal stage before restoring is shown below the progress bar; click a node to restore"
+msgstr ""
 "The last normal stage before restoring is shown below the progress bar; "
-"click a node to restore"
+"click a node to restoreThe last normal stage before restoring is shown "
+"below the progress bar; click a node to restore"
 
 #: app/templates/project/at_view.html:294
 #: app/templates/project/at_view.html:958
@@ -21711,7 +21752,7 @@ msgstr "Reported At"
 
 #: app/templates/project/at_view.html:314
 msgid "+ 添加客户"
-msgstr "+ Add Customer"
+msgstr "+ Add"
 
 #: app/templates/project/at_view.html:332
 msgid "移除关联"
@@ -21740,9 +21781,10 @@ msgstr "No linked expenses"
 
 #: app/templates/project/at_view.html:392
 msgid "自动从公开来源收集项目背景、参与方、招标动态等信息。"
-msgstr "Automatically gathers project background, parties, and bidding updates from public sources."
+msgstr ""
 "Automatically gathers project background, parties, and bidding updates "
-"from public sources."
+"from public sources.Automatically gathers project background, parties, "
+"and bidding updates from public sources."
 
 #: app/templates/project/at_view.html:436
 #: app/templates/system_diagram/tw_list.html:136
@@ -21854,9 +21896,11 @@ msgstr "Restore Project"
 #: app/templates/project/at_view.html:611
 #, python-format
 msgid "项目当前为 [%(cur)s] 状态,将恢复到搁置/失败前的阶段 [%(target)s]。可填写备注。"
-msgstr "The project is currently [%(cur)s] and will be restored to its pre-pause/lost stage [%(target)s]. You may add a note."
+msgstr ""
 "The project is currently [%(cur)s] and will be restored to its pre-"
-"pause/lost stage [%(target)s]. You may add a note."
+"pause/lost stage [%(target)s]. You may add a note.The project is "
+"currently [%(cur)s] and will be restored to its pre-pause/lost stage "
+"[%(target)s]. You may add a note."
 
 #: app/templates/project/at_view.html:613
 #, python-format
@@ -21991,9 +22035,11 @@ msgstr "Dept. Manager → General Manager"
 
 #: app/templates/project/at_view.html:876
 msgid "。审批通过后项目阶段才会置灰标记，期间阶段不变、可恢复。"
-msgstr ". The project stage is greyed out only after approval; until then the stage stays unchanged and can be restored."
+msgstr ""
 ". The project stage is greyed out only after approval; until then the "
-"stage stays unchanged and can be restored."
+"stage stays unchanged and can be restored.. The project stage is greyed "
+"out only after approval; until then the stage stays unchanged and can be "
+"restored."
 
 #: app/templates/project/at_view.html:893
 msgid "理由"
@@ -22017,10 +22063,12 @@ msgstr "Select a new supplier sales owner from active supplier staff."
 
 #: app/templates/project/at_view.html:1012
 msgid "预判该项目必赢并锁定;所有项目展示处将带「锁定成功」徽章,签约时自动解除,也可人为解除。"
-msgstr "Predict this project as a sure win and lock it; a \"Win Locked\" badge appears everywhere the project is shown, auto-released on signing, or released manually."
+msgstr ""
 "Predict this project as a sure win and lock it; a \"Win Locked\" badge "
 "appears everywhere the project is shown, auto-released on signing, or "
-"released manually."
+"released manually.Predict this project as a sure win and lock it; a \"Win"
+" Locked\" badge appears everywhere the project is shown, auto-released on"
+" signing, or released manually."
 
 #: app/templates/project/at_view.html:1015
 msgid "为何判断该项目已锁定成功…"
@@ -23419,9 +23467,10 @@ msgstr "\"%(n)s\" added to items"
 
 #: app/templates/quotation/at_view.html:1372
 msgid "请选择关联项目(可先选客户后从其项目中选)"
-msgstr "Please select a linked project (you can pick a customer first, then choose from its projects)"
+msgstr ""
 "Please select a linked project (you can pick a customer first, then "
-"choose from its projects)"
+"choose from its projects)Please select a linked project (you can pick a "
+"customer first, then choose from its projects)"
 
 #: app/templates/quotation/at_view.html:1373
 msgid "请至少添加一条明细"
@@ -23453,15 +23502,17 @@ msgstr "Quoted Unit Price"
 
 #: app/templates/quotation/at_view.html:1580
 msgid "自定义产品无市场价,不参与全局折扣计算"
-msgstr "Custom products have no market price and are excluded from global discount calculation"
+msgstr ""
 "Custom products have no market price and are excluded from global "
-"discount calculation"
+"discount calculationCustom products have no market price and are excluded"
+" from global discount calculation"
 
 #: app/templates/quotation/at_view.html:1589
 msgid "自定义产品不入产品库,仅本报价生效"
-msgstr "Custom products are not added to the product library and apply only to this quotation"
+msgstr ""
 "Custom products are not added to the product library and apply only to "
-"this quotation"
+"this quotationCustom products are not added to the product library and "
+"apply only to this quotation"
 
 #: app/templates/quotation/at_view.html:1603
 msgid "添加到明细"
@@ -23932,9 +23983,10 @@ msgstr "Delete Draft Order"
 #: app/templates/sales_order/at_detail.html:254
 #, python-format
 msgid "订单号 %(number)s 将被永久删除(含明细),无法恢复。是否继续?"
-msgstr "Order %(number)s will be permanently deleted (including items) and cannot be recovered. Continue?"
+msgstr ""
 "Order %(number)s will be permanently deleted (including items) and cannot"
-" be recovered. Continue?"
+" be recovered. Continue?Order %(number)s will be permanently deleted "
+"(including items) and cannot be recovered. Continue?"
 
 #: app/templates/sales_order/at_detail.html:266
 msgid "订单已删除"
@@ -23943,9 +23995,10 @@ msgstr "Order deleted"
 #: app/templates/sales_order/at_detail.html:281
 #, python-format
 msgid "订单号 %(number)s 将被取消,记录保留但状态变为已取消。是否继续?"
-msgstr "Order %(number)s will be cancelled; the record is kept but its status becomes Cancelled. Continue?"
+msgstr ""
 "Order %(number)s will be cancelled; the record is kept but its status "
-"becomes Cancelled. Continue?"
+"becomes Cancelled. Continue?Order %(number)s will be cancelled; the "
+"record is kept but its status becomes Cancelled. Continue?"
 
 #: app/templates/sales_order/at_detail.html:293
 msgid "订单已取消"

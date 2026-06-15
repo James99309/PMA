@@ -13,25 +13,25 @@
           onclick="atSpecImportClose()"
           style="padding:8px 16px;border-radius:8px;background:transparent;
                  border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;">
-    取消
+    {{ _('取消') }}
   </button>
   <button type="button" id="atSpecImportConfirm"
           onclick="atSpecImportConfirm()"
           style="padding:8px 20px;border-radius:8px;background:var(--accent);
                  color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;
                  white-space:nowrap;">
-    确认引入
+    {{ _('确认引入') }}
   </button>
 {% endset %}
 
-{% call at_modal_shell('atSpecImportModal', '从配置引入规格', icon='download', width=620, footer_html=_footer) %}
+{% call at_modal_shell('atSpecImportModal', _('从配置引入规格'), icon='download', width=620, footer_html=_footer) %}
 
   {# 加载中 #}
   <div id="atSiLoading" style="padding:40px 0;text-align:center;">
     <div style="width:32px;height:32px;border:3px solid var(--line-2);
                 border-top-color:var(--accent);border-radius:50%;
                 animation:at-spin 0.7s linear infinite;margin:0 auto 10px;"></div>
-    <span style="font-size:12.5px;color:var(--ink-4);">加载中…</span>
+    <span style="font-size:12.5px;color:var(--ink-4);">{{ _('加载中…') }}</span>
   </div>
 
   {# 错误 #}
@@ -54,7 +54,7 @@
     <div style="margin-bottom:16px;">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
         <span class="material-symbols-outlined" style="font-size:16px;color:var(--accent);">lock</span>
-        <span style="font-size:12.5px;font-weight:600;color:var(--ink-2);">编码规格（必选）</span>
+        <span style="font-size:12.5px;font-weight:600;color:var(--ink-2);">{{ _('编码规格（必选）') }}</span>
       </div>
       <div id="atSiCodeSpecs"
            style="border:1px solid var(--line);border-radius:7px;overflow:hidden;">
@@ -64,11 +64,11 @@
     {# 可选规格 #}
     <div id="atSiOptWrap" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <span style="font-size:12.5px;font-weight:600;color:var(--ink-2);">其他规格（可选）</span>
+        <span style="font-size:12.5px;font-weight:600;color:var(--ink-2);">{{ _('其他规格（可选）') }}</span>
         <button type="button" id="atSiToggleAll"
                 onclick="atSpecImportToggleAll()"
                 style="font-size:12px;color:var(--accent);background:0;border:0;cursor:pointer;">
-          全选
+          {{ _('全选') }}
         </button>
       </div>
       <div id="atSiOptSpecs"
@@ -82,7 +82,7 @@
                 background:var(--warn-soft,#fffbeb);border:1px solid var(--warn-line,#fde68a);
                 border-radius:7px;font-size:12px;color:var(--warn-ink,#92400e);">
       <span class="material-symbols-outlined" style="font-size:16px;flex-shrink:0;">warning</span>
-      引入后将替换产品现有的全部规格，操作不可撤销。
+      {{ _('引入后将替换产品现有的全部规格，操作不可撤销。') }}
     </div>
 
   </div>
@@ -136,7 +136,7 @@
     fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d.success) { _showError(d.message || '加载失败'); return; }
+        if (!d.success) { _showError(d.message || '{{ _("加载失败") }}'); return; }
         var cfg   = d.data.configuration || {};
         _specs    = d.data.specs         || [];
 
@@ -149,7 +149,7 @@
         _renderOptSpecs();
         _setState('content');
       })
-      .catch(function () { _showError('网络错误，请重试'); });
+      .catch(function () { _showError('{{ _("网络错误，请重试") }}'); });
   }
 
   function _renderConfig(cfg) {
@@ -188,7 +188,7 @@
     var code = _specs.filter(function(s){ return s.use_in_code; });
     el.innerHTML = code.length
       ? code.map(function(s){ return _specRow(s, true); }).join('')
-      : '<div style="padding:10px 12px;font-size:12.5px;color:var(--ink-4);">无编码规格</div>';
+      : '<div style="padding:10px 12px;font-size:12.5px;color:var(--ink-4);">{{ _("无编码规格") }}</div>';
   }
 
   function _renderOptSpecs() {
@@ -205,7 +205,7 @@
     var opt = _specs.filter(function(s){ return !s.use_in_code; });
     var allSel = opt.length && opt.every(function(s){ return _selected.has(s.template_item_id); });
     var btn = document.getElementById('atSiToggleAll');
-    if (btn) btn.textContent = allSel ? '取消全选' : '全选';
+    if (btn) btn.textContent = allSel ? '{{ _("取消全选") }}' : '{{ _("全选") }}';
   }
 
   /* ─── 切换单个可选规格 ─── */
@@ -236,7 +236,7 @@
     var specIds = codeIds.concat(Array.from(_selected));
 
     var btn = document.getElementById('atSpecImportConfirm');
-    if (btn) { btn.disabled = true; btn.textContent = '导入中…'; }
+    if (btn) { btn.disabled = true; btn.textContent = '{{ _("导入中…") }}'; }
 
     var reqBody = { spec_ids: specIds };
     if (_sp8dCfgId) reqBody.sp8d_config_id = parseInt(_sp8dCfgId, 10);
@@ -250,17 +250,17 @@
     .then(function(d){
       if (d.success) {
         atSpecImportClose();
-        if (window.atToast) atToast('规格已引入', 'success');
+        if (window.atToast) atToast('{{ _("规格已引入") }}', 'success');
         setTimeout(function(){ location.reload(); }, 500);
       } else {
-        if (btn) { btn.disabled = false; btn.textContent = '确认引入'; }
-        if (window.atToast) atToast(d.message || '导入失败', 'error');
-        else alert(d.message || '导入失败');
+        if (btn) { btn.disabled = false; btn.textContent = '{{ _("确认引入") }}'; }
+        if (window.atToast) atToast(d.message || '{{ _("导入失败") }}', 'error');
+        else alert(d.message || '{{ _("导入失败") }}');
       }
     })
     .catch(function(){
-      if (btn) { btn.disabled = false; btn.textContent = '确认引入'; }
-      if (window.atToast) atToast('网络错误', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '{{ _("确认引入") }}'; }
+      if (window.atToast) atToast('{{ _("网络错误") }}', 'error');
     });
   };
 
