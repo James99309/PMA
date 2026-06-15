@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 17:13+0800\n"
+"POT-Creation-Date: 2026-06-15 17:22+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -1494,7 +1494,8 @@ msgstr "New Project"
 msgid "批价单"
 msgstr "Pricing Orders"
 
-#: app/helpers/at_dashboard_helpers.py:91
+#: app/helpers/at_dashboard_helpers.py:91 app/helpers/js_i18n_strings.py:116
+#: app/static/js/at-approval-dropdown.js:389
 #: app/templates/components/tw_access_request_modal.html:64
 #: app/templates/components/tw_access_request_modal.html:76
 #: app/templates/components/tw_access_request_modal.html:177
@@ -1526,7 +1527,9 @@ msgstr "Quotation"
 msgid "客户订单"
 msgstr "Customer Orders"
 
-#: app/helpers/at_dashboard_helpers.py:92 app/routes/resource_pool.py:112
+#: app/helpers/at_dashboard_helpers.py:92 app/helpers/js_i18n_strings.py:80
+#: app/routes/resource_pool.py:112 app/static/js/at-approval-dropdown.js:369
+#: app/templates/components/at_customer_needs_modal.html:77
 #: app/templates/components/at_sales_order.html:38
 #: app/templates/components/tw_chat_panel.html:2218
 #: app/templates/components/tw_message_panel.html:650
@@ -1831,7 +1834,9 @@ msgstr "Signed"
 msgid "label"
 msgstr ""
 
-#: app/helpers/at_dashboard_helpers.py:1785
+#: app/helpers/at_dashboard_helpers.py:1785 app/helpers/js_i18n_strings.py:99
+#: app/static/js/at-ai-research.js:26
+#: app/templates/components/at_detail.html:329
 #: app/templates/components/tw_po_timeline.html:59
 #: app/templates/inventory/at_purchase_order_list.html:33
 #: app/templates/main/at_dashboard.html:604
@@ -1993,7 +1998,9 @@ msgstr "Meals"
 msgid "其他"
 msgstr "Other"
 
-#: app/helpers/at_dashboard_helpers.py:1972
+#: app/helpers/at_dashboard_helpers.py:1972 app/helpers/js_i18n_strings.py:202
+#: app/static/js/at-ai-research.js:23 app/static/js/at-ai-research.js:24
+#: app/templates/components/at_detail.html:327
 #: app/templates/components/at_purchase_order.html:78
 #: app/templates/components/tw_approval_flow.html:61
 #: app/templates/components/tw_layout.html:851
@@ -2083,40 +2090,69 @@ msgstr " price"
 msgid " 型号 · "
 msgstr " models · "
 
-#: app/helpers/js_i18n_strings.py:12
+#: app/helpers/js_i18n_strings.py:12 app/static/js/at-approval-dropdown.js:371
+msgid " 条"
+msgstr " items"
+
+#: app/helpers/js_i18n_strings.py:13
 msgid " 条 · "
 msgstr " items · "
 
-#: app/helpers/js_i18n_strings.py:13
+#: app/helpers/js_i18n_strings.py:14 app/static/js/at-approval-dropdown.js:204
+msgid " 节点"
+msgstr " nodes"
+
+#: app/helpers/js_i18n_strings.py:15
 msgid "+ 添加到明细"
 msgstr "+ Add to items"
 
-#: app/helpers/js_i18n_strings.py:14
+#: app/helpers/js_i18n_strings.py:16 app/static/js/at-approval-dropdown.js:516
+#: app/static/js/at-approval-dropdown.js:537
+msgid "AT 弹窗组件未加载"
+msgstr "AT modal component not loaded"
+
+#: app/helpers/js_i18n_strings.py:17 app/static/js/at-approval-dropdown.js:319
+msgid "」审批人"
+msgstr "」 approver"
+
+#: app/helpers/js_i18n_strings.py:18 app/static/js/at-ai-research.js:77
+msgid "上次调研:"
+msgstr "Last research: "
+
+#: app/helpers/js_i18n_strings.py:19
 #: app/templates/macros/product_detail_manager.html:126
 msgid "不能为空"
 msgstr "Cannot be empty"
 
-#: app/helpers/js_i18n_strings.py:15
+#: app/helpers/js_i18n_strings.py:20
 msgid "不能为空（手动输入字段）"
 msgstr "cannot be empty (manual input field)"
 
-#: app/helpers/js_i18n_strings.py:16
+#: app/helpers/js_i18n_strings.py:21 app/static/js/at-ai-research.js:339
+msgid "业主 / 投资方"
+msgstr "Owner / Investor"
+
+#: app/helpers/js_i18n_strings.py:22
 msgid "个规格未选择，系统将使用推荐的默认选项。"
 msgstr ""
 " spec(s) not selected; the system will use the recommended default "
 "options."
 
-#: app/helpers/js_i18n_strings.py:17
+#: app/helpers/js_i18n_strings.py:23
 msgid "中的一个配置选项"
 msgstr " a config option in"
 
-#: app/helpers/js_i18n_strings.py:18
+#: app/helpers/js_i18n_strings.py:24 app/static/js/at-approval-dropdown.js:317
+msgid "中选择一位"
+msgstr " — pick one"
+
+#: app/helpers/js_i18n_strings.py:25
 #: app/static/js/product-detail-manager.js:2572
 #: app/templates/macros/product_detail_manager.html:123
 msgid "临时产品无市场价和折扣"
 msgstr "Temporary products have no market price and discount"
 
-#: app/helpers/js_i18n_strings.py:19 app/routes/product.py:606
+#: app/helpers/js_i18n_strings.py:26 app/routes/product.py:606
 #: app/static/js/product-config-modal.js:912
 #: app/static/js/product-detail-manager.js:119
 #: app/templates/components/at_item_table.html:64
@@ -2145,7 +2181,7 @@ msgstr "Temporary products have no market price and discount"
 msgid "产品名称"
 msgstr "Product Name"
 
-#: app/helpers/js_i18n_strings.py:20 app/static/js/product-config-modal.js:906
+#: app/helpers/js_i18n_strings.py:27 app/static/js/product-config-modal.js:906
 #: app/templates/macros/product_config_modal.html:50
 #: app/templates/product/upload_files.html:52
 #: app/templates/product/upload_files.html:142
@@ -2153,7 +2189,7 @@ msgstr "Product Name"
 msgid "产品图片"
 msgstr "Image"
 
-#: app/helpers/js_i18n_strings.py:21
+#: app/helpers/js_i18n_strings.py:28
 #: app/static/js/product-detail-manager.js:120
 #: app/templates/components/product/tw_product_modal.html:127
 #: app/templates/components/tw_product_spec_modal.html:113
@@ -2169,18 +2205,18 @@ msgstr "Image"
 msgid "产品型号"
 msgstr "Model"
 
-#: app/helpers/js_i18n_strings.py:22 app/static/js/product-config-modal.js:239
+#: app/helpers/js_i18n_strings.py:29 app/static/js/product-config-modal.js:239
 msgid "产品编码数据缺失"
 msgstr "Product code data missing"
 
-#: app/helpers/js_i18n_strings.py:23
+#: app/helpers/js_i18n_strings.py:30
 #: app/templates/macros/product_config_modal.html:79
 #: app/templates/product/tw_product_detail.html:270
 #: app/templates/quotation/tw_quotation_detail.html:240
 msgid "产品规格"
 msgstr "Specifications"
 
-#: app/helpers/js_i18n_strings.py:24 app/static/js/product-detail-manager.js:64
+#: app/helpers/js_i18n_strings.py:31 app/static/js/product-detail-manager.js:64
 #: app/templates/components/at_item_table.html:120
 #: app/templates/components/at_product_edit_modal.html:103
 #: app/templates/components/at_product_sidebar.html:74
@@ -2191,31 +2227,59 @@ msgstr "Specifications"
 msgid "人民币"
 msgstr "Chinese Yuan"
 
-#: app/helpers/js_i18n_strings.py:25 app/routes/product.py:611
+#: app/helpers/js_i18n_strings.py:32 app/static/js/at-approval-dropdown.js:314
+msgid "从"
+msgstr "From "
+
+#: app/helpers/js_i18n_strings.py:33 app/routes/product.py:611
 #: app/templates/product/file_preview_demo.html:176
 msgid "价格"
 msgstr "Price"
 
-#: app/helpers/js_i18n_strings.py:26 app/static/js/product-config-modal.js:3180
+#: app/helpers/js_i18n_strings.py:34 app/static/js/product-config-modal.js:3180
 msgid "价格不变"
 msgstr "Price unchanged"
 
-#: app/helpers/js_i18n_strings.py:27 app/static/js/at-product-picker.js:66
+#: app/helpers/js_i18n_strings.py:35 app/static/js/at-ai-research.js:242
+msgid "公司概况"
+msgstr "Company Profile"
+
+#: app/helpers/js_i18n_strings.py:36 app/static/js/at-ai-research.js:259
+msgid "关键人物"
+msgstr "Key People"
+
+#: app/helpers/js_i18n_strings.py:37 app/static/js/at-ai-research.js:351
+msgid "关键联系人"
+msgstr "Key Contacts"
+
+#: app/helpers/js_i18n_strings.py:38 app/static/js/at-product-picker.js:66
 #: app/templates/components/at_product_picker.html:77
 msgid "具体产品"
 msgstr "Specific Product"
 
-#: app/helpers/js_i18n_strings.py:28 app/static/js/product-config-modal.js:370
+#: app/helpers/js_i18n_strings.py:39 app/static/js/at-ai-research.js:25
+#: app/templates/components/at_detail.html:328
+msgid "出错"
+msgstr "Error"
+
+#: app/helpers/js_i18n_strings.py:40 app/static/js/product-config-modal.js:370
 msgid "分析产品编码时出错"
 msgstr "Error analyzing product code"
 
-#: app/helpers/js_i18n_strings.py:29
+#: app/helpers/js_i18n_strings.py:41
 #: app/static/js/product-detail-manager.js:1018
 #: app/templates/macros/product_detail_manager.html:127
 msgid "删除行"
 msgstr "Delete row"
 
-#: app/helpers/js_i18n_strings.py:30
+#: app/helpers/js_i18n_strings.py:42 app/static/js/at-approval-dropdown.js:478
+#: app/static/js/at-approval-dropdown.js:595
+msgid "刷新中…"
+msgstr "Refreshing…"
+
+#: app/helpers/js_i18n_strings.py:43 app/static/js/at-approval-dropdown.js:105
+#: app/templates/components/at_customer_needs_modal.html:87
+#: app/templates/components/at_detail.html:363
 #: app/templates/components/at_product_picker.html:52
 #: app/templates/components/at_product_relation_modal.html:158
 #: app/templates/components/at_product_sidebar.html:90
@@ -2226,7 +2290,7 @@ msgstr "Delete row"
 msgid "加载中…"
 msgstr "Loading…"
 
-#: app/helpers/js_i18n_strings.py:31
+#: app/helpers/js_i18n_strings.py:44
 #: app/templates/announcement/tw_list.html:455
 #: app/templates/backup/tw_index.html:87
 #: app/templates/components/at_product_sidebar.html:167
@@ -2270,21 +2334,26 @@ msgstr "Loading…"
 msgid "加载失败"
 msgstr "Load failed"
 
-#: app/helpers/js_i18n_strings.py:32 app/static/js/at-product-picker.js:519
+#: app/helpers/js_i18n_strings.py:45 app/static/js/at-ai-research.js:221
+#: app/static/js/at-approval-dropdown.js:124
+msgid "加载失败:"
+msgstr "Failed to load: "
+
+#: app/helpers/js_i18n_strings.py:46 app/static/js/at-product-picker.js:519
 #: app/static/js/at-product-picker.js:570
 msgid "加载配套中…"
 msgstr "Loading bundles…"
 
-#: app/helpers/js_i18n_strings.py:33
+#: app/helpers/js_i18n_strings.py:47
 #: app/templates/components/product/tw_config_selector_modal.html:279
 msgid "加载配置失败"
 msgstr "Failed to load configuration"
 
-#: app/helpers/js_i18n_strings.py:34 app/static/js/at-product-picker.js:355
+#: app/helpers/js_i18n_strings.py:48 app/static/js/at-product-picker.js:355
 msgid "区域价"
 msgstr "Regional Price"
 
-#: app/helpers/js_i18n_strings.py:35
+#: app/helpers/js_i18n_strings.py:49
 #: app/static/js/product-detail-manager.js:127
 #: app/templates/admin/tw_ai_usage.html:246
 #: app/templates/components/at_item_table.html:70
@@ -2307,7 +2376,7 @@ msgstr "Regional Price"
 msgid "单价"
 msgstr "Unit Price"
 
-#: app/helpers/js_i18n_strings.py:36 app/routes/product.py:610
+#: app/helpers/js_i18n_strings.py:50 app/routes/product.py:610
 #: app/static/js/product-detail-manager.js:123
 #: app/templates/components/at_item_table.html:69
 #: app/templates/components/at_minitables.html:198
@@ -2335,7 +2404,18 @@ msgstr "Unit Price"
 msgid "单位"
 msgstr "Unit"
 
-#: app/helpers/js_i18n_strings.py:37 app/static/js/product-detail-manager.js:67
+#: app/helpers/js_i18n_strings.py:51 app/static/js/at-approval-dropdown.js:389
+#: app/templates/components/at_minitables.html:553
+#: app/templates/expense/partials/_expense_modal_fields.html:313
+#: app/templates/expense/tw_expense_detail.html:422
+msgid "单据"
+msgstr "Docs"
+
+#: app/helpers/js_i18n_strings.py:52 app/static/js/at-ai-research.js:327
+msgid "占地面积"
+msgstr "Site Area"
+
+#: app/helpers/js_i18n_strings.py:53 app/static/js/product-detail-manager.js:67
 #: app/templates/components/at_product_edit_modal.html:105
 #: app/templates/components/at_product_sidebar.html:74
 #: app/templates/components/at_product_sidebar.html:132
@@ -2344,14 +2424,26 @@ msgstr "Unit"
 msgid "印尼盾"
 msgstr "Indonesian Rupiah"
 
-#: app/helpers/js_i18n_strings.py:38
+#: app/helpers/js_i18n_strings.py:54 app/static/js/at-ai-research.js:348
+msgid "参与方"
+msgstr "Participants"
+
+#: app/helpers/js_i18n_strings.py:55 app/static/js/at-approval-dropdown.js:389
+msgid "发起后"
+msgstr "Once initiated, "
+
+#: app/helpers/js_i18n_strings.py:56 app/static/js/at-approval-dropdown.js:400
+#: app/static/js/at-approval-dropdown.js:521
+#: app/static/js/at-approval-dropdown.js:565
 #: app/templates/announcement/tw_list.html:225
 #: app/templates/announcement/tw_list.html:264
 #: app/templates/announcement/tw_list.html:274
 #: app/templates/approval_config/template_form.html:232
 #: app/templates/backup/tw_index.html:296
 #: app/templates/backup/tw_index.html:328
+#: app/templates/components/at_action_modal.html:38
 #: app/templates/components/at_customer_modal.html:44
+#: app/templates/components/at_customer_needs_modal.html:97
 #: app/templates/components/at_minitables.html:310
 #: app/templates/components/at_product_edit_modal.html:26
 #: app/templates/components/at_product_relation_modal.html:14
@@ -2452,7 +2544,8 @@ msgstr "Indonesian Rupiah"
 #: app/templates/files/tw_file_manager.html:1262
 #: app/templates/files/tw_file_manager.html:1378
 #: app/templates/files/tw_file_manager_admin.html:232
-#: app/templates/index.html:441
+#: app/templates/index.html:441 app/templates/inventory/at_stock_list.html:585
+#: app/templates/inventory/at_stock_list.html:656
 #: app/templates/inventory/partials/_test_form.html:336
 #: app/templates/knowledge/tw_wiki.html:625
 #: app/templates/knowledge/tw_wiki.html:636
@@ -2570,21 +2663,70 @@ msgstr "Indonesian Rupiah"
 msgid "取消"
 msgstr "Cancel"
 
-#: app/helpers/js_i18n_strings.py:39 app/static/js/product-config-modal.js:1112
+#: app/helpers/js_i18n_strings.py:57 app/static/js/at-approval-dropdown.js:221
+#: app/static/js/at-approval-dropdown.js:521
+#: app/templates/components/tw_approval_flow.html:139
+#: app/templates/components/tw_pricing_order_modal.html:546
+#: app/templates/components/tw_pricing_order_modal.html:2190
+#: app/templates/expense/tw_expense_detail.html:151
+#: app/templates/macros/approval_macros.html:841
+msgid "召回"
+msgstr "Recall"
+
+#: app/helpers/js_i18n_strings.py:58 app/static/js/at-approval-dropdown.js:523
+msgid "召回原因(可选)"
+msgstr "Recall reason (optional)"
+
+#: app/helpers/js_i18n_strings.py:59 app/static/js/at-approval-dropdown.js:518
+#: app/templates/components/tw_approval_flow.html:107
+#: app/templates/components/tw_approval_flow.html:137
+#: app/templates/expense/tw_expense_detail.html:149
+#: app/templates/expense/tw_expense_detail.html:301
+#: app/templates/expense/tw_expense_detail.html:590
+msgid "召回审批"
+msgstr "Recall Approval"
+
+#: app/helpers/js_i18n_strings.py:60 app/static/js/product-config-modal.js:1112
 #: app/static/js/product-config-modal.js:2044
 msgid "可选互斥"
 msgstr "Optional exclusive"
 
-#: app/helpers/js_i18n_strings.py:40
+#: app/helpers/js_i18n_strings.py:61
 msgid "可选互斥组"
 msgstr "Optional exclusive group"
 
-#: app/helpers/js_i18n_strings.py:41
+#: app/helpers/js_i18n_strings.py:62 app/static/js/at-approval-dropdown.js:351
+msgid "可选范围内无可用用户 — 请联系管理员调整模板「指定范围」"
+msgstr "No available users in the allowed scope — please ask an admin to adjust the template's designated scope."
+
+#: app/helpers/js_i18n_strings.py:63 app/static/js/at-ai-research.js:283
+msgid "合作:"
+msgstr "Partnership: "
+
+#: app/helpers/js_i18n_strings.py:64 app/static/js/at-ai-research.js:304
+#: app/templates/customer/at_view.html:91
+msgid "合作伙伴"
+msgstr "Partner"
+
+#: app/helpers/js_i18n_strings.py:65 app/static/js/at-approval-dropdown.js:226
+#: app/static/js/at-approval-dropdown.js:534
+#: app/templates/approval/at_detail.html:70
+#: app/templates/components/tw_approval_flow.html:220
+#: app/templates/macros/approval_macros.html:502
+#: app/templates/macros/approval_macros.html:549
+msgid "同意"
+msgstr "Approve"
+
+#: app/helpers/js_i18n_strings.py:66
 #: app/static/js/product-detail-manager.js:1009
 msgid "同步主产品数量"
 msgstr "Sync main product qty"
 
-#: app/helpers/js_i18n_strings.py:42 app/routes/product.py:540
+#: app/helpers/js_i18n_strings.py:67 app/static/js/at-ai-research.js:146
+msgid "后台执行中,请稍候…"
+msgstr "Running in the background, please wait…"
+
+#: app/helpers/js_i18n_strings.py:68 app/routes/product.py:540
 #: app/routes/product.py:609 app/static/js/product-detail-manager.js:122
 #: app/templates/components/at_minitables.html:196
 #: app/templates/components/at_product_edit_modal.html:54
@@ -2609,18 +2751,82 @@ msgstr "Sync main product qty"
 msgid "品牌"
 msgstr "Brand"
 
-#: app/helpers/js_i18n_strings.py:43
+#: app/helpers/js_i18n_strings.py:69
 msgid "在下单时，这个产品的最终规格还需要再次确认。"
 msgstr "The final spec of this product must be confirmed again at ordering."
 
-#: app/helpers/js_i18n_strings.py:44 app/static/js/at-item-table.js:157
+#: app/helpers/js_i18n_strings.py:70 app/static/js/at-ai-research.js:274
+msgid "在建项目"
+msgstr "Active Projects"
+
+#: app/helpers/js_i18n_strings.py:71 app/static/js/at-ai-research.js:332
+#: app/templates/components/at_customer_modal.html:104
+#: app/templates/customer/partials/_company_form_fields.html:71
+#: app/templates/customer/partials/_company_form_fields.html:143
+#: app/templates/project/partials/_project_form_fields.html:183
+msgid "地址"
+msgstr "Address"
+
+#: app/helpers/js_i18n_strings.py:72 app/static/js/at-ai-research.js:331
+#: app/templates/customer/at_view.html:166
+msgid "城市"
+msgstr "City"
+
+#: app/helpers/js_i18n_strings.py:73 app/static/js/at-approval-dropdown.js:140
+msgid "填好明细后,提交审批后将由后端自动匹配审批流程模板。"
+msgstr "After filling in the details and submitting, the backend will automatically match an approval flow template."
+
+#: app/helpers/js_i18n_strings.py:74 app/static/js/at-approval-dropdown.js:592
+#: app/templates/components/tw_performance_dashboard.html:2833
+#: app/templates/dingtalk/tw_sync_queue.html:62
+#: app/templates/dingtalk/tw_sync_queue.html:78
+#: app/templates/files/tw_file_manager.html:356
+#: app/templates/files/tw_file_manager.html:791
+#: app/templates/files/tw_file_manager_admin.html:147
+#: app/templates/macros/ui_helpers.html:9333
+#: app/templates/main/at_dashboard.html:522
+#: app/templates/project/at_view.html:522
+#: app/templates/project/at_view.html:889
+#: app/templates/project/statistics_dashboard_backup.html:101
+#: app/templates/quotation/at_view.html:436
+#: app/templates/spec_template/tw_spec_config_matrix.html:1780
+#: app/templates/worklog/tw_calendar.html:2969 app/utils/status_meta.py:93
+#: app/views/meeting.py:398
+msgid "失败"
+msgstr "Lost"
+
+#: app/helpers/js_i18n_strings.py:75 app/static/js/at-item-table.js:157
 #: app/static/js/at-product-picker.js:416
 #: app/static/js/at-product-picker.js:624
 #: app/static/js/at-product-picker.js:890
 msgid "套"
 msgstr "set"
 
-#: app/helpers/js_i18n_strings.py:45
+#: app/helpers/js_i18n_strings.py:76 app/static/js/at-approval-dropdown.js:559
+#: app/templates/macros/approval_macros.html:524
+msgid "审批"
+msgstr "Approval"
+
+#: app/helpers/js_i18n_strings.py:77 app/static/js/at-approval-dropdown.js:567
+#: app/templates/macros/approval_macros.html:544
+#: app/templates/macros/approval_macros.html:1272
+msgid "审批意见"
+msgstr "Approval Comment"
+
+#: app/helpers/js_i18n_strings.py:78 app/static/js/at-approval-dropdown.js:204
+msgid "审批流程 · 共 "
+msgstr "Approval Flow · "
+
+#: app/helpers/js_i18n_strings.py:79 app/static/js/at-approval-dropdown.js:224
+#: app/templates/expense/at_view.html:96
+msgid "审核修改"
+msgstr "Review Changes"
+
+#: app/helpers/js_i18n_strings.py:81 app/static/js/at-approval-dropdown.js:389
+msgid "将被锁定,被指派人会收到日程待办"
+msgstr " will be locked, and the assignee will receive a calendar to-do."
+
+#: app/helpers/js_i18n_strings.py:82
 #: app/static/js/product-detail-manager.js:128
 #: app/templates/components/at_minitables.html:228
 #: app/templates/components/tw_performance_dashboard.html:341
@@ -2636,19 +2842,55 @@ msgstr "set"
 msgid "小计"
 msgstr "Subtotal"
 
-#: app/helpers/js_i18n_strings.py:46
+#: app/helpers/js_i18n_strings.py:83 app/static/js/at-approval-dropdown.js:139
+#: app/templates/components/tw_approval_flow.html:210
+#: app/templates/components/tw_po_timeline.html:34
+msgid "尚未提交审批"
+msgstr "Not submitted for approval yet"
+
+#: app/helpers/js_i18n_strings.py:84 app/static/js/at-approval-dropdown.js:595
+msgid "已"
+msgstr "Done"
+
+#: app/helpers/js_i18n_strings.py:85
 msgid "已存在相同规格产品，价格"
 msgstr "A product with the same spec already exists, price"
 
-#: app/helpers/js_i18n_strings.py:47
+#: app/helpers/js_i18n_strings.py:86 app/static/js/at-ai-research.js:22
+#: app/templates/components/at_detail.html:326
+#: app/templates/components/tw_message_panel.html:183
+#: app/templates/components/tw_po_timeline.html:198
+#: app/templates/components/tw_worklog_preview.html:367
+#: app/templates/macros/approval_macros.html:440
+#: app/templates/macros/ui_helpers.html:8694
+#: app/templates/macros/ui_helpers.html:8775
+#: app/templates/main/at_dashboard.html:327
+#: app/templates/sales_order/at_detail.html:67
+#: app/templates/sales_order/at_list.html:81
+#: app/templates/worklog/tw_calendar.html:1057
+#: app/templates/worklog/tw_calendar.html:1355
+#: app/templates/worklog/tw_calendar.html:2968 app/utils/status_meta.py:42
+#: app/utils/status_meta.py:53 app/utils/status_meta.py:101
+msgid "已完成"
+msgstr "Done"
+
+#: app/helpers/js_i18n_strings.py:87 app/static/js/at-approval-dropdown.js:478
+msgid "已操作"
+msgstr "Acted"
+
+#: app/helpers/js_i18n_strings.py:88 app/static/js/at-ai-research.js:146
+msgid "已触发调研"
+msgstr "Research triggered"
+
+#: app/helpers/js_i18n_strings.py:89
 msgid "已选 "
 msgstr "Selected "
 
-#: app/helpers/js_i18n_strings.py:48
+#: app/helpers/js_i18n_strings.py:90
 msgid "已选中 「"
 msgstr "Selected “"
 
-#: app/helpers/js_i18n_strings.py:49 app/static/js/product-config-modal.js:1678
+#: app/helpers/js_i18n_strings.py:91 app/static/js/product-config-modal.js:1678
 #: app/static/js/product-config-modal.js:1791
 #: app/static/js/product-config-modal.js:1930
 #: app/static/js/product-config-modal.js:2070
@@ -2658,7 +2900,7 @@ msgstr "Selected “"
 msgid "已配置"
 msgstr "Configured"
 
-#: app/helpers/js_i18n_strings.py:50
+#: app/helpers/js_i18n_strings.py:92
 #: app/static/js/product-detail-manager.js:125
 #: app/templates/components/at_minitables.html:199
 #: app/templates/components/tw_editable_table.html:565
@@ -2671,21 +2913,38 @@ msgstr "Configured"
 msgid "市场价"
 msgstr "List Price"
 
-#: app/helpers/js_i18n_strings.py:51
+#: app/helpers/js_i18n_strings.py:93 app/static/js/at-ai-research.js:328
+msgid "开工时间"
+msgstr "Start Date"
+
+#: app/helpers/js_i18n_strings.py:94
 #: app/templates/components/tw_po_timeline.html:252
 #: app/templates/knowledge/tw_wiki.html:249
 msgid "当前"
 msgstr "Current"
 
-#: app/helpers/js_i18n_strings.py:52
+#: app/helpers/js_i18n_strings.py:95
 msgid "当前产品配置中有"
 msgstr "The current product config has"
 
-#: app/helpers/js_i18n_strings.py:53
+#: app/helpers/js_i18n_strings.py:96 app/static/js/at-approval-dropdown.js:173
+msgid "当前节点 · 等待审批"
+msgstr "Current node · Pending approval"
+
+#: app/helpers/js_i18n_strings.py:97 app/static/js/at-approval-dropdown.js:175
+#: app/templates/components/tw_approval_flow.html:217
+#: app/templates/dingtalk/tw_sync_queue.html:59
+#: app/templates/dingtalk/tw_sync_queue.html:78
+#: app/templates/macros/ui_helpers.html:8693
+msgid "待处理"
+msgstr "Pending"
+
+#: app/helpers/js_i18n_strings.py:98
 msgid "待确定"
 msgstr "To be determined"
 
-#: app/helpers/js_i18n_strings.py:54 app/static/js/product-config-modal.js:1110
+#: app/helpers/js_i18n_strings.py:100
+#: app/static/js/product-config-modal.js:1110
 #: app/static/js/product-config-modal.js:1653
 #: app/templates/components/at_product_specs_relations.html:368
 #: app/templates/components/product/tw_spec_import_modal.html:62
@@ -2695,19 +2954,36 @@ msgstr "To be determined"
 msgid "必选"
 msgstr "Required"
 
-#: app/helpers/js_i18n_strings.py:55 app/static/js/product-config-modal.js:1776
+#: app/helpers/js_i18n_strings.py:101
+#: app/static/js/product-config-modal.js:1776
 msgid "必选互斥"
 msgstr "Required exclusive"
 
-#: app/helpers/js_i18n_strings.py:56
+#: app/helpers/js_i18n_strings.py:102
 msgid "必选互斥组"
 msgstr "Required exclusive group"
 
-#: app/helpers/js_i18n_strings.py:57
+#: app/helpers/js_i18n_strings.py:103
 msgid "必选配套 · "
 msgstr "Required bundle · "
 
-#: app/helpers/js_i18n_strings.py:58
+#: app/helpers/js_i18n_strings.py:104 app/static/js/at-ai-research.js:342
+#: app/templates/customer/at_view.html:92
+#: app/templates/prospect/_tw_lost_list.html:102
+#: app/templates/prospect/tw_lost_detail.html:157
+#: app/templates/prospect/tw_lost_panel.html:103
+msgid "总包"
+msgstr "Contractor"
+
+#: app/helpers/js_i18n_strings.py:105 app/static/js/at-ai-research.js:326
+msgid "总建面"
+msgstr "Total Floor Area"
+
+#: app/helpers/js_i18n_strings.py:106 app/static/js/at-ai-research.js:325
+msgid "总投资"
+msgstr "Total Investment"
+
+#: app/helpers/js_i18n_strings.py:107
 #: app/templates/macros/expense_detail_manager.html:83
 #: app/templates/macros/product_detail_manager.html:86
 #: app/templates/macros/product_detail_manager.html:121
@@ -2716,38 +2992,82 @@ msgstr "Required bundle · "
 msgid "总计金额"
 msgstr "Total Amount"
 
-#: app/helpers/js_i18n_strings.py:59
+#: app/helpers/js_i18n_strings.py:108 app/static/js/at-ai-research.js:245
+msgid "总部"
+msgstr "HQ"
+
+#: app/helpers/js_i18n_strings.py:109 app/static/js/at-ai-research.js:244
+msgid "成立"
+msgstr "Founded"
+
+#: app/helpers/js_i18n_strings.py:110 app/static/js/at-ai-research.js:247
+msgid "战略方向"
+msgstr "Strategy"
+
+#: app/helpers/js_i18n_strings.py:111
 #: app/static/js/product-detail-manager.js:2559
 #: app/templates/macros/product_detail_manager.html:122
 msgid "手动输入字段，可以修改"
 msgstr "Manual input field, editable"
 
-#: app/helpers/js_i18n_strings.py:60 app/static/js/at-item-table.js:89
+#: app/helpers/js_i18n_strings.py:112 app/static/js/at-approval-dropdown.js:536
+msgid "找不到审批实例 ID"
+msgstr "Approval instance ID not found"
+
+#: app/helpers/js_i18n_strings.py:113 app/static/js/at-approval-dropdown.js:270
+#: app/static/js/at-approval-dropdown.js:391
+#: app/templates/quotation/at_view.html:267
+msgid "技术确认"
+msgstr "Technical Confirmation"
+
+#: app/helpers/js_i18n_strings.py:114 app/static/js/at-item-table.js:89
 #: app/templates/macros/product_detail_manager.html:110
 #: app/templates/pricing_order/at_list.html:60
 msgid "折扣率"
 msgstr "Discount"
 
-#: app/helpers/js_i18n_strings.py:61
+#: app/helpers/js_i18n_strings.py:115
 #: app/static/js/product-detail-manager.js:126
 msgid "折扣率(%)"
 msgstr "Discount (%)"
 
-#: app/helpers/js_i18n_strings.py:62
+#: app/helpers/js_i18n_strings.py:117 app/static/js/at-approval-dropdown.js:268
+msgid "报销审批"
+msgstr "Expense Approval"
+
+#: app/helpers/js_i18n_strings.py:118
 msgid "拖动排序"
 msgstr "Drag to reorder"
 
-#: app/helpers/js_i18n_strings.py:63 app/static/js/product-config-modal.js:1111
+#: app/helpers/js_i18n_strings.py:119
+#: app/static/js/product-config-modal.js:1111
 #: app/static/js/product-config-modal.js:1904
 #: app/templates/components/tw_product_spec_modal.html:2001
 msgid "推荐"
 msgstr "Recommended"
 
-#: app/helpers/js_i18n_strings.py:64
+#: app/helpers/js_i18n_strings.py:120
 msgid "推荐配套 · "
 msgstr "Recommended bundle · "
 
-#: app/helpers/js_i18n_strings.py:65
+#: app/helpers/js_i18n_strings.py:121 app/static/js/at-approval-dropdown.js:390
+msgid "提交后将进入审批流程,审批中可召回"
+msgstr "After submission it enters the approval flow and can be recalled while in review."
+
+#: app/helpers/js_i18n_strings.py:122 app/static/js/at-approval-dropdown.js:220
+#: app/static/js/at-approval-dropdown.js:513
+#: app/static/js/at-approval-dropdown.js:629
+#: app/templates/components/tw_approval_flow.html:101
+#: app/templates/components/tw_approval_flow.html:127
+#: app/templates/components/tw_pricing_order_modal.html:2181
+#: app/templates/expense/at_view.html:226
+#: app/templates/expense/tw_expense_detail.html:145
+#: app/templates/expense/tw_expense_detail.html:300
+#: app/templates/expense/tw_expense_detail.html:585
+msgid "提交审批"
+msgstr "Submit for Approval"
+
+#: app/helpers/js_i18n_strings.py:123
 #: app/static/js/product-detail-manager.js:129
 #: app/templates/announcement/tw_list.html:131
 #: app/templates/backup/tw_index.html:186
@@ -2776,6 +3096,7 @@ msgstr "Recommended bundle · "
 #: app/templates/files/tw_file_manager.html:424
 #: app/templates/files/tw_file_manager.html:673
 #: app/templates/files/tw_file_manager.html:804
+#: app/templates/inventory/at_stock_list.html:351
 #: app/templates/inventory/partials/_test_form.html:120
 #: app/templates/macros/product_detail_manager.html:115
 #: app/templates/macros/ui_helpers.html:8570
@@ -2795,7 +3116,47 @@ msgstr "Recommended bundle · "
 msgid "操作"
 msgstr "Actions"
 
-#: app/helpers/js_i18n_strings.py:66
+#: app/helpers/js_i18n_strings.py:124 app/static/js/at-approval-dropdown.js:475
+#: app/templates/approval/at_detail.html:128
+#: app/templates/components/tw_access_request_modal.html:405
+#: app/templates/components/tw_approval_flow.html:226
+#: app/templates/components/tw_chat_panel.html:2242
+#: app/templates/components/tw_confirm_modal.html:187
+#: app/templates/components/tw_po_timeline.html:512
+#: app/templates/components/tw_po_timeline.html:533
+#: app/templates/components/tw_purchase_order_form.html:480
+#: app/templates/components/tw_task_modal.html:901
+#: app/templates/components/tw_worklog_reactions.html:156
+#: app/templates/components/user/tw_user_form_modal.html:423
+#: app/templates/config_management/tw_index.html:4161
+#: app/templates/config_management/tw_index.html:4193
+#: app/templates/config_management/tw_index.html:4228
+#: app/templates/knowledge/tw_wiki.html:1700
+#: app/templates/knowledge/tw_wiki.html:1703
+#: app/templates/product/tw_product_detail.html:593
+#: app/templates/project/at_view.html:666
+#: app/templates/project/at_view.html:678
+#: app/templates/quotation/tw_quotation_detail.html:712
+#: app/templates/quotation/tw_quotation_detail.html:734
+#: app/templates/quotation/tw_quotation_detail.html:809
+#: app/templates/spec_definition/tw_list.html:1112
+#: app/templates/spec_definition/tw_list.html:1116
+#: app/templates/system_diagram/tw_list.html:234
+#: app/templates/system_diagram/tw_list.html:236
+#: app/templates/user/at_detail.html:198
+#: app/templates/user/tw_department_management.html:419
+#: app/templates/user/tw_department_management.html:450
+#: app/templates/worklog/tw_calendar.html:3056
+#: app/templates/worklog/tw_calendar.html:3178
+#: app/templates/worklog/tw_calendar.html:3201
+msgid "操作失败"
+msgstr "Operation failed"
+
+#: app/helpers/js_i18n_strings.py:125 app/static/js/at-ai-research.js:202
+msgid "收起"
+msgstr "Collapse"
+
+#: app/helpers/js_i18n_strings.py:126
 #: app/static/js/product-detail-manager.js:124
 #: app/templates/components/at_item_table.html:68
 #: app/templates/components/at_minitables.html:197
@@ -2813,6 +3174,10 @@ msgstr "Actions"
 #: app/templates/components/tw_purchase_order_form.html:12
 #: app/templates/components/tw_quality_score_popover.html:120
 #: app/templates/components/tw_quality_score_popover.html:187
+#: app/templates/inventory/at_stock_list.html:279
+#: app/templates/inventory/at_stock_list.html:351
+#: app/templates/inventory/at_stock_list.html:633
+#: app/templates/inventory/at_stock_list.html:960
 #: app/templates/macros/product_detail_manager.html:112
 #: app/templates/macros/product_detail_manager.html:858
 #: app/templates/product_analysis/tw_analysis.html:239
@@ -2826,7 +3191,8 @@ msgstr "Actions"
 msgid "数量"
 msgstr "Qty"
 
-#: app/helpers/js_i18n_strings.py:67 app/static/js/product-detail-manager.js:65
+#: app/helpers/js_i18n_strings.py:127
+#: app/static/js/product-detail-manager.js:65
 #: app/templates/components/at_product_edit_modal.html:103
 #: app/templates/components/at_product_sidebar.html:74
 #: app/templates/components/at_product_sidebar.html:131
@@ -2835,7 +3201,11 @@ msgstr "Qty"
 msgid "新加坡元"
 msgstr "Singapore Dollar"
 
-#: app/helpers/js_i18n_strings.py:68 app/static/js/product-config-modal.js:829
+#: app/helpers/js_i18n_strings.py:128 app/static/js/at-approval-dropdown.js:314
+msgid "方案经理"
+msgstr "Solution Manager"
+
+#: app/helpers/js_i18n_strings.py:129 app/static/js/product-config-modal.js:829
 #: app/templates/components/tw_product_spec_modal.html:954
 #: app/templates/config_management/_performance_metrics.html:257
 #: app/templates/config_management/_salary_formulas.html:40
@@ -2850,23 +3220,36 @@ msgstr "Singapore Dollar"
 msgid "无"
 msgstr "None"
 
-#: app/helpers/js_i18n_strings.py:69
+#: app/helpers/js_i18n_strings.py:130
 msgid "无 "
 msgstr "No "
 
-#: app/helpers/js_i18n_strings.py:70 app/static/js/at-product-picker.js:108
+#: app/helpers/js_i18n_strings.py:131 app/static/js/at-product-picker.js:108
 msgid "无类目数据"
 msgstr "No categories"
 
-#: app/helpers/js_i18n_strings.py:71
+#: app/helpers/js_i18n_strings.py:132 app/static/js/at-approval-dropdown.js:371
+#: app/templates/quotation/at_view.html:1066
+msgid "明细"
+msgstr "Items"
+
+#: app/helpers/js_i18n_strings.py:133
 msgid "是否继续添加此产品？"
 msgstr "Continue adding this product?"
 
-#: app/helpers/js_i18n_strings.py:72 app/static/js/at-product-picker.js:324
+#: app/helpers/js_i18n_strings.py:134 app/static/js/at-ai-research.js:345
+msgid "智能化集成商"
+msgstr "Smart Integrator"
+
+#: app/helpers/js_i18n_strings.py:135 app/static/js/at-ai-research.js:344
+msgid "智能化顾问"
+msgstr "Smart Solutions Consultant"
+
+#: app/helpers/js_i18n_strings.py:136 app/static/js/at-product-picker.js:324
 msgid "暂无产品"
 msgstr "No products"
 
-#: app/helpers/js_i18n_strings.py:73 app/templates/admin/tw_ai_usage.html:255
+#: app/helpers/js_i18n_strings.py:137 app/templates/admin/tw_ai_usage.html:255
 #: app/templates/admin/tw_ai_usage.html:318
 #: app/templates/approval/tw_center.html:174
 #: app/templates/approval_config/template_list.html:135
@@ -2893,26 +3276,31 @@ msgstr "No products"
 msgid "暂无数据"
 msgstr "No data available"
 
-#: app/helpers/js_i18n_strings.py:74 app/static/js/at-product-picker.js:66
+#: app/helpers/js_i18n_strings.py:138 app/static/js/at-ai-research.js:230
+#: app/templates/prospect/tw_lost_panel.html:241
+msgid "暂无调研数据"
+msgstr "No research data"
+
+#: app/helpers/js_i18n_strings.py:139 app/static/js/at-product-picker.js:66
 msgid "替换为"
 msgstr "Replace with"
 
-#: app/helpers/js_i18n_strings.py:75
+#: app/helpers/js_i18n_strings.py:140
 #: app/templates/components/at_product_relation_modal.html:241
 msgid "未找到匹配产品"
 msgstr "No matching product found"
 
-#: app/helpers/js_i18n_strings.py:76 app/static/js/product-config-modal.js:569
+#: app/helpers/js_i18n_strings.py:141 app/static/js/product-config-modal.js:569
 msgid "未找到匹配的产品，请检查规格选择"
 msgstr "No matching product found; please check the spec selection"
 
-#: app/helpers/js_i18n_strings.py:77 app/static/js/product-config-modal.js:966
+#: app/helpers/js_i18n_strings.py:142 app/static/js/product-config-modal.js:966
 msgid "未找到匹配的产品，请检查规格选择或稍后重试"
 msgstr ""
 "No matching product found; please check the spec selection or try again "
 "later"
 
-#: app/helpers/js_i18n_strings.py:78 app/static/js/product-config-modal.js:825
+#: app/helpers/js_i18n_strings.py:143 app/static/js/product-config-modal.js:825
 #: app/static/js/product-config-modal.js:918
 #: app/templates/components/tw_approval_flow.html:218
 #: app/templates/expense/tw_expense_detail.html:567
@@ -2926,19 +3314,41 @@ msgstr ""
 msgid "未知"
 msgstr "Unknown"
 
-#: app/helpers/js_i18n_strings.py:79 app/static/js/at-product-picker.js:780
+#: app/helpers/js_i18n_strings.py:144 app/static/js/at-product-picker.js:780
 msgid "未选产品"
 msgstr "No product selected"
 
-#: app/helpers/js_i18n_strings.py:80
+#: app/helpers/js_i18n_strings.py:145 app/static/js/at-ai-research.js:208
+#: app/templates/components/at_detail.html:356
+#: app/templates/components/tw_chat_panel.html:2234
+#: app/templates/components/tw_chat_panel.html:2246
+#: app/templates/customer/i18n_demo.html:70
+#: app/templates/expense/edit_expense.html:28
+#: app/templates/files/tw_file_manager.html:834
+#: app/templates/macros/approval_macros.html:600
+#: app/templates/macros/approval_macros.html:750
+#: app/templates/macros/ui_helpers.html:2893
+msgid "查看详情"
+msgstr "View Details"
+
+#: app/helpers/js_i18n_strings.py:146
 msgid "格式不正确"
 msgstr "Invalid format"
 
-#: app/helpers/js_i18n_strings.py:81
+#: app/helpers/js_i18n_strings.py:147
 msgid "正在计算新MN..."
 msgstr "Calculating new MN..."
 
-#: app/helpers/js_i18n_strings.py:82 app/static/js/product-detail-manager.js:68
+#: app/helpers/js_i18n_strings.py:148 app/static/js/at-approval-dropdown.js:519
+msgid "此操作会撤回当前审批,需要重新提交。"
+msgstr "This will recall the current approval; you'll need to resubmit."
+
+#: app/helpers/js_i18n_strings.py:149 app/static/js/at-ai-research.js:340
+msgid "法人:"
+msgstr "Legal Rep: "
+
+#: app/helpers/js_i18n_strings.py:150
+#: app/static/js/product-detail-manager.js:68
 #: app/templates/components/at_product_edit_modal.html:105
 #: app/templates/components/at_product_sidebar.html:74
 #: app/templates/components/at_product_sidebar.html:132
@@ -2947,51 +3357,77 @@ msgstr "Calculating new MN..."
 msgid "泰铢"
 msgstr "Thai Baht"
 
-#: app/helpers/js_i18n_strings.py:83
+#: app/helpers/js_i18n_strings.py:151
 #: app/static/js/product-detail-manager.js:1060
 #: app/templates/components/tw_editable_table.html:1554
 msgid "点击取消关联"
 msgstr "Click to cancel association"
 
-#: app/helpers/js_i18n_strings.py:84
+#: app/helpers/js_i18n_strings.py:152
 #: app/static/js/product-detail-manager.js:903
 #: app/templates/components/tw_editable_table.html:552
 #: app/templates/macros/product_detail_manager.html:103
 msgid "点击选择产品..."
 msgstr "Click to select..."
 
-#: app/helpers/js_i18n_strings.py:85
+#: app/helpers/js_i18n_strings.py:153
 #: app/templates/components/at_item_table.html:91
 msgid "点击选择产品…"
 msgstr "Click to select product…"
 
-#: app/helpers/js_i18n_strings.py:86
+#: app/helpers/js_i18n_strings.py:154 app/static/js/at-approval-dropdown.js:380
+msgid "留言(可选)"
+msgstr "Comment (optional)"
+
+#: app/helpers/js_i18n_strings.py:155 app/static/js/at-approval-dropdown.js:276
+#: app/templates/components/product/tw_product_relation_modal.html:180
+#: app/templates/components/tw_confirm_modal.html:102
+#: app/templates/components/tw_performance_dashboard.html:423
+#: app/templates/components/tw_po_timeline.html:61
+#: app/templates/components/tw_user_selector_modal.html:340
+#: app/templates/config_management/tw_index.html:2447
+#: app/templates/knowledge/tw_wiki.html:1951
+#: app/templates/macros/approval_macros.html:1278
+#: app/templates/macros/product_detail_manager.html:134
+#: app/templates/macros/ui_helpers.html:4394
+#: app/templates/system_diagram/tw_editor.html:521
+#: app/templates/worklog/tw_calendar.html:1728
+msgid "确认"
+msgstr "Confirm"
+
+#: app/helpers/js_i18n_strings.py:156
 msgid "确认产品"
 msgstr "Confirm Product"
 
-#: app/helpers/js_i18n_strings.py:87 app/static/js/product-config-modal.js:1263
+#: app/helpers/js_i18n_strings.py:157
+#: app/static/js/product-config-modal.js:1263
 msgid "确认产品配置"
 msgstr "Confirm Product Config"
 
-#: app/helpers/js_i18n_strings.py:88 app/static/js/product-config-modal.js:1265
+#: app/helpers/js_i18n_strings.py:158
+#: app/static/js/product-config-modal.js:1265
 #: app/templates/components/at_product_relation_modal.html:20
 #: app/templates/components/at_product_relation_modal.html:370
 #: app/templates/components/at_product_relation_modal.html:375
 msgid "确认添加"
 msgstr "Confirm Add"
 
-#: app/helpers/js_i18n_strings.py:89
+#: app/helpers/js_i18n_strings.py:159
 msgid "确认规格"
 msgstr "Confirm Spec"
 
-#: app/helpers/js_i18n_strings.py:90
+#: app/helpers/js_i18n_strings.py:160
 #: app/templates/components/tw_map_picker.html:127
 #: app/templates/components/tw_product_spec_modal.html:219
 #: app/templates/macros/product_config_modal.html:218
 msgid "确认选择"
 msgstr "Confirm Selection"
 
-#: app/helpers/js_i18n_strings.py:91
+#: app/helpers/js_i18n_strings.py:161 app/static/js/at-approval-dropdown.js:561
+msgid "确认通过当前审批节点?可填写审批意见。"
+msgstr "Approve the current node? You may add a comment."
+
+#: app/helpers/js_i18n_strings.py:162
 #: app/templates/components/at_purchase_order.html:524
 #: app/templates/components/tw_file_upload.html:302
 #: app/templates/components/tw_file_upload.html:332
@@ -3000,12 +3436,61 @@ msgstr "Confirm Selection"
 msgid "移除"
 msgstr "Remove"
 
-#: app/helpers/js_i18n_strings.py:92
+#: app/helpers/js_i18n_strings.py:163 app/static/js/at-ai-research.js:329
+msgid "竣工时间"
+msgstr "Completion Date"
+
+#: app/helpers/js_i18n_strings.py:164
 #: app/templates/macros/product_detail_manager.html:124
 msgid "第"
 msgstr "Page "
 
-#: app/helpers/js_i18n_strings.py:93 app/static/js/product-detail-manager.js:63
+#: app/helpers/js_i18n_strings.py:165 app/static/js/at-approval-dropdown.js:381
+msgid "给确认人的备注…"
+msgstr "Note for the confirmer…"
+
+#: app/helpers/js_i18n_strings.py:166 app/static/js/at-approval-dropdown.js:483
+#: app/static/js/at-approval-dropdown.js:599
+#: app/templates/backup/tw_index.html:403
+#: app/templates/backup/tw_index.html:460
+#: app/templates/backup/tw_index.html:481 app/templates/cli/terminal.html:144
+#: app/templates/components/at_product_relation_modal.html:374
+#: app/templates/components/at_spec_import_modal.html:263
+#: app/templates/components/tw_approval_flow.html:224
+#: app/templates/components/tw_task_modal.html:597
+#: app/templates/components/tw_task_modal.html:787
+#: app/templates/components/tw_task_modal.html:842
+#: app/templates/components/tw_worklog_preview.html:286
+#: app/templates/components/tw_worklog_preview.html:721
+#: app/templates/components/tw_worklog_preview.html:764
+#: app/templates/components/tw_worklog_reactions.html:160
+#: app/templates/expense/at_view.html:644
+#: app/templates/knowledge/tw_wiki.html:1269
+#: app/templates/product/at_view.html:413
+#: app/templates/product/at_view.html:449
+#: app/templates/worklog/tw_calendar.html:3057
+#: app/templates/worklog/tw_calendar.html:3087
+#: app/templates/worklog/tw_calendar.html:3134
+#: app/templates/worklog/tw_calendar.html:3179
+#: app/templates/worklog/tw_calendar.html:3202
+#: app/templates/worklog/tw_calendar.html:3236
+#: app/templates/worklog/tw_calendar.html:3341
+#: app/templates/worklog/tw_calendar.html:3482
+#: app/templates/worklog/tw_calendar.html:3545
+#: app/templates/worklog/tw_calendar.html:3579
+#: app/templates/worklog/tw_calendar.html:3675
+#: app/templates/worklog/tw_calendar.html:3711
+msgid "网络错误"
+msgstr "Network error"
+
+#: app/helpers/js_i18n_strings.py:167 app/static/js/at-ai-research.js:149
+#: app/templates/customer/at_view.html:370
+#: app/templates/project/at_view.html:751
+msgid "网络错误,请重试"
+msgstr "Network error, please retry"
+
+#: app/helpers/js_i18n_strings.py:168
+#: app/static/js/product-detail-manager.js:63
 #: app/templates/components/at_item_table.html:121
 #: app/templates/components/at_product_edit_modal.html:103
 #: app/templates/components/at_product_sidebar.html:74
@@ -3016,21 +3501,31 @@ msgstr "Page "
 msgid "美元"
 msgstr "US Dollar"
 
-#: app/helpers/js_i18n_strings.py:94
+#: app/helpers/js_i18n_strings.py:169
 #: app/static/js/product-detail-manager.js:1187
 msgid "至少需要保留一行产品明细"
 msgstr "At least one product line item must be kept"
 
-#: app/helpers/js_i18n_strings.py:95
+#: app/helpers/js_i18n_strings.py:170 app/static/js/at-approval-dropdown.js:190
+msgid "节点 "
+msgstr "Node "
+
+#: app/helpers/js_i18n_strings.py:171 app/static/js/at-ai-research.js:246
+msgid "营收"
+msgstr "Revenue"
+
+#: app/helpers/js_i18n_strings.py:172
+#: app/templates/inventory/at_stock_list.html:960
+#: app/templates/inventory/at_stock_list.html:982
 msgid "行"
 msgstr "Row"
 
-#: app/helpers/js_i18n_strings.py:96
+#: app/helpers/js_i18n_strings.py:173
 #: app/templates/macros/product_detail_manager.html:125
 msgid "行的"
 msgstr " row's"
 
-#: app/helpers/js_i18n_strings.py:97 app/routes/product.py:608
+#: app/helpers/js_i18n_strings.py:174 app/routes/product.py:608
 #: app/static/js/product-detail-manager.js:121
 #: app/templates/components/at_minitables.html:195
 #: app/templates/components/tw_pricing_order_modal.html:380
@@ -3044,52 +3539,103 @@ msgstr " row's"
 msgid "规格"
 msgstr "Spec"
 
-#: app/helpers/js_i18n_strings.py:98
+#: app/helpers/js_i18n_strings.py:175 app/static/js/at-ai-research.js:142
+msgid "触发失败"
+msgstr "Trigger failed"
+
+#: app/helpers/js_i18n_strings.py:176 app/static/js/at-ai-research.js:18
+#: app/static/js/at-ai-research.js:66
+#: app/templates/components/at_detail.html:310
+#: app/templates/components/at_detail.html:312
+msgid "触发调研"
+msgstr "Run Research"
+
+#: app/helpers/js_i18n_strings.py:177 app/static/js/at-approval-dropdown.js:271
+#: app/views/approval.py:2238
+msgid "订单审批"
+msgstr "Order Approval"
+
+#: app/helpers/js_i18n_strings.py:178 app/static/js/at-approval-dropdown.js:551
+msgid "认定:个人因素为主(计入项目负责人的个人失败率)"
+msgstr "Verdict: mainly personal factors (counted toward the project owner's personal failure rate)"
+
+#: app/helpers/js_i18n_strings.py:179 app/static/js/at-approval-dropdown.js:554
+msgid "认定:团队管理失责(计入部门的团队失败率)"
+msgstr "Verdict: team management failure (counted toward the department's team failure rate)"
+
+#: app/helpers/js_i18n_strings.py:180 app/static/js/at-ai-research.js:343
+#: app/templates/customer/at_list.html:49
+#: app/templates/customer/at_view.html:88
+#: app/templates/prospect/tw_list.html:854
+#: app/templates/prospect/tw_list.html:1545
+#: app/templates/prospect/tw_lost_detail.html:155
+#: app/templates/prospect/tw_lost_panel.html:157
+#: app/templates/prospect/tw_panel.html:186
+msgid "设计院"
+msgstr "Design Institute"
+
+#: app/helpers/js_i18n_strings.py:181
 #: app/static/js/product-detail-manager.js:677
 #: app/static/js/product-detail-manager.js:681
 msgid "该产品已停产"
 msgstr "This product is discontinued"
 
-#: app/helpers/js_i18n_strings.py:99
+#: app/helpers/js_i18n_strings.py:182
 msgid "该产品无配套"
 msgstr "No bundles for this product"
 
-#: app/helpers/js_i18n_strings.py:100 app/static/js/at-product-picker.js:213
+#: app/helpers/js_i18n_strings.py:183 app/static/js/at-product-picker.js:213
 #: app/static/js/at-product-picker.js:243
 msgid "该子分类下暂无产品"
 msgstr "No products in this subcategory"
 
-#: app/helpers/js_i18n_strings.py:101 app/static/js/at-product-picker.js:159
+#: app/helpers/js_i18n_strings.py:184 app/static/js/at-product-picker.js:159
 msgid "该类目下暂无子分类"
 msgstr "No subcategories in this category"
 
-#: app/helpers/js_i18n_strings.py:102
+#: app/helpers/js_i18n_strings.py:185 app/static/js/at-approval-dropdown.js:524
+msgid "说明召回理由,审批人可见…"
+msgstr "Explain the recall reason, visible to approvers…"
+
+#: app/helpers/js_i18n_strings.py:186
 msgid "请为"
 msgstr "Please set"
 
-#: app/helpers/js_i18n_strings.py:103 app/static/js/at-product-picker.js:69
+#: app/helpers/js_i18n_strings.py:187 app/static/js/at-approval-dropdown.js:443
+msgid "请为每个步骤选择审批人"
+msgstr "Select an approver for each step"
+
+#: app/helpers/js_i18n_strings.py:188 app/static/js/at-product-picker.js:69
 #: app/static/js/at-product-picker.js:153
 #: app/static/js/at-product-picker.js:205
 #: app/templates/components/at_product_picker.html:85
 msgid "请先选择产品族"
 msgstr "Select a product family first"
 
-#: app/helpers/js_i18n_strings.py:104 app/static/js/at-product-picker.js:68
+#: app/helpers/js_i18n_strings.py:189 app/static/js/at-product-picker.js:68
 #: app/static/js/at-product-picker.js:152
 #: app/templates/components/at_product_picker.html:70
 msgid "请先选择子分类"
 msgstr "Select a subcategory first"
 
-#: app/helpers/js_i18n_strings.py:105 app/static/js/at-product-picker.js:67
+#: app/helpers/js_i18n_strings.py:190 app/static/js/at-product-picker.js:67
 #: app/templates/components/at_product_picker.html:61
 msgid "请先选择类目"
 msgstr "Select a category first"
 
-#: app/helpers/js_i18n_strings.py:106
+#: app/helpers/js_i18n_strings.py:191 app/static/js/at-approval-dropdown.js:568
+msgid "请写下你对本次申请的最终评判…"
+msgstr "Write your final verdict on this request…"
+
+#: app/helpers/js_i18n_strings.py:192
 msgid "请检查规格选择是否正确"
 msgstr "Please check that the spec selection is correct"
 
-#: app/helpers/js_i18n_strings.py:107
+#: app/helpers/js_i18n_strings.py:193 app/static/js/at-approval-dropdown.js:568
+msgid "请说明驳回原因(必填)"
+msgstr "Please state the rejection reason (required)"
+
+#: app/helpers/js_i18n_strings.py:194
 #: app/templates/components/at_purchase_order.html:738
 #: app/templates/components/at_purchase_order.html:740
 #: app/templates/components/at_sales_order.html:84
@@ -3117,25 +3663,165 @@ msgstr "Please check that the spec selection is correct"
 msgid "请选择"
 msgstr "Please select"
 
-#: app/helpers/js_i18n_strings.py:108
+#: app/helpers/js_i18n_strings.py:195 app/static/js/at-approval-dropdown.js:319
+msgid "请选择「"
+msgstr "Please select 「"
+
+#: app/helpers/js_i18n_strings.py:196
 #: app/templates/macros/product_config_modal.html:69
 msgid "请选择产品规格"
 msgstr "Please select product specification"
 
-#: app/helpers/js_i18n_strings.py:109
+#: app/helpers/js_i18n_strings.py:197 app/static/js/at-ai-research.js:19
+#: app/templates/components/at_detail.html:311
+#: app/templates/prospect/tw_list.html:1996
+msgid "调研中…"
+msgstr "Researching…"
+
+#: app/helpers/js_i18n_strings.py:198 app/static/js/at-ai-research.js:86
+#: app/templates/prospect/tw_lost_detail.html:333
+msgid "调研失败"
+msgstr "Research failed"
+
+#: app/helpers/js_i18n_strings.py:199 app/static/js/at-approval-dropdown.js:316
+#: app/templates/macros/ui_helpers.html:9282 app/views/worklog.py:135
+msgid "财务"
+msgstr "Finance"
+
+#: app/helpers/js_i18n_strings.py:200 app/static/js/at-ai-research.js:347
+msgid "运营方"
+msgstr "Operator"
+
+#: app/helpers/js_i18n_strings.py:201
 #: app/static/js/product-config-modal.js:1266
 msgid "返回修改"
 msgstr "Back to Edit"
 
-#: app/helpers/js_i18n_strings.py:110
+#: app/helpers/js_i18n_strings.py:203
 msgid "选择一个选项"
 msgstr "Select an option"
 
-#: app/helpers/js_i18n_strings.py:111 app/static/js/at-product-picker.js:785
+#: app/helpers/js_i18n_strings.py:204 app/static/js/at-ai-research.js:19
+#: app/static/js/at-ai-research.js:96
+#: app/templates/components/at_detail.html:312
+#: app/templates/components/at_detail.html:350
+msgid "选择候选"
+msgstr "Select Candidate"
+
+#: app/helpers/js_i18n_strings.py:205 app/static/js/at-approval-dropdown.js:276
+msgid "选择审批人"
+msgstr "Select Approver"
+
+#: app/helpers/js_i18n_strings.py:206 app/static/js/at-product-picker.js:785
 msgid "部分必选互斥组未选择"
 msgstr "Some required groups not selected"
 
-#: app/helpers/js_i18n_strings.py:112
+#: app/helpers/js_i18n_strings.py:207 app/static/js/at-approval-dropdown.js:222
+#: app/static/js/at-approval-dropdown.js:514
+#: app/static/js/at-approval-dropdown.js:629
+#: app/templates/components/tw_approval_flow.html:113
+#: app/templates/components/tw_approval_flow.html:149
+#: app/templates/components/tw_pricing_order_modal.html:555
+#: app/templates/components/tw_pricing_order_modal.html:2199
+#: app/templates/expense/at_view.html:226
+#: app/templates/expense/tw_expense_detail.html:302
+#: app/templates/project/at_view.html:234
+msgid "重新提交"
+msgstr "Resubmit"
+
+#: app/helpers/js_i18n_strings.py:208 app/static/js/at-ai-research.js:18
+#: app/templates/components/at_detail.html:310
+#: app/templates/prospect/tw_list.html:1495
+#: app/templates/prospect/tw_list.html:1521
+#: app/templates/prospect/tw_lost_panel.html:277
+#: app/templates/prospect/tw_panel.html:329
+msgid "重新调研"
+msgstr "Re-research"
+
+#: app/helpers/js_i18n_strings.py:209 app/static/js/at-ai-research.js:18
+#: app/templates/components/at_detail.html:310
+msgid "重试调研"
+msgstr "Retry Research"
+
+#: app/helpers/js_i18n_strings.py:210 app/static/js/at-approval-dropdown.js:363
+#: app/templates/components/at_item_table.html:71
+#: app/templates/components/at_minitables.html:52
+#: app/templates/components/at_minitables.html:103
+#: app/templates/components/at_minitables.html:123
+#: app/templates/components/at_minitables.html:143
+#: app/templates/components/at_purchase_order.html:165
+#: app/templates/components/tw_purchase_order_form.html:15
+#: app/templates/expense/at_list.html:68 app/templates/expense/at_view.html:91
+#: app/templates/expense/partials/_expense_modal_fields.html:315
+#: app/templates/index.html:298
+#: app/templates/inventory/at_purchase_order_list.html:84
+#: app/templates/macros/expense_detail_manager.html:530
+#: app/templates/product_analysis/tw_analysis.html:242
+#: app/templates/product_analysis/tw_analysis.html:450
+#: app/templates/sales_order/at_detail.html:155
+#: app/templates/sales_order/at_list.html:132
+#: app/templates/star_graph/tw_star_graph.html:225
+#: app/templates/user/tw_detail.html:534 app/views/expense.py:633
+#: app/views/product_analysis.py:1547
+msgid "金额"
+msgstr "Amount"
+
+#: app/helpers/js_i18n_strings.py:211 app/static/js/at-approval-dropdown.js:315
+#: app/views/star_graph.py:153 app/views/star_graph.py:506
+msgid "销售经理"
+msgstr "Sales Manager"
+
+#: app/helpers/js_i18n_strings.py:212 app/routes/resource_pool.py:112
+#: app/static/js/at-approval-dropdown.js:370
+#: app/templates/components/at_minitables.html:50
+#: app/templates/components/at_minitables.html:77
+#: app/templates/components/tw_chat_panel.html:2219
+#: app/templates/components/tw_message_panel.html:645
+#: app/templates/components/tw_worklog_preview.html:550
+#: app/templates/macros/approval_macros.html:406
+#: app/templates/macros/ui_helpers.html:3082
+#: app/templates/macros/ui_helpers.html:7917
+#: app/templates/main/at_dashboard.html:451
+#: app/templates/main/at_dashboard.html:538
+#: app/templates/pricing_order/at_list.html:60
+#: app/templates/product_analysis/tw_analysis.html:453
+#: app/templates/project/at_list.html:96
+#: app/templates/quotation/at_list.html:65
+#: app/templates/quotation/at_view.html:748
+#: app/templates/star_graph/tw_star_graph.html:165
+#: app/templates/star_graph/tw_star_graph.html:221
+#: app/templates/user/tw_detail.html:533
+#: app/templates/worklog/tw_calendar.html:1482 app/views/approval.py:212
+#: app/views/approval.py:2128 app/views/approval.py:2936
+#: app/views/expense.py:636 app/views/product_analysis.py:1547
+#: app/views/star_graph.py:275
+msgid "项目"
+msgstr "Project"
+
+#: app/helpers/js_i18n_strings.py:213 app/static/js/at-approval-dropdown.js:269
+msgid "项目报备"
+msgstr "Project Registration"
+
+#: app/helpers/js_i18n_strings.py:214 app/static/js/at-ai-research.js:322
+msgid "项目概况"
+msgstr "Project Overview"
+
+#: app/helpers/js_i18n_strings.py:215 app/static/js/at-ai-research.js:330
+#: app/views/config_management.py:2071
+msgid "项目阶段"
+msgstr "Project Stage"
+
+#: app/helpers/js_i18n_strings.py:216 app/static/js/at-ai-research.js:346
+#: app/templates/prospect/tw_list.html:361
+#: app/templates/prospect/tw_lost_panel.html:102
+msgid "顾问"
+msgstr "Consultant"
+
+#: app/helpers/js_i18n_strings.py:217 app/static/js/at-ai-research.js:292
+msgid "风险预警"
+msgstr "Risk Alerts"
+
+#: app/helpers/js_i18n_strings.py:218
 #: app/static/js/product-detail-manager.js:66
 #: app/templates/components/at_product_edit_modal.html:104
 #: app/templates/components/at_product_sidebar.html:74
@@ -3144,6 +3830,25 @@ msgstr "Some required groups not selected"
 #: app/templates/user/edit.html:182 app/templates/user/tw_detail.html:251
 msgid "马来西亚林吉特"
 msgstr "Malaysian Ringgit"
+
+#: app/helpers/js_i18n_strings.py:219 app/static/js/at-approval-dropdown.js:225
+#: app/static/js/at-approval-dropdown.js:534
+#: app/templates/approval/at_detail.html:73
+#: app/templates/components/tw_approval_flow.html:221
+#: app/templates/components/tw_task_audit.html:66
+#: app/templates/task/tw_task_management.html:433
+#: app/templates/task/tw_task_management.html:563
+#: app/templates/task/tw_task_management.html:886
+msgid "驳回"
+msgstr "Reject"
+
+#: app/helpers/js_i18n_strings.py:220 app/static/js/at-approval-dropdown.js:567
+msgid "驳回原因"
+msgstr "Rejection Reason"
+
+#: app/helpers/js_i18n_strings.py:221 app/static/js/at-approval-dropdown.js:562
+msgid "驳回后该报销单会回到驳回态,申请人可重新提交。请填写驳回原因。"
+msgstr "After rejection, the expense returns to rejected status and the applicant can resubmit. Please fill in the rejection reason."
 
 #: app/routes/backup_routes.py:50
 #: app/templates/components/tw_action_list.html:428
@@ -3305,6 +4010,7 @@ msgstr "All Representatives"
 #: app/templates/files/tw_file_manager.html:349
 #: app/templates/files/tw_file_manager.html:801 app/templates/index.html:247
 #: app/templates/inventory/at_purchase_order_list.html:84
+#: app/templates/inventory/at_stock_list.html:960
 #: app/templates/macros/approval_macros.html:102
 #: app/templates/meeting/tw_meeting_minutes_list.html:145
 #: app/templates/pricing_order/at_list.html:61
@@ -3478,7 +4184,9 @@ msgstr "Total Products"
 msgid "个"
 msgstr "items"
 
-#: app/routes/product.py:607 app/templates/components/at_item_table.html:65
+#: app/routes/product.py:607
+#: app/templates/components/at_customer_needs_modal.html:78
+#: app/templates/components/at_item_table.html:65
 #: app/templates/components/at_minitables.html:194
 #: app/templates/components/at_product_edit_modal.html:42
 #: app/templates/components/at_product_media.html:77
@@ -3507,7 +4215,7 @@ msgstr "items"
 msgid "型号"
 msgstr "Model"
 
-#: app/routes/product.py:612
+#: app/routes/product.py:612 app/templates/inventory/at_stock_list.html:960
 msgid "MN号"
 msgstr "MN Number"
 
@@ -3607,32 +4315,6 @@ msgstr "Cannot find approver, please contact admin"
 #: app/routes/resource_pool.py:96
 msgid "您已拥有该资源的访问权限"
 msgstr "You already have access to this resource"
-
-#: app/routes/resource_pool.py:112
-#: app/templates/components/at_minitables.html:50
-#: app/templates/components/at_minitables.html:77
-#: app/templates/components/tw_chat_panel.html:2219
-#: app/templates/components/tw_message_panel.html:645
-#: app/templates/components/tw_worklog_preview.html:550
-#: app/templates/macros/approval_macros.html:406
-#: app/templates/macros/ui_helpers.html:3082
-#: app/templates/macros/ui_helpers.html:7917
-#: app/templates/main/at_dashboard.html:451
-#: app/templates/main/at_dashboard.html:538
-#: app/templates/pricing_order/at_list.html:60
-#: app/templates/product_analysis/tw_analysis.html:453
-#: app/templates/project/at_list.html:96
-#: app/templates/quotation/at_list.html:65
-#: app/templates/quotation/at_view.html:748
-#: app/templates/star_graph/tw_star_graph.html:165
-#: app/templates/star_graph/tw_star_graph.html:221
-#: app/templates/user/tw_detail.html:533
-#: app/templates/worklog/tw_calendar.html:1482 app/views/approval.py:212
-#: app/views/approval.py:2128 app/views/approval.py:2936
-#: app/views/expense.py:636 app/views/product_analysis.py:1547
-#: app/views/star_graph.py:275
-msgid "项目"
-msgstr "Project"
 
 #: app/routes/resource_pool.py:118
 msgid "请求访问"
@@ -3889,6 +4571,8 @@ msgstr "Title"
 #: app/templates/config_management/_performance_metrics.html:266
 #: app/templates/expense/partials/_expense_modal_fields.html:312
 #: app/templates/expense/partials/_expense_modal_fields.html:382
+#: app/templates/inventory/at_stock_list.html:211
+#: app/templates/inventory/at_stock_list.html:351
 #: app/templates/macros/ui_modals.html:247
 #: app/templates/product/at_list.html:381
 #: app/templates/product_analysis/tw_analysis.html:525
@@ -3918,6 +4602,9 @@ msgid "开始时间"
 msgstr "Start Time"
 
 #: app/services/task_service.py:314
+#: app/templates/components/at_action_modal.html:61
+#: app/templates/components/at_action_modal.html:80
+#: app/templates/components/at_action_modal.html:91
 #: app/templates/components/tw_access_request_modal.html:60
 #: app/templates/components/tw_access_request_modal.html:171
 #: app/templates/components/tw_access_request_modal.html:248
@@ -4233,7 +4920,11 @@ msgstr "Order"
 
 #: app/templates/base.html:403 app/templates/base.html:417
 #: app/templates/components/at_sidebar.html:151
-#: app/templates/components/tw_nav_menu.html:208 app/views/worklog.py:147
+#: app/templates/components/tw_nav_menu.html:208
+#: app/templates/inventory/at_stock_list.html:12
+#: app/templates/inventory/at_stock_list.html:33
+#: app/templates/inventory/at_stock_list.html:58
+#: app/templates/inventory/at_stock_list.html:62 app/views/worklog.py:147
 msgid "库存管理"
 msgstr "Inventory"
 
@@ -4425,28 +5116,6 @@ msgstr "Recent Quotations"
 msgid "报价单号"
 msgstr "Quotation No."
 
-#: app/templates/components/at_item_table.html:71
-#: app/templates/components/at_minitables.html:52
-#: app/templates/components/at_minitables.html:103
-#: app/templates/components/at_minitables.html:123
-#: app/templates/components/at_minitables.html:143
-#: app/templates/components/at_purchase_order.html:165
-#: app/templates/components/tw_purchase_order_form.html:15
-#: app/templates/expense/at_list.html:68 app/templates/expense/at_view.html:91
-#: app/templates/expense/partials/_expense_modal_fields.html:315
-#: app/templates/index.html:298
-#: app/templates/inventory/at_purchase_order_list.html:84
-#: app/templates/macros/expense_detail_manager.html:530
-#: app/templates/product_analysis/tw_analysis.html:242
-#: app/templates/product_analysis/tw_analysis.html:450
-#: app/templates/sales_order/at_detail.html:155
-#: app/templates/sales_order/at_list.html:132
-#: app/templates/star_graph/tw_star_graph.html:225
-#: app/templates/user/tw_detail.html:534 app/views/expense.py:633
-#: app/views/product_analysis.py:1547
-msgid "金额"
-msgstr "Amount"
-
 #: app/templates/index.html:323
 msgid "您没有最近的报价"
 msgstr "You have no recent quotations"
@@ -4496,6 +5165,9 @@ msgstr "Loading replies"
 msgid "拥有人"
 msgstr "Owner"
 
+#: app/templates/components/at_action_modal.html:69
+#: app/templates/components/at_action_modal.html:77
+#: app/templates/components/at_action_modal.html:96
 #: app/templates/components/at_detail.html:164
 #: app/templates/components/tw_access_request_modal.html:56
 #: app/templates/components/tw_access_request_modal.html:165
@@ -5197,6 +5869,9 @@ msgstr "Published"
 #: app/templates/customer/at_list.html:93
 #: app/templates/customer/at_view.html:401
 #: app/templates/inventory/at_purchase_order_list.html:83
+#: app/templates/inventory/at_stock_list.html:279
+#: app/templates/inventory/at_stock_list.html:473
+#: app/templates/inventory/at_stock_list.html:475
 #: app/templates/product/file_preview_demo.html:268
 #: app/templates/project/at_list.html:87 app/templates/project/at_list.html:96
 #: app/templates/star_graph/tw_star_graph.html:228
@@ -5319,6 +5994,7 @@ msgstr "No announcements"
 
 #: app/templates/announcement/tw_list.html:224
 #: app/templates/approval_config/template_form.html:231
+#: app/templates/components/at_action_modal.html:45
 #: app/templates/components/at_product_edit_modal.html:33
 #: app/templates/components/at_product_edit_modal.html:169
 #: app/templates/components/at_product_sidebar.html:204
@@ -5626,22 +6302,6 @@ msgstr "You are the current approver"
 msgid "审批意见(可选)"
 msgstr "Comment (optional)"
 
-#: app/templates/approval/at_detail.html:70
-#: app/templates/components/tw_approval_flow.html:220
-#: app/templates/macros/approval_macros.html:502
-#: app/templates/macros/approval_macros.html:549
-msgid "同意"
-msgstr "Approve"
-
-#: app/templates/approval/at_detail.html:73
-#: app/templates/components/tw_approval_flow.html:221
-#: app/templates/components/tw_task_audit.html:66
-#: app/templates/task/tw_task_management.html:433
-#: app/templates/task/tw_task_management.html:563
-#: app/templates/task/tw_task_management.html:886
-msgid "驳回"
-msgstr "Reject"
-
 #: app/templates/approval/at_detail.html:83
 #: app/templates/components/tw_message_panel.html:189
 msgid "发起"
@@ -5677,41 +6337,6 @@ msgstr "Skipped"
 #: app/templates/worklog/tw_calendar.html:973 app/views/meeting.py:397
 msgid "完成"
 msgstr "Done"
-
-#: app/templates/approval/at_detail.html:128
-#: app/templates/components/tw_access_request_modal.html:405
-#: app/templates/components/tw_approval_flow.html:226
-#: app/templates/components/tw_chat_panel.html:2242
-#: app/templates/components/tw_confirm_modal.html:187
-#: app/templates/components/tw_po_timeline.html:512
-#: app/templates/components/tw_po_timeline.html:533
-#: app/templates/components/tw_purchase_order_form.html:480
-#: app/templates/components/tw_task_modal.html:901
-#: app/templates/components/tw_worklog_reactions.html:156
-#: app/templates/components/user/tw_user_form_modal.html:423
-#: app/templates/config_management/tw_index.html:4161
-#: app/templates/config_management/tw_index.html:4193
-#: app/templates/config_management/tw_index.html:4228
-#: app/templates/knowledge/tw_wiki.html:1700
-#: app/templates/knowledge/tw_wiki.html:1703
-#: app/templates/product/tw_product_detail.html:593
-#: app/templates/project/at_view.html:666
-#: app/templates/project/at_view.html:678
-#: app/templates/quotation/tw_quotation_detail.html:712
-#: app/templates/quotation/tw_quotation_detail.html:734
-#: app/templates/quotation/tw_quotation_detail.html:809
-#: app/templates/spec_definition/tw_list.html:1112
-#: app/templates/spec_definition/tw_list.html:1116
-#: app/templates/system_diagram/tw_list.html:234
-#: app/templates/system_diagram/tw_list.html:236
-#: app/templates/user/at_detail.html:198
-#: app/templates/user/tw_department_management.html:419
-#: app/templates/user/tw_department_management.html:450
-#: app/templates/worklog/tw_calendar.html:3056
-#: app/templates/worklog/tw_calendar.html:3178
-#: app/templates/worklog/tw_calendar.html:3201
-msgid "操作失败"
-msgstr "Operation failed"
 
 #: app/templates/approval/at_detail.html:129
 #: app/templates/project/at_view.html:667
@@ -6367,38 +6992,6 @@ msgstr "Starting backup task..."
 msgid "备份失败"
 msgstr "Backup failed"
 
-#: app/templates/backup/tw_index.html:403
-#: app/templates/backup/tw_index.html:460
-#: app/templates/backup/tw_index.html:481 app/templates/cli/terminal.html:144
-#: app/templates/components/at_product_relation_modal.html:374
-#: app/templates/components/at_spec_import_modal.html:263
-#: app/templates/components/tw_approval_flow.html:224
-#: app/templates/components/tw_task_modal.html:597
-#: app/templates/components/tw_task_modal.html:787
-#: app/templates/components/tw_task_modal.html:842
-#: app/templates/components/tw_worklog_preview.html:286
-#: app/templates/components/tw_worklog_preview.html:721
-#: app/templates/components/tw_worklog_preview.html:764
-#: app/templates/components/tw_worklog_reactions.html:160
-#: app/templates/expense/at_view.html:644
-#: app/templates/knowledge/tw_wiki.html:1269
-#: app/templates/product/at_view.html:413
-#: app/templates/product/at_view.html:449
-#: app/templates/worklog/tw_calendar.html:3057
-#: app/templates/worklog/tw_calendar.html:3087
-#: app/templates/worklog/tw_calendar.html:3134
-#: app/templates/worklog/tw_calendar.html:3179
-#: app/templates/worklog/tw_calendar.html:3202
-#: app/templates/worklog/tw_calendar.html:3236
-#: app/templates/worklog/tw_calendar.html:3341
-#: app/templates/worklog/tw_calendar.html:3482
-#: app/templates/worklog/tw_calendar.html:3545
-#: app/templates/worklog/tw_calendar.html:3579
-#: app/templates/worklog/tw_calendar.html:3675
-#: app/templates/worklog/tw_calendar.html:3711
-msgid "网络错误"
-msgstr "Network error"
-
 #: app/templates/backup/tw_index.html:415
 #: app/templates/components/tw_approval_flow.html:227
 #: app/templates/components/user/tw_user_form_modal.html:183
@@ -6518,6 +7111,8 @@ msgstr "Generating document..."
 #: app/templates/cli/terminal.html:150
 #: app/templates/customer/add_action.html:308
 #: app/templates/dingtalk/tw_sync_queue.html:96
+#: app/templates/inventory/at_stock_list.html:932
+#: app/templates/inventory/at_stock_list.html:952
 msgid "错误"
 msgstr "Error"
 
@@ -6610,6 +7205,138 @@ msgstr "Thinking... (press Esc to abort)"
 msgid "输入问题，按 Enter 发送..."
 msgstr "Enter question, press Enter to send..."
 
+#: app/templates/components/at_action_modal.html:46
+msgid "添加跟进记录"
+msgstr "Add Follow-up"
+
+#: app/templates/components/at_action_modal.html:64
+#: app/templates/components/tw_action_modal.html:119
+#: app/templates/project/add_action.html:33
+msgid "相关企业"
+msgstr "Related Company"
+
+#: app/templates/components/at_action_modal.html:64
+msgid "可选 · 项目关联的客户中选"
+msgstr "optional · pick from the project's linked customers"
+
+#: app/templates/components/at_action_modal.html:66
+#: app/templates/components/tw_action_modal.html:124
+#: app/templates/components/user/tw_user_form_modal.html:123
+#: app/templates/components/user/tw_user_form_modal.html:273
+msgid "请选择企业"
+msgstr "Please select company"
+
+#: app/templates/components/at_action_modal.html:69
+msgid "可选 · 选择企业后联动"
+msgstr "optional · linked after selecting a company"
+
+#: app/templates/components/at_action_modal.html:71
+#: app/templates/components/tw_action_modal.html:139
+msgid "请先选择企业"
+msgstr "Please select company first"
+
+#: app/templates/components/at_action_modal.html:80
+#: app/templates/components/at_action_modal.html:91
+#: app/templates/components/at_action_modal.html:96
+#: app/templates/components/at_product_specs_relations.html:368
+#: app/templates/components/product/tw_spec_import_modal.html:90
+#: app/templates/components/tw_action_modal.html:120
+#: app/templates/components/tw_action_modal.html:135
+#: app/templates/components/tw_action_modal.html:160
+#: app/templates/components/tw_action_modal.html:190
+#: app/templates/components/tw_action_modal.html:206
+#: app/templates/components/tw_product_spec_modal.html:2002
+#: app/templates/inventory/partials/_acceptance_form.html:258
+#: app/templates/macros/ui_modals.html:247
+#: app/templates/product/upload_files.html:53
+#: app/templates/product/upload_files.html:84
+#: app/templates/product_code/tw_category_management.html:337
+msgid "可选"
+msgstr "Optional"
+
+#: app/templates/components/at_action_modal.html:82
+#: app/templates/components/at_action_modal.html:93
+#: app/templates/components/tw_action_modal.html:165
+#: app/templates/components/tw_action_modal.html:194
+#: app/templates/quotation/tw_quotation_edit.html:1119
+msgid "请选择项目"
+msgstr "Please select project"
+
+#: app/templates/components/at_action_modal.html:88
+#: app/templates/components/tw_action_modal.html:179
+#: app/templates/expense/at_view.html:89 app/templates/expense/at_view.html:293
+#: app/templates/expense/at_view.html:383
+#: app/templates/expense/create_expense.html:89
+#: app/templates/expense/create_expense.html:1238
+#: app/templates/expense/edit_expense.html:121
+#: app/templates/expense/partials/_expense_modal_fields.html:129
+#: app/templates/expense/tw_expense_detail.html:323
+#: app/templates/product_analysis/tw_analysis.html:455
+#: app/templates/project/at_view.html:311
+#: app/templates/project/at_view.html:840
+#: app/templates/quotation/at_view.html:392
+#: app/templates/quotation/at_view.html:466
+#: app/templates/quotation/partials/_quotation_modal_fields.html:64
+#: app/templates/quotation/tw_quotation_detail.html:167
+#: app/templates/worklog/tw_calendar.html:826
+#: app/templates/worklog/tw_calendar.html:998
+#: app/templates/worklog/tw_calendar.html:1086
+#: app/views/product_analysis.py:1547
+msgid "关联客户"
+msgstr "Related Customer"
+
+#: app/templates/components/at_action_modal.html:98
+#: app/templates/components/tw_action_list.html:435
+#: app/templates/components/tw_action_modal.html:139
+#: app/templates/components/tw_action_modal.html:210
+#: app/templates/customer/add_action_for_company.html:35
+#: app/templates/customer/add_action_for_company.html:40
+#: app/templates/customer/add_action_for_company.html:124
+#: app/templates/expense/create_expense.html:621
+#: app/templates/expense/create_expense.html:1249
+#: app/templates/expense/edit_expense.html:519
+#: app/templates/expense/tw_expense_detail.html:945
+#: app/templates/expense/tw_list.html:357
+#: app/templates/quotation/tw_list.html:389
+#: app/templates/quotation/tw_quotation_detail.html:978
+#: app/views/customer.py:1419
+msgid "请选择联系人"
+msgstr "Please select contact"
+
+#: app/templates/components/at_action_modal.html:104
+#: app/templates/components/at_minitables.html:550
+#: app/templates/components/at_purchase_order.html:261
+#: app/templates/components/tw_action_modal.html:221
+#: app/templates/expense/partials/_expense_modal_fields.html:311
+#: app/templates/product_analysis/tw_analysis.html:459
+#: app/templates/project/add_action.html:65
+#: app/templates/star_graph/tw_star_graph.html:228
+#: app/views/product_analysis.py:1548
+msgid "日期"
+msgstr "Date"
+
+#: app/templates/components/at_action_modal.html:109
+#: app/templates/components/tw_action_modal.html:231
+#: app/templates/project/add_action.html:70
+msgid "沟通情况"
+msgstr "Communication"
+
+#: app/templates/components/at_action_modal.html:111
+msgid "请输入本次沟通的详细内容…"
+msgstr "Enter the details of this communication…"
+
+#: app/templates/components/at_action_modal.html:121
+#: app/templates/components/tw_action_modal.html:241
+#: app/templates/customer/add_action.html:124
+#: app/templates/customer/add_action_for_company.html:82
+#: app/templates/project/add_action.html:78
+msgid "共享此记录"
+msgstr "Share this record"
+
+#: app/templates/components/at_action_modal.html:123
+msgid "取消勾选后,此记录仅对管理员和上级账户可见"
+msgstr "If unchecked, this record is visible only to admins and superior accounts."
+
 #: app/templates/components/at_base.html:192
 #: app/templates/components/at_product_media.html:155
 #: app/templates/components/at_product_media.html:326
@@ -6681,13 +7408,6 @@ msgstr "Enter company name first"
 #: app/templates/project/partials/_project_form_fields.html:39
 msgid "AI 建议"
 msgstr "AI Suggestions"
-
-#: app/templates/components/at_customer_modal.html:104
-#: app/templates/customer/partials/_company_form_fields.html:71
-#: app/templates/customer/partials/_company_form_fields.html:143
-#: app/templates/project/partials/_project_form_fields.html:183
-msgid "地址"
-msgstr "Address"
 
 #: app/templates/components/at_customer_modal.html:104
 #: app/templates/components/at_project_modal.html:114
@@ -6805,6 +7525,54 @@ msgstr "Notes"
 msgid "请输入备注信息"
 msgstr "Please enter notes"
 
+#: app/templates/components/at_customer_needs_modal.html:49
+#: app/templates/components/tw_purchase_order_form.html:666
+msgid "客户需求池"
+msgstr "Customer requirement pool"
+
+#: app/templates/components/at_customer_needs_modal.html:60
+msgid "搜索产品名称 / 订单号…"
+msgstr "Search product name / order no.…"
+
+#: app/templates/components/at_customer_needs_modal.html:77
+#: app/templates/components/tw_purchase_order_form.html:682
+#: app/templates/inventory/partials/_shipment_form.html:20
+#: app/templates/sales_order/at_list.html:132
+msgid "订单号"
+msgstr "Order No."
+
+#: app/templates/components/at_customer_needs_modal.html:78
+#: app/templates/components/at_purchase_order.html:160
+#: app/templates/components/at_purchase_order.html:358
+#: app/templates/components/at_purchase_order.html:894
+#: app/templates/components/tw_purchase_order_form.html:684
+#: app/templates/inventory/at_stock_list.html:211
+#: app/templates/inventory/at_stock_list.html:351
+#: app/templates/inventory/at_stock_list.html:473
+#: app/templates/inventory/at_stock_list.html:475
+#: app/templates/inventory/at_stock_list.html:960
+#: app/templates/inventory/partials/_acceptance_form.html:76
+#: app/templates/inventory/partials/_shipment_form.html:113
+#: app/templates/inventory/partials/_test_form.html:110
+#: app/templates/product_analysis/tw_analysis.html:230
+#: app/templates/product_analysis/tw_analysis.html:440
+#: app/templates/product_analysis/tw_analysis.html:519
+#: app/templates/sales_order/at_detail.html:153
+#: app/templates/star_graph/tw_star_graph.html:224
+#: app/views/product_analysis.py:1546 app/views/worklog.py:140
+msgid "产品"
+msgstr "Product"
+
+#: app/templates/components/at_customer_needs_modal.html:78
+#: app/templates/components/tw_purchase_order_form.html:686
+msgid "待采购"
+msgstr "Pending Procurement"
+
+#: app/templates/components/at_customer_needs_modal.html:103
+#: app/templates/components/tw_purchase_order_form.html:696
+msgid "导入选中"
+msgstr "Import Selected"
+
 #: app/templates/components/at_dash_card.html:24
 #, python-format
 msgid "我的%(noun)s"
@@ -6855,6 +7623,14 @@ msgstr "replies"
 #: app/templates/components/at_detail.html:245
 msgid "暂无跟进记录"
 msgstr "No activity"
+
+#: app/templates/components/at_detail.html:321
+msgid "AI 网络调研"
+msgstr "AI Research"
+
+#: app/templates/components/at_detail.html:338
+msgid "上次调研"
+msgstr "Last research"
 
 #: app/templates/components/at_filter_panel.html:25
 #: app/templates/dingtalk/tw_sync_queue.html:77
@@ -6981,6 +7757,7 @@ msgstr "Total Amount"
 
 #: app/templates/components/at_list_layout.html:60
 #: app/templates/customer/at_view.html:77 app/templates/expense/at_view.html:79
+#: app/templates/inventory/at_stock_list.html:46
 #: app/templates/product/at_view.html:69
 #: app/templates/product_sn/at_detail.html:40
 #: app/templates/product_sn/at_list.html:35
@@ -7016,6 +7793,8 @@ msgstr "Total"
 
 #: app/templates/components/at_list_layout.html:93
 #: app/templates/customer/at_view.html:333
+#: app/templates/inventory/at_stock_list.html:989
+#: app/templates/inventory/at_stock_list.html:1010
 #: app/templates/product_analysis/tw_analysis.html:489
 #: app/templates/prospect/_tw_lost_list.html:22
 #: app/templates/prospect/tw_list.html:74
@@ -7174,27 +7953,10 @@ msgstr "(applied to subtotal)"
 msgid "合计 (含税)"
 msgstr "Total (incl. tax)"
 
-#: app/templates/components/at_minitables.html:550
-#: app/templates/components/at_purchase_order.html:261
-#: app/templates/components/tw_action_modal.html:221
-#: app/templates/expense/partials/_expense_modal_fields.html:311
-#: app/templates/product_analysis/tw_analysis.html:459
-#: app/templates/project/add_action.html:65
-#: app/templates/star_graph/tw_star_graph.html:228
-#: app/views/product_analysis.py:1548
-msgid "日期"
-msgstr "Date"
-
 #: app/templates/components/at_minitables.html:551
 #: app/templates/expense/at_view.html:505 app/templates/product/at_list.html:62
 msgid "类别"
 msgstr "Category"
-
-#: app/templates/components/at_minitables.html:553
-#: app/templates/expense/partials/_expense_modal_fields.html:313
-#: app/templates/expense/tw_expense_detail.html:422
-msgid "单据"
-msgstr "Docs"
 
 #: app/templates/components/at_minitables.html:554
 #: app/templates/expense/at_view.html:508
@@ -7553,13 +8315,7 @@ msgstr "No default"
 
 #: app/templates/components/at_product_relation_modal.html:102
 msgid "互斥组内的产品只能选一个，适用于相同功能但规格不同的配件。"
-msgstr ""
-"Only one product can be selected within an exclusive group; use it for "
-"accessories with the same function but different specs.Only one product "
-"can be selected within a mutually exclusive group, suited to accessories "
-"with the same function but different specs.Only one product can be "
-"selected from a mutual exclusion group, suitable for accessories with "
-"same function but different specs."
+msgstr "Only one product can be selected within an exclusive group; use it for accessories with the same function but different specs."
 
 #: app/templates/components/at_product_relation_modal.html:111
 msgid "从左侧产品树中选择产品"
@@ -7708,22 +8464,6 @@ msgstr "Exclusive Group"
 msgid "组"
 msgstr "group"
 
-#: app/templates/components/at_product_specs_relations.html:368
-#: app/templates/components/product/tw_spec_import_modal.html:90
-#: app/templates/components/tw_action_modal.html:120
-#: app/templates/components/tw_action_modal.html:135
-#: app/templates/components/tw_action_modal.html:160
-#: app/templates/components/tw_action_modal.html:190
-#: app/templates/components/tw_action_modal.html:206
-#: app/templates/components/tw_product_spec_modal.html:2002
-#: app/templates/inventory/partials/_acceptance_form.html:258
-#: app/templates/macros/ui_modals.html:247
-#: app/templates/product/upload_files.html:53
-#: app/templates/product/upload_files.html:84
-#: app/templates/product_code/tw_category_management.html:337
-msgid "可选"
-msgstr "Optional"
-
 #: app/templates/components/at_product_specs_relations.html:389
 msgid "加载失败，请刷新重试"
 msgstr "Loading failed, please refresh and try again"
@@ -7752,9 +8492,7 @@ msgstr "Delete exclusive group"
 
 #: app/templates/components/at_product_specs_relations.html:421
 msgid "确认删除整个互斥组？组内所有关联产品将被移出。"
-msgstr ""
-"Delete the entire exclusive group? All related products in it will be "
-"removed."
+msgstr "Delete the entire exclusive group? All related products in it will be removed."
 
 #: app/templates/components/at_project_modal.html:31
 #: app/templates/macros/ui_helpers.html:400 app/templates/project/edit.html:107
@@ -7936,22 +8674,6 @@ msgstr "View attachment"
 #: app/templates/sales_order/at_detail.html:147
 msgid "无明细"
 msgstr "No details"
-
-#: app/templates/components/at_purchase_order.html:160
-#: app/templates/components/at_purchase_order.html:358
-#: app/templates/components/at_purchase_order.html:894
-#: app/templates/components/tw_purchase_order_form.html:684
-#: app/templates/inventory/partials/_acceptance_form.html:76
-#: app/templates/inventory/partials/_shipment_form.html:113
-#: app/templates/inventory/partials/_test_form.html:110
-#: app/templates/product_analysis/tw_analysis.html:230
-#: app/templates/product_analysis/tw_analysis.html:440
-#: app/templates/product_analysis/tw_analysis.html:519
-#: app/templates/sales_order/at_detail.html:153
-#: app/templates/star_graph/tw_star_graph.html:224
-#: app/views/product_analysis.py:1546 app/views/worklog.py:140
-msgid "产品"
-msgstr "Product"
 
 #: app/templates/components/at_purchase_order.html:162
 msgid "产品编号"
@@ -8668,6 +9390,8 @@ msgstr "Specs imported"
 #: app/templates/components/at_spec_import_modal.html:258
 #: app/templates/components/product/tw_spec_import_modal.html:256
 #: app/templates/components/product/tw_spec_import_modal.html:260
+#: app/templates/inventory/at_stock_list.html:1013
+#: app/templates/inventory/at_stock_list.html:1019
 #: app/templates/prospect/tw_list.html:1094
 #: app/templates/spec_template/tw_configurations.html:888
 #: app/templates/spec_template/tw_list.html:520
@@ -9084,23 +9808,6 @@ msgstr "Action record added successfully"
 msgid "添加失败，请重试"
 msgstr "Failed to add, please try again"
 
-#: app/templates/components/tw_action_list.html:435
-#: app/templates/components/tw_action_modal.html:139
-#: app/templates/components/tw_action_modal.html:210
-#: app/templates/customer/add_action_for_company.html:35
-#: app/templates/customer/add_action_for_company.html:40
-#: app/templates/customer/add_action_for_company.html:124
-#: app/templates/expense/create_expense.html:621
-#: app/templates/expense/create_expense.html:1249
-#: app/templates/expense/edit_expense.html:519
-#: app/templates/expense/tw_expense_detail.html:945
-#: app/templates/expense/tw_list.html:357
-#: app/templates/quotation/tw_list.html:389
-#: app/templates/quotation/tw_quotation_detail.html:978
-#: app/views/customer.py:1419
-msgid "请选择联系人"
-msgstr "Please select contact"
-
 #: app/templates/components/tw_action_list.html:436
 msgid "请输入行动记录内容"
 msgstr "Please enter action record content"
@@ -9114,68 +9821,13 @@ msgstr "Please enter action record content"
 msgid "添加行动记录"
 msgstr "Add Action Record"
 
-#: app/templates/components/tw_action_modal.html:119
-#: app/templates/project/add_action.html:33
-msgid "相关企业"
-msgstr "Related Company"
-
-#: app/templates/components/tw_action_modal.html:124
-#: app/templates/components/user/tw_user_form_modal.html:123
-#: app/templates/components/user/tw_user_form_modal.html:273
-msgid "请选择企业"
-msgstr "Please select company"
-
-#: app/templates/components/tw_action_modal.html:139
-msgid "请先选择企业"
-msgstr "Please select company first"
-
-#: app/templates/components/tw_action_modal.html:165
-#: app/templates/components/tw_action_modal.html:194
-#: app/templates/quotation/tw_quotation_edit.html:1119
-msgid "请选择项目"
-msgstr "Please select project"
-
 #: app/templates/components/tw_action_modal.html:170
 msgid "暂无关联项目"
 msgstr "No related projects"
 
-#: app/templates/components/tw_action_modal.html:179
-#: app/templates/expense/at_view.html:89 app/templates/expense/at_view.html:293
-#: app/templates/expense/at_view.html:383
-#: app/templates/expense/create_expense.html:89
-#: app/templates/expense/create_expense.html:1238
-#: app/templates/expense/edit_expense.html:121
-#: app/templates/expense/partials/_expense_modal_fields.html:129
-#: app/templates/expense/tw_expense_detail.html:323
-#: app/templates/product_analysis/tw_analysis.html:455
-#: app/templates/project/at_view.html:311
-#: app/templates/project/at_view.html:840
-#: app/templates/quotation/at_view.html:392
-#: app/templates/quotation/at_view.html:466
-#: app/templates/quotation/partials/_quotation_modal_fields.html:64
-#: app/templates/quotation/tw_quotation_detail.html:167
-#: app/templates/worklog/tw_calendar.html:826
-#: app/templates/worklog/tw_calendar.html:998
-#: app/templates/worklog/tw_calendar.html:1086
-#: app/views/product_analysis.py:1547
-msgid "关联客户"
-msgstr "Related Customer"
-
-#: app/templates/components/tw_action_modal.html:231
-#: app/templates/project/add_action.html:70
-msgid "沟通情况"
-msgstr "Communication"
-
 #: app/templates/components/tw_action_modal.html:235
 msgid "请输入本次沟通的详细内容..."
 msgstr "Please enter detailed communication content..."
-
-#: app/templates/components/tw_action_modal.html:241
-#: app/templates/customer/add_action.html:124
-#: app/templates/customer/add_action_for_company.html:82
-#: app/templates/project/add_action.html:78
-msgid "共享此记录"
-msgstr "Share this record"
 
 #: app/templates/components/tw_action_modal.html:242
 #: app/templates/project/add_action.html:80
@@ -9237,34 +9889,6 @@ msgstr "Click the icon on the right to locate the address"
 msgid "公告"
 msgstr "Announcement"
 
-#: app/templates/components/tw_approval_flow.html:101
-#: app/templates/components/tw_approval_flow.html:127
-#: app/templates/components/tw_pricing_order_modal.html:2181
-#: app/templates/expense/at_view.html:226
-#: app/templates/expense/tw_expense_detail.html:145
-#: app/templates/expense/tw_expense_detail.html:300
-#: app/templates/expense/tw_expense_detail.html:585
-msgid "提交审批"
-msgstr "Submit for Approval"
-
-#: app/templates/components/tw_approval_flow.html:107
-#: app/templates/components/tw_approval_flow.html:137
-#: app/templates/expense/tw_expense_detail.html:149
-#: app/templates/expense/tw_expense_detail.html:301
-#: app/templates/expense/tw_expense_detail.html:590
-msgid "召回审批"
-msgstr "Recall Approval"
-
-#: app/templates/components/tw_approval_flow.html:113
-#: app/templates/components/tw_approval_flow.html:149
-#: app/templates/components/tw_pricing_order_modal.html:555
-#: app/templates/components/tw_pricing_order_modal.html:2199
-#: app/templates/expense/at_view.html:226
-#: app/templates/expense/tw_expense_detail.html:302
-#: app/templates/project/at_view.html:234
-msgid "重新提交"
-msgstr "Resubmit"
-
 #: app/templates/components/tw_approval_flow.html:128
 msgid "确定要提交审批吗？提交后将进入审批流程。"
 msgstr ""
@@ -9274,14 +9898,6 @@ msgstr ""
 #: app/templates/components/tw_approval_flow.html:138
 msgid "确定要召回审批吗？召回后将返回草稿状态。"
 msgstr "Are you sure to recall approval? Will return to draft status after recall."
-
-#: app/templates/components/tw_approval_flow.html:139
-#: app/templates/components/tw_pricing_order_modal.html:546
-#: app/templates/components/tw_pricing_order_modal.html:2190
-#: app/templates/expense/tw_expense_detail.html:151
-#: app/templates/macros/approval_macros.html:841
-msgid "召回"
-msgstr "Recall"
 
 #: app/templates/components/tw_approval_flow.html:147
 #: app/templates/components/tw_pricing_order_modal.html:553
@@ -9301,11 +9917,6 @@ msgstr "Are you sure you want to resubmit for approval?"
 msgid "发起审批流程"
 msgstr "Initiate approval flow"
 
-#: app/templates/components/tw_approval_flow.html:210
-#: app/templates/components/tw_po_timeline.html:34
-msgid "尚未提交审批"
-msgstr "Not submitted for approval yet"
-
 #: app/templates/components/tw_approval_flow.html:211
 msgid "点击下方按钮提交审批"
 msgstr "Click the button below to submit for approval"
@@ -9322,13 +9933,6 @@ msgstr "Approved (no approval history)"
 #: app/templates/components/tw_approval_flow.html:215
 msgid "当前节点"
 msgstr "Current Step"
-
-#: app/templates/components/tw_approval_flow.html:217
-#: app/templates/dingtalk/tw_sync_queue.html:59
-#: app/templates/dingtalk/tw_sync_queue.html:78
-#: app/templates/macros/ui_helpers.html:8693
-msgid "待处理"
-msgstr "Pending"
 
 #: app/templates/components/tw_approval_flow.html:219
 #: app/templates/macros/approval_macros.html:1060
@@ -9769,17 +10373,6 @@ msgstr "No viewable projects"
 msgid "不包含报价单"
 msgstr "No quotations included"
 
-#: app/templates/components/tw_chat_panel.html:2234
-#: app/templates/components/tw_chat_panel.html:2246
-#: app/templates/customer/i18n_demo.html:70
-#: app/templates/expense/edit_expense.html:28
-#: app/templates/files/tw_file_manager.html:834
-#: app/templates/macros/approval_macros.html:600
-#: app/templates/macros/approval_macros.html:750
-#: app/templates/macros/ui_helpers.html:2893
-msgid "查看详情"
-msgstr "View Details"
-
 #: app/templates/components/tw_chat_panel.html:2235
 msgid "[客户卡片]"
 msgstr "[Client Card]"
@@ -9846,21 +10439,6 @@ msgstr "Confirm Action"
 #: app/templates/components/tw_confirm_modal.html:88
 msgid "您确定要执行此操作吗？"
 msgstr "Are you sure you want to perform this action?"
-
-#: app/templates/components/product/tw_product_relation_modal.html:180
-#: app/templates/components/tw_confirm_modal.html:102
-#: app/templates/components/tw_performance_dashboard.html:423
-#: app/templates/components/tw_po_timeline.html:61
-#: app/templates/components/tw_user_selector_modal.html:340
-#: app/templates/config_management/tw_index.html:2447
-#: app/templates/knowledge/tw_wiki.html:1951
-#: app/templates/macros/approval_macros.html:1278
-#: app/templates/macros/product_detail_manager.html:134
-#: app/templates/macros/ui_helpers.html:4394
-#: app/templates/system_diagram/tw_editor.html:521
-#: app/templates/worklog/tw_calendar.html:1728
-msgid "确认"
-msgstr "Confirm"
 
 #: app/templates/components/tw_confirm_modal.html:284
 msgid "您确定要删除这条记录吗？此操作无法撤销。"
@@ -10892,22 +11470,6 @@ msgstr "No pending approvals"
 msgid "暂无待办任务"
 msgstr "No pending tasks"
 
-#: app/templates/components/tw_message_panel.html:183
-#: app/templates/components/tw_po_timeline.html:198
-#: app/templates/components/tw_worklog_preview.html:367
-#: app/templates/macros/approval_macros.html:440
-#: app/templates/macros/ui_helpers.html:8694
-#: app/templates/macros/ui_helpers.html:8775
-#: app/templates/main/at_dashboard.html:327
-#: app/templates/sales_order/at_detail.html:67
-#: app/templates/sales_order/at_list.html:81
-#: app/templates/worklog/tw_calendar.html:1057
-#: app/templates/worklog/tw_calendar.html:1355
-#: app/templates/worklog/tw_calendar.html:2968 app/utils/status_meta.py:42
-#: app/utils/status_meta.py:53 app/utils/status_meta.py:101
-msgid "已完成"
-msgstr "Done"
-
 #: app/templates/components/tw_message_panel.html:206
 msgid "暂无消息"
 msgstr "No notifications"
@@ -10974,6 +11536,7 @@ msgid "更新时间"
 msgstr "Updated"
 
 #: app/templates/components/tw_nav_menu.html:194
+#: app/templates/inventory/at_stock_list.html:31
 msgid "采购仓储"
 msgstr "Procurement"
 
@@ -11581,6 +12144,9 @@ msgstr "Pricing Target"
 #: app/templates/config_management/tw_index.html:348
 #: app/templates/config_management/tw_index.html:592
 #: app/templates/customer/at_list.html:93
+#: app/templates/inventory/at_stock_list.html:279
+#: app/templates/inventory/at_stock_list.html:473
+#: app/templates/inventory/at_stock_list.html:960
 #: app/templates/knowledge/tw_wiki.html:135
 #: app/templates/knowledge/tw_wiki.html:229
 #: app/templates/knowledge/tw_wiki.html:689
@@ -11610,24 +12176,6 @@ msgstr "Project Activity Trend"
 #: app/templates/components/tw_performance_dashboard.html:2811
 msgid "行动质量趋势"
 msgstr "Action Quality Trend"
-
-#: app/templates/components/tw_performance_dashboard.html:2833
-#: app/templates/dingtalk/tw_sync_queue.html:62
-#: app/templates/dingtalk/tw_sync_queue.html:78
-#: app/templates/files/tw_file_manager.html:356
-#: app/templates/files/tw_file_manager.html:791
-#: app/templates/files/tw_file_manager_admin.html:147
-#: app/templates/macros/ui_helpers.html:9333
-#: app/templates/main/at_dashboard.html:522
-#: app/templates/project/at_view.html:522
-#: app/templates/project/at_view.html:889
-#: app/templates/project/statistics_dashboard_backup.html:101
-#: app/templates/quotation/at_view.html:436
-#: app/templates/spec_template/tw_spec_config_matrix.html:1780
-#: app/templates/worklog/tw_calendar.html:2969 app/utils/status_meta.py:93
-#: app/views/meeting.py:398
-msgid "失败"
-msgstr "Lost"
 
 #: app/templates/components/tw_performance_dashboard.html:2833
 #: app/templates/project/at_view.html:522
@@ -12379,6 +12927,8 @@ msgid "请完成所有规格选择"
 msgstr "Please complete all specification selections"
 
 #: app/templates/components/tw_product_spec_modal.html:2047
+#: app/templates/inventory/at_stock_list.html:327
+#: app/templates/inventory/at_stock_list.html:442
 msgid "没有匹配的产品"
 msgstr "No matching products"
 
@@ -12419,27 +12969,9 @@ msgstr "Imported"
 msgid "条需求"
 msgstr "requirements"
 
-#: app/templates/components/tw_purchase_order_form.html:666
-msgid "客户需求池"
-msgstr "Customer requirement pool"
-
 #: app/templates/components/tw_purchase_order_form.html:673
 msgid "搜索产品名称/订单号..."
 msgstr "Search product name / order no…"
-
-#: app/templates/components/tw_purchase_order_form.html:682
-#: app/templates/inventory/partials/_shipment_form.html:20
-#: app/templates/sales_order/at_list.html:132
-msgid "订单号"
-msgstr "Order No."
-
-#: app/templates/components/tw_purchase_order_form.html:686
-msgid "待采购"
-msgstr "Pending Procurement"
-
-#: app/templates/components/tw_purchase_order_form.html:696
-msgid "导入选中"
-msgstr "Import Selected"
 
 # 活跃度Tab页签翻译
 #: app/templates/components/tw_quality_score_popover.html:121
@@ -13044,6 +13576,8 @@ msgstr "Topic (Category)"
 #: app/templates/expense/at_view.html:73
 #: app/templates/files/tw_file_manager.html:1245
 #: app/templates/files/tw_file_manager.html:1361
+#: app/templates/inventory/at_stock_list.html:930
+#: app/templates/inventory/at_stock_list.html:944
 #: app/templates/task/tw_task_management.html:64
 msgid "新建"
 msgstr "New"
@@ -14005,6 +14539,7 @@ msgstr "Coefficient/Rate"
 #: app/templates/config_management/tw_index.html:1142
 #: app/templates/expense/at_view.html:388
 #: app/templates/expense/at_view.html:507
+#: app/templates/inventory/at_stock_list.html:960
 #: app/templates/product/file_preview_demo.html:270
 #: app/templates/spec_definition/tw_test_conditions.html:97
 #: app/templates/spec_definition/tw_test_methods.html:98
@@ -15244,6 +15779,7 @@ msgstr "Operation result will be displayed here"
 #: app/templates/customer/add_action.html:307
 #: app/templates/dingtalk/tw_sync_queue.html:61
 #: app/templates/dingtalk/tw_sync_queue.html:78
+#: app/templates/inventory/at_stock_list.html:1010
 #: app/templates/spec_template/tw_spec_config_matrix.html:1780
 msgid "成功"
 msgstr "Success"
@@ -15334,16 +15870,6 @@ msgstr "End User"
 msgid "集成商"
 msgstr "Integrator"
 
-#: app/templates/customer/at_list.html:49
-#: app/templates/customer/at_view.html:88
-#: app/templates/prospect/tw_list.html:854
-#: app/templates/prospect/tw_list.html:1545
-#: app/templates/prospect/tw_lost_detail.html:155
-#: app/templates/prospect/tw_lost_panel.html:157
-#: app/templates/prospect/tw_panel.html:186
-msgid "设计院"
-msgstr "Design Institute"
-
 #: app/templates/customer/at_list.html:50
 #: app/templates/inventory/at_purchase_order_list.html:112
 msgid "渠道"
@@ -15403,6 +15929,8 @@ msgid "客户详情"
 msgstr "Customer Details"
 
 #: app/templates/customer/at_view.html:89
+#: app/templates/inventory/at_stock_list.html:120
+#: app/templates/inventory/at_stock_list.html:300
 msgid "经销商"
 msgstr "Distributor"
 
@@ -15410,17 +15938,6 @@ msgstr "Distributor"
 #: app/templates/customer/at_view.html:113
 msgid "代理商"
 msgstr "Agent"
-
-#: app/templates/customer/at_view.html:91
-msgid "合作伙伴"
-msgstr "Partner"
-
-#: app/templates/customer/at_view.html:92
-#: app/templates/prospect/_tw_lost_list.html:102
-#: app/templates/prospect/tw_lost_detail.html:157
-#: app/templates/prospect/tw_lost_panel.html:103
-msgid "总包"
-msgstr "Contractor"
 
 #: app/templates/customer/at_view.html:112
 msgid "渠道身份审批中(商务助理→渠道经理→总经理),通过后生效;可在审批中心查看进度"
@@ -15444,10 +15961,6 @@ msgstr "Country/Region"
 #: app/templates/customer/at_view.html:165
 msgid "省/州"
 msgstr "Province/State"
-
-#: app/templates/customer/at_view.html:166
-msgid "城市"
-msgstr "City"
 
 #: app/templates/customer/at_view.html:167
 #: app/templates/sales_order/partials/_so_modal_fields.html:162
@@ -15500,7 +16013,8 @@ msgstr "+ Share"
 msgid "未启用共享 — 仅归属人及管理者可见"
 msgstr "Sharing not enabled — visible only to owner and managers"
 
-#: app/templates/customer/at_view.html:319 app/views/approval.py:2966
+#: app/templates/customer/at_view.html:319
+#: app/templates/inventory/at_stock_list.html:186 app/views/approval.py:2966
 msgid "库存"
 msgstr "Inventory"
 
@@ -15549,11 +16063,6 @@ msgstr "Customer deleted"
 #: app/templates/quotation/at_view.html:1410
 msgid "跳转中…"
 msgstr "Redirecting…"
-
-#: app/templates/customer/at_view.html:370
-#: app/templates/project/at_view.html:751
-msgid "网络错误,请重试"
-msgstr "Network error, please retry"
 
 #: app/templates/customer/at_view.html:397
 msgid "客户信息"
@@ -16096,10 +16605,6 @@ msgstr "Owner"
 #: app/templates/expense/at_view.html:91
 msgid "归属对象"
 msgstr "Owner"
-
-#: app/templates/expense/at_view.html:96
-msgid "审核修改"
-msgstr "Review Changes"
 
 #: app/templates/expense/at_view.html:97
 msgid "仅以下字段可改:"
@@ -17370,6 +17875,383 @@ msgstr "Test report uploaded"
 msgid "没有符合筛选条件的订单"
 msgstr "No orders match the filters"
 
+#: app/templates/inventory/at_stock_list.html:36
+msgid "全局库存"
+msgstr "Global Stock"
+
+#: app/templates/inventory/at_stock_list.html:65
+msgid "按公司维度查看库存余量、流水变动,支持手动调整与 Excel 导入。"
+msgstr "View stock balances and movements by company; supports manual adjustment and Excel import."
+
+#: app/templates/inventory/at_stock_list.html:70
+msgid "Excel 导入"
+msgstr "Excel Import"
+
+#: app/templates/inventory/at_stock_list.html:80
+msgid "暂无可查看的库存"
+msgstr "No stock available to view"
+
+#: app/templates/inventory/at_stock_list.html:81
+msgid "您的账号尚未绑定企业,请联系管理员关联后查看本企业库存"
+msgstr "Your account is not yet linked to a company. Please ask an admin to link it before viewing company stock."
+
+#: app/templates/inventory/at_stock_list.html:99
+#: app/templates/inventory/at_stock_list.html:116
+msgid "当前查看"
+msgstr "Viewing"
+
+#: app/templates/inventory/at_stock_list.html:102
+msgid "全局库存(所有公司聚合)"
+msgstr "Global Stock (all companies aggregated)"
+
+#: app/templates/inventory/at_stock_list.html:103
+msgid "厂商管理员"
+msgstr "Vendor Admin"
+
+#: app/templates/inventory/at_stock_list.html:120
+#: app/templates/inventory/at_stock_list.html:300
+#: app/templates/product/at_view.html:115 app/templates/user/tw_detail.html:148
+#: app/templates/user/tw_detail.html:220
+msgid "厂商"
+msgstr "Vendor"
+
+#: app/templates/inventory/at_stock_list.html:127
+msgid "切换视图"
+msgstr "Switch View"
+
+#: app/templates/inventory/at_stock_list.html:135
+msgid "全局库存(全部公司聚合)"
+msgstr "Global Stock (all companies aggregated)"
+
+#: app/templates/inventory/at_stock_list.html:156
+msgid "您正在查看本公司库存。如需查看其他公司,请联系厂商管理员。"
+msgstr "You are viewing your own company's stock. To view other companies, please contact the vendor admin."
+
+#: app/templates/inventory/at_stock_list.html:164
+msgid "产品种类"
+msgstr "Product Types"
+
+#: app/templates/inventory/at_stock_list.html:165
+#: app/templates/inventory/at_stock_list.html:211
+msgid "全局总量"
+msgstr "Global Total Qty"
+
+#: app/templates/inventory/at_stock_list.html:165
+#: app/templates/inventory/at_stock_list.html:171
+#: app/templates/inventory/at_stock_list.html:393
+#: app/templates/inventory/at_stock_list.html:424
+#: app/templates/inventory/at_stock_list.html:606
+#: app/templates/inventory/at_stock_list.html:749
+#: app/templates/inventory/at_stock_list.html:771
+#: app/templates/product_analysis/tw_analysis.html:128
+#: app/templates/product_analysis/tw_analysis.html:144
+#: app/templates/product_analysis/tw_analysis.html:166
+#: app/templates/quotation/at_view.html:327
+#: app/templates/sales_order/at_detail.html:126
+msgid "件"
+msgstr "pcs"
+
+#: app/templates/inventory/at_stock_list.html:166
+msgid "本月全局流水"
+msgstr "Global Movements This Month"
+
+#: app/templates/inventory/at_stock_list.html:166
+#: app/templates/inventory/at_stock_list.html:172
+msgid "笔"
+msgstr "txns"
+
+#: app/templates/inventory/at_stock_list.html:170
+msgid "在册产品"
+msgstr "Products"
+
+#: app/templates/inventory/at_stock_list.html:171
+#: app/templates/inventory/partials/_shipment_form.html:28
+#: app/templates/inventory/partials/_test_form.html:64
+#: app/templates/sales_order/at_detail.html:126
+msgid "总数量"
+msgstr "Total Quantity"
+
+#: app/templates/inventory/at_stock_list.html:172
+msgid "本月流水"
+msgstr "This Month"
+
+#: app/templates/inventory/at_stock_list.html:178
+msgid "搜产品名 / MN号…"
+msgstr "Search product name / MN…"
+
+#: app/templates/inventory/at_stock_list.html:187
+msgid "流水"
+msgstr "Movements"
+
+#: app/templates/inventory/at_stock_list.html:211
+msgid "分布"
+msgstr "Distribution"
+
+#: app/templates/inventory/at_stock_list.html:267
+msgid "家公司"
+msgstr " companies"
+
+#: app/templates/inventory/at_stock_list.html:279
+#: app/templates/inventory/at_stock_list.html:351
+msgid "最后变动"
+msgstr "Last Change"
+
+#: app/templates/inventory/at_stock_list.html:310
+msgid "入"
+msgstr "In"
+
+#: app/templates/inventory/at_stock_list.html:311
+msgid "出"
+msgstr "Out"
+
+#: app/templates/inventory/at_stock_list.html:313
+#: app/templates/inventory/at_stock_list.html:407
+#: app/templates/inventory/at_stock_list.html:489
+msgid "结算"
+msgstr "Settlement"
+
+#: app/templates/inventory/at_stock_list.html:334
+msgid "全局尚无库存数据"
+msgstr "No global stock data yet"
+
+#: app/templates/inventory/at_stock_list.html:401
+#: app/templates/inventory/at_stock_list.html:486
+#: app/templates/inventory/at_stock_list.html:618
+#: app/templates/inventory/at_stock_list.html:792
+#: app/templates/product_sn/at_detail.html:81
+msgid "入库"
+msgstr "Stock In"
+
+#: app/templates/inventory/at_stock_list.html:403
+#: app/templates/inventory/at_stock_list.html:487
+#: app/templates/inventory/at_stock_list.html:619
+#: app/templates/inventory/at_stock_list.html:792
+msgid "出库"
+msgstr "Stock Out"
+
+#: app/templates/inventory/at_stock_list.html:405
+#: app/templates/inventory/at_stock_list.html:617
+msgid "设值"
+msgstr "Set Value"
+
+#: app/templates/inventory/at_stock_list.html:432
+#: app/templates/inventory/at_stock_list.html:488
+#: app/templates/inventory/at_stock_list.html:792
+msgid "调整"
+msgstr "Adjust"
+
+#: app/templates/inventory/at_stock_list.html:449
+msgid "该公司暂无库存记录"
+msgstr "No stock records for this company yet"
+
+#: app/templates/inventory/at_stock_list.html:473
+#: app/templates/inventory/at_stock_list.html:475
+#: app/templates/meeting/tw_meeting_minutes_list.html:143
+#: app/templates/worklog/tw_calendar.html:1072
+msgid "时间"
+msgstr "Time"
+
+#: app/templates/inventory/at_stock_list.html:473
+#: app/templates/inventory/at_stock_list.html:475
+msgid "变动"
+msgstr "Change"
+
+#: app/templates/inventory/at_stock_list.html:473
+#: app/templates/inventory/at_stock_list.html:475
+msgid "变化"
+msgstr "Change"
+
+#: app/templates/inventory/at_stock_list.html:473
+#: app/templates/inventory/at_stock_list.html:475
+msgid "关联/备注"
+msgstr "Link / Note"
+
+#: app/templates/inventory/at_stock_list.html:473
+#: app/templates/inventory/at_stock_list.html:475
+msgid "操作人"
+msgstr "Operator"
+
+#: app/templates/inventory/at_stock_list.html:543
+msgid "手动"
+msgstr "Manual"
+
+#: app/templates/inventory/at_stock_list.html:545
+msgid "期初导入"
+msgstr "Opening Import"
+
+#: app/templates/inventory/at_stock_list.html:568
+msgid "仅显示最近 100 条"
+msgstr "Showing latest 100 items only"
+
+#: app/templates/inventory/at_stock_list.html:572
+msgid "全局尚无流水记录"
+msgstr "No global movement records yet"
+
+#: app/templates/inventory/at_stock_list.html:572
+msgid "该公司暂无流水记录"
+msgstr "No movement records for this company yet"
+
+#: app/templates/inventory/at_stock_list.html:591
+msgid "提交调整"
+msgstr "Submit Adjustment"
+
+#: app/templates/inventory/at_stock_list.html:592
+msgid "调整库存"
+msgstr "Adjust Stock"
+
+#: app/templates/inventory/at_stock_list.html:605
+msgid "当前库存:"
+msgstr "Current stock: "
+
+#: app/templates/inventory/at_stock_list.html:614
+msgid "调整方式"
+msgstr "Adjustment Method"
+
+#: app/templates/inventory/at_stock_list.html:617
+msgid "直接设置为某个数量"
+msgstr "Set directly to a specific quantity"
+
+#: app/templates/inventory/at_stock_list.html:618
+msgid "增加库存数量"
+msgstr "Increase stock quantity"
+
+#: app/templates/inventory/at_stock_list.html:619
+msgid "减少库存数量"
+msgstr "Decrease stock quantity"
+
+#: app/templates/inventory/at_stock_list.html:634
+msgid "输入数量"
+msgstr "Enter quantity"
+
+#: app/templates/inventory/at_stock_list.html:641
+msgid "调整原因"
+msgstr "Adjustment Reason"
+
+#: app/templates/inventory/at_stock_list.html:641
+msgid "可选,记录到流水描述"
+msgstr "optional, added to the movement description"
+
+#: app/templates/inventory/at_stock_list.html:642
+msgid "如:盘点修正 / 退货入库 / 损耗扣减"
+msgstr "e.g. stocktake correction / return stock-in / loss deduction"
+
+#: app/templates/inventory/at_stock_list.html:662
+#: app/templates/spec_template/tw_list.html:78
+msgid "下载模板"
+msgstr "Download Template"
+
+#: app/templates/inventory/at_stock_list.html:668
+#: app/templates/inventory/at_stock_list.html:842
+#: app/templates/inventory/at_stock_list.html:876
+msgid "上传并预览"
+msgstr "Upload & Preview"
+
+#: app/templates/inventory/at_stock_list.html:669
+msgid "Excel 批量导入库存"
+msgstr "Bulk Import Stock via Excel"
+
+#: app/templates/inventory/at_stock_list.html:673
+msgid "使用提示"
+msgstr "Tips"
+
+#: app/templates/inventory/at_stock_list.html:674
+msgid "支持 .xlsx 格式 · 列名必须为「MN号 / 公司名 / 数量 / 单位 / 存储位置 / 最低库存 / 最高库存 / 备注」"
+msgstr "Supports .xlsx · columns must be: MN / Company / Qty / Unit / Location / Min Stock / Max Stock / Note"
+
+#: app/templates/inventory/at_stock_list.html:675
+msgid "上传后会先预览校验,确认无误再提交入库"
+msgstr "After upload, the data is previewed and validated; confirm before committing to stock."
+
+#: app/templates/inventory/at_stock_list.html:689
+msgid "点击或拖拽上传 Excel 文件"
+msgstr "Click or drag to upload an Excel file"
+
+#: app/templates/inventory/at_stock_list.html:690
+msgid ".xlsx · 单文件 · 最大 10 MB"
+msgstr ".xlsx · single file · max 10 MB"
+
+#: app/templates/inventory/at_stock_list.html:778
+msgid "调整后:"
+msgstr "After adjustment: "
+
+#: app/templates/inventory/at_stock_list.html:789
+msgid "无法提交"
+msgstr "Cannot submit"
+
+#: app/templates/inventory/at_stock_list.html:789
+msgid "请输入大于 0 的数量"
+msgstr "Please enter a quantity greater than 0"
+
+#: app/templates/inventory/at_stock_list.html:792
+msgid "盘点设值"
+msgstr "Set by Stocktake"
+
+#: app/templates/inventory/at_stock_list.html:814
+msgid "库存已调整"
+msgstr "Stock adjusted"
+
+#: app/templates/inventory/at_stock_list.html:814
+msgid "当前数量:"
+msgstr "Current qty: "
+
+#: app/templates/inventory/at_stock_list.html:817
+#: app/templates/inventory/at_stock_list.html:822
+#: app/templates/knowledge/tw_wiki.html:1574
+#: app/templates/knowledge/tw_wiki.html:1577
+msgid "调整失败"
+msgstr "Adjustment failed"
+
+#: app/templates/inventory/at_stock_list.html:869
+msgid "点击 \"上传并预览\" 校验"
+msgstr "Click \"Upload & Preview\" to validate"
+
+#: app/templates/inventory/at_stock_list.html:881
+msgid "无文件"
+msgstr "No file"
+
+#: app/templates/inventory/at_stock_list.html:881
+msgid "请先选择 Excel 文件"
+msgstr "Please select an Excel file first"
+
+#: app/templates/inventory/at_stock_list.html:907
+#: app/templates/inventory/at_stock_list.html:912 app/views/worklog.py:678
+#: app/views/worklog.py:937
+msgid "预览失败"
+msgstr "Preview failed"
+
+#: app/templates/inventory/at_stock_list.html:931
+#: app/templates/inventory/at_stock_list.html:948
+msgid "覆盖"
+msgstr "Coverage"
+
+#: app/templates/inventory/at_stock_list.html:940
+msgid "总行数"
+msgstr "Total Rows"
+
+#: app/templates/inventory/at_stock_list.html:982
+msgid "仅显示前 50 行,共"
+msgstr "Showing first 50 rows of "
+
+#: app/templates/inventory/at_stock_list.html:989
+#: app/templates/prospect/tw_list.html:491
+#: app/templates/prospect/tw_list.html:1022
+msgid "确认导入"
+msgstr "Confirm Import"
+
+#: app/templates/inventory/at_stock_list.html:992
+msgid "无可提交的数据"
+msgstr "No data to submit"
+
+#: app/templates/inventory/at_stock_list.html:1010
+#: app/templates/prospect/tw_list.html:1084
+msgid "导入完成"
+msgstr "Import Complete"
+
+#: app/templates/inventory/at_stock_list.html:1010
+#: app/templates/meeting/tw_meeting_minutes_detail.html:234
+msgid "跳过"
+msgstr "Skip"
+
 #: app/templates/inventory/settlement_list.html:36
 msgid "结算明细"
 msgstr "Settlement details"
@@ -17566,12 +18448,6 @@ msgstr "Acceptance & stock-in completed"
 #: app/templates/sales_order/at_detail.html:115
 msgid "订单信息"
 msgstr "Order info"
-
-#: app/templates/inventory/partials/_shipment_form.html:28
-#: app/templates/inventory/partials/_test_form.html:64
-#: app/templates/sales_order/at_detail.html:126
-msgid "总数量"
-msgstr "Total Quantity"
 
 #: app/templates/inventory/partials/_shipment_form.html:40
 msgid "发货信息"
@@ -18080,11 +18956,6 @@ msgstr ""
 "Start now?Will recompile associated source files, may take 30-60 seconds."
 " Confirm to start?"
 
-#: app/templates/knowledge/tw_wiki.html:1574
-#: app/templates/knowledge/tw_wiki.html:1577
-msgid "调整失败"
-msgstr "Adjustment failed"
-
 #: app/templates/knowledge/tw_wiki.html:1590
 #: app/templates/knowledge/tw_wiki.html:1602
 msgid "切换 topic 失败"
@@ -18407,15 +19278,6 @@ msgstr "Current Step"
 #: app/templates/macros/approval_macros.html:524
 msgid "待"
 msgstr "Pending"
-
-#: app/templates/macros/approval_macros.html:524
-msgid "审批"
-msgstr "Approval"
-
-#: app/templates/macros/approval_macros.html:544
-#: app/templates/macros/approval_macros.html:1272
-msgid "审批意见"
-msgstr "Approval Comment"
 
 #: app/templates/macros/approval_macros.html:545
 #: app/templates/macros/approval_macros.html:1273
@@ -19034,10 +19896,6 @@ msgstr ""
 msgid "财务总监"
 msgstr "Finance Director"
 
-#: app/templates/macros/ui_helpers.html:9282 app/views/worklog.py:135
-msgid "财务"
-msgstr "Finance"
-
 #: app/templates/macros/ui_helpers.html:9283
 msgid "营销总监"
 msgstr "Marketing Director"
@@ -19443,10 +20301,6 @@ msgstr ""
 "saidspeaker(s); please select the corresponding participant by "
 "contentspeaker(s). Please select the corresponding participant based on "
 "the speaking content"
-
-#: app/templates/meeting/tw_meeting_minutes_detail.html:234
-msgid "跳过"
-msgstr "Skip"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:256
 msgid "试听"
@@ -19905,11 +20759,6 @@ msgstr "Translation Time (Mo)"
 #: app/templates/meeting/tw_meeting_minutes_list.html:142
 msgid "会议名称"
 msgstr "Title"
-
-#: app/templates/meeting/tw_meeting_minutes_list.html:143
-#: app/templates/worklog/tw_calendar.html:1072
-msgid "时间"
-msgstr "Time"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:146
 msgid "形式"
@@ -20400,11 +21249,6 @@ msgstr "Product Details"
 #: app/templates/product/at_view.html:88
 msgid "未命名产品"
 msgstr "Unnamed Product"
-
-#: app/templates/product/at_view.html:115 app/templates/user/tw_detail.html:148
-#: app/templates/user/tw_detail.html:220
-msgid "厂商"
-msgstr "Vendor"
 
 #: app/templates/product/at_view.html:134
 #: app/templates/product/tw_product_detail.html:124
@@ -21105,14 +21949,6 @@ msgstr "Monthly Quantity Trend"
 msgid "产品类别分布"
 msgstr "Product Category Distribution"
 
-#: app/templates/product_analysis/tw_analysis.html:128
-#: app/templates/product_analysis/tw_analysis.html:144
-#: app/templates/product_analysis/tw_analysis.html:166
-#: app/templates/quotation/at_view.html:327
-#: app/templates/sales_order/at_detail.html:126
-msgid "件"
-msgstr "pcs"
-
 #: app/templates/product_analysis/tw_analysis.html:155
 msgid "项目阶段分布"
 msgstr "Project Stage Distribution"
@@ -21420,10 +22256,6 @@ msgstr "Serial Numbers"
 msgid "批次"
 msgstr "Batch"
 
-#: app/templates/product_sn/at_detail.html:81
-msgid "入库"
-msgstr "Stock In"
-
 #: app/templates/product_sn/at_detail.html:98
 msgid "批次号"
 msgstr "Batch No."
@@ -21523,10 +22355,7 @@ msgstr "SN Stock-In"
 
 #: app/templates/product_sn/at_detail.html:195
 msgid "填写仓库位置后将该 SN 入库,状态推进至「库存中」。"
-msgstr ""
-"Enter the warehouse location to stock in this SN, advancing its status to"
-" \"In Stock\".Enter the warehouse location to stock in this SN, advancing"
-" its status to \"In Stock\"."
+msgstr "Enter the warehouse location to stock in this SN, advancing its status to \"In Stock\"."
 
 #: app/templates/product_sn/at_detail.html:196
 msgid "确认入库"
@@ -21726,10 +22555,7 @@ msgstr "Current project status:"
 
 #: app/templates/project/at_view.html:277
 msgid "进度条下方显示恢复前的最后正常阶段;点击节点可恢复"
-msgstr ""
-"The last normal stage before restoring is shown below the progress bar; "
-"click a node to restoreThe last normal stage before restoring is shown "
-"below the progress bar; click a node to restore"
+msgstr "The last normal stage before restoring is shown below the progress bar; click a node to restore"
 
 #: app/templates/project/at_view.html:294
 #: app/templates/project/at_view.html:958
@@ -21752,7 +22578,7 @@ msgstr "Reported At"
 
 #: app/templates/project/at_view.html:314
 msgid "+ 添加客户"
-msgstr "+ Add"
+msgstr "+ Add Customer"
 
 #: app/templates/project/at_view.html:332
 msgid "移除关联"
@@ -21781,10 +22607,7 @@ msgstr "No linked expenses"
 
 #: app/templates/project/at_view.html:392
 msgid "自动从公开来源收集项目背景、参与方、招标动态等信息。"
-msgstr ""
-"Automatically gathers project background, parties, and bidding updates "
-"from public sources.Automatically gathers project background, parties, "
-"and bidding updates from public sources."
+msgstr "Automatically gathers project background, parties, and bidding updates from public sources."
 
 #: app/templates/project/at_view.html:436
 #: app/templates/system_diagram/tw_list.html:136
@@ -21896,11 +22719,7 @@ msgstr "Restore Project"
 #: app/templates/project/at_view.html:611
 #, python-format
 msgid "项目当前为 [%(cur)s] 状态,将恢复到搁置/失败前的阶段 [%(target)s]。可填写备注。"
-msgstr ""
-"The project is currently [%(cur)s] and will be restored to its pre-"
-"pause/lost stage [%(target)s]. You may add a note.The project is "
-"currently [%(cur)s] and will be restored to its pre-pause/lost stage "
-"[%(target)s]. You may add a note."
+msgstr "The project is currently [%(cur)s] and will be restored to its pre-pause/lost stage [%(target)s]. You may add a note."
 
 #: app/templates/project/at_view.html:613
 #, python-format
@@ -22035,11 +22854,7 @@ msgstr "Dept. Manager → General Manager"
 
 #: app/templates/project/at_view.html:876
 msgid "。审批通过后项目阶段才会置灰标记，期间阶段不变、可恢复。"
-msgstr ""
-". The project stage is greyed out only after approval; until then the "
-"stage stays unchanged and can be restored.. The project stage is greyed "
-"out only after approval; until then the stage stays unchanged and can be "
-"restored."
+msgstr ". The project stage is greyed out only after approval; until then the stage stays unchanged and can be restored."
 
 #: app/templates/project/at_view.html:893
 msgid "理由"
@@ -22063,12 +22878,7 @@ msgstr "Select a new supplier sales owner from active supplier staff."
 
 #: app/templates/project/at_view.html:1012
 msgid "预判该项目必赢并锁定;所有项目展示处将带「锁定成功」徽章,签约时自动解除,也可人为解除。"
-msgstr ""
-"Predict this project as a sure win and lock it; a \"Win Locked\" badge "
-"appears everywhere the project is shown, auto-released on signing, or "
-"released manually.Predict this project as a sure win and lock it; a \"Win"
-" Locked\" badge appears everywhere the project is shown, auto-released on"
-" signing, or released manually."
+msgstr "Predict this project as a sure win and lock it; a \"Win Locked\" badge appears everywhere the project is shown, auto-released on signing, or released manually."
 
 #: app/templates/project/at_view.html:1015
 msgid "为何判断该项目已锁定成功…"
@@ -22317,11 +23127,6 @@ msgstr "Completed"
 msgid "业主"
 msgstr "Owner"
 
-#: app/templates/prospect/tw_list.html:361
-#: app/templates/prospect/tw_lost_panel.html:102
-msgid "顾问"
-msgstr "Consultant"
-
 #: app/templates/prospect/tw_list.html:378
 msgid "我已申领"
 msgstr "Claimed by me"
@@ -22359,11 +23164,6 @@ msgstr "Checking for duplicates..."
 #: app/templates/prospect/tw_list.html:880
 msgid "正在检查重复..."
 msgstr "Checking duplicates..."
-
-#: app/templates/prospect/tw_list.html:491
-#: app/templates/prospect/tw_list.html:1022
-msgid "确认导入"
-msgstr "Confirm Import"
 
 #: app/templates/prospect/tw_list.html:508
 msgid "批量调研新项目"
@@ -22709,10 +23509,6 @@ msgstr "New Contact"
 msgid "导入中..."
 msgstr "Importing…"
 
-#: app/templates/prospect/tw_list.html:1084
-msgid "导入完成"
-msgstr "Import Complete"
-
 #: app/templates/prospect/tw_list.html:1120
 msgid "主地址"
 msgstr "Address"
@@ -22828,13 +23624,6 @@ msgstr "No changes"
 #: app/templates/prospect/tw_lost_detail.html:323
 msgid "调研中..."
 msgstr "Researching..."
-
-#: app/templates/prospect/tw_list.html:1495
-#: app/templates/prospect/tw_list.html:1521
-#: app/templates/prospect/tw_lost_panel.html:277
-#: app/templates/prospect/tw_panel.html:329
-msgid "重新调研"
-msgstr "Re-research"
 
 #: app/templates/prospect/tw_list.html:1495
 #: app/templates/prospect/tw_lost_detail.html:66
@@ -22961,10 +23750,6 @@ msgstr "Choose at most 2 provinces"
 msgid "最多选择 2 个行业"
 msgstr "Choose at most 2 industries"
 
-#: app/templates/prospect/tw_list.html:1996
-msgid "调研中…"
-msgstr "Researching…"
-
 #: app/templates/prospect/tw_list.html:1999
 msgid "查看结果"
 msgstr "View Results"
@@ -23090,10 +23875,6 @@ msgstr "At least 10 chars"
 msgid "调研可能耗时 30~60 秒，确认开始？"
 msgstr "Research may take 30-60s. Start?"
 
-#: app/templates/prospect/tw_lost_detail.html:333
-msgid "调研失败"
-msgstr "Research failed"
-
 #: app/templates/prospect/tw_lost_panel.html:10
 msgid "发现商机"
 msgstr "Discovered"
@@ -23183,10 +23964,6 @@ msgstr "Linked Companies"
 #: app/templates/prospect/tw_panel.html:278
 msgid "暂无关联方信息"
 msgstr "No stakeholder info"
-
-#: app/templates/prospect/tw_lost_panel.html:241
-msgid "暂无调研数据"
-msgstr "No research data"
 
 #: app/templates/prospect/tw_lost_panel.html:243
 msgid "可点击右下角「AI 调研补全」获取项目情报"
@@ -23296,10 +24073,6 @@ msgstr "PDF Quotation"
 #: app/templates/quotation/at_view.html:267
 msgid "重新发起"
 msgstr "Restart"
-
-#: app/templates/quotation/at_view.html:267
-msgid "技术确认"
-msgstr "Technical Confirmation"
 
 #: app/templates/quotation/at_view.html:293
 #: app/templates/quotation/at_view.html:987
@@ -23430,10 +24203,6 @@ msgstr "Edit Note"
 msgid "请填写备注…"
 msgstr "Please enter a note…"
 
-#: app/templates/quotation/at_view.html:1066
-msgid "明细"
-msgstr "Items"
-
 #: app/templates/quotation/at_view.html:1075
 msgid "已删除明细"
 msgstr "Item deleted"
@@ -23467,10 +24236,7 @@ msgstr "\"%(n)s\" added to items"
 
 #: app/templates/quotation/at_view.html:1372
 msgid "请选择关联项目(可先选客户后从其项目中选)"
-msgstr ""
-"Please select a linked project (you can pick a customer first, then "
-"choose from its projects)Please select a linked project (you can pick a "
-"customer first, then choose from its projects)"
+msgstr "Please select a linked project (you can pick a customer first, then choose from its projects)"
 
 #: app/templates/quotation/at_view.html:1373
 msgid "请至少添加一条明细"
@@ -23502,17 +24268,11 @@ msgstr "Quoted Unit Price"
 
 #: app/templates/quotation/at_view.html:1580
 msgid "自定义产品无市场价,不参与全局折扣计算"
-msgstr ""
-"Custom products have no market price and are excluded from global "
-"discount calculationCustom products have no market price and are excluded"
-" from global discount calculation"
+msgstr "Custom products have no market price and are excluded from global discount calculation"
 
 #: app/templates/quotation/at_view.html:1589
 msgid "自定义产品不入产品库,仅本报价生效"
-msgstr ""
-"Custom products are not added to the product library and apply only to "
-"this quotationCustom products are not added to the product library and "
-"apply only to this quotation"
+msgstr "Custom products are not added to the product library and apply only to this quotation"
 
 #: app/templates/quotation/at_view.html:1603
 msgid "添加到明细"
@@ -23983,10 +24743,7 @@ msgstr "Delete Draft Order"
 #: app/templates/sales_order/at_detail.html:254
 #, python-format
 msgid "订单号 %(number)s 将被永久删除(含明细),无法恢复。是否继续?"
-msgstr ""
-"Order %(number)s will be permanently deleted (including items) and cannot"
-" be recovered. Continue?Order %(number)s will be permanently deleted "
-"(including items) and cannot be recovered. Continue?"
+msgstr "Order %(number)s will be permanently deleted (including items) and cannot be recovered. Continue?"
 
 #: app/templates/sales_order/at_detail.html:266
 msgid "订单已删除"
@@ -23995,10 +24752,7 @@ msgstr "Order deleted"
 #: app/templates/sales_order/at_detail.html:281
 #, python-format
 msgid "订单号 %(number)s 将被取消,记录保留但状态变为已取消。是否继续?"
-msgstr ""
-"Order %(number)s will be cancelled; the record is kept but its status "
-"becomes Cancelled. Continue?Order %(number)s will be cancelled; the "
-"record is kept but its status becomes Cancelled. Continue?"
+msgstr "Order %(number)s will be cancelled; the record is kept but its status becomes Cancelled. Continue?"
 
 #: app/templates/sales_order/at_detail.html:293
 msgid "订单已取消"
@@ -24895,10 +25649,6 @@ msgstr "Delete this metric?"
 #: app/templates/spec_template/tw_edit.html:2008
 msgid "确定删除？"
 msgstr "Confirm delete?"
-
-#: app/templates/spec_template/tw_list.html:78
-msgid "下载模板"
-msgstr "Download Template"
 
 #: app/templates/spec_template/tw_list.html:85
 msgid "导入创建"
@@ -27090,10 +27840,6 @@ msgstr "All Approvals"
 msgid "批价单审批"
 msgstr "Pricing Order Approval"
 
-#: app/views/approval.py:2238
-msgid "订单审批"
-msgstr "Order Approval"
-
 #: app/views/approval.py:2383 app/views/expense.py:630
 msgid "报销单编号"
 msgstr "Expense No."
@@ -27105,10 +27851,6 @@ msgstr "Unnamed Project"
 #: app/views/approval.py:2995
 msgid "未知类型"
 msgstr "Unknown Type"
-
-#: app/views/config_management.py:2071
-msgid "项目阶段"
-msgstr "Project Stage"
 
 #: app/views/config_management.py:2086
 msgid "行业分类"
@@ -28147,10 +28889,6 @@ msgstr "Failed to fetch file"
 msgid "该配置版本已锁定，无法修改"
 msgstr "This configuration version is locked and cannot be modified."
 
-#: app/views/star_graph.py:153 app/views/star_graph.py:506
-msgid "销售经理"
-msgstr "Sales Manager"
-
 #: app/views/star_graph.py:348
 msgid "活动"
 msgstr "Activity"
@@ -28525,10 +29263,6 @@ msgstr "Attachment not found"
 #: app/views/worklog.py:674 app/views/worklog.py:933
 msgid "无效的文件URL"
 msgstr "Invalid file URL."
-
-#: app/views/worklog.py:678 app/views/worklog.py:937
-msgid "预览失败"
-msgstr "Preview failed"
 
 #: app/views/worklog.py:718 app/views/worklog.py:830
 msgid "无权操作此日志"

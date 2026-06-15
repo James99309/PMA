@@ -12,6 +12,8 @@ _JS_FILES = [
     'at-product-picker.js',
     'product-detail-manager.js',
     'product-config-modal.js',
+    'at-approval-dropdown.js',
+    'at-ai-research.js',
 ]
 _PAT = re.compile(r"""(?<![\w.$])t\(\s*(['"])(.*?)\1""")
 

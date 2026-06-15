@@ -46,7 +46,7 @@
                      display:inline-flex;align-items:center;justify-content:center;">
           {{ at_icon('cart', 16) }}
         </span>
-        <h3 class="at-serif" style="margin:0;font-size:18px;font-weight:500;letter-spacing:0.01em;flex:1;">客户需求池</h3>
+        <h3 class="at-serif" style="margin:0;font-size:18px;font-weight:500;letter-spacing:0.01em;flex:1;">{{ _('客户需求池') }}</h3>
         <button type="button" onclick="window.ATCustomerNeeds && ATCustomerNeeds.close()"
                 style="color:var(--ink-3);padding:4px;border-radius:6px;background:transparent;border:0;cursor:pointer;">
           {{ at_icon('close', 18) }}
@@ -57,7 +57,7 @@
                     background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
                     font-size:13px;box-sizing:border-box;">
           <span style="color:var(--ink-3);">{{ at_icon('search', 14) }}</span>
-          <input type="text" id="atCnSearchInput" placeholder="搜索产品名称 / 订单号…"
+          <input type="text" id="atCnSearchInput" placeholder="{{ _('搜索产品名称 / 订单号…') }}"
                  style="flex:1;height:100%;background:transparent;border:0;outline:none;color:var(--ink);font-size:13px;">
         </div>
       </div>
@@ -74,8 +74,8 @@
             </colgroup>
             <thead>
               <tr>
-                {% for h, a in [('','left'), ('订单号','left'), ('客户','left'),
-                                ('产品','left'), ('型号','left'), ('待采购','right')] %}
+                {% for h, a in [('','left'), (_('订单号'),'left'), (_('客户'),'left'),
+                                (_('产品'),'left'), (_('型号'),'left'), (_('待采购'),'right')] %}
                 <th style="text-align:{{ a }};padding:10px 14px 12px;font-size:10.5px;font-weight:500;
                            color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
                            white-space:nowrap;">{{ h }}</th>
@@ -84,7 +84,7 @@
             </thead>
             <tbody id="atCnBody">
               <tr><td colspan="6" style="padding:44px 12px;text-align:center;color:var(--ink-3);font-size:12.5px;border-top:1px solid var(--line-soft);">
-                加载中…
+                {{ _('加载中…') }}
               </td></tr>
             </tbody>
           </table>
@@ -94,13 +94,13 @@
         <button type="button" onclick="window.ATCustomerNeeds && ATCustomerNeeds.close()"
                 style="height:34px;padding:0 14px;background:transparent;color:var(--ink);
                        border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">
-          取消
+          {{ _('取消') }}
         </button>
         <button type="button" id="atCnImportBtn" disabled
                 style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;
                        background:var(--accent);color:#fff;border:1px solid var(--accent);
                        border-radius:6px;font-size:13px;font-weight:500;opacity:0.5;cursor:not-allowed;">
-          {{ at_icon('check', 14) }} 导入选中<span id="atCnImportCount" style="opacity:0.85;"></span>
+          {{ at_icon('check', 14) }} {{ _('导入选中') }}<span id="atCnImportCount" style="opacity:0.85;"></span>
         </button>
       </footer>
     </div>

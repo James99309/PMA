@@ -15,15 +15,15 @@
 
   var POLL_INTERVAL = 4000;
   var BTN_LABELS = {
-    none: '触发调研', completed: '重新调研', error: '重试调研',
-    pre_searching: '调研中…', researching: '调研中…', needs_input: '选择候选'
+    none: t('触发调研'), completed: t('重新调研'), error: t('重试调研'),
+    pre_searching: t('调研中…'), researching: t('调研中…'), needs_input: t('选择候选')
   };
   var BADGE = {
-    completed: { text: '已完成', bg: 'var(--success-soft)', fg: 'var(--success)' },
-    pre_searching: { text: '进行中', bg: 'var(--warn-soft)', fg: 'var(--warn)' },
-    researching: { text: '进行中', bg: 'var(--warn-soft)', fg: 'var(--warn)' },
-    error: { text: '出错', bg: 'var(--danger-soft)', fg: 'var(--danger)' },
-    needs_input: { text: '待确认', bg: 'var(--info-soft, #e6f0fa)', fg: 'var(--info, #2563eb)' }
+    completed: { text: t('已完成'), bg: 'var(--success-soft)', fg: 'var(--success)' },
+    pre_searching: { text: t('进行中'), bg: 'var(--warn-soft)', fg: 'var(--warn)' },
+    researching: { text: t('进行中'), bg: 'var(--warn-soft)', fg: 'var(--warn)' },
+    error: { text: t('出错'), bg: 'var(--danger-soft)', fg: 'var(--danger)' },
+    needs_input: { text: t('待确认'), bg: 'var(--info-soft, #e6f0fa)', fg: 'var(--info, #2563eb)' }
   };
   var pollers = new WeakMap();
 
@@ -63,7 +63,7 @@
     var isRun = (status === 'pre_searching' || status === 'researching');
     if (trig) {
       trig.disabled = isRun || (status === 'needs_input' && section.dataset.aiViewUrl);
-      if (lbl) lbl.textContent = BTN_LABELS[status] || '触发调研';
+      if (lbl) lbl.textContent = BTN_LABELS[status] || t('触发调研');
     }
 
     // toggle 按钮
@@ -74,7 +74,7 @@
     var upd = $q(section, '[data-at-ai-updated]');
     if (upd) {
       if (updatedAt) {
-        upd.textContent = '上次调研:' + formatTime(updatedAt);
+        upd.textContent = t('上次调研:') + formatTime(updatedAt);
         upd.style.display = 'block';
       } else if (!upd.textContent.trim()) {
         upd.style.display = 'none';
@@ -83,7 +83,7 @@
 
     // 出错时的提示(toast)
     if (status === 'error' && errorMsg && window.ATToast) {
-      ATToast.error('调研失败', errorMsg);
+      ATToast.error(t('调研失败'), errorMsg);
     }
 
     // 候选确认 — 暂时不在卡内做候选选择 UI,把按钮变成跳转链接
@@ -93,7 +93,7 @@
         var a = document.createElement('a');
         a.dataset.atAiCandidatesLink = '';
         a.href = viewUrl;
-        a.textContent = '选择候选 →';
+        a.textContent = t('选择候选') + ' →';
         a.style.cssText = 'font-size:12px;color:var(--accent);text-decoration:none;margin-left:6px;';
         trig.parentNode.insertBefore(a, trig.nextSibling);
       }
@@ -139,14 +139,14 @@
       });
       var data = await resp.json().catch(function () { return {}; });
       if (!resp.ok || data.success === false) {
-        if (window.ATToast) ATToast.error(data.message || '触发失败');
+        if (window.ATToast) ATToast.error(data.message || t('触发失败'));
         applyState(section, section.dataset.aiStatus === 'researching' ? 'error' : section.dataset.aiStatus);
         return;
       }
-      if (window.ATToast) ATToast.success('已触发调研', '后台执行中,请稍候…');
+      if (window.ATToast) ATToast.success(t('已触发调研'), t('后台执行中,请稍候…'));
       startPolling(section);
     } catch (e) {
-      if (window.ATToast) ATToast.error('网络错误,请重试');
+      if (window.ATToast) ATToast.error(t('网络错误,请重试'));
       applyState(section, 'error');
     }
   }
@@ -199,13 +199,13 @@
     var panel = $q(section, '[data-at-ai-detail]');
     var lbl = $q(section, '[data-at-ai-toggle-label]');
     if (panel) panel.style.display = 'block';
-    if (lbl) lbl.textContent = '收起';
+    if (lbl) lbl.textContent = t('收起');
   }
   function closeDetail(section) {
     var panel = $q(section, '[data-at-ai-detail]');
     var lbl = $q(section, '[data-at-ai-toggle-label]');
     if (panel) panel.style.display = 'none';
-    if (lbl) lbl.textContent = '查看详情';
+    if (lbl) lbl.textContent = t('查看详情');
   }
   async function fetchAndRender(section) {
     var panel = $q(section, '[data-at-ai-detail]');
@@ -218,7 +218,7 @@
       var payload = (json && json.data) || json || {};
       renderDetail(section, payload.research_data || payload.data || {});
     } catch (e) {
-      if (body) body.innerHTML = '<div style="color:var(--danger);padding:8px 0;">加载失败:' + esc(e.message || '') + '</div>';
+      if (body) body.innerHTML = '<div style="color:var(--danger);padding:8px 0;">' + t('加载失败:') + esc(e.message || '') + '</div>';
     }
   }
   function renderDetail(section, researchData) {
@@ -227,7 +227,7 @@
     if (!body || !panel) return;
     var entityType = section.dataset.aiResearch;
     var html = entityType === 'customer' ? renderCustomer(researchData) : renderProject(researchData);
-    body.innerHTML = html || '<div style="color:var(--ink-4);padding:8px 0;">暂无调研数据</div>';
+    body.innerHTML = html || '<div style="color:var(--ink-4);padding:8px 0;">' + t('暂无调研数据') + '</div>';
     panel.dataset.loaded = '1';
   }
 
@@ -239,12 +239,12 @@
     if (d.company_profile) {
       var p = d.company_profile;
       var kvs = [];
-      if (p.positioning) out += block('公司概况',
+      if (p.positioning) out += block(t('公司概况'),
         '<p style="margin:0 0 8px;font-weight:500;color:var(--ink);">' + esc(p.positioning) + '</p>');
-      if (p.founded) kvs.push(kv('成立', p.founded));
-      if (p.headquarters) kvs.push(kv('总部', p.headquarters));
-      if (p.revenue) kvs.push(kv('营收', p.revenue));
-      if (p.strategy) kvs.push(kv('战略方向', p.strategy));
+      if (p.founded) kvs.push(kv(t('成立'), p.founded));
+      if (p.headquarters) kvs.push(kv(t('总部'), p.headquarters));
+      if (p.revenue) kvs.push(kv(t('营收'), p.revenue));
+      if (p.strategy) kvs.push(kv(t('战略方向'), p.strategy));
       if (kvs.length) out += kvGrid(kvs);
       if (p.main_business && p.main_business.length) {
         out += '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">' +
@@ -256,7 +256,7 @@
     }
 
     if (d.executives && d.executives.length) {
-      out += block('关键人物 · ' + d.executives.length,
+      out += block(t('关键人物') + ' · ' + d.executives.length,
         d.executives.map(function (e) {
           return '<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line-soft);">' +
             '<div style="flex:1;min-width:0;">' +
@@ -271,7 +271,7 @@
     }
 
     if (d.active_projects && d.active_projects.length) {
-      out += block('在建项目 · ' + d.active_projects.length,
+      out += block(t('在建项目') + ' · ' + d.active_projects.length,
         d.active_projects.map(function (proj) {
           return '<div style="padding:6px 0;border-bottom:1px solid var(--line-soft);">' +
             '<div style="display:flex;justify-content:space-between;gap:8px;">' +
@@ -280,7 +280,7 @@
             '</div>' +
             (proj.detail ? '<div style="color:var(--ink-3);font-size:11.5px;margin-top:2px;">' + esc(proj.detail) + '</div>' : '') +
             (proj.partner || proj.status ? '<div style="color:var(--ink-4);font-size:11px;margin-top:2px;">' +
-              (proj.partner ? '合作:' + esc(proj.partner) : '') +
+              (proj.partner ? t('合作:') + esc(proj.partner) : '') +
               (proj.partner && proj.status ? ' · ' : '') +
               (proj.status ? esc(proj.status) : '') +
             '</div>' : '') +
@@ -289,7 +289,7 @@
     }
 
     if (d.risk_alerts && d.risk_alerts.length) {
-      out += block('风险预警 · ' + d.risk_alerts.length,
+      out += block(t('风险预警') + ' · ' + d.risk_alerts.length,
         d.risk_alerts.map(function (a) {
           var color = a.level === 'high' ? 'var(--danger)' : (a.level === 'medium' ? 'var(--warn)' : 'var(--ink-3)');
           return '<div style="display:flex;gap:6px;padding:4px 0;">' +
@@ -301,7 +301,7 @@
     }
 
     if (d.partners && d.partners.length) {
-      out += block('合作伙伴',
+      out += block(t('合作伙伴'),
         '<div style="display:flex;flex-wrap:wrap;gap:4px;">' +
         d.partners.map(function (p) {
           return '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--bg-page);color:var(--ink-2);border:1px solid var(--line);">' +
@@ -319,36 +319,36 @@
 
     if (d.project_overview) {
       var p = d.project_overview;
-      if (p.description) out += block('项目概况',
+      if (p.description) out += block(t('项目概况'),
         '<p style="margin:0;color:var(--ink-2);">' + esc(p.description) + '</p>');
       var kvs = [];
-      if (p.total_investment) kvs.push(kv('总投资', p.total_investment, 'var(--success)'));
-      if (p.total_area) kvs.push(kv('总建面', p.total_area, 'var(--info, #2563eb)'));
-      if (p.land_area) kvs.push(kv('占地面积', p.land_area));
-      if (p.start_date) kvs.push(kv('开工时间', p.start_date));
-      if (p.completion_date) kvs.push(kv('竣工时间', p.completion_date));
-      if (p.project_phase) kvs.push(kv('项目阶段', p.project_phase));
-      if (p.city) kvs.push(kv('城市', p.city));
-      if (p.address) kvs.push(kv('地址', p.address));
+      if (p.total_investment) kvs.push(kv(t('总投资'), p.total_investment, 'var(--success)'));
+      if (p.total_area) kvs.push(kv(t('总建面'), p.total_area, 'var(--info, #2563eb)'));
+      if (p.land_area) kvs.push(kv(t('占地面积'), p.land_area));
+      if (p.start_date) kvs.push(kv(t('开工时间'), p.start_date));
+      if (p.completion_date) kvs.push(kv(t('竣工时间'), p.completion_date));
+      if (p.project_phase) kvs.push(kv(t('项目阶段'), p.project_phase));
+      if (p.city) kvs.push(kv(t('城市'), p.city));
+      if (p.address) kvs.push(kv(t('地址'), p.address));
       if (kvs.length) out += kvGrid(kvs);
     }
 
     if (d.stakeholders) {
       var s = d.stakeholders;
       var rows = [];
-      if (s.investor) rows.push(stakeholderRow('业主 / 投资方', s.investor,
-        [s.investor_legal_rep && '法人:' + s.investor_legal_rep,
+      if (s.investor) rows.push(stakeholderRow(t('业主 / 投资方'), s.investor,
+        [s.investor_legal_rep && t('法人:') + s.investor_legal_rep,
          s.investor_address, s.investor_contact].filter(Boolean)));
-      if (s.general_contractor) rows.push(stakeholderRow('总包', s.general_contractor, []));
-      if (s.design_institute) rows.push(stakeholderRow('设计院', s.design_institute, []));
-      if (s.smart_systems_consultant) rows.push(stakeholderRow('智能化顾问', s.smart_systems_consultant, []));
-      if (s.smart_systems_integrator) rows.push(stakeholderRow('智能化集成商', s.smart_systems_integrator, []));
-      if (s.consultant) rows.push(stakeholderRow('顾问', s.consultant, []));
-      if (s.operator) rows.push(stakeholderRow('运营方', s.operator, s.operator_contact ? [s.operator_contact] : []));
-      if (rows.length) out += block('参与方', rows.join(''));
+      if (s.general_contractor) rows.push(stakeholderRow(t('总包'), s.general_contractor, []));
+      if (s.design_institute) rows.push(stakeholderRow(t('设计院'), s.design_institute, []));
+      if (s.smart_systems_consultant) rows.push(stakeholderRow(t('智能化顾问'), s.smart_systems_consultant, []));
+      if (s.smart_systems_integrator) rows.push(stakeholderRow(t('智能化集成商'), s.smart_systems_integrator, []));
+      if (s.consultant) rows.push(stakeholderRow(t('顾问'), s.consultant, []));
+      if (s.operator) rows.push(stakeholderRow(t('运营方'), s.operator, s.operator_contact ? [s.operator_contact] : []));
+      if (rows.length) out += block(t('参与方'), rows.join(''));
 
       if (s.key_contacts && s.key_contacts.length) {
-        out += block('关键联系人',
+        out += block(t('关键联系人'),
           s.key_contacts.map(function (kc) {
             return '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--line-soft);font-size:12px;">' +
               '<span style="font-weight:500;color:var(--ink);">' + esc(kc.name || '—') + '</span>' +

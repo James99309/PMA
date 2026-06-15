@@ -9,7 +9,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>库存管理 · PMA</title>
+<title>{{ _('库存管理') }} · PMA</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
@@ -28,12 +28,12 @@
                position:sticky;top:0;z-index:30;">
   <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
-    <span style="font-size:13px;color:var(--ink-3);">采购仓储</span>
+    <span style="font-size:13px;color:var(--ink-3);">{{ _('采购仓储') }}</span>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <span style="font-size:13px;color:var(--ink);">库存管理</span>
+    <span style="font-size:13px;color:var(--ink);">{{ _('库存管理') }}</span>
     {% if is_global %}
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <span class="at-mono" style="font-size:13px;color:var(--accent);">全局库存</span>
+    <span class="at-mono" style="font-size:13px;color:var(--accent);">{{ _('全局库存') }}</span>
     {% elif current_company %}
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
     <span class="at-mono" style="font-size:13px;color:var(--ink-2);">{{ current_company.company_name }}</span>
@@ -43,7 +43,7 @@
             style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
                    background:var(--bg-elev);font-size:12px;color:var(--ink-2);
                    display:inline-flex;align-items:center;gap:4px;">
-      {{ at_icon('moon', 13) }} 暗色
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
     </button>
   </div>
 </header>
@@ -55,19 +55,19 @@
               margin-bottom:24px;flex-wrap:wrap;gap:16px;">
     <div>
       <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
-        INVENTORY · 库存管理
+        INVENTORY · {{ _('库存管理') }}
       </div>
       <h1 class="at-serif"
           style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
-        库存管理
+        {{ _('库存管理') }}
       </h1>
       <p class="at-dim" style="margin:8px 0 0;font-size:13px;max-width:520px;">
-        按公司维度查看库存余量、流水变动,支持手动调整与 Excel 导入。
+        {{ _('按公司维度查看库存余量、流水变动,支持手动调整与 Excel 导入。') }}
       </p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       {% if is_vendor_admin %}
-      {{ at_btn('Excel 导入', variant='primary', icon_l='upload',
+      {{ at_btn(_('Excel 导入'), variant='primary', icon_l='upload',
                 onclick='atOpenImport()') }}
       {% endif %}
     </div>
@@ -77,8 +77,8 @@
   <!-- 空态:账号未绑定公司,无可见库存 -->
   <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;padding:60px 24px;">
     {{ at_empty(
-      label='暂无可查看的库存',
-      sub='您的账号尚未绑定企业,请联系管理员关联后查看本企业库存',
+      label=_('暂无可查看的库存'),
+      sub=_('您的账号尚未绑定企业,请联系管理员关联后查看本企业库存'),
       icon='archive'
     ) }}
   </div>
@@ -96,11 +96,11 @@
       </div>
       <div style="flex:1;min-width:0;">
         <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;">
-          当前查看
+          {{ _('当前查看') }}
         </div>
         <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px;">
-          <span style="font-size:15px;font-weight:500;color:var(--ink);">🌐 全局库存(所有公司聚合)</span>
-          {{ at_pill('厂商管理员', tone='accent', dot=true) }}
+          <span style="font-size:15px;font-weight:500;color:var(--ink);">🌐 {{ _('全局库存(所有公司聚合)') }}</span>
+          {{ at_pill(_('厂商管理员'), tone='accent', dot=true) }}
         </div>
       </div>
     {% else %}
@@ -113,18 +113,18 @@
       </div>
       <div style="flex:1;min-width:0;">
         <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;">
-          当前查看
+          {{ _('当前查看') }}
         </div>
         <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px;">
           <span style="font-size:15px;font-weight:500;color:var(--ink);">{{ current_company.company_name }}</span>
-          {{ at_pill(('厂商' if is_vendor else '经销商'), tone=('info' if is_vendor else 'accent'), dot=true) }}
+          {{ at_pill((_('厂商') if is_vendor else _('经销商')), tone=('info' if is_vendor else 'accent'), dot=true) }}
         </div>
       </div>
     {% endif %}
 
     {% if is_vendor_admin %}
     <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-shrink:0;">
-      <span class="at-dim" style="font-size:12px;white-space:nowrap;">切换视图</span>
+      <span class="at-dim" style="font-size:12px;white-space:nowrap;">{{ _('切换视图') }}</span>
       <div style="display:flex;align-items:center;height:34px;padding:0 10px 0 12px;
                   background:var(--bg-page);border:1px solid var(--line-2);border-radius:6px;
                   font-size:13px;position:relative;min-width:240px;">
@@ -132,7 +132,7 @@
                 style="appearance:none;border:0;outline:none;background:transparent;color:var(--ink);
                        font:inherit;padding-right:22px;width:100%;cursor:pointer;">
           {% if is_vendor_admin %}
-          <option value="global" {% if is_global %}selected{% endif %}>🌐 全局库存(全部公司聚合)</option>
+          <option value="global" {% if is_global %}selected{% endif %}>🌐 {{ _('全局库存(全部公司聚合)') }}</option>
           {% endif %}
           {% for c in switchable %}
           <option value="{{ c.id }}" {% if not is_global and current_company and c.id == current_company.id %}selected{% endif %}>
@@ -153,7 +153,7 @@
               padding:10px 14px;margin-bottom:18px;display:flex;align-items:center;gap:8px;
               color:var(--info);font-size:12.5px;">
     {{ at_icon('info', 14) }}
-    您正在查看本公司库存。如需查看其他公司,请联系厂商管理员。
+    {{ _('您正在查看本公司库存。如需查看其他公司,请联系厂商管理员。') }}
   </div>
   {% endif %}
 
@@ -161,21 +161,21 @@
   <div style="margin-bottom:18px;">
     {% if is_global %}
     {{ at_stat_card_row(stats=[
-      {'label': '产品种类', 'value': stats.products,   'icon': 'cube',    'tone': ''},
-      {'label': '全局总量', 'value': stats.total_qty,  'icon': 'archive', 'sub': '件', 'tone': 'accent'},
-      {'label': '本月全局流水', 'value': stats.monthly_tx, 'icon': 'clock', 'sub': '笔', 'tone': 'success'}
+      {'label': _('产品种类'), 'value': stats.products,   'icon': 'cube',    'tone': ''},
+      {'label': _('全局总量'), 'value': stats.total_qty,  'icon': 'archive', 'sub': _('件'), 'tone': 'accent'},
+      {'label': _('本月全局流水'), 'value': stats.monthly_tx, 'icon': 'clock', 'sub': _('笔'), 'tone': 'success'}
     ], cols=3) }}
     {% else %}
     {{ at_stat_card_row(stats=[
-      {'label': '在册产品', 'value': stats.products,   'icon': 'cube',    'tone': ''},
-      {'label': '总数量',   'value': stats.total_qty,  'icon': 'archive', 'sub': '件', 'tone': 'accent'},
-      {'label': '本月流水', 'value': stats.monthly_tx, 'icon': 'clock', 'sub': '笔', 'tone': 'success'}
+      {'label': _('在册产品'), 'value': stats.products,   'icon': 'cube',    'tone': ''},
+      {'label': _('总数量'),   'value': stats.total_qty,  'icon': 'archive', 'sub': _('件'), 'tone': 'accent'},
+      {'label': _('本月流水'), 'value': stats.monthly_tx, 'icon': 'clock', 'sub': _('笔'), 'tone': 'success'}
     ], cols=3) }}
     {% endif %}
   </div>
 
   <!-- 库存 / 流水 双 tab -->
-  {% set _tab_search = '<input type="text" id="atStockSearch" placeholder="搜产品名 / MN号…"
+  {% set _tab_search = '<input type="text" id="atStockSearch" placeholder="' ~ _('搜产品名 / MN号…') ~ '"
                               oninput="atFilterStockRows()"
                               style="height:30px;padding:0 12px;border:1px solid var(--line-2);
                                      border-radius:6px;background:var(--bg-elev);font-size:12.5px;
@@ -183,8 +183,8 @@
                                      box-sizing:border-box;">' %}
 
   {% call at_tabs(tabs=[
-    {'key':'inventory',    'label':'库存',  'count': stats.products, 'icon':'archive'},
-    {'key':'transactions', 'label':'流水',  'count': tx_rows|length if tx_rows else 0, 'icon':'clock'}
+    {'key':'inventory',    'label':_('库存'),  'count': stats.products, 'icon':'archive'},
+    {'key':'transactions', 'label':_('流水'),  'count': tx_rows|length if tx_rows else 0, 'icon':'clock'}
   ], active_key='inventory', tab_id='atStockTabs') %}
 
     {# ─── 库存 Tab ─── #}
@@ -208,7 +208,7 @@
             </colgroup>
             <thead>
               <tr>
-                {% for h, a in [('','left'),('产品','left'),('描述','left'),('全局总量','right'),('分布','center')] %}
+                {% for h, a in [('','left'),(_('产品'),'left'),(_('描述'),'left'),(_('全局总量'),'right'),(_('分布'),'center')] %}
                 <th style="text-align:{{ a }};padding:10px 16px 12px;font-size:10.5px;font-weight:500;
                            color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
                            border-bottom:1px solid var(--line-soft);">{{ h }}</th>
@@ -264,7 +264,7 @@
                 <td style="padding:14px 16px;text-align:center;">
                   <span class="at-mono at-tab-num"
                         style="font-size:12.5px;color:var(--ink-2);">{{ g.companies|length }}</span>
-                  <span class="at-dim" style="font-size:11px;margin-left:2px;">家公司</span>
+                  <span class="at-dim" style="font-size:11px;margin-left:2px;">{{ _('家公司') }}</span>
                 </td>
               </tr>
 
@@ -276,7 +276,7 @@
                                 overflow:hidden;margin-top:4px;">
                     <thead>
                       <tr>
-                        {% for h, a in [('公司','left'),('类型','center'),('数量','right'),('最后变动','left')] %}
+                        {% for h, a in [(_('公司'),'left'),(_('类型'),'center'),(_('数量'),'right'),(_('最后变动'),'left')] %}
                         <th style="text-align:{{ a }};padding:8px 14px 10px;font-size:10px;font-weight:500;
                                    color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
                                    border-bottom:1px solid var(--line-soft);
@@ -297,7 +297,7 @@
                              style="color:var(--accent);text-decoration:none;">{{ _name }}</a>
                         </td>
                         <td style="padding:8px 14px;text-align:center;">
-                          {{ at_pill(('厂商' if _is_vendor else '经销商'), tone=('info' if _is_vendor else 'accent'), dot=false) }}
+                          {{ at_pill((_('厂商') if _is_vendor else _('经销商')), tone=('info' if _is_vendor else 'accent'), dot=false) }}
                         </td>
                         <td class="at-mono at-tab-num"
                             style="padding:8px 14px;text-align:right;font-weight:600;color:var(--ink);">
@@ -307,10 +307,10 @@
                           {% if tx %}
                             <span class="at-mono">{{ tx.transaction_date.strftime('%m-%d') }}</span>
                             {% set delta = tx.quantity_after - tx.quantity_before %}
-                            {% if tx.transaction_type == 'in' %}<span style="color:var(--success);">入 +{{ delta }}</span>
-                            {% elif tx.transaction_type == 'out' %}<span style="color:var(--danger);">出 {{ delta }}</span>
+                            {% if tx.transaction_type == 'in' %}<span style="color:var(--success);">{{ _('入') }} +{{ delta }}</span>
+                            {% elif tx.transaction_type == 'out' %}<span style="color:var(--danger);">{{ _('出') }} {{ delta }}</span>
                             {% elif tx.transaction_type == 'adjustment' %}<span style="color:var(--ink-2);">→ {{ tx.quantity_after }}</span>
-                            {% elif tx.transaction_type == 'settlement' %}<span style="color:var(--danger);">结算 {{ delta }}</span>
+                            {% elif tx.transaction_type == 'settlement' %}<span style="color:var(--danger);">{{ _('结算') }} {{ delta }}</span>
                             {% else %}{{ delta }}
                             {% endif %}
                           {% else %}—{% endif %}
@@ -324,14 +324,14 @@
               {% endfor %}
               <tr id="atStockEmpty" style="display:none;">
                 <td colspan="5" style="padding:40px;text-align:center;color:var(--ink-3);font-size:12.5px;">
-                  没有匹配的产品
+                  {{ _('没有匹配的产品') }}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         {% else %}
-        {{ at_empty(label='全局尚无库存数据', icon='archive') }}
+        {{ at_empty(label=_('全局尚无库存数据'), icon='archive') }}
         {% endif %}
 
       {% else %}
@@ -348,7 +348,7 @@
             </colgroup>
             <thead>
               <tr>
-                {% for h, a in [('产品','left'),('描述','left'),('数量','right'),('最后变动','left'),('操作','center')] %}
+                {% for h, a in [(_('产品'),'left'),(_('描述'),'left'),(_('数量'),'right'),(_('最后变动'),'left'),(_('操作'),'center')] %}
                 <th style="text-align:{{ a }};padding:10px 16px 12px;font-size:10.5px;font-weight:500;
                            color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
                            border-bottom:1px solid var(--line-soft);">{{ h }}</th>
@@ -390,7 +390,7 @@
                 <td style="padding:14px 16px;text-align:right;white-space:nowrap;">
                   <span class="at-mono at-tab-num"
                         style="font-size:16px;font-weight:600;color:var(--ink);">{{ inv.quantity }}</span>
-                  <span class="at-dim" style="font-size:11px;margin-left:3px;">{{ inv.unit or '件' }}</span>
+                  <span class="at-dim" style="font-size:11px;margin-left:3px;">{{ inv.unit or _('件') }}</span>
                 </td>
                 <td style="padding:14px 16px;font-size:11.5px;color:var(--ink-3);">
                   {% if tx %}
@@ -398,13 +398,13 @@
                     <div style="white-space:nowrap;">
                       <span class="at-mono at-tab-num">{{ tx.transaction_date.strftime('%m-%d') }}</span>
                       {% if tx.transaction_type == 'in' %}
-                        <span style="color:var(--success);font-weight:500;">入库 +{{ delta }}</span>
+                        <span style="color:var(--success);font-weight:500;">{{ _('入库') }} +{{ delta }}</span>
                       {% elif tx.transaction_type == 'out' %}
-                        <span style="color:var(--danger);font-weight:500;">出库 {{ delta }}</span>
+                        <span style="color:var(--danger);font-weight:500;">{{ _('出库') }} {{ delta }}</span>
                       {% elif tx.transaction_type == 'adjustment' %}
-                        <span style="color:var(--ink-2);">设值 {{ tx.quantity_after }}</span>
+                        <span style="color:var(--ink-2);">{{ _('设值') }} {{ tx.quantity_after }}</span>
                       {% elif tx.transaction_type == 'settlement' %}
-                        <span style="color:var(--danger);font-weight:500;">结算 {{ delta }}</span>
+                        <span style="color:var(--danger);font-weight:500;">{{ _('结算') }} {{ delta }}</span>
                       {% else %}
                         <span>{{ delta }}</span>
                       {% endif %}
@@ -421,7 +421,7 @@
                 <td style="padding:14px 16px;text-align:center;">
                   {% if has_permission('inventory', 'edit') %}
                   <button type="button"
-                          onclick='atOpenAdjust({{ inv.id }}, {{ ((inv.product.product_name if inv.product else '') or '')|tojson }}, {{ inv.quantity }}, {{ (inv.unit or '件')|tojson }})'
+                          onclick='atOpenAdjust({{ inv.id }}, {{ ((inv.product.product_name if inv.product else '') or '')|tojson }}, {{ inv.quantity }}, {{ (inv.unit or _('件'))|tojson }})'
                           style="padding:5px 11px;border-radius:5px;
                                  background:var(--accent-tint);color:var(--accent);
                                  border:1px solid transparent;font-size:11.5px;font-weight:500;
@@ -429,7 +429,7 @@
                                  transition:border-color 120ms;"
                           onmouseenter="this.style.borderColor='var(--accent)'"
                           onmouseleave="this.style.borderColor='transparent'">
-                    {{ at_icon('edit', 12) }} 调整
+                    {{ at_icon('edit', 12) }} {{ _('调整') }}
                   </button>
                   {% else %}
                   <span class="at-dim" style="font-size:11px;">—</span>
@@ -439,14 +439,14 @@
               {% endfor %}
               <tr id="atStockEmpty" style="display:none;">
                 <td colspan="5" style="padding:40px;text-align:center;color:var(--ink-3);font-size:12.5px;">
-                  没有匹配的产品
+                  {{ _('没有匹配的产品') }}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         {% else %}
-        {{ at_empty(label='该公司暂无库存记录', icon='archive') }}
+        {{ at_empty(label=_('该公司暂无库存记录'), icon='archive') }}
         {% endif %}
       {% endif %}
     </div>
@@ -470,9 +470,9 @@
           <thead>
             <tr>
               {% set _headers = (
-                [('时间','left'),('公司','left'),('产品','left'),('类型','center'),('变动','right'),('变化','right'),('关联/备注','left'),('操作人','left')]
+                [(_('时间'),'left'),(_('公司'),'left'),(_('产品'),'left'),(_('类型'),'center'),(_('变动'),'right'),(_('变化'),'right'),(_('关联/备注'),'left'),(_('操作人'),'left')]
                 if is_global else
-                [('时间','left'),('产品','left'),('类型','center'),('变动','right'),('变化','right'),('关联/备注','left'),('操作人','left')]
+                [(_('时间'),'left'),(_('产品'),'left'),(_('类型'),'center'),(_('变动'),'right'),(_('变化'),'right'),(_('关联/备注'),'left'),(_('操作人'),'left')]
               ) %}
               {% for h, a in _headers %}
               <th style="text-align:{{ a }};padding:10px 14px 12px;font-size:10.5px;font-weight:500;
@@ -483,10 +483,10 @@
           </thead>
           <tbody>
             {% set tone_map = {
-              'in':         {'tone':'success','label':'入库'},
-              'out':        {'tone':'warn',   'label':'出库'},
-              'adjustment': {'tone':'neutral','label':'调整'},
-              'settlement': {'tone':'danger', 'label':'结算'}
+              'in':         {'tone':'success','label':_('入库')},
+              'out':        {'tone':'warn',   'label':_('出库')},
+              'adjustment': {'tone':'neutral','label':_('调整')},
+              'settlement': {'tone':'danger', 'label':_('结算')}
             } %}
             {% for r in tx_rows %}
             {% set tx = r.tx %}
@@ -540,9 +540,9 @@
                   <a href="{{ r.ref_url }}" class="at-mono"
                      style="color:var(--accent);text-decoration:none;">{{ tx.reference_type }}#{{ tx.reference_id }}</a>
                 {% elif tx.reference_type == 'manual' %}
-                  <span class="at-dim">手动</span>
+                  <span class="at-dim">{{ _('手动') }}</span>
                 {% elif tx.reference_type == 'import' %}
-                  <span style="color:var(--accent);">期初导入 #{{ tx.reference_id or '-' }}</span>
+                  <span style="color:var(--accent);">{{ _('期初导入') }} #{{ tx.reference_id or '-' }}</span>
                 {% else %}
                   <span class="at-dim">—</span>
                 {% endif %}
@@ -565,11 +565,11 @@
       {% if tx_rows|length >= 100 %}
       <div style="padding:12px 16px;text-align:center;font-size:11.5px;color:var(--ink-3);
                   border-top:1px solid var(--line-soft);">
-        仅显示最近 100 条
+        {{ _('仅显示最近 100 条') }}
       </div>
       {% endif %}
       {% else %}
-      {{ at_empty(label=('全局尚无流水记录' if is_global else '该公司暂无流水记录'), icon='clock') }}
+      {{ at_empty(label=(_('全局尚无流水记录') if is_global else _('该公司暂无流水记录')), icon='clock') }}
       {% endif %}
     </div>
 
@@ -582,14 +582,14 @@
 <!-- 调整库存模态 -->
 {% set _adjust_footer = '<button type="button" onclick="document.getElementById(\'atAdjustModal\').style.display=\'none\'" '
                      ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
-                     ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                     ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">' ~ _('取消') ~ '</button>'
                      ~ '<button type="button" id="atAdjustSubmitBtn" onclick="atSubmitAdjust()" '
                      ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
                      ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
                      ~ 'border-radius:6px;font-size:13px;font-weight:500;">'
                      ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
-                     ~ '提交调整</button>' %}
-{% call at_modal_shell('atAdjustModal', '调整库存', icon='edit', width=480, footer_html=_adjust_footer) %}
+                     ~ _('提交调整') ~ '</button>' %}
+{% call at_modal_shell('atAdjustModal', _('调整库存'), icon='edit', width=480, footer_html=_adjust_footer) %}
   <div id="atAdjustInfo" style="background:var(--bg-page);border:1px solid var(--line);
                                  border-radius:8px;padding:12px 14px;margin-bottom:18px;
                                  display:flex;align-items:center;gap:10px;">
@@ -602,8 +602,8 @@
            style="font-size:13.5px;font-weight:500;color:var(--ink);
                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
       <div class="at-dim" style="font-size:11.5px;margin-top:2px;">
-        当前库存:<span id="atAdjustCurrentQty" class="at-mono at-tab-num" style="color:var(--ink-2);font-weight:500;">—</span>
-        <span id="atAdjustUnit" style="color:var(--ink-3);">件</span>
+        {{ _('当前库存:') }}<span id="atAdjustCurrentQty" class="at-mono at-tab-num" style="color:var(--ink-2);font-weight:500;">—</span>
+        <span id="atAdjustUnit" style="color:var(--ink-3);">{{ _('件') }}</span>
       </div>
     </div>
   </div>
@@ -611,12 +611,12 @@
   <form id="atAdjustForm" onsubmit="return false;">
     <input type="hidden" id="atAdjustInvId">
 
-    {% call at_field('调整方式', required=true) %}
+    {% call at_field(_('调整方式'), required=true) %}
       <div style="display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:8px;" id="atAdjustModeRow">
         {% for v, label, hint in [
-          ('set',   '设值', '直接设置为某个数量'),
-          ('in',    '入库', '增加库存数量'),
-          ('out',   '出库', '减少库存数量')
+          ('set',   _('设值'), _('直接设置为某个数量')),
+          ('in',    _('入库'), _('增加库存数量')),
+          ('out',   _('出库'), _('减少库存数量'))
         ] %}
         <button type="button" data-mode="{{ v }}" onclick="atSetAdjustMode('{{ v }}')"
                 class="at-adjust-mode"
@@ -630,16 +630,16 @@
       </div>
     {% endcall %}
 
-    {% call at_field('数量', required=true) %}
-      <input type="number" id="atAdjustQty" min="0" placeholder="输入数量"
+    {% call at_field(_('数量'), required=true) %}
+      <input type="number" id="atAdjustQty" min="0" placeholder="{{ _('输入数量') }}"
              style="width:100%;height:36px;padding:0 12px;background:var(--bg-elev);
                     border:1px solid var(--line-2);border-radius:6px;font-size:14px;color:var(--ink);
                     outline:none;font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
       <div class="at-dim" id="atAdjustPreview" style="font-size:11.5px;margin-top:6px;font-family:var(--font-mono);"></div>
     {% endcall %}
 
-    {% call at_field('调整原因', hint='可选,记录到流水描述') %}
-      <textarea id="atAdjustReason" placeholder="如:盘点修正 / 退货入库 / 损耗扣减"
+    {% call at_field(_('调整原因'), hint=_('可选,记录到流水描述')) %}
+      <textarea id="atAdjustReason" placeholder="{{ _('如:盘点修正 / 退货入库 / 损耗扣减') }}"
                 style="width:100%;min-height:54px;padding:9px 12px;
                        border:1px solid var(--line-2);border-radius:6px;
                        background:var(--bg-elev);font-size:13px;resize:vertical;
@@ -653,26 +653,26 @@
 {% if is_vendor_admin %}
 {% set _import_footer = '<button type="button" onclick="atCloseImport()" '
                      ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
-                     ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                     ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">' ~ _('取消') ~ '</button>'
                      ~ '<a href="' ~ url_for('inventory.tw_import_template') ~ '" '
                      ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:6px;'
                      ~ 'background:transparent;color:var(--ink);border:1px solid var(--line-2);'
                      ~ 'border-radius:6px;font-size:13px;font-weight:500;text-decoration:none;">'
                      ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>'
-                     ~ '下载模板</a>'
+                     ~ _('下载模板') ~ '</a>'
                      ~ '<button type="button" id="atImportSubmitBtn" onclick="atSubmitImport()" disabled '
                      ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
                      ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
                      ~ 'border-radius:6px;font-size:13px;font-weight:500;opacity:0.5;cursor:not-allowed;">'
                      ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 10l5 5 5-5M5 3h14"/></svg>'
-                     ~ '上传并预览</button>' %}
-{% call at_modal_shell('atImportModal', 'Excel 批量导入库存', icon='upload', width=620, footer_html=_import_footer) %}
+                     ~ _('上传并预览') ~ '</button>' %}
+{% call at_modal_shell('atImportModal', _('Excel 批量导入库存'), icon='upload', width=620, footer_html=_import_footer) %}
   <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;
               padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.6;color:var(--ink-2);">
     <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;
-                                        margin-bottom:6px;text-transform:uppercase;">使用提示</div>
-    支持 .xlsx 格式 · 列名必须为「MN号 / 公司名 / 数量 / 单位 / 存储位置 / 最低库存 / 最高库存 / 备注」<br>
-    上传后会先预览校验,确认无误再提交入库
+                                        margin-bottom:6px;text-transform:uppercase;">{{ _('使用提示') }}</div>
+    {{ _('支持 .xlsx 格式 · 列名必须为「MN号 / 公司名 / 数量 / 单位 / 存储位置 / 最低库存 / 最高库存 / 备注」') }}<br>
+    {{ _('上传后会先预览校验,确认无误再提交入库') }}
   </div>
 
   <div id="atImportDropWrap">
@@ -686,8 +686,8 @@
                    display:inline-flex;align-items:center;justify-content:center;">
         {{ at_icon('upload', 20) }}
       </span>
-      <div style="font-size:13px;color:var(--ink-2);font-weight:500;">点击或拖拽上传 Excel 文件</div>
-      <div class="at-dim at-mono" style="font-size:11px;letter-spacing:0.04em;">.xlsx · 单文件 · 最大 10 MB</div>
+      <div style="font-size:13px;color:var(--ink-2);font-weight:500;">{{ _('点击或拖拽上传 Excel 文件') }}</div>
+      <div class="at-dim at-mono" style="font-size:11px;letter-spacing:0.04em;">{{ _('.xlsx · 单文件 · 最大 10 MB') }}</div>
       <input type="file" id="atImportFile" accept=".xlsx,.xls"
              onchange="atOnImportFile()"
              style="position:absolute;inset:0;opacity:0;cursor:pointer;">
@@ -746,7 +746,7 @@ function atOpenAdjust(invId, productName, currentQty, unit) {
   document.getElementById('atAdjustProductName').textContent = productName;
   document.getElementById('atAdjustProductName').title = productName;
   document.getElementById('atAdjustCurrentQty').textContent = currentQty;
-  document.getElementById('atAdjustUnit').textContent = unit || '件';
+  document.getElementById('atAdjustUnit').textContent = unit || '{{ _("件") }}';
   document.getElementById('atAdjustQty').value = '';
   document.getElementById('atAdjustReason').value = '';
   document.getElementById('atAdjustPreview').textContent = '';
@@ -768,14 +768,14 @@ function atSetAdjustMode(mode) {
 function atUpdateAdjustPreview() {
   const cur = parseInt(document.getElementById('atAdjustCurrentQty').textContent) || 0;
   const qty = parseInt(document.getElementById('atAdjustQty').value) || 0;
-  const unit = document.getElementById('atAdjustUnit').textContent || '件';
+  const unit = document.getElementById('atAdjustUnit').textContent || '{{ _("件") }}';
   const preview = document.getElementById('atAdjustPreview');
   if (qty <= 0) { preview.textContent = ''; return; }
   let after;
   if (_atAdjustMode === 'set') after = qty;
   else if (_atAdjustMode === 'in') after = cur + qty;
   else after = Math.max(0, cur - qty);
-  preview.innerHTML = `调整后:<span style="color:var(--ink);font-weight:500;">${cur} → ${after}</span> ${unit}`;
+  preview.innerHTML = `{{ _("调整后:") }}<span style="color:var(--ink);font-weight:500;">${cur} → ${after}</span> ${unit}`;
 }
 document.addEventListener('DOMContentLoaded', () => {
   const q = document.getElementById('atAdjustQty');
@@ -786,10 +786,10 @@ function atSubmitAdjust() {
   const invId = document.getElementById('atAdjustInvId').value;
   const qty = parseInt(document.getElementById('atAdjustQty').value) || 0;
   const reason = document.getElementById('atAdjustReason').value.trim();
-  if (qty <= 0) { ATToast.warn('无法提交', '请输入大于 0 的数量'); return; }
+  if (qty <= 0) { ATToast.warn('{{ _("无法提交") }}', '{{ _("请输入大于 0 的数量") }}'); return; }
 
   // 默认 reason(后端必填):按模式自动给个标签
-  const defaultReason = ({set:'盘点设值', in:'入库', out:'出库'})[_atAdjustMode] || '调整';
+  const defaultReason = ({set:'{{ _("盘点设值") }}', in:'{{ _("入库") }}', out:'{{ _("出库") }}'})[_atAdjustMode] || '{{ _("调整") }}';
   const finalReason = reason || defaultReason;
 
   const btn = document.getElementById('atAdjustSubmitBtn');
@@ -811,15 +811,15 @@ function atSubmitAdjust() {
     .then(res => {
       if (res.success) {
         document.getElementById('atAdjustModal').style.display = 'none';
-        ATToast.success('库存已调整', `当前数量:${res.new_quantity ?? '—'}`);
+        ATToast.success('{{ _("库存已调整") }}', `{{ _("当前数量:") }}${res.new_quantity ?? '—'}`);
         setTimeout(() => location.reload(), 700);
       } else {
-        ATToast.error('调整失败', res.message || '');
+        ATToast.error('{{ _("调整失败") }}', res.message || '');
         btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
       }
     })
     .catch(err => {
-      ATToast.error('调整失败', String(err));
+      ATToast.error('{{ _("调整失败") }}', String(err));
       btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
     });
 }
@@ -839,7 +839,7 @@ function atOpenImport() {
   document.getElementById('atImportPreview').innerHTML = '';
   const btn = document.getElementById('atImportSubmitBtn');
   btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'not-allowed';
-  btn.querySelector('svg').nextSibling.textContent = '上传并预览';
+  btn.querySelector('svg').nextSibling.textContent = '{{ _("上传并预览") }}';
   document.getElementById('atImportModal').style.display = 'flex';
 }
 
@@ -866,19 +866,19 @@ function atOnImportFile() {
                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;"
          title="${(_atImportFileObj.name||'').replace(/"/g,'&quot;')}">${_atImportFileObj.name}</div>
     <div class="at-dim at-mono" style="font-size:11px;">
-      ${(_atImportFileObj.size/1024).toFixed(1)} KB · 点击 "上传并预览" 校验
+      ${(_atImportFileObj.size/1024).toFixed(1)} KB · {{ _('点击 "上传并预览" 校验') }}
     </div>
     <input type="file" id="atImportFile" accept=".xlsx,.xls"
            onchange="atOnImportFile()"
            style="position:absolute;inset:0;opacity:0;cursor:pointer;">`;
   const btn = document.getElementById('atImportSubmitBtn');
   btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
-  btn.querySelector('svg').nextSibling.textContent = '上传并预览';
+  btn.querySelector('svg').nextSibling.textContent = '{{ _("上传并预览") }}';
 }
 
 function atSubmitImport() {
   if (!_atImportFileObj && !_atImportPreviewRows) {
-    ATToast.warn('无文件', '请先选择 Excel 文件');
+    ATToast.warn('{{ _("无文件") }}', '{{ _("请先选择 Excel 文件") }}');
     return;
   }
   const btn = document.getElementById('atImportSubmitBtn');
@@ -904,12 +904,12 @@ function atSubmitImport() {
         _atImportPreviewRows = res.rows || [];
         atRenderImportPreview(res);
       } else {
-        ATToast.error('预览失败', res.message || '');
+        ATToast.error('{{ _("预览失败") }}', res.message || '');
         btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
       }
     })
     .catch(err => {
-      ATToast.error('预览失败', String(err));
+      ATToast.error('{{ _("预览失败") }}', String(err));
       btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
     });
 }
@@ -927,9 +927,9 @@ function atRenderImportPreview(res) {
   const rows = res.rows || [];
 
   const statusBadge = (s) => {
-    if (s === 'success') return `<span style="color:var(--success);font-weight:500;">✓ 新建</span>`;
-    if (s === 'warning') return `<span style="color:var(--warn);font-weight:500;">⚠ 覆盖</span>`;
-    if (s === 'failed')  return `<span style="color:var(--danger);font-weight:500;">✕ 错误</span>`;
+    if (s === 'success') return `<span style="color:var(--success);font-weight:500;">✓ {{ _("新建") }}</span>`;
+    if (s === 'warning') return `<span style="color:var(--warn);font-weight:500;">⚠ {{ _("覆盖") }}</span>`;
+    if (s === 'failed')  return `<span style="color:var(--danger);font-weight:500;">✕ {{ _("错误") }}</span>`;
     return s || '-';
   };
 
@@ -937,19 +937,19 @@ function atRenderImportPreview(res) {
     <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px;">
       <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center;">
         <div class="at-mono at-tab-num" style="font-size:18px;font-weight:600;color:var(--ink);">${total}</div>
-        <div class="at-dim" style="font-size:11px;margin-top:1px;">总行数</div>
+        <div class="at-dim" style="font-size:11px;margin-top:1px;">{{ _("总行数") }}</div>
       </div>
       <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center;">
         <div class="at-mono at-tab-num" style="font-size:18px;font-weight:600;color:var(--success);">${okPure}</div>
-        <div class="at-dim" style="font-size:11px;margin-top:1px;">新建</div>
+        <div class="at-dim" style="font-size:11px;margin-top:1px;">{{ _("新建") }}</div>
       </div>
       <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center;">
         <div class="at-mono at-tab-num" style="font-size:18px;font-weight:600;color:var(--warn);">${warning}</div>
-        <div class="at-dim" style="font-size:11px;margin-top:1px;">覆盖</div>
+        <div class="at-dim" style="font-size:11px;margin-top:1px;">{{ _("覆盖") }}</div>
       </div>
       <div style="background:var(--bg-page);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center;">
         <div class="at-mono at-tab-num" style="font-size:18px;font-weight:600;color:${errCount > 0 ? 'var(--danger)' : 'var(--ink-4)'};">${errCount}</div>
-        <div class="at-dim" style="font-size:11px;margin-top:1px;">错误</div>
+        <div class="at-dim" style="font-size:11px;margin-top:1px;">{{ _("错误") }}</div>
       </div>
     </div>
     ${rows.length ? `
@@ -957,7 +957,7 @@ function atRenderImportPreview(res) {
         <table style="width:100%;font-size:11.5px;border-collapse:separate;border-spacing:0;">
           <thead>
             <tr>
-              ${['行','MN号','产品','公司','数量','状态','说明'].map(h => `
+              ${['{{ _("行") }}','{{ _("MN号") }}','{{ _("产品") }}','{{ _("公司") }}','{{ _("数量") }}','{{ _("状态") }}','{{ _("说明") }}'].map(h => `
                 <th style="text-align:left;padding:6px 10px;background:var(--bg-page);
                            color:var(--ink-4);font-size:10px;font-weight:500;letter-spacing:0.08em;
                            text-transform:uppercase;border-bottom:1px solid var(--line);
@@ -979,17 +979,17 @@ function atRenderImportPreview(res) {
               </tr>`).join('')}
           </tbody>
         </table>
-        ${rows.length > 50 ? `<div style="padding:8px;text-align:center;color:var(--ink-4);font-size:11px;border-top:1px solid var(--line);">仅显示前 50 行,共 ${rows.length} 行</div>` : ''}
+        ${rows.length > 50 ? `<div style="padding:8px;text-align:center;color:var(--ink-4);font-size:11px;border-top:1px solid var(--line);">{{ _("仅显示前 50 行,共") }} ${rows.length} {{ _("行") }}</div>` : ''}
       </div>` : ''}
   `;
 
   const btn = document.getElementById('atImportSubmitBtn');
   if (okCount > 0) {
     btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
-    btn.querySelector('svg').nextSibling.textContent = `确认导入 (${okCount} 条)`;
+    btn.querySelector('svg').nextSibling.textContent = `{{ _("确认导入") }} (${okCount} {{ _("条") }})`;
   } else {
     btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'not-allowed';
-    btn.querySelector('svg').nextSibling.textContent = '无可提交的数据';
+    btn.querySelector('svg').nextSibling.textContent = '{{ _("无可提交的数据") }}';
   }
 }
 
@@ -1007,16 +1007,16 @@ function atCommitImport() {
         atCloseImport();
         const w = res.written ?? res.imported ?? 0;
         const sk = res.skipped || 0;
-        ATToast.success('导入完成', `成功 ${w} 条${sk > 0 ? ' · 跳过 '+sk+' 条' : ''}`);
+        ATToast.success('{{ _("导入完成") }}', `{{ _("成功") }} ${w} {{ _("条") }}${sk > 0 ? ' · {{ _("跳过") }} '+sk+' {{ _("条") }}' : ''}`);
         setTimeout(() => location.reload(), 800);
       } else {
-        ATToast.error('导入失败', res.message || '');
+        ATToast.error('{{ _("导入失败") }}', res.message || '');
         const btn = document.getElementById('atImportSubmitBtn');
         btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
       }
     })
     .catch(err => {
-      ATToast.error('导入失败', String(err));
+      ATToast.error('{{ _("导入失败") }}', String(err));
       const btn = document.getElementById('atImportSubmitBtn');
       btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
     });

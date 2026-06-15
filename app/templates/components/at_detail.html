@@ -307,9 +307,9 @@
                    else ('/project/api/' ~ entity_id ~ '/ai-research') %}
 {% set _retry_url = _fetch_url ~ '/retry' %}
 {% set _is_running = _st in ('pre_searching', 'researching') %}
-{% set _btn_label = {'none':'触发调研','completed':'重新调研','error':'重试调研',
-                    'pre_searching':'调研中…','researching':'调研中…',
-                    'needs_input':'选择候选'}.get(_st, '触发调研') %}
+{% set _btn_label = {'none':_('触发调研'),'completed':_('重新调研'),'error':_('重试调研'),
+                    'pre_searching':_('调研中…'),'researching':_('调研中…'),
+                    'needs_input':_('选择候选')}.get(_st, _('触发调研')) %}
 <section class="at-section"
          data-ai-research="{{ entity_type }}"
          data-ai-research-id="{{ entity_id }}"
@@ -318,15 +318,15 @@
          data-ai-retry-url="{{ _retry_url }}"
          data-ai-view-url="{{ view_url or '' }}">
   <header class="at-section-h">
-    <h3 class="at-section-title">AI 网络调研</h3>
+    <h3 class="at-section-title">{{ _('AI 网络调研') }}</h3>
     <span data-at-ai-badge style="font-size:10.5px;padding:1px 6px;border-radius:3px;
           background:{% if _st == 'completed' %}var(--success-soft){% elif _is_running %}var(--warn-soft){% elif _st == 'error' %}var(--danger-soft){% elif _st == 'needs_input' %}var(--info-soft, #e6f0fa){% else %}transparent{% endif %};
           color:{% if _st == 'completed' %}var(--success){% elif _is_running %}var(--warn){% elif _st == 'error' %}var(--danger){% elif _st == 'needs_input' %}var(--info, #2563eb){% else %}transparent{% endif %};
           display:{{ 'inline-block' if _st in ('completed','pre_searching','researching','error','needs_input') else 'none' }};">
-      {% if _st == 'completed' %}已完成
-      {% elif _is_running %}进行中
-      {% elif _st == 'error' %}出错
-      {% elif _st == 'needs_input' %}待确认{% endif %}
+      {% if _st == 'completed' %}{{ _('已完成') }}
+      {% elif _is_running %}{{ _('进行中') }}
+      {% elif _st == 'error' %}{{ _('出错') }}
+      {% elif _st == 'needs_input' %}{{ _('待确认') }}{% endif %}
     </span>
   </header>
   <div class="at-section-body">
@@ -335,7 +335,7 @@
     {% endif %}
     <p class="at-mono" data-at-ai-updated style="margin:0 0 10px;font-size:11px;color:var(--ink-4);
                                                  display:{{ 'block' if updated_at else 'none' }};">
-      {% if updated_at %}上次调研:{{ updated_at.strftime('%Y-%m-%d %H:%M') if updated_at.strftime is defined else updated_at }}{% endif %}
+      {% if updated_at %}{{ _('上次调研') }}:{{ updated_at.strftime('%Y-%m-%d %H:%M') if updated_at.strftime is defined else updated_at }}{% endif %}
     </p>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <button type="button"
@@ -347,20 +347,20 @@
       </button>
       {% if _st == 'needs_input' and view_url %}
         <a href="{{ view_url }}" data-at-ai-candidates-link
-           style="font-size:12px;color:var(--accent);text-decoration:none;">选择候选 →</a>
+           style="font-size:12px;color:var(--accent);text-decoration:none;">{{ _('选择候选') }} →</a>
       {% endif %}
       <button type="button"
               class="at-btn at-btn-ghost at-btn-sm"
               data-at-ai-toggle
               style="display:{{ 'inline-flex' if _st == 'completed' else 'none' }};align-items:center;gap:6px;">
-        <span data-at-ai-toggle-label>查看详情</span>
+        <span data-at-ai-toggle-label>{{ _('查看详情') }}</span>
       </button>
     </div>
 
     <div data-at-ai-detail
          style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft);">
       <div data-at-ai-detail-body style="font-size:12.5px;color:var(--ink-2);line-height:1.6;">
-        <div style="color:var(--ink-4);padding:8px 0;">加载中…</div>
+        <div style="color:var(--ink-4);padding:8px 0;">{{ _('加载中…') }}</div>
       </div>
     </div>
   </div>

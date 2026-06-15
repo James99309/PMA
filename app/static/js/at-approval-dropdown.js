@@ -102,7 +102,7 @@
     var apiBase = root.dataset.apiBase;
     var objId = root.dataset.objectId;
     var body = $q(root, '[data-at-approval-body]');
-    body.innerHTML = '<div style="padding:32px 24px;text-align:center;color:var(--ink-4);font-size:12.5px;">加载中…</div>';
+    body.innerHTML = '<div style="padding:32px 24px;text-align:center;color:var(--ink-4);font-size:12.5px;">' + t('加载中…') + '</div>';
 
     // 并发拉 flow + editable-fields(后者用于判断「审核修改」按钮是否显示)
     var hdr = { 'X-Requested-With': 'XMLHttpRequest' };
@@ -121,7 +121,7 @@
       // 内容渲染完后重新校准浮层位置(此时 offsetWidth 准确)
       positionPanel(root);
     }).catch(function (e) {
-      body.innerHTML = '<div style="padding:24px;color:var(--danger);font-size:12px;">加载失败:' + esc(e.message || '') + '</div>';
+      body.innerHTML = '<div style="padding:24px;color:var(--danger);font-size:12px;">' + t('加载失败:') + esc(e.message || '') + '</div>';
     });
   }
 
@@ -136,8 +136,8 @@
     if (!flow) {
       body.innerHTML =
         '<div style="padding:24px;">' +
-          '<div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:4px;">尚未提交审批</div>' +
-          '<div class="at-dim" style="font-size:12px;">填好明细后,提交审批后将由后端自动匹配审批流程模板。</div>' +
+          '<div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:4px;">' + t('尚未提交审批') + '</div>' +
+          '<div class="at-dim" style="font-size:12px;">' + t('填好明细后,提交审批后将由后端自动匹配审批流程模板。') + '</div>' +
         '</div>';
       renderActions(root, actions, {
         can_submit: (control.can_submit !== undefined) ? control.can_submit
@@ -170,9 +170,9 @@
         if (s.processed_at) subtitleParts.push(s.processed_at.slice(0, 16));
         if (s.comment) subtitleParts.push('"' + esc(s.comment.slice(0, 60)) + (s.comment.length > 60 ? '…' : '') + '"');
       } else if (st === 'current') {
-        subtitleParts.push('当前节点 · 等待审批');
+        subtitleParts.push(t('当前节点 · 等待审批'));
       } else {
-        subtitleParts.push('待处理');
+        subtitleParts.push(t('待处理'));
       }
 
       return (
@@ -187,7 +187,7 @@
           '</div>' +
           '<div style="flex:1;min-width:0;">' +
             '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--ink);">' +
-              '<span style="font-weight:500;">' + esc(s.stage_name || ('节点 ' + (s.stage_order || (i+1)))) + '</span>' +
+              '<span style="font-weight:500;">' + esc(s.stage_name || (t('节点 ') + (s.stage_order || (i+1)))) + '</span>' +
               '<span class="at-dim" style="font-size:11px;">' + esc(s.approver_name || '—') + '</span>' +
             '</div>' +
             (subtitleParts.length ?
@@ -201,7 +201,7 @@
     body.innerHTML =
       '<div style="padding:14px 18px 8px;border-bottom:1px solid var(--line-soft);">' +
         '<div style="font-size:12.5px;color:var(--ink);font-weight:500;">' +
-          '审批流程 · 共 ' + stages.length + ' 节点' +
+          t('审批流程 · 共 ') + stages.length + t(' 节点') +
         '</div>' +
       '</div>' +
       '<div style="padding:10px 18px 12px;">' + nodesHtml + '</div>';
@@ -217,13 +217,13 @@
 
   function renderActions(root, container, perms, flow) {
     var parts = [];
-    if (perms.can_submit)   parts.push(btn('submit',    '提交审批',   'primary'));
-    if (perms.can_recall)   parts.push(btn('recall',    '召回',       'ghost'));
-    if (perms.can_resubmit) parts.push(btn('resubmit',  '重新提交',   'primary'));
+    if (perms.can_submit)   parts.push(btn('submit',    t('提交审批'),   'primary'));
+    if (perms.can_recall)   parts.push(btn('recall',    t('召回'),       'ghost'));
+    if (perms.can_resubmit) parts.push(btn('resubmit',  t('重新提交'),   'primary'));
     // 审批人 + 当前节点配置了 editable_fields(非空)才显示「审核修改」
-    if (perms.can_approval_edit) parts.push(btn('approval-edit', '✎ 审核修改', 'ghost'));
-    if (perms.can_approve)  parts.push(btn('reject',    '驳回',       'danger'));
-    if (perms.can_approve)  parts.push(btn('approve',   '同意',       'primary'));
+    if (perms.can_approval_edit) parts.push(btn('approval-edit', '✎ ' + t('审核修改'), 'ghost'));
+    if (perms.can_approve)  parts.push(btn('reject',    t('驳回'),       'danger'));
+    if (perms.can_approve)  parts.push(btn('approve',   t('同意'),       'primary'));
     if (!parts.length) { container.style.display = 'none'; return; }
     container.style.display = 'flex';
     container.innerHTML = parts.join('');
@@ -265,15 +265,15 @@
     var objectType = root.dataset.objectType || 'object';
 
     var OBJECT_KICKER = {
-      expense: 'EXPENSE · 报销审批',
-      project: 'PROJECT · 项目报备',
-      quotation: 'TECHNICAL REVIEW · 技术确认',
-      purchase_order: 'PURCHASE ORDER · 订单审批',
+      expense: 'EXPENSE · ' + t('报销审批'),
+      project: 'PROJECT · ' + t('项目报备'),
+      quotation: 'TECHNICAL REVIEW · ' + t('技术确认'),
+      purchase_order: 'PURCHASE ORDER · ' + t('订单审批'),
     };
     var kicker = OBJECT_KICKER[objectType] || (objectType.toUpperCase() + ' · ' + actionLabel);
 
     // 标题 — 有指定步骤时聚焦"选择审批人",无则"提交审批"
-    var headerTitle = designateSteps.length ? '选择审批人' : (actionLabel + '确认');
+    var headerTitle = designateSteps.length ? t('选择审批人') : (actionLabel + t('确认'));
 
     var overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9998;' +
@@ -311,12 +311,12 @@
       if (roles.length) {
         // "从方案经理中选择一位" 之类
         var roleLabel = roles[0]; // 简化:展示第一个
-        poolDesc = '从' + (roleLabel === 'solution_manager' ? '方案经理' :
-                          roleLabel === 'sm' || roleLabel === 'sales_manager' ? '销售经理' :
-                          roleLabel === 'finance' || roleLabel === 'finance_director' ? '财务' :
-                          roleLabel) + '中选择一位';
+        poolDesc = t('从') + (roleLabel === 'solution_manager' ? t('方案经理') :
+                          roleLabel === 'sm' || roleLabel === 'sales_manager' ? t('销售经理') :
+                          roleLabel === 'finance' || roleLabel === 'finance_director' ? t('财务') :
+                          roleLabel) + t('中选择一位');
       } else {
-        poolDesc = '请选择「' + s.step_name + '」审批人';
+        poolDesc = t('请选择「') + s.step_name + t('」审批人');
       }
 
       designateHtml +=
@@ -348,7 +348,7 @@
               }).join('')
               :
               '<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">' +
-                '可选范围内无可用用户 — 请联系管理员调整模板「指定范围」' +
+                t('可选范围内无可用用户 — 请联系管理员调整模板「指定范围」') +
               '</div>'
             ) +
           '</div>' +
@@ -360,15 +360,15 @@
     if (meta.total_amount) {
       summaryRows.push(
         '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">' +
-          '<span class="at-dim">金额</span>' +
+          '<span class="at-dim">' + t('金额') + '</span>' +
           '<span class="at-mono at-tab-num" style="color:var(--ink);font-weight:500;">' +
             esc(meta.currency_sym || '¥') + fmtAmount(meta.total_amount) +
           '</span>' +
         '</div>');
     }
-    if (meta.customer_name) summaryRows.push(row('客户', meta.customer_name));
-    if (meta.project_name)  summaryRows.push(row('项目', meta.project_name));
-    if (meta.line_count) summaryRows.push(row('明细', meta.line_count + ' 条'));
+    if (meta.customer_name) summaryRows.push(row(t('客户'), meta.customer_name));
+    if (meta.project_name)  summaryRows.push(row(t('项目'), meta.project_name));
+    if (meta.line_count) summaryRows.push(row(t('明细'), meta.line_count + t(' 条')));
     var summaryHtml = summaryRows.length ?
       '<div style="padding:14px 26px 4px;border-top:1px solid var(--line-soft);">' +
         summaryRows.join('') +
@@ -377,8 +377,8 @@
     // ─── 4. 留言(可选)──
     var commentHtml =
       '<div style="padding:14px 26px 6px;' + (summaryHtml || designateHtml ? 'border-top:1px solid var(--line-soft);' : '') + '">' +
-        '<div style="font-size:12px;color:var(--ink-3);margin-bottom:6px;">留言(可选)</div>' +
-        '<textarea data-modal-comment rows="3" placeholder="给确认人的备注…"' +
+        '<div style="font-size:12px;color:var(--ink-3);margin-bottom:6px;">' + t('留言(可选)') + '</div>' +
+        '<textarea data-modal-comment rows="3" placeholder="' + esc(t('给确认人的备注…')) + '"' +
         ' style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line-2);' +
         ' border-radius:8px;font-family:inherit;font-size:13px;color:var(--ink);background:var(--bg-elev);' +
         ' resize:vertical;outline:none;line-height:1.5;"></textarea>' +
@@ -386,9 +386,9 @@
 
     // ─── 5. Footer(辅助说明 + 取消 / 确认)──
     var helperText = designateSteps.length ?
-      '发起后' + (objectType === 'quotation' ? '报价单' : '单据') + '将被锁定,被指派人会收到日程待办' :
-      '提交后将进入审批流程,审批中可召回';
-    var primaryLabel = designateSteps.length ? (objectType === 'quotation' ? '技术确认' : actionLabel) : actionLabel;
+      t('发起后') + (objectType === 'quotation' ? t('报价单') : t('单据')) + t('将被锁定,被指派人会收到日程待办') :
+      t('提交后将进入审批流程,审批中可召回');
+    var primaryLabel = designateSteps.length ? (objectType === 'quotation' ? t('技术确认') : actionLabel) : actionLabel;
     var footerHtml =
       '<div style="padding:14px 22px;border-top:1px solid var(--line-soft);background:var(--bg-page);' +
             'display:flex;align-items:center;gap:12px;">' +
@@ -397,7 +397,7 @@
         '</div>' +
         '<button type="button" data-modal-action="cancel"' +
         ' style="height:36px;padding:0 16px;border:1px solid var(--line-2);border-radius:7px;' +
-        ' background:var(--bg-elev);color:var(--ink);cursor:pointer;font-size:13px;font-weight:500;">取消</button>' +
+        ' background:var(--bg-elev);color:var(--ink);cursor:pointer;font-size:13px;font-weight:500;">' + esc(t('取消')) + '</button>' +
         '<button type="button" data-modal-action="confirm"' +
         ' style="height:36px;padding:0 18px;border:0;border-radius:7px;' +
         ' background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:500;">' +
@@ -440,7 +440,7 @@
           }
         });
         if (missing) {
-          if (g.ATToast) ATToast.error('请为每个步骤选择审批人');
+          if (g.ATToast) ATToast.error(t('请为每个步骤选择审批人'));
           return;
         }
       }
@@ -472,15 +472,15 @@
     }).then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (res) {
         if (!res.success && res.success !== undefined) {
-          if (g.ATToast) ATToast.error(res.message || '操作失败');
+          if (g.ATToast) ATToast.error(res.message || t('操作失败'));
           return;
         }
-        if (g.ATToast) ATToast.success('已操作', '刷新中…');
+        if (g.ATToast) ATToast.success(t('已操作'), t('刷新中…'));
         setTimeout(function () { location.reload(); }, 400);
         if (onSuccess) onSuccess(res);
       })
       .catch(function (e) {
-        if (g.ATToast) ATToast.error('网络错误', e.message || '');
+        if (g.ATToast) ATToast.error(t('网络错误'), e.message || '');
       });
   }
 
@@ -510,18 +510,18 @@
       .catch(function () { _doSubmit([]); });
   }
 
-  function submitApproval(root)   { fetchTemplatesThenSubmit(root, 'submit',   '提交审批'); }
-  function resubmitApproval(root) { fetchTemplatesThenSubmit(root, 'resubmit', '重新提交'); }
+  function submitApproval(root)   { fetchTemplatesThenSubmit(root, 'submit',   t('提交审批')); }
+  function resubmitApproval(root) { fetchTemplatesThenSubmit(root, 'resubmit', t('重新提交')); }
   function recallApproval(root) {
-    if (!g.ATConfirm) { if (g.ATToast) ATToast.error('AT 弹窗组件未加载'); return; }
+    if (!g.ATConfirm) { if (g.ATToast) ATToast.error(t('AT 弹窗组件未加载')); return; }
     ATConfirm.show({
-      title: '召回审批',
-      message: '此操作会撤回当前审批,需要重新提交。',
+      title: t('召回审批'),
+      message: t('此操作会撤回当前审批,需要重新提交。'),
       variant: 'danger', icon: 'warn',
-      confirmText: '召回', cancelText: '取消',
+      confirmText: t('召回'), cancelText: t('取消'),
       input: {
-        label: '召回原因(可选)',
-        placeholder: '说明召回理由,审批人可见…',
+        label: t('召回原因(可选)'),
+        placeholder: t('说明召回理由,审批人可见…'),
         multiline: true, rows: 3, maxLength: 500
       },
       onConfirm: function (reason) {
@@ -531,10 +531,10 @@
   }
 
   function approveDecision(root, action, flow) {
-    var label = action === 'approve' ? '同意' : '驳回';
+    var label = action === 'approve' ? t('同意') : t('驳回');
     var instanceId = flow && flow.instance_id;
-    if (!instanceId) { if (g.ATToast) ATToast.error('找不到审批实例 ID'); return; }
-    if (!g.ATConfirm) { if (g.ATToast) ATToast.error('AT 弹窗组件未加载'); return; }
+    if (!instanceId) { if (g.ATToast) ATToast.error(t('找不到审批实例 ID')); return; }
+    if (!g.ATConfirm) { if (g.ATToast) ATToast.error(t('AT 弹窗组件未加载')); return; }
 
     // 项目失败审核(lost)同意时的归因认定:
     // 步骤1(部门经理)→ 个人因素为主;步骤2(总经理)→ 团队管理失责
@@ -548,24 +548,24 @@
       }
       if (_curIdx === 0) {
         attribution = 'owner_fault';
-        chkOpt = { label: '认定:个人因素为主(计入项目负责人的个人失败率)' };
+        chkOpt = { label: t('认定:个人因素为主(计入项目负责人的个人失败率)') };
       } else if (_curIdx === 1) {
         attribution = 'mgmt_fault';
-        chkOpt = { label: '认定:团队管理失责(计入部门的团队失败率)' };
+        chkOpt = { label: t('认定:团队管理失责(计入部门的团队失败率)') };
       }
     }
 
     ATConfirm.show({
-      title: label + '审批',
+      title: label + t('审批'),
       message: action === 'approve'
-        ? '确认通过当前审批节点?可填写审批意见。'
-        : '驳回后该报销单会回到驳回态,申请人可重新提交。请填写驳回原因。',
+        ? t('确认通过当前审批节点?可填写审批意见。')
+        : t('驳回后该报销单会回到驳回态,申请人可重新提交。请填写驳回原因。'),
       variant: action === 'reject' ? 'danger' : 'accent',
       icon: action === 'reject' ? 'warn' : 'send',
-      confirmText: label, cancelText: '取消',
+      confirmText: label, cancelText: t('取消'),
       input: {
-        label: action === 'reject' ? '驳回原因' : '审批意见',
-        placeholder: action === 'reject' ? '请说明驳回原因(必填)' : '请写下你对本次申请的最终评判…',
+        label: action === 'reject' ? t('驳回原因') : t('审批意见'),
+        placeholder: action === 'reject' ? t('请说明驳回原因(必填)') : t('请写下你对本次申请的最终评判…'),
         required: action === 'reject',
         multiline: true, rows: 3, maxLength: 500,
         defaultValue: ''
@@ -589,14 +589,14 @@
         }).then(function (r) { return r.json().catch(function () { return {}; }); })
           .then(function (res) {
             if (!res.success && res.success !== undefined) {
-              if (g.ATToast) ATToast.error(res.message || (label + '失败'));
+              if (g.ATToast) ATToast.error(res.message || (label + t('失败')));
               return;
             }
-            if (g.ATToast) ATToast.success('已' + label, '刷新中…');
+            if (g.ATToast) ATToast.success(t('已') + label, t('刷新中…'));
             setTimeout(function () { location.reload(); }, 400);
           })
           .catch(function (e) {
-            if (g.ATToast) ATToast.error('网络错误', e.message || '');
+            if (g.ATToast) ATToast.error(t('网络错误'), e.message || '');
           });
       }
     });
@@ -626,7 +626,7 @@
             meta: btn.dataset.meta || '{}'
           }
         };
-        var label = action === 'resubmit' ? '重新提交' : '提交审批';
+        var label = action === 'resubmit' ? t('重新提交') : t('提交审批');
         function _doQuickSubmit(designateSteps) {
           openSubmitModal(fakeRoot, label, function (designated, comment) {
             var body = {};
