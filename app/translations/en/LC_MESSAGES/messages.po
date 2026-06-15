@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 14:50+0800\n"
+"POT-Creation-Date: 2026-06-15 15:11+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -432,7 +432,9 @@ msgstr "Split Screen"
 msgid "@提醒"
 msgstr "@Mentions"
 
-#: app/data/features_guide_data.py:126
+#: app/data/features_guide_data.py:126 app/helpers/at_dashboard_helpers.py:146
+#: app/helpers/at_dashboard_helpers.py:1784
+#: app/helpers/at_dashboard_helpers.py:1850
 #: app/templates/approval/at_detail.html:100
 #: app/templates/components/tw_message_panel.html:99
 #: app/templates/expense/at_list.html:24 app/templates/index.html:378
@@ -1423,6 +1425,640 @@ msgstr "AI automatically searches and analyzes customer public information"
 msgid "查看生成的调研报告，可保存到客户档案"
 msgstr "View the generated research report, which can be saved to customer profile"
 
+#: app/helpers/at_dashboard_helpers.py:27
+#, python-format
+msgid "%(n)s 分钟前"
+msgstr "%(n)s min ago"
+
+#: app/helpers/at_dashboard_helpers.py:28
+#, python-format
+msgid "%(n)s 小时前"
+msgstr "%(n)s h ago"
+
+#: app/helpers/at_dashboard_helpers.py:30
+#, python-format
+msgid "%(d)s 天前"
+msgstr "%(d)s days ago"
+
+#: app/helpers/at_dashboard_helpers.py:68
+#: app/templates/main/at_dashboard.html:306
+#: app/templates/main/at_dashboard.html:384
+#: app/templates/main/at_dashboard.html:773
+#: app/templates/main/at_dashboard.html:938
+#: app/templates/prospect/tw_list.html:220
+msgid "我的"
+msgstr "Mine"
+
+#: app/helpers/at_dashboard_helpers.py:89
+#: app/helpers/at_dashboard_helpers.py:1857
+#: app/templates/components/tw_message_panel.html:646
+#: app/templates/expense/partials/_expense_modal_fields.html:72
+#: app/views/approval.py:197 app/views/approval.py:217
+#: app/views/approval.py:2976
+msgid "报销单"
+msgstr "Expense report"
+
+#: app/helpers/at_dashboard_helpers.py:89
+#: app/templates/components/at_sidebar.html:150
+#: app/templates/components/tw_message_panel.html:649
+#: app/templates/components/tw_nav_menu.html:202
+#: app/templates/customer/at_view.html:319
+#: app/templates/inventory/at_purchase_order_list.html:8
+#: app/templates/inventory/at_purchase_order_list.html:22
+#: app/templates/product_sn/at_detail.html:120 app/views/approval.py:215
+#: app/views/approval.py:2131 app/views/approval.py:2951
+msgid "采购订单"
+msgstr "Purchase Orders"
+
+#: app/helpers/at_dashboard_helpers.py:90
+msgid "项目立项"
+msgstr "New Project"
+
+#: app/helpers/at_dashboard_helpers.py:90
+#: app/templates/components/at_sidebar.html:148
+#: app/templates/components/tw_message_panel.html:648
+#: app/templates/components/tw_nav_menu.html:114
+#: app/templates/components/tw_pricing_order_modal.html:169
+#: app/templates/components/tw_pricing_order_modal.html:333
+#: app/templates/components/tw_worklog_preview.html:560
+#: app/templates/customer/at_view.html:318
+#: app/templates/macros/approval_macros.html:388
+#: app/templates/macros/approval_macros.html:409
+#: app/templates/pricing_order/at_list.html:5
+#: app/templates/pricing_order/at_list.html:12
+#: app/templates/pricing_order/tw_list.html:236
+#: app/templates/quotation/tw_quotation_detail.html:148
+#: app/templates/worklog/tw_calendar.html:1520 app/views/approval.py:195
+#: app/views/approval.py:216 app/views/approval.py:2132
+#: app/views/approval.py:2956
+msgid "批价单"
+msgstr "Pricing Orders"
+
+#: app/helpers/at_dashboard_helpers.py:91
+#: app/templates/components/tw_access_request_modal.html:64
+#: app/templates/components/tw_access_request_modal.html:76
+#: app/templates/components/tw_access_request_modal.html:177
+#: app/templates/components/tw_access_request_modal.html:193
+#: app/templates/components/tw_access_request_modal.html:254
+#: app/templates/components/tw_message_panel.html:647
+#: app/templates/components/tw_worklog_preview.html:555
+#: app/templates/macros/approval_macros.html:407
+#: app/templates/macros/ui_helpers.html:3066
+#: app/templates/macros/ui_helpers.html:7909
+#: app/templates/star_graph/tw_star_graph.html:167
+#: app/templates/star_graph/tw_star_graph.html:223
+#: app/templates/worklog/tw_calendar.html:1501 app/views/approval.py:213
+#: app/views/approval.py:2129 app/views/approval.py:2941
+msgid "报价单"
+msgstr "Quotation"
+
+# 侧边栏菜单缺失翻译
+#: app/helpers/at_dashboard_helpers.py:91
+#: app/templates/components/at_sidebar.html:149
+#: app/templates/components/tw_nav_menu.html:120
+#: app/templates/product_sn/at_detail.html:135
+#: app/templates/sales_order/at_detail.html:11
+#: app/templates/sales_order/at_detail.html:32
+#: app/templates/sales_order/at_detail.html:52
+#: app/templates/sales_order/at_list.html:11
+#: app/templates/sales_order/at_list.html:35
+#: app/templates/sales_order/at_list.html:58
+msgid "客户订单"
+msgstr "Customer Orders"
+
+#: app/helpers/at_dashboard_helpers.py:92 app/routes/resource_pool.py:112
+#: app/templates/components/at_sales_order.html:38
+#: app/templates/components/tw_chat_panel.html:2218
+#: app/templates/components/tw_message_panel.html:650
+#: app/templates/components/tw_performance_dashboard.html:1013
+#: app/templates/components/tw_purchase_order_form.html:683
+#: app/templates/components/tw_work_records.html:189
+#: app/templates/components/tw_worklog_preview.html:540
+#: app/templates/index.html:297 app/templates/index.html:434
+#: app/templates/macros/approval_macros.html:408
+#: app/templates/product_sn/at_detail.html:140
+#: app/templates/quotation/at_list.html:65
+#: app/templates/quotation/at_view.html:779
+#: app/templates/sales_order/at_detail.html:74
+#: app/templates/sales_order/at_detail.html:118
+#: app/templates/sales_order/at_list.html:131
+#: app/templates/sales_order/partials/_so_modal_fields.html:28
+#: app/templates/worklog/tw_calendar.html:1444 app/views/approval.py:214
+#: app/views/approval.py:2130 app/views/approval.py:2946
+#: app/views/expense.py:634 app/views/star_graph.py:166
+msgid "客户"
+msgstr "Client"
+
+#: app/helpers/at_dashboard_helpers.py:92
+msgid "项目搁置/失败审核"
+msgstr "Project Hold/Loss Review"
+
+#: app/helpers/at_dashboard_helpers.py:93
+msgid "渠道身份审批"
+msgstr "Dealer Approval"
+
+#: app/helpers/at_dashboard_helpers.py:93
+#: app/helpers/at_dashboard_helpers.py:129
+msgid "绩效结算"
+msgstr "Performance Settlement"
+
+#: app/helpers/at_dashboard_helpers.py:94
+msgid "月度薪资审批"
+msgstr "Monthly Payroll"
+
+#: app/helpers/at_dashboard_helpers.py:138
+msgid "项目失败审核"
+msgstr "Project Loss Review"
+
+#: app/helpers/at_dashboard_helpers.py:138
+msgid "项目搁置审核"
+msgstr "Project Hold Review"
+
+#: app/helpers/at_dashboard_helpers.py:172
+#: app/templates/main/at_dashboard.html:325
+msgid "待审核"
+msgstr "Pending Review"
+
+#: app/helpers/at_dashboard_helpers.py:173
+#: app/templates/task/tw_task_management.html:380 app/views/message.py:315
+msgid "任务审核"
+msgstr "Task Review"
+
+#: app/helpers/at_dashboard_helpers.py:194
+msgid "日志 @ 我"
+msgstr "Log @Me"
+
+#: app/helpers/at_dashboard_helpers.py:195
+msgid "任务回复"
+msgstr "Task Reply"
+
+#: app/helpers/at_dashboard_helpers.py:196
+msgid "任务指派"
+msgstr "Task Assigned"
+
+#: app/helpers/at_dashboard_helpers.py:206
+#: app/templates/components/tw_message_panel.html:91
+msgid "@我"
+msgstr "Mentions"
+
+#: app/helpers/at_dashboard_helpers.py:271
+#: app/templates/components/tw_performance_dashboard.html:2831
+#: app/templates/project/at_list.html:48 app/templates/project/at_view.html:521
+#: app/templates/project/statistics_dashboard_backup.html:152
+#: app/templates/prospect/tw_list.html:1253
+#: app/templates/prospect/tw_list.html:1542
+#: app/templates/prospect/tw_list.html:2083
+#: app/templates/quotation/at_view.html:428 app/utils/status_meta.py:86
+#: app/views/product_analysis.py:1290
+msgid "发现"
+msgstr "Discover"
+
+#: app/helpers/at_dashboard_helpers.py:271
+#: app/helpers/at_dashboard_helpers.py:1678
+#: app/templates/components/tw_performance_dashboard.html:2831
+#: app/templates/project/at_list.html:49 app/templates/project/at_view.html:521
+#: app/templates/project/statistics_dashboard_backup.html:176
+#: app/templates/quotation/at_view.html:429 app/utils/status_meta.py:87
+#: app/views/product_analysis.py:1291
+msgid "植入"
+msgstr "Embed"
+
+#: app/helpers/at_dashboard_helpers.py:271
+#: app/helpers/at_dashboard_helpers.py:1679
+#: app/templates/components/tw_performance_dashboard.html:2831
+#: app/templates/project/at_list.html:50 app/templates/project/at_view.html:521
+#: app/templates/quotation/at_view.html:430 app/utils/status_meta.py:88
+msgid "标前"
+msgstr "Pre-Bid"
+
+#: app/helpers/at_dashboard_helpers.py:272
+#: app/helpers/at_dashboard_helpers.py:1680
+#: app/templates/components/tw_performance_dashboard.html:2832
+#: app/templates/project/at_list.html:51 app/templates/project/at_view.html:521
+#: app/templates/quotation/at_view.html:431 app/utils/status_meta.py:90
+msgid "标中"
+msgstr "Bidding"
+
+#: app/helpers/at_dashboard_helpers.py:272
+#: app/helpers/at_dashboard_helpers.py:1681
+#: app/templates/components/tw_performance_dashboard.html:2832
+#: app/templates/project/at_list.html:52 app/templates/project/at_view.html:521
+#: app/templates/project/statistics_dashboard_backup.html:248
+#: app/templates/prospect/tw_lost_panel.html:14
+#: app/templates/quotation/at_view.html:432 app/utils/status_meta.py:91
+#: app/views/product_analysis.py:1295
+msgid "中标"
+msgstr "Won"
+
+#: app/helpers/at_dashboard_helpers.py:272
+#: app/templates/components/tw_performance_dashboard.html:2832
+#: app/templates/project/at_view.html:521
+#: app/templates/project/statistics_dashboard_backup.html:272
+#: app/templates/quotation/at_view.html:433
+msgid "批价"
+msgstr "Price Approval"
+
+#: app/helpers/at_dashboard_helpers.py:287
+#: app/templates/components/tw_worklog_preview.html:136
+msgid "项目跟进"
+msgstr "Project follow-up"
+
+#: app/helpers/at_dashboard_helpers.py:288
+#: app/templates/project/at_list.html:120
+#: app/templates/project/at_list.html:122
+#, python-format
+msgid "%(d)s 天未跟进"
+msgstr "%(d)s days no follow-up"
+
+#: app/helpers/at_dashboard_helpers.py:289
+#: app/helpers/at_dashboard_helpers.py:317
+#, python-format
+msgid "%(d)s天"
+msgstr "%(d)sd"
+
+#: app/helpers/at_dashboard_helpers.py:315
+msgid "任务跟进"
+msgstr "Task Follow-up"
+
+#: app/helpers/at_dashboard_helpers.py:316
+#, python-format
+msgid "%(d)s 天未更新"
+msgstr "%(d)s days no update"
+
+#: app/helpers/at_dashboard_helpers.py:316
+#: app/helpers/at_dashboard_helpers.py:525
+#: app/templates/components/at_topbar.html:152
+#: app/templates/components/tw_chat_panel.html:567
+#: app/templates/components/tw_performance_dashboard.html:420
+#: app/templates/main/at_dashboard.html:297
+#: app/templates/star_graph/tw_star_graph.html:171
+#: app/templates/star_graph/tw_star_graph.html:224
+msgid "任务"
+msgstr "Tasks"
+
+#: app/helpers/at_dashboard_helpers.py:344
+#: app/templates/project/at_list.html:53 app/templates/project/at_view.html:196
+#: app/templates/project/at_view.html:1009
+msgid "锁定成功"
+msgstr "Win Locked"
+
+#: app/helpers/at_dashboard_helpers.py:368
+#: app/helpers/at_dashboard_helpers.py:477
+#: app/templates/prospect/tw_list.html:1276
+#: app/templates/prospect/tw_list.html:1387
+#: app/templates/prospect/tw_list.html:1689
+msgid "新增"
+msgstr "Added"
+
+#: app/helpers/at_dashboard_helpers.py:371
+#: app/helpers/at_dashboard_helpers.py:480
+msgid "持平"
+msgstr "Flat"
+
+#: app/helpers/at_dashboard_helpers.py:492
+#: app/templates/components/tw_performance_dashboard.html:1384
+#: app/templates/components/tw_performance_dashboard.html:2513
+#: app/templates/components/tw_performance_dashboard.html:2525
+#: app/templates/config_management/_performance_metrics.html:170
+#: app/templates/index.html:614 app/templates/user/tw_profile.html:425
+msgid "销售额"
+msgstr "Sales Amount"
+
+#: app/helpers/at_dashboard_helpers.py:494
+#: app/helpers/at_dashboard_helpers.py:646
+#: app/templates/components/tw_performance_dashboard.html:1366
+#: app/templates/components/tw_performance_dashboard.html:2512
+#: app/templates/components/tw_performance_dashboard.html:2524
+#: app/templates/index.html:613 app/templates/quotation/at_list.html:66
+#: app/templates/user/tw_profile.html:424
+msgid "植入额"
+msgstr "Implant"
+
+#: app/helpers/at_dashboard_helpers.py:496
+msgid "新项目"
+msgstr "New Projects"
+
+#: app/helpers/at_dashboard_helpers.py:498
+#: app/templates/main/at_dashboard.html:270
+msgid "新客户"
+msgstr "New Customer"
+
+#: app/helpers/at_dashboard_helpers.py:647
+msgid "植入品质"
+msgstr "Implant Quality"
+
+#: app/helpers/at_dashboard_helpers.py:648
+msgid "销售配合广度"
+msgstr "Sales Support"
+
+#: app/helpers/at_dashboard_helpers.py:649
+msgid "技术培训"
+msgstr "Tech Training"
+
+# 活跃度等级翻译
+#: app/helpers/at_dashboard_helpers.py:656
+#: app/helpers/at_dashboard_helpers.py:1544
+#: app/templates/components/tw_performance_dashboard.html:2684
+#: app/templates/main/at_dashboard.html:251
+msgid "优秀"
+msgstr "Excellent"
+
+#: app/helpers/at_dashboard_helpers.py:656
+#: app/helpers/at_dashboard_helpers.py:1544
+#: app/templates/components/tw_performance_dashboard.html:2685
+#: app/templates/main/at_dashboard.html:251
+msgid "良好"
+msgstr "Good"
+
+#: app/helpers/at_dashboard_helpers.py:657
+#: app/helpers/at_dashboard_helpers.py:1545
+msgid "及格"
+msgstr "Pass"
+
+#: app/helpers/at_dashboard_helpers.py:657
+#: app/helpers/at_dashboard_helpers.py:1545
+#: app/templates/components/tw_performance_dashboard.html:2687
+msgid "待提升"
+msgstr "Needs Improvement"
+
+#: app/helpers/at_dashboard_helpers.py:691
+msgid "负责产品植入额"
+msgstr "My Products Implant"
+
+#: app/helpers/at_dashboard_helpers.py:722
+msgid "待审批报销"
+msgstr "Pending Expenses"
+
+#: app/helpers/at_dashboard_helpers.py:723
+#: app/templates/expense/partials/_expense_modal_fields.html:351
+msgid "报销总额"
+msgstr "Total Amount"
+
+#: app/helpers/at_dashboard_helpers.py:724
+#: app/helpers/at_dashboard_helpers.py:1851
+#: app/templates/expense/at_list.html:27 app/utils/status_meta.py:63
+#: app/utils/status_meta.py:110 app/views/expense.py:421
+#: app/views/expense.py:612
+msgid "已支付"
+msgstr "Paid"
+
+#: app/helpers/at_dashboard_helpers.py:725 app/utils/status_meta.py:109
+#: app/views/expense.py:408 app/views/expense.py:600
+msgid "待支付"
+msgstr "To Pay"
+
+#: app/helpers/at_dashboard_helpers.py:1606
+#: app/helpers/at_dashboard_helpers.py:1907
+#, python-format
+msgid "%(m)s月"
+msgstr "M%(m)s "
+
+#: app/helpers/at_dashboard_helpers.py:1610
+#, python-format
+msgid "%(y)s年 "
+msgstr "%(y)s "
+
+#: app/helpers/at_dashboard_helpers.py:1682
+#: app/templates/components/tw_performance_dashboard.html:2833
+#: app/templates/project/at_list.html:54 app/templates/project/at_view.html:521
+#: app/templates/project/statistics_dashboard_backup.html:77
+#: app/templates/quotation/at_view.html:434 app/utils/status_meta.py:92
+#: app/views/product_analysis.py:1296
+msgid "签约"
+msgstr "Signed"
+
+#: app/helpers/at_dashboard_helpers.py:1751
+msgid "label"
+msgstr ""
+
+#: app/helpers/at_dashboard_helpers.py:1785
+#: app/templates/components/tw_po_timeline.html:59
+#: app/templates/inventory/at_purchase_order_list.html:33
+#: app/templates/main/at_dashboard.html:603
+#: app/templates/quotation/at_list.html:25
+#: app/templates/quotation/tw_list.html:176
+#: app/templates/quotation/tw_list_rows.html:12
+#: app/templates/quotation/tw_quotation_detail.html:274
+#: app/templates/quotation/tw_quotation_detail.html:778
+#: app/templates/quotation/tw_quotation_detail.html:838
+#: app/utils/status_meta.py:70 app/views/quotation.py:350
+msgid "待确认"
+msgstr "To Confirm"
+
+#: app/helpers/at_dashboard_helpers.py:1786
+msgid "已成交"
+msgstr "Closed"
+
+#: app/helpers/at_dashboard_helpers.py:1850
+#: app/routes/pricing_order_routes.py:1359
+#: app/routes/pricing_order_routes.py:1440
+#: app/templates/announcement/tw_list.html:96
+#: app/templates/components/tw_pricing_order_modal.html:853
+#: app/templates/expense/at_list.html:23 app/templates/guide/whats_new.html:275
+#: app/templates/guide/whats_new.html:326 app/templates/index.html:381
+#: app/templates/macros/approval_macros.html:240
+#: app/templates/macros/approval_macros.html:421
+#: app/templates/macros/approval_macros.html:434
+#: app/templates/macros/ui_helpers.html:8699
+#: app/templates/macros/ui_helpers.html:8712
+#: app/templates/macros/ui_helpers.html:8786
+#: app/templates/meeting/tw_meeting_minutes_detail.html:797
+#: app/templates/pricing_order/at_list.html:18
+#: app/templates/pricing_order/tw_list.html:215
+#: app/templates/quotation/at_list.html:24
+#: app/templates/sales_order/at_detail.html:61
+#: app/templates/sales_order/at_list.html:77 app/utils/status_meta.py:24
+#: app/utils/status_meta.py:33 app/utils/status_meta.py:48
+#: app/utils/status_meta.py:59 app/utils/status_meta.py:69
+#: app/utils/status_meta.py:77 app/utils/status_meta.py:129
+#: app/views/approval.py:226 app/views/approval.py:2157
+#: app/views/quotation.py:429
+msgid "草稿"
+msgstr "Draft"
+
+#: app/helpers/at_dashboard_helpers.py:1851
+#: app/templates/approval/at_detail.html:42
+#: app/templates/components/tw_approval_flow.html:63
+#: app/templates/components/tw_pricing_order_modal.html:855
+#: app/templates/expense/at_list.html:25
+#: app/templates/knowledge/tw_wiki.html:1694
+#: app/templates/macros/approval_macros.html:236
+#: app/templates/macros/approval_macros.html:423
+#: app/templates/macros/approval_macros.html:436
+#: app/templates/macros/approval_macros.html:469
+#: app/templates/macros/approval_macros.html:693
+#: app/templates/macros/approval_macros.html:816
+#: app/templates/macros/approval_macros.html:885
+#: app/templates/macros/approval_macros.html:1063
+#: app/templates/macros/ui_helpers.html:8788 app/utils/status_meta.py:26
+#: app/utils/status_meta.py:61 app/utils/status_meta.py:122
+#: app/views/approval.py:228 app/views/approval.py:2159
+msgid "已通过"
+msgstr "Approved"
+
+#: app/helpers/at_dashboard_helpers.py:1852
+#: app/templates/approval/at_detail.html:43
+#: app/templates/approval/at_detail.html:104
+#: app/templates/approval/at_detail.html:126
+#: app/templates/components/tw_pricing_order_modal.html:856
+#: app/templates/expense/at_list.html:28
+#: app/templates/pricing_order/at_list.html:21 app/utils/status_meta.py:27
+#: app/utils/status_meta.py:35 app/utils/status_meta.py:64
+#: app/utils/status_meta.py:72 app/utils/status_meta.py:80
+#: app/utils/status_meta.py:132
+msgid "已驳回"
+msgstr "Rejected"
+
+#: app/helpers/at_dashboard_helpers.py:1867
+#: app/templates/components/tw_expense_budget_card.html:98
+#: app/templates/components/tw_expense_budget_card.html:154
+#: app/templates/components/tw_performance_dashboard.html:2543
+#: app/templates/config_management/tw_index.html:5495
+#: app/templates/expense/edit_expense.html:298
+#: app/templates/macros/ui_helpers.html:8721
+msgid "招待费"
+msgstr "Entertainment"
+
+#: app/helpers/at_dashboard_helpers.py:1868
+#: app/templates/expense/edit_expense.html:299
+#: app/templates/macros/ui_helpers.html:8722
+msgid "市内交通"
+msgstr "Local Transport"
+
+#: app/helpers/at_dashboard_helpers.py:1869
+#: app/templates/expense/edit_expense.html:300
+#: app/templates/macros/ui_helpers.html:8723
+msgid "差旅住宿"
+msgstr "Travel & Accommodation"
+
+#: app/helpers/at_dashboard_helpers.py:1870
+#: app/templates/expense/edit_expense.html:301
+#: app/templates/macros/ui_helpers.html:8724
+msgid "办公用品"
+msgstr "Office Supplies"
+
+#: app/helpers/at_dashboard_helpers.py:1871
+#: app/templates/components/tw_expense_budget_card.html:102
+#: app/templates/components/tw_expense_budget_card.html:158
+#: app/templates/components/tw_performance_dashboard.html:2547
+#: app/templates/config_management/tw_index.html:5499
+#: app/templates/expense/edit_expense.html:302
+#: app/templates/macros/ui_helpers.html:8725
+msgid "通讯费"
+msgstr "Communication"
+
+#: app/helpers/at_dashboard_helpers.py:1872
+#: app/templates/expense/edit_expense.html:303
+#: app/templates/macros/ui_helpers.html:8726
+msgid "油费"
+msgstr "Fuel"
+
+#: app/helpers/at_dashboard_helpers.py:1873
+#: app/templates/expense/edit_expense.html:304
+#: app/templates/macros/ui_helpers.html:8727
+msgid "停车费"
+msgstr "Parking"
+
+#: app/helpers/at_dashboard_helpers.py:1874
+#: app/templates/expense/edit_expense.html:305
+#: app/templates/macros/ui_helpers.html:8728
+msgid "餐费"
+msgstr "Meals"
+
+#: app/helpers/at_dashboard_helpers.py:1875
+#: app/helpers/at_dashboard_helpers.py:1896
+#: app/templates/components/tw_expense_budget_card.html:103
+#: app/templates/components/tw_expense_budget_card.html:159
+#: app/templates/components/tw_performance_dashboard.html:2548
+#: app/templates/components/tw_permission_panel.html:100
+#: app/templates/components/tw_worklog_preview.html:121
+#: app/templates/config_management/tw_index.html:3408
+#: app/templates/config_management/tw_index.html:3874
+#: app/templates/config_management/tw_index.html:5500
+#: app/templates/customer/at_view.html:93
+#: app/templates/expense/at_view.html:394
+#: app/templates/expense/edit_expense.html:306
+#: app/templates/macros/ui_helpers.html:8729
+#: app/templates/prospect/tw_list.html:859
+#: app/templates/prospect/tw_list.html:1547
+#: app/templates/prospect/tw_list.html:1617
+#: app/templates/prospect/tw_list.html:1894
+#: app/templates/prospect/tw_list.html:2098
+#: app/templates/prospect/tw_lost_detail.html:158
+#: app/templates/prospect/tw_lost_panel.html:47
+#: app/templates/prospect/tw_lost_panel.html:119
+#: app/templates/prospect/tw_lost_panel.html:160
+#: app/templates/prospect/tw_panel.html:44
+#: app/templates/prospect/tw_panel.html:191 app/views/worklog.py:103
+msgid "其他"
+msgstr "Other"
+
+#: app/helpers/at_dashboard_helpers.py:1972
+#: app/templates/components/at_purchase_order.html:78
+#: app/templates/components/tw_approval_flow.html:61
+#: app/templates/components/tw_layout.html:851
+#: app/templates/components/tw_po_timeline.html:329
+#: app/templates/macros/ui_helpers.html:8692
+#: app/templates/macros/ui_helpers.html:8774
+#: app/templates/main/at_dashboard.html:300
+#: app/templates/main/at_dashboard.html:301
+#: app/templates/main/at_dashboard.html:323
+#: app/templates/main/at_dashboard.html:541 app/utils/status_meta.py:100
+msgid "进行中"
+msgstr "Active"
+
+#: app/helpers/at_dashboard_helpers.py:1975
+msgid "逾期"
+msgstr "Overdue"
+
+#: app/helpers/at_dashboard_helpers.py:1977 app/utils/status_meta.py:99
+msgid "计划"
+msgstr "Planned"
+
+#: app/helpers/at_dashboard_helpers.py:2018
+#: app/templates/config_management/tw_index.html:2116
+#: app/templates/knowledge/tw_wiki.html:130
+#: app/templates/knowledge/tw_wiki.html:229
+#: app/templates/knowledge/tw_wiki.html:689
+#: app/templates/knowledge/tw_wiki.html:738
+#: app/templates/knowledge/tw_wiki.html:742
+#: app/templates/knowledge/tw_wiki.html:923
+msgid "系统"
+msgstr "System"
+
+#: app/helpers/at_dashboard_helpers.py:2018
+#: app/templates/components/tw_performance_dashboard.html:206
+#: app/templates/components/tw_performance_dashboard.html:1924
+#: app/templates/components/tw_performance_dashboard.html:2673
+#: app/templates/index.html:706 app/templates/main/at_dashboard.html:774
+#: app/templates/main/at_dashboard.html:938
+#: app/templates/user/tw_detail.html:439
+msgid "团队"
+msgstr "Team"
+
+#: app/helpers/at_dashboard_helpers.py:2089
+msgid "全局任务"
+msgstr "All Tasks"
+
+#: app/helpers/at_dashboard_helpers.py:2092
+#: app/templates/components/tw_layout.html:330
+#: app/templates/components/tw_layout.html:339
+#: app/templates/main/at_dashboard.html:296
+msgid "我的任务"
+msgstr "My Tasks"
+
+#: app/helpers/at_dashboard_helpers.py:2147
+msgid "我负责分类的产品"
+msgstr "Products in my categories"
+
+#: app/helpers/at_dashboard_helpers.py:2173
+msgid "全公司报价"
+msgstr "All-company Quotes"
+
+#: app/helpers/at_dashboard_helpers.py:2180
+msgid "我创建 / 确认的报价"
+msgstr "Quotes I created/confirmed"
+
 #: app/routes/backup_routes.py:50
 #: app/templates/components/tw_action_list.html:428
 #: app/templates/components/tw_chat_panel.html:2194
@@ -1492,32 +2128,6 @@ msgstr "Approved"
 #: app/views/approval.py:227 app/views/approval.py:2158
 msgid "审批中"
 msgstr "In Review"
-
-#: app/routes/pricing_order_routes.py:1359
-#: app/routes/pricing_order_routes.py:1440
-#: app/templates/announcement/tw_list.html:96
-#: app/templates/components/tw_pricing_order_modal.html:853
-#: app/templates/expense/at_list.html:23 app/templates/guide/whats_new.html:275
-#: app/templates/guide/whats_new.html:326 app/templates/index.html:381
-#: app/templates/macros/approval_macros.html:240
-#: app/templates/macros/approval_macros.html:421
-#: app/templates/macros/approval_macros.html:434
-#: app/templates/macros/ui_helpers.html:8699
-#: app/templates/macros/ui_helpers.html:8712
-#: app/templates/macros/ui_helpers.html:8786
-#: app/templates/meeting/tw_meeting_minutes_detail.html:797
-#: app/templates/pricing_order/at_list.html:18
-#: app/templates/pricing_order/tw_list.html:215
-#: app/templates/quotation/at_list.html:24
-#: app/templates/sales_order/at_detail.html:61
-#: app/templates/sales_order/at_list.html:77 app/utils/status_meta.py:24
-#: app/utils/status_meta.py:33 app/utils/status_meta.py:48
-#: app/utils/status_meta.py:59 app/utils/status_meta.py:69
-#: app/utils/status_meta.py:77 app/utils/status_meta.py:129
-#: app/views/approval.py:226 app/views/approval.py:2157
-#: app/views/quotation.py:429
-msgid "草稿"
-msgstr "Draft"
 
 #: app/routes/pricing_order_routes.py:1417 app/routes/product.py:519
 #: app/templates/cli/terminal.html:148
@@ -1991,29 +2601,6 @@ msgstr "Cannot find approver, please contact admin"
 #: app/routes/resource_pool.py:96
 msgid "您已拥有该资源的访问权限"
 msgstr "You already have access to this resource"
-
-#: app/routes/resource_pool.py:112
-#: app/templates/components/at_sales_order.html:38
-#: app/templates/components/tw_chat_panel.html:2218
-#: app/templates/components/tw_message_panel.html:650
-#: app/templates/components/tw_performance_dashboard.html:1013
-#: app/templates/components/tw_purchase_order_form.html:683
-#: app/templates/components/tw_work_records.html:189
-#: app/templates/components/tw_worklog_preview.html:540
-#: app/templates/index.html:297 app/templates/index.html:434
-#: app/templates/macros/approval_macros.html:408
-#: app/templates/product_sn/at_detail.html:140
-#: app/templates/quotation/at_list.html:65
-#: app/templates/quotation/at_view.html:779
-#: app/templates/sales_order/at_detail.html:74
-#: app/templates/sales_order/at_detail.html:118
-#: app/templates/sales_order/at_list.html:131
-#: app/templates/sales_order/partials/_so_modal_fields.html:28
-#: app/templates/worklog/tw_calendar.html:1444 app/views/approval.py:214
-#: app/views/approval.py:2130 app/views/approval.py:2946
-#: app/views/expense.py:634 app/views/star_graph.py:166
-msgid "客户"
-msgstr "Client"
 
 #: app/routes/resource_pool.py:112
 #: app/templates/components/at_minitables.html:50
@@ -3497,22 +4084,6 @@ msgstr "years ago"
 msgid "万元"
 msgstr "0K"
 
-#: app/templates/components/tw_performance_dashboard.html:1366
-#: app/templates/components/tw_performance_dashboard.html:2512
-#: app/templates/components/tw_performance_dashboard.html:2524
-#: app/templates/index.html:613 app/templates/quotation/at_list.html:66
-#: app/templates/user/tw_profile.html:424
-msgid "植入额"
-msgstr "Implant"
-
-#: app/templates/components/tw_performance_dashboard.html:1384
-#: app/templates/components/tw_performance_dashboard.html:2513
-#: app/templates/components/tw_performance_dashboard.html:2525
-#: app/templates/config_management/_performance_metrics.html:170
-#: app/templates/index.html:614 app/templates/user/tw_profile.html:425
-msgid "销售额"
-msgstr "Sales Amount"
-
 #: app/templates/components/tw_performance_dashboard.html:1420
 #: app/templates/components/tw_performance_dashboard.html:2514
 #: app/templates/components/tw_performance_dashboard.html:2526
@@ -3574,15 +4145,6 @@ msgstr "Customer Activity Rate"
 #: app/templates/points/tw_points.html:493
 msgid "个人"
 msgstr "Personal"
-
-#: app/templates/components/tw_performance_dashboard.html:206
-#: app/templates/components/tw_performance_dashboard.html:1924
-#: app/templates/components/tw_performance_dashboard.html:2673
-#: app/templates/index.html:706 app/templates/main/at_dashboard.html:774
-#: app/templates/main/at_dashboard.html:938
-#: app/templates/user/tw_detail.html:439
-msgid "团队"
-msgstr "Team"
 
 #: app/templates/components/tw_performance_dashboard.html:2674
 #: app/templates/components/user/tw_user_form_modal.html:130
@@ -4374,37 +4936,6 @@ msgstr "Content"
 #: app/templates/macros/approval_macros.html:1432
 msgid "审批流程"
 msgstr "Approval Process"
-
-#: app/templates/approval/at_detail.html:42
-#: app/templates/components/tw_approval_flow.html:63
-#: app/templates/components/tw_pricing_order_modal.html:855
-#: app/templates/expense/at_list.html:25
-#: app/templates/knowledge/tw_wiki.html:1694
-#: app/templates/macros/approval_macros.html:236
-#: app/templates/macros/approval_macros.html:423
-#: app/templates/macros/approval_macros.html:436
-#: app/templates/macros/approval_macros.html:469
-#: app/templates/macros/approval_macros.html:693
-#: app/templates/macros/approval_macros.html:816
-#: app/templates/macros/approval_macros.html:885
-#: app/templates/macros/approval_macros.html:1063
-#: app/templates/macros/ui_helpers.html:8788 app/utils/status_meta.py:26
-#: app/utils/status_meta.py:61 app/utils/status_meta.py:122
-#: app/views/approval.py:228 app/views/approval.py:2159
-msgid "已通过"
-msgstr "Approved"
-
-#: app/templates/approval/at_detail.html:43
-#: app/templates/approval/at_detail.html:104
-#: app/templates/approval/at_detail.html:126
-#: app/templates/components/tw_pricing_order_modal.html:856
-#: app/templates/expense/at_list.html:28
-#: app/templates/pricing_order/at_list.html:21 app/utils/status_meta.py:27
-#: app/utils/status_meta.py:35 app/utils/status_meta.py:64
-#: app/utils/status_meta.py:72 app/utils/status_meta.py:80
-#: app/utils/status_meta.py:132
-msgid "已驳回"
-msgstr "Rejected"
 
 #: app/templates/approval/at_detail.html:44
 #: app/templates/components/tw_approval_flow.html:67
@@ -6334,19 +6865,6 @@ msgstr ""
 msgid "待审批通过后进入执行阶段"
 msgstr "Enters the execution stage after approval"
 
-#: app/templates/components/at_purchase_order.html:78
-#: app/templates/components/tw_approval_flow.html:61
-#: app/templates/components/tw_layout.html:851
-#: app/templates/components/tw_po_timeline.html:329
-#: app/templates/macros/ui_helpers.html:8692
-#: app/templates/macros/ui_helpers.html:8774
-#: app/templates/main/at_dashboard.html:300
-#: app/templates/main/at_dashboard.html:301
-#: app/templates/main/at_dashboard.html:323
-#: app/templates/main/at_dashboard.html:541 app/utils/status_meta.py:100
-msgid "进行中"
-msgstr "Active"
-
 #: app/templates/components/at_purchase_order.html:85
 #: app/templates/spec_template/tw_spec_config_matrix.html:475
 msgid "查看附件"
@@ -6963,49 +7481,6 @@ msgstr "Quotations"
 msgid "订单中心"
 msgstr "Order Center"
 
-#: app/templates/components/at_sidebar.html:148
-#: app/templates/components/tw_message_panel.html:648
-#: app/templates/components/tw_nav_menu.html:114
-#: app/templates/components/tw_pricing_order_modal.html:169
-#: app/templates/components/tw_pricing_order_modal.html:333
-#: app/templates/components/tw_worklog_preview.html:560
-#: app/templates/customer/at_view.html:318
-#: app/templates/macros/approval_macros.html:388
-#: app/templates/macros/approval_macros.html:409
-#: app/templates/pricing_order/at_list.html:5
-#: app/templates/pricing_order/at_list.html:12
-#: app/templates/pricing_order/tw_list.html:236
-#: app/templates/quotation/tw_quotation_detail.html:148
-#: app/templates/worklog/tw_calendar.html:1520 app/views/approval.py:195
-#: app/views/approval.py:216 app/views/approval.py:2132
-#: app/views/approval.py:2956
-msgid "批价单"
-msgstr "Pricing Orders"
-
-# 侧边栏菜单缺失翻译
-#: app/templates/components/at_sidebar.html:149
-#: app/templates/components/tw_nav_menu.html:120
-#: app/templates/product_sn/at_detail.html:135
-#: app/templates/sales_order/at_detail.html:11
-#: app/templates/sales_order/at_detail.html:32
-#: app/templates/sales_order/at_detail.html:52
-#: app/templates/sales_order/at_list.html:11
-#: app/templates/sales_order/at_list.html:35
-#: app/templates/sales_order/at_list.html:58
-msgid "客户订单"
-msgstr "Customer Orders"
-
-#: app/templates/components/at_sidebar.html:150
-#: app/templates/components/tw_message_panel.html:649
-#: app/templates/components/tw_nav_menu.html:202
-#: app/templates/customer/at_view.html:319
-#: app/templates/inventory/at_purchase_order_list.html:8
-#: app/templates/inventory/at_purchase_order_list.html:22
-#: app/templates/product_sn/at_detail.html:120 app/views/approval.py:215
-#: app/views/approval.py:2131 app/views/approval.py:2951
-msgid "采购订单"
-msgstr "Purchase Orders"
-
 #: app/templates/components/at_sidebar.html:153
 #: app/templates/components/tw_nav_menu.html:215
 msgid "序列号管理"
@@ -7176,15 +7651,6 @@ msgstr "Calendar"
 #: app/templates/components/at_topbar.html:149
 msgid "上传 · 文件管理"
 msgstr "Upload · Files"
-
-#: app/templates/components/at_topbar.html:152
-#: app/templates/components/tw_chat_panel.html:567
-#: app/templates/components/tw_performance_dashboard.html:420
-#: app/templates/main/at_dashboard.html:297
-#: app/templates/star_graph/tw_star_graph.html:171
-#: app/templates/star_graph/tw_star_graph.html:224
-msgid "任务"
-msgstr "Tasks"
 
 #: app/templates/components/at_topbar.html:158
 msgid "语言 / Language"
@@ -7377,23 +7843,6 @@ msgstr "Briefly describe the reason for requesting access..."
 #: app/templates/components/tw_access_request_modal.html:51
 msgid "希望获取的数据"
 msgstr "Desired Data"
-
-#: app/templates/components/tw_access_request_modal.html:64
-#: app/templates/components/tw_access_request_modal.html:76
-#: app/templates/components/tw_access_request_modal.html:177
-#: app/templates/components/tw_access_request_modal.html:193
-#: app/templates/components/tw_access_request_modal.html:254
-#: app/templates/components/tw_message_panel.html:647
-#: app/templates/components/tw_worklog_preview.html:555
-#: app/templates/macros/approval_macros.html:407
-#: app/templates/macros/ui_helpers.html:3066
-#: app/templates/macros/ui_helpers.html:7909
-#: app/templates/star_graph/tw_star_graph.html:167
-#: app/templates/star_graph/tw_star_graph.html:223
-#: app/templates/worklog/tw_calendar.html:1501 app/views/approval.py:213
-#: app/views/approval.py:2129 app/views/approval.py:2941
-msgid "报价单"
-msgstr "Quotation"
 
 #: app/templates/components/tw_access_request_modal.html:95
 msgid "发送请求"
@@ -8805,15 +9254,6 @@ msgstr "Annual Expenses"
 msgid "分类明细"
 msgstr "Category Details"
 
-#: app/templates/components/tw_expense_budget_card.html:98
-#: app/templates/components/tw_expense_budget_card.html:154
-#: app/templates/components/tw_performance_dashboard.html:2543
-#: app/templates/config_management/tw_index.html:5495
-#: app/templates/expense/edit_expense.html:298
-#: app/templates/macros/ui_helpers.html:8721
-msgid "招待费"
-msgstr "Entertainment"
-
 #: app/templates/components/tw_expense_budget_card.html:99
 #: app/templates/components/tw_expense_budget_card.html:155
 #: app/templates/components/tw_performance_dashboard.html:2544
@@ -8834,41 +9274,6 @@ msgstr "Transportation"
 #: app/templates/config_management/tw_index.html:5498
 msgid "办公费"
 msgstr "Office Expenses"
-
-#: app/templates/components/tw_expense_budget_card.html:102
-#: app/templates/components/tw_expense_budget_card.html:158
-#: app/templates/components/tw_performance_dashboard.html:2547
-#: app/templates/config_management/tw_index.html:5499
-#: app/templates/expense/edit_expense.html:302
-#: app/templates/macros/ui_helpers.html:8725
-msgid "通讯费"
-msgstr "Communication"
-
-#: app/templates/components/tw_expense_budget_card.html:103
-#: app/templates/components/tw_expense_budget_card.html:159
-#: app/templates/components/tw_performance_dashboard.html:2548
-#: app/templates/components/tw_permission_panel.html:100
-#: app/templates/components/tw_worklog_preview.html:121
-#: app/templates/config_management/tw_index.html:3408
-#: app/templates/config_management/tw_index.html:3874
-#: app/templates/config_management/tw_index.html:5500
-#: app/templates/customer/at_view.html:93
-#: app/templates/expense/at_view.html:394
-#: app/templates/expense/edit_expense.html:306
-#: app/templates/macros/ui_helpers.html:8729
-#: app/templates/prospect/tw_list.html:859
-#: app/templates/prospect/tw_list.html:1547
-#: app/templates/prospect/tw_list.html:1617
-#: app/templates/prospect/tw_list.html:1894
-#: app/templates/prospect/tw_list.html:2098
-#: app/templates/prospect/tw_lost_detail.html:158
-#: app/templates/prospect/tw_lost_panel.html:47
-#: app/templates/prospect/tw_lost_panel.html:119
-#: app/templates/prospect/tw_lost_panel.html:160
-#: app/templates/prospect/tw_panel.html:44
-#: app/templates/prospect/tw_panel.html:191 app/views/worklog.py:103
-msgid "其他"
-msgstr "Other"
 
 #: app/templates/components/tw_expense_budget_card.html:135
 msgid "当月报销"
@@ -9099,12 +9504,6 @@ msgstr "Or click to choose files"
 #: app/templates/components/tw_layout.html:322
 msgid "查看我的文件"
 msgstr "View My Files"
-
-#: app/templates/components/tw_layout.html:330
-#: app/templates/components/tw_layout.html:339
-#: app/templates/main/at_dashboard.html:296
-msgid "我的任务"
-msgstr "My Tasks"
 
 #: app/templates/components/tw_layout.html:352
 msgid "进入任务管理"
@@ -9468,10 +9867,6 @@ msgstr "Notifications"
 msgid "全部已读"
 msgstr "Mark all as read"
 
-#: app/templates/components/tw_message_panel.html:91
-msgid "@我"
-msgstr "Mentions"
-
 #: app/templates/components/tw_message_panel.html:107
 #: app/templates/meeting/tw_meeting_minutes_list.html:148
 msgid "待办"
@@ -9508,13 +9903,6 @@ msgstr "No notifications"
 #: app/templates/components/tw_message_panel.html:239
 msgid "查看全部审批"
 msgstr "View all approvals"
-
-#: app/templates/components/tw_message_panel.html:646
-#: app/templates/expense/partials/_expense_modal_fields.html:72
-#: app/views/approval.py:197 app/views/approval.py:217
-#: app/views/approval.py:2976
-msgid "报销单"
-msgstr "Expense report"
 
 #: app/templates/components/tw_message_panel.html:651
 #: app/templates/spec_template/tw_spec_config_matrix.html:1592
@@ -10194,24 +10582,9 @@ msgstr "Pricing Target"
 msgid "公司"
 msgstr "Company"
 
-# 活跃度等级翻译
-#: app/templates/components/tw_performance_dashboard.html:2684
-#: app/templates/main/at_dashboard.html:251
-msgid "优秀"
-msgstr "Excellent"
-
-#: app/templates/components/tw_performance_dashboard.html:2685
-#: app/templates/main/at_dashboard.html:251
-msgid "良好"
-msgstr "Good"
-
 #: app/templates/components/tw_performance_dashboard.html:2686
 msgid "一般"
 msgstr "Average"
-
-#: app/templates/components/tw_performance_dashboard.html:2687
-msgid "待提升"
-msgstr "Needs Improvement"
 
 #: app/templates/components/tw_performance_dashboard.html:2808
 #: app/templates/components/tw_performance_dashboard.html:2813
@@ -10225,61 +10598,6 @@ msgstr "Project Activity Trend"
 #: app/templates/components/tw_performance_dashboard.html:2811
 msgid "行动质量趋势"
 msgstr "Action Quality Trend"
-
-#: app/templates/components/tw_performance_dashboard.html:2831
-#: app/templates/project/at_list.html:48 app/templates/project/at_view.html:521
-#: app/templates/project/statistics_dashboard_backup.html:152
-#: app/templates/prospect/tw_list.html:1253
-#: app/templates/prospect/tw_list.html:1542
-#: app/templates/prospect/tw_list.html:2083
-#: app/templates/quotation/at_view.html:428 app/utils/status_meta.py:86
-#: app/views/product_analysis.py:1290
-msgid "发现"
-msgstr "Discover"
-
-#: app/templates/components/tw_performance_dashboard.html:2831
-#: app/templates/project/at_list.html:49 app/templates/project/at_view.html:521
-#: app/templates/project/statistics_dashboard_backup.html:176
-#: app/templates/quotation/at_view.html:429 app/utils/status_meta.py:87
-#: app/views/product_analysis.py:1291
-msgid "植入"
-msgstr "Embed"
-
-#: app/templates/components/tw_performance_dashboard.html:2831
-#: app/templates/project/at_list.html:50 app/templates/project/at_view.html:521
-#: app/templates/quotation/at_view.html:430 app/utils/status_meta.py:88
-msgid "标前"
-msgstr "Pre-Bid"
-
-#: app/templates/components/tw_performance_dashboard.html:2832
-#: app/templates/project/at_list.html:51 app/templates/project/at_view.html:521
-#: app/templates/quotation/at_view.html:431 app/utils/status_meta.py:90
-msgid "标中"
-msgstr "Bidding"
-
-#: app/templates/components/tw_performance_dashboard.html:2832
-#: app/templates/project/at_list.html:52 app/templates/project/at_view.html:521
-#: app/templates/project/statistics_dashboard_backup.html:248
-#: app/templates/prospect/tw_lost_panel.html:14
-#: app/templates/quotation/at_view.html:432 app/utils/status_meta.py:91
-#: app/views/product_analysis.py:1295
-msgid "中标"
-msgstr "Won"
-
-#: app/templates/components/tw_performance_dashboard.html:2832
-#: app/templates/project/at_view.html:521
-#: app/templates/project/statistics_dashboard_backup.html:272
-#: app/templates/quotation/at_view.html:433
-msgid "批价"
-msgstr "Price Approval"
-
-#: app/templates/components/tw_performance_dashboard.html:2833
-#: app/templates/project/at_list.html:54 app/templates/project/at_view.html:521
-#: app/templates/project/statistics_dashboard_backup.html:77
-#: app/templates/quotation/at_view.html:434 app/utils/status_meta.py:92
-#: app/views/product_analysis.py:1296
-msgid "签约"
-msgstr "Signed"
 
 #: app/templates/components/tw_performance_dashboard.html:2833
 #: app/templates/dingtalk/tw_sync_queue.html:62
@@ -10496,19 +10814,6 @@ msgstr "Order workflow"
 #: app/templates/components/tw_po_timeline.html:35
 msgid "点击上方按钮提交审批"
 msgstr "Click the button above to submit for approval"
-
-#: app/templates/components/tw_po_timeline.html:59
-#: app/templates/inventory/at_purchase_order_list.html:33
-#: app/templates/main/at_dashboard.html:603
-#: app/templates/quotation/at_list.html:25
-#: app/templates/quotation/tw_list.html:176
-#: app/templates/quotation/tw_list_rows.html:12
-#: app/templates/quotation/tw_quotation_detail.html:274
-#: app/templates/quotation/tw_quotation_detail.html:778
-#: app/templates/quotation/tw_quotation_detail.html:838
-#: app/utils/status_meta.py:70 app/views/quotation.py:350
-msgid "待确认"
-msgstr "To Confirm"
 
 #: app/templates/components/tw_po_timeline.html:70
 msgid "查看确认单"
@@ -11931,10 +12236,6 @@ msgstr "Technical Support"
 #: app/templates/components/tw_worklog_preview.html:135
 msgid "售后服务"
 msgstr "After-Sales Service"
-
-#: app/templates/components/tw_worklog_preview.html:136
-msgid "项目跟进"
-msgstr "Project follow-up"
 
 #: app/templates/components/tw_worklog_preview.html:137
 msgid "报价工作"
@@ -13640,16 +13941,6 @@ msgstr "Last configured"
 msgid "由"
 msgstr "by"
 
-#: app/templates/config_management/tw_index.html:2116
-#: app/templates/knowledge/tw_wiki.html:130
-#: app/templates/knowledge/tw_wiki.html:229
-#: app/templates/knowledge/tw_wiki.html:689
-#: app/templates/knowledge/tw_wiki.html:738
-#: app/templates/knowledge/tw_wiki.html:742
-#: app/templates/knowledge/tw_wiki.html:923
-msgid "系统"
-msgstr "System"
-
 #: app/templates/config_management/tw_index.html:2122
 msgid "该用户尚未配置薪资档位"
 msgstr "User has no salary grade configured"
@@ -14934,12 +15225,6 @@ msgstr "Submit, approve and pay in one place — personal finances kept separate
 msgid "待付款"
 msgstr "Unpaid"
 
-#: app/templates/expense/at_list.html:27 app/utils/status_meta.py:63
-#: app/utils/status_meta.py:110 app/views/expense.py:421
-#: app/views/expense.py:612
-msgid "已支付"
-msgstr "Paid"
-
 #: app/templates/expense/at_list.html:52
 msgid "搜索报销编号 / 标题…"
 msgstr "Search expense no. / subject…"
@@ -15551,36 +15836,6 @@ msgstr "Current review stage"
 msgid "可编辑字段"
 msgstr "Editable fields"
 
-#: app/templates/expense/edit_expense.html:299
-#: app/templates/macros/ui_helpers.html:8722
-msgid "市内交通"
-msgstr "Local Transport"
-
-#: app/templates/expense/edit_expense.html:300
-#: app/templates/macros/ui_helpers.html:8723
-msgid "差旅住宿"
-msgstr "Travel & Accommodation"
-
-#: app/templates/expense/edit_expense.html:301
-#: app/templates/macros/ui_helpers.html:8724
-msgid "办公用品"
-msgstr "Office Supplies"
-
-#: app/templates/expense/edit_expense.html:303
-#: app/templates/macros/ui_helpers.html:8726
-msgid "油费"
-msgstr "Fuel"
-
-#: app/templates/expense/edit_expense.html:304
-#: app/templates/macros/ui_helpers.html:8727
-msgid "停车费"
-msgstr "Parking"
-
-#: app/templates/expense/edit_expense.html:305
-#: app/templates/macros/ui_helpers.html:8728
-msgid "餐费"
-msgstr "Meals"
-
 #: app/templates/expense/edit_expense.html:516
 msgid "点击保存修改"
 msgstr "Click to save changes"
@@ -15790,10 +16045,6 @@ msgstr "No expense items yet. Click \\"
 #: app/templates/expense/partials/_expense_modal_fields.html:348
 msgid "条明细"
 msgstr "items"
-
-#: app/templates/expense/partials/_expense_modal_fields.html:351
-msgid "报销总额"
-msgstr "Total Amount"
 
 #: app/templates/files/tw_file_manager.html:81
 #: app/templates/files/tw_file_manager.html:1298
@@ -18226,10 +18477,6 @@ msgid "今日"
 msgstr "Today"
 
 #: app/templates/main/at_dashboard.html:270
-msgid "新客户"
-msgstr "New Customer"
-
-#: app/templates/main/at_dashboard.html:270
 msgid "新报价"
 msgstr "New Quotation"
 
@@ -18241,21 +18488,9 @@ msgstr "Customer Follow-up"
 msgid "新订单"
 msgstr "New Order"
 
-#: app/templates/main/at_dashboard.html:306
-#: app/templates/main/at_dashboard.html:384
-#: app/templates/main/at_dashboard.html:773
-#: app/templates/main/at_dashboard.html:938
-#: app/templates/prospect/tw_list.html:220
-msgid "我的"
-msgstr "Mine"
-
 #: app/templates/main/at_dashboard.html:324
 msgid "待开始"
 msgstr "Not Started"
-
-#: app/templates/main/at_dashboard.html:325
-msgid "待审核"
-msgstr "Pending Review"
 
 #: app/templates/main/at_dashboard.html:355
 #: app/templates/star_graph/tw_star_graph.html:229
@@ -20648,7 +20883,9 @@ msgstr "SN Stock-In"
 
 #: app/templates/product_sn/at_detail.html:194
 msgid "填写仓库位置后将该 SN 入库,状态推进至「库存中」。"
-msgstr "Enter the warehouse location to stock in this SN, advancing its status to \"In Stock\"."
+msgstr ""
+"Enter the warehouse location to stock in this SN, advancing its status to"
+" \"In Stock\"."
 
 #: app/templates/product_sn/at_detail.html:195
 msgid "确认入库"
@@ -20788,11 +21025,6 @@ msgstr "Track projects from discovery, embedding, bidding to signing."
 msgid "市场情报库"
 msgstr "Market Intel"
 
-#: app/templates/project/at_list.html:53 app/templates/project/at_view.html:196
-#: app/templates/project/at_view.html:1009
-msgid "锁定成功"
-msgstr "Win Locked"
-
 #: app/templates/project/at_list.html:55
 msgid "失败/暂停"
 msgstr "Lost/Paused"
@@ -20800,12 +21032,6 @@ msgstr "Lost/Paused"
 #: app/templates/project/at_list.html:80
 msgid "搜索项目名 / 授权码…"
 msgstr "Search project / auth code…"
-
-#: app/templates/project/at_list.html:120
-#: app/templates/project/at_list.html:122
-#, python-format
-msgid "%(d)s 天未跟进"
-msgstr "%(d)s days no follow-up"
 
 #: app/templates/project/at_list.html:159
 msgid "没有符合筛选条件的项目"
@@ -20859,7 +21085,9 @@ msgstr "Current project status:"
 
 #: app/templates/project/at_view.html:276
 msgid "进度条下方显示恢复前的最后正常阶段;点击节点可恢复"
-msgstr "The last normal stage before restoring is shown below the progress bar; click a node to restore"
+msgstr ""
+"The last normal stage before restoring is shown below the progress bar; "
+"click a node to restore"
 
 #: app/templates/project/at_view.html:293
 #: app/templates/project/at_view.html:957
@@ -20911,7 +21139,9 @@ msgstr "No linked expenses"
 
 #: app/templates/project/at_view.html:391
 msgid "自动从公开来源收集项目背景、参与方、招标动态等信息。"
-msgstr "Automatically gathers project background, parties, and bidding updates from public sources."
+msgstr ""
+"Automatically gathers project background, parties, and bidding updates "
+"from public sources."
 
 #: app/templates/project/at_view.html:435
 #: app/templates/system_diagram/tw_list.html:136
@@ -21023,7 +21253,9 @@ msgstr "Restore Project"
 #: app/templates/project/at_view.html:610
 #, python-format
 msgid "项目当前为 [%(cur)s] 状态,将恢复到搁置/失败前的阶段 [%(target)s]。可填写备注。"
-msgstr "The project is currently [%(cur)s] and will be restored to its pre-pause/lost stage [%(target)s]. You may add a note."
+msgstr ""
+"The project is currently [%(cur)s] and will be restored to its pre-"
+"pause/lost stage [%(target)s]. You may add a note."
 
 #: app/templates/project/at_view.html:612
 #, python-format
@@ -21095,7 +21327,9 @@ msgstr "✓ Approval records: %(n)s"
 msgid ""
 "确定要删除项目「%(name)s」吗?\n"
 "此操作无法撤销。"
-msgstr "Delete project “%(name)s”?\nThis cannot be undone."
+msgstr ""
+"Delete project “%(name)s”?\n"
+"This cannot be undone."
 
 #: app/templates/project/at_view.html:703
 #, python-format
@@ -21156,7 +21390,9 @@ msgstr "Dept. Manager → General Manager"
 
 #: app/templates/project/at_view.html:875
 msgid "。审批通过后项目阶段才会置灰标记，期间阶段不变、可恢复。"
-msgstr ". The project stage is greyed out only after approval; until then the stage stays unchanged and can be restored."
+msgstr ""
+". The project stage is greyed out only after approval; until then the "
+"stage stays unchanged and can be restored."
 
 #: app/templates/project/at_view.html:892
 msgid "理由"
@@ -21180,7 +21416,10 @@ msgstr "Select a new supplier sales owner from active supplier staff."
 
 #: app/templates/project/at_view.html:1011
 msgid "预判该项目必赢并锁定;所有项目展示处将带「锁定成功」徽章,签约时自动解除,也可人为解除。"
-msgstr "Predict this project as a sure win and lock it; a \"Win Locked\" badge appears everywhere the project is shown, auto-released on signing, or released manually."
+msgstr ""
+"Predict this project as a sure win and lock it; a \"Win Locked\" badge "
+"appears everywhere the project is shown, auto-released on signing, or "
+"released manually."
 
 #: app/templates/project/at_view.html:1014
 msgid "为何判断该项目已锁定成功…"
@@ -21906,12 +22145,6 @@ msgstr "items savable"
 msgid "主联系单位字段"
 msgstr "Primary Stakeholder Fields"
 
-#: app/templates/prospect/tw_list.html:1276
-#: app/templates/prospect/tw_list.html:1387
-#: app/templates/prospect/tw_list.html:1689
-msgid "新增"
-msgstr "Added"
-
 #: app/templates/prospect/tw_list.html:1300
 msgid "新增联系人"
 msgstr "Add Contact"
@@ -22589,7 +22822,9 @@ msgstr "Saving…"
 
 #: app/templates/quotation/at_view.html:1371
 msgid "请选择关联项目(可先选客户后从其项目中选)"
-msgstr "Please select a linked project (you can pick a customer first, then choose from its projects)"
+msgstr ""
+"Please select a linked project (you can pick a customer first, then "
+"choose from its projects)"
 
 #: app/templates/quotation/at_view.html:1372
 msgid "请至少添加一条明细"
@@ -22621,11 +22856,15 @@ msgstr "Quoted Unit Price"
 
 #: app/templates/quotation/at_view.html:1579
 msgid "自定义产品无市场价,不参与全局折扣计算"
-msgstr "Custom products have no market price and are excluded from global discount calculation"
+msgstr ""
+"Custom products have no market price and are excluded from global "
+"discount calculation"
 
 #: app/templates/quotation/at_view.html:1588
 msgid "自定义产品不入产品库,仅本报价生效"
-msgstr "Custom products are not added to the product library and apply only to this quotation"
+msgstr ""
+"Custom products are not added to the product library and apply only to "
+"this quotation"
 
 #: app/templates/quotation/at_view.html:1602
 msgid "添加到明细"
@@ -23096,7 +23335,9 @@ msgstr "Delete Draft Order"
 #: app/templates/sales_order/at_detail.html:253
 #, python-format
 msgid "订单号 %(number)s 将被永久删除(含明细),无法恢复。是否继续?"
-msgstr "Order %(number)s will be permanently deleted (including items) and cannot be recovered. Continue?"
+msgstr ""
+"Order %(number)s will be permanently deleted (including items) and cannot"
+" be recovered. Continue?"
 
 #: app/templates/sales_order/at_detail.html:265
 msgid "订单已删除"
@@ -23105,7 +23346,9 @@ msgstr "Order deleted"
 #: app/templates/sales_order/at_detail.html:280
 #, python-format
 msgid "订单号 %(number)s 将被取消,记录保留但状态变为已取消。是否继续?"
-msgstr "Order %(number)s will be cancelled; the record is kept but its status becomes Cancelled. Continue?"
+msgstr ""
+"Order %(number)s will be cancelled; the record is kept but its status "
+"becomes Cancelled. Continue?"
 
 #: app/templates/sales_order/at_detail.html:292
 msgid "订单已取消"
@@ -24728,10 +24971,6 @@ msgstr "Start"
 msgid "修改记录"
 msgstr "Change Log"
 
-#: app/templates/task/tw_task_management.html:380 app/views/message.py:315
-msgid "任务审核"
-msgstr "Task Review"
-
 #: app/templates/task/tw_task_management.html:415
 msgid "审核结果"
 msgstr "Review Result"
@@ -26074,10 +26313,6 @@ msgstr "Company not specified"
 msgid "已测试"
 msgstr "Tested"
 
-#: app/utils/status_meta.py:99
-msgid "计划"
-msgstr "Planned"
-
 #: app/utils/status_meta.py:103
 msgid "已失效"
 msgstr "Expired"
@@ -26085,11 +26320,6 @@ msgstr "Expired"
 #: app/utils/status_meta.py:108
 msgid "未支付"
 msgstr "Unpaid"
-
-#: app/utils/status_meta.py:109 app/views/expense.py:408
-#: app/views/expense.py:600
-msgid "待支付"
-msgstr "To Pay"
 
 #: app/utils/status_meta.py:124
 msgid "未通过"

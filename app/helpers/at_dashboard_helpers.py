@@ -11,6 +11,7 @@ AT 仪表盘数据聚合 helpers
 """
 from datetime import datetime, timedelta
 from flask import url_for
+from flask_babel import gettext as _t
 
 
 def _fmt_user(u):
@@ -23,10 +24,10 @@ def _ago(dt):
     if not dt:
         return '—'
     sec = (datetime.now() - dt).total_seconds()
-    if sec < 3600:  return f'{int(sec/60)} 分钟前'
-    if sec < 86400: return f'{int(sec/3600)} 小时前'
+    if sec < 3600:  return _t('%(n)s 分钟前', n=int(sec/60))
+    if sec < 86400: return _t('%(n)s 小时前', n=int(sec/3600))
     days = int(sec / 86400)
-    return f'{days} 天前' if days < 30 else dt.strftime('%m-%d')
+    return _t('%(d)s 天前', d=days) if days < 30 else dt.strftime('%m-%d')
 
 
 # ─── Scope(我的/团队/公司/系统)──────────────────────────
@@ -64,12 +65,12 @@ def _get_dash_scope(user):
     注意:这里只决定"档位标签 + 是否显示次级 chip";实际数据范围由 build_dashboard
     用 get_viewable_data 按各自模块取(权限级别+归属+共享+content_filters 全生效),绝不越权。
     """
-    mine = {'key': 'mine', 'label': '我的'}
+    mine = {'key': 'mine', 'label': _t('我的')}
     levels = [_user_level(user, m) for m in ('project', 'quotation', 'expense')]
     top = max(levels, key=lambda l: _DASH_LEVEL_RANK.get(l, 0))
     secondary = None
     if _DASH_LEVEL_RANK.get(top, 0) > 0:
-        secondary = {'key': 'team', 'label': _DASH_LEVEL_LABELS.get(top, '团队')}
+        secondary = {'key': 'team', 'label': _t(_DASH_LEVEL_LABELS.get(top, '团队'))}
     return {'mine': mine, 'secondary': secondary, 'top_level': top}
 
 
@@ -85,12 +86,12 @@ def _build_todos(user):
     """
     out = []
     obj_label_map = {
-        'expense': '报销单', 'purchase_order': '采购订单',
-        'project': '项目立项', 'pricing_order': '批价单',
-        'quotation': '报价单', 'sales_order': '客户订单',
-        'customer': '客户', 'project_hold': '项目搁置/失败审核',
-        'dealer_apply': '渠道身份审批', 'perf_settlement': '绩效结算',
-        'salary_run': '月度薪资审批',
+        'expense': _t('报销单'), 'purchase_order': _t('采购订单'),
+        'project': _t('项目立项'), 'pricing_order': _t('批价单'),
+        'quotation': _t('报价单'), 'sales_order': _t('客户订单'),
+        'customer': _t('客户'), 'project_hold': _t('项目搁置/失败审核'),
+        'dealer_apply': _t('渠道身份审批'), 'perf_settlement': _t('绩效结算'),
+        'salary_run': _t('月度薪资审批'),
     }
 
     # 1) 待审批 — 复用 get_user_pending_approvals
@@ -125,7 +126,7 @@ def _build_todos(user):
                 if _st:
                     _su = User.query.get(_st.user_id)
                     _sn = (_su.real_name or _su.username) if _su else ''
-                    title = f'{_sn} · {_st.year} Q{_st.quarter} 绩效结算'
+                    title = f'{_sn} · {_st.year} Q{_st.quarter} {_t("绩效结算")}'
                     route_url = f'/user/at-config/performance?user={_st.user_id}&settle_q={_st.quarter}'
             if ai.object_type in ('project', 'project_hold'):
                 from app.models.project import Project
@@ -134,7 +135,7 @@ def _build_todos(user):
                 _label = obj_label
                 if ai.object_type == 'project_hold':
                     _tgt = (ai.template_snapshot or {}).get('hold_target')
-                    _label = '项目失败审核' if _tgt == 'lost' else ('项目搁置审核' if _tgt == 'paused' else obj_label)
+                    _label = _t('项目失败审核') if _tgt == 'lost' else (_t('项目搁置审核') if _tgt == 'paused' else obj_label)
                 title = f'{_label} · {_pname}' if _pname else f'{_label} #{ai.object_id}'
             elif ai.object_type == 'pricing_order':
                 # 批价单显示批价单号(order_number)而非内部 ID
@@ -142,7 +143,7 @@ def _build_todos(user):
                 _po = PricingOrder.query.get(ai.object_id)
                 title = f'{obj_label} {_po.order_number}' if (_po and _po.order_number) else title
             out.append({
-                'id': f'AI{ai.id}', 'type': 'approval', 'typeLabel': '待审批', 'tone': 'warn',
+                'id': f'AI{ai.id}', 'type': 'approval', 'typeLabel': _t('待审批'), 'tone': 'warn',
                 'title': title,
                 # 待审批 tab 已表明身份,"我作为当前节点审批人"冗余 → 换成提交人账户名
                 'meta': _fmt_user(submitter),
@@ -168,8 +169,8 @@ def _build_todos(user):
         for t, tr in rows:
             submitter = User.query.get(t.assignee_id) if t.assignee_id else None
             out.append({
-                'id': f'TR{t.id}', 'type': 'approval', 'typeLabel': '待审核', 'tone': 'warn',
-                'title': f'任务审核 · {t.title}',
+                'id': f'TR{t.id}', 'type': 'approval', 'typeLabel': _t('待审核'), 'tone': 'warn',
+                'title': f'{_t("任务审核")} · {t.title}',
                 'meta': _fmt_user(submitter), 'who': '—',
                 'when': _ago(t.updated_at),
                 'route': f'/task/management?task_id={t.id}', 'urgent': False,
@@ -190,9 +191,9 @@ def _build_todos(user):
             Message.is_read == False,
         ).order_by(Message.created_at.desc()).limit(2).all()
         type_label_map = {
-            'worklog_mention': '日志 @ 我',
-            'task_reply':      '任务回复',
-            'task_assigned':   '任务指派',
+            'worklog_mention': _t('日志 @ 我'),
+            'task_reply':      _t('任务回复'),
+            'task_assigned':   _t('任务指派'),
         }
         for m in msgs:
             from app.models.user import User
@@ -202,7 +203,7 @@ def _build_todos(user):
             if m.related_object_type == 'task' and m.related_object_id:
                 _route = f'/task/management?task_id={m.related_object_id}'
             out.append({
-                'id': f'M{m.id}', 'type': 'mention', 'typeLabel': type_label_map.get(m.message_type, '@我'),
+                'id': f'M{m.id}', 'type': 'mention', 'typeLabel': type_label_map.get(m.message_type, _t('@我')),
                 'tone': 'info',
                 'title': (m.title or '')[:60],
                 'meta': (m.content or '')[:60],
@@ -267,8 +268,8 @@ def _build_todos(user):
                                                 _f.max(ProjectStageHistory.change_date))
                                .filter(ProjectStageHistory.project_id.in_(no_act_ids))
                                .group_by(ProjectStageHistory.project_id).all())
-        _stage_zh = {'discover': '发现', 'embed': '植入', 'pre_tender': '标前',
-                     'tendering': '标中', 'awarded': '中标', 'quoted': '批价'}
+        _stage_zh = {'discover': _t('发现'), 'embed': _t('植入'), 'pre_tender': _t('标前'),
+                     'tendering': _t('标中'), 'awarded': _t('中标'), 'quoted': _t('批价')}
         for pid, (p, threshold, _suffix) in cand.items():
             last_date = last_action.get(pid)
             if last_date:
@@ -283,9 +284,9 @@ def _build_todos(user):
                     if _own:
                         _meta += f' · {_own.real_name or _own.username}'
                 fu.append({
-                    'id': f'P{pid}', 'type': 'action', 'typeLabel': '项目跟进', 'tone': 'danger',
-                    'title': f'{p.project_name} · {days} 天未跟进', 'meta': _meta,
-                    'who': '—', 'when': f'{days}天',
+                    'id': f'P{pid}', 'type': 'action', 'typeLabel': _t('项目跟进'), 'tone': 'danger',
+                    'title': f'{p.project_name} · {_t("%(d)s 天未跟进", d=days)}', 'meta': _meta,
+                    'who': '—', 'when': _t('%(d)s天', d=days),
                     'route': f'/project/{pid}/at_view', 'urgent': days >= threshold + 15, '_d': days,
                 })
 
@@ -311,9 +312,9 @@ def _build_todos(user):
             days = (now - last_act).days if last_act else None
             if days is not None and days > 10:
                 fu.append({
-                    'id': f'T{t.id}', 'type': 'action', 'typeLabel': '任务跟进', 'tone': 'danger',
-                    'title': f'{t.title} · {days} 天未更新', 'meta': '任务',
-                    'who': '—', 'when': f'{days}天',
+                    'id': f'T{t.id}', 'type': 'action', 'typeLabel': _t('任务跟进'), 'tone': 'danger',
+                    'title': f'{t.title} · {_t("%(d)s 天未更新", d=days)}', 'meta': _t('任务'),
+                    'who': '—', 'when': _t('%(d)s天', d=days),
                     'route': f'/task/management?task={t.id}', 'urgent': days > 20, '_d': days,
                 })
 
@@ -340,7 +341,7 @@ def _build_todos(user):
                     locker = _User.query.get(p_.win_locked_by) if p_.win_locked_by else None
                     days_ = (now - p_.win_locked_at).days if p_.win_locked_at else 0
                     fu.append({
-                        'id': f'WL{p_.id}', 'type': 'action', 'typeLabel': '锁定成功', 'tone': 'warn',
+                        'id': f'WL{p_.id}', 'type': 'action', 'typeLabel': _t('锁定成功'), 'tone': 'warn',
                         'title': f'{p_.project_name}',
                         'meta': (p_.win_lock_reason or '')[:50],
                         'who': _fmt_user(locker), 'when': _ago(p_.win_locked_at),
@@ -364,10 +365,10 @@ def _build_todos(user):
 def _kpi_delta(current, previous):
     """同比一周期 → (文案, tone)。"""
     if previous <= 0:
-        return ('—' if current == 0 else '新增', 'success' if current > 0 else 'neutral')
+        return ('—' if current == 0 else _t('新增'), 'success' if current > 0 else 'neutral')
     pct = round((float(current) - float(previous)) / float(previous) * 100)
     if pct == 0:
-        return ('持平', 'neutral')
+        return (_t('持平'), 'neutral')
     sign = '+' if pct > 0 else ''
     return (f'{sign}{pct}%', 'success' if pct > 0 else 'warn')
 
@@ -473,10 +474,10 @@ def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
 
     def _delta(current, previous):
         if previous <= 0:
-            return ('—' if current == 0 else '新增', 'success' if current > 0 else 'neutral')
+            return ('—' if current == 0 else _t('新增'), 'success' if current > 0 else 'neutral')
         pct = round((float(current) - float(previous)) / float(previous) * 100)
         if pct == 0:
-            return ('持平', 'neutral')
+            return (_t('持平'), 'neutral')
         sign = '+' if pct > 0 else ''
         return (f'{sign}{pct}%', 'success' if pct > 0 else 'warn')
 
@@ -488,13 +489,13 @@ def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
     # target=0 表示"未设目标",模板灰色显示;不再 fallback 到 1
     # 列表契约:每项 {data:{label,value,target,unit}, tone, delta, deltaTone}(模板通用循环)
     return [
-        {'data': {'label': f'{label_prefix}销售额', 'value': int(sales_a), 'target': int(sales_t), 'unit': currency_symbol},
+        {'data': {'label': f'{label_prefix}{_t("销售额")}', 'value': int(sales_a), 'target': int(sales_t), 'unit': currency_symbol},
          'tone': 'var(--accent)', 'delta': sd, 'deltaTone': sdt},
-        {'data': {'label': f'{label_prefix}植入额', 'value': int(implant_a), 'target': int(implant_t), 'unit': currency_symbol},
+        {'data': {'label': f'{label_prefix}{_t("植入额")}', 'value': int(implant_a), 'target': int(implant_t), 'unit': currency_symbol},
          'tone': 'var(--success)', 'delta': id_, 'deltaTone': idt},
-        {'data': {'label': f'{label_prefix}新项目', 'value': int(proj_a), 'target': int(proj_t), 'unit': ' 个'},
+        {'data': {'label': f'{label_prefix}{_t("新项目")}', 'value': int(proj_a), 'target': int(proj_t), 'unit': ' 个'},
          'tone': 'var(--info)', 'delta': pd, 'deltaTone': pdt},
-        {'data': {'label': f'{label_prefix}新客户', 'value': int(cust_a), 'target': int(cust_t), 'unit': ' 户'},
+        {'data': {'label': f'{label_prefix}{_t("新客户")}', 'value': int(cust_a), 'target': int(cust_t), 'unit': ' 户'},
          'tone': 'var(--warn)', 'delta': cd, 'deltaTone': cdt},
     ]
 
@@ -521,7 +522,7 @@ def _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix):
     total = _total(start, end)
     done, done_p = _done(start, end), _done(prev_start, prev_end)
     # value=完成数, target=目标(总数) → 进度条显示完成率
-    return [_kpi_item(f'{label_prefix}任务', done, total, ' 个', done_p, 'var(--accent)')]
+    return [_kpi_item(f'{label_prefix}{_t("任务")}', done, total, ' 个', done_p, 'var(--accent)')]
 
 
 def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, target_months, cur):
@@ -642,18 +643,18 @@ def _kpi_metrics_solution(user, start, end, prev_start, prev_end, label_prefix, 
 
     # 方案四项(顺序与岗位方案一致);target=0 视为该项未配置
     spec = [
-        ('se_implant_amount_target',  f'{label_prefix}植入额',       a['implant'],  p['implant'],  cur,   'var(--success)'),
-        ('se_confirm_quality_target', f'{label_prefix}植入品质',     a['quality'],  p['quality'],  ' 分', 'var(--info)'),
-        ('se_sales_support_target',   f'{label_prefix}销售配合广度', a['support'],  p['support'],  ' 人', 'var(--warn)'),
-        ('se_training_count_target',  f'{label_prefix}技术培训',     a['training'], p['training'], ' 次', 'var(--accent)'),
+        ('se_implant_amount_target',  f'{label_prefix}{_t("植入额")}',       a['implant'],  p['implant'],  cur,   'var(--success)'),
+        ('se_confirm_quality_target', f'{label_prefix}{_t("植入品质")}',     a['quality'],  p['quality'],  ' 分', 'var(--info)'),
+        ('se_sales_support_target',   f'{label_prefix}{_t("销售配合广度")}', a['support'],  p['support'],  ' 人', 'var(--warn)'),
+        ('se_training_count_target',  f'{label_prefix}{_t("技术培训")}',     a['training'], p['training'], ' 次', 'var(--accent)'),
     ]
     from app.helpers.scoring_modes import tiered_achievement, TIERED_PASS, TIERED_GOOD
     items = []
     for key, label, val, prev, unit, tone in spec:
         if key == 'se_confirm_quality_target':
             # 植入品质:固定档位制,无数字目标;按均值给等级 + 达成率(及格3/良好5/优秀7)
-            tier = ('优秀' if val >= 7 else '良好' if val >= TIERED_GOOD
-                    else '及格' if val >= TIERED_PASS else '待提升')
+            tier = (_t('优秀') if val >= 7 else _t('良好') if val >= TIERED_GOOD
+                    else _t('及格') if val >= TIERED_PASS else _t('待提升'))
             t_tone = ('var(--success)' if val >= TIERED_GOOD
                       else 'var(--info)' if val >= TIERED_PASS else 'var(--warn)')
             items.append(_kpi_item(label, val, 0, unit, prev, t_tone, as_float=True,
@@ -687,7 +688,7 @@ def _kpi_metrics_product(user, start, end, prev_start, prev_end, label_prefix, t
 
     im, imp = _pm_implant(start, end), _pm_implant(prev_start, prev_end)
     items = _kpi_task_items(user, start, end, prev_start, prev_end, label_prefix)
-    items.append(_kpi_item(f'{label_prefix}负责产品植入额', im, 0, cur, imp, 'var(--info)'))
+    items.append(_kpi_item(f'{label_prefix}{_t("负责产品植入额")}', im, 0, cur, imp, 'var(--info)'))
     return items
 
 
@@ -718,10 +719,10 @@ def _kpi_metrics_finance(user, start, end, prev_start, prev_end, label_prefix, t
     cl, clp = _claimed(start, end), _claimed(prev_start, prev_end)
     pd_, pdp = _paid(start, end), _paid(prev_start, prev_end)
     return [
-        _kpi_item('待审批报销', pending_cnt, 0, ' 单', 0, 'var(--accent)', delta=('—', 'neutral')),
-        _kpi_item(f'{label_prefix}报销总额', cl, 0, cur, clp, 'var(--info)'),
-        _kpi_item(f'{label_prefix}已支付', pd_, 0, cur, pdp, 'var(--success)'),
-        _kpi_item('待支付', unpaid, 0, cur, 0, 'var(--warn)', delta=('—', 'neutral')),
+        _kpi_item(_t('待审批报销'), pending_cnt, 0, ' 单', 0, 'var(--accent)', delta=('—', 'neutral')),
+        _kpi_item(f'{label_prefix}{_t("报销总额")}', cl, 0, cur, clp, 'var(--info)'),
+        _kpi_item(f'{label_prefix}{_t("已支付")}', pd_, 0, cur, pdp, 'var(--success)'),
+        _kpi_item(_t('待支付'), unpaid, 0, cur, 0, 'var(--warn)', delta=('—', 'neutral')),
     ]
 
 
@@ -1540,8 +1541,8 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
         # 固定档位制(植入品质):无数字目标,按均值给等级 + 档位达成率(及格3/良好5/优秀7)
         smode = smode_map.get(code) or _dsmode(code)
         if smode == 'tiered':
-            tier = ('优秀' if val >= 7 else '良好' if val >= _TG
-                    else '及格' if val >= _TP else '待提升')
+            tier = (_t('优秀') if val >= 7 else _t('良好') if val >= _TG
+                    else _t('及格') if val >= _TP else _t('待提升'))
             t_tone = ('var(--success)' if val >= _TG
                       else 'var(--info)' if val >= _TP else 'var(--warn)')
             items.append(_kpi_item(label, val, 0, unit, prev, t_tone, as_float=True,
@@ -1602,11 +1603,11 @@ def _build_kpis(user, currency_symbol='¥', variant='default'):
     fn = _KPI_VARIANT_FUNC.get(variant, _kpi_config_driven)
     return {
         'month':   fn(user, month_start, month_end, prev_m_start, prev_m_end,
-                      f'{m}月', [m], currency_symbol),
+                      _t('%(m)s月', m=m), [m], currency_symbol),
         'quarter': fn(user, quarter_start, quarter_end, prev_q_start, prev_q_end,
-                      f'Q{q} ', quarter_months, currency_symbol),
+                      'Q%s ' % q, quarter_months, currency_symbol),
         'year':    fn(user, year_start, year_end, prev_y_start, prev_y_end,
-                      f'{y}年 ', list(range(1, 13)), currency_symbol),
+                      _t('%(y)s年 ', y=y), list(range(1, 13)), currency_symbol),
     }
 
 
@@ -1674,11 +1675,11 @@ def _build_funnel(user, scope_filter=None):
     # (PMA 业务阶段:embed/植入是早期"方案植入"阶段,不是终态)
     # discover/quoted 不进漏斗;lost/paused 算流失
     STAGES = [
-        ('embed',      '植入'),
-        ('pre_tender', '标前'),
-        ('tendering',  '标中'),
-        ('awarded',    '中标'),
-        ('signed',     '签约'),
+        ('embed',      _t('植入')),
+        ('pre_tender', _t('标前')),
+        ('tendering',  _t('标中')),
+        ('awarded',    _t('中标')),
+        ('signed',     _t('签约')),
     ]
     funnel = []
     for key, label in STAGES:
@@ -1747,7 +1748,7 @@ def _build_projects(user, scope_filter=None):
             items.append({
                 'id': p.id,
                 'name': (p.project_name or '')[:40],
-                'stage': meta['label'],
+                'stage': _t(meta['label']),
                 'stageT': meta['tone'],
                 'progress': meta['pct'],
                 'dueIn': due_in if due_in is not None else 0,
@@ -1780,9 +1781,9 @@ def _build_quotes(user, scope_filter=None):
 
         # 列表 5 条(按 confirmation_badge_status 显示状态;字段名:amount 不是 total_amount)
         stat_map = {
-            'none':      ('待审批', 'warn'),
-            'pending':   ('待确认', 'warn'),
-            'confirmed': ('已成交', 'success'),
+            'none':      (_t('待审批'), 'warn'),
+            'pending':   (_t('待确认'), 'warn'),
+            'confirmed': (_t('已成交'), 'success'),
         }
         for q in base.order_by(Quotation.updated_at.desc()).limit(5).all():
             badge = q.confirmation_badge_status or 'none'
@@ -1846,14 +1847,14 @@ def _build_expense(user, monthly_stats, year_total, currency_symbol, scope_filte
             rq = rq.filter(scope_filter)
         for e in rq.order_by(Expense.updated_at.desc()).limit(3).all():
             stat_map = {
-                'draft': ('草稿', 'neutral'), 'pending': ('待审批', 'warn'),
-                'approved': ('已通过', 'success'), 'paid': ('已支付', 'success'),
-                'rejected': ('已驳回', 'danger'),
+                'draft': (_t('草稿'), 'neutral'), 'pending': (_t('待审批'), 'warn'),
+                'approved': (_t('已通过'), 'success'), 'paid': (_t('已支付'), 'success'),
+                'rejected': (_t('已驳回'), 'danger'),
             }
             status_lbl, tone = stat_map.get(e.status, (e.status or '—', 'neutral'))
             recent.append({
                 'id': f'EXP-{e.id}',
-                'title': (e.expense_subject or e.notes or '报销单')[:24],
+                'title': (e.expense_subject or e.notes or _t('报销单'))[:24],
                 'amount': float(e.total_amount or 0),
                 'status': status_lbl,
                 'tone': tone,
@@ -1863,15 +1864,15 @@ def _build_expense(user, monthly_stats, year_total, currency_symbol, scope_filte
 
     # 科目分类(本年,跟随 scope_filter);标签+配色对齐报销单表单
     _CAT_META = {
-        'entertainment':        ('招待费',   '#ff6b6b'),
-        'local_transport':      ('市内交通', '#4ecdc4'),
-        'travel_accommodation': ('差旅住宿', '#45b7d1'),
-        'office_supplies':      ('办公用品', '#96ceb4'),
-        'communication':        ('通讯费',   '#ffeaa7'),
-        'fuel':                 ('油费',     '#dda0dd'),
-        'parking':              ('停车费',   '#98d8c8'),
-        'meals':                ('餐费',     '#f7dc6f'),
-        'other':                ('其他',     '#aab7b8'),
+        'entertainment':        (_t('招待费'),   '#ff6b6b'),
+        'local_transport':      (_t('市内交通'), '#4ecdc4'),
+        'travel_accommodation': (_t('差旅住宿'), '#45b7d1'),
+        'office_supplies':      (_t('办公用品'), '#96ceb4'),
+        'communication':        (_t('通讯费'),   '#ffeaa7'),
+        'fuel':                 (_t('油费'),     '#dda0dd'),
+        'parking':              (_t('停车费'),   '#98d8c8'),
+        'meals':                (_t('餐费'),     '#f7dc6f'),
+        'other':                (_t('其他'),     '#aab7b8'),
     }
     categories = []
     try:
@@ -1892,7 +1893,7 @@ def _build_expense(user, monthly_stats, year_total, currency_symbol, scope_filte
             amt = float(amt or 0)
             if amt <= 0:
                 continue
-            lbl, color = _CAT_META.get(code, (code or '其他', '#aab7b8'))
+            lbl, color = _CAT_META.get(code, (code or _t('其他'), '#aab7b8'))
             categories.append({'label': lbl, 'color': color, 'amount': amt,
                                'pct': round(amt / _ctot * 100) if _ctot else 0})
         categories.sort(key=lambda x: x['amount'], reverse=True)
@@ -1903,7 +1904,7 @@ def _build_expense(user, monthly_stats, year_total, currency_symbol, scope_filte
         'yearTotal': year_total,
         'yearTotalLast': year_total_last,  # 去年 1月→当前月 累计(真实同比基数)
         'monthly': monthly_stats,
-        'months': ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+        'months': [_t('%(m)s月', m=i) for i in range(1, 13)],
         'recent': recent,
         'categories': categories,
         'currency': currency_symbol,
@@ -1961,18 +1962,19 @@ def _build_worklog(user):
             customer = (w.customer.company_name[:14] if w.customer else '—')
             project  = (w.project.project_name[:18]  if w.project  else '—')
             text     = (w.title or '') + (' · ' + (w.description or '')[:80] if w.description else '')
-            type_lbl = _WORKITEM_TYPE_LABEL.get(w.work_type, w.work_type or '')
+            _raw_type = _WORKITEM_TYPE_LABEL.get(w.work_type, w.work_type or '')
+            type_lbl = _t(_raw_type) if _raw_type else ''
             is_mine  = (w.owner_id == user.id)
             # 状态徽章:planned + 过期日 → 逾期(danger);planned → 计划(neutral);
             #          in_progress → 进行中(info);completed → 不标
             status_tag = None
             if w.status == 'in_progress':
-                status_tag = {'label': '进行中', 'tone': 'info'}
+                status_tag = {'label': _t('进行中'), 'tone': 'info'}
             elif w.status == 'planned':
                 if d and d < today:
-                    status_tag = {'label': '逾期', 'tone': 'danger'}
+                    status_tag = {'label': _t('逾期'), 'tone': 'danger'}
                 else:
-                    status_tag = {'label': '计划', 'tone': 'neutral'}
+                    status_tag = {'label': _t('计划'), 'tone': 'neutral'}
             items.append({
                 'id': w.id,
                 'project_id': w.project_id,
@@ -2013,7 +2015,7 @@ def _team_scope(user):
     if user.id not in ids:
         ids.append(user.id)
     has_team = len(set(ids) - {user.id}) > 0
-    label = '系统' if user.role == 'admin' else '团队'
+    label = _t('系统') if user.role == 'admin' else _t('团队')
     return {'has_team': has_team, 'ids': ids, 'label': label}
 
 
@@ -2070,7 +2072,7 @@ def _tasks_payload(user, task_filter, with_assignee=False):
             'id': t.id, 'title': t.title, 'project': rel,
             'note': note,
             'due': t.due_date.strftime('%m-%d') if t.due_date else '—',
-            'status': es, 'statusLabel': _TASK_STATUS_LABELS.get(es, es),
+            'status': es, 'statusLabel': _t(_TASK_STATUS_LABELS.get(es, es)),
             'tone': _TASK_STATUS_TONE.get(es, 'neutral'), 'progress': prog,
             'assignee': _fmt_user(t.assignee) if with_assignee else '',
             'route': f'/task/management?task={t.id}',
@@ -2084,10 +2086,10 @@ def _build_tasks(user):
     from app import db
     from app.models.task import Task
     if user.role == 'admin':
-        return {'has_team': False, 'title': '全局任务',
+        return {'has_team': False, 'title': _t('全局任务'),
                 'mine': _tasks_payload(user, Task.id.isnot(None), with_assignee=True)}
     ts = _team_scope(user)
-    out = {'has_team': ts['has_team'], 'teamLabel': ts['label'], 'title': '我的任务',
+    out = {'has_team': ts['has_team'], 'teamLabel': ts['label'], 'title': _t('我的任务'),
            'mine': _tasks_payload(user, _my_task_filter(user))}
     if ts['has_team']:
         out['team'] = _tasks_payload(user, Task.assignee_id.in_(ts['ids']), with_assignee=True)
@@ -2142,7 +2144,7 @@ def _build_implant(user, variant='solution'):
                 total = sum(float(r[2]) for r in rows)
                 items = [{'name': n or '—', 'count': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
             periods[pk] = {'total': total, 'items': items}
-        return {'variant': 'product', 'sub': '我负责分类的产品',
+        return {'variant': 'product', 'sub': _t('我负责分类的产品'),
                 'has_team': False, 'mine': {'periods': periods}}
 
     # solution:按报价明细产品聚合;我的=我创建∪我确认,团队=我可见范围的报价(部门负责人)
@@ -2168,14 +2170,14 @@ def _build_implant(user, variant='solution'):
 
     if variant == 'admin':
         # 管理员:全局植入产值(全公司所有报价),无开关
-        return {'variant': 'admin', 'sub': '全公司报价', 'has_team': False,
+        return {'variant': 'admin', 'sub': _t('全公司报价'), 'has_team': False,
                 'mine': {'periods': _solution_periods(Quotation.id.isnot(None))}}
 
     confirmed_q = db.session.query(QuotationConfirmationTask.quotation_id).filter(
         QuotationConfirmationTask.assignee_id == user.id,
         QuotationConfirmationTask.status == 'confirmed')
     ts = _team_scope(user)
-    res = {'variant': 'solution', 'sub': '我创建 / 确认的报价',
+    res = {'variant': 'solution', 'sub': _t('我创建 / 确认的报价'),
            'has_team': ts['has_team'], 'teamLabel': ts['label'],
            'mine': {'periods': _solution_periods(
                db.or_(Quotation.owner_id == user.id, Quotation.id.in_(confirmed_q)))}}
