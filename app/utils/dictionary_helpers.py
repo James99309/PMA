@@ -208,18 +208,14 @@ def get_currency_symbol(currency_code='CNY'):
     return currency_symbols.get(currency_code, '¥')  # 默认返回人民币符号
 
 def get_default_currency():
-    """获取系统默认货币"""
-    try:
-        # 尝试从Product表获取默认货币（如报价单模块的逻辑）
-        from app.models.product import Product
-        reference_product = Product.query.filter_by(id=1).first()
-        if reference_product and hasattr(reference_product, 'currency') and reference_product.currency:
-            return reference_product.currency
-    except Exception:
-        pass
-    
-    # 如果没有找到，返回默认的人民币
-    return 'CNY'
+    """获取系统默认货币(随数据库环境: ovs=USD / sp8d=CNY)。
+
+    与 get_amount_unit_config / Config.DEFAULT_CURRENCY 单一口径一致。
+    历史实现曾查 Product id=1 的 currency 再回退 CNY,导致 OVS(SG) 被强制 CNY —— 已废弃。
+    """
+    import os
+    db_type = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+    return 'USD' if db_type == 'ovs' else 'CNY'
 
 def get_amount_unit_config(language=None):
     """获取基于语言环境的金额单位配置（用于统计卡片language_aware模式）"""

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 18:14+0800\n"
+"POT-Creation-Date: 2026-06-15 18:39+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -2034,7 +2034,7 @@ msgstr "Planned"
 #: app/templates/knowledge/tw_wiki.html:689
 #: app/templates/knowledge/tw_wiki.html:738
 #: app/templates/knowledge/tw_wiki.html:742
-#: app/templates/knowledge/tw_wiki.html:923 app/views/quotation.py:874
+#: app/templates/knowledge/tw_wiki.html:923 app/views/quotation.py:875
 msgid "系统"
 msgstr "System"
 
@@ -2535,6 +2535,7 @@ msgstr "Refreshing…"
 #: app/templates/components/at_product_sidebar.html:90
 #: app/templates/components/at_product_specs_relations.html:292
 #: app/templates/components/at_purchase_order.html:903
+#: app/templates/components/at_share_modal.html:81
 #: app/templates/components/at_spec_import_modal.html:34
 #: app/templates/inventory/at_purchase_order_detail.html:430
 #: app/templates/product/at_list.html:177
@@ -2693,6 +2694,7 @@ msgstr "Once initiated, "
 #: app/templates/backup/tw_index.html:296
 #: app/templates/backup/tw_index.html:328
 #: app/templates/components/at_action_modal.html:38
+#: app/templates/components/at_contact_modal.html:28
 #: app/templates/components/at_customer_modal.html:44
 #: app/templates/components/at_customer_needs_modal.html:97
 #: app/templates/components/at_minitables.html:310
@@ -2707,6 +2709,7 @@ msgstr "Once initiated, "
 #: app/templates/components/at_purchase_order.html:659
 #: app/templates/components/at_purchase_order.html:836
 #: app/templates/components/at_sales_order.html:22
+#: app/templates/components/at_share_modal.html:33
 #: app/templates/components/at_spec_import_modal.html:16
 #: app/templates/components/at_user_modal.html:149
 #: app/templates/components/product/tw_config_selector_modal.html:228
@@ -3049,6 +3052,7 @@ msgstr ""
 "automatically match an approval flow template."
 
 #: app/helpers/js_i18n_strings.py:76
+#: app/templates/components/at_contact_modal.html:83
 #: app/templates/components/at_customer_modal.html:159
 #: app/templates/components/at_minitables.html:204
 #: app/templates/components/at_purchase_order.html:556
@@ -5945,6 +5949,7 @@ msgstr "Customer Activity Rate"
 msgid "个人"
 msgstr "Personal"
 
+#: app/templates/components/at_contact_modal.html:50
 #: app/templates/components/tw_performance_dashboard.html:2674
 #: app/templates/components/user/tw_user_form_modal.html:130
 #: app/templates/config_management/tw_index.html:233
@@ -6289,6 +6294,7 @@ msgid "系统通知"
 msgstr "System Notice"
 
 #: app/templates/announcement/tw_list.html:166
+#: app/templates/components/at_share_modal.html:71
 #: app/templates/components/tw_chat_panel.html:2185
 #: app/templates/components/tw_folder_share_modal.html:129
 #: app/templates/components/tw_meeting_panel.html:458
@@ -6372,6 +6378,7 @@ msgstr "No announcements"
 #: app/templates/components/at_product_edit_modal.html:33
 #: app/templates/components/at_product_edit_modal.html:169
 #: app/templates/components/at_product_sidebar.html:204
+#: app/templates/components/at_share_modal.html:40
 #: app/templates/components/product/tw_product_modal.html:325
 #: app/templates/components/product/tw_spec_options_modal.html:158
 #: app/templates/components/product/tw_spec_options_modal.html:611
@@ -7697,6 +7704,104 @@ msgstr "Clear"
 msgid "暂未上传"
 msgstr "Not uploaded"
 
+#: app/templates/components/at_contact_modal.html:21
+#: app/templates/customer/edit_contact.html:10
+msgid "编辑联系人"
+msgstr "Edit Contact"
+
+#: app/templates/components/at_contact_modal.html:21
+#: app/templates/prospect/tw_list.html:995
+#: app/templates/prospect/tw_list.html:1088
+msgid "新建联系人"
+msgstr "New Contact"
+
+#: app/templates/components/at_contact_modal.html:22
+#: app/templates/components/at_customer_modal.html:37
+#: app/templates/components/at_project_modal.html:32
+#: app/templates/components/at_purchase_order.html:653
+#: app/templates/components/at_user_modal.html:208
+#: app/templates/components/tw_purchase_order_form.html:29
+#: app/templates/components/tw_task_modal.html:311
+#: app/templates/expense/edit_expense.html:31
+msgid "保存修改"
+msgstr "Save Changes"
+
+#: app/templates/components/at_contact_modal.html:22
+#, fuzzy
+msgid "创建联系人"
+msgstr "Create Contact"
+
+#: app/templates/components/at_contact_modal.html:43
+#: app/templates/customer/add_contact.html:27
+#: app/templates/customer/edit_contact.html:18
+msgid "姓名"
+msgstr "Name"
+
+#: app/templates/components/at_contact_modal.html:45
+#, fuzzy
+msgid "请输入联系人姓名(必填)"
+msgstr "Please enter contact name (required)"
+
+#: app/templates/components/at_contact_modal.html:51
+msgid "如:技术部 / 销售部"
+msgstr "e.g. Tech Dept / Sales Dept"
+
+#: app/templates/components/at_contact_modal.html:53
+#: app/templates/customer/add_contact.html:37
+#: app/templates/customer/edit_contact.html:29
+#: app/templates/star_graph/tw_star_graph.html:226
+msgid "职位"
+msgstr "Position"
+
+#: app/templates/components/at_contact_modal.html:54
+msgid "如:总经理 / 工程师"
+msgstr "e.g. GM / Engineer"
+
+#: app/templates/components/at_contact_modal.html:60
+#: app/templates/components/user/tw_user_form_modal.html:107
+#: app/templates/customer/add_contact.html:44
+#: app/templates/customer/edit_contact.html:33
+#: app/templates/prospect/tw_list.html:1118
+msgid "电话"
+msgstr "Phone"
+
+#: app/templates/components/at_contact_modal.html:61
+#, fuzzy
+msgid "请输入电话"
+msgstr "Please enter phone number"
+
+#: app/templates/components/at_contact_modal.html:63
+#: app/templates/components/at_user_modal.html:93
+#: app/templates/components/user/tw_user_form_modal.html:96
+#: app/templates/config_management/tw_index.html:208
+#: app/templates/config_management/tw_index.html:338
+#: app/templates/customer/add_contact.html:48
+#: app/templates/customer/customer_cards.html:89
+#: app/templates/customer/edit_contact.html:40
+#: app/templates/prospect/tw_list.html:1119
+#: app/templates/user/at_detail.html:88 app/templates/user/tw_detail.html:204
+msgid "邮箱"
+msgstr "Email"
+
+#: app/templates/components/at_contact_modal.html:64
+#, fuzzy
+msgid "请输入邮箱"
+msgstr "Please enter email address"
+
+#: app/templates/components/at_contact_modal.html:74
+#: app/templates/customer/edit_contact.html:47
+msgid "设为主要联系人"
+msgstr "Set as primary contact"
+
+#: app/templates/components/at_contact_modal.html:76
+msgid "主要联系人会在客户列表中优先显示"
+msgstr "Primary contacts are shown first in the customer list"
+
+#: app/templates/components/at_contact_modal.html:84
+#, fuzzy
+msgid "备注信息(可选)"
+msgstr "Note (optional)"
+
 #: app/templates/components/at_customer_modal.html:36
 #: app/templates/customer/i18n_demo.html:67
 msgid "编辑客户"
@@ -7707,16 +7812,6 @@ msgstr "Edit Customer"
 #: app/templates/customer/at_list.html:40
 msgid "新建客户"
 msgstr "New Customer"
-
-#: app/templates/components/at_customer_modal.html:37
-#: app/templates/components/at_project_modal.html:32
-#: app/templates/components/at_purchase_order.html:653
-#: app/templates/components/at_user_modal.html:208
-#: app/templates/components/tw_purchase_order_form.html:29
-#: app/templates/components/tw_task_modal.html:311
-#: app/templates/expense/edit_expense.html:31
-msgid "保存修改"
-msgstr "Save Changes"
 
 # 侧边栏菜单缺失翻译
 #: app/templates/components/at_customer_modal.html:37
@@ -9487,6 +9582,37 @@ msgstr "Search or select…"
 msgid "无匹配项"
 msgstr "No matches"
 
+#: app/templates/components/at_share_modal.html:41
+#: app/templates/components/tw_sharing_card.html:38
+#: app/templates/customer/at_view.html:238
+#: app/templates/macros/ui_helpers.html:6921
+#: app/templates/project/at_view.html:488
+msgid "共享设置"
+msgstr "Sharing Settings"
+
+#: app/templates/components/at_share_modal.html:52
+#: app/templates/components/tw_user_selector_modal.html:143
+#: app/templates/macros/ui_helpers.html:6947
+msgid "启用共享"
+msgstr "Enable sharing"
+
+#: app/templates/components/at_share_modal.html:54
+msgid "勾选后选中的用户可查看此项目/客户;取消则仅归属人和管理者可见"
+msgstr "When enabled, selected users can view this project/customer; otherwise only the owner and admins can see it"
+
+#: app/templates/components/at_share_modal.html:65
+#, fuzzy
+msgid "搜索用户姓名 / 用户名…"
+msgstr "Search name / username / email / company…"
+
+#: app/templates/components/at_share_modal.html:71
+#: app/templates/components/tw_meeting_panel.html:458
+#: app/templates/files/tw_file_manager.html:281
+#: app/templates/files/tw_file_manager.html:365
+#: app/templates/product/tw_product_detail.html:1331
+msgid "已选"
+msgstr "Selected"
+
 #: app/templates/components/at_sidebar.html:101
 msgid "和源通信"
 msgstr "EVERTAC"
@@ -9835,18 +9961,6 @@ msgstr "Automatically establishes ownership ties with members of your department
 #: app/templates/components/at_user_modal.html:89
 msgid "设为部门负责人"
 msgstr "Set as department head"
-
-#: app/templates/components/at_user_modal.html:93
-#: app/templates/components/user/tw_user_form_modal.html:96
-#: app/templates/config_management/tw_index.html:208
-#: app/templates/config_management/tw_index.html:338
-#: app/templates/customer/add_contact.html:48
-#: app/templates/customer/customer_cards.html:89
-#: app/templates/customer/edit_contact.html:40
-#: app/templates/prospect/tw_list.html:1119
-#: app/templates/user/at_detail.html:88 app/templates/user/tw_detail.html:204
-msgid "邮箱"
-msgstr "Email"
 
 #: app/templates/components/at_user_modal.html:97
 #: app/templates/user/at_detail.html:89
@@ -11647,13 +11761,6 @@ msgstr "Search colleagues..."
 msgid "没有匹配的同事"
 msgstr "No matching colleagues"
 
-#: app/templates/components/tw_meeting_panel.html:458
-#: app/templates/files/tw_file_manager.html:281
-#: app/templates/files/tw_file_manager.html:365
-#: app/templates/product/tw_product_detail.html:1331
-msgid "已选"
-msgstr "Selected"
-
 # ===== 通用类 =====
 #: app/templates/components/tw_meeting_panel.html:567
 #: app/templates/meeting/tw_meeting_minutes_detail.html:138
@@ -13382,13 +13489,6 @@ msgstr "Shared successfully"
 msgid "分享失败"
 msgstr "Failed to share"
 
-#: app/templates/components/tw_sharing_card.html:38
-#: app/templates/customer/at_view.html:238
-#: app/templates/macros/ui_helpers.html:6921
-#: app/templates/project/at_view.html:488
-msgid "共享设置"
-msgstr "Sharing Settings"
-
 #: app/templates/components/tw_sharing_card.html:58
 msgid "共享未启用"
 msgstr "Sharing not enabled"
@@ -13725,11 +13825,6 @@ msgstr "Saved"
 #: app/templates/components/tw_upload_confirm_modal.html:72
 msgid "支持 PDF、JPG、PNG 格式，最大"
 msgstr "Supports PDF, JPG, PNG, max"
-
-#: app/templates/components/tw_user_selector_modal.html:143
-#: app/templates/macros/ui_helpers.html:6947
-msgid "启用共享"
-msgstr "Enable sharing"
 
 #: app/templates/components/tw_user_selector_modal.html:152
 #: app/templates/config_management/tw_index.html:1480
@@ -14530,13 +14625,6 @@ msgstr "Add Account"
 #: app/templates/user/edit.html:4 app/templates/user/edit.html:15
 msgid "编辑用户"
 msgstr "Edit user"
-
-#: app/templates/components/user/tw_user_form_modal.html:107
-#: app/templates/customer/add_contact.html:44
-#: app/templates/customer/edit_contact.html:33
-#: app/templates/prospect/tw_list.html:1118
-msgid "电话"
-msgstr "Phone"
 
 #: app/templates/components/user/tw_user_form_modal.html:111
 msgid "请输入电话号码"
@@ -16075,17 +16163,6 @@ msgstr "Select contact first"
 msgid "添加联系人"
 msgstr "Add Contacts"
 
-#: app/templates/customer/add_contact.html:27
-#: app/templates/customer/edit_contact.html:18
-msgid "姓名"
-msgstr "Name"
-
-#: app/templates/customer/add_contact.html:37
-#: app/templates/customer/edit_contact.html:29
-#: app/templates/star_graph/tw_star_graph.html:226
-msgid "职位"
-msgstr "Position"
-
 #: app/templates/customer/add_contact.html:57
 #: app/templates/customer/customer_cards.html:71
 #: app/templates/customer/edit_contact.html:44
@@ -16363,14 +16440,6 @@ msgstr "Please select a person from the dropdown"
 #: app/templates/customer/company_rows.html:24
 msgid "已创建联系人"
 msgstr "Contact Created"
-
-#: app/templates/customer/edit_contact.html:10
-msgid "编辑联系人"
-msgstr "Edit Contact"
-
-#: app/templates/customer/edit_contact.html:47
-msgid "设为主要联系人"
-msgstr "Set as primary contact"
 
 #: app/templates/customer/i18n_demo.html:4
 msgid "国际化演示"
@@ -16881,7 +16950,7 @@ msgstr "Only these fields can be changed:"
 msgid "默认 客户名-姓名-YYDDHHS"
 msgstr "Default: Customer-Name-YYDDHHS"
 
-#: app/templates/expense/at_view.html:123
+#: app/templates/expense/at_view.html:123 app/views/quotation.py:720
 msgid "新建中"
 msgstr "Creating"
 
@@ -23991,11 +24060,6 @@ msgstr "Skip contact"
 msgid "仍然创建"
 msgstr "Create anyway"
 
-#: app/templates/prospect/tw_list.html:995
-#: app/templates/prospect/tw_list.html:1088
-msgid "新建联系人"
-msgstr "New Contact"
-
 #: app/templates/prospect/tw_list.html:1029
 #: app/templates/spec_template/tw_configurations.html:832
 #: app/templates/spec_template/tw_list.html:492
@@ -28863,107 +28927,107 @@ msgstr "All Quotations"
 msgid "报价单编号"
 msgstr "Quotation Number"
 
-#: app/views/quotation.py:651 app/views/quotation.py:2054
+#: app/views/quotation.py:651 app/views/quotation.py:2055
 #, python-format
 msgid "加载报价单失败：%s"
 msgstr "Failed to load quotation: %s"
 
-#: app/views/quotation.py:877
+#: app/views/quotation.py:878
 #, fuzzy
 msgid "变更"
 msgstr "Change"
 
-#: app/views/quotation.py:1329
+#: app/views/quotation.py:1330
 msgid "您没有权限编辑此报价单"
 msgstr "You do not have permission to edit this quotation"
 
-#: app/views/quotation.py:1332
+#: app/views/quotation.py:1333
 msgid "报价单已被锁定，无法编辑"
 msgstr "Quotation is locked and cannot be edited"
 
-#: app/views/quotation.py:2008
+#: app/views/quotation.py:2009
 #, python-format
 msgid "报价单创建失败：%s"
 msgstr "Failed to create quotation: %s"
 
-#: app/views/quotation.py:2066
+#: app/views/quotation.py:2067
 msgid "您没有权限复制此报价单"
 msgstr "You do not have permission to copy this quotation"
 
-#: app/views/quotation.py:2108
+#: app/views/quotation.py:2109
 msgid "报价单复制成功！"
 msgstr "Quotation copied successfully!"
 
-#: app/views/quotation.py:2112
+#: app/views/quotation.py:2113
 #, python-format
 msgid "报价单复制失败：%s"
 msgstr "Failed to copy quotation: %s"
 
-#: app/views/quotation.py:2123
+#: app/views/quotation.py:2124
 msgid "您没有权限删除此报价单"
 msgstr "You do not have permission to delete this quotation"
 
-#: app/views/quotation.py:2171
+#: app/views/quotation.py:2172
 msgid "报价单删除成功！"
 msgstr "Quotation deleted successfully!"
 
-#: app/views/quotation.py:2174
+#: app/views/quotation.py:2175
 #, python-format
 msgid "删除失败：%s"
 msgstr "Delete failed: %s"
 
-#: app/views/quotation.py:3309
+#: app/views/quotation.py:3310
 msgid "您没有权限查看此报价单"
 msgstr "You do not have permission to view this quotation"
 
-#: app/views/quotation.py:3475
+#: app/views/quotation.py:3476
 #, python-format
 msgid "加载报价单详情失败：%s"
 msgstr "Failed to load quotation details: %s"
 
-#: app/views/quotation.py:3977
+#: app/views/quotation.py:3978
 msgid "您没有权限修改该报价单的拥有人"
 msgstr "You do not have permission to modify the owner of this quotation"
 
-#: app/views/quotation.py:3981
+#: app/views/quotation.py:3982
 msgid "请选择新的拥有人"
 msgstr "Please select a new owner"
 
-#: app/views/quotation.py:3986
+#: app/views/quotation.py:3987
 msgid "新拥有人不存在"
 msgstr "New owner does not exist"
 
-#: app/views/quotation.py:3991
+#: app/views/quotation.py:3992
 msgid "报价单拥有人已更新"
 msgstr "Quotation owner has been updated"
 
-#: app/views/quotation.py:4567 app/views/quotation.py:4667
-#: app/views/quotation.py:4706 app/views/quotation.py:4756
-#: app/views/quotation.py:4811
+#: app/views/quotation.py:4568 app/views/quotation.py:4668
+#: app/views/quotation.py:4707 app/views/quotation.py:4757
+#: app/views/quotation.py:4812
 msgid "权限不足，无法导出该报价单"
 msgstr "Insufficient permissions to export this quotation"
 
-#: app/views/quotation.py:4597 app/views/quotation.py:4730
-#: app/views/quotation.py:4840
+#: app/views/quotation.py:4598 app/views/quotation.py:4731
+#: app/views/quotation.py:4841
 #, python-format
 msgid "导出PDF失败：%s"
 msgstr "Failed to export PDF: %s"
 
-#: app/views/quotation.py:4622
+#: app/views/quotation.py:4623
 msgid "权限不足，无法下载该报价单"
 msgstr "Insufficient permissions to download this quotation"
 
-#: app/views/quotation.py:4652
+#: app/views/quotation.py:4653
 #, python-format
 msgid "下载PDF失败：%s"
 msgstr "Failed to download PDF: %s"
 
-#: app/views/quotation.py:4691
+#: app/views/quotation.py:4692
 #, python-format
 msgid "导出Word失败：%s"
 msgstr "Failed to export Word: %s"
 
-#: app/views/quotation.py:4785
+#: app/views/quotation.py:4786
 #, python-format
 msgid "导出Excel失败：%s"
 msgstr "Failed to export Excel: %s"
@@ -35029,6 +35093,6 @@ msgstr "Invalid feedback type."
 #~ msgid "修改了产品配置"
 #~ msgstr "Modified product configuration"
 
+#~ msgid "发货单 %(no)s 签收入库"
+#~ msgstr "Shipment %(no)s received & stocked in"
 
-msgid "发货单 %(no)s 签收入库"
-msgstr "Shipment %(no)s received & stocked in"

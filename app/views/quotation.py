@@ -687,7 +687,7 @@ def at_new_quotation():
     src_project_id = request.args.get('project_id', type=int)
     src_customer_arg = request.args.get('customer_id', type=int)  # 从客户详情新建报价
     src_project = None
-    src_currency = 'CNY'
+    src_currency = Config.DEFAULT_CURRENCY   # 随环境(ovs=USD / sp8d=CNY),不再写死 CNY
     src_customer_id = None
     src_customer = None
     if src_project_id:
@@ -696,7 +696,7 @@ def at_new_quotation():
             src_project = None  # 无权访问的项目静默忽略
         if src_project:
             # Project 没 currency 字段,沿用上一次报价的货币(quotation_currency)
-            src_currency = (getattr(src_project, 'quotation_currency', None) or 'CNY')
+            src_currency = (getattr(src_project, 'quotation_currency', None) or Config.DEFAULT_CURRENCY)
             # 预填客户:取第一个关联客户
             from app.models.project_customer_association import ProjectCustomerAssociation
             from app.models.customer import Company
@@ -717,7 +717,7 @@ def at_new_quotation():
 
     # 空 stub:让 at_view 模板里所有 quotation.xxx 调用不报错
     stub = SimpleNamespace(
-        id=0, quotation_number='新建中', amount=0, tax_rate=0,
+        id=0, quotation_number=_('新建中'), amount=0, tax_rate=0,
         currency=src_currency, exchange_rate=1,
         project_id=(src_project.id if src_project else None),
         customer_id=src_customer_id,
@@ -732,6 +732,7 @@ def at_new_quotation():
         project=src_project, customer=src_customer, contact=None, details=[],
     )
     available_currencies = get_available_quotation_currencies()
+    from app.utils.dictionary_helpers import get_currency_symbol as _get_cur_sym
     return render_template(
         'quotation/at_view.html',
         quotation=stub,
@@ -740,7 +741,7 @@ def at_new_quotation():
         related={},
         actions=[],
         perms={'can_edit': True},
-        currency_sym='¥',
+        currency_sym=_get_cur_sym(src_currency),
         grouped_details=[],
         details_payload=[],
         change_history=[],

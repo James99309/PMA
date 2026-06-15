@@ -18,14 +18,14 @@
 
 {% macro at_contact_form_modal(modal_id, mode='edit') %}
   {% set _is_edit = (mode == 'edit') %}
-  {% set _title = '编辑联系人' if _is_edit else '新建联系人' %}
-  {% set _submit_label = '保存修改' if _is_edit else '创建联系人' %}
+  {% set _title = _('编辑联系人') if _is_edit else _('新建联系人') %}
+  {% set _submit_label = _('保存修改') if _is_edit else _('创建联系人') %}
   {% set _p = modal_id ~ '__' %}
   {% set _submit_btn_id = modal_id ~ '_submit' %}
   {% set footer = '<button onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
                 ~ 'style="padding:8px 16px;border-radius:8px;background:transparent;'
                 ~ 'border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;'
-                ~ 'margin-right:8px;">取消</button>'
+                ~ 'margin-right:8px;">' ~ _('取消') ~ '</button>'
                 ~ '<button id="' ~ _submit_btn_id ~ '" '
                 ~ 'onclick="atSubmitContactForm(\'' ~ mode ~ '\', \'' ~ modal_id ~ '\')" '
                 ~ 'style="padding:8px 18px;border-radius:8px;background:var(--accent);'
@@ -40,28 +40,28 @@
     {% set _ta  = _inp ~ ';height:auto;padding:8px 10px;resize:vertical;min-height:72px;line-height:1.5;' %}
 
     {# 姓名 — 必填 #}
-    {% call at_field('姓名', required=true) %}
+    {% call at_field(_('姓名'), required=true) %}
       <input type="text" id="{{ _p }}name" autocomplete="off"
-             placeholder="请输入联系人姓名(必填)" style="{{ _inp }}">
+             placeholder="{{ _('请输入联系人姓名(必填)') }}" style="{{ _inp }}">
     {% endcall %}
 
     {# 部门 + 职位 #}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      {% call at_field('部门') %}
-        <input type="text" id="{{ _p }}department" placeholder="如:技术部 / 销售部" style="{{ _inp }}">
+      {% call at_field(_('部门')) %}
+        <input type="text" id="{{ _p }}department" placeholder="{{ _('如:技术部 / 销售部') }}" style="{{ _inp }}">
       {% endcall %}
-      {% call at_field('职位') %}
-        <input type="text" id="{{ _p }}position" placeholder="如:总经理 / 工程师" style="{{ _inp }}">
+      {% call at_field(_('职位')) %}
+        <input type="text" id="{{ _p }}position" placeholder="{{ _('如:总经理 / 工程师') }}" style="{{ _inp }}">
       {% endcall %}
     </div>
 
     {# 电话 + 邮箱 #}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      {% call at_field('电话') %}
-        <input type="tel" id="{{ _p }}phone" placeholder="请输入电话" style="{{ _inp }}">
+      {% call at_field(_('电话')) %}
+        <input type="tel" id="{{ _p }}phone" placeholder="{{ _('请输入电话') }}" style="{{ _inp }}">
       {% endcall %}
-      {% call at_field('邮箱') %}
-        <input type="email" id="{{ _p }}email" placeholder="请输入邮箱" style="{{ _inp }}">
+      {% call at_field(_('邮箱')) %}
+        <input type="email" id="{{ _p }}email" placeholder="{{ _('请输入邮箱') }}" style="{{ _inp }}">
       {% endcall %}
     </div>
 
@@ -71,17 +71,17 @@
         <input type="checkbox" id="{{ _p }}isPrimary" class="at-cbx-input">
         <span class="at-cbx-box" aria-hidden="true"></span>
         <span style="flex:1;">
-          <div style="font-size:13px;color:var(--ink);">设为主要联系人</div>
+          <div style="font-size:13px;color:var(--ink);">{{ _('设为主要联系人') }}</div>
           <div class="at-dim" style="font-size:11px;color:var(--ink-3);margin-top:2px;">
-            主要联系人会在客户列表中优先显示
+            {{ _('主要联系人会在客户列表中优先显示') }}
           </div>
         </span>
       </label>
     </div>
 
     {# 备注 #}
-    {% call at_field('备注') %}
-      <textarea id="{{ _p }}notes" rows="3" placeholder="备注信息(可选)" style="{{ _ta }}"></textarea>
+    {% call at_field(_('备注')) %}
+      <textarea id="{{ _p }}notes" rows="3" placeholder="{{ _('备注信息(可选)') }}" style="{{ _ta }}"></textarea>
     {% endcall %}
 
     {# 自定义 checkbox 样式 — 同 at_action_modal #}
