@@ -164,11 +164,9 @@
           {{ quotation.quotation_number }}
         </h1>
         {% call at_header_chip_group() %}
-          {# 旧 SM 确认徽章保留 — 反映 confirmation_badge_status #}
-          {{ at_status_pill(quotation.confirmation_badge_status or 'none', scope='quotation') }}
-          {# 新标准审批 chip(走 ApprovalInstance)— 已创建报价才显示
-             状态来自 view 预查的 at_ap_status(基于 ApprovalInstance.status),
-             不能用 quotation.approval_status(那是 SM 老机制字段) #}
+          {# 确认徽章已并入下方审批 chip(徽章=审批结果,避免重复显示) #}
+          {# 标准审批 chip(走 ApprovalInstance)— 单一状态来源:draft/pending/已确认/驳回
+             状态来自 view 预查的 at_ap_status(基于 ApprovalInstance.status) #}
           {% if not (is_new is defined and is_new) and quotation.id %}
           {% set _q_ap_status = at_ap_status if at_ap_status is defined else 'draft' %}
           {{ at_approval_dropdown(
