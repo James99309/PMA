@@ -33,15 +33,15 @@
 
 {% macro at_customer_form_modal(modal_id, mode='create') %}
   {% set _is_edit = (mode == 'edit') %}
-  {% set _title = '编辑客户' if _is_edit else '新建客户' %}
-  {% set _submit_label = '保存修改' if _is_edit else '创建客户' %}
+  {% set _title = _('编辑客户') if _is_edit else _('新建客户') %}
+  {% set _submit_label = _('保存修改') if _is_edit else _('创建客户') %}
   {% set _icon = 'pen' if _is_edit else 'plus' %}
   {% set _p = modal_id ~ '__' %}
   {% set _submit_btn_id = modal_id ~ '_submit' %}
   {% set footer = '<button onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
                 ~ 'style="padding:8px 16px;border-radius:8px;background:transparent;'
                 ~ 'border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;'
-                ~ 'margin-right:8px;">取消</button>'
+                ~ 'margin-right:8px;">' ~ _('取消') ~ '</button>'
                 ~ '<button id="' ~ _submit_btn_id ~ '" '
                 ~ 'onclick="atSubmitCustomerForm(\'' ~ mode ~ '\', \'' ~ modal_id ~ '\')" '
                 ~ 'style="padding:8px 18px;border-radius:8px;background:var(--accent);'
@@ -57,11 +57,11 @@
     {% set _ta  = _inp ~ ';height:auto;padding:8px 10px;resize:vertical;min-height:80px;line-height:1.5;' %}
 
     {# 企业名称 — 必填 + (create) AI 智能回填 + 查重 #}
-    {% call at_field('企业名称', required=true, hint=('输入名称后可点 AI 智能回填行业/类型/地址' if not _is_edit else '修改后会重新查重')) %}
+    {% call at_field(_('企业名称'), required=true, hint=(_('输入名称后可点 AI 智能回填行业/类型/地址') if not _is_edit else _('修改后会重新查重'))) %}
       <div style="display:flex;gap:8px;position:relative;">
         <div style="position:relative;flex:1;">
           <input type="text" id="{{ _p }}name" data-field-code="company_name"
-                 autocomplete="off" placeholder="请输入企业名称(必填)" style="{{ _inp }}">
+                 autocomplete="off" placeholder="{{ _('请输入企业名称(必填)') }}" style="{{ _inp }}">
           <div id="{{ _p }}similarList" class="hidden"
                style="position:absolute;top:100%;left:0;right:0;z-index:10;
                       margin-top:4px;background:var(--bg-elev);border:1px solid var(--line-2);
@@ -70,7 +70,7 @@
         </div>
         {% if not _is_edit %}
         <button type="button" id="{{ _p }}aiBtn" disabled
-                title="先输入企业名称"
+                title="{{ _('先输入企业名称') }}"
                 style="flex-shrink:0;padding:0 12px;height:34px;border-radius:6px;
                        border:1px solid var(--line-2);background:var(--bg-sunk);
                        color:var(--ink-4);font-size:12px;font-weight:500;cursor:not-allowed;
@@ -89,7 +89,7 @@
            style="margin-top:10px;padding:12px;border:1px solid var(--accent-soft);
                   border-radius:8px;background:var(--accent-tint);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <span style="font-size:12.5px;font-weight:500;color:var(--ink);">AI 建议</span>
+          <span style="font-size:12.5px;font-weight:500;color:var(--ink);">{{ _('AI 建议') }}</span>
           <button type="button" id="{{ _p }}aiClose"
                   style="background:transparent;border:0;color:var(--ink-3);cursor:pointer;
                          padding:2px;border-radius:4px;font-size:14px;line-height:1;">✕</button>
@@ -101,13 +101,13 @@
     {% endcall %}
 
     {# 地址 — 必填 + 地图定位 #}
-    {% call at_field('地址', required=true, hint='可直接输入,或点右侧定位按钮在地图上选取') %}
+    {% call at_field(_('地址'), required=true, hint=_('可直接输入,或点右侧定位按钮在地图上选取')) %}
       <div style="display:flex;gap:8px;">
         <input type="text" id="{{ _p }}address" data-field-code="address" autocomplete="off"
-               placeholder="输入地址,或点击右侧定位按钮" style="{{ _inp }}">
+               placeholder="{{ _('输入地址,或点击右侧定位按钮') }}" style="{{ _inp }}">
         <button type="button"
                 onclick="if(window.AddressPicker){var _n=(document.getElementById('{{ _p }}name')||{}).value||'';AddressPicker.open('{{ _p }}address',{initialQuery:_n.trim()});}"
-                title="地图定位"
+                title="{{ _('地图定位') }}"
                 style="flex-shrink:0;padding:0 12px;height:34px;border-radius:6px;
                        border:1px solid var(--line-2);background:var(--bg-elev);
                        color:var(--ink-3);cursor:pointer;
@@ -128,37 +128,37 @@
 
     {# 行业 + 企业类型 #}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      {% call at_field('行业') %}
+      {% call at_field(_('行业')) %}
         <select id="{{ _p }}industry" data-field-code="industry" style="{{ _inp }}">
-          <option value="">请选择行业</option>
+          <option value="">{{ _('请选择行业') }}</option>
         </select>
       {% endcall %}
-      {% call at_field('企业类型', required=true) %}
+      {% call at_field(_('企业类型'), required=true) %}
         <select id="{{ _p }}companyType" data-field-code="company_type" style="{{ _inp }}">
-          <option value="">请选择企业类型</option>
+          <option value="">{{ _('请选择企业类型') }}</option>
         </select>
       {% endcall %}
     </div>
 
     {# 来源 + 归属人 并排 #}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      {% call at_field('来源', required=true) %}
+      {% call at_field(_('来源'), required=true) %}
         <select id="{{ _p }}source" data-field-code="source" style="{{ _inp }}">
-          <option value="">请选择来源</option>
+          <option value="">{{ _('请选择来源') }}</option>
         </select>
       {% endcall %}
       {# 归属人 — 创建态默认当前用户;编辑态:can_change_owner 时下拉可选,否则 readonly 显示 #}
-      {% call at_field('归属人', hint='默认当前用户;有权限可转交') %}
+      {% call at_field(_('归属人'), hint=_('默认当前用户;有权限可转交')) %}
         <select id="{{ _p }}ownerId" style="{{ _inp }}">
-          <option value="">— 加载中… —</option>
+          <option value="">{{ _('— 加载中… —') }}</option>
         </select>
       {% endcall %}
     </div>
 
     {# 备注 #}
-    {% call at_field('备注') %}
+    {% call at_field(_('备注')) %}
       <textarea id="{{ _p }}notes" data-field-code="notes" rows="3"
-                placeholder="请输入备注信息" style="{{ _ta }}"></textarea>
+                placeholder="{{ _('请输入备注信息') }}" style="{{ _ta }}"></textarea>
     {% endcall %}
 
     {# Tailwind class 兼容样式(create 态 AI 面板用) #}

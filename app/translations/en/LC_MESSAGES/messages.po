@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 13:55+0800\n"
+"POT-Creation-Date: 2026-06-15 14:16+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -2962,6 +2962,7 @@ msgstr "Submit"
 #: app/templates/approval_config/template_form.html:232
 #: app/templates/backup/tw_index.html:296
 #: app/templates/backup/tw_index.html:328
+#: app/templates/components/at_customer_modal.html:44
 #: app/templates/components/at_minitables.html:310
 #: app/templates/components/at_project_modal.html:38
 #: app/templates/components/at_purchase_order.html:538
@@ -3713,6 +3714,7 @@ msgid "模型"
 msgstr "Model"
 
 #: app/templates/admin/tw_ai_usage.html:245
+#: app/templates/components/at_customer_modal.html:145
 #: app/templates/config_management/tw_index.html:594
 #: app/templates/customer/partials/_company_form_fields.html:107
 #: app/templates/product_code/tw_category_management.html:237
@@ -4595,6 +4597,7 @@ msgid "请输入用户名"
 msgstr "Please enter username"
 
 #: app/templates/auth/register.html:20
+#: app/templates/components/at_customer_modal.html:60
 #: app/templates/customer/add_action.html:85
 #: app/templates/customer/add_action_for_company.html:24
 #: app/templates/customer/partials/_company_form_fields.html:26
@@ -5113,6 +5116,174 @@ msgstr "Clear"
 msgid "暂未上传"
 msgstr "Not uploaded"
 
+#: app/templates/components/at_customer_modal.html:36
+#: app/templates/customer/i18n_demo.html:67
+msgid "编辑客户"
+msgstr "Edit Customer"
+
+#: app/templates/components/at_customer_modal.html:36
+#: app/templates/components/at_topbar.html:122
+#: app/templates/customer/at_list.html:40
+msgid "新建客户"
+msgstr "New Customer"
+
+#: app/templates/components/at_customer_modal.html:37
+#: app/templates/components/at_project_modal.html:32
+#: app/templates/components/at_purchase_order.html:653
+#: app/templates/components/at_user_modal.html:208
+#: app/templates/components/tw_purchase_order_form.html:29
+#: app/templates/components/tw_task_modal.html:311
+#: app/templates/expense/edit_expense.html:31
+msgid "保存修改"
+msgstr "Save Changes"
+
+# 侧边栏菜单缺失翻译
+#: app/templates/components/at_customer_modal.html:37
+msgid "创建客户"
+msgstr "Create Customer"
+
+#: app/templates/components/at_customer_modal.html:60
+msgid "输入名称后可点 AI 智能回填行业/类型/地址"
+msgstr "After entering the name, AI can auto-fill industry/type/address"
+"After entering a name, click AI to auto-fill the industry, address, and "
+"description"
+
+#: app/templates/components/at_customer_modal.html:60
+#: app/templates/components/at_project_modal.html:56
+msgid "修改后会重新查重"
+msgstr "Duplicate check runs again after editing"
+
+#: app/templates/components/at_customer_modal.html:64
+msgid "请输入企业名称(必填)"
+msgstr "Enter company name (required)"
+
+#: app/templates/components/at_customer_modal.html:73
+msgid "先输入企业名称"
+msgstr "Enter company name first"
+
+#: app/templates/components/at_customer_modal.html:92
+#: app/templates/components/at_project_modal.html:88
+#: app/templates/customer/partials/_company_form_fields.html:57
+#: app/templates/project/partials/_project_form_fields.html:39
+msgid "AI 建议"
+msgstr "AI Suggestions"
+
+#: app/templates/components/at_customer_modal.html:104
+#: app/templates/customer/partials/_company_form_fields.html:71
+#: app/templates/customer/partials/_company_form_fields.html:143
+#: app/templates/project/partials/_project_form_fields.html:183
+msgid "地址"
+msgstr "Address"
+
+#: app/templates/components/at_customer_modal.html:104
+#: app/templates/components/at_project_modal.html:114
+msgid "可直接输入,或点右侧定位按钮在地图上选取"
+msgstr "Enter directly, or click the locate button to pick on the map"
+
+#: app/templates/components/at_customer_modal.html:107
+#: app/templates/components/at_project_modal.html:117
+msgid "输入地址,或点击右侧定位按钮"
+msgstr "Enter an address, or click the locate button"
+
+#: app/templates/components/at_customer_modal.html:110
+#: app/templates/components/at_project_modal.html:120
+#: app/templates/components/tw_address_input.html:65
+msgid "地图定位"
+msgstr "Map Location"
+
+#: app/templates/components/at_customer_modal.html:131
+#: app/templates/components/tw_access_request_modal.html:153
+#: app/templates/customer/at_list.html:84
+#: app/templates/customer/at_list.html:94
+#: app/templates/customer/customer_cards.html:37
+#: app/templates/customer/i18n_demo.html:31
+#: app/templates/customer/partials/_company_form_fields.html:83
+#: app/templates/customer/partials/_company_form_fields.html:141
+#: app/templates/project/partials/_project_form_fields.html:68
+#: app/templates/project/partials/_project_form_fields.html:182
+#: app/templates/prospect/_tw_lost_list.html:31
+#: app/templates/prospect/tw_list.html:169
+#: app/templates/prospect/tw_list.html:261
+#: app/templates/prospect/tw_list.html:559
+#: app/templates/prospect/tw_lost_detail.html:93
+#: app/templates/prospect/tw_lost_panel.html:55
+#: app/templates/prospect/tw_panel.html:58
+msgid "行业"
+msgstr "Industry"
+
+#: app/templates/components/at_customer_modal.html:133
+#: app/templates/components/at_project_modal.html:108
+#: app/templates/customer/partials/_company_form_fields.html:88
+#: app/templates/project/partials/_project_form_fields.html:73
+msgid "请选择行业"
+msgstr "Please select industry"
+
+#: app/templates/components/at_customer_modal.html:136
+#: app/templates/customer/partials/_company_form_fields.html:93
+#: app/templates/customer/partials/_company_form_fields.html:142
+#: app/views/config_management.py:2082
+msgid "企业类型"
+msgstr "Company Type"
+
+#: app/templates/components/at_customer_modal.html:138
+#: app/templates/customer/partials/_company_form_fields.html:99
+msgid "请选择企业类型"
+msgstr "Please select company type"
+
+#: app/templates/components/at_customer_modal.html:147
+#: app/templates/customer/partials/_company_form_fields.html:113
+msgid "请选择来源"
+msgstr "Please select source"
+
+#: app/templates/components/at_customer_modal.html:151
+#: app/templates/components/tw_access_request_modal.html:32
+msgid "归属人"
+msgstr "Owner"
+
+#: app/templates/components/at_customer_modal.html:151
+msgid "默认当前用户;有权限可转交"
+msgstr "Defaults to current user; can be reassigned if permitted"
+
+#: app/templates/components/at_customer_modal.html:153
+msgid "— 加载中… —"
+msgstr "— Loading… —"
+
+#: app/templates/components/at_customer_modal.html:159
+#: app/templates/components/at_minitables.html:204
+#: app/templates/components/at_purchase_order.html:556
+#: app/templates/components/at_purchase_order.html:589
+#: app/templates/components/at_purchase_order.html:629
+#: app/templates/components/at_purchase_order.html:805
+#: app/templates/components/at_sales_order.html:136
+#: app/templates/components/tw_pricing_order_modal.html:411
+#: app/templates/components/tw_pricing_order_modal.html:669
+#: app/templates/components/tw_purchase_order_form.html:169
+#: app/templates/components/tw_upload_confirm_modal.html:87
+#: app/templates/config_management/tw_index.html:1553
+#: app/templates/config_management/tw_index.html:1636
+#: app/templates/config_management/tw_index.html:1656
+#: app/templates/config_management/tw_index.html:1678
+#: app/templates/config_management/tw_index.html:1698
+#: app/templates/customer/add_contact.html:63
+#: app/templates/customer/edit_contact.html:53
+#: app/templates/customer/partials/_company_form_fields.html:120
+#: app/templates/inventory/partials/_test_form.html:326
+#: app/templates/prospect/tw_list.html:1124
+#: app/templates/quotation/partials/_quotation_modal_fields.html:155
+#: app/templates/quotation/tw_quotation_detail.html:247
+#: app/templates/quotation/tw_quotation_detail.html:352
+#: app/templates/quotation/tw_quotation_edit.html:571
+#: app/templates/quotation/tw_quotation_edit.html:605
+#: app/templates/sales_order/partials/_so_modal_fields.html:212
+#: app/templates/spec_template/tw_configurations.html:420
+msgid "备注"
+msgstr "Notes"
+
+#: app/templates/components/at_customer_modal.html:161
+#: app/templates/customer/partials/_company_form_fields.html:125
+msgid "请输入备注信息"
+msgstr "Please enter notes"
+
 #: app/templates/components/at_detail.html:67
 #: app/templates/knowledge/tw_wiki.html:616
 msgid "+ 新建"
@@ -5452,36 +5623,6 @@ msgstr "Total"
 msgid "产品编码"
 msgstr "Code"
 
-#: app/templates/components/at_minitables.html:204
-#: app/templates/components/at_purchase_order.html:556
-#: app/templates/components/at_purchase_order.html:589
-#: app/templates/components/at_purchase_order.html:629
-#: app/templates/components/at_purchase_order.html:805
-#: app/templates/components/at_sales_order.html:136
-#: app/templates/components/tw_pricing_order_modal.html:411
-#: app/templates/components/tw_pricing_order_modal.html:669
-#: app/templates/components/tw_purchase_order_form.html:169
-#: app/templates/components/tw_upload_confirm_modal.html:87
-#: app/templates/config_management/tw_index.html:1553
-#: app/templates/config_management/tw_index.html:1636
-#: app/templates/config_management/tw_index.html:1656
-#: app/templates/config_management/tw_index.html:1678
-#: app/templates/config_management/tw_index.html:1698
-#: app/templates/customer/add_contact.html:63
-#: app/templates/customer/edit_contact.html:53
-#: app/templates/customer/partials/_company_form_fields.html:120
-#: app/templates/inventory/partials/_test_form.html:326
-#: app/templates/prospect/tw_list.html:1124
-#: app/templates/quotation/partials/_quotation_modal_fields.html:155
-#: app/templates/quotation/tw_quotation_detail.html:247
-#: app/templates/quotation/tw_quotation_detail.html:352
-#: app/templates/quotation/tw_quotation_edit.html:571
-#: app/templates/quotation/tw_quotation_edit.html:605
-#: app/templates/sales_order/partials/_so_modal_fields.html:212
-#: app/templates/spec_template/tw_configurations.html:420
-msgid "备注"
-msgstr "Notes"
-
 #: app/templates/components/at_minitables.html:228
 #: app/templates/components/tw_performance_dashboard.html:341
 #: app/templates/components/tw_pricing_order_modal.html:386
@@ -5686,15 +5827,6 @@ msgid "新建项目"
 msgstr "New Project"
 
 #: app/templates/components/at_project_modal.html:32
-#: app/templates/components/at_purchase_order.html:653
-#: app/templates/components/at_user_modal.html:208
-#: app/templates/components/tw_purchase_order_form.html:29
-#: app/templates/components/tw_task_modal.html:311
-#: app/templates/expense/edit_expense.html:31
-msgid "保存修改"
-msgstr "Save Changes"
-
-#: app/templates/components/at_project_modal.html:32
 #: app/templates/macros/ui_helpers.html:388
 msgid "创建项目"
 msgstr "Create Project"
@@ -5705,10 +5837,6 @@ msgstr ""
 "After entering a name, click AI to auto-fill the industry, address, and "
 "description"
 
-#: app/templates/components/at_project_modal.html:56
-msgid "修改后会重新查重"
-msgstr "Duplicate check runs again after editing"
-
 #: app/templates/components/at_project_modal.html:60
 msgid "请输入项目名称(必填)"
 msgstr "Please enter project name (required)"
@@ -5716,12 +5844,6 @@ msgstr "Please enter project name (required)"
 #: app/templates/components/at_project_modal.html:69
 msgid "先输入项目名称"
 msgstr "Enter project name first"
-
-#: app/templates/components/at_project_modal.html:88
-#: app/templates/customer/partials/_company_form_fields.html:57
-#: app/templates/project/partials/_project_form_fields.html:39
-msgid "AI 建议"
-msgstr "AI Suggestions"
 
 #: app/templates/components/at_project_modal.html:101
 #: app/templates/project/add.html:250 app/templates/project/edit.html:155
@@ -5743,29 +5865,10 @@ msgstr "Please select project type"
 msgid "项目行业"
 msgstr "Industry"
 
-#: app/templates/components/at_project_modal.html:108
-#: app/templates/customer/partials/_company_form_fields.html:88
-#: app/templates/project/partials/_project_form_fields.html:73
-msgid "请选择行业"
-msgstr "Please select industry"
-
 #: app/templates/components/at_project_modal.html:114
 #: app/templates/project/partials/_project_form_fields.html:81
 msgid "项目地址"
 msgstr "Project address"
-
-#: app/templates/components/at_project_modal.html:114
-msgid "可直接输入,或点右侧定位按钮在地图上选取"
-msgstr "Enter directly, or click the locate button to pick on the map"
-
-#: app/templates/components/at_project_modal.html:117
-msgid "输入地址,或点击右侧定位按钮"
-msgstr "Enter an address, or click the locate button"
-
-#: app/templates/components/at_project_modal.html:120
-#: app/templates/components/tw_address_input.html:65
-msgid "地图定位"
-msgstr "Map Location"
 
 #: app/templates/components/at_project_modal.html:143
 #: app/templates/project/partials/_project_form_fields.html:94
@@ -6646,11 +6749,6 @@ msgstr "Quick Create"
 msgid "创建"
 msgstr "Created"
 
-#: app/templates/components/at_topbar.html:122
-#: app/templates/customer/at_list.html:40
-msgid "新建客户"
-msgstr "New Customer"
-
 #: app/templates/components/at_topbar.html:128
 #: app/templates/macros/ui_helpers.html:390
 #: app/templates/quotation/at_list.html:17
@@ -6864,10 +6962,6 @@ msgstr "Request Customer Access"
 msgid "请求访问项目资源"
 msgstr "Request Project Access"
 
-#: app/templates/components/tw_access_request_modal.html:32
-msgid "归属人"
-msgstr "Owner"
-
 #: app/templates/components/tw_access_request_modal.html:44
 msgid "请求说明"
 msgstr "Request Note"
@@ -6908,25 +7002,6 @@ msgstr "Send Request"
 #: app/templates/components/tw_access_request_modal.html:109
 msgid "访问权限请求"
 msgstr "Access Permission Request"
-
-#: app/templates/components/tw_access_request_modal.html:153
-#: app/templates/customer/at_list.html:84
-#: app/templates/customer/at_list.html:94
-#: app/templates/customer/customer_cards.html:37
-#: app/templates/customer/i18n_demo.html:31
-#: app/templates/customer/partials/_company_form_fields.html:83
-#: app/templates/customer/partials/_company_form_fields.html:141
-#: app/templates/project/partials/_project_form_fields.html:68
-#: app/templates/project/partials/_project_form_fields.html:182
-#: app/templates/prospect/_tw_lost_list.html:31
-#: app/templates/prospect/tw_list.html:169
-#: app/templates/prospect/tw_list.html:261
-#: app/templates/prospect/tw_list.html:559
-#: app/templates/prospect/tw_lost_detail.html:93
-#: app/templates/prospect/tw_lost_panel.html:55
-#: app/templates/prospect/tw_panel.html:58
-msgid "行业"
-msgstr "Industry"
 
 #: app/templates/components/tw_access_request_modal.html:160
 msgid "选择共享内容"
@@ -13893,10 +13968,6 @@ msgstr "Action Buttons Example"
 msgid "添加客户"
 msgstr "Add Customer"
 
-#: app/templates/customer/i18n_demo.html:67
-msgid "编辑客户"
-msgstr "Edit Customer"
-
 #: app/templates/customer/i18n_demo.html:73
 msgid "删除客户"
 msgstr "Delete Customer"
@@ -14174,34 +14245,10 @@ msgstr "Merge failed, please retry"
 msgid "AI 智能回填"
 msgstr "AI Auto-fill"
 
-#: app/templates/customer/partials/_company_form_fields.html:71
-#: app/templates/customer/partials/_company_form_fields.html:143
-#: app/templates/project/partials/_project_form_fields.html:183
-msgid "地址"
-msgstr "Address"
-
 #: app/templates/customer/partials/_company_form_fields.html:73
 #: app/templates/project/partials/_project_form_fields.html:83
 msgid "点击定位或输入地址"
 msgstr "Click to locate or enter address"
-
-#: app/templates/customer/partials/_company_form_fields.html:93
-#: app/templates/customer/partials/_company_form_fields.html:142
-#: app/views/config_management.py:2082
-msgid "企业类型"
-msgstr "Company Type"
-
-#: app/templates/customer/partials/_company_form_fields.html:99
-msgid "请选择企业类型"
-msgstr "Please select company type"
-
-#: app/templates/customer/partials/_company_form_fields.html:113
-msgid "请选择来源"
-msgstr "Please select source"
-
-#: app/templates/customer/partials/_company_form_fields.html:125
-msgid "请输入备注信息"
-msgstr "Please enter notes"
 
 #: app/templates/customer/partials/_company_form_fields.html:144
 msgid "企业简介"
