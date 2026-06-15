@@ -164,11 +164,12 @@
           {{ quotation.quotation_number }}
         </h1>
         {% call at_header_chip_group() %}
-          {# 确认徽章已并入下方审批 chip(徽章=审批结果,避免重复显示) #}
-          {# 标准审批 chip(走 ApprovalInstance)— 单一状态来源:draft/pending/已确认/驳回
-             状态来自 view 预查的 at_ap_status(基于 ApprovalInstance.status) #}
+          {# 单一状态来源 = confirmation_badge_status(列表/详情一致);审批实例只是机制。
+             chip 展示态由徽章派生,下拉操作仍走 ApprovalInstance(api_base)。
+             兼容历史:155+ 老机制"已确认"无审批实例,必须读徽章才不会误显示草稿。 #}
           {% if not (is_new is defined and is_new) and quotation.id %}
-          {% set _q_ap_status = at_ap_status if at_ap_status is defined else 'draft' %}
+          {% set _cbs_disp = quotation.confirmation_badge_status or 'none' %}
+          {% set _q_ap_status = {'none':'draft', 'pending':'pending', 'confirmed':'approved', 'reconfirm':'rejected'}.get(_cbs_disp, 'draft') %}
           {{ at_approval_dropdown(
                 object_type='quotation', object_id=quotation.id,
                 status=_q_ap_status, status_scope='quotation_approval',
@@ -289,9 +290,9 @@
          · 解决方案经理点 → 一键直接确认(toggle,不建审批实例)
          · owner/admin 点(且状态=draft)→ 提交审批指定 SM(带推荐);rejected/recalled 走 chip 浮层 Resubmit #}
       {% if not is_new and quotation.id %}
+        {# 单一来源=徽章:none/reconfirm 时可发起;pending 走 chip 审批;confirmed 不显示 #}
         {% set _cbs = quotation.confirmation_badge_status or 'none' %}
-        {% set _apst2 = at_ap_status if at_ap_status is defined else 'draft' %}
-        {% if _cbs != 'confirmed' and _apst2 not in ('pending', 'approved') and not quotation.is_locked %}
+        {% if _cbs in ('none', 'reconfirm') and not quotation.is_locked %}
           {% if current_user.role == 'solution_manager' %}
           <button type="button" onclick="atQuoteDirectConfirm()" class="view-only"
                   style="height:32px;padding:0 14px;border-radius:6px;border:0;
@@ -299,7 +300,7 @@
                          display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
             {{ at_icon('check', 12) }}{{ _('技术确认') }}
           </button>
-          {% elif (quotation.owner_id == current_user.id or current_user.role == 'admin') and _apst2 == 'draft' %}
+          {% elif (quotation.owner_id == current_user.id or current_user.role == 'admin') %}
           <button type="button" class="view-only"
                   data-at-approval-quick="submit"
                   data-api-base="/quotation/api/approval"

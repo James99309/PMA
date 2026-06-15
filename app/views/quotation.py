@@ -6045,6 +6045,9 @@ def at_recall_quotation_approval(quotation_id):
                         fresh_q.lock_reason = None
                         fresh_q.locked_by = None
                         fresh_q.locked_at = None
+                    # 徽章=审批结果:召回 → 回到未确认(none),与列表保持一致
+                    if (fresh_q.confirmation_badge_status or 'none') != 'none':
+                        fresh_q.clear_confirmation_badge()
                     db.session.commit()
                     logger.info(f"召回后已解锁报价单 #{quotation_id}, is_locked={fresh_q.is_locked}")
             except Exception as _unlock_err:

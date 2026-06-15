@@ -73,14 +73,36 @@ def main():
             reset += 1
             if q.is_locked:
                 unlocked += 1
+        # ── Step B:badge 同步审批实例(让列表=详情) ──
+        #   有 PENDING 实例 → badge=pending;有 APPROVED 实例(无pending) → badge=confirmed
+        sync_pending = 0
+        sync_confirmed = 0
+        for q in Quotation.query.all():
+            pend = ApprovalInstance.query.filter_by(
+                object_type='quotation', object_id=q.id
+            ).filter(ApprovalInstance.status == ApprovalStatus.PENDING).first()
+            appr = ApprovalInstance.query.filter_by(
+                object_type='quotation', object_id=q.id
+            ).filter(ApprovalInstance.status == ApprovalStatus.APPROVED).first()
+            cur = q.confirmation_badge_status or 'none'
+            if pend and cur != 'pending':
+                if apply:
+                    q.set_pending_confirmation_badge() if cur == 'none' else None
+                    q.confirmation_badge_status = 'pending'
+                    q.confirmation_badge_color = '#f97316'
+                sync_pending += 1
+            elif appr and not pend and cur != 'confirmed':
+                if apply:
+                    q.set_confirmation_badge('#28a745', appr.created_by)
+                sync_confirmed += 1
         if apply:
             db.session.commit()
         print(f"== {'已落库 APPLY' if apply else 'DRY-RUN(未改)'} ==")
-        print(f"badge∈(pending,reconfirm) 总数: {total}")
-        print(f"  跳过(有 active 审批实例,不动): {skipped_active}")
-        print(f"  归位为 none 的孤儿: {reset}")
-        print(f"  其中顺带解锁: {unlocked}")
-        print("  样例:")
+        print(f"[A] badge∈(pending,reconfirm) 总数: {total}")
+        print(f"    跳过(有 active 审批实例,不动): {skipped_active}")
+        print(f"    归位为 none 的孤儿: {reset}  其中解锁: {unlocked}")
+        print(f"[B] 同步: pending实例→pending: {sync_pending}  approved实例→confirmed: {sync_confirmed}")
+        print("  样例(A):")
         for n, b, lk in samples:
             print(f"    {n}  badge={b}  locked={lk}")
 
