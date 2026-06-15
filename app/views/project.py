@@ -144,6 +144,112 @@ def list_projects():
     """旧 TW 项目列表 — 已重定向到 AT 风格列表"""
     return redirect(url_for('project.at_list_view', **request.args))
 
+def _can_win_lock(p, user):
+    """成功锁定权限:项目负责人 / 厂商销售负责人 / 项目负责人的部门经理 / admin"""
+    if user.role == 'admin':
+        return True
+    if p.owner_id == user.id:
+        return True
+    if getattr(p, 'vendor_sales_manager_id', None) == user.id:
+        return True
+    if user.is_department_manager and p.owner and \
+            (user.department or '') == (p.owner.department or '') and \
+            (user.company_name or '') == (p.owner.company_name or ''):
+        return True
+    return False
+
+
+@project.route('/at-api/<int:project_id>/win-lock', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def at_api_win_lock(project_id):
+    """成功锁定(锁单预判):强制理由;签约阶段自动解除,亦可人为解除"""
+    p = Project.query.get_or_404(project_id)
+    if not _can_win_lock(p, current_user):
+        return jsonify({'success': False, 'message': '仅项目负责人/厂商销售负责人/部门经理可锁定成功'}), 403
+    if p.current_stage == 'signed':
+        return jsonify({'success': False, 'message': '项目已签约,无需锁定'}), 400
+    payload = request.get_json() or {}
+    reason = (payload.get('reason') or '').strip()
+    if not reason:
+        return jsonify({'success': False, 'message': '请填写锁定理由'}), 400
+    delivery_raw = (payload.get('delivery_forecast') or '').strip()
+    if not delivery_raw:
+        return jsonify({'success': False, 'message': '请填写预计交付日期'}), 400
+    try:
+        delivery_date = datetime.strptime(delivery_raw, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': '交付日期格式不正确'}), 400
+    # 锁定必须关联报价单:无报价单的项目不可锁;多报价单需指明锁定哪一单
+    from app.models.quotation import Quotation as _Q
+    proj_quotes = _Q.query.filter_by(project_id=p.id).order_by(_Q.created_at.desc()).all()
+    if not proj_quotes:
+        return jsonify({'success': False, 'message': '该项目尚无报价单,无法锁定成功'}), 400
+    qid = payload.get('quotation_id')
+    if len(proj_quotes) == 1 and not qid:
+        lock_q = proj_quotes[0]
+    else:
+        lock_q = next((q for q in proj_quotes if q.id == qid), None)
+        if not lock_q:
+            return jsonify({'success': False, 'message': '请选择锁定的报价单'}), 400
+    try:
+        from app.utils.change_tracker import ChangeTracker
+        old_values = {'win_locked': p.win_locked, 'win_lock_reason': p.win_lock_reason,
+                      'delivery_forecast': p.delivery_forecast}
+        p.win_locked = True
+        p.win_lock_reason = reason
+        p.win_locked_by = current_user.id
+        p.win_locked_at = datetime.now()
+        p.win_locked_quotation_id = lock_q.id
+        p.win_locked_amount = float(lock_q.amount or 0)   # 锁定金额快照
+        p.delivery_forecast = delivery_date   # 锁定即承诺交期,同步到项目详情
+        db.session.commit()
+        try:
+            ChangeTracker.log_update(p, old_values,
+                                     {'win_locked': True, 'win_lock_reason': reason,
+                                      'delivery_forecast': delivery_date})
+        except Exception:
+            pass
+        return jsonify({'success': True, 'message': '已锁定成功',
+                        'locked_by': current_user.real_name or current_user.username,
+                        'locked_at': p.win_locked_at.strftime('%Y-%m-%d %H:%M')})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'成功锁定失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@project.route('/at-api/<int:project_id>/win-unlock', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def at_api_win_unlock(project_id):
+    """人为解除成功锁定(权限同锁定)"""
+    p = Project.query.get_or_404(project_id)
+    if not _can_win_lock(p, current_user):
+        return jsonify({'success': False, 'message': '仅项目负责人/厂商销售负责人/部门经理可解除'}), 403
+    if not p.win_locked:
+        return jsonify({'success': False, 'message': '该项目未处于锁定成功状态'}), 400
+    try:
+        from app.utils.change_tracker import ChangeTracker
+        old_values = {'win_locked': True, 'win_lock_reason': p.win_lock_reason}
+        p.win_locked = False
+        p.win_lock_reason = None
+        p.win_locked_by = None
+        p.win_locked_at = None
+        p.win_locked_quotation_id = None
+        p.win_locked_amount = None
+        db.session.commit()
+        try:
+            ChangeTracker.log_update(p, old_values, {'win_locked': False, 'win_lock_reason': None})
+        except Exception:
+            pass
+        return jsonify({'success': True, 'message': '已解除锁定'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'解除成功锁定失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
 @project.route('/<int:project_id>/at_view')
 @login_required
 @permission_required('project', 'view')
@@ -197,8 +303,9 @@ def at_view_project(project_id):
     _stage_order = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
     _stage_labels = {'discover':'发现','embed':'植入','pre_tender':'标前','tendering':'标中',
                      'awarded':'中标','quoted':'批价','signed':'签约','lost':'失败','paused':'搁置'}
-    _stage_icons  = {'discover':'spark','embed':'pen','pre_tender':'doc','tendering':'doc',
-                     'awarded':'check','quoted':'cash','signed':'check'}
+    # 阶段图标 — 移植自 TW 项目阶段(Material Symbols);AT 阶段条 icon_set='material' 渲染
+    _stage_icons  = {'discover':'travel_explore','embed':'biotech','pre_tender':'manage_search',
+                     'tendering':'gavel','awarded':'emoji_events','quoted':'payments','signed':'handshake'}
     _history = ProjectStageHistory.query.filter_by(project_id=project_id)\
         .order_by(ProjectStageHistory.change_date.asc(), ProjectStageHistory.id.asc()).all()
     # 每个阶段的进入时间(以 to_stage 为准,首次进入)
@@ -275,8 +382,58 @@ def at_view_project(project_id):
         or (p.vendor_sales_manager_id and p.vendor_sales_manager_id == current_user.id)
     )
 
+    # ─── 失败/搁置审核(project_hold) chip + 发起入口上下文 ───
+    from app.helpers.project_hold_helpers import get_pending_hold_instance
+    _hold_inst = get_pending_hold_instance(project_id)
+    hold_pending = _hold_inst is not None
+    hold_target = (_hold_inst.template_snapshot or {}).get('hold_target') if _hold_inst else None
+    # 仅 owner / admin、当前为正常阶段、且无进行中 hold 时,可发起申请
+    can_request_hold = (
+        (p.owner_id == current_user.id or current_user.role == 'admin')
+        and not _abnormal
+        and not hold_pending
+    )
+
+    # 项目附件:补全上传人姓名(新文件已存 uploaded_by_name,旧文件按 uploaded_by 反查)
+    project_attachments = []
+    try:
+        _raw = p.attachments_list
+        _uids = {a.get('uploaded_by') for a in _raw if a.get('uploaded_by')}
+        _umap = {}
+        if _uids:
+            from app.models.user import User as _U
+            for _u in _U.query.filter(_U.id.in_(_uids)).all():
+                _umap[_u.id] = _u.real_name or _u.username
+        for a in _raw:
+            a = dict(a)
+            a['uploader'] = a.get('uploaded_by_name') or _umap.get(a.get('uploaded_by')) or ''
+            project_attachments.append(a)
+    except Exception as _att_err:
+        current_app.logger.warning(f"加载项目附件失败: {_att_err}")
+        project_attachments = []
+
+    # 项目系统图(系统设计卡;复用 system_diagram 模块,只读加载)
+    try:
+        from app.models.system_diagram import SystemDiagram
+        project_diagrams = (SystemDiagram.query
+                            .filter_by(project_id=p.id, is_deleted=False)
+                            .order_by(SystemDiagram.updated_at.desc()).all())
+    except Exception as _dg_err:
+        current_app.logger.warning(f"加载项目系统图失败: {_dg_err}")
+        project_diagrams = []
+
+    _win_locker = User.query.get(p.win_locked_by) if p.win_locked_by else None
+    from app.models.quotation import Quotation as _Q
+    _lock_quotes = [{'id': q.id, 'number': q.quotation_number,
+                     'amount': float(q.amount or 0), 'currency': q.currency or 'CNY'}
+                    for q in _Q.query.filter_by(project_id=p.id).order_by(_Q.created_at.desc()).all()]
+    _locked_q = next((q for q in _lock_quotes if q['id'] == p.win_locked_quotation_id), None)
     return render_template('project/at_view.html',
                            project=p,
+                           can_win_lock=_can_win_lock(p, current_user),
+                           win_locker_name=(_win_locker.real_name or _win_locker.username) if _win_locker else '',
+                           lock_quotations=_lock_quotes,
+                           locked_quotation=_locked_q,
                            related=related,
                            companies=associated_companies,
                            actions=actions,
@@ -287,7 +444,13 @@ def at_view_project(project_id):
                            shared_users=shared_users,
                            shareable_users_tree=shareable_users_tree,
                            approval=approval,
-                           can_submit_approval=can_submit_approval)
+                           can_submit_approval=can_submit_approval,
+                           hold_pending=hold_pending,
+                           hold_target=hold_target,
+                           can_request_hold=can_request_hold,
+                           recover_stage=(last_normal if _abnormal else None),
+                           project_attachments=project_attachments,
+                           project_diagrams=project_diagrams)
 
 
 @project.route('/at_list')
@@ -300,8 +463,27 @@ def at_list_view():
     per_page = 30
     tab = request.args.get('tab', 'all')
     search = request.args.get('search', '').strip()
+    # 多选:同名多个 query 参数(阶段维度已由 tab 表达,这里不再重复筛选)
+    owner_values = [v for v in request.args.getlist('owner') if v.strip()]
+    ptype_values = [v for v in request.args.getlist('ptype') if v.strip()]
 
     base = get_viewable_data(Project, current_user).filter(Project.is_deleted == False)
+
+    # ── 筛选选项(基于可见数据 → 天然含权限+归属);能看到他人数据才显示筛选 ──
+    from app.utils.dictionary_helpers import project_type_label
+    from app.utils.access_control import build_owner_filter_options
+    _owner_ids = [r[0] for r in base.with_entities(Project.owner_id).distinct().all() if r[0]]
+    show_filter = any(oid != current_user.id for oid in _owner_ids)
+    owner_options = build_owner_filter_options(_owner_ids)
+    type_options = [(t, project_type_label(t)) for t in sorted(
+        {x[0] for x in base.with_entities(Project.project_type).distinct().all() if x[0]})]
+
+    # ── 应用筛选(多选 → IN)──
+    _owner_ids_sel = [int(v) for v in owner_values if v.isdigit()]
+    if _owner_ids_sel:
+        base = base.filter(Project.owner_id.in_(_owner_ids_sel))
+    if ptype_values:
+        base = base.filter(Project.project_type.in_(ptype_values))
 
     # tab → current_stage
     TAB_STAGE_MAP = {
@@ -309,17 +491,28 @@ def at_list_view():
         'embed':      ['embed'],
         'pre_tender': ['pre_tender', 'quoted'],
         'tendering':  ['tendering'],
-        'awarded':    ['awarded', 'signed'],
+        'awarded':    ['awarded'],
+        'signed':     ['signed'],            # 签约(独立 tab)
         'closed':     ['lost', 'paused'],
     }
+    # 「全部」排除 搁置/失败/签约(只看进行中管道);NULL 阶段仍计入
+    _EXCLUDE_FROM_ALL = ['paused', 'lost', 'signed']
+    _all_filter = or_(Project.current_stage.is_(None),
+                      Project.current_stage.notin_(_EXCLUDE_FROM_ALL))
 
-    tab_counts = {'all': base.count()}
+    tab_counts = {'all': base.filter(_all_filter).count()}
     for k, stages in TAB_STAGE_MAP.items():
         tab_counts[k] = base.filter(Project.current_stage.in_(stages)).count()
+    # 锁定成功(锁单预判)tab:跨阶段标记,签约自动解除
+    tab_counts['win_locked'] = base.filter(Project.win_locked.is_(True)).count()
 
     q = base
     if tab in TAB_STAGE_MAP:
         q = q.filter(Project.current_stage.in_(TAB_STAGE_MAP[tab]))
+    elif tab == 'win_locked':
+        q = q.filter(Project.win_locked.is_(True))
+    else:  # 全部:排除 搁置/失败/签约
+        q = q.filter(_all_filter)
 
     if search:
         like = f'%{search}%'
@@ -332,12 +525,67 @@ def at_list_view():
         page=page, per_page=per_page, error_out=False,
     )
 
+    # 非空查询参数(供 tab/分页链接保留筛选+搜索状态;多选 → 列表值)
+    list_qs = {}
+    if search:
+        list_qs['search'] = search
+    if owner_values:
+        list_qs['owner'] = owner_values
+    if ptype_values:
+        list_qs['ptype'] = ptype_values
+
+    # 未跟进天数(当前页批量;排除 签约/暂停/失败;≥20 天才标识)
+    overdue_days = {}
+    try:
+        from sqlalchemy import func as _f
+        from app.models.action import Action
+        from app.models.projectpm_stage_history import ProjectStageHistory
+        from datetime import datetime as _dt, date as _date
+        _page_ids = [pp.id for pp in pagination.items
+                     if pp.current_stage not in ('signed', 'paused', 'lost')]
+        if _page_ids:
+            _last_act = dict(db.session.query(Action.project_id, _f.max(Action.date))
+                             .filter(Action.project_id.in_(_page_ids))
+                             .group_by(Action.project_id).all())
+            _no_act = [pid for pid in _page_ids if pid not in _last_act]
+            _since = {}
+            if _no_act:
+                _since = dict(db.session.query(ProjectStageHistory.project_id,
+                                               _f.max(ProjectStageHistory.change_date))
+                              .filter(ProjectStageHistory.project_id.in_(_no_act))
+                              .group_by(ProjectStageHistory.project_id).all())
+            _today, _now = _date.today(), _dt.now()
+            for pp in pagination.items:
+                if pp.id not in _page_ids:
+                    continue
+                _ld = _last_act.get(pp.id)
+                if _ld:
+                    _days = (_today - _ld).days
+                else:
+                    _b = _since.get(pp.id) or pp.created_at
+                    _days = (_now - _b).days if _b else None
+                if _days is not None and _days >= 20:
+                    overdue_days[pp.id] = _days
+    except Exception as _oe:
+        logger.warning(f'overdue calc err: {_oe}')
+
+    from app.helpers.quality_score import project_quality_scores
+    quality_scores = project_quality_scores([p.id for p in pagination.items])
+
     return render_template('project/at_list.html',
                            projects=pagination.items,
+                           overdue_days=overdue_days,
+                           quality_scores=quality_scores,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,
-                           search=search)
+                           search=search,
+                           show_filter=show_filter,
+                           owner_options=owner_options,
+                           owner_values=owner_values,
+                           type_options=type_options,
+                           ptype_values=ptype_values,
+                           list_qs=list_qs)
 
 
 
@@ -1719,6 +1967,15 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
         # 更新项目阶段
         project.current_stage = new_stage
 
+        # 签约 → 自动解除「成功锁定」(锁单预判已兑现)
+        if new_stage == 'signed' and getattr(project, 'win_locked', False):
+            project.win_locked = False
+            project.win_lock_reason = None
+            project.win_locked_by = None
+            project.win_locked_at = None
+            project.win_locked_quotation_id = None
+            project.win_locked_amount = None
+
         # 创建阶段历史记录
         try:
             from app.models.projectpm_stage_history import ProjectStageHistory
@@ -1980,6 +2237,15 @@ def update_project_stage():
         
         # 更新项目阶段
         project.current_stage = new_stage
+
+        # 签约 → 自动解除「成功锁定」(锁单预判已兑现)
+        if new_stage == 'signed' and getattr(project, 'win_locked', False):
+            project.win_locked = False
+            project.win_lock_reason = None
+            project.win_locked_by = None
+            project.win_locked_at = None
+            project.win_locked_quotation_id = None
+            project.win_locked_amount = None
 
         # 如果项目推进到签约阶段，自动锁定项目
         if new_stage == 'signed' and not project.is_locked:
@@ -3774,39 +4040,12 @@ def submit_project_approval_standard(project_id):
                 'message': '只有项目创建人可以提交审批'
             }), 403
         
-        # 导入审批相关函数
-        from app.helpers.approval_helpers import start_approval_process, get_available_templates
-        
-        # 获取可用的审批模板
-        templates = get_available_templates('project')
-        if not templates:
-            return jsonify({
-                'success': False,
-                'message': '未找到可用的项目审批模板'
-            }), 400
-        
-        # 获取请求数据
-        data = request.get_json() or {}
-        template_id = data.get('template_id')
-        
-        # 如果未指定模板，使用默认模板
-        if not template_id:
-            from app.models.approval import ApprovalProcessTemplate
-            default_template = ApprovalProcessTemplate.query.filter_by(
-                object_type='project',
-                is_active=True
-            ).first()
-            
-            if not default_template:
-                return jsonify({
-                    'success': False,
-                    'message': '未找到可用的项目审批模板'
-                }), 400
-                
-            template_id = default_template.id
-        
-        # 启动审批流程（使用 auto_commit=False 确保与项目状态更新在同一事务中）
-        approval_instance = start_approval_process('project', project_id, template_id, current_user.id, auto_commit=False)
+        # 业务线路由发起(2026-06-13):渠道→渠道经理/服务→服务经理/其余→营销总监
+        # (缺位跳级)→ 总经理;模板由代码 get-or-create,忽略前端 template_id
+        from app.helpers.project_hold_helpers import submit_project_report_approval
+        approval_instance, _rep_err = submit_project_report_approval(project_obj, current_user.id)
+        if not approval_instance and _rep_err:
+            return jsonify({'success': False, 'message': _rep_err}), 400
 
         if approval_instance:
             # 更新项目状态为待审批
@@ -3834,9 +4073,12 @@ def submit_project_approval_standard(project_id):
         }), 500
 
 
-def _get_project_approval_flow_impl(project_id):
+def _get_project_approval_flow_impl(project_id, object_type='project'):
     """
     项目审批流原始数据获取 — 纯函数,返回 dict 而非 Flask Response。
+
+    object_type:'project'(报备审批,默认) 或 'project_hold'(失败/搁置审核)。
+    两者共用同一套流程构建逻辑,只是审批实例命名空间不同。
 
     跟 `purchase_order_routes._get_approval_flow_impl` 对齐范式,供:
       • `get_project_approval_flow` endpoint(thin jsonify wrapper)
@@ -3853,7 +4095,7 @@ def _get_project_approval_flow_impl(project_id):
     try:
         # 检查项目访问权限 - 优先检查是否为项目审批人
         from app.helpers.approval_helpers import is_current_approver
-        is_approver = is_current_approver('project', project_id, current_user.id)
+        is_approver = is_current_approver(object_type, project_id, current_user.id)
         
         if is_approver:
             # 如果是当前审批人，直接获取项目（绕过常规权限检查）
@@ -3868,7 +4110,7 @@ def _get_project_approval_flow_impl(project_id):
 
         # 获取审批实例
         from app.helpers.approval_helpers import get_object_approval_instance
-        approval_instance = get_object_approval_instance('project', project_id)
+        approval_instance = get_object_approval_instance(object_type, project_id)
 
         if not approval_instance:
             return {'success': True, 'has_approval': False, 'message': '项目暂无审批流程'}
@@ -3982,8 +4224,8 @@ def _get_project_approval_flow_impl(project_id):
             actual_status = 'recalled'
         
         _can_approve = any(stage.get('can_approve', False) for stage in stages_data)
-        _can_recall = can_recall_approval('project', project_id, current_user.id)
-        _can_resubmit = can_resubmit_approval('project', project_id, current_user.id)
+        _can_recall = can_recall_approval(object_type, project_id, current_user.id)
+        _can_resubmit = can_resubmit_approval(object_type, project_id, current_user.id)
         return {
             'success': True,
             'has_approval': True,
@@ -4105,6 +4347,105 @@ def resubmit_project_approval(project_id):
             'success': False,
             'message': f'重新提交失败：{str(e)}'
         }), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 项目失败/搁置审核 (object_type='project_hold') —— gated 审批,部门经理→总经理
+# ─────────────────────────────────────────────────────────────────────────────
+
+@project.route('/api/hold/<int:project_id>/request', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def request_project_hold(project_id):
+    """发起项目失败/搁置审核(申请)。body: {target: 'lost'|'paused', reason: str}"""
+    try:
+        viewable = get_viewable_data(Project, current_user)
+        project_obj = viewable.filter_by(id=project_id).first()
+        if not project_obj:
+            return jsonify({'success': False, 'message': '项目不存在或无权限访问'}), 404
+
+        # 仅 owner 或 admin 可发起
+        if project_obj.owner_id != current_user.id and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '只有项目负责人或管理员可发起失败/搁置审核'}), 403
+
+        data = request.get_json(silent=True) or {}
+        target = data.get('target')
+        reason = data.get('reason', '')
+
+        from app.helpers.project_hold_helpers import submit_project_hold, HOLD_TARGETS
+        instance, err = submit_project_hold(project_obj, target, reason, current_user.id)
+        if err:
+            return jsonify({'success': False, 'message': err}), 400
+        return jsonify({'success': True,
+                        'message': f'已提交{HOLD_TARGETS.get(target, "")}审核，等待部门经理 / 总经理审批',
+                        'instance_id': instance.id})
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"发起项目失败/搁置审核失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'发起失败：{str(e)}'}), 500
+
+
+@project.route('/api/hold/<int:project_id>/flow')
+@login_required
+@permission_required('project', 'view')
+def get_project_hold_flow(project_id):
+    """获取项目失败/搁置审核流程 — 复用通用构建 + 前置「发起申请」节点(含发起人理由)。"""
+    result = _get_project_approval_flow_impl(project_id, object_type='project_hold')
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+
+    # 前置「发起申请」节点:展示发起人 + 强制理由
+    if result.get('success') and result.get('has_approval') and result.get('approval_flow'):
+        try:
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.user import User as _U
+            inst = get_object_approval_instance('project_hold', project_id, include_rejected=True)
+            snap = (inst.template_snapshot or {}) if inst else {}
+            initiator = _U.query.get(snap.get('hold_initiator_id')) if snap.get('hold_initiator_id') else None
+            started = inst.started_at.isoformat() if inst and inst.started_at else None
+            origin_node = {
+                'id': 'initiator', 'stage_name': '发起申请', 'stage_order': 0,
+                'approver_name': (initiator.real_name or initiator.username) if initiator else '发起人',
+                'approver_id': initiator.id if initiator else None,
+                'status': 'approved', 'completed_time': started,
+                'comment': snap.get('hold_reason') or '', 'action': 'submit',
+                'arrived_at': started, 'can_approve': False,
+            }
+            result['approval_flow'].setdefault('stages', [])
+            result['approval_flow']['stages'].insert(0, origin_node)
+        except Exception as _e:
+            logging.warning(f"前置发起节点失败: {_e}")
+    return jsonify(result)
+
+
+@project.route('/api/hold/<int:project_id>/editable-fields')
+@login_required
+@permission_required('project', 'view')
+def get_project_hold_editable_fields(project_id):
+    """失败/搁置审核无「审核修改」场景,返回空字段(供下拉组件并发拉取)。"""
+    return jsonify({'success': True, 'fields': [], 'editable_fields': []})
+
+
+@project.route('/api/hold/<int:project_id>/recall', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def recall_project_hold(project_id):
+    """撤回进行中的失败/搁置审核(仅发起人或管理员)。"""
+    try:
+        from app.helpers.approval_helpers import get_object_approval_instance, recall_approval_process
+        inst = get_object_approval_instance('project_hold', project_id)
+        if not inst:
+            return jsonify({'success': False, 'message': '没有进行中的失败/搁置审核'}), 400
+        if inst.created_by != current_user.id and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '只有发起人或管理员可撤回'}), 403
+        if inst.status != ApprovalStatus.PENDING:
+            return jsonify({'success': False, 'message': '只有进行中的审核可撤回'}), 400
+        success, message = recall_approval_process('project_hold', project_id, current_user.id)
+        return jsonify({'success': success, 'message': message}), (200 if success else 500)
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"撤回失败/搁置审核失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'撤回失败：{str(e)}'}), 500
 
 
 @project.route('/<int:project_id>/generate_authorization', methods=['POST'])

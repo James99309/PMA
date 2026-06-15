@@ -126,7 +126,27 @@
     r.addEventListener('mouseenter', () => { r.style.background = 'var(--bg-hover)'; });
     r.addEventListener('mouseleave', () => { r.style.background = 'transparent'; });
   });
+
+  // AT 筛选面板:开关 + 点外部关闭(公用组件 at_filter_panel 使用)
+  window.atFilterToggle = function(panelId) {
+    const pop = document.getElementById(panelId);
+    if (!pop) return;
+    const willShow = pop.hidden;
+    document.querySelectorAll('[data-at-filter-pop]').forEach(p => { p.hidden = true; });
+    pop.hidden = !willShow;
+  };
+  // 用 mousedown(非 click):at-ss 选项在 mousedown 时 pick() 后会立刻隐藏下拉面板,
+  // 等到 click 触发时面板已 display:none、光标落到背后元素上,closest('.at-ss-panel')
+  // 便失效而误关筛选面板。改听 mousedown 后,at-ss 选项 mousedown 里的 stopPropagation
+  // 会拦住冒泡,本处理器根本不会触发。
+  document.addEventListener('mousedown', function(e) {
+    // 放行:筛选面板自身,以及被移到 <body> 的 at-searchable-select 下拉面板
+    if (e.target.closest('[data-at-filter-root]') || e.target.closest('.at-ss-panel')) return;
+    document.querySelectorAll('[data-at-filter-pop]').forEach(p => { p.hidden = true; });
+  });
 </script>
+{# 筛选面板「负责人」可搜索下拉依赖 #}
+<script src="{{ url_for('static', filename='js/at-searchable-select.js') }}"></script>
 {% block scripts %}{% endblock %}
 
 </div>

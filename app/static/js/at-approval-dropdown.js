@@ -536,6 +536,25 @@
     if (!instanceId) { if (g.ATToast) ATToast.error('找不到审批实例 ID'); return; }
     if (!g.ATConfirm) { if (g.ATToast) ATToast.error('AT 弹窗组件未加载'); return; }
 
+    // 项目失败审核(lost)同意时的归因认定:
+    // 步骤1(部门经理)→ 个人因素为主;步骤2(总经理)→ 团队管理失责
+    var attribution = null, chkOpt = null;
+    if (action === 'approve' && root.dataset.objectType === 'project_hold'
+        && root.dataset.status === 'lost') {
+      var _steps = (flow && flow.steps) || [];
+      var _curIdx = -1;
+      for (var i = 0; i < _steps.length; i++) {
+        if (_steps[i].status === 'current') { _curIdx = i; break; }
+      }
+      if (_curIdx === 0) {
+        attribution = 'owner_fault';
+        chkOpt = { label: '认定:个人因素为主(计入项目负责人的个人失败率)' };
+      } else if (_curIdx === 1) {
+        attribution = 'mgmt_fault';
+        chkOpt = { label: '认定:团队管理失责(计入部门的团队失败率)' };
+      }
+    }
+
     ATConfirm.show({
       title: label + '审批',
       message: action === 'approve'
@@ -545,17 +564,19 @@
       icon: action === 'reject' ? 'warn' : 'send',
       confirmText: label, cancelText: '取消',
       input: {
-        label: action === 'reject' ? '驳回原因' : '审批意见(可选)',
-        placeholder: action === 'reject' ? '请说明驳回原因(必填)' : '可填可不填',
+        label: action === 'reject' ? '驳回原因' : '审批意见',
+        placeholder: action === 'reject' ? '请说明驳回原因(必填)' : '请写下你对本次申请的最终评判…',
         required: action === 'reject',
         multiline: true, rows: 3, maxLength: 500,
-        defaultValue: action === 'approve' ? '同意' : ''
+        defaultValue: ''
       },
-      onConfirm: function (comment) {
+      checkbox: chkOpt,
+      onConfirm: function (comment, checked) {
         // 审批人 endpoint:/approval/approve/<instance_id> — 后端走 request.form,必须 form-urlencoded
         var body = new URLSearchParams();
         body.append('action', action);
         body.append('comment', comment || '');
+        if (chkOpt && checked && attribution) body.append('attribution', attribution);
         body.append('csrf_token', csrf());
         fetch('/approval/approve/' + instanceId, {
           method: 'POST',
@@ -635,9 +656,14 @@
   function bootstrap() {
     initAll();
     bindQuickActionButtons();
-    // 从仪表盘"待审批"代办跳转过来时,hash=#approval → 自动展开 chip dropdown
-    if (window.location.hash === '#approval') {
-      var root = document.querySelector('[data-at-approval]');
+    // 从仪表盘"待审批"代办跳转过来时,hash=#approval → 自动展开 chip dropdown。
+    // 支持 #approval(默认第一个 chip,如报备) 或 #approval-<object_type>(精确定位某审批 chip,
+    // 如 #approval-project_hold 打开"项目搁置/失败审核"chip,避免误开报备审批)。
+    if (window.location.hash.indexOf('#approval') === 0) {
+      var _wantType = window.location.hash.slice('#approval'.length).replace(/^-/, '');
+      var root = _wantType
+        ? document.querySelector('[data-at-approval][data-object-type="' + _wantType + '"]')
+        : document.querySelector('[data-at-approval]');
       if (root) {
         // 给页面初始渲染一点时间(layout shift 完成)再打开
         setTimeout(function () {
@@ -652,4 +678,6 @@
   } else {
     bootstrap();
   }
+  // 动态新增的 chip(如 JS 渲染的列表)可调用此初始化单个根元素
+  window.AtApprovalDropdown = { init: initOne };
 })(window);

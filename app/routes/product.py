@@ -3644,16 +3644,50 @@ def at_view_product(id):
          .first()
         design_quantity, order_quantity = int(stats[0]), int(stats[1])
 
+    # 推荐系数(植入品质用):仅 CEO/admin 可设,其余只读
+    can_set_citation = getattr(current_user, 'role', None) in ('admin', 'ceo')
+
     return render_template('product/at_view.html',
                            product=product,
                            spec_categories=spec_categories,
                            effective_image=effective_image,
                            can_edit=can_edit,
                            can_delete=can_delete,
+                           can_set_citation=can_set_citation,
                            prev_product_id=prev_product_id,
                            next_product_id=next_product_id,
                            design_quantity=design_quantity,
                            order_quantity=order_quantity)
+
+
+@bp.route('/products/<int:product_id>/citation-coefficient', methods=['POST'])
+@login_required
+def api_set_citation_coefficient(product_id):
+    """设置产品推荐系数(citation_coefficient,植入品质用)。仅 CEO/admin 可设。"""
+    if getattr(current_user, 'role', None) not in ('admin', 'ceo'):
+        return jsonify({'success': False, 'message': '仅总经理可设置推荐系数'}), 403
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({'success': False, 'message': '产品不存在'}), 404
+    try:
+        data = request.get_json() or {}
+        v = data.get('citation_coefficient')
+        if v in (None, ''):
+            product.citation_coefficient = None
+        else:
+            v = float(v)
+            if v < 0:
+                return jsonify({'success': False, 'message': '推荐系数不能为负'}), 400
+            product.citation_coefficient = v
+        from datetime import datetime as _dt
+        product.updated_at = _dt.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'citation_coefficient': product.citation_coefficient})
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': '推荐系数必须是数字'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @bp.route('/api/products/<int:id>/update-status', methods=['POST'])

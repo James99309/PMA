@@ -1,23 +1,20 @@
 {#
-  AT 可搜索下拉(combobox)
+  AT 可搜索下拉(combobox) — 支持单选 / 多选(复选框)
 
   特性:
     - 直接输入关键词过滤(按 label + 可选 keywords 字段)
-    - 焦点/点击展开下拉,选中后塞值并合上
+    - 焦点/点击展开下拉,选中后塞值并合上(多选模式下不合上)
     - hidden input 存真实 value,提交表单与原 <select> 等价
+    - 多选模式:列表项前显示复选框,可选多个;提交时同名多个 hidden(getlist 可取)
     - 键盘:↑↓ 切高亮,Enter 选中,Esc 关闭
 
-  用法:
-    {{ at_searchable_select(
-         id='atSoCustomer',
-         name='customer_id',
-         items=[{'value': c.id, 'label': c.company_name, 'keywords': c.alias or ''} for c in customers],
-         placeholder='搜索或选择客户…',
-         value=current_customer_id,
-         required=true,
-         width='100%',
-         on_change='atUpdateSoSubmitBtn()'
-       ) }}
+  用法(单选):
+    {{ at_searchable_select(id='atSoCustomer', name='customer_id',
+         items=[{'value': c.id, 'label': c.company_name}], value=current_id) }}
+
+  用法(多选):
+    {{ at_searchable_select(id='filtOwner', name='owner', multiple=true,
+         items=owner_options, values=current_owner_list) }}
 
   依赖:JS `at-searchable-select.js` 必须先加载,负责绑定行为
 #}
@@ -25,16 +22,28 @@
 
 
 {% macro at_searchable_select(id, name='', items=[], value='', placeholder='搜索或选择…',
-                               required=false, width='100%', on_change='') %}
-  {# 计算 selected label,显示在 input 里 #}
-  {% set _selected_label = '' %}
+                               required=false, width='100%', on_change='',
+                               multiple=false, values=[]) %}
+  {# 归一已选值为字符串列表 #}
+  {% set _vals = [] %}
+  {% if multiple %}
+    {% for v in (values or []) %}{% set _ = _vals.append(v|string) %}{% endfor %}
+  {% elif value not in [none, ''] %}
+    {% set _ = _vals.append(value|string) %}
+  {% endif %}
+  {# 计算已选 label #}
+  {% set _labels = [] %}
   {% for it in items %}
-    {% if (it.value|string) == (value|string) %}
-      {% set _selected_label = it.label %}
-    {% endif %}
+    {% if (it.value|string) in _vals %}{% set _ = _labels.append(it.label) %}{% endif %}
   {% endfor %}
+  {% if multiple %}
+    {% set _display = '' if _labels|length == 0 else (_labels[0] if _labels|length == 1 else (_labels|length ~ ' 项已选')) %}
+  {% else %}
+    {% set _display = _labels[0] if _labels else '' %}
+  {% endif %}
 
   <div class="at-ss" data-ss-id="{{ id }}" data-onchange="{{ on_change }}"
+       {% if multiple %}data-multiple="1" data-ss-name="{{ name }}"{% endif %}
        style="position:relative;width:{{ width }};min-width:0;box-sizing:border-box;">
     <div class="at-ss-input-wrap"
          style="display:flex;align-items:center;height:34px;padding:0 10px 0 12px;
@@ -42,13 +51,13 @@
                 font-size:13px;position:relative;width:100%;min-width:0;box-sizing:border-box;
                 cursor:text;">
       <input type="text" class="at-ss-display"
-             value="{{ _selected_label }}"
+             value="{{ _display }}"
              placeholder="{{ placeholder }}"
              autocomplete="off"
              style="flex:1;min-width:0;border:0;outline:none;background:transparent;
                     color:var(--ink);font:inherit;padding:0;">
       <button type="button" class="at-ss-clear"
-              style="display:{{ 'inline-flex' if _selected_label else 'none' }};
+              style="display:{{ 'inline-flex' if _labels else 'none' }};
                      align-items:center;justify-content:center;
                      width:18px;height:18px;border-radius:50%;border:0;background:transparent;
                      color:var(--ink-4);cursor:pointer;margin-right:4px;padding:0;">
@@ -63,11 +72,18 @@
       </span>
     </div>
 
-    {# 真实 value(submit 表单时取这个;Jinja-rendered 名字让 form 也能 work) #}
-    <input type="hidden" class="at-ss-value" {% if name %}name="{{ name }}"{% endif %}
-           value="{{ value or '' }}" {% if required %}data-required="1"{% endif %}>
+    {% if multiple %}
+      {# 多选:同名多个 hidden,getlist 可取 #}
+      <span class="at-ss-values">
+        {% for v in _vals %}<input type="hidden" name="{{ name }}" value="{{ v }}">{% endfor %}
+      </span>
+    {% else %}
+      {# 单选:真实 value(submit 表单时取这个) #}
+      <input type="hidden" class="at-ss-value" {% if name %}name="{{ name }}"{% endif %}
+             value="{{ value or '' }}" {% if required %}data-required="1"{% endif %}>
+    {% endif %}
 
-    {# 下拉面板 — 默认隐藏 · 用 position:fixed 避开父级 overflow 裁剪(在 modal 内仍可正常显示) #}
+    {# 下拉面板 — 默认隐藏 · position:fixed 避开父级 overflow 裁剪 #}
     <div class="at-ss-panel"
          style="display:none;position:fixed;
                 background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;

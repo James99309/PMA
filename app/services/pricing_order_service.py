@@ -99,10 +99,10 @@ class PricingOrderService:
         if pricing_order.is_direct_contract and not current_user.is_vendor_user():
             warnings.append("非厂家账户无法使用厂商直签功能，该选项将被忽略")
 
-        # 6. 检查是否能找到必要的审批人角色
-        admin_id = PricingOrderService.get_role_user_id_v2('admin')
-        if not admin_id:
-            errors.append("系统缺少管理员角色，无法发起审批流程")
+        # 6. 检查是否能找到必要的审批人角色(终审为总经理,admin 不参与审批)
+        ceo_id = PricingOrderService.get_role_user_id_v2('ceo')
+        if not ceo_id:
+            errors.append("系统缺少总经理(ceo)角色，无法发起审批流程")
             return False, errors, warnings
 
         # 7. 检查部门负责人（非致命错误，但需要警告）
@@ -267,19 +267,19 @@ class PricingOrderService:
             else:
                 logger.warning(f"提交人 {submitter_id} 部门负责人缺失，跳过部门负责人审批")
         
-        # 最后一步：管理员审批
-        admin_id = PricingOrderService.get_role_user_id_v2('admin')
-        if admin_id:
+        # 最后一步：总经理二审(admin 不参与审批流程)
+        ceo_id = PricingOrderService.get_role_user_id_v2('ceo')
+        if ceo_id:
             steps.append({
                 'step_order': step_order,
-                'step_name': '管理员审批',
-                'approver_role': '管理员',
-                'approver_id': admin_id
+                'step_name': '二审',
+                'approver_role': '总经理',
+                'approver_id': ceo_id
             })
         else:
-            logger.error("管理员角色缺失，无法完成审批流程")
-            return []  # 无管理员则无法审批
-        
+            logger.error("总经理(ceo)角色缺失，无法完成审批流程")
+            return []  # 无总经理则无法审批
+
         return steps
     
     @staticmethod
@@ -434,19 +434,19 @@ class PricingOrderService:
         # 获取对应的数据库角色字段
         db_role = role_field_mapping.get(role_name)
         if not db_role:
-            # 如果没有找到对应角色，记录警告并返回管理员
-            logger.warning(f"未找到角色 {role_name} 的映射，使用管理员作为默认审批人")
-            admin_user = User.query.filter_by(role='admin').first()
-            return admin_user.id if admin_user else 1
-        
+            # 未找到角色映射 → 回退到总经理(admin 不参与审批流程)
+            logger.warning(f"未找到角色 {role_name} 的映射，使用总经理作为默认审批人")
+            ceo_user = User.query.filter_by(role='ceo').first()
+            return ceo_user.id if ceo_user else None
+
         # 直接从数据库查找具有该角色的用户
         users = User.query.filter_by(role=db_role).all()
-        
+
         if not users:
-            # 如果没有找到对应角色的用户，记录警告并回退到管理员
-            logger.warning(f"没有找到角色为 {db_role} 的用户，使用管理员作为默认审批人")
-            admin_user = User.query.filter_by(role='admin').first()
-            return admin_user.id if admin_user else 1
+            # 没有该角色用户 → 回退到总经理(admin 不参与审批流程)
+            logger.warning(f"没有找到角色为 {db_role} 的用户，使用总经理作为默认审批人")
+            ceo_user = User.query.filter_by(role='ceo').first()
+            return ceo_user.id if ceo_user else None
         elif len(users) == 1:
             # 只有一个用户具有该角色，直接返回
             logger.info(f"找到角色 {role_name}({db_role}) 的审批人: {users[0].real_name or users[0].username}")

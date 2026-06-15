@@ -304,12 +304,15 @@ def excel_edit_pricing_order(order_id):
         gp = pricing_total - settlement_total
         gm = (gp / pricing_total * 100) if pricing_total > 0 else 0
 
-        # 返回目标：来源页或批价单列表
+        # 返回目标：优先回到来源报价单详情(新 AT / 旧 TW)，否则回批价单 AT 列表(新列表)
         referrer = request.referrer or ''
-        if pricing_order.quotation_id and url_for('quotation.view_quotation', id=pricing_order.quotation_id) in referrer:
-            back_url = url_for('quotation.view_quotation', id=pricing_order.quotation_id)
+        qid = pricing_order.quotation_id
+        if qid and url_for('quotation.at_view_quotation', id=qid) in referrer:
+            back_url = url_for('quotation.at_view_quotation', id=qid)
+        elif qid and url_for('quotation.view_quotation', id=qid) in referrer:
+            back_url = url_for('quotation.view_quotation', id=qid)
         else:
-            back_url = url_for('pricing_order.list_pricing_orders')
+            back_url = url_for('pricing_order.at_list_view')
 
         # 结算目标公司 — 业务规则:
         # - 厂商直签(is_direct_contract=True) → 厂商(系统级,不在 companies 表,
@@ -1483,12 +1486,24 @@ def list_pricing_orders():
 def at_list_view():
     """AT 风格批价单列表 — 复用现有 _build_pricing_order_query / _apply_pricing_order_filters"""
     from sqlalchemy import or_
+    from app.utils.access_control import build_owner_filter_options
+
     page = max(int(request.args.get('page', 1)), 1)
     per_page = 30
     tab = request.args.get('tab', 'all')
     search = request.args.get('search', '').strip()
+    # 多选:负责人(创建人);状态维度已由 tab 表达,不重复筛选
+    owner_values = [v for v in request.args.getlist('owner') if v.strip()]
 
     base = _build_pricing_order_query(current_user)
+
+    # 负责人筛选选项(基于可见数据);能看到他人数据才显示筛选
+    _owner_ids = [r[0] for r in base.with_entities(PricingOrder.created_by).distinct().all() if r[0]]
+    show_filter = any(oid != current_user.id for oid in _owner_ids)
+    owner_options = build_owner_filter_options(_owner_ids)
+    _owner_ids_sel = [int(v) for v in owner_values if v.isdigit()]
+    if _owner_ids_sel:
+        base = base.filter(PricingOrder.created_by.in_(_owner_ids_sel))
 
     TAB_STATUS_MAP = {
         'draft':    'draft',
@@ -1515,12 +1530,22 @@ def at_list_view():
         page=page, per_page=per_page, error_out=False,
     )
 
+    list_qs = {}
+    if search:
+        list_qs['search'] = search
+    if owner_values:
+        list_qs['owner'] = owner_values
+
     return render_template('pricing_order/at_list.html',
                            pricing_orders=pagination.items,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,
-                           search=search)
+                           search=search,
+                           show_filter=show_filter,
+                           owner_options=owner_options,
+                           owner_values=owner_values,
+                           list_qs=list_qs)
 
 
 @pricing_order_bp.route('/api/list')
@@ -1771,7 +1796,7 @@ def save_pricing_details(order_id):
     """保存批价单明细（批量保存）"""
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
-        
+
         # 记录当前项目阶段状态用于调试
         project_stage_before = pricing_order.project.current_stage if pricing_order.project else None
         logger.info(f"保存批价单 {pricing_order.order_number} 明细前，项目阶段: {project_stage_before}")
@@ -1794,73 +1819,96 @@ def save_pricing_details(order_id):
                 'message': '请添加至少一个产品明细'
             })
         
-        # 删除现有明细
-        existing_details = PricingOrderDetail.query.filter_by(pricing_order_id=order_id).all()
-        for detail in existing_details:
-            # 同时删除对应的结算单明细
-            settlement_detail = SettlementOrderDetail.query.filter_by(
-                pricing_detail_id=detail.id
-            ).first()
-            if settlement_detail:
-                db.session.delete(settlement_detail)
-            db.session.delete(detail)
-        
-        # 创建新明细
+        # 增量更新(替代删重建):按 id 原地更新批价明细;结算明细只联动"结构字段+数量",
+        # 绝不覆盖结算独立的折扣率/单价(结算折扣由 update_settlement_detail 单独维护)。
+        existing_map = {d.id: d for d in PricingOrderDetail.query.filter_by(pricing_order_id=order_id).all()}
+        settlement_order = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else None
+        incoming_ids = set()
+
+        def _apply_pricing_fields(pd, dd):
+            pd.product_name = dd['product_name']
+            pd.product_model = dd.get('product_model', '') or pd.product_model
+            pd.product_desc = dd.get('product_desc', pd.product_desc)
+            pd.brand = dd.get('brand', '')
+            pd.unit = dd.get('unit', '台')
+            pd.product_mn = dd.get('product_mn', '')
+            pd.market_price = float(dd.get('market_price', 0))
+            pd.quantity = int(dd.get('quantity', 1))
+            pd.discount_rate = float(dd.get('discount_rate', 100)) / 100
+            pd.item_note = dd.get('item_note', '') or ''
+
         for detail_data in details_data:
-            # 验证必填字段
             if not detail_data.get('product_name'):
                 continue
-            
-            # 创建批价单明细
-            pricing_detail = PricingOrderDetail(
-                pricing_order_id=order_id,
-                product_name=detail_data['product_name'],
-                product_model=detail_data.get('product_model', ''),
-                product_desc=detail_data.get('product_desc', ''),
-                brand=detail_data.get('brand', ''),
-                unit=detail_data.get('unit', '台'),
-                product_mn=detail_data.get('product_mn', ''),
-                market_price=float(detail_data.get('market_price', 0)),
-                quantity=int(detail_data.get('quantity', 1)),
-                discount_rate=float(detail_data.get('discount_rate', 100)) / 100,
-                item_note=detail_data.get('item_note', '') or '',
-                source_type='manual'
-            )
-            
-            # 计算价格
-            pricing_detail.calculate_prices()
-            db.session.add(pricing_detail)
-            db.session.flush()  # 获取ID
+            raw_id = detail_data.get('id')
+            try:
+                did = int(raw_id) if raw_id not in (None, '', 'null') else None
+            except (ValueError, TypeError):
+                did = None
 
-            # 获取关联的结算单
-            settlement_order = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else None
+            if did and did in existing_map:
+                # —— 原地更新已有批价明细 ——
+                pd = existing_map[did]
+                _apply_pricing_fields(pd, detail_data)
+                pd.calculate_prices()
+                incoming_ids.add(did)
+                # 联动结算明细:更新结构字段+数量,保留其独立折扣/单价
+                sd = SettlementOrderDetail.query.filter_by(pricing_detail_id=pd.id).first()
+                if sd:
+                    sd.product_name = pd.product_name
+                    sd.product_model = pd.product_model
+                    sd.product_desc = pd.product_desc
+                    sd.brand = pd.brand
+                    sd.unit = pd.unit
+                    sd.product_mn = pd.product_mn
+                    sd.market_price = pd.market_price
+                    sd.quantity = pd.quantity
+                    # ⚠️ 不动 sd.discount_rate / unit_price —— 用结算自己的折扣重算小计
+                    sd.calculate_prices()
+                else:
+                    # 异常:缺结算明细 → 补一条(初始取批价折扣)
+                    sd = SettlementOrderDetail(
+                        pricing_order_id=order_id,
+                        settlement_order_id=settlement_order.id if settlement_order else None,
+                        product_name=pd.product_name, product_model=pd.product_model,
+                        product_desc=pd.product_desc, brand=pd.brand, unit=pd.unit,
+                        product_mn=pd.product_mn, market_price=pd.market_price,
+                        unit_price=pd.unit_price, quantity=pd.quantity,
+                        discount_rate=pd.discount_rate, pricing_detail_id=pd.id)
+                    sd.calculate_prices()
+                    db.session.add(sd)
+            else:
+                # —— 新增批价明细 + 对应结算明细(新行初始取批价折扣)——
+                pd = PricingOrderDetail(pricing_order_id=order_id, source_type='manual')
+                _apply_pricing_fields(pd, detail_data)
+                pd.calculate_prices()
+                db.session.add(pd)
+                db.session.flush()
+                sd = SettlementOrderDetail(
+                    pricing_order_id=order_id,
+                    settlement_order_id=settlement_order.id if settlement_order else None,
+                    product_name=pd.product_name, product_model=pd.product_model,
+                    product_desc=pd.product_desc, brand=pd.brand, unit=pd.unit,
+                    product_mn=pd.product_mn, market_price=pd.market_price,
+                    unit_price=pd.unit_price, quantity=pd.quantity,
+                    discount_rate=pd.discount_rate, pricing_detail_id=pd.id)
+                sd.calculate_prices()
+                db.session.add(sd)
 
-            # 同时创建结算单明细
-            settlement_detail = SettlementOrderDetail(
-                pricing_order_id=order_id,
-                settlement_order_id=settlement_order.id if settlement_order else None,
-                product_name=pricing_detail.product_name,
-                product_model=pricing_detail.product_model,
-                product_desc=pricing_detail.product_desc,
-                brand=pricing_detail.brand,
-                unit=pricing_detail.unit,
-                product_mn=pricing_detail.product_mn,
-                market_price=pricing_detail.market_price,
-                unit_price=pricing_detail.unit_price,
-                quantity=pricing_detail.quantity,
-                discount_rate=pricing_detail.discount_rate,
-                item_note=pricing_detail.item_note or '',
-                pricing_detail_id=pricing_detail.id
-            )
-            settlement_detail.calculate_prices()
-            db.session.add(settlement_detail)
-        
+        # 删除用户移除的明细(及其结算明细)
+        for did, pd in existing_map.items():
+            if did not in incoming_ids:
+                sd = SettlementOrderDetail.query.filter_by(pricing_detail_id=pd.id).first()
+                if sd:
+                    db.session.delete(sd)
+                db.session.delete(pd)
+
         # 重新计算总额和总折扣率（基于明细数据）
         pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
         pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
         db.session.commit()
-        
+
         # 检查项目阶段是否被意外修改
         project_stage_after = pricing_order.project.current_stage if pricing_order.project else None
         if project_stage_before != project_stage_after:
@@ -1894,9 +1942,9 @@ def test_pricing():
 def save_all_pricing_data(order_id):
     """保存批价单所有数据（基本信息和明细）"""
     try:
-        
+
         pricing_order = PricingOrder.query.get_or_404(order_id)
-        
+
         # 记录当前项目阶段状态用于调试
         project_stage_before = pricing_order.project.current_stage if pricing_order.project else None
         
@@ -2119,7 +2167,7 @@ def save_all_pricing_data(order_id):
         except Exception as e:
             logger.error(f"🔥 [SAVE_ALL_DEBUG] ❌ 数据库事务提交失败: {str(e)}")
             raise
-        
+
         # 检查项目阶段是否被意外修改
         project_stage_after = pricing_order.project.current_stage if pricing_order.project else None
         if project_stage_before != project_stage_after:
@@ -2513,7 +2561,7 @@ def export_pdf(order_id, pdf_type):
         from app.utils.access_control import can_view_pricing_order
         if not can_view_pricing_order(current_user, pricing_order):
             flash('您没有权限查看该批价单', 'danger')
-            return redirect(url_for('pricing_order.list_pricing_orders'))
+            return redirect(url_for('pricing_order.at_list_view'))
 
         # 优先尝试使用Word模板生成PDF
         use_word_template = request.args.get('template', 'word') == 'word'
@@ -2586,7 +2634,7 @@ def export_word(order_id, doc_type):
         from app.utils.access_control import can_view_pricing_order
         if not can_view_pricing_order(current_user, pricing_order):
             flash('您没有权限查看该批价单', 'danger')
-            return redirect(url_for('pricing_order.list_pricing_orders'))
+            return redirect(url_for('pricing_order.at_list_view'))
 
         # 生成Word文档
         include_notes = request.args.get('include_notes') == '1'

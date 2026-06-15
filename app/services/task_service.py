@@ -52,6 +52,12 @@ def create_task(actor, data):
     if not assignee_id:
         raise ValueError('请选择指派人')
 
+    # 任务类型(日常/岗位):越权选别岗位类型时回落 general
+    from app.helpers.task_types import is_allowed_type
+    task_type = (data.get('task_type') or 'general').strip() or 'general'
+    if not is_allowed_type(actor, task_type):
+        task_type = 'general'
+
     t = Task(
         title=title,
         description=normalize_region_text((data.get('description') or '').strip()) or None,
@@ -63,6 +69,7 @@ def create_task(actor, data):
         project_id=data.get('project_id') or None,
         quotation_id=data.get('quotation_id') or None,
         customer_id=data.get('customer_id') or None,
+        task_type=task_type,
     )
     shared = data.get('shared_with_users')
     if shared and isinstance(shared, list):
@@ -128,7 +135,7 @@ def complete_task(actor, t):
             tr.status = 'pending'
             tr.reviewed_at = None
             tr.comment = None
-            notif.notify_task_assigned(actor.id, tr.reviewer_id, t)
+            notif.notify_task_review_request(actor.id, tr.reviewer_id, t)
         db.session.commit()
         return t
 
@@ -204,8 +211,13 @@ def add_reply(actor, t, content, subtask_id=None, reply_type='comment'):
     return r
 
 
-def review_task(actor, t, action, comment=''):
-    """会审(并行)同意/驳回(忠实抽取 review_task)。返回 (Task, msg_text)。"""
+# 三档评价 → 加权权重(低于/符合/超出预期)
+_RATING_WEIGHT = {'below': 0.5, 'meet': 1.0, 'exceed': 1.5}
+
+
+def review_task(actor, t, action, comment='', rating=None):
+    """会审(并行)评价/驳回。返回 (Task, msg_text)。
+    通过(approve)须带三档评价 rating(below/meet/exceed);低于预期(below)须填原因。"""
     my = next((r for r in t.task_reviewers if r.reviewer_id == actor.id), None)
     if not my:
         raise ValueError('您不是此任务的审计对象')
@@ -216,10 +228,19 @@ def review_task(actor, t, action, comment=''):
     comment = normalize_region_text((comment or '').strip())
 
     if action == 'approve':
+        rating = (rating or '').strip()
+        if rating not in _RATING_WEIGHT:
+            raise ValueError('请选择评价(低于预期/符合预期/超出预期)')
+        if rating == 'below' and not comment:
+            raise ValueError('低于预期必须填写原因')
         my.status = 'approved'
+        my.rating = rating
         my.comment = comment or None
         my.reviewed_at = get_local_time()
         if all(r.status == 'approved' for r in t.task_reviewers):
+            # 会审取各审计人评价权重均值(无评价兜底 1.0,兼容旧数据)
+            ws = [_RATING_WEIGHT.get(r.rating, 1.0) for r in t.task_reviewers]
+            t.review_score = round(sum(ws) / len(ws), 3) if ws else 1.0
             t.review_status = 'approved'
             t.reviewed_at = get_local_time()
             t.status = 'completed'
@@ -229,7 +250,7 @@ def review_task(actor, t, action, comment=''):
             for r in t.task_reviewers:
                 _award(r.reviewer_id, 'task_review_approved', t, source_type='task_review')
         else:
-            msg_text = '您已通过,等待其他审计人'
+            msg_text = '您已评价,等待其他审计人'
     elif action == 'reject':
         if not comment:
             raise ValueError('驳回时必须填写意见')
@@ -341,6 +362,11 @@ def update_task(actor, t, data):
     for field in ['priority', 'external_link', 'external_link_label']:
         if field in data:
             setattr(t, field, (data[field] or '').strip() or None)
+
+    if 'task_type' in data:
+        from app.helpers.task_types import is_allowed_type
+        tt = (data['task_type'] or 'general').strip() or 'general'
+        t.task_type = tt if is_allowed_type(actor, tt) else 'general'
 
     for fk_field in ['assignee_id', 'project_id', 'quotation_id', 'customer_id']:
         if fk_field in data:
@@ -619,7 +645,7 @@ def resubmit_review(actor, t):
         tr.status = 'pending'
         tr.comment = None
         tr.reviewed_at = None
-        notif.notify_task_assigned(actor.id, tr.reviewer_id, t)
+        notif.notify_task_review_request(actor.id, tr.reviewer_id, t)
     db.session.commit()
     return t
 

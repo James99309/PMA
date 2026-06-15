@@ -307,13 +307,15 @@ class Department(db.Model):
     company_name = Column(String(200), nullable=True)  # 所属公司
     parent_id = Column(Integer, ForeignKey('departments.id'), nullable=True)  # 上级部门
     manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # 部门经理
+    hrbp_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # HRBP 负责人(绩效合格率聚合按此映射)
     is_active = Column(Boolean, default=True)  # 是否启用
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
 
     # 关系定义
     parent = relationship('Department', remote_side=[id], backref='children')
-    manager = relationship('User', backref='managed_departments')
+    manager = relationship('User', foreign_keys=[manager_id], backref='managed_departments')
+    hrbp = relationship('User', foreign_keys=[hrbp_user_id], backref='hrbp_departments')
 
     # 复合唯一约束：同一公司内部门名称唯一
     __table_args__ = (

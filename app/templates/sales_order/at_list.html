@@ -112,7 +112,6 @@
     {% endfor %}
     {{ at_select(name='customer_id', value=current_customer_id, options=customer_options, width='220px',
                  extra_attrs='onchange="this.form.submit()"') }}
-    {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
   </form>
 
   <!-- Table -->

@@ -31,7 +31,7 @@
 
 {# ─── 横向阶段条(顶部 sticky) ───────────────────────── #}
 {# stages: [{key, label, icon, status('done'|'current'|'future'), date, attachments_count, history_by}] #}
-{% macro at_stage_strip(stages, sticky=true, dimmed=false) %}
+{% macro at_stage_strip(stages, sticky=true, dimmed=false, icon_set='svg') %}
   <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;
               padding:20px 24px;opacity:{{ '0.55' if dimmed else '1' }};transition:opacity 240ms;
               {% if sticky %}position:sticky;top:72px;z-index:20;
@@ -61,7 +61,9 @@
                     display:flex;align-items:center;justify-content:center;
                     box-shadow:{{ '0 0 0 4px var(--accent-tint)' if is_current else 'none' }};
                     transition:all 200ms;">
-          {% if is_done %}{{ at_icon('check', 16) }}
+          {% if icon_set == 'material' %}
+            <span class="material-symbols-outlined{% if is_current or is_done %} fill{% endif %}" style="font-size:20px;line-height:1;">{{ s.icon or 'check' }}</span>
+          {% elif is_done %}{{ at_icon('check', 16) }}
           {% else %}{{ at_icon(s.icon or 'check', 15) }}
           {% endif %}
         </div>

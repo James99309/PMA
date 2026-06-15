@@ -8,6 +8,7 @@
 {% from 'components/at_contact_modal.html' import at_contact_form_modal %}
 {% from 'components/at_project_modal.html' import at_project_form_modal %}
 {% from 'components/at_share_modal.html' import at_share_modal %}
+{% from 'components/at_search_picker.html' import at_search_picker %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
 <!DOCTYPE html>
 <html lang="zh">
@@ -25,6 +26,7 @@
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-search-picker.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-action-modal.js') }}"></script>
 {# 编辑客户 modal 依赖 #}
@@ -104,11 +106,17 @@
           {{ company.company_name }}
         </h1>
         {{ at_pill(tm.label, tone=tm.tone) }}
+        {# 渠道身份审批中:目标身份待 商务助理→渠道经理→总经理 审批通过后生效 #}
+        {% if company.pending_company_type %}
+        <span title="渠道身份审批中(商务助理→渠道经理→总经理),通过后生效;可在审批中心查看进度">
+          {{ at_pill(('代理商' if company.pending_company_type == 'dealer' else '分销商') ~ ' · 审批中', tone='warn', dot=true) }}
+        </span>
+        {% endif %}
       </div>
       <div style="margin-top:8px;color:var(--ink-3);font-size:13px;
                   display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         {% if company.country %}
-        <span>{{ at_icon('pin', 12) }} {{ company.country | country_label }}{% if company.city %} · {{ company.city }}{% endif %}</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;">{{ at_icon('pin', 12) }}{{ company.country | country_label }}{% if company.city %} · {{ company.city }}{% endif %}</span>
         {% endif %}
         {% if company.industry %}
         <span style="color:var(--ink-4);">·</span>
@@ -144,6 +152,9 @@
     {# ═══ 左栏:客户档案 + 联系人 + 元数据(窄,sticky) ═══ #}
     <div style="position:sticky;top:80px;display:flex;flex-direction:column;gap:18px;">
 
+      {# 归属人 行内「笔」编辑按钮(仅有改归属人权限时);复用 ATSearchPicker 选在职人员 #}
+      {% set _pen_owner %}{% if perms.can_change_owner %}<button type="button" onclick="atOpenOwnerEdit()" title="更换归属人" style="border:0;background:transparent;color:var(--ink-4);cursor:pointer;padding:2px;display:inline-flex;flex-shrink:0;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('pen', 13) }}</button>{% endif %}{% endset %}
+
       {{ at_info_panel('客户档案', [
         ('编号', company.company_code, 'at-mono'),
         ('企业类型', tm.label),
@@ -153,7 +164,7 @@
         ('省/州', company.region),
         ('城市', company.city),
         ('详细地址', company.address),
-        ('归属人', (company.owner.real_name or company.owner.username) if company.owner else None),
+        ('归属人', (company.owner.real_name or company.owner.username) if company.owner else None, '', _pen_owner|trim),
       ]) }}
 
       {{ at_contact_list(
@@ -392,6 +403,76 @@ window.atConfirmDeleteCompany = async function (companyId, companyName) {
       }
     });
   };
+</script>
+{% endif %}
+
+{# 更换归属人 — 复用 ATSearchPicker 选在职人员;提交走现有 change_company_owner 端点 #}
+{% if perms.can_change_owner %}
+<form id="atChangeOwnerForm" method="post" action="{{ url_for('customer.change_company_owner', company_id=company.id) }}" style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="new_owner_id" id="coNewOwnerId" value="{{ company.owner_id or '' }}">
+</form>
+<div id="atOwnerModal" onclick="if(event.target===this)atCloseOwnerModal()"
+     style="display:none;position:fixed;inset:0;z-index:210;background:rgba(0,0,0,0.4);
+            align-items:center;justify-content:center;">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:min(420px,92vw);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;">更换归属人</div>
+    <div style="font-size:12px;color:var(--ink-3);line-height:1.6;margin-bottom:16px;">
+      从在职人员中选择新的归属人;该客户下所有联系人的归属人将一并变更。
+    </div>
+    {{ at_search_picker('ownerPicker', placeholder='搜索在职人员…') }}
+    <div id="atOwnerErr" style="display:none;margin-top:8px;font-size:12px;color:var(--danger);"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="atCloseOwnerModal()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">取消</button>
+      <button type="button" id="atOwnerSubmit" onclick="atSubmitOwner()"
+              style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">确定</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var _pickedId = null;
+    function _filterByInput(list) {
+      var term = (document.getElementById('ownerPicker').value || '').trim().toLowerCase();
+      var arr = (list || []).map(function (u) {
+        return { id: u.id, name: u.real_name || u.username, role: u.role_display || u.role || '', company: u.company_name || '' };
+      });
+      if (term) arr = arr.filter(function (u) {
+        return (u.name + ' ' + u.role + ' ' + u.company).toLowerCase().indexOf(term) >= 0;
+      });
+      arr.sort(function (a, b) { return (a.name || '').localeCompare((b.name || ''), 'zh-Hans-CN-u-co-pinyin'); });
+      return arr.slice(0, 50);
+    }
+    window.atOpenOwnerEdit = function () {
+      _pickedId = null;
+      document.getElementById('atOwnerErr').style.display = 'none';
+      ATSearchPicker({
+        inputId: 'ownerPicker', hiddenIdId: 'ownerPickerId',
+        clearId: 'ownerPickerClear', dropdownId: 'ownerPickerDropdown',
+        searchUrl: function () { return '/user/api/users/active'; },
+        suggestUrl: function () { return '/user/api/users/active'; },
+        itemsFromResp: function (resp) { return _filterByInput(resp.data || resp.users || []); },
+        renderItem: function (it) { return { primary: it.name, secondary: (it.role || '') + (it.company ? ' · ' + it.company : '') }; },
+        itemName: function (it) { return it.name; },
+        onPick: function (it) { _pickedId = it.id; },
+        onClear: function () { _pickedId = null; },
+        label: '人员'
+      });
+      document.getElementById('ownerPicker').value = '';
+      document.getElementById('atOwnerModal').style.display = 'flex';
+    };
+    window.atCloseOwnerModal = function () { document.getElementById('atOwnerModal').style.display = 'none'; };
+    window.atSubmitOwner = function () {
+      var err = document.getElementById('atOwnerErr');
+      if (!_pickedId) { err.textContent = '请从下拉中选择一位人员'; err.style.display = 'block'; return; }
+      document.getElementById('coNewOwnerId').value = _pickedId;
+      document.getElementById('atChangeOwnerForm').submit();
+    };
+  })();
 </script>
 {% endif %}
 

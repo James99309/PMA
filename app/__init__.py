@@ -419,6 +419,11 @@ def create_app(config_class=Config):
     app.register_blueprint(worklog)
     csrf.exempt(worklog)  # 豁免工作日历蓝图的CSRF保护
 
+    # 注册通用实体附件蓝图(项目等复用同一套上传/删除)
+    from app.views.attachments import attachments_bp
+    app.register_blueprint(attachments_bp)
+    csrf.exempt(attachments_bp)  # 上传为 multipart,豁免 CSRF(与 worklog 一致)
+
     # 注册积分系统蓝图
     app.register_blueprint(points_bp)
 
@@ -843,6 +848,27 @@ def create_app(config_class=Config):
         """向模板上下文注入current_user"""
         from flask_login import current_user
         return {'current_user': current_user}
+
+    @app.context_processor
+    def inject_task_types():
+        """向模板注入当前用户可选的任务类型(日常+本岗位),供全局任务创建模态框使用"""
+        from flask_login import current_user
+        try:
+            if not current_user.is_authenticated:
+                return {'available_task_types': [], 'available_task_type_groups': [], 'task_type_labels_map': {}}
+            from app.helpers.task_types import (
+                task_types_for, task_type_groups_for, task_type_labels_for)
+            types = task_types_for(current_user)
+            return {
+                'available_task_types': types,
+                'available_task_type_groups': task_type_groups_for(current_user),
+                'task_type_labels_map': task_type_labels_for(current_user),
+                'task_type_review_codes': [t['code'] for t in types if t.get('require_review')],
+                'task_type_nolink_codes': [t['code'] for t in types if not t.get('allow_link', True)],
+            }
+        except Exception:
+            return {'available_task_types': [], 'available_task_type_groups': [],
+                    'task_type_labels_map': {}, 'task_type_review_codes': [], 'task_type_nolink_codes': []}
         
     # 添加权限检查全局上下文处理器
     @app.context_processor

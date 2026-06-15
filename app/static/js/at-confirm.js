@@ -94,6 +94,17 @@
         // 输入区配置(可选)
         const inp = opts.input || null;
         const inputHtml = inp ? renderInput(inp) : '';
+        // 勾选区配置(可选): opts.checkbox = {label, checked} → onConfirm(value, checked)
+        const chk = opts.checkbox || null;
+        const chkHtml = chk ? `
+            <div style="padding:0 22px 12px;">
+              <label style="display:inline-flex;align-items:center;gap:8px;font-size:12.5px;
+                            color:var(--ink-2);cursor:pointer;user-select:none;">
+                <input type="checkbox" data-cfm-chk ${chk.checked ? 'checked' : ''}
+                       style="width:14px;height:14px;accent-color:var(--accent);">
+                ${escapeHtml(chk.label || '')}
+              </label>
+            </div>` : '';
 
         const el = ensureModal();
         el.innerHTML = `
@@ -118,6 +129,7 @@
                     ${escapeHtml(message)}
                 </div>
                 ${inputHtml}
+                ${chkHtml}
                 <footer style="padding:10px 22px 18px;display:flex;justify-content:flex-end;gap:8px;">
                     <button type="button" data-act="cancel"
                             style="height:34px;padding:0 14px;background:transparent;color:var(--ink);
@@ -148,8 +160,10 @@
                 return;
             }
             const cb = State.onConfirm;
+            const chkEl = el.querySelector('[data-cfm-chk]');
+            const checked = chkEl ? chkEl.checked : undefined;
             close();
-            if (cb) try { cb(value); } catch (e) { console.error('[ATConfirm] onConfirm error:', e); }
+            if (cb) try { cb(value, checked); } catch (e) { console.error('[ATConfirm] onConfirm error:', e); }
         }
 
         el.querySelector('[data-act="close"]').addEventListener('click', () => { if (State.onCancel) State.onCancel(); close(); });

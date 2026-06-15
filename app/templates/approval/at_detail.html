@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ summary.title }} · 审批流程</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; font-size: 18px; }
+  .fl-col { display:flex; flex-direction:column; align-items:center; max-width:540px; margin:0 auto; }
+  .fl-endpoint { display:inline-flex; align-items:center; gap:7px; padding:5px 16px; border:1px dashed var(--line-2);
+                 border-radius:999px; font-size:11.5px; color:var(--ink-3); background:var(--bg-page); }
+  .fl-endpoint .dot { width:7px; height:7px; border-radius:4px; }
+  .fl-link { width:1.5px; height:24px; background:var(--line-2); position:relative; }
+  .fl-link::after { content:''; position:absolute; bottom:-1px; left:50%; transform:translateX(-50%);
+                    border:5px solid transparent; border-top:6px solid var(--ink-4); }
+  .fl-node { width:100%; box-sizing:border-box; background:var(--bg-page); border:1px solid var(--line-2);
+             border-radius:10px; padding:13px 16px; }
+  .fl-node.cur { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-tint); }
+  .fl-node.ok { border-color:var(--success); }
+  .fl-node.no { border-color:var(--danger); }
+  .fl-node-h { display:flex; align-items:center; gap:8px; }
+  .fl-no { width:22px; height:22px; border-radius:50%; font-size:11px; font-weight:600; flex-shrink:0;
+           display:inline-flex; align-items:center; justify-content:center; }
+  .fl-t { font-size:13px; font-weight:600; color:var(--ink); flex:1; }
+  .fl-meta { font-size:11.5px; color:var(--ink-2); margin-top:6px; }
+  .fl-cmt { font-size:11.5px; color:var(--ink-3); margin-top:4px; font-style:italic; }
+</style>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+</head>
+<body class="at-page">
+<main style="max-width:900px;margin:0 auto;padding:28px 32px 80px;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+    <a href="{{ url_for('approval.tw_center') }}" class="at-dim" style="font-size:12.5px;text-decoration:none;">← 审批中心</a>
+    <span class="at-dim" style="font-size:12px;">{{ summary.type }}</span>
+  </div>
+  <h1 class="at-serif" style="margin:0 0 4px;font-size:23px;font-weight:600;">{{ summary.title }}</h1>
+  <div class="at-dim" style="font-size:12.5px;margin-bottom:20px;">
+    状态:
+    {% if instance.status == ApprovalStatus.APPROVED %}<span style="color:var(--success);font-weight:500;">已通过</span>
+    {% elif instance.status == ApprovalStatus.REJECTED %}<span style="color:var(--danger);font-weight:500;">已驳回</span>
+    {% elif instance.status == ApprovalStatus.RECALLED %}<span style="color:var(--ink-3);">已召回</span>
+    {% else %}<span style="color:var(--warn);font-weight:500;">审批中</span>{% endif %}
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:24px;align-items:start;">
+    {# 业务摘要 #}
+    <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;padding:18px 20px;">
+      <h2 class="at-serif" style="margin:0 0 12px;font-size:15px;font-weight:600;">业务信息</h2>
+      {% for k, v in summary.lines %}
+      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;">
+        <span class="at-dim">{{ k }}</span><span style="font-weight:500;">{{ v }}</span>
+      </div>
+      {% endfor %}
+      {% if not summary.lines %}<div class="at-dim" style="font-size:12.5px;">{{ summary.type }} #{{ instance.object_id }}</div>{% endif %}
+
+      {% if can_approve %}
+      <div style="margin-top:18px;padding-top:16px;border-top:2px solid var(--line);">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">您是当前审批人</div>
+        <textarea id="apComment" rows="2" placeholder="审批意见(可选)"
+                  style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line-2);
+                         border-radius:7px;background:var(--bg-page);font:inherit;font-size:12.5px;color:var(--ink);
+                         outline:none;resize:vertical;margin-bottom:10px;"></textarea>
+        <div style="display:flex;gap:10px;">
+          <button type="button" onclick="apAct('approve')"
+                  style="flex:1;height:36px;border-radius:7px;border:0;background:var(--success);color:#fff;
+                         font:inherit;font-size:13px;font-weight:500;cursor:pointer;">同意</button>
+          <button type="button" onclick="apAct('reject')"
+                  style="flex:1;height:36px;border-radius:7px;border:1px solid var(--danger);background:var(--bg-elev);
+                         color:var(--danger);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">驳回</button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# 纵向流程图 #}
+    <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;padding:22px 20px;">
+      <h2 class="at-serif" style="margin:0 0 16px;font-size:15px;font-weight:600;">审批流程</h2>
+      <div class="fl-col">
+        <div class="fl-endpoint"><span class="dot" style="background:var(--info);"></span>发起</div>
+        {% for s in steps_view %}
+        <div class="fl-link"></div>
+        {% set cls = 'cur' if s.status=='current' else ('ok' if s.status in ['approve','done','skipped'] else ('no' if s.status=='reject' else '')) %}
+        <div class="fl-node {{ cls }}">
+          <div class="fl-node-h">
+            {% if s.status in ['approve','done'] %}
+              <span class="fl-no" style="background:var(--success-soft);color:var(--success);">✓</span>
+            {% elif s.status=='reject' %}
+              <span class="fl-no" style="background:var(--danger-soft);color:var(--danger);">✕</span>
+            {% elif s.status=='skipped' %}
+              <span class="fl-no" style="background:var(--bg-sunk);color:var(--ink-4);">–</span>
+            {% elif s.status=='current' %}
+              <span class="fl-no" style="background:var(--accent-tint);color:var(--accent);">{{ s.order }}</span>
+            {% else %}
+              <span class="fl-no" style="background:var(--bg-sunk);color:var(--ink-3);">{{ s.order }}</span>
+            {% endif %}
+            <span class="fl-t">{{ s.name }}</span>
+            {% if s.status=='current' %}<span style="font-size:10.5px;color:var(--accent);font-weight:500;">待审批</span>{% endif %}
+          </div>
+          <div class="fl-meta">审批人:{{ s.approver }}
+            {% if s.status=='approve' %}· <span style="color:var(--success);">已同意</span>
+            {% elif s.status=='reject' %}· <span style="color:var(--danger);">已驳回</span>
+            {% elif s.status=='skipped' %}· <span class="at-dim">已跳过</span>{% endif %}
+          </div>
+          {% if s.comment %}<div class="fl-cmt">「{{ s.comment }}」</div>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="fl-link"></div>
+        <div class="fl-endpoint"><span class="dot" style="background:var(--success);"></span>完成</div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+  function apAct(action) {
+    const cmt = document.getElementById('apComment').value || '';
+    const fd = new FormData();
+    fd.append('action', action); fd.append('comment', cmt);
+    fetch('{{ url_for("approval.approve", instance_id=instance.id) }}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content },
+      body: fd,
+    }).then(r => r.json()).then(d => {
+      if (d.success) { ATToast.success(d.message || (action === 'approve' ? '已同意' : '已驳回')); setTimeout(() => location.reload(), 700); }
+      else ATToast.error(d.message || '操作失败');
+    }).catch(() => ATToast.error('操作失败,请重试'));
+  }
+</script>
+</body>
+</html>

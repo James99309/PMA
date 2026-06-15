@@ -1,0 +1,240 @@
+{#
+  AT 账户表单模态(公用组件:新建 / 编辑 双态)
+  ─────────────────────────────────────────────
+  用法:
+    from 'components/at_user_modal.html' import at_user_modal
+    at_user_modal(form_options)   — options: roles[]/companies[]/departments[](value/label)
+
+    新建:按钮 onclick="ucOpenCreate()"
+    编辑:按钮 onclick="ucOpenEdit(EDIT_DATA, EDIT_ACTION)"
+          EDIT_DATA 需含 username/real_name/role/department/company/email/phone/
+                        settlement_currency/is_active/is_department_manager/
+                        cross_team_visible/cross_team_label
+          EDIT_ACTION = url_for('user.edit_user', user_id=...)
+
+  提交走既有 create_user / edit_user POST 端点(form POST,成功后后端 redirect AT 详情)。
+  编辑态:用户名只读、显示「账户状态与安全」区(重置密码/激活/跨团队)。
+#}
+{% macro at_user_modal(options, create_action=none) %}
+<style>
+  .uc-overlay { position:fixed; inset:0; z-index:1000; background:rgba(31,30,27,0.4);
+                display:none; align-items:flex-start; justify-content:center; padding:7vh 16px; }
+  .uc-overlay.open { display:flex; }
+  .uc-modal { width:640px; max-width:100%; max-height:86vh; overflow-y:auto;
+              background:var(--bg-elev); border:1px solid var(--line); border-radius:14px;
+              box-shadow:0 24px 64px rgba(31,30,27,0.25); }
+  .uc-grid { display:grid; grid-template-columns:1fr 1fr; gap:13px 18px; }
+  .uc-field label { display:block; font-size:11.5px; color:var(--ink-3); margin-bottom:5px; }
+  .uc-field label .req { color:var(--danger); }
+  .uc-input, .uc-select { width:100%; box-sizing:border-box; height:35px; padding:0 11px;
+            background:var(--bg-page); border:1px solid var(--line-2); border-radius:7px;
+            font:inherit; font-size:13px; color:var(--ink); outline:none; }
+  .uc-input:focus, .uc-select:focus { border-color:var(--accent); }
+  .uc-input[readonly] { background:var(--bg-sunk); color:var(--ink-3); cursor:default; }
+  .uc-check { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink-2);
+              cursor:pointer; user-select:none; }
+  .uc-check input { width:14px; height:14px; accent-color:var(--accent); }
+  .uc-sep { margin:16px 0 13px; padding-top:13px; border-top:1px solid var(--line);
+            font-size:11.5px; color:var(--ink-3); letter-spacing:0.04em; }
+</style>
+<div id="ucOverlay" class="uc-overlay" onclick="if(event.target===this)ucClose()">
+  <div class="uc-modal">
+    <div style="padding:18px 22px 0;display:flex;align-items:center;">
+      <h3 id="ucTitle" style="margin:0;font-size:16px;font-weight:600;color:var(--ink);">新建账户</h3>
+      <div style="flex:1;"></div>
+      <button type="button" onclick="ucClose()"
+              style="border:0;background:transparent;cursor:pointer;color:var(--ink-3);
+                     font-size:18px;line-height:1;padding:4px;">✕</button>
+    </div>
+    <div id="ucHint" class="at-dim" style="padding:6px 22px 0;font-size:12px;">
+      创建后默认<b>未激活</b>,系统生成临时密码;在账户详情中激活。
+    </div>
+    <form id="ucForm" method="post" action="{{ create_action or url_for('user.create_user') }}"
+          style="padding:16px 22px 20px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="uc-grid">
+        <div class="uc-field">
+          <label>用户名 <span class="req">*</span></label>
+          <input class="uc-input" id="ucUsername" name="username" required autocomplete="off"
+                 placeholder="登录名(创建后不可改)">
+        </div>
+        <div class="uc-field">
+          <label>真实姓名 <span class="req">*</span></label>
+          <input class="uc-input" name="real_name" required>
+        </div>
+        <div class="uc-field">
+          <label>角色 <span class="req">*</span></label>
+          <select class="uc-select" name="role" required>
+            <option value="">选择角色…</option>
+            {% for o in options.roles %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="uc-field">
+          <label>所属公司 <span class="req">*</span></label>
+          <select class="uc-select" name="company" required onchange="ucFilterDepts()">
+            <option value="">选择公司…</option>
+            {% for o in options.companies %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="uc-field">
+          <label>部门归属</label>
+          {# 部门来自部门字典(Department 表),按所选公司联动 #}
+          <select class="uc-select" name="department">
+            <option value="">选择部门…</option>
+            {% for o in options.departments %}<option value="{{ o.value }}" data-company="{{ o.company }}">{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="uc-field" style="display:flex;align-items:flex-end;padding-bottom:7px;">
+          <label class="uc-check" style="margin:0;" title="自动建立与本部门成员的归属关系">
+            <input type="checkbox" name="is_department_manager"> 设为部门负责人
+          </label>
+        </div>
+        <div class="uc-field">
+          <label>邮箱 <span class="req">*</span></label>
+          <input class="uc-input" name="email" type="email" required>
+        </div>
+        <div class="uc-field">
+          <label>手机</label>
+          <input class="uc-input" name="phone">
+        </div>
+        <div class="uc-field">
+          <label>结算货币</label>
+          <select class="uc-select" name="settlement_currency">
+            <option value="">系统默认</option>
+            {% for c in ['CNY','USD','SGD','MYR','HKD'] %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="uc-field" style="display:flex;align-items:flex-end;padding-bottom:7px;">
+          <label class="uc-check" style="margin:0;" title="设定试用期区间,账户显示试用期徽章,结束后自动消失">
+            <input type="checkbox" id="ucProbToggle" name="is_probation" onchange="ucToggleProb(this.checked)"> 试用期
+          </label>
+        </div>
+        <div class="uc-field" id="ucProbStartField" hidden>
+          <label>试用期开始</label>
+          <input class="uc-input" name="probation_start" type="date">
+        </div>
+        <div class="uc-field" id="ucProbEndField" hidden>
+          <label>试用期结束</label>
+          <input class="uc-input" name="probation_end" type="date">
+        </div>
+      </div>
+
+      {# 编辑态专属:账户状态与安全 #}
+      <div id="ucEditZone" hidden>
+        <div class="uc-sep">账户状态与安全</div>
+        <div class="uc-grid">
+          <div class="uc-field">
+            <label>重置密码</label>
+            <input class="uc-input" name="password" type="password" autocomplete="new-password"
+                   placeholder="留空 = 不修改密码">
+          </div>
+          {# 激活状态不在编辑里改(统一走详情页激活按钮,新账户会发邀请邮件);
+             后端按「字段是否存在」判定,这里用 hidden 透传当前状态防止保存时被误停用 #}
+          <input type="hidden" id="ucActiveKeep" name="is_active" value="on" disabled>
+          <div class="uc-field" style="display:flex;align-items:flex-end;padding-bottom:7px;">
+            <label class="uc-check" style="margin:0;" title="在另一站点(CN/SG)以外部身份显示">
+              <input type="checkbox" name="cross_team_visible"> 跨团队可见
+            </label>
+          </div>
+          <div class="uc-field">
+            <label>对外身份标签</label>
+            <input class="uc-input" name="cross_team_label" placeholder="如:海外技术支持">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+        <button type="button" onclick="ucClose()"
+                style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                       background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">取消</button>
+        <button type="submit" id="ucSubmit"
+                style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);
+                       color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">创建账户</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  const $ = sel => document.querySelector('#ucOverlay ' + sel);
+  const CREATE_ACTION = document.getElementById('ucForm').getAttribute('action');
+
+  function show() {
+    document.getElementById('ucOverlay').classList.add('open');
+    setTimeout(() => { const f = $('#ucUsername'); if (f && !f.readOnly) f.focus(); }, 50);
+  }
+
+  // 部门按所选公司联动:仅显示该公司的部门(来自部门字典 Department 表)
+  window.ucFilterDepts = function () {
+    const form = document.getElementById('ucForm');
+    const co = form.company.value || '';
+    let curOk = false;
+    Array.from(form.department.options).forEach(opt => {
+      if (!opt.value) { opt.hidden = false; return; }   // 占位项
+      const match = (opt.getAttribute('data-company') || '') === co;
+      opt.hidden = !match;
+      if (match && opt.value === form.department.value) curOk = true;
+    });
+    if (!curOk) form.department.value = '';   // 切公司后原部门不属于该公司 → 清空
+  };
+
+  window.ucToggleProb = function (on) {
+    document.getElementById('ucProbStartField').hidden = !on;
+    document.getElementById('ucProbEndField').hidden = !on;
+  };
+
+  window.ucOpenCreate = function () {
+    const form = document.getElementById('ucForm');
+    form.reset();
+    form.setAttribute('action', CREATE_ACTION);
+    document.getElementById('ucTitle').textContent = '新建账户';
+    document.getElementById('ucHint').hidden = false;
+    document.getElementById('ucSubmit').textContent = '创建账户';
+    document.getElementById('ucEditZone').hidden = true;
+    document.getElementById('ucActiveKeep').disabled = true;
+    ucToggleProb(false);
+    ucFilterDepts();   // 公司未选 → 部门下拉先清空
+    const un = $('#ucUsername');
+    un.readOnly = false; un.value = ''; un.placeholder = '登录名(创建后不可改)';
+    show();
+  };
+
+  window.ucOpenEdit = function (u, action) {
+    const form = document.getElementById('ucForm');
+    form.reset();
+    form.setAttribute('action', action);
+    document.getElementById('ucTitle').textContent = '编辑账户 · ' + (u.real_name || u.username);
+    document.getElementById('ucHint').hidden = true;
+    document.getElementById('ucSubmit').textContent = '保存修改';
+    document.getElementById('ucEditZone').hidden = false;
+    const un = $('#ucUsername');
+    un.value = u.username || ''; un.readOnly = true;
+    form.real_name.value = u.real_name || '';
+    form.role.value = u.role || '';
+    form.company.value = u.company || '';
+    ucFilterDepts();   // 先按公司过滤部门,再设当前部门
+    form.department.value = u.department || '';
+    form.email.value = u.email || '';
+    form.phone.value = u.phone || '';
+    form.settlement_currency.value = u.settlement_currency || '';
+    form.is_department_manager.checked = !!u.is_department_manager;
+    // 试用期(账户级):有结束日期即视为试用期
+    const hasProb = !!(u.probation_start || u.probation_end);
+    form.is_probation.checked = hasProb;
+    form.probation_start.value = u.probation_start || '';
+    form.probation_end.value = u.probation_end || '';
+    ucToggleProb(hasProb);
+    // 激活状态透传(disabled 的 input 不随表单提交 = 后端视为未激活)
+    document.getElementById('ucActiveKeep').disabled = !u.is_active;
+    form.cross_team_visible.checked = !!u.cross_team_visible;
+    form.cross_team_label.value = u.cross_team_label || '';
+    show();
+  };
+
+  window.ucClose = function () {
+    document.getElementById('ucOverlay').classList.remove('open');
+  };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') ucClose(); });
+})();
+</script>
+{% endmacro %}

@@ -453,7 +453,8 @@ def convert_approval_item(item, tab):
         'creator': None,
         'current_approver': None,
         'status': None,
-        'started_at': None
+        'started_at': None,
+        'detail_url': None,   # 非标准类型(绩效结算等)的专属跳转;为空时模板按 object_type 兜底
     }
 
     try:
@@ -554,6 +555,30 @@ def convert_approval_item(item, tab):
                     # 获取关联项目名称
                     if expense.project:
                         result['project_name'] = expense.project.project_name
+                else:
+                    result['approval_number'] = f'APV-{item.id}'
+            elif result['object_type'] == 'perf_settlement' and hasattr(item, 'object_id'):
+                # 绩效结算:编号 + 跳个人绩效页并自动展开审批 chip
+                from app.models.performance_settlement import PerformanceSettlement
+                _st = PerformanceSettlement.query.get(item.object_id)
+                if _st:
+                    from app.models.user import User as _U
+                    _su = _U.query.get(_st.user_id)
+                    result['approval_number'] = f'PERF-{_st.year}Q{_st.quarter}'
+                    result['project_name'] = f"{(_su.real_name or _su.username) if _su else ''} · {_st.year} Q{_st.quarter} 绩效结算"
+                    result['detail_url'] = f'/user/at-config/performance?user={_st.user_id}&settle_q={_st.quarter}'
+                else:
+                    result['approval_number'] = f'APV-{item.id}'
+            elif result['object_type'] == 'salary_run' and hasattr(item, 'object_id'):
+                # 月度薪资审批:编号 + 跳薪资审批 tab(锁定公司/年/月)
+                from app.models.salary_structure import SalaryRun
+                from urllib.parse import quote as _q
+                _run = SalaryRun.query.get(item.object_id)
+                if _run:
+                    result['approval_number'] = f'SAL-{_run.year}{_run.month:02d}'
+                    result['project_name'] = f"{_run.company_name} · {_run.year}年{_run.month}月薪资（{_run.headcount or 0}人）"
+                    result['detail_url'] = (f'/config-management/at/salary-approval'
+                                            f'?company={_q(_run.company_name or "")}&year={_run.year}&month={_run.month}')
                 else:
                     result['approval_number'] = f'APV-{item.id}'
             else:
@@ -700,6 +725,81 @@ def detail(instance_id):
         get_project_by_id=get_project_by_id,
         get_quotation_by_id=get_quotation_by_id
     )
+
+
+@approval_bp.route('/at-detail/<int:instance_id>')
+@login_required
+def at_detail(instance_id):
+    """通用 AT 审批详情(纵向流程图 + 审批操作)。
+    用于尚无专属详情页的类型(绩效结算/客户渠道身份/项目失败搁置等),
+    替代已弃用的 approval/detail.html。审批人在此页直接同意/驳回。"""
+    from app.models.user import User
+    from app.helpers.approval_helpers import is_current_approver
+    instance = get_approval_details(instance_id)
+    if not instance:
+        flash(_('找不到审批实例'), 'danger')
+        return redirect(url_for('approval.tw_center'))
+
+    records = get_approval_records_by_instance(instance_id)
+    rec_by_step = {}
+    for r in records:
+        rec_by_step[r.step_id] = r   # 同步最后一条
+    all_steps = get_template_steps(instance.process_id)
+    designated = instance.designated_approvers or {}
+
+    steps_view = []
+    for step in all_steps:
+        rec = rec_by_step.get(step.id)
+        ap_id = designated.get(str(step.id)) or step.approver_user_id
+        ap = User.query.get(ap_id) if ap_id else None
+        if rec:
+            st = rec.action            # approve/reject/skipped
+        elif instance.status == ApprovalStatus.PENDING and step.step_order == instance.current_step:
+            st = 'current'
+        elif instance.status == ApprovalStatus.PENDING and step.step_order > instance.current_step:
+            st = 'pending'
+        else:
+            st = 'done' if instance.status == ApprovalStatus.APPROVED else 'pending'
+        steps_view.append({
+            'order': step.step_order, 'name': step.step_name,
+            'approver': (ap.real_name or ap.username) if ap else '系统解析',
+            'status': st,
+            'comment': (rec.comment if rec else '') or '',
+            'acted_by': (rec.approver_id if rec else None),
+        })
+
+    can_approve = (instance.status == ApprovalStatus.PENDING and
+                   is_current_approver(instance.object_type, instance.object_id, current_user.id))
+
+    # 业务摘要(按类型)
+    summary = {'type': get_object_type_display(instance.object_type), 'lines': []}
+    if instance.object_type == 'perf_settlement':
+        from app.models.performance_settlement import PerformanceSettlement
+        st = PerformanceSettlement.query.get(instance.object_id)
+        if st:
+            u = User.query.get(st.user_id)
+            summary['title'] = f"{(u.real_name or u.username) if u else ''} · {st.year} 年 Q{st.quarter} 绩效结算"
+            summary['lines'] = [
+                ('季度得分', f"{st.score} 分"),
+                ('绩效基数', f"¥{float(st.base_amount or 0):,.0f}"),
+                ('折算绩效薪资', f"¥{float(st.settled_amount or 0):,.0f}"),
+            ]
+    elif instance.object_type == 'salary_run':
+        from app.models.salary_structure import SalaryRun
+        run = SalaryRun.query.get(instance.object_id)
+        if run:
+            summary['title'] = f"{run.company_name} · {run.year}年{run.month}月 薪资审批"
+            summary['lines'] = [
+                ('人数', f"{run.headcount or 0} 人"),
+                ('应发合计', f"¥{float(run.total_amount or 0):,.2f}"),
+            ]
+    if 'title' not in summary:
+        summary['title'] = f"{summary['type']} #{instance.object_id}"
+
+    return render_template('approval/at_detail.html',
+                           instance=instance, steps_view=steps_view,
+                           can_approve=can_approve, summary=summary,
+                           ApprovalStatus=ApprovalStatus)
 
 
 @approval_bp.route('/start', methods=['POST'])
@@ -901,7 +1001,34 @@ def approve(instance_id):
             }), 404
         flash(_('找不到审批实例'), 'danger')
         return redirect(url_for('approval.center'))
-    
+
+    # 项目失败/搁置审核:审批人必须强制填写意见(同意/驳回都要)
+    if instance.object_type == 'project_hold' and not (comment or '').strip():
+        if is_ajax:
+            return jsonify({'success': False, 'message': '请填写审批意见（必填）'}), 400
+        flash(_('请填写审批意见（必填）'), 'danger')
+        return redirect(request.referrer or url_for('approval.center'))
+
+    # 项目失败审核归因认定(同意时,可选):
+    #   步骤1 部门经理 → owner_fault(个人因素为主);步骤2 总经理 → mgmt_fault(团队管理失责)
+    #   驳回时清两标(项目不失败,归因作废)
+    if instance.object_type == 'project_hold':
+        try:
+            from app.models.project import Project as _P
+            _proj = _P.query.get(instance.object_id)
+            _attr = (request.form.get('attribution') or '').strip()
+            if _proj:
+                if action == ApprovalAction.APPROVE and _attr in ('owner_fault', 'mgmt_fault'):
+                    setattr(_proj, f'fail_{_attr}', True)
+                    current_app.logger.info(
+                        f"失败归因认定: 项目{_proj.id} fail_{_attr}=True by user {current_user.id}")
+                elif action == ApprovalAction.REJECT:
+                    _proj.fail_owner_fault = False
+                    _proj.fail_mgmt_fault = False
+            # 不单独 commit,随审批事务一并提交
+        except Exception as _attr_err:
+            current_app.logger.warning(f'失败归因处理失败: {_attr_err}')
+
     # 收集批价单相关数据
     pricing_order_data = {}
     if instance.object_type == 'pricing_order':

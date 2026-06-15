@@ -96,6 +96,24 @@
 {% endmacro %}
 
 
+{# ─── 成功锁定徽章(锁单预判)──────────────────────────────
+   所有显示项目的地方统一使用;size='sm' 列表行用。
+   title 带锁定理由;详情页的交互版(点击看理由/解除)在 at_view 单独实现。 #}
+{% macro at_win_lock_badge(reason='', size='md', title_extra='') %}
+  {%- set ic = 13 if size == 'sm' else 15 -%}
+  {# 纯奖杯图标(无圈无底色;同中标阶段 emoji_events 语义,内联 SVG 不依赖图标字体)#}
+  <span title="锁定成功{{ (':' ~ reason) if reason }}{{ title_extra }}"
+        style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+               color:var(--warn);vertical-align:middle;margin-left:4px;">
+    <svg width="{{ ic }}" height="{{ ic }}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+      <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>
+{%- endmacro %}
+
+
 {# ─── 头像(seeded 配色) ────────────────────────────────── #}
 {% macro at_avatar(name, size=24) %}
   {%- set palette = [

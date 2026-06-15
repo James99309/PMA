@@ -1270,14 +1270,19 @@
                                          :class="item.enabled ? 'bg-white dark:bg-slate-800' : 'bg-slate-50 dark:bg-slate-800/50'">
                                         <!-- 项目头部 -->
                                         <div class="px-4 py-3 flex items-center gap-4 border-b border-slate-100 dark:border-slate-700">
-                                            <label class="flex items-center gap-3 flex-1" :class="isEditing ? 'cursor-pointer' : 'cursor-default'">
+                                            <label class="flex items-center gap-3 flex-1" :class="isEditing && !item.locked ? 'cursor-pointer' : 'cursor-default'">
                                                 <input type="checkbox" x-model="item.enabled"
-                                                       :disabled="!isEditing"
+                                                       :disabled="!isEditing || item.locked"
                                                        class="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed">
                                                 <span class="material-symbols-outlined text-xl"
                                                       :class="item.enabled ? 'text-primary' : 'text-slate-400'"
                                                       x-text="getItemIcon(item.item_code)"></span>
                                                 <span class="font-medium text-slate-900 dark:text-white" x-text="item.item_name"></span>
+                                                <!-- 角色写死考核方案:权重 + 固定标识 -->
+                                                <span x-show="item.weight" class="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary font-medium"
+                                                      x-text="'权重 ' + item.weight + '%'"></span>
+                                                <span x-show="item.locked" class="px-2 py-0.5 rounded text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
+                                                      title="{{ _('该角色考核项由系统方案固定，仅可设置目标') }}">{{ _('岗位固定') }}</span>
                                             </label>
                                             <span class="px-2 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-700 text-slate-500"
                                                   x-text="'单位: ' + item.unit"></span>
@@ -5037,7 +5042,12 @@
                     'new_customers': 'person_add',
                     'new_projects': 'folder_open',
                     'high_price_amount': 'price_check',
-                    'quotation_count': 'description'
+                    'quotation_count': 'description',
+                    'se_implant_amount': 'engineering',
+                    'se_sales_amount': 'handshake',
+                    'se_confirm_count': 'task_alt',
+                    'se_sales_support': 'group',
+                    'se_confirm_quality': 'verified'
                 };
                 return icons[itemCode] || 'insights';
             },

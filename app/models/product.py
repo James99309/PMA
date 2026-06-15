@@ -26,6 +26,9 @@ class Product(db.Model):
     # 厂商产品标记字段
     is_vendor_product = db.Column(db.Boolean, default=False)  # 是否为厂商产品（用于植入合计统计）
 
+    # 推荐系数（植入品质用，仅 CEO 可设；NULL/0=不计入品质）。复用既有列。
+    citation_coefficient = db.Column(db.Numeric(10, 2), nullable=True, comment='推荐系数(植入品质加权)')
+
     # SN 管理开关:False 则发货时跳过 SN 输入(如耦合器、功分器等小附件)
     has_serial_number = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
 

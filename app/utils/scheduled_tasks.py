@@ -347,7 +347,12 @@ def verify_dingtalk_mappings():
 def run_claude_usage_pull():
     """每 5 分钟从 Mac mini 拉取 Claude AI 代理用量并写入数据库"""
     from flask import current_app
-    app = current_app._get_current_object()
+    from app import create_app
+    try:
+        # 调度线程无应用上下文,current_app 会抛 RuntimeError → 兜底自建(与其他任务同模式)
+        app = current_app._get_current_object()
+    except RuntimeError:
+        app = create_app()
     with app.app_context():
         try:
             from app.services.ai_proxy_service import pull_usage_from_macmini

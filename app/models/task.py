@@ -8,7 +8,7 @@ TaskReply: 任务回复
 """
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey, Index, JSON
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, Float, ForeignKey, Index, JSON
 from sqlalchemy.orm import relationship
 
 from app import db
@@ -68,6 +68,7 @@ class Task(db.Model):
 
     # 审计（会审：多人并行审核）
     review_status = Column(String(20), nullable=True, comment='pending_review/approved/rejected')
+    review_score = Column(Float, nullable=True, comment='审核通过时各审计人评价权重均值(below0.5/meet1/exceed1.5)')
     reviewed_at = Column(DateTime, nullable=True)
     # 保留旧字段兼容迁移，新逻辑使用 task_reviewers 表
     reviewer_id = Column(Integer, ForeignKey('users.id'), nullable=True, comment='[废弃]旧单审计人')
@@ -135,6 +136,7 @@ class Task(db.Model):
             'shared_with_users': self.shared_with_users or [],
             'task_type': self.task_type or 'general',
             'review_status': self.review_status,
+            'review_score': self.review_score,
             'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
             'is_audit_task': len(self.task_reviewers) > 0,
             'reviewers': [r.to_dict() for r in self.task_reviewers],
@@ -214,6 +216,7 @@ class TaskReviewer(db.Model):
     task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False)
     reviewer_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     status = Column(String(20), default='pending', nullable=False, comment='pending/approved/rejected')
+    rating = Column(String(10), nullable=True, comment='below/meet/exceed 低于/符合/超出预期')
     comment = Column(Text, nullable=True, comment='审计意见')
     reviewed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=get_local_time)
@@ -230,6 +233,7 @@ class TaskReviewer(db.Model):
             'reviewer_id': self.reviewer_id,
             'reviewer_name': (self.reviewer.real_name or self.reviewer.username) if self.reviewer else None,
             'status': self.status,
+            'rating': self.rating,
             'comment': self.comment,
             'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
         }

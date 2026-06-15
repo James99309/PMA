@@ -131,9 +131,16 @@ QUOTATION_APPROVAL_STATUS_META = {
     'recalled': ('已召回',   'neutral'),
 }
 
+# 项目失败/搁置审核 chip(审核中态;target 决定颜色)
+PROJECT_HOLD_STATUS_META = {
+    'paused': ('搁置审核中', 'warn'),
+    'lost':   ('失败审核中', 'danger'),
+}
+
 # ─── 注册表 ─────────────────────────────────────────────────
 _REGISTRY = {
     'approval':            APPROVAL_STATUS_META,
+    'project_hold':        PROJECT_HOLD_STATUS_META,
     'quotation_approval':  QUOTATION_APPROVAL_STATUS_META,
     'purchase_order':   PURCHASE_ORDER_STATUS_META,
     'sales_order':      SALES_ORDER_STATUS_META,

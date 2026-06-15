@@ -1,0 +1,189 @@
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'salary' %}
+
+{% block config_title %}薪资配置 · 基础结构{% endblock %}
+{% block config_desc %}维护一套全局薪资结构(所有人通用):主薪资项 + 子项(组成部分),只定项目与发放方式,不含金额;金额在「个人配置 · 薪资」中按人填写。固定项不可删除,可不填代表无此项。仅管理员 / 总经理 / 人事可见。{% endblock %}
+
+{% block content %}
+  <style>
+    .cyc-btn { border:1px solid var(--line-2); background:var(--bg-page); font:inherit; font-size:11.5px;
+               color:var(--ink-2); cursor:pointer; padding:2px 10px; border-radius:5px; }
+    .cyc-btn:hover { color:var(--accent); border-color:var(--accent); }
+    .ss-add-child { border:0; background:transparent; font:inherit; font-size:11px; color:var(--accent);
+                    cursor:pointer; padding:1px 6px; border-radius:4px; }
+    .ss-add-child:hover { background:var(--accent-tint); }
+    .ss-del { border:0; background:transparent; cursor:pointer; color:var(--ink-4); display:inline-flex; padding:2px; }
+    .ss-del:hover { color:var(--danger); }
+  </style>
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <span id="ssDirty" style="font-size:12px;color:var(--warn);"></span>
+    <div style="flex:1;"></div>
+    <button type="button" id="ssAddBtn" onclick="ssAddMain()" style="display:none;
+            height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+            background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">+ 添加主薪资项</button>
+    <div id="ssEditBar"></div>
+  </div>
+
+  <div id="ssSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
+    <table class="cm-sheet" style="min-width:560px;">
+      <thead><tr>
+        <th style="text-align:left;">薪资项目</th>
+        <th style="width:120px;">发放方式</th>
+        <th style="width:160px;">操作</th>
+      </tr></thead>
+      <tbody id="ssTbody"><tr><td colspan="3" class="at-dim" style="padding:26px;text-align:center;">加载中…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 基础薪资 / 绩效薪资为固定主项(不可删);主项下可加子项(组成部分),如基础薪资 → 通信费;
+    主项有子项时金额由子项汇总,无子项时主项本身为可填金额项;发放方式由每个可填金额的项各自设定;
+    此处只定结构,金额在「个人配置 · 薪资」按人填写。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  const CYCLES = { monthly: '月发', quarterly: '季发', yearly: '年发' };
+  const CYC_NEXT = { monthly: 'quarterly', quarterly: 'yearly', yearly: 'monthly' };
+  const LOCKED = ['base_salary', 'performance_salary'];
+
+  let _items = [], _dirty = false, _seq = 0, guard = null;
+  const newCode = () => 'c' + (Date.now() % 100000) + (_seq++);
+
+  function setDirty() { document.getElementById('ssDirty').textContent = _dirty ? '有未保存的变更' : ''; }
+  function markDirty() { _dirty = true; setDirty(); if (typeof guard !== 'undefined' && guard) guard.markDirty(); }
+
+  async function ssLoad() {
+    try {
+      const d = await (await fetch('/config-management/api/salary-structure',
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      _items = d.data.items || [];
+      _dirty = false; setDirty();
+      render();
+    } catch (e) {
+      document.getElementById('ssTbody').innerHTML =
+        `<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  function render() {
+    const mains = _items.filter(it => !it.parent_code);
+    let html = '';
+    if (!mains.length) html = `<tr><td colspan="3" class="at-dim" style="padding:26px;text-align:center;">暂无薪资项</td></tr>`;
+    mains.forEach(m => {
+      const kids = _items.filter(it => it.parent_code === m.item_code);
+      html += rowHtml(m, kids.length > 0, false);
+      kids.forEach(k => html += rowHtml(k, false, true));
+    });
+    document.getElementById('ssTbody').innerHTML = html;
+    bind();
+  }
+
+  function rowHtml(it, hasKids, isChild) {
+    const i = _items.indexOf(it);
+    const ce = CAN_EDIT ? 'contenteditable spellcheck="false"' : '';
+    const locked = LOCKED.includes(it.item_code);
+    const nameCell = locked
+      ? `<span style="font-weight:600;">${esc(it.item_name)}</span><span class="at-dim" style="font-size:10.5px;margin-left:6px;">固定项</span>`
+      : `<span ${ce} data-f="name" data-i="${i}" style="display:inline-block;min-width:120px;">${esc(it.item_name || '')}</span>`;
+    const cycleCell = hasKids
+      ? `<span class="at-dim" style="font-size:11px;">— 汇总</span>`
+      : (CAN_EDIT
+          ? `<button type="button" class="cyc-btn" data-cyc="${i}" title="点击切换 月→季→年">${CYCLES[it.pay_cycle] || '月发'}</button>`
+          : `<span class="at-dim" style="font-size:11.5px;">${CYCLES[it.pay_cycle] || '月发'}</span>`);
+    let ops = '';
+    if (CAN_EDIT) {
+      if (!isChild) ops += `<button type="button" class="ss-add-child" data-addkid="${i}">+ 子项</button>`;
+      if (!locked) ops += `<button type="button" class="ss-del" data-del="${i}" title="删除"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>`;
+    }
+    return `<tr>
+      <td class="cm-name"><div style="display:flex;align-items:center;gap:6px;${isChild ? 'padding-left:22px;' : ''}">
+        ${isChild ? '<span style="color:var(--ink-4);">└</span>' : ''}${nameCell}</div></td>
+      <td>${cycleCell}</td>
+      <td>${ops}</td>
+    </tr>`;
+  }
+
+  function bind() {
+    const tb = document.getElementById('ssTbody');
+    tb.querySelectorAll('[data-f="name"]').forEach(el => {
+      el.addEventListener('blur', () => { _items[parseInt(el.dataset.i)].item_name = (el.textContent || '').trim(); markDirty(); });
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+    });
+    tb.querySelectorAll('[data-cyc]').forEach(b =>
+      b.addEventListener('click', () => {
+        const it = _items[parseInt(b.dataset.cyc)];
+        it.pay_cycle = CYC_NEXT[it.pay_cycle] || 'monthly';
+        markDirty(); render();
+      }));
+    tb.querySelectorAll('[data-addkid]').forEach(b =>
+      b.addEventListener('click', () => {
+        const m = _items[parseInt(b.dataset.addkid)];
+        // 子项插到该主项现有子项之后
+        const kids = _items.filter(x => x.parent_code === m.item_code);
+        const lastKid = kids.length ? kids[kids.length - 1] : m;
+        const at = _items.indexOf(lastKid) + 1;
+        _items.splice(at, 0, { item_code: newCode(), item_name: '', parent_code: m.item_code,
+                               pay_cycle: 'monthly', is_locked: false });
+        markDirty(); render();
+        const els = document.querySelectorAll('[data-f="name"]');
+        // 聚焦新行(找 parent_code 匹配的最后一个空名)
+        for (let k = els.length - 1; k >= 0; k--) { if (!els[k].textContent.trim()) { els[k].focus(); break; } }
+      }));
+    tb.querySelectorAll('[data-del]').forEach(b =>
+      b.addEventListener('click', () => {
+        const it = _items[parseInt(b.dataset.del)];
+        const kids = _items.filter(x => x.parent_code === it.item_code);
+        const msg = kids.length ? `删除「${it.item_name || '未命名'}」及其 ${kids.length} 个子项?` : `删除「${it.item_name || '未命名'}」?`;
+        ATConfirm.show({
+          title: '删除薪资项', message: msg + '保存后生效。', variant: 'danger', icon: 'delete',
+          confirmText: '删除', cancelText: '取消',
+          onConfirm: () => {
+            _items = _items.filter(x => x !== it && x.parent_code !== it.item_code);
+            markDirty(); render();
+          },
+        });
+      }));
+  }
+
+  window.ssAddMain = function () {
+    _items.push({ item_code: newCode(), item_name: '', parent_code: null, pay_cycle: 'monthly', is_locked: false });
+    markDirty(); render();
+    const els = document.querySelectorAll('[data-f="name"]');
+    if (els.length) els[els.length - 1].focus();
+  };
+
+  async function ssSaveCore() {
+    const payload = _items.map(it => ({
+      item_code: it.item_code, item_name: it.item_name,
+      parent_code: it.parent_code || null, pay_cycle: it.pay_cycle,
+    }));
+    try {
+      const d = await (await fetch('/config-management/api/salary-structure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ items: payload }),
+      })).json();
+      if (d.success) { ATToast.success(d.message || '已保存'); _dirty = false; ssLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (_) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  // 编辑模式守卫:默认只读,点「编辑」才能改结构;保存确认;离开页提醒
+  guard = AtEditMode.init({
+    mount: 'ssEditBar', lockEl: 'ssSheet', canEdit: CAN_EDIT,
+    onSave: ssSaveCore,
+    onDiscard: function () { ssLoad(); },
+    onEnter: function () { const b = document.getElementById('ssAddBtn'); if (b) b.style.display = ''; },
+    onExit: function () { const b = document.getElementById('ssAddBtn'); if (b) b.style.display = 'none'; },
+    saveConfirm: { message: '确认保存薪资结构?' },
+  });
+
+  ssLoad();
+</script>
+{% endblock %}

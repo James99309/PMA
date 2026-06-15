@@ -1,5 +1,6 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script %}
+{% from 'components/tw_task_audit.html' import render_task_audit_panel %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -389,32 +390,54 @@
                                           x-text="r.status === 'approved' ? 'check_circle' : (r.status === 'rejected' ? 'cancel' : 'radio_button_unchecked')"
                                           :style="r.status === 'approved' ? 'font-variation-settings:\'FILL\' 1' : (r.status === 'rejected' ? 'font-variation-settings:\'FILL\' 1' : '')"></span>
                                     <span x-text="r.reviewer_name"></span>
+                                    <template x-if="r.rating">
+                                        <span class="font-medium"
+                                              x-text="r.rating === 'below' ? '{{ _('低于预期') }}' : (r.rating === 'exceed' ? '{{ _('超出预期') }}' : '{{ _('符合预期') }}')"></span>
+                                    </template>
                                     <template x-if="r.comment">
                                         <span class="text-slate-500" x-text="'「' + r.comment + '」'"></span>
                                     </template>
                                 </span>
                             </template>
                         </div>
-                        {# 当前用户是审计人且未审核 → 显示操作 #}
+                        {# 当前用户是审计人且未审核 → 显示三档评价通用组件 #}
                         <template x-if="selectedTask.can_review">
-                            <div x-data="{ reviewComment: '', submitting: false }">
-                                <textarea x-model="reviewComment" rows="2"
-                                          :placeholder="'{{ _('输入审核意见（驳回时必填）...') }}'"
-                                          class="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary mb-2"></textarea>
-                                <div class="flex gap-2">
-                                    <button @click="submitting = true; submitTaskReview('approve', reviewComment).finally(() => submitting = false)"
-                                            :disabled="submitting"
-                                            class="px-4 py-1.5 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50">
-                                        {{ _('确认通过') }}
-                                    </button>
-                                    <button @click="if(!reviewComment.trim()){alert('{{ _('驳回时必须填写意见') }}');return;} submitting = true; submitTaskReview('reject', reviewComment).finally(() => submitting = false)"
-                                            :disabled="submitting"
-                                            class="px-4 py-1.5 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition disabled:opacity-50">
-                                        {{ _('驳回') }}
-                                    </button>
-                                </div>
-                            </div>
+                            <div>{{ render_task_audit_panel() }}</div>
                         </template>
+                    </div>
+                </template>
+
+                {# ── 审核结果（已审核完成可见：评价档 + 得分） ── #}
+                <template x-if="(selectedTask.review_status === 'approved' || selectedTask.review_status === 'rejected') && selectedTask.reviewers && selectedTask.reviewers.length > 0">
+                    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-emerald-50/40 dark:bg-emerald-900/10">
+                        <h3 class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-2 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm">verified</span>
+                            {{ _('审核结果') }}
+                            <template x-if="selectedTask.review_score != null">
+                                <span class="ml-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-medium"
+                                      x-text="'{{ _('评价得分') }} ' + selectedTask.review_score"></span>
+                            </template>
+                        </h3>
+                        <div class="flex flex-col gap-1.5">
+                            <template x-for="r in selectedTask.reviewers" :key="r.id">
+                                <div class="flex items-center gap-2 text-xs flex-wrap">
+                                    <span class="text-slate-600 dark:text-slate-300" x-text="r.reviewer_name"></span>
+                                    <template x-if="r.rating">
+                                        <span class="px-2 py-0.5 rounded-full font-medium"
+                                              :class="r.rating === 'below' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+                                                    : r.rating === 'exceed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                                    : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'"
+                                              x-text="r.rating === 'below' ? '{{ _('低于预期') }}' : (r.rating === 'exceed' ? '{{ _('超出预期') }}' : '{{ _('符合预期') }}')"></span>
+                                    </template>
+                                    <template x-if="r.status === 'rejected'">
+                                        <span class="px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">{{ _('驳回') }}</span>
+                                    </template>
+                                    <template x-if="r.comment">
+                                        <span class="text-slate-500" x-text="'「' + r.comment + '」'"></span>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
                     </div>
                 </template>
 

@@ -99,6 +99,29 @@ def get_personal_viewable_user_ids(user):
     return list(set(viewable_user_ids))
 
 
+def _pinyin_sort_key(name):
+    """姓名排序键:中文按拼音,英文/数字原样;无 pypinyin 时退回小写原串。"""
+    name = name or ''
+    try:
+        from pypinyin import lazy_pinyin
+        return ''.join(lazy_pinyin(name)).lower()
+    except Exception:
+        return name.lower()
+
+
+def build_owner_filter_options(owner_ids):
+    """负责人筛选下拉选项:在职在前、离职在后(灰色 muted),组内按拼音首字母排序,
+    离职 label 加「（离职）」。供 AT 列表(项目/客户/报价)筛选面板复用。"""
+    if not owner_ids:
+        return []
+    users = User.query.filter(User.id.in_(owner_ids)).all()
+    users.sort(key=lambda u: (not u.is_active, _pinyin_sort_key(u.real_name or u.username)))
+    return [{'value': u.id,
+             'label': (u.real_name or u.username or str(u.id)) + ('（离职）' if not u.is_active else ''),
+             'muted': not u.is_active}
+            for u in users]
+
+
 def get_managed_departments(user):
     """
     获取用户管理的部门列表（兼容新旧两种方式）
@@ -274,31 +297,25 @@ def apply_content_filters(query, model_class, module_name, user):
             content_filters = role_permission.content_filters
             logger.debug(f"使用角色权限的 content_filters: {content_filters}")
         else:
-            # 没有任何 content_filters 配置
-            # 如果模块定义了内容筛选选项，则必须配置才能查看
-            if module_filter_options:
-                logger.debug(f"{module_name} 模块定义了内容筛选但用户未配置，返回空查询")
-                return query.filter(False)
-            # 模块没有定义内容筛选选项，不做过滤
+            # 没有任何 content_filters 配置 = 不限(不过滤,全开)
+            # (原"模块可筛选但未配置 → 全关"与"不限=全开"直觉冲突,已废弃;
+            #  全开仍受 permission_level 数据范围约束)
             return query
 
         logger.debug(f"应用 {module_name} 模块的内容过滤: {content_filters}")
 
-        # 检查：模块定义的每个筛选字段，用户都必须配置
-        for filter_key in module_filter_options.keys():
-            if filter_key not in content_filters:
-                logger.debug(f"{module_name} 模块缺少必需的筛选字段 {filter_key}，返回空查询")
-                return query.filter(False)
+        # 缺某筛选字段 = 该维度「不限」(不过滤),不再因缺字段而全关
+        # (原"必须配齐每个字段否则全关"与"不限=全开"直觉冲突,已废弃)
 
-        # 动态应用过滤规则（AND 逻辑：所有字段都必须满足）
+        # 动态应用过滤规则（AND 逻辑：仅对"有具体值"的字段过滤;空/缺 = 不限）
         for filter_key, allowed_values in content_filters.items():
             if not isinstance(allowed_values, list):
                 continue
 
-            # 空列表 = 无权限
+            # 空列表 = 该维度「不限」(不过滤,全开),不再全关
             if not allowed_values:
-                logger.debug(f"{module_name}.{filter_key} 为空列表，返回空查询")
-                return query.filter(False)
+                logger.debug(f"{module_name}.{filter_key} 为空列表 → 视为不限,跳过该维度过滤")
+                continue
 
             # 获取该字段的配置
             filter_config = module_filter_options.get(filter_key, {})
@@ -420,13 +437,13 @@ def _get_worklog_shared_ids(user_id, field='project_id'):
     from app.models.worklog import WorkItem
 
     target_field = getattr(WorkItem, field)
+    # 仅"被共享给该用户"的行程才让关联客户/项目在列表可见(与 can_view_company/project 一致)。
+    # 不再包含 owner_id==user_id —— 否则"自己给某客户/项目记过行程"会让其误显示在列表,
+    # 但详情(只认共享)拒绝,造成"列表看得到、点不进"(转移走后尤为明显)。
     return db.session.query(target_field).filter(
         target_field.isnot(None),
         WorkItem.is_deleted == False,
-        db.or_(
-            WorkItem.owner_id == user_id,
-            cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
-        )
+        cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
     ).distinct()
 
 def _get_task_linked_ids(user_id, field='project_id'):

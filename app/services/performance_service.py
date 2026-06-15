@@ -464,20 +464,38 @@ class PerformanceService:
                 WITH all_months AS (
                     SELECT generate_series(1, 12) AS month
                 ),
+                se_users AS (
+                    SELECT id FROM users WHERE role = 'solution_manager'
+                ),
+                collab AS (
+                    -- 每个 (项目, SE) 的确认数与总配合量(确认+系统设计+工作项+行动)
+                    SELECT project_id, se_id, SUM(cf) AS confirms, COUNT(*) AS vol
+                    FROM (
+                        SELECT project_id, confirmed_by AS se_id, 1 AS cf FROM quotations
+                            WHERE confirmed_by IN (SELECT id FROM se_users)
+                              AND project_id IS NOT NULL AND confirmed_at IS NOT NULL
+                        UNION ALL
+                        SELECT project_id, owner_id, 0 FROM system_diagrams
+                            WHERE owner_id IN (SELECT id FROM se_users)
+                              AND is_deleted = false AND project_id IS NOT NULL
+                        UNION ALL
+                        SELECT project_id, owner_id, 0 FROM work_items
+                            WHERE owner_id IN (SELECT id FROM se_users) AND project_id IS NOT NULL
+                        UNION ALL
+                        SELECT project_id, owner_id, 0 FROM actions
+                            WHERE owner_id IN (SELECT id FROM se_users) AND project_id IS NOT NULL
+                    ) parts
+                    GROUP BY project_id, se_id
+                ),
+                primary_se AS (
+                    -- 配合主方:确认数优先,其次总配合量,再次 se_id 最小(稳定唯一)
+                    SELECT DISTINCT ON (project_id) project_id, se_id
+                    FROM collab
+                    ORDER BY project_id, confirms DESC, vol DESC, se_id ASC
+                ),
                 se_projects AS (
-                    SELECT DISTINCT project_id FROM (
-                        SELECT project_id FROM project_members
-                            WHERE user_id = :user_id AND role = 'solution_engineer'
-                        UNION
-                        SELECT project_id FROM quotations
-                            WHERE confirmed_by = :user_id AND project_id IS NOT NULL
-                        UNION
-                        SELECT project_id FROM work_items
-                            WHERE owner_id = :user_id AND project_id IS NOT NULL
-                        UNION
-                        SELECT project_id FROM actions
-                            WHERE owner_id = :user_id AND project_id IS NOT NULL
-                    ) all_se_projects
+                    -- 仅「我作为配合主方」的项目计入植入额/批价额,避免共享项目重复计入
+                    SELECT project_id FROM primary_se WHERE se_id = :user_id
                 ),
                 se_implant AS (
                     SELECT EXTRACT(month FROM q.created_at)::int AS month,
@@ -498,13 +516,65 @@ class PerformanceService:
                     WHERE po.status = 'approved'
                       AND EXTRACT(year FROM po.approved_at) = :year
                     GROUP BY 1
+                ),
+                se_confirm AS (
+                    -- 报价确认量(我确认的报价,按确认时间归月)
+                    SELECT EXTRACT(month FROM confirmed_at)::int AS month,
+                           COUNT(*) AS confirm_count
+                    FROM quotations
+                    WHERE confirmed_by = :user_id
+                      AND confirmed_at IS NOT NULL
+                      AND EXTRACT(year FROM confirmed_at) = :year
+                    GROUP BY 1
+                ),
+                se_support AS (
+                    -- 销售配合广度(2026-06-14 重定义) 项目参与=系统设计 + 报价制作/确认
+                    -- 触达的项目,按项目 owner(销售)去重,按行为发生月归月
+                    SELECT month, COUNT(DISTINCT owner_id) AS support_count
+                    FROM (
+                        SELECT EXTRACT(month FROM sd.updated_at)::int AS month, pr.owner_id
+                        FROM system_diagrams sd JOIN projects pr ON sd.project_id = pr.id
+                        WHERE sd.owner_id = :user_id AND sd.is_deleted = false
+                          AND EXTRACT(year FROM sd.updated_at) = :year AND pr.owner_id IS NOT NULL
+                        UNION
+                        SELECT EXTRACT(month FROM q.created_at)::int AS month, pr.owner_id
+                        FROM quotations q JOIN projects pr ON q.project_id = pr.id
+                        WHERE q.owner_id = :user_id AND q.created_at IS NOT NULL
+                          AND EXTRACT(year FROM q.created_at) = :year AND pr.owner_id IS NOT NULL
+                        UNION
+                        SELECT EXTRACT(month FROM q.confirmed_at)::int AS month, pr.owner_id
+                        FROM quotations q JOIN projects pr ON q.project_id = pr.id
+                        WHERE q.confirmed_by = :user_id AND q.confirmed_at IS NOT NULL
+                          AND EXTRACT(year FROM q.confirmed_at) = :year AND pr.owner_id IS NOT NULL
+                    ) parts
+                    GROUP BY month
+                ),
+                se_quality AS (
+                    -- 植入品质(2026-06-14) 本月该 SE 确认的报价单,每单=出现过的推荐产品系数之和
+                    -- (去重不看数量,citation_coefficient>0 才计),取平均
+                    SELECT month, AVG(qscore) AS quality FROM (
+                        SELECT EXTRACT(month FROM q.confirmed_at)::int AS month, q.id,
+                               COALESCE(SUM(p.citation_coefficient), 0) AS qscore
+                        FROM quotations q
+                        LEFT JOIN (SELECT DISTINCT quotation_id, product_mn FROM quotation_details) dp ON dp.quotation_id = q.id
+                        LEFT JOIN products p ON p.product_mn = dp.product_mn AND p.citation_coefficient > 0
+                        WHERE q.confirmed_by = :user_id AND q.confirmed_at IS NOT NULL
+                          AND EXTRACT(year FROM q.confirmed_at) = :year
+                        GROUP BY 1, q.id
+                    ) per_q GROUP BY month
                 )
                 SELECT am.month,
                        COALESCE(si.amount, 0) AS se_implant_amount,
-                       COALESCE(ss.amount, 0) AS se_sales_amount
+                       COALESCE(ss.amount, 0) AS se_sales_amount,
+                       COALESCE(sc.confirm_count, 0) AS se_confirm_count,
+                       COALESCE(sup.support_count, 0) AS se_sales_support,
+                       COALESCE(ROUND(sq.quality, 2), 0) AS se_confirm_quality
                 FROM all_months am
                 LEFT JOIN se_implant si ON am.month = si.month
                 LEFT JOIN se_sales ss ON am.month = ss.month
+                LEFT JOIN se_confirm sc ON am.month = sc.month
+                LEFT JOIN se_support sup ON am.month = sup.month
+                LEFT JOIN se_quality sq ON am.month = sq.month
                 ORDER BY am.month
             """), {'user_id': user_id, 'year': year}).fetchall()
 
@@ -513,6 +583,9 @@ class PerformanceService:
                 stats = type('SEStats', (), {
                     'se_implant_amount_actual': float(row.se_implant_amount or 0),
                     'se_sales_amount_actual': float(row.se_sales_amount or 0),
+                    'se_confirm_count_actual': int(row.se_confirm_count or 0),
+                    'se_sales_support_actual': int(row.se_sales_support or 0),
+                    'se_confirm_quality_actual': float(row.se_confirm_quality or 0),
                 })()
                 monthly_stats.append(stats)
 
@@ -520,6 +593,9 @@ class PerformanceService:
                 monthly_stats.append(type('SEStats', (), {
                     'se_implant_amount_actual': 0,
                     'se_sales_amount_actual': 0,
+                    'se_confirm_count_actual': 0,
+                    'se_sales_support_actual': 0,
+                    'se_confirm_quality_actual': 0,
                 })())
 
             return monthly_stats
@@ -528,6 +604,9 @@ class PerformanceService:
             return [type('SEStats', (), {
                 'se_implant_amount_actual': 0,
                 'se_sales_amount_actual': 0,
+                'se_confirm_count_actual': 0,
+                'se_sales_support_actual': 0,
+                'se_confirm_quality_actual': 0,
             })() for _ in range(12)]
 
     @staticmethod

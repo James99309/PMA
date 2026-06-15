@@ -77,10 +77,16 @@ def list_view():
         'cancelled': stats.get('cancelled', 0),
     }
 
+    # 客户筛选下拉:仅列出当前用户「可见订单」中实际出现的客户，
+    # 避免裸查全部公司导致跨企业泄漏(代理商等只应看到自己企业)
+    viewable_customer_ids = [
+        cid for (cid,) in base_query.with_entities(SalesOrder.customer_id).distinct().all()
+        if cid
+    ]
     customers = Company.query.filter(
-        Company.is_deleted == False,
-        Company.company_type.in_(['customer', 'dealer', 'distributor'])
-    ).order_by(Company.company_name).all()
+        Company.id.in_(viewable_customer_ids),
+        Company.is_deleted == False
+    ).order_by(Company.company_name).all() if viewable_customer_ids else []
 
     # 货币选项:基于产品库中实际拥有价格的所有货币(Product 主货币 + ProductRegionPrice 区域价货币)
     from app.utils.dictionary_helpers import get_available_product_currencies

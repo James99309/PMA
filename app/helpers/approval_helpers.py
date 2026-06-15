@@ -291,15 +291,11 @@ def get_authorization_approver_by_project_type(project_type):
     
     # 查找第一个具有该角色的用户
     approver = User.query.filter_by(role=target_role).first()
-    
-    # 如果没找到对应角色的用户，使用总经理角色
+
+    # 如果没找到对应角色的用户，使用总经理角色(不再回退到 admin —— admin 不参与审批)
     if not approver:
         approver = User.query.filter_by(role='ceo').first()
-    
-    # 如果还是没找到，使用admin
-    if not approver:
-        approver = User.query.filter_by(role='admin').first()
-    
+
     return approver
 
 
@@ -324,43 +320,17 @@ def get_next_level_approver(user):
     
     current_app.logger.debug(f"查找用户 {user.username} 的上一级领导")
     
-    # 如果用户本身就是管理员，处理管理员审批逻辑
+    # 管理员发起 → 交由总经理审批(admin 不参与审批流程);无总经理则无上级(跳过)
     if user.role == 'admin':
-        current_app.logger.debug(f"用户 {user.username} 是管理员，处理管理员审批逻辑")
-        
-        # 优先查找主管理员（username='admin'）作为审批人
-        main_admin = User.query.filter_by(role='admin', username='admin').first()
-        
-        if main_admin:
-            if user.id != main_admin.id:
-                # 如果当前用户不是主管理员，由主管理员审批
-                current_app.logger.debug(f"找到主管理员作为审批人: {main_admin.username}")
-                return main_admin
-            else:
-                # 如果当前用户就是主管理员，返回自己（自审）
-                current_app.logger.debug(f"主管理员自审: {main_admin.username}")
-                return main_admin
-        else:
-            # 如果没有找到主管理员，查找ID最小的管理员作为主管理员
-            primary_admin = User.query.filter_by(role='admin').order_by(User.id.asc()).first()
-            if primary_admin:
-                if user.id != primary_admin.id:
-                    current_app.logger.debug(f"找到首个管理员作为审批人: {primary_admin.username}")
-                    return primary_admin
-                else:
-                    current_app.logger.debug(f"首个管理员自审: {primary_admin.username}")
-                    return primary_admin
-        
-        # 如果没有其他管理员，查找CEO
         ceo = User.query.filter_by(role='ceo').filter(User.id != user.id).first()
-        if ceo:
-            current_app.logger.debug(f"找到CEO作为托底审批人: {ceo.username}")
-            return ceo
-        
-        # 如果都没有，返回自己作为托底（自审模式）
-        current_app.logger.warning(f"管理员 {user.username} 没有找到其他审批人，返回自己作为托底")
-        return user
-    
+        current_app.logger.debug(f"管理员 {user.username} 发起,上级={ceo.username if ceo else '无(跳过)'}")
+        return ceo
+
+    # 总经理是组织最高层，无上级 → 返回 None(上级审批步将被自动跳过，不再回退到 admin)
+    if user.role == 'ceo':
+        current_app.logger.debug(f"用户 {user.username} 是总经理，无上级，上级审批步将跳过")
+        return None
+
     # 如果用户有部门且不是部门负责人，上一级是同企业同部门的部门负责人
     if user.department and user.company_name and not user.is_department_manager:
         # 方式1：查找 is_department_manager=True 的用户（主归属该部门的负责人）
@@ -418,14 +388,9 @@ def get_next_level_approver(user):
     if ceo:
         current_app.logger.debug(f"找到总经理: {ceo.username}")
         return ceo
-    
-    # 最后查找管理员
-    admin = User.query.filter_by(role='admin').filter(User.id != user.id).first()
-    if admin:
-        current_app.logger.debug(f"找到管理员: {admin.username}")
-        return admin
-    
-    current_app.logger.debug(f"未找到用户 {user.username} 的上一级领导")
+
+    # 查无总经理 → 无上级(上级审批步将跳过);不再回退到 admin —— admin 不参与审批流程
+    current_app.logger.debug(f"未找到用户 {user.username} 的上一级领导(无总经理),上级审批将跳过")
     return None
 
 
@@ -1644,6 +1609,11 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         
         # 基于部门权限控制，不再使用项目类型过滤
         # 所有用户都可以看到其权限范围内的项目审批，权限由access_control.py统一管理
+    elif object_type == 'project_hold':
+        # 项目失败/搁置审核(object_id 关联 Project)
+        query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
+            ApprovalInstance.object_type == 'project_hold'
+        )
     elif object_type == 'quotation':
         query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
             ApprovalInstance.object_type == 'quotation'
@@ -1667,53 +1637,12 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         query = query.join(DevProduct, ApprovalInstance.object_id == DevProduct.id).filter(
             ApprovalInstance.object_type == 'rd_product'
         )
-    else:
-        # 如果没有指定类型，查询所有类型的审批实例，确保业务对象存在
-        project_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'project'
-        ).join(Project, ApprovalInstance.object_id == Project.id)
-        
-        quotation_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'quotation'
-        ).join(Quotation, ApprovalInstance.object_id == Quotation.id)
-        
-        customer_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'customer'
-        ).join(Company, ApprovalInstance.object_id == Company.id)
-        
-        from app.models.expense import Expense
-        expense_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'expense'
-        ).join(Expense, ApprovalInstance.object_id == Expense.id)
-        
-        from app.models.pricing_order import PricingOrder
-        pricing_order_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'pricing_order'
-        ).join(PricingOrder, ApprovalInstance.object_id == PricingOrder.id)
-        
-        from app.models.inventory import PurchaseOrder
-        purchase_order_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'purchase_order'
-        ).join(PurchaseOrder, ApprovalInstance.object_id == PurchaseOrder.id)
+    # 不指定类型时:通用 —— 直接用 valid_instance_ids(已保证 PENDING + 当前用户是当前步骤审批人)。
+    # 不再按 object_type 白名单 JOIN 过滤:旧白名单每加一种审批类型都要手动登记,漏了就静默
+    # 从代办消失(project_hold 即如此);且计数 _calculate_pending_approval_count / 移动端
+    # _get_pending_instances_for_user 本就是通用的,这里对齐,任何现有/未来类型都不会再漏。
+    # (硬删除业务对象的孤儿实例极少,且渲染层会兜底跳过取不到对象的项。)
 
-        from app.models.dev_product import DevProduct
-        rd_product_subquery = db.session.query(ApprovalInstance.id).filter(
-            ApprovalInstance.object_type == 'rd_product'
-        ).join(DevProduct, ApprovalInstance.object_id == DevProduct.id)
-
-        # 只查询存在于任一子查询中的审批实例
-        query = query.filter(
-            or_(
-                ApprovalInstance.id.in_(project_subquery),
-                ApprovalInstance.id.in_(quotation_subquery),
-                ApprovalInstance.id.in_(customer_subquery),
-                ApprovalInstance.id.in_(expense_subquery),
-                ApprovalInstance.id.in_(pricing_order_subquery),
-                ApprovalInstance.id.in_(purchase_order_subquery),
-                ApprovalInstance.id.in_(rd_product_subquery)
-            )
-        )
-    
     # 按创建时间倒序排列
     query = query.order_by(ApprovalInstance.started_at.desc())
     
@@ -2919,6 +2848,10 @@ def get_object_type_display(object_type):
         'product_analysis': '产品分析',
         'inventory_stock': '库存',
         'performance_target': '绩效目标',
+        'perf_settlement': '绩效结算',
+        'salary_run': '月度薪资审批',
+        'dealer_apply': '客户渠道身份',
+        'project_hold': '项目失败/搁置',
         'user': '用户',
         'department': '部门'
     }
@@ -3652,6 +3585,7 @@ def start_approval_process(object_type, object_id, template_id, user_id=None,
                 # 第一步条件不满足/自审 → 跳过并寻找下一个可执行步骤
                 _create_skip_record(instance, first_step,
                     "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(first_step, instance)
+                    else "无上级审批人(发起人为最高层)，自动跳过" if _is_next_level_no_approver(first_step, instance)
                     else "条件不满足，自动跳过")
                 # 从首步序号(而非写死0)之后找下一可执行步, 否则 advance 会从 order=1
                 # 重新评估并二次记录同一首步 → skipped 记录重复 (引擎原有 quirk, 修正为单条)
@@ -4228,6 +4162,21 @@ def _is_self_review_auto_skip(step, instance):
         return False  # 解析审批人失败 → 不跳, 不影响原有逻辑
 
 
+def _is_next_level_no_approver(step, instance):
+    """next_level(上级审批)步是否解析不到上级 → 应跳过。
+    用于:发起人本身是总经理(无上级)等场景,避免回退到 admin 或卡死。
+    仅对 next_level 类型生效;user/auto 类型缺审批人属配置问题,不在此自动跳过。"""
+    if instance is None:
+        return False
+    atype = step.get('approver_type') if isinstance(step, dict) else getattr(step, 'approver_type', None)
+    if atype != 'next_level':
+        return False
+    try:
+        return get_step_actual_approver(step, instance) is None
+    except Exception:
+        return False  # 解析失败 → 不跳,不影响原有逻辑
+
+
 def _check_step_execution_condition(step, target_object, instance=None):
     """检查步骤的执行条件
 
@@ -4243,6 +4192,10 @@ def _check_step_execution_condition(step, target_object, instance=None):
     """
     # 发起人审自己的纯审核步 → 自动跳过 (详见 _is_self_review_auto_skip)
     if _is_self_review_auto_skip(step, instance):
+        return False
+
+    # next_level(上级审批)步解析不到上级(如发起人为总经理/无上级)→ 跳过该步,继续后续流程
+    if _is_next_level_no_approver(step, instance):
         return False
 
     if isinstance(step, dict):
@@ -4334,7 +4287,8 @@ def _advance_to_next_executable_step(instance, current_step_order, steps, target
             return next_step
         # 条件不满足/自审 → 创建跳过记录，继续找下一步
         _create_skip_record(instance, next_step,
-            "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(next_step, instance)
+            "无上级审批人(发起人为最高层)，自动跳过" if _is_next_level_no_approver(next_step, instance)
+            else "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(next_step, instance)
             else "条件不满足，自动跳过")
         next_order += 1
         next_step = _find_step_by_order(steps, next_order)
@@ -5541,6 +5495,20 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     if instance.status == ApprovalStatus.APPROVED:
                         # 流程完全通过
                         project.status = 'approved'
+                        # 业务线路由流程:授权编号按项目类型自动生成
+                        # (channel_follow→CPJ / sales_focus→SPJ / business_opportunity→APJ);
+                        # 旧 branch 流程在 branch 步骤已生成,_handle 对已有编号幂等直接返回
+                        if (instance.template_snapshot or {}).get('biz_line_route'):
+                            _BRANCH_BY_TYPE = {
+                                'channel_follow': 'channel_authorization',
+                                'sales_focus': 'project_authorization',
+                                'business_opportunity': 'business_authorization',
+                            }
+                            _ba = _BRANCH_BY_TYPE.get(project.project_type)
+                            try:
+                                _handle_project_authorization(instance, None, branch_action=_ba)
+                            except Exception as _auth_err:
+                                current_app.logger.error(f"自动生成授权编号失败: {_auth_err}", exc_info=True)
                     else:
                         # 还在审批中
                         project.status = 'pending'
@@ -5549,12 +5517,114 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     project.status = 'rejected'
                 
                 current_app.logger.info(f"项目 {project.project_name} 状态已更新为: {project.status}")
-            
+
+        elif instance.object_type == 'project_hold':
+            # 项目失败/搁置审核(gated):仅当整条流程通过(instance.status==APPROVED)时,
+            # 才把 current_stage 改为目标(lost/paused);驳回则什么都不改(维持正常)。
+            from app.models.project import Project
+            project = Project.query.get(instance.object_id)
+            if project:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    snap = instance.template_snapshot or {}
+                    target_stage = snap.get('hold_target')
+                    if target_stage in ('lost', 'paused'):
+                        old_stage = project.current_stage
+                        project.current_stage = target_stage
+                        try:
+                            from app.models.projectpm_stage_history import ProjectStageHistory
+                            ProjectStageHistory.add_history_record(
+                                project_id=project.id,
+                                from_stage=old_stage,
+                                to_stage=target_stage,
+                                remarks=f"失败/搁置审核通过：{snap.get('hold_reason') or ''}".strip(),
+                                account_id=user_id,
+                                commit=False,
+                            )
+                        except Exception as _hist_err:
+                            current_app.logger.warning(f"记录失败/搁置阶段历史失败: {_hist_err}")
+                        current_app.logger.info(
+                            f"项目 {project.project_name} 失败/搁置审核通过: {old_stage} → {target_stage}")
+                elif action == ApprovalAction.REJECT:
+                    current_app.logger.info(
+                        f"项目 {project.project_name} 失败/搁置审核被驳回，维持原阶段")
+
+        elif instance.object_type == 'dealer_apply':
+            # 客户渠道身份审批:整条流程通过 → company_type=目标身份;驳回 → 仅清 pending
+            from app.models.customer import Company
+            comp = Company.query.get(instance.object_id)
+            if comp:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    snap = instance.template_snapshot or {}
+                    target = snap.get('dealer_target')
+                    if target in ('dealer', 'distributor'):
+                        comp.company_type = target
+                        comp.pending_company_type = None
+                        current_app.logger.info(
+                            f"客户 {comp.company_name} 渠道身份审批通过: company_type={target}")
+                elif action == ApprovalAction.REJECT:
+                    comp.pending_company_type = None
+                    current_app.logger.info(
+                        f"客户 {comp.company_name} 渠道身份审批被驳回,身份维持原状")
+
+        elif instance.object_type == 'perf_settlement':
+            # 季度绩效结算:整条通过 → 折算金额写入薪资绩效项该季末月 + 锁定;驳回 → 标记
+            from app.models.performance_settlement import PerformanceSettlement
+            st = PerformanceSettlement.query.get(instance.object_id)
+            if st:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    from datetime import datetime as _dt
+                    from app.models.salary_structure import UserSalaryItem
+                    _Q_END = {1: 3, 2: 6, 3: 9, 4: 12}
+                    end_m = str(_Q_END[st.quarter])
+                    row = UserSalaryItem.query.filter_by(
+                        user_id=st.user_id, year=st.year,
+                        item_code='performance_salary', is_personal=False).first()
+                    if not row:
+                        row = UserSalaryItem(user_id=st.user_id, year=st.year,
+                                             item_code='performance_salary', is_personal=False,
+                                             created_by=user_id)
+                        db.session.add(row)
+                    m = dict(row.monthly_amounts or {})
+                    m[end_m] = float(st.settled_amount or 0)
+                    row.monthly_amounts = m
+                    from sqlalchemy.orm.attributes import flag_modified as _fm
+                    _fm(row, 'monthly_amounts')
+                    st.status = 'approved'
+                    st.is_locked = True
+                    st.settled_at = _dt.utcnow()
+                    current_app.logger.info(
+                        f"绩效结算通过: user={st.user_id} {st.year}Q{st.quarter} "
+                        f"得分={st.score} 折算={st.settled_amount} → 薪资{end_m}月")
+                elif action == ApprovalAction.REJECT:
+                    st.status = 'rejected'
+                    st.is_locked = False
+                    current_app.logger.info(
+                        f"绩效结算被驳回: user={st.user_id} {st.year}Q{st.quarter}")
+
+        elif instance.object_type == 'salary_run':
+            # 月度薪资审批:终审通过 → 永久锁定(已在提交时锁);驳回 → 解锁可改后重提
+            from app.models.salary_structure import SalaryRun
+            run = SalaryRun.query.get(instance.object_id)
+            if run:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    from datetime import datetime as _dt
+                    run.status = 'approved'
+                    run.is_locked = True
+                    run.settled_at = _dt.utcnow()
+                    current_app.logger.info(
+                        f"月度薪资审批通过并固化: {run.company_name} {run.year}-{run.month} "
+                        f"人数={run.headcount} 合计={run.total_amount}")
+                elif action == ApprovalAction.REJECT:
+                    run.status = 'rejected'
+                    run.is_locked = False
+                    current_app.logger.info(
+                        f"月度薪资审批被驳回,解锁: {run.company_name} {run.year}-{run.month}")
+
         elif instance.object_type == 'customer':
             # 客户审批状态更新逻辑（如果需要的话）
             # 这里可以根据客户的具体需求来实现
             pass
-            
+
         elif instance.object_type == 'purchase_order':
             # 更新订单的状态（订单审批状态通过通用审批系统管理，不在订单表中存储）
             from app.models.inventory import PurchaseOrder
@@ -6590,7 +6660,50 @@ def recall_approval(object_type, object_id, user_id, reason=None):
         
         # 更新业务对象状态为草稿
         update_business_object_status(object_type, object_id, 'draft')
-        
+
+        # 客户渠道身份审批召回 → 清 pending(身份不变)
+        if object_type == 'dealer_apply':
+            try:
+                from app.models.customer import Company as _C
+                _comp = _C.query.get(object_id)
+                if _comp:
+                    _comp.pending_company_type = None
+            except Exception:
+                pass
+
+        # 绩效结算召回 → 标记为草稿,解锁(尚未结算)
+        if object_type == 'perf_settlement':
+            try:
+                from app.models.performance_settlement import PerformanceSettlement as _PS
+                _st = _PS.query.get(object_id)
+                if _st:
+                    _st.status = 'draft'
+                    _st.is_locked = False
+            except Exception:
+                pass
+
+        # 月度薪资审批召回 → 草稿,解锁该公司该月个人薪资
+        if object_type == 'salary_run':
+            try:
+                from app.models.salary_structure import SalaryRun as _SR
+                _run = _SR.query.get(object_id)
+                if _run:
+                    _run.status = 'draft'
+                    _run.is_locked = False
+            except Exception:
+                pass
+
+        # 项目失败审核召回 → 清除已打的失败归因标(流程作废)
+        if object_type == 'project_hold':
+            try:
+                from app.models.project import Project as _P
+                _proj = _P.query.get(object_id)
+                if _proj:
+                    _proj.fail_owner_fault = False
+                    _proj.fail_mgmt_fault = False
+            except Exception:
+                pass
+
         db.session.commit()
         
         current_app.logger.info(f"审批流程召回成功: {object_type}#{object_id}, 召回人: {user_id}")

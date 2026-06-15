@@ -814,7 +814,9 @@ def at_view_quotation(id):
         _group_dict.setdefault(cat, []).append(d)
     grouped = []
     for cat, items in _group_dict.items():
+        # 分组小计 = 主行 + 各主行的子产品行(子行独立计价,计入总额 — 全库 89/90 语义)
         subtotal = sum((d.total_price or 0) for d in items)
+        subtotal += sum((c.total_price or 0) for d in items for c in (d.configurations or []))
         grouped.append({'label': cat, 'items': items, 'subtotal': subtotal, 'count': len(items)})
     # 排序:按 product_categories.display_order;自定义产品(无 order)排最后
     grouped.sort(key=lambda g: (
@@ -925,8 +927,20 @@ def at_view_quotation(id):
     else:
         _at_ap_status = 'draft'
 
+    # 本报价单「质量得分」= 出现过的推荐产品(citation_coefficient>0)系数之和(去重不看数量)
+    from sqlalchemy import text as _text
+    _qscore = db.session.execute(_text(
+        "SELECT COALESCE(SUM(p.citation_coefficient),0) "
+        "FROM (SELECT DISTINCT product_mn FROM quotation_details WHERE quotation_id=:qid) dp "
+        "JOIN products p ON p.product_mn=dp.product_mn AND p.citation_coefficient>0"),
+        {'qid': q.id}).scalar() or 0
+    _qscore = round(float(_qscore), 1)
+    _qrating = '优秀' if _qscore >= 7 else ('良好' if _qscore >= 5 else ('及格' if _qscore >= 3 else '待提升'))
+
     return render_template('quotation/at_view.html',
                            quotation=q,
+                           quality_score=_qscore,
+                           quality_rating=_qrating,
                            is_new=False,
                            from_project=from_project_obj,
                            related=related,
@@ -953,8 +967,21 @@ def at_list_view():
     per_page = 30
     tab = request.args.get('tab', 'all')
     search = request.args.get('search', '').strip()
+    # 多选:同名多个 query 参数(状态维度已由 tab 表达,这里不再重复筛选)
+    owner_values = [v for v in request.args.getlist('owner') if v.strip()]
 
     base = get_viewable_data(Quotation, current_user)
+
+    # ── 筛选选项(基于可见数据 → 含权限+归属);能看到他人数据才显示筛选 ──
+    from app.utils.access_control import build_owner_filter_options
+    _owner_ids = [r[0] for r in base.with_entities(Quotation.owner_id).distinct().all() if r[0]]
+    show_filter = any(oid != current_user.id for oid in _owner_ids)
+    owner_options = build_owner_filter_options(_owner_ids)
+
+    # ── 应用筛选(多选 → IN)──
+    _owner_ids_sel = [int(v) for v in owner_values if v.isdigit()]
+    if _owner_ids_sel:
+        base = base.filter(Quotation.owner_id.in_(_owner_ids_sel))
 
     # tab → confirmation_badge_status(待确认 tab 同时含已驳回,owner 可见驳回回流)
     TAB_BADGE_MAP = {
@@ -978,12 +1005,21 @@ def at_list_view():
         page=page, per_page=per_page, error_out=False,
     )
 
+    from app.helpers.quality_score import quotation_quality_scores
+    quality_scores = quotation_quality_scores([q.id for q in pagination.items])
+
     return render_template('quotation/at_list.html',
                            quotations=pagination.items,
+                           quality_scores=quality_scores,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,
-                           search=search)
+                           search=search,
+                           show_filter=show_filter,
+                           owner_options=owner_options,
+                           owner_values=owner_values,
+                           list_qs={k: v for k, v in {'search': search,
+                                    'owner': owner_values}.items() if v})
 
 
 @quotation.route('/api/quotations/filter', methods=['GET'])
@@ -1290,10 +1326,10 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
         quotation = Quotation.query.get_or_404(quotation_id)
         if not can_edit_data(quotation, current_user):
             flash(_('您没有权限编辑此报价单'), 'danger')
-            return redirect(url_for('quotation.view_quotation', id=quotation_id))
+            return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
         if quotation.is_locked:
             flash(_('报价单已被锁定，无法编辑'), 'warning')
-            return redirect(url_for('quotation.view_quotation', id=quotation_id))
+            return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
         # 准备产品明细 JSON（与 view_quotation 中逻辑保持一致）
         non_temp_mns = list({
@@ -4558,7 +4594,7 @@ def export_pdf(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单PDF失败: {str(e)}", exc_info=True)
         flash(_('导出PDF失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 @quotation.route('/download_pdf/<int:quotation_id>')
 @login_required
@@ -4613,7 +4649,7 @@ def download_pdf(quotation_id):
     except Exception as e:
         logger.error(f"下载报价单PDF失败: {str(e)}", exc_info=True)
         flash(_('下载PDF失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_word/<int:quotation_id>')
@@ -4652,7 +4688,7 @@ def export_word(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单Word失败: {str(e)}", exc_info=True)
         flash(_('导出Word失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_word_pdf/<int:quotation_id>')
@@ -4691,7 +4727,7 @@ def export_word_pdf(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单PDF(Word模板)失败: {str(e)}", exc_info=True)
         flash(_('导出PDF失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_excel/<int:quotation_id>')
@@ -4746,7 +4782,7 @@ def export_excel(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单Excel失败: {str(e)}", exc_info=True)
         flash(_('导出Excel失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_excel_pdf/<int:quotation_id>')
@@ -4801,7 +4837,7 @@ def export_excel_pdf(quotation_id):
     except Exception as e:
         logger.error(f"导出报价单PDF失败: {str(e)}", exc_info=True)
         flash(_('导出PDF失败：%s') % str(e), 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
 @quotation.route('/export_pdf_with_info', methods=['POST'])

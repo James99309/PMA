@@ -1,0 +1,132 @@
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'permissions' %}
+
+{% block config_title %}权限配置 · 角色默认{% endblock %}
+{% block config_desc %}按角色配置模块权限与数据范围,成员默认继承;个人例外在「个人配置 · 权限覆盖」页操作。{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-perm-sheet.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="position:relative;">
+      <button type="button" class="cm-role-btn" onclick="pmToggleRoleMenu(event)">
+        <span id="pmRoleName">选择角色</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="pmRoleMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="pmSub" class="at-dim" style="font-size:12px;"></span>
+    <div style="flex:1;"></div>
+    {# 编辑模式工具条(只读/编辑切换 + 保存确认),公用组件 at-edit-mode #}
+    <div id="pmEditBar"></div>
+  </div>
+
+  <div id="pmSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择角色…</div>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 数据范围:个人/部门/公司/系统;勾掉「查看」即整模块不可见;
+    内容筛选(支持的模块):按值圈定可见内容,「不限」= 不过滤;矩阵与个人权限覆盖页共用同一组件。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const ROLES = {{ roles_data | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+
+  let _roleCode = null;
+
+  // 公用权限矩阵组件(与「个人配置·权限覆盖」同源;role 模式=无继承列)
+  const sheet = ATPermSheet({
+    container: 'pmSheet',
+    canEdit: CAN_EDIT,
+    mode: 'role',
+    onChange: function () { updateSub(); if (guard) guard.markDirty(); },
+  });
+  function updateSub() {
+    document.getElementById('pmSub').textContent =
+      `已授权 ${sheet.countGranted()} / ${sheet.moduleCount()} 个模块`;
+  }
+
+  function renderRoleMenu() {
+    document.getElementById('pmRoleMenu').innerHTML = ROLES.map(r => `
+      <div class="cm-role-item${r.role === _roleCode ? ' active' : ''}" onclick="pmSelectRole('${r.role}')">
+        <span class="material-symbols-outlined" style="color:var(--accent);">badge</span>
+        <span style="flex:1;">${esc(r.display)}</span>
+        <span class="at-dim at-mono" style="font-size:10.5px;">${r.count}人</span>
+      </div>`).join('');
+  }
+  window.pmToggleRoleMenu = function (e) {
+    e.stopPropagation();
+    const menu = document.getElementById('pmRoleMenu');
+    const show = menu.style.display === 'none';
+    if (show) renderRoleMenu();
+    menu.style.display = show ? 'block' : 'none';
+  };
+  document.addEventListener('click', () => {
+    const m = document.getElementById('pmRoleMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  window.pmSelectRole = function (role) {
+    // 编辑且有未保存改动时切换角色会提醒(经编辑模式守卫)
+    guard.attempt(function () {
+      _roleCode = role;
+      document.getElementById('pmRoleMenu').style.display = 'none';
+      pmLoad();
+    });
+  };
+
+  window.pmLoad = async function () {
+    if (!_roleCode) return;
+    const r = ROLES.find(x => x.role === _roleCode);
+    document.getElementById('pmRoleName').textContent = r ? r.display : _roleCode;
+    try {
+      const d = await (await fetch(`/config-management/api/role-permissions/${_roleCode}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      sheet.setData({
+        modules: d.data.modules || [],
+        permissions: d.data.permissions || {},          // 整包持有,保存原样回传防丢字段
+        featurePermissions: d.data.feature_permissions || {},
+        filterOptions: d.data.content_filter_options || {},
+      });
+      updateSub();
+    } catch (e) {
+      document.getElementById('pmSheet').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
+    }
+  };
+
+  // 保存核心:返回 true=成功(供编辑模式守卫确认后调用并退出编辑)
+  async function pmSaveCore() {
+    if (!_roleCode) return false;
+    try {
+      const r = await fetch(`/config-management/api/role-permissions/${_roleCode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ permissions: sheet.getPermissions(),
+                               feature_permissions: sheet.getFeaturePermissions() }),
+      });
+      const d = await r.json();
+      if (d.success) { ATToast.success('角色权限已保存'); pmLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  // 编辑模式守卫:默认只读,点「编辑」才能改;保存确认;切角色/离开页提醒
+  const guard = AtEditMode.init({
+    mount: 'pmEditBar', lockEl: 'pmSheet', canEdit: CAN_EDIT,
+    onSave: pmSaveCore,
+    onDiscard: function () { pmLoad(); },
+    saveConfirm: { message: '确认保存该角色的权限配置?' },
+  });
+
+  if (ROLES.length) pmSelectRole(ROLES[0].role);
+</script>
+{% endblock %}

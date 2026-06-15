@@ -145,6 +145,15 @@ MODULE_METADATA_FALLBACK = {
         'supports_content_filter': False,
         'description': '管理系统权限和配置'
     },
+    'person_config': {
+        'name': '个人配置',
+        'icon': 'manage_accounts',
+        'supports_discount': False,
+        'supports_owner_change': False,
+        'supports_affiliation': False,
+        'supports_content_filter': False,
+        'description': '账户个人级配置(权限/归属/预算/绩效/薪资/AI),tab 由功能开关控制'
+    },
     'approval': {
         'name': '审批中心',
         'icon': 'task_alt',

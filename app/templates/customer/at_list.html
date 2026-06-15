@@ -51,7 +51,7 @@
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
-<a href="{{ url_for('customer.at_list_view', tab=t.k, search=search, country=current_country) }}"
+<a href="{{ url_for('customer.at_list_view', tab=t.k, **list_qs) }}"
    style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
           position:relative;text-decoration:none;
           color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
@@ -65,19 +65,28 @@
 {% endblock %}
 
 {% block filter_row %}
-<form method="get" action="{{ url_for('customer.at_list_view') }}"
-      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
-  <input type="hidden" name="tab" value="{{ current_tab }}">
-  {{ at_input(name='search', value=search, placeholder='搜索公司名 / 编号…', icon_l='search', width='280px') }}
-  {% set country_opts = [{'value':'', 'label':'全部国家/地区'}] %}
-  {% for c in country_options %}
-    {# country_options 是 [(key, label)] 元组列表,用索引访问 #}
-    {% set _ = country_opts.append({'value': c[0], 'label': c[1]}) %}
-  {% endfor %}
-  {{ at_select(name='country', value=current_country, options=country_opts, width='180px',
-               extra_attrs='onchange="this.form.submit()"') }}
-  {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
-</form>
+{% from 'components/at_filter_panel.html' import at_filter_panel %}
+<div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <form method="get" action="{{ url_for('customer.at_list_view') }}"
+        style="display:flex;gap:10px;align-items:center;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
+    {% for v in geo_values %}<input type="hidden" name="{{ geo_key }}" value="{{ v }}">{% endfor %}
+    {% for v in industry_values %}<input type="hidden" name="industry" value="{{ v }}">{% endfor %}
+    {{ at_input(name='search', value=search, placeholder='搜索公司名 / 编号…', icon_l='search', width='280px') }}
+  </form>
+  {% if show_filter %}
+  {{ at_filter_panel(
+       action_url=url_for('customer.at_list_view'),
+       fields=[
+         {'key':'owner','label':'负责人','type':'user','items':owner_options,'values':owner_values},
+         {'key':geo_key,'label':'地区','type':'select','options':geo_options,'values':geo_values},
+         {'key':'industry','label':'行业','type':'select','options':industry_options,'values':industry_values},
+       ],
+       hidden={'tab':current_tab,'search':search},
+       panel_id='custFilterPanel') }}
+  {% endif %}
+</div>
 {% endblock %}
 
 {% block thead %}
@@ -154,11 +163,11 @@
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
     {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
-              href=url_for('customer.at_list_view', tab=current_tab, page=pagination.prev_num, search=search, country=current_country)) }}
+              href=url_for('customer.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
   {% endif %}
   {% if pagination.has_next %}
     {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
-              href=url_for('customer.at_list_view', tab=current_tab, page=pagination.next_num, search=search, country=current_country)) }}
+              href=url_for('customer.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
   {% endif %}
 </div>
 {% endif %}

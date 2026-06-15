@@ -1,0 +1,311 @@
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'salary' %}
+
+{% block config_title %}薪资配置 · 系统规则{% endblock %}
+{% block config_desc %}职级体系、基础参数与阶梯规则为全公司统一规则;员工的职级指派与个人薪资在账户详情/旧版「薪资分配」操作。{% endblock %}
+
+{% block extra_head %}
+<style>
+  .sl-section { background:var(--bg-elev); border:1px solid var(--line); border-radius:12px;
+                overflow:auto; padding:1px; margin-bottom:18px; }
+  .sl-h { display:flex; align-items:center; gap:10px; padding:12px 16px 4px; }
+  .sl-h h3 { margin:0; font-size:14px; font-weight:600; color:var(--ink); }
+  .sl-add { border:0; background:transparent; font:inherit; font-size:12px; color:var(--accent);
+            cursor:pointer; padding:2px 6px; }
+  .sl-add:hover { text-decoration:underline; }
+  .sl-del { border:0; background:transparent; color:var(--ink-4); cursor:pointer; padding:2px;
+            display:inline-flex; }
+  .sl-del:hover { color:var(--danger); }
+  .cm-sheet td.dirty { box-shadow:inset 2px 0 0 var(--warn); }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+    <span id="slDirty" class="at-dim" style="font-size:12px;"></span>
+    <div style="flex:1;"></div>
+    {% if can_edit %}
+    <button type="button" id="slSaveBtn" onclick="slSaveAll()"
+            style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
+                   color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">保存变更</button>
+    {% endif %}
+  </div>
+
+  {# ── 1. 职级体系 ── #}
+  <div class="sl-section">
+    <div class="sl-h"><h3>职级体系</h3>
+      <span class="at-dim" style="font-size:11px;">L=专业序列 / M=管理序列;金额单位:元(年度目标:万元)</span>
+      <div style="flex:1;"></div>
+      {% if can_edit %}<button type="button" class="sl-add" onclick="slAddGrade()">+ 添加职级</button>{% endif %}
+    </div>
+    <table class="cm-sheet">
+      <thead><tr>
+        <th style="width:70px;">职级</th><th style="width:120px;text-align:left;">名称</th>
+        <th style="width:90px;">序列</th><th style="width:100px;">年度目标(万)</th>
+        <th style="width:110px;">月基础工资</th><th style="width:110px;">月绩效基数</th>
+        <th style="width:100px;">管理津贴</th><th style="width:80px;">个人权重</th>
+        <th style="width:60px;">排序</th><th style="width:44px;"></th>
+      </tr></thead>
+      <tbody id="slGrades"><tr><td colspan="10" class="at-dim" style="padding:22px;">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  {# ── 2. 基础参数 ── #}
+  <div class="sl-section" style="max-width:760px;">
+    <div class="sl-h"><h3>基础参数</h3><div style="flex:1;"></div></div>
+    <table class="cm-sheet">
+      <thead><tr>
+        <th style="width:180px;text-align:left;">参数</th><th style="width:120px;">值</th>
+        <th style="width:70px;">单位</th><th style="text-align:left;">说明</th>
+      </tr></thead>
+      <tbody id="slParams"><tr><td colspan="4" class="at-dim" style="padding:22px;">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  {# ── 3. 阶梯规则 ── #}
+  <div class="sl-section" style="max-width:860px;">
+    <div class="sl-h"><h3>阶梯规则</h3>
+      <span class="at-dim" style="font-size:11px;">按区间取系数:达成率→绩效系数 / 提成比例 / 提成释放 / 年终奖</span>
+      <div style="flex:1;"></div>
+    </div>
+    <table class="cm-sheet">
+      <thead><tr>
+        <th style="width:120px;">区间下限</th><th style="width:120px;">区间上限</th>
+        <th style="width:110px;">系数/比例</th><th style="text-align:left;">说明</th><th style="width:44px;"></th>
+      </tr></thead>
+      <tbody id="slRules"><tr><td colspan="5" class="at-dim" style="padding:22px;">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  {# ── 4. 计算公式(只读) ── #}
+  <div class="sl-section" style="max-width:860px;">
+    <div class="sl-h"><h3>计算公式</h3>
+      <span class="at-dim" style="font-size:11px;">只读;调整公式请在旧版配置管理操作</span>
+      <div style="flex:1;"></div>
+    </div>
+    <table class="cm-sheet">
+      <thead><tr>
+        <th style="width:160px;text-align:left;">公式</th><th style="text-align:left;">表达式</th>
+        <th style="width:70px;">单位</th><th style="width:90px;">适用序列</th>
+      </tr></thead>
+      <tbody id="slFormulas"><tr><td colspan="4" class="at-dim" style="padding:22px;">加载中…</td></tr></tbody>
+    </table>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const RULE_TYPES = {
+    performance_coefficient: '绩效系数(按达成率)',
+    commission_rate: '提成比例',
+    commission_release: '提成释放',
+    annual_bonus: '年终奖',
+  };
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  const fmt = v => (v == null || v === '') ? '' : Number(v).toLocaleString('zh-CN');
+  const ce = CAN_EDIT ? 'contenteditable spellcheck="false"' : '';
+
+  let _grades = [], _params = [], _rules = [], _formulas = [];
+
+  function markDirty() {
+    const n = _grades.filter(g => g._dirty).length + _params.filter(p => p._dirty).length
+            + _rules.filter(r => r._dirty).length;
+    document.getElementById('slDirty').textContent = n ? `${n} 处变更未保存` : '';
+    document.getElementById('slDirty').style.color = n ? 'var(--warn)' : 'var(--ink-3)';
+  }
+
+  async function fetchJson(url, opts) {
+    const r = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() } }, opts || {}));
+    return r.json();
+  }
+
+  // ── 加载 ──
+  async function loadAll() {
+    const [g, p, r, f] = await Promise.all([
+      fetchJson('/config-management/api/salary/grades'),
+      fetchJson('/config-management/api/salary/base-params'),
+      fetchJson('/config-management/api/salary/step-rules'),
+      fetchJson('/config-management/api/salary/formulas'),
+    ]);
+    _grades = (g.data || []).map(x => ({ ...x, _dirty: false }));
+    _params = (p.data || []).map(x => ({ ...x, _dirty: false }));
+    _rules = (r.data || []).map(x => ({ ...x, _dirty: false }));
+    _formulas = f.data || [];
+    renderGrades(); renderParams(); renderRules(); renderFormulas(); markDirty();
+  }
+
+  // ── 1. 职级 ──
+  function renderGrades() {
+    if (!_grades.length) {
+      document.getElementById('slGrades').innerHTML = `<tr><td colspan="10" class="at-dim" style="padding:22px;">暂无职级${CAN_EDIT ? ',点右上「+ 添加职级」创建(如 L1 初级业务员)' : ''}</td></tr>`;
+      return;
+    }
+    const num = (i, f) => `<td ${ce} class="${_grades[i]._dirty ? 'dirty' : ''}" onblur="gSet(this,${i},'${f}',true)">${fmt(_grades[i][f])}</td>`;
+    document.getElementById('slGrades').innerHTML = _grades.map((g, i) => `
+      <tr>
+        <td ${ce} style="font-weight:600;" onblur="gSet(this,${i},'grade_code')">${esc(g.grade_code || '')}</td>
+        <td ${ce} class="cm-name" onblur="gSet(this,${i},'grade_name')">${esc(g.grade_name || '')}</td>
+        <td><span class="at-seg${CAN_EDIT ? '' : ' at-seg-off'}" style="padding:2px;gap:1px;">
+          <button type="button" class="${g.grade_type === 'L' ? 'on' : ''}" onclick="gType(${i},'L')">L</button>
+          <button type="button" class="${g.grade_type === 'M' ? 'on' : ''}" onclick="gType(${i},'M')">M</button>
+        </span></td>
+        ${num(i, 'annual_target')}${num(i, 'monthly_base_salary')}${num(i, 'monthly_performance_base')}
+        ${num(i, 'monthly_management_allowance')}${num(i, 'personal_weight')}${num(i, 'sort_order')}
+        <td>${CAN_EDIT ? `<button type="button" class="sl-del" onclick="gDel(${i})" title="删除职级">
+              <span class="material-symbols-outlined" style="font-size:15px;">delete</span></button>` : ''}</td>
+      </tr>`).join('');
+  }
+  window.gSet = function (el, i, f, isNum) {
+    const raw = (el.textContent || '').replace(/[,\s]/g, '');
+    const v = isNum ? (raw === '' ? null : (parseFloat(raw) || 0)) : raw;
+    if (_grades[i][f] !== v) { _grades[i][f] = v; _grades[i]._dirty = true; }
+    renderGrades(); markDirty();
+  };
+  window.gType = function (i, t) { if (!CAN_EDIT) return; _grades[i].grade_type = t; _grades[i]._dirty = true; renderGrades(); markDirty(); };
+  window.slAddGrade = function () {
+    _grades.push({ id: null, grade_code: '', grade_name: '', grade_type: 'L', annual_target: null,
+                   monthly_base_salary: null, monthly_performance_base: null,
+                   monthly_management_allowance: 0, personal_weight: 1,
+                   sort_order: (_grades.length + 1) * 10, _dirty: true });
+    renderGrades(); markDirty();
+  };
+  window.gDel = function (i) {
+    const g = _grades[i];
+    ATConfirm.show({
+      title: '删除职级', message: `确认删除职级「${g.grade_code} ${g.grade_name}」?`,
+      variant: 'danger', icon: 'trash', confirmText: '删除', cancelText: '取消',
+      onConfirm: async () => {
+        if (g.id) {
+          const d = await fetchJson(`/config-management/api/salary/grades/${g.id}`, { method: 'DELETE' });
+          if (!d.success) { ATToast.error(d.message || '删除失败'); return; }
+        }
+        _grades.splice(i, 1); renderGrades(); markDirty(); ATToast.success('已删除');
+      },
+    });
+  };
+
+  // ── 2. 基础参数 ──
+  function renderParams() {
+    if (!_params.length) {
+      document.getElementById('slParams').innerHTML = '<tr><td colspan="4" class="at-dim" style="padding:22px;">暂无参数(由系统初始化)</td></tr>';
+      return;
+    }
+    document.getElementById('slParams').innerHTML = _params.map((p, i) => `
+      <tr>
+        <td class="cm-name">${esc(p.param_name)}<div class="at-dim" style="font-size:10px;">${esc(p.param_code)}</div></td>
+        <td ${ce} class="${p._dirty ? 'dirty' : ''}" onblur="pSet(this,${i})">${p.param_value != null ? p.param_value : ''}</td>
+        <td class="at-dim" style="font-size:11.5px;">${esc(p.param_unit || '')}</td>
+        <td class="cm-name at-dim" style="font-size:11.5px;">${esc(p.description || '')}</td>
+      </tr>`).join('');
+  }
+  window.pSet = function (el, i) {
+    const raw = (el.textContent || '').replace(/[,\s%]/g, '');
+    const v = raw === '' ? null : (parseFloat(raw) || 0);
+    if (_params[i].param_value !== v) { _params[i].param_value = v; _params[i]._dirty = true; }
+    renderParams(); markDirty();
+  };
+
+  // ── 3. 阶梯规则(按类型分组) ──
+  function renderRules() {
+    if (!_rules.length && !CAN_EDIT) {
+      document.getElementById('slRules').innerHTML = '<tr><td colspan="5" class="at-dim" style="padding:22px;">暂无规则</td></tr>';
+      return;
+    }
+    let html = '';
+    Object.keys(RULE_TYPES).forEach(rt => {
+      html += `<tr><td colspan="5" style="background:var(--bg-sunk);text-align:left;font-size:10.5px;
+                 font-weight:500;color:var(--ink-3);letter-spacing:0.08em;padding:5px 10px;">
+                 ${RULE_TYPES[rt]}
+                 ${CAN_EDIT ? `<button type="button" class="sl-add" style="margin-left:8px;" onclick="rAdd('${rt}')">+ 加区间</button>` : ''}
+               </td></tr>`;
+      _rules.forEach((r, i) => {
+        if (r.rule_type !== rt) return;
+        html += `
+        <tr>
+          <td ${ce} class="${r._dirty ? 'dirty' : ''}" onblur="rSet(this,${i},'min_threshold')">${r.min_threshold != null ? r.min_threshold : ''}</td>
+          <td ${ce} class="${r._dirty ? 'dirty' : ''}" onblur="rSet(this,${i},'max_threshold')">${r.max_threshold != null ? r.max_threshold : ''}</td>
+          <td ${ce} class="${r._dirty ? 'dirty' : ''}" onblur="rSet(this,${i},'coefficient')">${r.coefficient != null ? r.coefficient : ''}</td>
+          <td ${ce} class="cm-name" style="font-size:11.5px;" onblur="rSetText(this,${i},'description')">${esc(r.description || '')}</td>
+          <td>${CAN_EDIT ? `<button type="button" class="sl-del" onclick="rDel(${i})" title="删除区间">
+                <span class="material-symbols-outlined" style="font-size:15px;">delete</span></button>` : ''}</td>
+        </tr>`;
+      });
+    });
+    document.getElementById('slRules').innerHTML = html;
+  }
+  window.rSet = function (el, i, f) {
+    const raw = (el.textContent || '').replace(/[,\s%]/g, '');
+    const v = raw === '' ? null : (parseFloat(raw) || 0);
+    if (_rules[i][f] !== v) { _rules[i][f] = v; _rules[i]._dirty = true; }
+    renderRules(); markDirty();
+  };
+  window.rSetText = function (el, i, f) {
+    const v = (el.textContent || '').trim();
+    if (_rules[i][f] !== v) { _rules[i][f] = v; _rules[i]._dirty = true; }
+    renderRules(); markDirty();
+  };
+  window.rAdd = function (rt) {
+    _rules.push({ id: null, rule_type: rt, min_threshold: null, max_threshold: null,
+                  coefficient: null, description: '', sort_order: 0, _dirty: true });
+    renderRules(); markDirty();
+  };
+  window.rDel = function (i) {
+    const r = _rules[i];
+    ATConfirm.show({
+      title: '删除区间', message: '确认删除该阶梯区间?',
+      variant: 'danger', icon: 'trash', confirmText: '删除', cancelText: '取消',
+      onConfirm: async () => {
+        if (r.id) {
+          const d = await fetchJson(`/config-management/api/salary/step-rules/${r.id}`, { method: 'DELETE' });
+          if (!d.success) { ATToast.error(d.message || '删除失败'); return; }
+        }
+        _rules.splice(i, 1); renderRules(); markDirty(); ATToast.success('已删除');
+      },
+    });
+  };
+
+  // ── 4. 公式(只读) ──
+  function renderFormulas() {
+    if (!_formulas.length) {
+      document.getElementById('slFormulas').innerHTML = '<tr><td colspan="4" class="at-dim" style="padding:22px;">暂无公式</td></tr>';
+      return;
+    }
+    document.getElementById('slFormulas').innerHTML = _formulas.map(f => `
+      <tr>
+        <td class="cm-name">${esc(f.formula_name)}<div class="at-dim" style="font-size:10px;">${esc(f.formula_code || '')}</div></td>
+        <td class="cm-name at-mono" style="font-size:11.5px;white-space:normal;">${esc(f.formula_expression || '')}</td>
+        <td class="at-dim" style="font-size:11.5px;">${esc(f.result_unit || '')}</td>
+        <td class="at-dim" style="font-size:11.5px;">${f.applicable_grade_type === 'ALL' ? '全部' : esc(f.applicable_grade_type || '')}</td>
+      </tr>`).join('');
+  }
+
+  // ── 保存全部变更(逐条 POST 现有单条接口) ──
+  window.slSaveAll = async function () {
+    const btn = document.getElementById('slSaveBtn');
+    btn.disabled = true; btn.textContent = '保存中…';
+    let ok = 0, fail = 0;
+    for (const g of _grades.filter(x => x._dirty)) {
+      if (!g.grade_code || !g.grade_name) { fail++; continue; }
+      const d = await fetchJson('/config-management/api/salary/grades', { method: 'POST', body: JSON.stringify(g) });
+      d.success ? (ok++, g._dirty = false) : fail++;
+    }
+    for (const p of _params.filter(x => x._dirty)) {
+      const d = await fetchJson('/config-management/api/salary/base-params', { method: 'POST', body: JSON.stringify(p) });
+      d.success ? (ok++, p._dirty = false) : fail++;
+    }
+    for (const r of _rules.filter(x => x._dirty)) {
+      const d = await fetchJson('/config-management/api/salary/step-rules', { method: 'POST', body: JSON.stringify(r) });
+      d.success ? (ok++, r._dirty = false) : fail++;
+    }
+    btn.disabled = false; btn.textContent = '保存变更';
+    if (fail) ATToast.error(`保存完成:成功 ${ok} 条,失败 ${fail} 条(职级需填代码和名称)`);
+    else if (ok) ATToast.success(`已保存 ${ok} 条变更`);
+    else ATToast.info ? ATToast.info('没有需要保存的变更') : ATToast.success('没有变更');
+    loadAll();
+  };
+
+  loadAll();
+</script>
+{% endblock %}

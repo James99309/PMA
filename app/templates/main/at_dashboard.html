@@ -8,7 +8,7 @@
   布局:Row1 todo + kpi(2 列)· Row2 funnel + projects + quotes(3 列)
         · Row3 expense + worklog(2 列)
 #}
-{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_avatar with context %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_avatar, at_win_lock_badge with context %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% from 'components/at_topbar.html' import at_topbar with context %}
 {% from 'components/at_risk_banner.html' import at_risk_banner %}
@@ -21,6 +21,8 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>PMA · 仪表盘</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
@@ -63,8 +65,15 @@
         <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:4px;">
           DASHBOARD · 仪表盘
         </div>
-        <h1 class="at-serif" style="margin:0;font-size:30px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
+        <h1 class="at-serif" style="margin:0;font-size:30px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;
+                                    display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           欢迎回来,{{ (current_user.real_name or current_user.username) }}
+          {% if current_user.in_probation %}
+          <span title="新手 · 试用期{% if current_user.probation_end %}至 {{ current_user.probation_end }}{% endif %}"
+                style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
+                       background:var(--success-soft);color:var(--success);">
+            <span class="material-symbols-outlined" style="font-size:15px;">eco</span></span>
+          {% endif %}
         </h1>
         <div class="at-muted" style="margin-top:6px;font-size:13px;">
           {{ now.strftime('%Y 年 %m 月 %d 日') if now else '' }}
@@ -75,13 +84,16 @@
     </div>
 
 
-    {# ══════════════════ Row 1 · TodoCard + KPICard(2 列) ══════════════════ #}
-    <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px;">
+    {# 是否有"次级(团队/公司/系统)"范围 — 全局定义,供各 scoped 卡复用(财务单视图时为 false) #}
+    {% set _has_sec = (dash.scope.secondary is not none) %}
+
+    {# ══════════════════ Row 1 · TodoCard + KPICard(KPI 可选) ══════════════════ #}
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
 
       {# ─────── TodoCard ─────── #}
       {% set _todos = dash.todos %}
       {% set _urgent_count = _todos | selectattr('urgent') | list | length %}
-      <section class="dash-card">
+      <section class="dash-card" style="flex:3 1 380px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">我的待办</h3>
@@ -119,9 +131,11 @@
             {% endfor %}
           </div>
 
+          {# 全量渲染,超出 5 条高度内部滚动(替代「显示其余 N 项」) #}
           <ul data-dash-list="todo"
-              style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;">
-            {% for t in _todos[:5] %}
+              style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;
+                     max-height:350px;overflow-y:auto;">
+            {% for t in _todos %}
             {% set _has_route = t.route and t.route != '#' %}
             <li data-type="{{ t.type }}" class="dash-list-item"
                 {% if _has_route %}data-href="{{ t.route }}"{% endif %}
@@ -150,62 +164,64 @@
             {% endfor %}
           </ul>
 
-          {% if _todos | length > 5 %}
-          <button type="button" style="margin-top:8px;padding:8px 0;width:100%;font-size:12px;
-                  color:var(--accent);font-weight:500;border:0;border-top:1px solid var(--line);background:transparent;cursor:pointer;">
-            显示其余 {{ _todos|length - 5 }} 项
-          </button>
-          {% endif %}
+
         </div>
       </section>
 
-      {# ─────── KPICard(月/季/年 tab 切换;helper 一次返 3 套) ─────── #}
+      {# ─────── KPICard(可选:无 kpi 卡的角色[admin]不渲染) ─────── #}
+      {% if 'kpi' in layout.cards %}
       {% set _kpis = dash.kpis %}
       {% set _today = dash.todayStats %}
-      <section class="dash-card">
+      <section class="dash-card" style="flex:2 1 320px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">我的 KPI</h3>
             <div class="dash-card-sub">实时聚合 · 同比上一周期</div>
           </div>
-          <div data-dash-tabs="kpi"
-               style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
+          <div data-dash-tabs="kpi" class="at-seg">
             {% for p in [{'k':'month','label':'本月'},{'k':'quarter','label':'本季'},{'k':'year','label':'本年'}] %}
             <button type="button" data-tab="{{ p.k }}" onclick="atDashKpiSwitch('{{ p.k }}')"
-                    style="padding:4px 10px;font-size:11.5px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
-                           color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
-                           background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
-                           box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">{{ p.label }}</button>
+                    class="{{ 'on' if loop.first }}">{{ p.label }}</button>
             {% endfor %}
           </div>
         </header>
         <div class="dash-card-body">
           {# 3 套粒度,默认 month 显示,其余 display:none #}
           {% for period_key in ['month', 'quarter', 'year'] %}
-          {% set _set = _kpis[period_key] %}
-          {% set _kpi_items = [
-            {'data': _set.salesGoal,  'tone': _set.salesGoal.tone,  'delta': _set.salesGoal.delta,  'deltaTone': _set.salesGoal.deltaTone},
-            {'data': _set.quoteWin,   'tone': _set.quoteWin.tone,   'delta': _set.quoteWin.delta,   'deltaTone': _set.quoteWin.deltaTone},
-            {'data': _set.activeCust, 'tone': _set.activeCust.tone, 'delta': _set.activeCust.delta, 'deltaTone': _set.activeCust.deltaTone},
-            {'data': _set.budget,     'tone': _set.budget.tone,     'delta': _set.budget.delta,     'deltaTone': _set.budget.deltaTone}
-          ] %}
+          {# KPI 列表契约:_kpis[period] 直接是指标项列表(按角色变体,数量不定)#}
+          {% set _kpi_items = _kpis[period_key] %}
           <div data-kpi-period="{{ period_key }}"
-               style="display:{{ 'flex' if period_key == 'month' else 'none' }};flex-direction:column;gap:14px;">
+               style="display:{{ 'flex' if period_key == 'month' else 'none' }};flex-direction:column;gap:14px;
+                      max-height:350px;overflow-y:auto;padding-right:4px;">
+            {% if not _kpi_items %}
+            {# 新绩效配置框架下该用户无任何目标(角色默认+个人覆盖均空)#}
+            <div style="padding:28px 12px;text-align:center;color:var(--ink-3);font-size:12.5px;">
+              <span class="material-symbols-outlined" style="font-size:26px;display:block;margin-bottom:6px;color:var(--ink-4);">flag</span>
+              KPI 未设定
+              <div class="at-dim" style="font-size:11px;margin-top:4px;">
+                请在 配置管理 → 绩效配置(角色默认)或 个人配置 → 绩效目标 中设定
+              </div>
+            </div>
+            {% endif %}
             {% for it in _kpi_items %}
-            {% set _has_target = it.data.target and it.data.target > 0 %}
-            {% set pct = ((it.data.value / it.data.target * 100) | round(0, 'floor') | int) if _has_target else 0 %}
+            {# 固定档位项(植入品质):无数字目标,显示等级 + 档位达成率(builder 预算 pct) #}
+            {% set _is_tiered = (it.data.tier is defined and it.data.tier) %}
+            {% set _has_target = (not _is_tiered) and it.data.target and it.data.target > 0 %}
+            {% set pct = it.data.pct if _is_tiered
+                         else (((it.data.value / it.data.target * 100) | round(0, 'floor') | int) if _has_target else 0) %}
             {% if pct > 100 %}{% set pct = 100 %}{% endif %}
+            {% set _scored = _has_target or _is_tiered %}
             {% set _delta_bg = {'success':'var(--success-soft)','warn':'var(--warn-soft)','neutral':'var(--bg-page)'}[it.deltaTone] %}
             {% set _delta_fg = {'success':'var(--success)','warn':'var(--warn)','neutral':'var(--ink-3)'}[it.deltaTone] %}
-            {# 货币 unit(¥/$/MYR/€ 等):前缀;非货币(' 个'/' 户'):后缀 #}
-            {% set _is_money = it.data.unit not in [' 个', ' 户'] %}
+            {# 货币 unit(¥/$/MYR/€ 等):前缀;非货币(' 个'/' 户'/' 单'/' 人'/'%'/' 分'/' 次'):后缀 #}
+            {% set _is_money = it.data.unit not in [' 个', ' 户', ' 单', ' 人', '%', ' 分', ' 次'] %}
             {% set _display = (it.data.unit ~ '{:,.0f}'.format(it.data.value)) if _is_money
                               else (it.data.value|string ~ it.data.unit) %}
             {% set _of = (it.data.unit ~ '{:,.0f}'.format(it.data.target)) if _is_money
                          else (it.data.target|string ~ it.data.unit) %}
             {# 无目标时:进度条灰、不显示分母 / %、加"未设目标"提示 #}
-            {% set _bar_color = it.tone if _has_target else 'var(--line-2)' %}
-            {% set _bar_width = pct if _has_target else 100 %}
+            {% set _bar_color = it.tone if _scored else 'var(--line-2)' %}
+            {% set _bar_width = pct if _scored else 100 %}
             <div>
               <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px;">
                 <span style="font-size:12px;color:var(--ink-3);">{{ it.data.label }}</span>
@@ -214,20 +230,29 @@
                              color:{{ _delta_fg }};background:{{ _delta_bg }};">{{ it.delta }}</span>
               </div>
               <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+                {% if _is_tiered %}
+                <span class="dash-tab-num at-serif" style="font-size:22px;font-weight:500;color:var(--ink);letter-spacing:-0.01em;">{{ '{:g}'.format(it.data.value) }}</span>
+                <span class="at-dim" style="font-size:11px;">/ {{ it.data.pass }} 分</span>
+                <span style="font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:4px;color:{{ it.tone }};background:var(--bg-page);">{{ it.data.tier }}</span>
+                {% else %}
                 <span class="dash-tab-num at-serif" style="font-size:22px;font-weight:500;color:var(--ink);letter-spacing:-0.01em;">{{ _display }}</span>
                 {% if _has_target %}
                 <span class="at-dim" style="font-size:11px;">/ {{ _of }}</span>
                 {% else %}
                 <span class="at-dim" style="font-size:10.5px;font-style:italic;">未设目标</span>
                 {% endif %}
+                {% endif %}
                 <span style="flex:1;"></span>
-                {% if _has_target %}
+                {% if _scored %}
                 <span class="at-mono dash-tab-num" style="font-size:11.5px;color:{{ it.tone }};font-weight:500;">{{ pct }}%</span>
                 {% endif %}
               </div>
+              {% if _is_tiered %}
+              <div class="at-dim" style="font-size:10px;margin-top:-2px;margin-bottom:6px;">{{ it.data.pass }}=及格线 · 良好{{ it.data.good }} · 优秀{{ it.data.excellent }}</div>
+              {% endif %}
               <div style="height:3px;background:var(--bg-page);border-radius:2px;overflow:hidden;">
                 <div style="width:{{ _bar_width }}%;height:100%;background:{{ _bar_color }};border-radius:2px;
-                            opacity:{{ '1' if _has_target else '0.5' }};
+                            opacity:{{ '1' if _scored else '0.5' }};
                             transition:width 600ms cubic-bezier(.2,.7,.2,1);"></div>
               </div>
             </div>
@@ -235,7 +260,8 @@
           </div>
           {% endfor %}
 
-          {# Today's micro stats #}
+          {# Today's micro stats — 销售向,仅销售/总览角色显示 #}
+          {% if layout.kpi_variant in ['default', 'overview'] and _today %}
           <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);
                       display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
             <div style="font-size:10.5px;color:var(--ink-3);grid-column:1 / -1;margin-bottom:2px;">
@@ -251,23 +277,176 @@
             </div>
             {% endfor %}
           </div>
+          {% endif %}{# /今日 micro stats #}
         </div>
       </section>
+      {% endif %}{# /kpi 可选 #}
     </div>
 
 
-    {# ══════════════════ Row 2 · Funnel + Projects + Quotes(3 列) ══════════════════ #}
-    <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+    {# ══════════════════ Row M · Task + Implant(2 列)— 仅解决方案/产品经理/管理员 ══════════════════ #}
+    {% if 'task' in layout.cards %}
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
 
-      {# ─────── FunnelCard ─────── #}
+      {# ─────── TaskCard(我的/团队 开关 — 部门负责人/企业管理人员)─────── #}
+      <section class="dash-card" style="flex:1.4 1 360px;min-width:0;">
+        <header class="dash-card-h">
+          <div style="flex:1;min-width:0;">
+            <h3 class="dash-card-title">
+              <span data-scope-title="mine">{{ dash.task.title | default('我的任务') }}</span>
+              {% if dash.task.has_team %}<span data-scope-title="team" hidden>{{ dash.task.teamLabel }}任务</span>{% endif %}
+            </h3>
+            <div class="dash-card-sub">
+              <span data-scope-title="mine">共 {{ dash.task.mine.counts.all }} 项 · {{ dash.task.mine.counts.in_progress }} 进行中</span>
+              {% if dash.task.has_team %}<span data-scope-title="team" hidden>共 {{ dash.task.team.counts.all }} 项 · {{ dash.task.team.counts.in_progress }} 进行中</span>{% endif %}
+            </div>
+          </div>
+          {% if dash.task.has_team %}
+          <div style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;flex-shrink:0;">
+            {% for sc in [{'k':'mine','l':'我的'},{'k':'team','l':dash.task.teamLabel}] %}
+            <button type="button" data-card-scope-btn="{{ sc.k }}" onclick="atDashCardScope(this,'{{ sc.k }}')"
+                    style="padding:4px 10px;font-size:11px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
+                           color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
+                           background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
+                           box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">{{ sc.l }}</button>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </header>
+        <div class="dash-card-body">
+          {% for sc in (['mine','team'] if dash.task.has_team else ['mine']) %}
+          {% set _td = dash.task[sc] %}
+          {% set _tc = _td.counts %}
+          <div data-scope-block="{{ sc }}"{% if sc != 'mine' %} hidden{% endif %}>
+            {% set _ttabs = [
+              {'k':'all','label':'全部','n':_tc.all},
+              {'k':'in_progress','label':'进行中','n':_tc.in_progress},
+              {'k':'pending','label':'待开始','n':_tc.pending},
+              {'k':'pending_review','label':'待审核','n':_tc.pending_review},
+              {'k':'completed','label':'已完成','n':_tc.completed}
+            ] %}
+            <div data-dash-tabs="task-{{ sc }}"
+                 style="display:flex;gap:4px;margin-bottom:14px;padding:3px;background:var(--bg-page);border-radius:8px;">
+              {% for t in _ttabs %}
+              <button type="button" data-tab="{{ t.k }}" onclick="atDashFilter('task-{{ sc }}','{{ t.k }}')"
+                      style="flex:1;padding:5px 6px;border-radius:6px;font-size:11px;font-weight:500;
+                             border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+                             color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
+                             background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
+                             box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">
+                <span>{{ t.label }}</span>
+                <span class="dash-tab-num"
+                      style="padding:0 4px;font-size:10px;border-radius:4px;color:var(--ink-3);
+                             background:{{ 'var(--bg-page)' if loop.first else 'transparent' }};">{{ t.n }}</span>
+              </button>
+              {% endfor %}
+            </div>
+            <ul data-dash-list="task-{{ sc }}" style="list-style:none;margin:0;padding:0;">
+              {% for it in _td['items'] %}
+              <li data-type="{{ it.status }}" class="dash-list-item" data-href="{{ it.route }}">
+                {{ at_pill(it.statusLabel, tone=it.tone, dot=true) }}
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;color:var(--ink);font-weight:500;line-height:1.35;
+                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.title }}</div>
+                  <div style="font-size:11.5px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:8px;">
+                    {% set _meta = it.note or it.project %}
+                    {% if _meta %}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">{{ _meta }}</span><span style="color:var(--ink-4);">·</span>{% endif %}
+                    {% if it.assignee %}<span>{{ it.assignee }}</span><span style="color:var(--ink-4);">·</span>{% endif %}
+                    <span>截止 {{ it.due }}</span>
+                  </div>
+                </div>
+                <span class="dash-tab-num" style="font-size:11px;color:var(--ink-3);flex-shrink:0;margin-top:2px;">{{ it.progress }}%</span>
+              </li>
+              {% else %}
+              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无任务</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      {# ─────── ImplantCard(可选:工程师等只有任务无植入)─────── #}
+      {% if 'implant' in layout.cards %}
+      {% set _im = dash.implant %}
+      <section class="dash-card" style="flex:1 1 300px;min-width:0;">
+        <header class="dash-card-h">
+          <div style="flex:1;min-width:0;">
+            <h3 class="dash-card-title">植入产值</h3>
+            <div class="dash-card-sub">
+              <span data-scope-title="mine">{{ _im.sub }}</span>
+              {% if _im.has_team %}<span data-scope-title="team" hidden>{{ _im.teamLabel }}报价</span>{% endif %}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+            {% if _im.has_team %}
+            <div style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
+              {% for sc in [{'k':'mine','l':'我的'},{'k':'team','l':_im.teamLabel}] %}
+              <button type="button" data-card-scope-btn="{{ sc.k }}" onclick="atDashCardScope(this,'{{ sc.k }}')"
+                      style="padding:4px 9px;font-size:11px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
+                             color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
+                             background:{{ 'var(--bg-elev)' if loop.first else 'transparent' }};
+                             box-shadow:{{ '0 1px 2px rgba(31,30,27,0.06)' if loop.first else 'none' }};">{{ sc.l }}</button>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <div data-dash-tabs="implant" class="at-seg">
+              {% for p in [{'k':'month','label':'本月'},{'k':'quarter','label':'本季'},{'k':'year','label':'本年'}] %}
+              <button type="button" data-tab="{{ p.k }}" onclick="atDashImplantSwitch('{{ p.k }}')"
+                      class="{{ 'on' if loop.first }}">{{ p.label }}</button>
+              {% endfor %}
+            </div>
+          </div>
+        </header>
+        <div class="dash-card-body">
+          {% for sc in (['mine', 'team'] if _im.has_team else ['mine']) %}
+          <div data-scope-block="{{ sc }}"{% if sc != 'mine' %} hidden{% endif %}>
+            {% for pk in ['month', 'quarter', 'year'] %}
+            {% set _ip = _im[sc].periods[pk] %}
+            <div data-implant-period="{{ pk }}" style="display:{{ 'block' if pk == 'month' else 'none' }};">
+              <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px;">
+                <span style="font-size:11px;color:var(--ink-3);">植入产值</span>
+                <span class="dash-tab-num at-serif" style="font-size:26px;font-weight:500;letter-spacing:-0.01em;color:var(--ink);">
+                  {{ dash.currency }}{{ '{:,.0f}'.format(_ip.total) }}
+                </span>
+              </div>
+              <ul style="list-style:none;margin:0;padding:0;">
+                {% for it in _ip['items'] %}
+                <li style="padding:10px 4px;border-top:{{ '0' if loop.first else '1px solid var(--line)' }};
+                           display:flex;align-items:center;gap:10px;font-size:12.5px;">
+                  <span style="flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ it.name }}</span>
+                  <span style="font-size:11px;color:var(--ink-4);flex-shrink:0;">×{{ it.count }}</span>
+                  <span class="dash-tab-num" style="color:var(--ink);font-weight:500;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
+                </li>
+                {% else %}
+                <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">本期暂无植入</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}{# /implant 可选 #}
+
+    </div>
+    {% endif %}
+
+
+    {# ══════════════════ Row 2 · Funnel + Projects + Quotes(各卡可选) ══════════════════ #}
+    {% if 'funnel' in layout.cards or 'projects' in layout.cards or 'quotes' in layout.cards %}
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
+
+      {# ─────── FunnelCard(可选)─────── #}
       {% set _tones = ['#C15F3C', '#D97757', '#B8742E', '#2A5F8F', '#2F7155'] %}
-      {% set _has_sec = dash.scope.secondary is not none %}
-      <section class="dash-card dash-card-scoped" data-dash-block="funnel">
+      {% if 'funnel' in layout.cards %}
+      <section class="dash-card dash-card-scoped" data-dash-block="funnel" style="flex:1.4 1 360px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">销售漏斗</h3>
             <div class="dash-card-sub">
-              <span data-dash-sub="mine">我的项目 · 近 12 个月聚合</span>
+              <span data-dash-sub="mine">{{ '全部项目' if layout.kpi_variant == 'admin' else '我的项目' }} · 近 12 个月聚合</span>
               {% if _has_sec %}<span data-dash-sub="team" hidden>{{ dash.scope.secondary.label }}项目 · 近 12 个月聚合</span>{% endif %}
             </div>
           </div>
@@ -317,6 +496,12 @@
               {% if not loop.last and drop is not none %}
               <div style="display:flex;align-items:center;gap:12px;padding-left:68px;height:12px;">
                 <div style="height:12px;width:1px;border-left:1px dashed var(--line-2);margin-left:-2px;"></div>
+                {% if s.locked %}
+                <span title="该阶段有 {{ s.locked }} 个项目已锁定成功"
+                      style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;color:var(--warn);font-weight:600;">
+                  {{ at_win_lock_badge('该阶段 ' ~ s.locked ~ ' 个锁定', size='sm') }}{{ s.locked }}
+                </span>
+                {% endif %}
                 <span style="font-size:10.5px;color:var(--ink-3);">
                   流失 <span class="dash-tab-num" style="color:var(--danger);">{{ drop }}%</span>
                 </span>
@@ -342,9 +527,11 @@
         {% endfor %}
         </div>{# /dash-card-body #}
       </section>
+      {% endif %}{# /funnel 可选 #}
 
-      {# ─────── ProjectsCard ─────── #}
-      <section class="dash-card dash-card-scoped" data-dash-block="projects">
+      {# ─────── ProjectsCard(可选)─────── #}
+      {% if 'projects' in layout.cards %}
+      <section class="dash-card dash-card-scoped" data-dash-block="projects" style="flex:1 1 280px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             {{ dash_scope_title('项目', _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
@@ -369,6 +556,7 @@
                        border-top:{{ '0' if loop.first else '1px solid var(--line)' }};">
               <div style="display:flex;align-items:center;gap:10px;width:100%;">
                 {{ at_pill(p.stage, tone=p.stageT, size='md') }}
+                {% if p.winLocked %}{{ at_win_lock_badge(p.winReason, size='sm') }}{% endif %}
                 <span style="flex:1;font-size:13px;color:var(--ink);font-weight:500;
                              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ p.name }}</span>
                 {% if p.dueRed %}
@@ -393,9 +581,11 @@
           {% endfor %}
         </div>
       </section>
+      {% endif %}{# /projects 可选 #}
 
-      {# ─────── QuotesCard ─────── #}
-      <section class="dash-card dash-card-scoped" data-dash-block="quotes">
+      {# ─────── QuotesCard(可选)─────── #}
+      {% if 'quotes' in layout.cards %}
+      <section class="dash-card dash-card-scoped" data-dash-block="quotes" style="flex:1 1 280px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             {{ dash_scope_title('报价', _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
@@ -449,15 +639,18 @@
         {% endfor %}
         </div>
       </section>
+      {% endif %}{# /quotes 可选 #}
 
     </div>
+    {% endif %}
 
 
-    {# ══════════════════ Row 3 · Expense + Worklog(2 列) ══════════════════ #}
-    <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:16px;">
+    {# ══════════════════ Row 3 · Expense(报销,可选) + Worklog ══════════════════ #}
+    <div style="display:flex;flex-wrap:wrap;gap:16px;">
 
-      {# ─────── ExpenseCard ─────── #}
-      <section class="dash-card dash-card-scoped" data-dash-block="expense">
+      {# ─────── ExpenseCard(可选:销售/财务有,经理无)─────── #}
+      {% if 'expense' in layout.cards %}
+      <section class="dash-card dash-card-scoped" data-dash-block="expense" style="flex:1 1 340px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             {{ dash_scope_title('报销', _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
@@ -526,6 +719,22 @@
             {% endfor %}
           </div>
 
+          {% if _exp.categories %}
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:8px;letter-spacing:0.04em;">科目分布 · 本年</div>
+          <ul style="list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:7px;">
+            {% for c in _exp.categories %}
+            <li style="display:flex;align-items:center;gap:8px;font-size:12px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:{{ c.color }};flex-shrink:0;"></span>
+              <span style="width:60px;flex-shrink:0;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.label }}</span>
+              <span style="flex:1;height:6px;background:var(--bg-page);border-radius:3px;overflow:hidden;min-width:0;">
+                <span style="display:block;height:100%;width:{{ c.pct }}%;background:{{ c.color }};border-radius:3px;"></span>
+              </span>
+              <span class="dash-tab-num" style="width:66px;text-align:right;color:var(--ink);font-weight:500;flex-shrink:0;">{% if c.amount >= 10000 %}{{ _exp.currency }}{{ '{:.1f}'.format(c.amount/10000) }}万{% else %}{{ _exp.currency }}{{ '{:,.0f}'.format(c.amount) }}{% endif %}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+
           <div style="font-size:11px;color:var(--ink-3);margin-bottom:6px;letter-spacing:0.04em;">最近 3 笔</div>
           <ul style="list-style:none;margin:0;padding:0;">
             {% for e in _exp.recent %}
@@ -542,11 +751,12 @@
         {% endfor %}
         </div>
       </section>
+      {% endif %}{# /expense 可选 #}
 
-      {# ─────── WorklogCard ─────── #}
+      {# ─────── WorklogCard(所有角色;报销隐藏时自动撑满)─────── #}
       {% set _wl = dash.worklog %}
       {% set _unread = _wl | selectattr('mentioned') | list | length %}
-      <section class="dash-card">
+      <section class="dash-card" style="flex:1.5 1 440px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">工作记录</h3>
@@ -558,10 +768,14 @@
               {% endif %}
             </div>
           </div>
+          {# 团队 tab 仅在有"非我的"工作记录时显示;@我的 仅在有 @我 时显示 #}
+          {% set _wl_has_team = (_wl | rejectattr('is_mine') | list | length) > 0 %}
+          {% set _wl_tabs = [{'k':'all','label':'全部'}, {'k':'mine','label':'我的'}] %}
+          {% if _wl_has_team %}{% set _ = _wl_tabs.append({'k':'team','label':'团队'}) %}{% endif %}
+          {% if _unread > 0 %}{% set _ = _wl_tabs.append({'k':'mention','label':'@ 我的'}) %}{% endif %}
           <div data-dash-tabs="worklog"
                style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
-            {% for f in [{'k':'all','label':'全部'},{'k':'mine','label':'我的'},
-                          {'k':'team','label':'团队'},{'k':'mention','label':'@ 我的'}] %}
+            {% for f in _wl_tabs %}
             <button type="button" onclick="atDashFilter('worklog','{{ f.k }}')"
                     style="padding:4px 10px;font-size:11.5px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
                            color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
@@ -683,13 +897,38 @@
   // KPI 月/季/年 切换 — 切高亮 + 切 3 套 KPI 块的 display
   window.atDashKpiSwitch = function(period) {
     document.querySelectorAll('[data-dash-tabs="kpi"] button').forEach(btn => {
-      const on = btn.dataset.tab === period;
-      btn.style.background = on ? 'var(--bg-elev)' : 'transparent';
-      btn.style.color      = on ? 'var(--ink)'    : 'var(--ink-3)';
-      btn.style.boxShadow  = on ? '0 1px 2px rgba(31,30,27,0.06)' : 'none';
+      btn.classList.toggle('on', btn.dataset.tab === period);   // .at-seg 公用样式
     });
     document.querySelectorAll('[data-kpi-period]').forEach(el => {
       el.style.display = (el.dataset.kpiPeriod === period) ? 'flex' : 'none';
+    });
+  };
+
+  // 植入产值 月/季/年 切换 — 同 KPI 逻辑
+  window.atDashImplantSwitch = function(period) {
+    document.querySelectorAll('[data-dash-tabs="implant"] button').forEach(btn => {
+      btn.classList.toggle('on', btn.dataset.tab === period);   // .at-seg 公用样式
+    });
+    document.querySelectorAll('[data-implant-period]').forEach(el => {
+      el.style.display = (el.dataset.implantPeriod === period) ? 'block' : 'none';
+    });
+  };
+
+  // 单卡「我的 / 团队」切换(任务卡、植入卡;权限驱动)— 仅作用于按钮所在卡片
+  window.atDashCardScope = function(btn, scope) {
+    const card = btn.closest('.dash-card');
+    if (!card) return;
+    card.querySelectorAll('[data-card-scope-btn]').forEach(b => {
+      const on = b.dataset.cardScopeBtn === scope;
+      b.style.background = on ? 'var(--bg-elev)' : 'transparent';
+      b.style.color      = on ? 'var(--ink)'    : 'var(--ink-3)';
+      b.style.boxShadow  = on ? '0 1px 2px rgba(31,30,27,0.06)' : 'none';
+    });
+    card.querySelectorAll('[data-scope-block]').forEach(el => {
+      el.hidden = (el.dataset.scopeBlock !== scope);
+    });
+    card.querySelectorAll('[data-scope-title]').forEach(el => {
+      el.hidden = (el.dataset.scopeTitle !== scope);
     });
   };
 

@@ -1,7 +1,8 @@
 {% extends 'components/at_list_layout.html' %}
-{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_win_lock_badge %}
 {% from 'components/at_project_modal.html' import at_project_form_modal %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+{% from 'components/quality_badge.html' import quality_badge %}
 
 {% block sidebar_active %}project{% endblock %}
 {% block page_title %}项目管理{% endblock %}
@@ -49,11 +50,13 @@
   {'k':'pre_tender', 'l':'标前',  'c':tab_counts.pre_tender},
   {'k':'tendering',  'l':'标中',  'c':tab_counts.tendering},
   {'k':'awarded',    'l':'中标',  'c':tab_counts.awarded},
+  {'k':'win_locked', 'l':'锁定成功', 'c':tab_counts.win_locked},
+  {'k':'signed',     'l':'签约',  'c':tab_counts.signed},
   {'k':'closed',     'l':'失败/暂停', 'c':tab_counts.closed}
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
-<a href="{{ url_for('project.at_list_view', tab=t.k, search=search) }}"
+<a href="{{ url_for('project.at_list_view', tab=t.k, **list_qs) }}"
    style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
           position:relative;text-decoration:none;
           color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
@@ -67,12 +70,26 @@
 {% endblock %}
 
 {% block filter_row %}
-<form method="get" action="{{ url_for('project.at_list_view') }}"
-      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
-  <input type="hidden" name="tab" value="{{ current_tab }}">
-  {{ at_input(name='search', value=search, placeholder='搜索项目名 / 授权码…', icon_l='search', width='320px') }}
-  {{ at_btn('搜索', variant='ghost', size='sm', icon_l='search', type_='submit') }}
-</form>
+{% from 'components/at_filter_panel.html' import at_filter_panel %}
+<div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <form method="get" action="{{ url_for('project.at_list_view') }}"
+        style="display:flex;gap:10px;align-items:center;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
+    {% for v in ptype_values %}<input type="hidden" name="ptype" value="{{ v }}">{% endfor %}
+    {{ at_input(name='search', value=search, placeholder='搜索项目名 / 授权码…', icon_l='search', width='320px') }}
+  </form>
+  {% if show_filter %}
+  {{ at_filter_panel(
+       action_url=url_for('project.at_list_view'),
+       fields=[
+         {'key':'owner','label':'负责人','type':'user','items':owner_options,'values':owner_values},
+         {'key':'ptype','label':'类型','type':'select','options':type_options,'values':ptype_values},
+       ],
+       hidden={'tab':current_tab,'search':search},
+       panel_id='projFilterPanel') }}
+  {% endif %}
+</div>
 {% endblock %}
 
 {% block thead %}
@@ -97,21 +114,29 @@
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
       <span style="font-size:13px;font-weight:500;color:var(--ink);
                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.project_name }}</span>
+      {# 未跟进标识(橘色):有授权编号跟在编号后,否则单独占名称下一行 #}
+      {% set _od = overdue_days.get(p.id) if overdue_days else none %}
       {% if p.authorization_code %}
-      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ p.authorization_code }}</span>
+      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ p.authorization_code }}{% if _od %} <span style="color:var(--warn);font-weight:500;">· {{ _od }} 天未跟进</span>{% endif %}</span>
+      {% elif _od %}
+      <span style="font-size:11px;color:var(--warn);font-weight:500;">{{ _od }} 天未跟进</span>
       {% endif %}
     </div>
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
     {{ at_status_pill(p.current_stage or 'discover', scope='project') }}
+    {% if p.win_locked and p.current_stage != 'signed' %}{{ at_win_lock_badge(p.win_lock_reason or '', size='sm') }}{% endif %}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-3);font-size:12px;">
     {{ (p.project_type | project_type_label) if p.project_type else '—' }}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
-    <span class="at-mono at-tab-num"
-          style="color:{{ 'var(--ink)' if p.quotation_customer else 'var(--ink-4)' }};font-size:13px;">
-      {{ currency_sym }}{{ '{:,.0f}'.format(p.quotation_customer or 0) }}
+    <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;">
+      {{ quality_badge(quality_scores.get(p.id) if quality_scores else none, is_project=true) }}
+      <span class="at-mono at-tab-num"
+            style="color:{{ 'var(--ink)' if p.quotation_customer else 'var(--ink-4)' }};font-size:13px;">
+        {{ currency_sym }}{{ '{:,.0f}'.format(p.quotation_customer or 0) }}
+      </span>
     </span>
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
@@ -145,11 +170,11 @@
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
     {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
-              href=url_for('project.at_list_view', tab=current_tab, page=pagination.prev_num, search=search)) }}
+              href=url_for('project.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
   {% endif %}
   {% if pagination.has_next %}
     {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
-              href=url_for('project.at_list_view', tab=current_tab, page=pagination.next_num, search=search)) }}
+              href=url_for('project.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
   {% endif %}
 </div>
 {% endif %}

@@ -1,13 +1,14 @@
 /**
- * AT 可搜索下拉(combobox)控制器
+ * AT 可搜索下拉(combobox)控制器 — 支持单选 / 多选(复选框)
  *
  * DOM 由 at_searchable_select 宏渲染。本 JS 自动扫描 .at-ss 元素并绑定。
+ * 多选模式:root[data-multiple="1"],提交时在 .at-ss-values 里写同名多个 hidden。
  *
  * API:
  *   ATSearchableSelect.init()           扫描全页绑定(自动在 DOMContentLoaded 调一次)
- *   ATSearchableSelect.getValue(id)     读取某个 ss 的当前 value
- *   ATSearchableSelect.setValue(id, v)  设置 value(自动同步 input + onchange)
- *   ATSearchableSelect.refresh(id, items)  动态替换数据(items: [{value, label, keywords?}])
+ *   ATSearchableSelect.getValue(id)     读取某个 ss 的当前 value(多选返回数组)
+ *   ATSearchableSelect.setValue(id, v)  设置 value(单选;自动同步 input + onchange)
+ *   ATSearchableSelect.refresh(id, items)  动态替换数据
  */
 (function () {
   'use strict';
@@ -20,8 +21,12 @@
     if (root.dataset.atSsBound) return;
     root.dataset.atSsBound = '1';
 
+    const multiple = root.dataset.multiple === '1';
+    const fieldName = root.dataset.ssName || '';
+
     const display = root.querySelector('.at-ss-display');
-    const hidden  = root.querySelector('.at-ss-value');
+    const hidden  = root.querySelector('.at-ss-value');        // 单选用
+    const valuesWrap = root.querySelector('.at-ss-values');    // 多选用
     const panel   = root.querySelector('.at-ss-panel');
     const listEl  = root.querySelector('.at-ss-list');
     const emptyEl = root.querySelector('.at-ss-empty');
@@ -38,9 +43,19 @@
     try { items = JSON.parse(dataEl.textContent || '[]') || []; } catch (e) { items = []; }
     root._atSsItems = items;
 
+    // 多选已选值(字符串数组),从初始 hidden 读取
+    let selected = [];
+    if (multiple && valuesWrap) {
+      selected = Array.from(valuesWrap.querySelectorAll('input')).map(i => i.value);
+    }
+
     let activeIdx = -1;
     let query = '';
     let open = false;
+
+    const isSel = (val) => multiple
+      ? selected.includes(String(val))
+      : String(val) === String(hidden ? hidden.value : '');
 
     const filtered = () => {
       const q = (query || '').toLowerCase().trim();
@@ -52,13 +67,31 @@
       });
     };
 
+    function summaryText() {
+      if (!multiple) {
+        const cur = items.find(it => String(it.value) === String(hidden ? hidden.value : ''));
+        return cur ? cur.label : '';
+      }
+      if (!selected.length) return '';
+      if (selected.length === 1) {
+        const it = items.find(i => String(i.value) === String(selected[0]));
+        return it ? it.label : '';
+      }
+      return selected.length + ' 项已选';
+    }
+
+    function syncHidden() {
+      if (!multiple || !valuesWrap) return;
+      valuesWrap.innerHTML = selected
+        .map(v => `<input type="hidden" name="${escapeHtml(fieldName)}" value="${escapeHtml(v)}">`)
+        .join('');
+    }
+
     function _positionPanel() {
-      // 跟随 input wrap 的 viewport 位置定位(避开 overflow 裁剪)
       const r = wrap.getBoundingClientRect();
       panel.style.left  = r.left + 'px';
       panel.style.top   = (r.bottom + 4) + 'px';
       panel.style.width = r.width + 'px';
-      // 若下方空间不够,翻到上方
       const panelH = panel.offsetHeight || 280;
       const vh = window.innerHeight;
       if (r.bottom + panelH + 12 > vh && r.top > panelH + 12) {
@@ -75,34 +108,23 @@
         activeIdx = -1;
         render();
         _positionPanel();
+      } else {
+        // 关闭时恢复摘要文字
+        query = '';
+        display.value = summaryText();
       }
     }
 
-    // 滚动 / 缩放时重定位
-    function _onViewportChange() {
-      if (open) _positionPanel();
-    }
-    window.addEventListener('scroll', _onViewportChange, true);  // capture 阶段捕获嵌套滚动
+    function _onViewportChange() { if (open) _positionPanel(); }
+    window.addEventListener('scroll', _onViewportChange, true);
     window.addEventListener('resize', _onViewportChange);
 
-    // 只切换高亮背景,不重建 DOM(避免鼠标交互期间 DOM 被替换导致 click 链断裂)
-    function _updateHighlight() {
-      const curVal = hidden.value;
-      listEl.querySelectorAll('[data-ss-pick]').forEach(b => {
-        const i = parseInt(b.dataset.ssPick);
-        const it = filtered()[i];
-        if (!it) return;
-        const isSelected = String(it.value) === String(curVal);
-        const isActive = i === activeIdx;
-        b.style.background = isActive
-          ? 'var(--bg-hover)'
-          : (isSelected ? 'var(--accent-tint)' : 'transparent');
-      });
-    }
+    const checkboxSvg = (checked) => checked
+      ? '<span style="flex-shrink:0;width:15px;height:15px;border-radius:3px;background:var(--accent);border:1px solid var(--accent);display:inline-flex;align-items:center;justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>'
+      : '<span style="flex-shrink:0;width:15px;height:15px;border-radius:3px;border:1px solid var(--line-2);background:var(--bg-elev);"></span>';
 
     function render() {
       const list = filtered();
-      const curVal = hidden.value;
       if (!list.length) {
         listEl.innerHTML = '';
         emptyEl.style.display = 'block';
@@ -110,36 +132,51 @@
       }
       emptyEl.style.display = 'none';
       listEl.innerHTML = list.map((it, i) => {
-        const isSelected = String(it.value) === String(curVal);
+        const selectedNow = isSel(it.value);
         const isActive = i === activeIdx;
-        const bg = isActive ? 'var(--bg-hover)' : (isSelected ? 'var(--accent-tint)' : 'transparent');
-        const fg = isSelected ? 'var(--accent)' : 'var(--ink)';
+        const bg = isActive ? 'var(--bg-hover)' : (selectedNow && !multiple ? 'var(--accent-tint)' : 'transparent');
+        const fg = it.muted ? 'var(--ink-4)' : (selectedNow ? 'var(--accent)' : 'var(--ink)');
+        const lead = multiple ? checkboxSvg(selectedNow) : '';
+        const trail = (!multiple && selectedNow)
+          ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+          : '';
         return `
           <button type="button" data-ss-pick="${i}"
                   style="display:flex;align-items:center;gap:8px;width:100%;
                          padding:8px 10px;border:0;background:${bg};color:${fg};
                          font:inherit;text-align:left;border-radius:4px;cursor:pointer;
                          transition:background 80ms;">
+            ${lead}
             <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-                         font-weight:${isSelected ? '500' : '400'};">${highlight(it.label, query)}</span>
-            ${isSelected ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+                         font-weight:${selectedNow ? '500' : '400'};">${highlight(it.label, query)}</span>
+            ${trail}
           </button>`;
       }).join('');
-      // 绑定 — 用 mousedown 直接 pick(避免 click 链被 render() 重建打断 + 避免
-      // Safari 下 mousedown.preventDefault 吞 click 的边界情况)
       listEl.querySelectorAll('[data-ss-pick]').forEach(btn => {
         btn.addEventListener('mousedown', (e) => {
-          e.preventDefault(); // 阻止 input blur
+          e.preventDefault();
           e.stopPropagation();
           const idx = parseInt(btn.dataset.ssPick);
           const it = filtered()[idx];
           if (it) pick(it);
         });
-        // mouseenter 只切换高亮,不重建 DOM — 否则鼠标按下瞬间 DOM 被替换会断 click 链
         btn.addEventListener('mouseenter', () => {
           activeIdx = parseInt(btn.dataset.ssPick);
           _updateHighlight();
         });
+      });
+    }
+
+    function _updateHighlight() {
+      listEl.querySelectorAll('[data-ss-pick]').forEach(b => {
+        const i = parseInt(b.dataset.ssPick);
+        const it = filtered()[i];
+        if (!it) return;
+        const selectedNow = isSel(it.value);
+        const isActive = i === activeIdx;
+        b.style.background = isActive
+          ? 'var(--bg-hover)'
+          : (selectedNow && !multiple ? 'var(--accent-tint)' : 'transparent');
       });
     }
 
@@ -155,34 +192,50 @@
     }
 
     function pick(it) {
-      hidden.value = it.value;
-      display.value = it.label;
-      query = '';
-      setOpen(false);
-      // 清除按钮显示
-      clearBtn.style.display = it.value ? 'inline-flex' : 'none';
-      fireChange();
+      if (multiple) {
+        const v = String(it.value);
+        const idx = selected.indexOf(v);
+        if (idx >= 0) selected.splice(idx, 1);
+        else selected.push(v);
+        syncHidden();
+        clearBtn.style.display = selected.length ? 'inline-flex' : 'none';
+        render();              // 刷新复选框态(保持展开)
+        fireChange();
+      } else {
+        hidden.value = it.value;
+        display.value = it.label;
+        query = '';
+        setOpen(false);
+        clearBtn.style.display = it.value ? 'inline-flex' : 'none';
+        fireChange();
+      }
     }
 
     function clearVal() {
-      hidden.value = '';
-      display.value = '';
-      query = '';
-      clearBtn.style.display = 'none';
-      display.focus();
+      if (multiple) {
+        selected = [];
+        syncHidden();
+        query = '';
+        display.value = '';
+        clearBtn.style.display = 'none';
+        if (open) render();
+      } else {
+        hidden.value = '';
+        display.value = '';
+        query = '';
+        clearBtn.style.display = 'none';
+        display.focus();
+      }
       fireChange();
     }
 
     function fireChange() {
       const handler = root.dataset.onchange;
       if (handler) {
-        try {
-          // eslint-disable-next-line no-new-func
-          (new Function(handler))();
-        } catch (e) { console.error(e); }
+        try { (new Function(handler))(); } catch (e) { console.error(e); }
       }
-      // 同时派一个 native event
-      hidden.dispatchEvent(new Event('change', { bubbles: true }));
+      const evtTarget = multiple ? (valuesWrap || root) : hidden;
+      evtTarget.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     // ─── events ───
@@ -199,17 +252,16 @@
     });
 
     display.addEventListener('focus', () => {
+      // 多选:聚焦时清空显示让用户直接搜索(失焦再恢复摘要)
+      if (multiple) { query = ''; display.value = ''; }
       if (!open) setOpen(true);
     });
 
     display.addEventListener('blur', () => {
-      // 延迟关闭让 click 能触发(panel 已移到 body,要排除它内部的焦点)
       setTimeout(() => {
         const active = document.activeElement;
         if (!root.contains(active) && !panel.contains(active)) {
-          // 若输入框失焦后值与已选不一致,恢复显示
-          const cur = items.find(it => String(it.value) === String(hidden.value));
-          display.value = cur ? cur.label : '';
+          display.value = summaryText();
           setOpen(false);
         }
       }, 150);
@@ -245,7 +297,6 @@
       clearVal();
     });
 
-    // 外部点击关闭(panel 现在挂在 body 末尾,不在 root 内 — 要单独检查)
     document.addEventListener('mousedown', (e) => {
       if (open && !root.contains(e.target) && !panel.contains(e.target)) {
         setOpen(false);
@@ -257,8 +308,9 @@
       if (btn) btn.scrollIntoView({ block: 'nearest' });
     }
 
-    // 暴露给外部的 setter
+    // 暴露给外部的 setter(单选)
     root._atSsSet = (val) => {
+      if (multiple) return;
       const it = items.find(i => String(i.value) === String(val));
       if (it) pick(it); else clearVal();
     };
@@ -266,12 +318,18 @@
       items = newItems || [];
       root._atSsItems = items;
       dataEl.textContent = JSON.stringify(items);
-      // 若当前 value 不在新 items 里 → 清空
-      if (!items.find(i => String(i.value) === String(hidden.value))) {
-        clearVal();
+      if (multiple) {
+        selected = selected.filter(v => items.find(i => String(i.value) === String(v)));
+        syncHidden();
+        display.value = summaryText();
+        clearBtn.style.display = selected.length ? 'inline-flex' : 'none';
       } else {
-        const cur = items.find(i => String(i.value) === String(hidden.value));
-        display.value = cur ? cur.label : '';
+        if (!items.find(i => String(i.value) === String(hidden.value))) {
+          clearVal();
+        } else {
+          const cur = items.find(i => String(i.value) === String(hidden.value));
+          display.value = cur ? cur.label : '';
+        }
       }
       if (open) render();
     };
@@ -290,6 +348,10 @@
     getValue(id) {
       const root = find(id);
       if (!root) return '';
+      if (root.dataset.multiple === '1') {
+        const w = root.querySelector('.at-ss-values');
+        return w ? Array.from(w.querySelectorAll('input')).map(i => i.value) : [];
+      }
       const h = root.querySelector('.at-ss-value');
       return h ? h.value : '';
     },
@@ -303,7 +365,6 @@
     },
   };
 
-  // 自动初始化
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => init());
   } else {

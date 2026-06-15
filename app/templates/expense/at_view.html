@@ -387,7 +387,51 @@
       ('说明', expense.description),
     ], filter_empty=true) }}
 
-    {{ at_info_panel('支付 / 审批', [
+    {# 中间卡:科目汇总(申请人本年,含待审批);支付/审批字段已并入右侧元数据 #}
+    {% if budget_summary %}
+    {% set _bs = budget_summary %}
+    {% set _cur = {'CNY':'¥','USD':'$','HKD':'HK$','TWD':'NT$','SGD':'S$','MYR':'RM','IDR':'Rp','THB':'฿','VND':'₫'}.get(_bs.currency, currency_sym or '¥') %}
+    {% set _cat_meta = [('entertainment','招待','#ff6b6b'),('travel','差旅','#45b7d1'),('transport','交通','#4ecdc4'),('office','办公','#96ceb4'),('communication','通讯','#ffeaa7'),('other','其他','#aab7b8')] %}
+    <section class="at-section">
+      <header class="at-section-h"><h3 class="at-section-title">科目汇总 · {{ _bs.year }}</h3></header>
+      <div class="at-section-body">
+        <div style="display:flex;flex-direction:column;gap:7px;font-size:12.5px;">
+          {% for code, label, color in _cat_meta %}
+          {% set _act = (_bs.by_category or {}).get(code, 0) or 0 %}
+          {% if _act > 0 %}
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:{{ color }};flex-shrink:0;"></span>
+            <span style="color:var(--ink-2);">{{ label }}</span>
+            <span style="flex:1;"></span>
+            <span class="at-mono" style="color:var(--ink);">{{ _cur }}{{ '{:,.0f}'.format(_act) }}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+          {% if (_bs.expense_total or 0) == 0 %}
+          <div class="at-dim" style="text-align:center;padding:8px;font-size:12px;">本年暂无报销</div>
+          {% endif %}
+          <div style="display:flex;align-items:center;gap:8px;border-top:2px solid var(--line);padding-top:8px;margin-top:2px;font-weight:600;">
+            <span>合计</span>
+            <span style="flex:1;"></span>
+            <span class="at-mono">{{ _cur }}{{ '{:,.0f}'.format(_bs.expense_total or 0) }}</span>
+          </div>
+          {% if _bs.has_budget %}
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-4);">
+            <span>预算 {{ _cur }}{{ '{:,.0f}'.format(_bs.budget_total or 0) }}</span>
+            <span style="flex:1;"></span>
+            <span style="color:{{ 'var(--danger)' if (_bs.usage_rate or 0)>100 else 'var(--ink-3)' }};">{{ (_bs.usage_rate or 0)|round|int }}%</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+    {% else %}
+    {{ at_info_panel('科目汇总', [], empty_text='暂无数据') }}
+    {% endif %}
+
+    {{ at_info_panel('元数据', [
+      ('编号', expense.expense_number, 'at-mono'),
+      ('状态', get_status_label(expense.status, 'expense') if expense.status else None),
       ('支付状态', get_status_label(expense.payment_status, 'payment') if expense.payment_status else None),
       ('支付方式', expense.payment_method),
       ('支付凭证', expense.payment_reference, 'at-mono'),
@@ -396,15 +440,10 @@
       ('审批人', (expense.approver.real_name or expense.approver.username) if expense.approver else None),
       ('审批时间', expense.approved_at.strftime('%Y-%m-%d %H:%M') if expense.approved_at else None, 'at-mono'),
       ('审批备注', expense.approval_notes),
-    ], filter_empty=true, empty_text='暂无支付/审批信息') }}
-
-    {{ at_info_panel('元数据', [
-      ('编号', expense.expense_number, 'at-mono'),
-      ('状态', get_status_label(expense.status, 'expense') if expense.status else None),
       ('创建时间', expense.created_at.strftime('%Y-%m-%d %H:%M') if expense.created_at else None, 'at-mono'),
       ('更新时间', expense.updated_at.strftime('%Y-%m-%d %H:%M') if expense.updated_at else None, 'at-mono'),
       ('锁定状态', '已锁定' if expense.is_locked else None),
-    ]) }}
+    ], filter_empty=true) }}
     {% endif %}
 
   </div>
