@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{{ sn.serial_number }} · 序列号</title>
+<title>{{ sn.serial_number }} · {{ _('序列号') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
@@ -26,9 +26,9 @@
                position:sticky;top:0;z-index:30;">
   <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
-    <a href="{{ url_for('product_sn.list_view') }}" style="font-size:13px;color:var(--ink-3);">库存中心</a>
+    <a href="{{ url_for('product_sn.list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('库存中心') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <a href="{{ url_for('product_sn.list_view') }}" style="font-size:13px;color:var(--ink-3);">序号管理</a>
+    <a href="{{ url_for('product_sn.list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('序号管理') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
     <span class="at-mono" style="font-size:13px;color:var(--ink);">{{ sn.serial_number }}</span>
     <div style="flex:1;"></div>
@@ -36,7 +36,7 @@
             style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
                    background:var(--bg-elev);font-size:12px;color:var(--ink-2);
                    display:inline-flex;align-items:center;gap:4px;">
-      {{ at_icon('moon', 13) }} 暗色
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
     </button>
   </div>
 </header>
@@ -48,7 +48,7 @@
               margin-bottom:28px;flex-wrap:wrap;gap:16px;">
     <div>
       <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
-        SERIAL NUMBER · 序列号
+        SERIAL NUMBER · {{ _('序列号') }}
       </div>
       <div style="display:flex;align-items:baseline;gap:14px;">
         <h1 class="at-serif at-mono"
@@ -67,17 +67,17 @@
         {% endif %}
         {% if sn.batch_number %}
         <span style="color:var(--line-2);">|</span>
-        <span>批次 <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ sn.batch_number }}</span></span>
+        <span>{{ _('批次') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ sn.batch_number }}</span></span>
         {% endif %}
       </div>
     </div>
 
     <div style="display:flex;gap:8px;">
-      {{ at_btn('返回', variant='ghost', icon_l='back', tag='a',
+      {{ at_btn(_('返回'), variant='ghost', icon_l='back', tag='a',
                 href=url_for('product_sn.list_view')) }}
       {# 仅 registered 态显示入库按钮(入库后状态推进到 in_stock) #}
       {% if sn.status == 'registered' %}
-        {{ at_btn('入库', variant='accent', icon_l='archive', onclick='atSnStockIn()') }}
+        {{ at_btn(_('入库'), variant='accent', icon_l='archive', onclick='atSnStockIn()') }}
       {% endif %}
     </div>
   </div>
@@ -89,16 +89,16 @@
 
   <!-- 基本信息 + 硬件参数 -->
   <div style="margin-bottom:20px;">
-    {% call at_section('基本信息') %}
+    {% call at_section(_('基本信息')) %}
       {{ at_info_grid(items=[
-        {'k': '序列号',   'v': sn.serial_number, 'mono': true, 'strong': true},
-        {'k': '产品名称', 'v': sn.product.product_name if sn.product else '—'},
-        {'k': '产品型号', 'v': sn.product.model if sn.product else '—', 'mono': true},
-        {'k': '批次号',   'v': sn.batch_number or '—', 'mono': true},
-        {'k': '硬件版本', 'v': sn.hardware_version or '—', 'mono': true},
-        {'k': '固件版本', 'v': sn.firmware_version or '—', 'mono': true},
-        {'k': 'MAC 地址', 'v': sn.mac_address or '—', 'mono': true},
-        {'k': '生产日期', 'v': sn.manufacture_date.strftime('%Y-%m-%d') if sn.manufacture_date else '—', 'mono': true}
+        {'k': _('序列号'),   'v': sn.serial_number, 'mono': true, 'strong': true},
+        {'k': _('产品名称'), 'v': sn.product.product_name if sn.product else '—'},
+        {'k': _('产品型号'), 'v': sn.product.model if sn.product else '—', 'mono': true},
+        {'k': _('批次号'),   'v': sn.batch_number or '—', 'mono': true},
+        {'k': _('硬件版本'), 'v': sn.hardware_version or '—', 'mono': true},
+        {'k': _('固件版本'), 'v': sn.firmware_version or '—', 'mono': true},
+        {'k': _('MAC 地址'), 'v': sn.mac_address or '—', 'mono': true},
+        {'k': _('生产日期'), 'v': sn.manufacture_date.strftime('%Y-%m-%d') if sn.manufacture_date else '—', 'mono': true}
       ], cols=4) }}
     {% endcall %}
   </div>
@@ -109,20 +109,20 @@
   {% if sn.supplier %}
     {% set _supplier_display = sn.supplier.company_name %}
   {% elif sn.purchase_order and sn.purchase_order.company %}
-    {% set _supplier_display = sn.purchase_order.company.company_name ~ ' (自 PO)' %}
+    {% set _supplier_display = sn.purchase_order.company.company_name ~ ' ' ~ _('(自 PO)') %}
   {% endif %}
   {# 入库公司 fallback:inventory.company 无数据时,留空提示 #}
   {% set _inv_company_display = sn.inventory.company.company_name if (sn.inventory and sn.inventory.company) else '—' %}
 
   <div style="margin-bottom:20px;">
-    {% call at_section('采购 · 入库') %}
+    {% call at_section(_('采购 · 入库')) %}
       {{ at_info_grid(items=[
-        {'k': '采购订单',  'v': sn.purchase_order.order_number if sn.purchase_order else '—', 'mono': true},
-        {'k': '供应商',    'v': _supplier_display},
-        {'k': '入库公司',  'v': _inv_company_display},
-        {'k': '仓库位置',  'v': sn.warehouse_location or '—', 'mono': true},
-        {'k': '入库日期',  'v': sn.warehouse_in_date.strftime('%Y-%m-%d') if sn.warehouse_in_date else '—', 'mono': true},
-        {'k': '入库操作',  'v': (sn.received_by.real_name or sn.received_by.username) if sn.received_by else '—'}
+        {'k': _('采购订单'),  'v': sn.purchase_order.order_number if sn.purchase_order else '—', 'mono': true},
+        {'k': _('供应商'),    'v': _supplier_display},
+        {'k': _('入库公司'),  'v': _inv_company_display},
+        {'k': _('仓库位置'),  'v': sn.warehouse_location or '—', 'mono': true},
+        {'k': _('入库日期'),  'v': sn.warehouse_in_date.strftime('%Y-%m-%d') if sn.warehouse_in_date else '—', 'mono': true},
+        {'k': _('入库操作'),  'v': (sn.received_by.real_name or sn.received_by.username) if sn.received_by else '—'}
       ], cols=3) }}
     {% endcall %}
   </div>
@@ -130,15 +130,15 @@
   <!-- 出库 + 客户(仅出库或已交付才显示) -->
   {% if sn.status in ['shipped', 'delivered', 'returned'] or sn.customer_id %}
   <div style="margin-bottom:20px;">
-    {% call at_section('出库 · 交付') %}
+    {% call at_section(_('出库 · 交付')) %}
       {{ at_info_grid(items=[
-        {'k': '客户订单',   'v': sn.sales_order.order_number if sn.sales_order else '—', 'mono': true},
-        {'k': '发货单',     'v': sn.shipment.shipment_number if sn.shipment else '—', 'mono': true},
-        {'k': '出库日期',   'v': sn.ship_out_date.strftime('%Y-%m-%d') if sn.ship_out_date else '—', 'mono': true},
-        {'k': '出库操作',   'v': (sn.shipped_by.real_name or sn.shipped_by.username) if sn.shipped_by else '—'},
-        {'k': '目的地',     'v': sn.destination or '—'},
-        {'k': '客户',       'v': sn.customer.company_name if sn.customer else '—'},
-        {'k': '关联项目',   'v': sn.project.project_name if sn.project else '—'}
+        {'k': _('客户订单'),   'v': sn.sales_order.order_number if sn.sales_order else '—', 'mono': true},
+        {'k': _('发货单'),     'v': sn.shipment.shipment_number if sn.shipment else '—', 'mono': true},
+        {'k': _('出库日期'),   'v': sn.ship_out_date.strftime('%Y-%m-%d') if sn.ship_out_date else '—', 'mono': true},
+        {'k': _('出库操作'),   'v': (sn.shipped_by.real_name or sn.shipped_by.username) if sn.shipped_by else '—'},
+        {'k': _('目的地'),     'v': sn.destination or '—'},
+        {'k': _('客户'),       'v': sn.customer.company_name if sn.customer else '—'},
+        {'k': _('关联项目'),   'v': sn.project.project_name if sn.project else '—'}
       ], cols=3) }}
     {% endcall %}
   </div>
@@ -147,12 +147,12 @@
   <!-- 质保(有质保数据才显示) -->
   {% if sn.warranty_start_date or sn.warranty_end_date %}
   <div style="margin-bottom:20px;">
-    {% call at_section('质保') %}
+    {% call at_section(_('质保')) %}
       {{ at_info_grid(items=[
-        {'k': '质保开始', 'v': sn.warranty_start_date.strftime('%Y-%m-%d') if sn.warranty_start_date else '—', 'mono': true},
-        {'k': '质保结束', 'v': sn.warranty_end_date.strftime('%Y-%m-%d') if sn.warranty_end_date else '—', 'mono': true},
-        {'k': '状态',     'v': '在保' if sn.is_in_warranty else ('过保' if sn.is_in_warranty == False else '—')},
-        {'k': '质保备注', 'v': sn.warranty_notes or '—'}
+        {'k': _('质保开始'), 'v': sn.warranty_start_date.strftime('%Y-%m-%d') if sn.warranty_start_date else '—', 'mono': true},
+        {'k': _('质保结束'), 'v': sn.warranty_end_date.strftime('%Y-%m-%d') if sn.warranty_end_date else '—', 'mono': true},
+        {'k': _('状态'),     'v': _('在保') if sn.is_in_warranty else (_('过保') if sn.is_in_warranty == False else '—')},
+        {'k': _('质保备注'), 'v': sn.warranty_notes or '—'}
       ], cols=4) }}
     {% endcall %}
   </div>
@@ -162,20 +162,20 @@
   <div style="margin-bottom:20px;">
     {% set tl_subtitle = '' %}
     {% if timeline and timeline|length > 0 %}
-      {% set tl_subtitle = '<span class="at-mono at-tab-num">' ~ timeline|length ~ ' 条记录</span>' %}
+      {% set tl_subtitle = '<span class="at-mono at-tab-num">' ~ timeline|length ~ ' ' ~ _('条记录') ~ '</span>' %}
     {% endif %}
-    {% call at_section('生命周期', subtitle=tl_subtitle) %}
+    {% call at_section(_('生命周期'), subtitle=tl_subtitle) %}
       {{ at_timeline(timeline) }}
     {% endcall %}
   </div>
 
   <!-- 元数据 -->
   <div style="margin-bottom:20px;">
-    {% call at_section('元数据') %}
+    {% call at_section(_('元数据')) %}
       {{ at_info_grid(items=[
-        {'k': '创建人',   'v': (sn.created_by.real_name or sn.created_by.username) if sn.created_by else '—'},
-        {'k': '创建时间', 'v': sn.created_at.strftime('%Y-%m-%d %H:%M') if sn.created_at else '—', 'mono': true},
-        {'k': '更新时间', 'v': sn.updated_at.strftime('%Y-%m-%d %H:%M') if sn.updated_at else '—', 'mono': true}
+        {'k': _('创建人'),   'v': (sn.created_by.real_name or sn.created_by.username) if sn.created_by else '—'},
+        {'k': _('创建时间'), 'v': sn.created_at.strftime('%Y-%m-%d %H:%M') if sn.created_at else '—', 'mono': true},
+        {'k': _('更新时间'), 'v': sn.updated_at.strftime('%Y-%m-%d %H:%M') if sn.updated_at else '—', 'mono': true}
       ], cols=3) }}
     {% endcall %}
   </div>
@@ -188,15 +188,15 @@
 <script>
 function atSnStockIn() {
   ATConfirm.show({
-    title: '序列号入库',
+    title: '{{ _("序列号入库") }}',
     icon: 'check',
     variant: 'accent',
-    message: '填写仓库位置后将该 SN 入库,状态推进至「库存中」。',
-    confirmText: '确认入库',
-    cancelText: '取消',
+    message: '{{ _("填写仓库位置后将该 SN 入库,状态推进至「库存中」。") }}',
+    confirmText: '{{ _("确认入库") }}',
+    cancelText: '{{ _("取消") }}',
     input: {
-      label: '仓库位置',
-      placeholder: '例如:A-01-03',
+      label: '{{ _("仓库位置") }}',
+      placeholder: '{{ _("例如:A-01-03") }}',
       required: true,
       multiline: false,
       maxLength: 100,
@@ -211,13 +211,13 @@ function atSnStockIn() {
         .then(r => r.json())
         .then(res => {
           if (res.success) {
-            ATToast.success('入库成功');
+            ATToast.success('{{ _("入库成功") }}');
             setTimeout(() => location.reload(), 700);
           } else {
-            ATToast.error('入库失败', res.message || '');
+            ATToast.error('{{ _("入库失败") }}', res.message || '');
           }
         })
-        .catch(err => ATToast.error('入库失败', String(err)));
+        .catch(err => ATToast.error('{{ _("入库失败") }}', String(err)));
     },
   });
 }

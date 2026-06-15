@@ -14,7 +14,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{{ quotation.quotation_number }} · 报价详情</title>
+<title>{{ quotation.quotation_number }} · {{ _('报价详情') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
@@ -120,9 +120,9 @@
                position:sticky;top:0;z-index:30;">
   <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
-    <a href="#" style="font-size:13px;color:var(--ink-3);">业务管理</a>
+    <a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <a href="{{ url_for('quotation.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">报价管理</a>
+    <a href="{{ url_for('quotation.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('报价管理') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
     <span class="at-mono" style="font-size:13px;color:var(--ink);">{{ quotation.quotation_number }}</span>
     <div style="flex:1;"></div>
@@ -130,7 +130,7 @@
             style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
                    background:var(--bg-elev);font-size:12px;color:var(--ink-2);
                    display:inline-flex;align-items:center;gap:4px;">
-      {{ at_icon('moon', 13) }} 暗色
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
     </button>
   </div>
 </header>
@@ -150,7 +150,7 @@
         <a href="{{ url_for('project.at_view_project', project_id=_src_proj.id) }}"
            style="color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:4px;
                   font-size:11px;letter-spacing:0.05em;text-transform:none;font-weight:500;">
-          ← 返回 {{ _src_proj.project_name }}
+          ← {{ _('返回') }} {{ _src_proj.project_name }}
         </a>
         {% endif %}
       </div>
@@ -184,7 +184,7 @@
                 }
               ) }}
           {% endif %}
-          {% if quotation.is_locked %}{{ at_pill('已锁定', tone='warn') }}{% endif %}
+          {% if quotation.is_locked %}{{ at_pill(_('已锁定'), tone='warn') }}{% endif %}
         {% endcall %}
       </div>
       <div style="margin-top:12px;color:var(--ink-3);font-size:13px;
@@ -206,20 +206,20 @@
         <span style="color:var(--line-2);">|</span>
         {% endif %}
         {% if quotation.project_stage %}
-        <span><span class="at-dim">阶段</span> <span style="color:var(--ink-2);">{{ quotation.project_stage | project_stage_label }}</span></span>
+        <span><span class="at-dim">{{ _('阶段') }}</span> <span style="color:var(--ink-2);">{{ quotation.project_stage | project_stage_label }}</span></span>
         <span style="color:var(--line-2);">|</span>
         {% endif %}
         {% if quotation.owner %}
-        <span><span class="at-dim">负责人</span> <span style="color:var(--ink-2);">{{ quotation.owner.real_name or quotation.owner.username }}</span></span>
+        <span><span class="at-dim">{{ _('负责人') }}</span> <span style="color:var(--ink-2);">{{ quotation.owner.real_name or quotation.owner.username }}</span></span>
         <span style="color:var(--line-2);">|</span>
         {% endif %}
         {% if quotation.created_at %}
-        <span class="at-dim at-mono">创建 {{ quotation.created_at.strftime('%m-%d') }}</span>
+        <span class="at-dim at-mono">{{ _('创建') }} {{ quotation.created_at.strftime('%m-%d') }}</span>
         {% endif %}
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
-      {{ at_btn('返回', variant='ghost', icon_l='back', tag='a',
+      {{ at_btn(_('返回'), variant='ghost', icon_l='back', tag='a',
                 href=url_for('quotation.at_list_view')) }}
       {# 导出(复用既有 export_excel / export_excel_pdf 端点,模板随 SP8D/OVS 自动适配)#}
       {% if not is_new and quotation.id %}
@@ -228,7 +228,7 @@
                 style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
                        background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;
                        display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-          {{ at_icon('download', 12) }}导出
+          {{ at_icon('download', 12) }}{{ _('导出') }}
         </button>
         <div id="qExportMenu" hidden
              style="position:absolute;top:38px;right:0;z-index:900;min-width:170px;
@@ -238,13 +238,13 @@
              style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:6px;
                     font-size:12.5px;color:var(--ink-2);text-decoration:none;"
              onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
-            {{ at_icon('download', 13) }}Excel 报价单</a>
+            {{ at_icon('download', 13) }}{{ _('Excel 报价单') }}</a>
           {# PDF 走 EVERTAC 模板生成器(download_pdf):SP8D 中文 / OVS 英文自动适配,强制下载 #}
           <a href="{{ url_for('quotation.download_pdf', quotation_id=quotation.id) }}"
              style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:6px;
                     font-size:12.5px;color:var(--ink-2);text-decoration:none;"
              onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
-            {{ at_icon('download', 13) }}PDF 报价单</a>
+            {{ at_icon('download', 13) }}{{ _('PDF 报价单') }}</a>
         </div>
       </div>
       {% endif %}
@@ -255,7 +255,7 @@
                 style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
                        background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;
                        display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-          {{ at_icon('pen', 12) }}编辑
+          {{ at_icon('pen', 12) }}{{ _('编辑') }}
         </button>
         {# 旧「技术确认」按钮已移除 — 统一走标准审批「提交审批」入口(下方) #}
         {# 提交审批 / 重新提交(走标准 ApprovalInstance) #}
@@ -263,7 +263,7 @@
         {% set _q_status = (at_ap_status if at_ap_status is defined else 'draft') %}
         {% if _q_status in ('draft', 'rejected', 'recalled') %}
         {% set _q_submit_action = 'resubmit' if _q_status in ('rejected', 'recalled') else 'submit' %}
-        {% set _q_submit_label = '重新发起' if _q_submit_action == 'resubmit' else '技术确认' %}
+        {% set _q_submit_label = _('重新发起') if _q_submit_action == 'resubmit' else _('技术确认') %}
         <button type="button"
                 data-at-approval-quick="{{ _q_submit_action }}"
                 data-api-base="/quotation/api/approval"
@@ -289,11 +289,11 @@
 
         {# 删除 — 已存在且未锁定的报价才允许 #}
         {% if not is_new and not quotation.is_locked %}
-        <button type="button" onclick="atQuoteDelete()" title="删除报价单"
+        <button type="button" onclick="atQuoteDelete()" title="{{ _('删除报价单') }}"
                 style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--danger-soft);
                        background:transparent;color:var(--danger);font-size:12px;font-weight:500;
                        display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-          {{ at_icon('trash', 12) }}删除
+          {{ at_icon('trash', 12) }}{{ _('删除') }}
         </button>
         {% endif %}
       </div>
@@ -301,13 +301,13 @@
         <button type="button" onclick="atQuoteCancelEdit()"
                 style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
                        background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;cursor:pointer;">
-          取消
+          {{ _('取消') }}
         </button>
         <button type="button" onclick="atQuoteSave()"
                 style="height:32px;padding:0 14px;border-radius:6px;border:0;
                        background:var(--accent);color:#fff;font-size:12px;font-weight:500;
                        display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-          {{ at_icon('check', 12) }}保存
+          {{ at_icon('check', 12) }}{{ _('保存') }}
         </button>
       </div>
       {% endif %}
@@ -321,25 +321,25 @@
   {% set _qty_total = (quotation.details | rejectattr('parent_item_id') | map(attribute='quantity') | sum) if quotation.details else 0 %}
   {{ at_summary_strip([
     {
-      'label': '报价总额',
+      'label': _('报价总额'),
       'value': currency_sym ~ '{:,.0f}'.format(quotation.amount or 0),
-      'sub': _items_cnt|string ~ ' 项 · ' ~ _qty_total|int|string ~ ' 件',
+      'sub': _items_cnt|string ~ ' ' ~ _('项') ~ ' · ' ~ _qty_total|int|string ~ ' ' ~ _('件'),
       'strong': true,
     },
     {
-      'label': '植入总额',
+      'label': _('植入总额'),
       'value': currency_sym ~ '{:,.0f}'.format(quotation.implant_total_amount or 0),
       'sub': (quotation.currency or 'CNY') ~ ' · ' ~ ((quotation.currency or 'CNY') | currency_label),
     },
     {
-      'label': '报价阶段',
+      'label': _('报价阶段'),
       'value': (quotation.project_stage | project_stage_label) if quotation.project_stage else '—',
       'sub': (quotation.project_type | project_type_label) if quotation.project_type else '',
     },
     {
-      'label': '质量得分',
-      'value': '{:g}'.format(quality_score|default(0)) ~ ' 分',
-      'sub': (quality_rating|default('—')) ~ '(植入品质 · 推荐产品系数和)',
+      'label': _('质量得分'),
+      'value': '{:g}'.format(quality_score|default(0)) ~ ' ' ~ _('分'),
+      'sub': (quality_rating|default('—')) ~ _('(植入品质 · 推荐产品系数和)'),
     },
   ]) }}
 
@@ -359,18 +359,18 @@
     {% set _has_src_proj = quotation.project is not none %}
     <section class="at-section">
       <header class="at-section-h">
-        <h3 class="at-section-title">基本信息</h3>
+        <h3 class="at-section-title">{{ _('基本信息') }}</h3>
         <span class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;">
-          {% if _has_src_proj %}从项目详情新建 · 关联信息已锁定{% else %}新建 · 必填后保存{% endif %}
+          {% if _has_src_proj %}{{ _('从项目详情新建 · 关联信息已锁定') }}{% else %}{{ _('新建 · 必填后保存') }}{% endif %}
         </span>
       </header>
       <div style="padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;">
         {# 关联项目 — 搜索框 + 清除;有来源项目时 readonly #}
         <div style="grid-column:span 2;">
-          <label style="{{ _label }}">关联项目 {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">(项目和客户至少选其一)</span>{% endif %}</label>
+          <label style="{{ _label }}">{{ _('关联项目') }} {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">{{ _('(项目和客户至少选其一)') }}</span>{% endif %}</label>
           <div style="position:relative;">
             <input type="text" id="qNewProjectSearch" autocomplete="off"
-                   placeholder="输入 2 个以上字符搜索项目名称…"
+                   placeholder="{{ _('输入 2 个以上字符搜索项目名称…') }}"
                    value="{{ quotation.project.project_name if _has_src_proj else '' }}"
                    {% if _has_src_proj %}readonly{% endif %}
                    style="{{ _ro_inp if _has_src_proj else _inp }};padding-right:30px;">
@@ -388,10 +388,10 @@
         </div>
         {# 关联客户 — 来源项目时锁定(若有预填)否则可搜 #}
         <div>
-          <label style="{{ _label }}">关联客户 {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">(同上)</span>{% endif %}</label>
+          <label style="{{ _label }}">{{ _('关联客户') }} {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">{{ _('(同上)') }}</span>{% endif %}</label>
           <div style="position:relative;">
             <input type="text" id="qNewCustomerSearch" autocomplete="off"
-                   placeholder="输入 2 个以上字符搜索客户名称…"
+                   placeholder="{{ _('输入 2 个以上字符搜索客户名称…') }}"
                    value="{{ quotation.customer.company_name if quotation.customer else '' }}"
                    {% if _has_src_proj and quotation.customer %}readonly{% endif %}
                    style="{{ _ro_inp if (_has_src_proj and quotation.customer) else _inp }};padding-right:30px;">
@@ -408,32 +408,32 @@
           </div>
         </div>
         <div>
-          <label style="{{ _label }}">联系人</label>
+          <label style="{{ _label }}">{{ _('联系人') }}</label>
           <select id="qNewContactId" style="{{ _inp }};color:var(--ink);">
-            <option value="">{% if quotation.customer %}— 选择联系人(可选) —{% else %}— 请先选客户 —{% endif %}</option>
+            <option value="">{% if quotation.customer %}{{ _('— 选择联系人(可选) —') }}{% else %}{{ _('— 请先选客户 —') }}{% endif %}</option>
           </select>
         </div>
         <div>
-          <label style="{{ _label }}">项目类型</label>
+          <label style="{{ _label }}">{{ _('项目类型') }}</label>
           <input id="qNewProjectType" type="text" readonly
                  value="{{ (quotation.project_type | project_type_label) if quotation.project_type else '' }}"
                  data-value="{{ quotation.project_type or '' }}"
                  style="{{ _ro_inp }};">
         </div>
         <div>
-          <label style="{{ _label }}">报价阶段 {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">(选项目后自动同步)</span>{% endif %}</label>
+          <label style="{{ _label }}">{{ _('报价阶段') }} {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">{{ _('(选项目后自动同步)') }}</span>{% endif %}</label>
           <select id="qNewProjectStage" style="{{ _ro_inp if _has_src_proj else _inp }}" {% if _has_src_proj %}disabled{% endif %}>
-            <option value="">— 选择阶段 —</option>
+            <option value="">{{ _('— 选择阶段 —') }}</option>
             {% set _stage_opts = [
-              ('discover', '发现'),
-              ('embed', '植入'),
-              ('pre_tender', '标前'),
-              ('tendering', '标中'),
-              ('awarded', '中标'),
-              ('quoted', '批价'),
-              ('signed', '签约'),
-              ('lost', '失败'),
-              ('paused', '搁置'),
+              ('discover', _('发现')),
+              ('embed', _('植入')),
+              ('pre_tender', _('标前')),
+              ('tendering', _('标中')),
+              ('awarded', _('中标')),
+              ('quoted', _('批价')),
+              ('signed', _('签约')),
+              ('lost', _('失败')),
+              ('paused', _('搁置')),
             ] %}
             {% for code, label in _stage_opts %}
             <option value="{{ code }}" {% if code == quotation.project_stage %}selected{% endif %}>{{ label }}</option>
@@ -441,7 +441,7 @@
           </select>
         </div>
         <div>
-          <label style="{{ _label }}">货币</label>
+          <label style="{{ _label }}">{{ _('货币') }}</label>
           <select id="qNewCurrency" style="{{ _inp }}">
             {% for code, name in (available_currencies or []) %}
             <option value="{{ code }}" {% if code == (quotation.currency or 'CNY') %}selected{% endif %}>{{ name }} ({{ code }})</option>
@@ -449,7 +449,7 @@
           </select>
         </div>
         <div>
-          <label style="{{ _label }}">销售负责人</label>
+          <label style="{{ _label }}">{{ _('销售负责人') }}</label>
           <input type="text" value="{{ current_user.real_name or current_user.username }}" readonly
                  style="{{ _inp }};background:var(--bg-sunk);color:var(--ink-3);">
         </div>
@@ -457,19 +457,19 @@
     </section>
     {% else %}
     {# 基本信息 — 已创建,只读 #}
-    {{ at_info_panel('基本信息', [
-          ('报价单号', quotation.quotation_number, 'at-mono'),
-          ('货币', ((quotation.currency or 'CNY') | currency_label) ~ ' ' ~ currency_sym),
-          ('锁定状态', '已锁定' if quotation.is_locked else '未锁定'),
-          ('关联项目', quotation.project.project_name if quotation.project else None),
-          ('关联客户', quotation.customer.company_name if quotation.customer else None),
-          ('项目类型', (quotation.project_type | project_type_label) if quotation.project_type else None),
-          ('报价阶段', (quotation.project_stage | project_stage_label) if quotation.project_stage else None),
-          ('联系人', quotation.contact.name if quotation.contact else None),
-          ('销售负责人', (quotation.owner.real_name or quotation.owner.username) if quotation.owner else None),
-          ('创建时间', quotation.created_at.strftime('%Y-%m-%d %H:%M') if quotation.created_at else None, 'at-mono'),
-          ('更新时间', quotation.updated_at.strftime('%Y-%m-%d %H:%M') if quotation.updated_at else None, 'at-mono'),
-          ('确认时间', quotation.confirmed_at.strftime('%Y-%m-%d %H:%M') if quotation.confirmed_at else None, 'at-mono'),
+    {{ at_info_panel(_('基本信息'), [
+          (_('报价单号'), quotation.quotation_number, 'at-mono'),
+          (_('货币'), ((quotation.currency or 'CNY') | currency_label) ~ ' ' ~ currency_sym),
+          (_('锁定状态'), _('已锁定') if quotation.is_locked else _('未锁定')),
+          (_('关联项目'), quotation.project.project_name if quotation.project else None),
+          (_('关联客户'), quotation.customer.company_name if quotation.customer else None),
+          (_('项目类型'), (quotation.project_type | project_type_label) if quotation.project_type else None),
+          (_('报价阶段'), (quotation.project_stage | project_stage_label) if quotation.project_stage else None),
+          (_('联系人'), quotation.contact.name if quotation.contact else None),
+          (_('销售负责人'), (quotation.owner.real_name or quotation.owner.username) if quotation.owner else None),
+          (_('创建时间'), quotation.created_at.strftime('%Y-%m-%d %H:%M') if quotation.created_at else None, 'at-mono'),
+          (_('更新时间'), quotation.updated_at.strftime('%Y-%m-%d %H:%M') if quotation.updated_at else None, 'at-mono'),
+          (_('确认时间'), quotation.confirmed_at.strftime('%Y-%m-%d %H:%M') if quotation.confirmed_at else None, 'at-mono'),
       ], columns=4) }}
     {% endif %}
 
@@ -491,7 +491,7 @@
     <div style="position:relative;min-height:0;">
     <section class="at-section" style="position:absolute;inset:0;display:flex;flex-direction:column;margin:0;">
       <header class="at-section-h" style="flex-shrink:0;">
-        <h3 class="at-section-title">变更历史</h3>
+        <h3 class="at-section-title">{{ _('变更历史') }}</h3>
         <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ change_history | length }}</span>
       </header>
       {% if change_history %}
@@ -536,7 +536,7 @@
           {% endfor %}
         </div>
       {% else %}
-      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--ink-4);font-size:12px;">暂无变更</div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--ink-4);font-size:12px;">{{ _('暂无变更') }}</div>
       {% endif %}
     </section>
     </div>
@@ -547,14 +547,14 @@
   <div style="margin-top:20px;">
     <section class="at-section">
       <header class="at-section-h">
-        <h3 class="at-section-title">产品明细</h3>
+        <h3 class="at-section-title">{{ _('产品明细') }}</h3>
         <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ _items_cnt }}</span>
         <div style="flex:1;"></div>
         {# 顶部 actions:全局折扣(edit-only)+ 显示折扣 toggle + 编辑/取消/保存按钮 #}
         <div class="edit-only" style="display:none;align-items:center;gap:8px;">
           <div style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;
                       border-radius:6px;background:var(--accent-tint);border:1px solid var(--accent-soft);">
-            <span style="font-size:11.5px;color:var(--accent);font-weight:500;">全局折扣</span>
+            <span style="font-size:11.5px;color:var(--accent);font-weight:500;">{{ _('全局折扣') }}</span>
             <input id="qGlobalDiscount" type="number" min="0" max="999" step="0.01" value="100.00"
                    onchange="atQuoteApplyGlobalDiscount(this.value)"
                    style="width:72px;height:22px;text-align:right;border:0;background:transparent;
@@ -564,12 +564,12 @@
         </div>
         <button type="button" id="qDetailToggleDiscount"
                 onclick="atQuoteToggleDiscount(this)"
-                title="显示/隐藏 市场价 + 折扣 列"
+                title="{{ _('显示/隐藏 市场价 + 折扣 列') }}"
                 style="height:32px;padding:0 10px;border-radius:6px;
                        border:1px solid var(--line);background:var(--bg-elev);
                        color:var(--ink-3);font-size:12px;cursor:pointer;
                        display:inline-flex;align-items:center;gap:5px;">
-          {{ at_icon('check', 12) }}<span data-toggle-label>显示折扣</span>
+          {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示折扣') }}</span>
         </button>
         {# 编辑 / 取消 + 保存 — view ↔ edit 切换(放在产品明细 header 最右)#}
         {% if perms.can_edit and not quotation.is_locked %}
@@ -579,20 +579,20 @@
                   style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
                          background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;
                          display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-            {{ at_icon('pen', 12) }}编辑
+            {{ at_icon('pen', 12) }}{{ _('编辑') }}
           </button>
         </div>
         <div class="edit-only" style="display:none;gap:6px;">
           <button type="button" onclick="atQuoteCancelEdit()"
                   style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
                          background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;cursor:pointer;">
-            取消
+            {{ _('取消') }}
           </button>
           <button type="button" id="qSaveBtn" onclick="atQuoteSave()"
                   style="height:32px;padding:0 14px;border-radius:6px;border:0;
                          background:var(--accent);color:#fff;font-size:12px;font-weight:500;
                          display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-            {{ at_icon('check', 12) }}保存
+            {{ at_icon('check', 12) }}{{ _('保存') }}
           </button>
         </div>
         {% endif %}
@@ -651,7 +651,7 @@
       function hide()  { dd.style.display = 'none'; }
       function render(items, term) {
         if (!items || !items.length) {
-          dd.innerHTML = `<div class="at-dim" style="padding:10px;font-size:12px;">无匹配${cfg.label||'结果'}</div>`;
+          dd.innerHTML = `<div class="at-dim" style="padding:10px;font-size:12px;">${'{{ _("无匹配") }}'}${cfg.label||'{{ _("结果") }}'}</div>`;
           show(); return;
         }
         dd.innerHTML = items.slice(0, 10).map((it, idx) => {
@@ -733,10 +733,10 @@
     let _qNewProjectPicker, _qNewCustomerPicker;
     function _qNewLoadContacts(cid) {
       const sel = document.getElementById('qNewContactId');
-      if (!cid) { sel.innerHTML = '<option value="">— 请先选客户 —</option>'; return; }
+      if (!cid) { sel.innerHTML = '<option value="">{{ _("— 请先选客户 —") }}</option>'; return; }
       fetch(`/quotation/get_customer_contacts/${cid}`).then(r => r.json()).then(res => {
         const items = (res && res.contacts) || [];
-        sel.innerHTML = '<option value="">— 选择联系人(可选) —</option>' + items.map(c =>
+        sel.innerHTML = '<option value="">{{ _("— 选择联系人(可选) —") }}</option>' + items.map(c =>
           `<option value="${c.id}">${_esc(c.name||'')}</option>`).join('');
       });
     }
@@ -744,7 +744,7 @@
       if (!IS_NEW) return;
       _qNewProjectPicker = ATSearchPicker({
         inputId: 'qNewProjectSearch', hiddenIdId: 'qNewProjectId',
-        clearId: 'qNewProjectClear', dropdownId: 'qNewProjectDropdown', label: '项目',
+        clearId: 'qNewProjectClear', dropdownId: 'qNewProjectDropdown', label: '{{ _("项目") }}',
         searchUrl: term => `/quotation/search_projects?q=${encodeURIComponent(term)}`,
         suggestUrl: () => {
           const cid = parseInt(document.getElementById('qNewCustomerId').value) || 0;
@@ -776,7 +776,7 @@
       });
       _qNewCustomerPicker = ATSearchPicker({
         inputId: 'qNewCustomerSearch', hiddenIdId: 'qNewCustomerId',
-        clearId: 'qNewCustomerClear', dropdownId: 'qNewCustomerDropdown', label: '客户',
+        clearId: 'qNewCustomerClear', dropdownId: 'qNewCustomerDropdown', label: '{{ _("客户") }}',
         searchUrl: term => `/quotation/search_customers?q=${encodeURIComponent(term)}`,
         suggestUrl: () => {
           const pid = parseInt(document.getElementById('qNewProjectId').value) || 0;
@@ -800,7 +800,7 @@
           }
         },
         onClear: () => {
-          document.getElementById('qNewContactId').innerHTML = '<option value="">— 请先选客户 —</option>';
+          document.getElementById('qNewContactId').innerHTML = '<option value="">{{ _("— 请先选客户 —") }}</option>';
         },
       });
       // 来源项目预填态:已有 customer_id 时自动拉取联系人列表
@@ -822,7 +822,7 @@
       });
       btn.style.background = showing ? 'var(--accent-tint)' : 'var(--bg-elev)';
       btn.style.color      = showing ? 'var(--accent)' : 'var(--ink-3)';
-      btn.querySelector('[data-toggle-label]').textContent = showing ? '隐藏折扣' : '显示折扣';
+      btn.querySelector('[data-toggle-label]').textContent = showing ? '{{ _("隐藏折扣") }}' : '{{ _("显示折扣") }}';
     };
 
     // ─── 模式切换 ───────────────────────────────────────
@@ -846,21 +846,21 @@
       if (!window._qDirty) { _qRefreshMain(); return; }
       if (window.ATConfirm) {
         ATConfirm.show({
-          title: '放弃修改',
-          message: '当前有未保存的修改,确定放弃并回到只读模式?',
-          confirmText: '放弃修改',
-          cancelText: '继续编辑',
+          title: '{{ _("放弃修改") }}',
+          message: '{{ _("当前有未保存的修改,确定放弃并回到只读模式?") }}',
+          confirmText: '{{ _("放弃修改") }}',
+          cancelText: '{{ _("继续编辑") }}',
           variant: 'warn',
           icon: 'warn',
           onConfirm: () => { window._qDirty = false; _qRefreshMain(); },
         });
-      } else { if (confirm('放弃所有未保存的修改?')) _qRefreshMain(); }
+      } else { if (confirm('{{ _("放弃所有未保存的修改?") }}')) _qRefreshMain(); }
     };
     // 离开页面拦截(刷新/关闭/跳转)
     window.addEventListener('beforeunload', (e) => {
       if (window._qDirty) {
         e.preventDefault();
-        e.returnValue = '当前有未保存的修改,确定离开?';
+        e.returnValue = '{{ _("当前有未保存的修改,确定离开?") }}';
         return e.returnValue;
       }
     });
@@ -983,9 +983,9 @@
     window.atQuoteDelete = function() {
       if (!window.ATConfirm) return;
       ATConfirm.show({
-        title: '删除报价单',
-        message: '此操作不可撤销,确认删除当前报价单及其全部明细?',
-        variant: 'danger', icon: 'warn', confirmText: '删除', cancelText: '取消',
+        title: '{{ _("删除报价单") }}',
+        message: '{{ _("此操作不可撤销,确认删除当前报价单及其全部明细?") }}',
+        variant: 'danger', icon: 'warn', confirmText: '{{ _("删除") }}', cancelText: '{{ _("取消") }}',
         onConfirm: () => {
           const form = document.createElement('form');
           form.method = 'POST';
@@ -1016,15 +1016,15 @@
       const cur  = td.dataset.note || '';
       if (!window.ATConfirm) return;
       ATConfirm.show({
-        title: '编辑备注',
+        title: '{{ _("编辑备注") }}',
         message: `「${name}」`,
         variant: 'accent',
         icon: 'edit',
-        confirmText: '保存',
-        cancelText: '取消',
+        confirmText: '{{ _("保存") }}',
+        cancelText: '{{ _("取消") }}',
         input: {
-          label: '备注',
-          placeholder: '请填写备注…',
+          label: '{{ _("备注") }}',
+          placeholder: '{{ _("请填写备注…") }}',
           multiline: true,
           rows: 5,
           maxLength: 2000,
@@ -1062,7 +1062,7 @@
     window.atQuoteDeleteRowConfirm = function(btn) {
       const tr = btn.closest('tr');
       const nameCell = tr.querySelector('td:nth-child(2)');
-      const name = nameCell ? nameCell.textContent.trim() : '明细';
+      const name = nameCell ? nameCell.textContent.trim() : '{{ _("明细") }}';
       let next = tr.nextElementSibling;
       tr.remove();
       // 顺带移除紧跟的子配置行(没 detail-id 也不是 qgroup-header)
@@ -1071,7 +1071,7 @@
       }
       window._qDirty = true;
       _recomputeFooter();
-      if (window.ATToast) ATToast.success('已删除明细', `${name} 已从报价单中移除`);
+      if (window.ATToast) ATToast.success('{{ _("已删除明细") }}', '{{ _("%(n)s 已从报价单中移除", n="__N__") }}'.replace('__N__', name));
     };
     // 编辑态进入时 reset 所有行内确认态(防止脏状态遗留)
     function _resetAllRowConfirms() {
@@ -1106,7 +1106,7 @@
 
     // ─── 添加产品(打开 ATProductPicker → 选完插入新行 + 配套子行)──────────────────
     window.atQuoteAddProduct = function() {
-      if (!window.ATProductPicker) { alert('产品选择器未加载'); return; }
+      if (!window.ATProductPicker) { alert('{{ _("产品选择器未加载") }}'); return; }
       const globalDisc = parseFloat(document.getElementById('qGlobalDiscount')?.value) || 100;
       const productToDetail = (p, isConfig) => {
         const market = parseFloat(p.price) || 0;
@@ -1152,7 +1152,7 @@
           });
           window._qDirty = true;
           _recomputeFooter();
-          if (window.ATToast) ATToast.success(`已添加 ${total} 条明细`, '保存后归类');
+          if (window.ATToast) ATToast.success('{{ _("已添加 %(n)s 条明细", n="__N__") }}'.replace('__N__', total), '{{ _("保存后归类") }}');
         },
       });
     };
@@ -1221,7 +1221,7 @@
       _qCloseCustomModal();
       window._qDirty = true;
       _recomputeFooter();
-      if (window.ATToast) ATToast.success('已添加', `「${name}」加入明细`);
+      if (window.ATToast) ATToast.success('{{ _("已添加") }}', '{{ _("「%(n)s」加入明细", n="__N__") }}'.replace('__N__', name));
     };
 
     // 构建"自定义产品"分类头(JS 端复制后端 SSR 14-td 结构)
@@ -1303,11 +1303,11 @@
         <td class="td-note editable-note" data-field="item_note" data-note="" style="color:var(--ink-4);font-size:11px;max-width:160px;vertical-align:middle;" title=""></td>
         <td class="td-row-actions" style="text-align:center;display:none;padding:8px;">
           <div class="row-actions" style="display:inline-flex;align-items:center;gap:2px;opacity:0.45;transition:opacity 0ms;">
-            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowAsk(this)" title="删除明细" style="width:26px;height:26px;border-radius:5px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all 100ms;" onmouseenter="this.style.background='var(--danger-soft)';this.style.color='var(--danger)';" onmouseleave="this.style.background='transparent';this.style.color='var(--ink-3)';"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M5 6l1 14a2 2 0 002 2h8a2 2 0 002-2l1-14M10 11v6M14 11v6"/></svg></button>
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowAsk(this)" title="{{ _('删除明细') }}" style="width:26px;height:26px;border-radius:5px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all 100ms;" onmouseenter="this.style.background='var(--danger-soft)';this.style.color='var(--danger)';" onmouseleave="this.style.background='transparent';this.style.color='var(--ink-3)';"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M5 6l1 14a2 2 0 002 2h8a2 2 0 002-2l1-14M10 11v6M14 11v6"/></svg></button>
           </div>
           <div class="row-actions-confirm" style="display:none;align-items:center;gap:4px;padding:2px 4px;border-radius:6px;background:var(--danger-soft);">
-            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowCancel(this)" title="取消" style="width:24px;height:24px;border-radius:4px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowConfirm(this)" title="确认删除" style="width:24px;height:24px;border-radius:4px;border:0;background:var(--danger);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></button>
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowCancel(this)" title="{{ _('取消') }}" style="width:24px;height:24px;border-radius:4px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowConfirm(this)" title="{{ _('确认删除') }}" style="width:24px;height:24px;border-radius:4px;border:0;background:var(--danger);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></button>
           </div>
         </td>
       `;
@@ -1324,7 +1324,7 @@
       // 两个保存按钮(Hero + 产品明细 header)都要同步 disabled / 文字
       const btns = document.querySelectorAll('button[onclick="atQuoteSave()"]');
       const oldHtmls = Array.from(btns).map(b => b.innerHTML);
-      btns.forEach(b => { b.disabled = true; b.textContent = '保存中…'; });
+      btns.forEach(b => { b.disabled = true; b.textContent = '{{ _("保存中…") }}'; });
       try {
         const table = document.getElementById('quotationDetailTable');
         // 收集 DOM 中所有 detail-id(还在的 = 未删除)+ 用户改动的 quantity/unit_price
@@ -1368,8 +1368,8 @@
           // 新建态:从控件读基本信息,走 /quotation/create
           const pid = parseInt(document.getElementById('qNewProjectId').value) || 0;
           const cid = parseInt(document.getElementById('qNewCustomerId').value) || 0;
-          if (!pid) { ATToast.error('请选择关联项目(可先选客户后从其项目中选)'); btns.forEach((b,i)=>{b.disabled=false;b.innerHTML=oldHtmls[i];}); return; }
-          if (!details.length) { ATToast.error('请至少添加一条明细'); btns.forEach((b,i)=>{b.disabled=false;b.innerHTML=oldHtmls[i];}); return; }
+          if (!pid) { ATToast.error('{{ _("请选择关联项目(可先选客户后从其项目中选)") }}'); btns.forEach((b,i)=>{b.disabled=false;b.innerHTML=oldHtmls[i];}); return; }
+          if (!details.length) { ATToast.error('{{ _("请至少添加一条明细") }}'); btns.forEach((b,i)=>{b.disabled=false;b.innerHTML=oldHtmls[i];}); return; }
           body = {
             project_id:  pid,
             customer_id: cid || null,
@@ -1406,21 +1406,21 @@
           window._qDirty = false;
           if (IS_NEW) {
             const newId = data.quotation_id || data.id;
-            if (window.ATToast) ATToast.success('已创建', '跳转中…');
+            if (window.ATToast) ATToast.success('{{ _("已创建") }}', '{{ _("跳转中…") }}');
             // 保留"来源项目"上下文 → 新报价详情顶部也显示"返回项目"链接
             const fromProj = parseInt(document.getElementById('qNewProjectId').value) || 0;
             const suffix = fromProj ? `?from_project=${fromProj}` : '';
             setTimeout(() => location.href = `/quotation/${newId}/at_view${suffix}`, 400);
           } else {
-            if (window.ATToast) ATToast.success('已保存');
+            if (window.ATToast) ATToast.success('{{ _("已保存") }}');
             await _qRefreshMain();
           }
         } else {
-          throw new Error(data.message || '保存失败');
+          throw new Error(data.message || '{{ _("保存失败") }}');
         }
       } catch (e) {
-        if (window.ATToast) ATToast.error('保存失败', e.message);
-        else alert('保存失败:' + e.message);
+        if (window.ATToast) ATToast.error('{{ _("保存失败") }}', e.message);
+        else alert('{{ _("保存失败") }}:' + e.message);
         btns.forEach((b, i) => { b.disabled = false; b.innerHTML = oldHtmls[i]; });
       }
     };
@@ -1462,7 +1462,7 @@
 
   {# 备注 #}
   {% if quotation.notes %}
-  {% call at_detail_section('备注') %}
+  {% call at_detail_section(_('备注')) %}
     <div style="padding:14px 18px;font-size:12.5px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap;">
       {{ quotation.notes }}
     </div>
@@ -1474,8 +1474,8 @@
   {% if _has_related %}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
     {% set _module_meta = {
-      'quotation':     {'label': '同项目其他报价'},
-      'pricing_order': {'label': '关联批价单'},
+      'quotation':     {'label': _('同项目其他报价')},
+      'pricing_order': {'label': _('关联批价单')},
     } %}
     {% for key, data in related.items() %}
     {% if data['items'] %}
@@ -1514,9 +1514,9 @@
         </span>
         <div style="flex:1;">
           <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.14em;margin-bottom:3px;">
-            CUSTOM ITEM · 自定义产品
+            CUSTOM ITEM · {{ _('自定义产品') }}
           </div>
-          <h2 class="at-serif" style="margin:0;font-size:17px;font-weight:500;">手动输入一条明细</h2>
+          <h2 class="at-serif" style="margin:0;font-size:17px;font-weight:500;">{{ _('手动输入一条明细') }}</h2>
         </div>
         <button type="button" onclick="_qCloseCustomModal()"
                 style="width:32px;height:32px;border-radius:6px;color:var(--ink-3);
@@ -1534,22 +1534,22 @@
                      border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
                      font-size:13px;outline:none;transition:border-color 120ms;" %}
         <label style="display:flex;flex-direction:column;gap:6px;">
-          <span style="font-size:12px;color:var(--ink-3);font-weight:500;">产品名称 *</span>
-          <input name="name" required placeholder="例如:定制法兰天线"
+          <span style="font-size:12px;color:var(--ink-3);font-weight:500;">{{ _('产品名称') }} *</span>
+          <input name="name" required placeholder="{{ _('例如:定制法兰天线') }}"
                  oninput="_qCustomValidate()" style="{{ _inp }}">
         </label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <label style="display:flex;flex-direction:column;gap:6px;">
-            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">型号</span>
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">{{ _('型号') }}</span>
             <input name="model" style="{{ _inp }}">
           </label>
           <label style="display:flex;flex-direction:column;gap:6px;">
-            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">品牌</span>
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">{{ _('品牌') }}</span>
             <input name="brand" style="{{ _inp }}">
           </label>
         </div>
         <label style="display:flex;flex-direction:column;gap:6px;">
-          <span style="font-size:12px;color:var(--ink-3);font-weight:500;">规格</span>
+          <span style="font-size:12px;color:var(--ink-3);font-weight:500;">{{ _('规格') }}</span>
           <textarea name="spec" rows="2"
                     style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg-page);
                            border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
@@ -1557,26 +1557,26 @@
         </label>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
           <label style="display:flex;flex-direction:column;gap:6px;">
-            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">数量 *</span>
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">{{ _('数量') }} *</span>
             <input name="qty" type="number" min="1" value="1"
                    oninput="_qCustomValidate()" style="{{ _inp }}">
           </label>
           <label style="display:flex;flex-direction:column;gap:6px;">
-            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">单位</span>
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">{{ _('单位') }}</span>
             <input name="unit" value="套" style="{{ _inp }}">
           </label>
           <label style="display:flex;flex-direction:column;gap:6px;">
-            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">产品编码</span>
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">{{ _('产品编码') }}</span>
             <input name="code" style="{{ _inp }};font-family:var(--font-mono);">
           </label>
         </div>
         <div style="padding:14px;background:var(--bg-sunk);border-radius:8px;">
           <label style="display:flex;flex-direction:column;gap:6px;">
-            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">报价单价 *</span>
+            <span style="font-size:12px;color:var(--ink-3);font-weight:500;">{{ _('报价单价') }} *</span>
             <input name="price" type="number" min="0" step="0.01" value="0"
                    oninput="_qCustomValidate()" style="{{ _inp }};font-family:var(--font-mono);">
             <span class="at-dim" style="font-size:11px;margin-top:2px;">
-              自定义产品无市场价,不参与全局折扣计算
+              {{ _('自定义产品无市场价,不参与全局折扣计算') }}
             </span>
           </label>
         </div>
@@ -1585,12 +1585,12 @@
       <div style="padding:12px 22px;border-top:1px solid var(--line);background:var(--bg-sunk);
                   display:flex;align-items:center;gap:10px;">
         <div class="at-dim" style="font-size:11.5px;flex:1;">
-          自定义产品不入产品库,仅本报价生效
+          {{ _('自定义产品不入产品库,仅本报价生效') }}
         </div>
         <button type="button" onclick="_qCloseCustomModal()"
                 style="height:34px;padding:0 14px;background:transparent;color:var(--ink);
                        border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">
-          取消
+          {{ _('取消') }}
         </button>
         <button type="button" id="qCustomSubmit" onclick="_qCustomSubmit()" disabled
                 style="height:34px;padding:0 14px;background:var(--accent);color:#fff;
@@ -1599,7 +1599,7 @@
                        opacity:0.5;transition:opacity 120ms;">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M8 3v10M3 8h10"/></svg>
-          添加到明细
+          {{ _('添加到明细') }}
         </button>
       </div>
     </div>

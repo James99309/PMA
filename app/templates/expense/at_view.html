@@ -25,7 +25,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{% if is_new %}新建报销{% else %}{{ expense.expense_number }} · 报销详情{% endif %}</title>
+<title>{% if is_new %}{{ _('新建报销') }}{% else %}{{ expense.expense_number }} · {{ _('报销详情') }}{% endif %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
@@ -65,17 +65,17 @@
                position:sticky;top:0;z-index:30;">
   <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
-    <a href="#" style="font-size:13px;color:var(--ink-3);">业务管理</a>
+    <a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <a href="{{ url_for('expense.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">报销管理</a>
+    <a href="{{ url_for('expense.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('报销管理') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <span class="at-mono" style="font-size:13px;color:var(--ink);">{% if is_new %}新建{% else %}{{ expense.expense_number }}{% endif %}</span>
+    <span class="at-mono" style="font-size:13px;color:var(--ink);">{% if is_new %}{{ _('新建') }}{% else %}{{ expense.expense_number }}{% endif %}</span>
     <div style="flex:1;"></div>
     <button onclick="ATPrefs.toggleDark()"
             style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
                    background:var(--bg-elev);font-size:12px;color:var(--ink-2);
                    display:inline-flex;align-items:center;gap:4px;">
-      {{ at_icon('moon', 13) }} 暗色
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
     </button>
   </div>
 </header>
@@ -84,16 +84,16 @@
 
   {% if is_approval_edit %}
   {% set _field_zh = {
-    'title':'报销主题','description':'报销说明','currency':'货币',
-    'exchange_rate':'汇率','customer_id':'关联客户','contact_id':'联系人',
-    'project_id':'关联项目','no_customer_mode':'不关联客户模式',
-    'attribute_to_self':'归属','attributed_to_id':'归属对象','amount':'金额'
+    'title':_('报销主题'),'description':_('报销说明'),'currency':_('货币'),
+    'exchange_rate':_('汇率'),'customer_id':_('关联客户'),'contact_id':_('联系人'),
+    'project_id':_('关联项目'),'no_customer_mode':_('不关联客户模式'),
+    'attribute_to_self':_('归属'),'attributed_to_id':_('归属对象'),'amount':_('金额')
   } %}
   <div style="margin-bottom:18px;padding:10px 16px;background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;
               display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--warn);">
     <span style="font-size:15px;">✎</span>
-    <span><strong>审核修改</strong>{% if approval_step_name %} · 步骤「{{ approval_step_name }}」{% endif %}</span>
-    <span style="color:var(--ink-3);">仅以下字段可改:</span>
+    <span><strong>{{ _('审核修改') }}</strong>{% if approval_step_name %} · {{ _('步骤') }}「{{ approval_step_name }}」{% endif %}</span>
+    <span style="color:var(--ink-3);">{{ _('仅以下字段可改:') }}</span>
     {% for f in editable_fields %}
     <span style="padding:1px 8px;border-radius:3px;background:var(--bg-elev);color:var(--ink);font-size:11.5px;font-weight:500;">{{ _field_zh.get(f, f) }}</span>
     {% endfor %}
@@ -105,11 +105,11 @@
               margin-bottom:24px;flex-wrap:wrap;gap:16px;">
     <div style="flex:1;min-width:0;">
       <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
-        EXPENSE · {% if is_new %}NEW{% else %}{{ expense.expense_number }}{% endif %}
+        EXPENSE · {% if is_new %}NEW{% else %}{{ expense.expense_number }}{% endif %}{# i18n: EXPENSE/NEW 为编号前缀标识,不翻译 #}
       </div>
       <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
         {% if _editable %}
-          <input type="text" id="expTitle" placeholder="默认 客户名-姓名-YYDDHHS"
+          <input type="text" id="expTitle" placeholder="{{ _('默认 客户名-姓名-YYDDHHS') }}"
                  value="{{ expense.title or '' }}" autocomplete="off"
                  style="margin:0;font-size:24px;font-weight:500;letter-spacing:-0.005em;line-height:1.2;
                         font-family:'Source Serif Pro', Georgia, serif;
@@ -119,9 +119,9 @@
                         padding:2px 4px;min-width:280px;max-width:600px;">
           {% call at_header_chip_group() %}
             {% if is_new %}
-              {{ at_pill('新建中', tone='info') }}
+              {{ at_pill(_('新建中'), tone='info') }}
             {% elif is_approval_edit %}
-              {{ at_pill('审核修改中', tone='warn') }}
+              {{ at_pill(_('审核修改中'), tone='warn') }}
             {% else %}
               {{ at_approval_dropdown(
                     object_type='expense', object_id=expense.id,
@@ -136,7 +136,7 @@
                       'title':         expense.title or '',
                     }
                   ) }}
-              {{ at_pill('编辑中', tone='warn') }}
+              {{ at_pill(_('编辑中'), tone='warn') }}
             {% endif %}
           {% endcall %}
         {% else %}
@@ -160,13 +160,13 @@
                     'title':         expense.title or '',
                   }
                 ) }}
-            {% if expense.is_locked %}{{ at_pill('已锁定', tone='warn') }}{% endif %}
+            {% if expense.is_locked %}{{ at_pill(_('已锁定'), tone='warn') }}{% endif %}
           {% endcall %}
         {% endif %}
       </div>
       <div style="margin-top:8px;color:var(--ink-3);font-size:13px;
                   display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        <span>申请人 <span style="color:var(--ink-2);">{{ (expense.owner.real_name or expense.owner.username) if expense.owner else (current_user.real_name or current_user.username) }}</span></span>
+        <span>{{ _('申请人') }} <span style="color:var(--ink-2);">{{ (expense.owner.real_name or expense.owner.username) if expense.owner else (current_user.real_name or current_user.username) }}</span></span>
         {% if not _editable and expense.customer %}
         <span style="color:var(--ink-4);">·</span>
         <span>{{ at_icon('users', 12) }}
@@ -186,7 +186,7 @@
         </span>
         {% endif %}
         <span style="color:var(--ink-4);">·</span>
-        <span class="at-mono">总额
+        <span class="at-mono">{{ _('总额') }}
           <span id="expTotalDisplay" style="color:var(--ink);font-weight:500;">
             {{ currency_sym or '¥' }}{{ '{:,.2f}'.format(expense.total_amount or 0) }}
           </span>
@@ -200,29 +200,29 @@
            style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
                   background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;cursor:pointer;
                   display:inline-flex;align-items:center;text-decoration:none;">
-          取消
+          {{ _('取消') }}
         </a>
         <button type="button" id="expSaveBtn"
                 style="height:32px;padding:0 14px;border-radius:6px;border:0;
                        background:var(--accent);color:#fff;font-size:12px;font-weight:500;
                        display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-          {{ at_icon('check', 12) }}{% if is_new %}创建{% else %}保存{% endif %}
+          {{ at_icon('check', 12) }}{% if is_new %}{{ _('创建') }}{% else %}{{ _('保存') }}{% endif %}
         </button>
       {% else %}
         {# 导出 PDF — 仅已支付(paid) + (admin/ceo 或参与该单审批的财务)可见;不含附件/审批/支付 #}
         {% if can_export_pdf %}
-        {{ at_btn('导出 PDF', variant='ghost', size='sm', icon_l='download', tag='a',
+        {{ at_btn(_('导出 PDF'), variant='ghost', size='sm', icon_l='download', tag='a',
                   href=url_for('expense.export_pdf', id=expense.id)) }}
         {% endif %}
         {% if perms.can_edit %}
-          {{ at_btn('编辑', variant='ghost', size='sm', icon_l='pen', tag='a',
+          {{ at_btn(_('编辑'), variant='ghost', size='sm', icon_l='pen', tag='a',
                     href=url_for('expense.at_view_expense', id=expense.id) ~ '?action=edit') }}
         {% endif %}
 
         {# 提交审批 / 重新提交 — 申请人 + 草稿/驳回/召回 #}
         {% if not is_new and perms.can_edit and expense.status in ['draft', 'rejected', 'recalled'] and not expense.is_locked %}
         {% set _submit_action = 'resubmit' if expense.status in ['rejected', 'recalled'] else 'submit' %}
-        {% set _submit_label = '重新提交' if _submit_action == 'resubmit' else '提交审批' %}
+        {% set _submit_label = _('重新提交') if _submit_action == 'resubmit' else _('提交审批') %}
         <button type="button"
                 data-at-approval-quick="{{ _submit_action }}"
                 data-api-base="/expense/api/approval"
@@ -248,11 +248,11 @@
 
         {# 删除 — 仅草稿/驳回/召回 + 可编辑(创建者)#}
         {% if not is_new and perms.can_edit and expense.status in ['draft', 'rejected', 'recalled'] and not expense.is_locked %}
-        <button type="button" onclick="atExpenseDelete()" title="删除报销单"
+        <button type="button" onclick="atExpenseDelete()" title="{{ _('删除报销单') }}"
                 style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--danger-soft);
                        background:transparent;color:var(--danger);font-size:12px;font-weight:500;
                        display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-          {{ at_icon('trash', 12) }}删除
+          {{ at_icon('trash', 12) }}{{ _('删除') }}
         </button>
         {% endif %}
       {% endif %}
@@ -270,11 +270,11 @@
                    background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
                    font-size:13px;color:var(--ink);outline:none;' %}
     <section class="at-section" style="grid-column:1;">
-      <header class="at-section-h"><h3 class="at-section-title">基本信息</h3></header>
+      <header class="at-section-h"><h3 class="at-section-title">{{ _('基本信息') }}</h3></header>
       <div class="at-section-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div>
-            <label style="{{ _label }}">货币 *</label>
+            <label style="{{ _label }}">{{ _('货币') }} *</label>
             <select id="expCurrency" style="{{ _inp }}">
               {% for code, name in (currency_options or []) %}
               <option value="{{ code }}" {% if code == (expense.currency or default_currency or 'CNY') %}selected{% endif %}>{{ name }} ({{ code }})</option>
@@ -285,48 +285,48 @@
             <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);cursor:pointer;margin:0;">
               <input type="checkbox" id="expNoCustomerMode"
                      {% if expense.no_customer_mode %}checked{% endif %}>
-              不关联客户(培训/办公等)
+              {{ _('不关联客户(培训/办公等)') }}
             </label>
           </div>
           <div data-needs-customer>
-            <label style="{{ _label }}">关联客户 *</label>
+            <label style="{{ _label }}">{{ _('关联客户') }} *</label>
             {{ at_search_picker(
                   id='expCustomer',
                   name='customer_id',
-                  placeholder='输入 2 个以上字符搜索客户…',
+                  placeholder=_('输入 2 个以上字符搜索客户…'),
                   value_text=(expense.customer.company_name if expense.customer else ''),
                   value_id=(expense.customer.id if expense.customer else '')) }}
           </div>
           <div data-needs-customer>
-            <label style="{{ _label }}">联系人 *</label>
+            <label style="{{ _label }}">{{ _('联系人') }} *</label>
             <select id="expContactId" name="contact_id" style="{{ _inp }};color:var(--ink);">
               {% if expense.contact %}
               <option value="{{ expense.contact.id }}" selected>{{ expense.contact.name }}</option>
               {% else %}
-              <option value="">{% if expense.customer %}— 选择联系人 —{% else %}— 请先选客户 —{% endif %}</option>
+              <option value="">{% if expense.customer %}{{ _('— 选择联系人 —') }}{% else %}{{ _('— 请先选客户 —') }}{% endif %}</option>
               {% endif %}
             </select>
           </div>
           <div>
-            <label style="{{ _label }}">关联项目(可选)</label>
+            <label style="{{ _label }}">{{ _('关联项目(可选)') }}</label>
             {{ at_search_picker(
                   id='expProject',
                   name='project_id',
-                  placeholder='输入 2 个以上字符搜索项目…',
+                  placeholder=_('输入 2 个以上字符搜索项目…'),
                   value_text=(expense.project.project_name if expense.project else ''),
                   value_id=(expense.project.id if expense.project else '')) }}
           </div>
           <div>
-            <label style="{{ _label }}">归属</label>
+            <label style="{{ _label }}">{{ _('归属') }}</label>
             <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);height:34px;">
               <input type="checkbox" id="expAttributeToSelf"
                      {% if expense.attribute_to_self is not defined or expense.attribute_to_self %}checked{% endif %}>
-              本人报销
+              {{ _('本人报销') }}
             </label>
           </div>
           <div style="grid-column:1 / -1;">
-            <label style="{{ _label }}">报销说明</label>
-            <textarea id="expDescription" rows="3" placeholder="可选 — 不关联客户时必填"
+            <label style="{{ _label }}">{{ _('报销说明') }}</label>
+            <textarea id="expDescription" rows="3" placeholder="{{ _('可选 — 不关联客户时必填') }}"
                       style="{{ _inp }};height:auto;padding:8px 12px;line-height:1.5;
                              font-family:inherit;resize:vertical;">{{ expense.description or '' }}</textarea>
           </div>
@@ -336,37 +336,37 @@
 
     {# 支付/审批 — 新建/编辑态不显示 #}
     <section class="at-section" style="grid-column:2;">
-      <header class="at-section-h"><h3 class="at-section-title">支付 / 审批</h3></header>
+      <header class="at-section-h"><h3 class="at-section-title">{{ _('支付 / 审批') }}</h3></header>
       <div class="at-section-body">
         <div class="at-dim" style="text-align:center;padding:24px 8px;font-size:12px;">
-          创建后由审批人 / 财务填写
+          {{ _('创建后由审批人 / 财务填写') }}
         </div>
       </div>
     </section>
 
     <section class="at-section" style="grid-column:3;">
-      <header class="at-section-h"><h3 class="at-section-title">元数据</h3></header>
+      <header class="at-section-h"><h3 class="at-section-title">{{ _('元数据') }}</h3></header>
       <div class="at-section-body">
         {% if is_new %}
         <div class="at-dim" style="text-align:center;padding:24px 8px;font-size:12px;">
-          保存后生成编号
+          {{ _('保存后生成编号') }}
         </div>
         {% else %}
         <div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px;">
           <div style="display:flex;justify-content:space-between;">
-            <span class="at-dim">编号</span>
+            <span class="at-dim">{{ _('编号') }}</span>
             <span class="at-mono">{{ expense.expense_number }}</span>
           </div>
           <div style="display:flex;justify-content:space-between;">
-            <span class="at-dim">状态</span>
+            <span class="at-dim">{{ _('状态') }}</span>
             <span>{{ get_status_label(expense.status, 'expense') if expense.status else '—' }}</span>
           </div>
           <div style="display:flex;justify-content:space-between;">
-            <span class="at-dim">创建</span>
+            <span class="at-dim">{{ _('创建') }}</span>
             <span class="at-mono">{{ expense.created_at.strftime('%Y-%m-%d %H:%M') if expense.created_at else '—' }}</span>
           </div>
           <div style="display:flex;justify-content:space-between;">
-            <span class="at-dim">更新</span>
+            <span class="at-dim">{{ _('更新') }}</span>
             <span class="at-mono">{{ expense.updated_at.strftime('%Y-%m-%d %H:%M') if expense.updated_at else '—' }}</span>
           </div>
         </div>
@@ -376,24 +376,24 @@
 
     {% else %}
     {# ═══ 只读:复用 info_panel ═══ #}
-    {{ at_info_panel('基本信息', [
-      ('报销主题', expense.title),
-      ('申请人', (expense.owner.real_name or expense.owner.username) if expense.owner else None),
-      ('关联客户', expense.customer.company_name if expense.customer else None),
-      ('关联项目', expense.project.project_name if expense.project else None),
-      ('联系人', expense.contact.name if expense.contact else None),
-      ('货币', ((expense.currency or 'CNY') | currency_label) ~ ' ' ~ currency_sym),
-      ('总金额', (currency_sym ~ '{:,.2f}'.format(expense.total_amount or 0)), 'at-mono'),
-      ('说明', expense.description),
+    {{ at_info_panel(_('基本信息'), [
+      (_('报销主题'), expense.title),
+      (_('申请人'), (expense.owner.real_name or expense.owner.username) if expense.owner else None),
+      (_('关联客户'), expense.customer.company_name if expense.customer else None),
+      (_('关联项目'), expense.project.project_name if expense.project else None),
+      (_('联系人'), expense.contact.name if expense.contact else None),
+      (_('货币'), ((expense.currency or 'CNY') | currency_label) ~ ' ' ~ currency_sym),
+      (_('总金额'), (currency_sym ~ '{:,.2f}'.format(expense.total_amount or 0)), 'at-mono'),
+      (_('说明'), expense.description),
     ], filter_empty=true) }}
 
     {# 中间卡:科目汇总(申请人本年,含待审批);支付/审批字段已并入右侧元数据 #}
     {% if budget_summary %}
     {% set _bs = budget_summary %}
     {% set _cur = {'CNY':'¥','USD':'$','HKD':'HK$','TWD':'NT$','SGD':'S$','MYR':'RM','IDR':'Rp','THB':'฿','VND':'₫'}.get(_bs.currency, currency_sym or '¥') %}
-    {% set _cat_meta = [('entertainment','招待','#ff6b6b'),('travel','差旅','#45b7d1'),('transport','交通','#4ecdc4'),('office','办公','#96ceb4'),('communication','通讯','#ffeaa7'),('other','其他','#aab7b8')] %}
+    {% set _cat_meta = [('entertainment',_('招待'),'#ff6b6b'),('travel',_('差旅'),'#45b7d1'),('transport',_('交通'),'#4ecdc4'),('office',_('办公'),'#96ceb4'),('communication',_('通讯'),'#ffeaa7'),('other',_('其他'),'#aab7b8')] %}
     <section class="at-section">
-      <header class="at-section-h"><h3 class="at-section-title">科目汇总 · {{ _bs.year }}</h3></header>
+      <header class="at-section-h"><h3 class="at-section-title">{{ _('科目汇总') }} · {{ _bs.year }}</h3></header>
       <div class="at-section-body">
         <div style="display:flex;flex-direction:column;gap:7px;font-size:12.5px;">
           {% for code, label, color in _cat_meta %}
@@ -408,16 +408,16 @@
           {% endif %}
           {% endfor %}
           {% if (_bs.expense_total or 0) == 0 %}
-          <div class="at-dim" style="text-align:center;padding:8px;font-size:12px;">本年暂无报销</div>
+          <div class="at-dim" style="text-align:center;padding:8px;font-size:12px;">{{ _('本年暂无报销') }}</div>
           {% endif %}
           <div style="display:flex;align-items:center;gap:8px;border-top:2px solid var(--line);padding-top:8px;margin-top:2px;font-weight:600;">
-            <span>合计</span>
+            <span>{{ _('合计') }}</span>
             <span style="flex:1;"></span>
             <span class="at-mono">{{ _cur }}{{ '{:,.0f}'.format(_bs.expense_total or 0) }}</span>
           </div>
           {% if _bs.has_budget %}
           <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-4);">
-            <span>预算 {{ _cur }}{{ '{:,.0f}'.format(_bs.budget_total or 0) }}</span>
+            <span>{{ _('预算 %(amount)s', amount=(_cur ~ '{:,.0f}'.format(_bs.budget_total or 0))) }}</span>
             <span style="flex:1;"></span>
             <span style="color:{{ 'var(--danger)' if (_bs.usage_rate or 0)>100 else 'var(--ink-3)' }};">{{ (_bs.usage_rate or 0)|round|int }}%</span>
           </div>
@@ -426,23 +426,23 @@
       </div>
     </section>
     {% else %}
-    {{ at_info_panel('科目汇总', [], empty_text='暂无数据') }}
+    {{ at_info_panel(_('科目汇总'), [], empty_text=_('暂无数据')) }}
     {% endif %}
 
-    {{ at_info_panel('元数据', [
-      ('编号', expense.expense_number, 'at-mono'),
-      ('状态', get_status_label(expense.status, 'expense') if expense.status else None),
-      ('支付状态', get_status_label(expense.payment_status, 'payment') if expense.payment_status else None),
-      ('支付方式', expense.payment_method),
-      ('支付凭证', expense.payment_reference, 'at-mono'),
-      ('支付时间', expense.payment_date.strftime('%Y-%m-%d %H:%M') if expense.payment_date else None, 'at-mono'),
-      ('实际支付', (currency_sym ~ '{:,.2f}'.format(expense.payment_amount)) if expense.payment_amount else None, 'at-mono'),
-      ('审批人', (expense.approver.real_name or expense.approver.username) if expense.approver else None),
-      ('审批时间', expense.approved_at.strftime('%Y-%m-%d %H:%M') if expense.approved_at else None, 'at-mono'),
-      ('审批备注', expense.approval_notes),
-      ('创建时间', expense.created_at.strftime('%Y-%m-%d %H:%M') if expense.created_at else None, 'at-mono'),
-      ('更新时间', expense.updated_at.strftime('%Y-%m-%d %H:%M') if expense.updated_at else None, 'at-mono'),
-      ('锁定状态', '已锁定' if expense.is_locked else None),
+    {{ at_info_panel(_('元数据'), [
+      (_('编号'), expense.expense_number, 'at-mono'),
+      (_('状态'), get_status_label(expense.status, 'expense') if expense.status else None),
+      (_('支付状态'), get_status_label(expense.payment_status, 'payment') if expense.payment_status else None),
+      (_('支付方式'), expense.payment_method),
+      (_('支付凭证'), expense.payment_reference, 'at-mono'),
+      (_('支付时间'), expense.payment_date.strftime('%Y-%m-%d %H:%M') if expense.payment_date else None, 'at-mono'),
+      (_('实际支付'), (currency_sym ~ '{:,.2f}'.format(expense.payment_amount)) if expense.payment_amount else None, 'at-mono'),
+      (_('审批人'), (expense.approver.real_name or expense.approver.username) if expense.approver else None),
+      (_('审批时间'), expense.approved_at.strftime('%Y-%m-%d %H:%M') if expense.approved_at else None, 'at-mono'),
+      (_('审批备注'), expense.approval_notes),
+      (_('创建时间'), expense.created_at.strftime('%Y-%m-%d %H:%M') if expense.created_at else None, 'at-mono'),
+      (_('更新时间'), expense.updated_at.strftime('%Y-%m-%d %H:%M') if expense.updated_at else None, 'at-mono'),
+      (_('锁定状态'), _('已锁定') if expense.is_locked else None),
     ], filter_empty=true) }}
     {% endif %}
 
@@ -453,7 +453,7 @@
   {# ═══ 可编辑明细表 ═══ #}
   <section class="at-section" style="margin-bottom:16px;">
     <header class="at-section-h">
-      <h3 class="at-section-title">报销明细</h3>
+      <h3 class="at-section-title">{{ _('报销明细') }}</h3>
       <span id="expDetailCount" class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">
         {{ (expense.details | length) if expense.details else 0 }}
       </span>
@@ -462,7 +462,7 @@
         <input type="file" id="expGlobalOcrFile" multiple accept="image/*,application/pdf" style="display:none;">
         <button type="button" id="expAddDetailBtn" class="at-btn at-btn-ghost at-btn-sm"
                 style="display:inline-flex;align-items:center;gap:4px;">
-          {{ at_icon('plus', 12) }}添加明细
+          {{ at_icon('plus', 12) }}{{ _('添加明细') }}
           <svg width="9" height="6" viewBox="0 0 9 6" style="margin-left:2px;"><path d="M1 1l3.5 3L8 1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
         <div id="expAddDetailMenu"
@@ -477,8 +477,8 @@
                   onmouseout="this.style.background='transparent'">
             <span style="font-size:14px;">📸</span>
             <div>
-              <div style="font-weight:500;">通过发票添加</div>
-              <div class="at-dim" style="font-size:10.5px;margin-top:1px;">自动识别 · 支持多张</div>
+              <div style="font-weight:500;">{{ _('通过发票添加') }}</div>
+              <div class="at-dim" style="font-size:10.5px;margin-top:1px;">{{ _('自动识别 · 支持多张') }}</div>
             </div>
           </button>
           <div style="height:1px;background:var(--line);"></div>
@@ -490,8 +490,8 @@
                   onmouseout="this.style.background='transparent'">
             <span style="font-size:14px;">✎</span>
             <div>
-              <div style="font-weight:500;">手动添加</div>
-              <div class="at-dim" style="font-size:10.5px;margin-top:1px;">空白明细 · 自己填字段</div>
+              <div style="font-weight:500;">{{ _('手动添加') }}</div>
+              <div class="at-dim" style="font-size:10.5px;margin-top:1px;">{{ _('空白明细 · 自己填字段') }}</div>
             </div>
           </button>
         </div>
@@ -501,14 +501,14 @@
       <table class="at-table" id="expDetailsTable" style="width:100%;border-collapse:collapse;font-size:12.5px;">
         <thead>
           <tr style="background:var(--bg-page);">
-            <th style="padding:8px 10px;text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:100px;">类别 *</th>
-            <th style="padding:8px 10px;text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:118px;">发生日期 *</th>
-            <th style="padding:8px 10px;text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);">说明</th>
-            <th style="padding:8px 10px;text-align:right;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:110px;">发票金额 *</th>
-            <th style="padding:8px 6px;text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:72px;">货币 *</th>
-            <th style="padding:8px 6px;text-align:right;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:90px;" title="可手动调整;默认按当日中间价">汇率</th>
-            <th style="padding:8px 10px;text-align:right;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:110px;" title="发票金额 × 汇率 → 报销单货币">报销金额</th>
-            <th style="padding:8px 6px;text-align:center;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:148px;">发票图</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:100px;">{{ _('类别') }} *</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:118px;">{{ _('发生日期') }} *</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);">{{ _('说明') }}</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:110px;">{{ _('发票金额') }} *</th>
+            <th style="padding:8px 6px;text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:72px;">{{ _('货币') }} *</th>
+            <th style="padding:8px 6px;text-align:right;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:90px;" title="{{ _('可手动调整;默认按当日中间价') }}">{{ _('汇率') }}</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:110px;" title="{{ _('发票金额 × 汇率 → 报销单货币') }}">{{ _('报销金额') }}</th>
+            <th style="padding:8px 6px;text-align:center;font-weight:500;color:var(--ink-3);font-size:11px;letter-spacing:0.04em;border-bottom:1px solid var(--line);width:148px;">{{ _('发票图') }}</th>
             <th style="padding:8px 10px;border-bottom:1px solid var(--line);width:36px;"></th>
           </tr>
         </thead>
@@ -518,7 +518,7 @@
             {# 编辑态:渲染现有明细行(JS 会接管) #}
             <tr data-detail-id="{{ d.id }}" data-existing="1">
               <td colspan="6" style="padding:8px;color:var(--ink-4);font-size:11px;">
-                明细 #{{ loop.index }} — JS 加载中…
+                {{ _('明细 #%(idx)s — JS 加载中…', idx=loop.index) }}
               </td>
             </tr>
             {% endfor %}
@@ -526,7 +526,7 @@
         </tbody>
         <tfoot>
           <tr style="background:var(--bg-page);">
-            <td colspan="6" style="padding:10px;text-align:right;color:var(--ink-3);font-weight:500;">报销合计</td>
+            <td colspan="6" style="padding:10px;text-align:right;color:var(--ink-3);font-weight:500;">{{ _('报销合计') }}</td>
             <td style="padding:10px;text-align:right;color:var(--ink);font-weight:600;" class="at-mono">
               <span id="expCurrencySym">{{ currency_sym or '¥' }}</span><span id="expGrandTotal">0.00</span>
             </td>
@@ -536,7 +536,7 @@
       </table>
       <div id="expDetailsEmpty" style="padding:24px;text-align:center;color:var(--ink-4);font-size:12.5px;
                                        display:{{ 'none' if expense.details else 'block' }};">
-        暂无明细 — 点击右上角「添加明细」开始
+        {{ _('暂无明细 — 点击右上角「添加明细」开始') }}
       </div>
     </div>
   </section>
@@ -548,7 +548,7 @@
 
   {% else %}
   {# ═══ 只读明细表 ═══ #}
-  {% call at_detail_section('报销明细', count=(expense.details | length)) %}
+  {% call at_detail_section(_('报销明细'), count=(expense.details | length)) %}
     <div style="overflow-x:auto;">
       {{ render_expense_details_table(expense.details or [],
                                        currency_symbol=currency_sym,
@@ -559,7 +559,7 @@
 
   {# ── 关联(同项目其他报销)— 仅只读态 ── #}
   {% if not _editable and related and related.expense and related.expense['items'] %}
-    {% call at_detail_section('同项目其他报销',
+    {% call at_detail_section(_('同项目其他报销'),
                               count=related.expense['items']|length,
                               has_more=related.expense.has_more) %}
       {{ render_minitable('expense', related.expense['items']) }}
@@ -602,14 +602,14 @@
       let files = [];
       try { files = JSON.parse(btn.dataset.files || '[]'); } catch (_) {}
       files = files.map(f => ({
-        name: f.filename || f.name || '附件',
+        name: f.filename || f.name || '{{ _("附件") }}',
         url: f.url,
         size: f.size,
         type: f.type,
         uploaded_at: f.uploaded_at,
       }));
       if (window.ATFilePreview) {
-        ATFilePreview.open(btn.dataset.label || '发票预览', files);
+        ATFilePreview.open(btn.dataset.label || '{{ _("发票预览") }}', files);
       }
     });
   });
@@ -619,9 +619,9 @@
   window.atExpenseDelete = function () {
     if (!window.ATConfirm) { console.error('[at-confirm] not loaded'); return; }
     ATConfirm.show({
-      title: '删除报销单',
-      message: '此操作不可撤销,确认删除当前报销单及其全部明细?',
-      variant: 'danger', icon: 'warn', confirmText: '删除', cancelText: '取消',
+      title: '{{ _("删除报销单") }}',
+      message: '{{ _("此操作不可撤销,确认删除当前报销单及其全部明细?") }}',
+      variant: 'danger', icon: 'warn', confirmText: '{{ _("删除") }}', cancelText: '{{ _("取消") }}',
       onConfirm: function () {
         var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
         fetch('/expense/{{ expense.id }}/delete', {
@@ -633,14 +633,14 @@
         }).then(function (r) { return r.json().catch(function () { return {}; }); })
           .then(function (res) {
             if (res && res.success === false) {
-              if (window.ATToast) ATToast.error(res.message || '删除失败');
+              if (window.ATToast) ATToast.error(res.message || '{{ _("删除失败") }}');
               return;
             }
-            if (window.ATToast) ATToast.success('已删除', '跳转列表中…');
+            if (window.ATToast) ATToast.success('{{ _("已删除") }}', '{{ _("跳转列表中…") }}');
             setTimeout(function () { location.href = '{{ url_for("expense.at_list_view") }}'; }, 400);
           })
           .catch(function (e) {
-            if (window.ATToast) ATToast.error('网络错误', e.message || '');
+            if (window.ATToast) ATToast.error('{{ _("网络错误") }}', e.message || '');
           });
       },
     });
