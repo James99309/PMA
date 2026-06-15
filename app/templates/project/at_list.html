@@ -5,20 +5,20 @@
 {% from 'components/quality_badge.html' import quality_badge %}
 
 {% block sidebar_active %}project{% endblock %}
-{% block page_title %}项目管理{% endblock %}
-{% block category_label %}PROJECT · 业务管理{% endblock %}
-{% block page_description %}跟踪项目从发现、植入、投标到签约的完整阶段。{% endblock %}
+{% block page_title %}{{ _('项目管理') }}{% endblock %}
+{% block category_label %}PROJECT · {{ _('业务管理') }}{% endblock %}
+{% block page_description %}{{ _('跟踪项目从发现、植入、投标到签约的完整阶段。') }}{% endblock %}
 
 {% block breadcrumb %}
-<a href="#" style="font-size:13px;color:var(--ink-3);">业务管理</a>
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-<span style="font-size:13px;color:var(--ink);">项目管理</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('项目管理') }}</span>
 {% endblock %}
 
 {% block page_actions %}
-{{ at_btn('市场情报库', variant='ghost', icon_l='search', tag='a', href=url_for('prospect.list_view')) }}
+{{ at_btn(_('市场情报库'), variant='ghost', icon_l='search', tag='a', href=url_for('prospect.list_view')) }}
 {% if has_permission('project', 'create') %}
-{{ at_btn('新建项目', variant='primary', icon_l='plus', onclick="atOpenProjectForm('create')") }}
+{{ at_btn(_('新建项目'), variant='primary', icon_l='plus', onclick="atOpenProjectForm('create')") }}
 {% endif %}
 {% endblock %}
 
@@ -44,15 +44,15 @@
 
 {% block tabs %}
 {% set _tabs = [
-  {'k':'all',        'l':'全部',  'c':tab_counts.all},
-  {'k':'discover',   'l':'发现',  'c':tab_counts.discover},
-  {'k':'embed',      'l':'植入',  'c':tab_counts.embed},
-  {'k':'pre_tender', 'l':'标前',  'c':tab_counts.pre_tender},
-  {'k':'tendering',  'l':'标中',  'c':tab_counts.tendering},
-  {'k':'awarded',    'l':'中标',  'c':tab_counts.awarded},
-  {'k':'win_locked', 'l':'锁定成功', 'c':tab_counts.win_locked},
-  {'k':'signed',     'l':'签约',  'c':tab_counts.signed},
-  {'k':'closed',     'l':'失败/暂停', 'c':tab_counts.closed}
+  {'k':'all',        'l':_('全部'),  'c':tab_counts.all},
+  {'k':'discover',   'l':_('发现'),  'c':tab_counts.discover},
+  {'k':'embed',      'l':_('植入'),  'c':tab_counts.embed},
+  {'k':'pre_tender', 'l':_('标前'),  'c':tab_counts.pre_tender},
+  {'k':'tendering',  'l':_('标中'),  'c':tab_counts.tendering},
+  {'k':'awarded',    'l':_('中标'),  'c':tab_counts.awarded},
+  {'k':'win_locked', 'l':_('锁定成功'), 'c':tab_counts.win_locked},
+  {'k':'signed',     'l':_('签约'),  'c':tab_counts.signed},
+  {'k':'closed',     'l':_('失败/暂停'), 'c':tab_counts.closed}
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
@@ -77,14 +77,14 @@
     <input type="hidden" name="tab" value="{{ current_tab }}">
     {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
     {% for v in ptype_values %}<input type="hidden" name="ptype" value="{{ v }}">{% endfor %}
-    {{ at_input(name='search', value=search, placeholder='搜索项目名 / 授权码…', icon_l='search', width='320px') }}
+    {{ at_input(name='search', value=search, placeholder=_('搜索项目名 / 授权码…'), icon_l='search', width='320px') }}
   </form>
   {% if show_filter %}
   {{ at_filter_panel(
        action_url=url_for('project.at_list_view'),
        fields=[
-         {'key':'owner','label':'负责人','type':'user','items':owner_options,'values':owner_values},
-         {'key':'ptype','label':'类型','type':'select','options':type_options,'values':ptype_values},
+         {'key':'owner','label':_('负责人'),'type':'user','items':owner_options,'values':owner_values},
+         {'key':'ptype','label':_('类型'),'type':'select','options':type_options,'values':ptype_values},
        ],
        hidden={'tab':current_tab,'search':search},
        panel_id='projFilterPanel') }}
@@ -93,8 +93,8 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('项目','left'),('阶段','left'),('类型','left'),
-                ('报价额','right'),('所属','left'),('交期','left'),('更新','left')] %}
+{% for h, a in [(_('项目'),'left'),(_('阶段'),'left'),(_('类型'),'left'),
+                (_('报价额'),'right'),(_('所属'),'left'),(_('交期'),'left'),(_('更新'),'left')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -117,9 +117,9 @@
       {# 未跟进标识(橘色):有授权编号跟在编号后,否则单独占名称下一行 #}
       {% set _od = overdue_days.get(p.id) if overdue_days else none %}
       {% if p.authorization_code %}
-      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ p.authorization_code }}{% if _od %} <span style="color:var(--warn);font-weight:500;">· {{ _od }} 天未跟进</span>{% endif %}</span>
+      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ p.authorization_code }}{% if _od %} <span style="color:var(--warn);font-weight:500;">· {{ _('%(d)s 天未跟进', d=_od) }}</span>{% endif %}</span>
       {% elif _od %}
-      <span style="font-size:11px;color:var(--warn);font-weight:500;">{{ _od }} 天未跟进</span>
+      <span style="font-size:11px;color:var(--warn);font-weight:500;">{{ _('%(d)s 天未跟进', d=_od) }}</span>
       {% endif %}
     </div>
   </td>
@@ -156,7 +156,7 @@
 {% else %}
 <tr>
   <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-    没有符合筛选条件的项目
+    {{ _('没有符合筛选条件的项目') }}
   </td>
 </tr>
 {% endfor %}
@@ -165,15 +165,15 @@
 {% block pagination %}
 {% if pagination.pages > 1 %}
 <span class="at-mono at-dim" style="font-size:11.5px;">
-  第 {{ pagination.page }} / {{ pagination.pages }} 页
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
 </span>
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
-    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
               href=url_for('project.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
   {% endif %}
   {% if pagination.has_next %}
-    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
               href=url_for('project.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
   {% endif %}
 </div>

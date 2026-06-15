@@ -2,14 +2,14 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
 
 {% block sidebar_active %}product{% endblock %}
-{% block page_title %}产品库{% endblock %}
-{% block category_label %}PRODUCT · 产品中心{% endblock %}
-{% block page_description %}产品型号、规格、价格管理 — 报价/批价/采购共享数据源。{% endblock %}
+{% block page_title %}{{ _('产品库') }}{% endblock %}
+{% block category_label %}PRODUCT · {{ _('产品中心') }}{% endblock %}
+{% block page_description %}{{ _('产品型号、规格、价格管理 — 报价/批价/采购共享数据源。') }}{% endblock %}
 
 {% block breadcrumb %}
-<a href="#" style="font-size:13px;color:var(--ink-3);">产品中心</a>
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('产品中心') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-<span style="font-size:13px;color:var(--ink);">产品库</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('产品库') }}</span>
 {% endblock %}
 
 {% block page_actions %}
@@ -19,17 +19,17 @@
                display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;
                background:var(--accent);color:#fff;transition:opacity 120ms;"
         onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">
-  {{ at_icon('plus', 14) }} 引入产品
+  {{ at_icon('plus', 14) }} {{ _('引入产品') }}
 </button>
 {% endif %}
 {% endblock %}
 
 {% block tabs %}
 {% set _tabs = [
-  {'k':'all',          'l':'全部',     'c':tab_counts.all},
-  {'k':'active',       'l':'在售',     'c':tab_counts.active},
-  {'k':'upcoming',     'l':'即将上架', 'c':tab_counts.upcoming},
-  {'k':'discontinued', 'l':'已停产',   'c':tab_counts.discontinued}
+  {'k':'all',          'l':_('全部'),     'c':tab_counts.all},
+  {'k':'active',       'l':_('在售'),     'c':tab_counts.active},
+  {'k':'upcoming',     'l':_('即将上架'), 'c':tab_counts.upcoming},
+  {'k':'discontinued', 'l':_('已停产'),   'c':tab_counts.discontinued}
 ] %}
 {% for t in _tabs %}
 {# 状态 tab 仅在该状态对当前用户可见时显示(content_filters 配置);全部 tab 始终显示 #}
@@ -53,14 +53,14 @@
 <form method="get" action="{{ url_for('product.at_list_view') }}"
       style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
   <input type="hidden" name="tab" value="{{ current_tab }}">
-  {{ at_input(name='search', value=search, placeholder='搜索产品 MN / 型号 / 名称…', icon_l='search', width='360px') }}
+  {{ at_input(name='search', value=search, placeholder=_('搜索产品 MN / 型号 / 名称…'), icon_l='search', width='360px') }}
 </form>
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('产品 MN','left'),('型号','left'),('名称','left'),
-                ('品牌','left'),('类别','left'),
-                ('单价','right'),('状态','left')] %}
+{% for h, a in [(_('产品 MN'),'left'),(_('型号'),'left'),(_('名称'),'left'),
+                (_('品牌'),'left'),(_('类别'),'left'),
+                (_('单价'),'right'),(_('状态'),'left')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -106,7 +106,7 @@
 {% else %}
 <tr>
   <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-    没有符合筛选条件的产品
+    {{ _('没有符合筛选条件的产品') }}
   </td>
 </tr>
 {% endfor %}
@@ -115,15 +115,15 @@
 {% block pagination %}
 {% if pagination.pages > 1 %}
 <span class="at-mono at-dim" style="font-size:11.5px;">
-  第 {{ pagination.page }} / {{ pagination.pages }} 页
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
 </span>
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
-    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
               href=url_for('product.at_list_view', tab=current_tab, page=pagination.prev_num, search=search)) }}
   {% endif %}
   {% if pagination.has_next %}
-    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
               href=url_for('product.at_list_view', tab=current_tab, page=pagination.next_num, search=search)) }}
   {% endif %}
 </div>
@@ -147,9 +147,9 @@
                 padding:20px 24px 16px;flex-shrink:0;">
       <div>
         <div class="at-mono at-dim" style="font-size:10px;letter-spacing:0.15em;margin-bottom:4px;">
-          PRODUCT · 引入配置
+          PRODUCT · {{ _('引入配置') }}
         </div>
-        <div style="font-size:16px;font-weight:500;color:var(--ink);">选择配置产品</div>
+        <div style="font-size:16px;font-weight:500;color:var(--ink);">{{ _('选择配置产品') }}</div>
       </div>
       <button onclick="atImport.closeCfgModal()"
               style="width:28px;height:28px;border:none;background:none;cursor:pointer;
@@ -161,7 +161,7 @@
 
     {# Search #}
     <div style="padding:14px 24px 12px;flex-shrink:0;border-bottom:1px solid var(--line-soft);">
-      <input id="cfgSearch" type="text" placeholder="搜索型号或 MN 编码…"
+      <input id="cfgSearch" type="text" placeholder="{{ _('搜索型号或 MN 编码…') }}"
              oninput="atImport.onCfgSearch(this.value)"
              style="width:100%;box-sizing:border-box;height:34px;padding:0 12px;
                     border:1px solid var(--line);border-radius:6px;
@@ -174,14 +174,14 @@
     <div id="cfgTreeArea"
          style="flex:1;overflow-y:auto;padding:8px 0;min-height:200px;max-height:340px;">
       <div id="cfgTreeLoading" style="padding:60px;text-align:center;color:var(--ink-3);font-size:13px;">
-        加载中…
+        {{ _('加载中…') }}
       </div>
       <div id="cfgTreeContent" style="display:none;"></div>
       <div id="cfgTreeEmpty" style="display:none;padding:60px;text-align:center;color:var(--ink-4);font-size:13px;">
-        暂无可引入的配置产品
+        {{ _('暂无可引入的配置产品') }}
       </div>
       <div id="cfgTreeError" style="display:none;padding:40px;text-align:center;color:#e53935;font-size:13px;">
-        加载失败，<a href="#" onclick="atImport.loadCfgTree();return false;" style="color:var(--accent);">重试</a>
+        {{ _('加载失败，') }}<a href="#" onclick="atImport.loadCfgTree();return false;" style="color:var(--accent);">{{ _('重试') }}</a>
       </div>
     </div>
 
@@ -191,18 +191,18 @@
                 background:var(--bg);border:1px solid var(--accent);border-radius:8px;flex-shrink:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span style="font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);">
-          已选择
+          {{ _('已选择') }}
         </span>
         <button onclick="atImport.clearCfgSelection()"
                 style="font-size:11px;color:var(--ink-3);border:none;background:none;cursor:pointer;
                        padding:2px 6px;border-radius:3px;"
                 onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background='none'">
-          取消选择
+          {{ _('取消选择') }}
         </button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12.5px;">
         <div>
-          <span style="color:var(--ink-3);">型号 </span>
+          <span style="color:var(--ink-3);">{{ _('型号') }} </span>
           <span id="cfgPrevModel" class="at-mono" style="color:var(--ink);font-weight:500;"></span>
         </div>
         <div>
@@ -210,11 +210,11 @@
           <span id="cfgPrevMN" class="at-mono" style="color:var(--ink);"></span>
         </div>
         <div>
-          <span style="color:var(--ink-3);">分类 </span>
+          <span style="color:var(--ink-3);">{{ _('分类') }} </span>
           <span id="cfgPrevCat" style="color:var(--ink);"></span>
         </div>
         <div>
-          <span style="color:var(--ink-3);">区域 </span>
+          <span style="color:var(--ink-3);">{{ _('区域') }} </span>
           <span id="cfgPrevRegion" style="color:var(--ink);"></span>
         </div>
       </div>
@@ -226,13 +226,13 @@
       <button onclick="atImport.closeCfgModal()"
               style="height:34px;padding:0 16px;border-radius:6px;border:1px solid var(--line);
                      background:var(--bg-elev);color:var(--ink-2);font-size:13px;cursor:pointer;">
-        取消
+        {{ _('取消') }}
       </button>
       <button id="btnCfgNext" onclick="atImport.openProductForm()" disabled
               style="height:34px;padding:0 16px;border-radius:6px;border:none;
                      background:var(--accent);color:#fff;font-size:13px;font-weight:500;
                      cursor:not-allowed;opacity:0.4;transition:opacity 120ms;">
-        下一步
+        {{ _('下一步') }}
       </button>
     </div>
   </div>
@@ -256,11 +256,11 @@
                        background:var(--bg-elev);color:var(--ink-2);font-size:12px;cursor:pointer;
                        display:flex;align-items:center;gap:4px;"
                 onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background='var(--bg-elev)'">
-          ← 返回
+          ← {{ _('返回') }}
         </button>
         <div>
-          <div class="at-mono at-dim" style="font-size:10px;letter-spacing:0.15em;margin-bottom:2px;">从配置引入</div>
-          <div style="font-size:16px;font-weight:500;color:var(--ink);">填写产品信息</div>
+          <div class="at-mono at-dim" style="font-size:10px;letter-spacing:0.15em;margin-bottom:2px;">{{ _('从配置引入') }}</div>
+          <div style="font-size:16px;font-weight:500;color:var(--ink);">{{ _('填写产品信息') }}</div>
         </div>
       </div>
       <button onclick="atImport.closeProductForm()"
@@ -287,19 +287,19 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;
                   padding:12px 16px;background:var(--bg);border-radius:8px;border:1px solid var(--line-soft);">
         <div>
-          <div style="font-size:11px;color:var(--ink-3);margin-bottom:3px;">分类</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:3px;">{{ _('分类') }}</div>
           <div id="pfCatDisplay" style="font-size:13px;color:var(--ink-2);"></div>
         </div>
         <div>
           <div style="font-size:11px;color:var(--ink-3);margin-bottom:3px;">
-            销售区域 <span id="pfRegionRequired" style="display:none;color:#e53935;">*</span>
+            {{ _('销售区域') }} <span id="pfRegionRequired" style="display:none;color:#e53935;">*</span>
           </div>
           <div id="pfRegionDisplay" style="font-size:13px;color:var(--ink-2);"></div>
           <select id="pfRegionSelect"
                   style="display:none;width:100%;height:34px;padding:0 8px;
                          border:1px solid var(--line);border-radius:6px;
                          background:var(--bg);color:var(--ink);font-size:13px;cursor:pointer;">
-            <option value="">— 请选择 —</option>
+            <option value="">{{ _('— 请选择 —') }}</option>
             {% for r in regions %}
             <option value="{{ r.id }}">{{ r.name }}</option>
             {% endfor %}
@@ -310,7 +310,7 @@
       {# Product name (引用自配置，只读) #}
       <div style="margin-bottom:14px;">
         <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">
-          产品名称
+          {{ _('产品名称') }}
         </label>
         <input id="pfName" type="text" readonly
                style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
@@ -322,7 +322,7 @@
       {# Brand + Unit #}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
         <div>
-          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">品牌</label>
+          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('品牌') }}</label>
           <input id="pfBrand" type="text"
                  style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
                         border:1px solid var(--line);border-radius:6px;
@@ -331,7 +331,7 @@
                  onblur="this.style.borderColor='var(--line)'">
         </div>
         <div>
-          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">单位</label>
+          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('单位') }}</label>
           <input id="pfUnit" type="text"
                  style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
                         border:1px solid var(--line);border-radius:6px;
@@ -344,7 +344,7 @@
       {# Currency + Price #}
       <div style="display:grid;grid-template-columns:100px 1fr;gap:12px;margin-bottom:14px;">
         <div>
-          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">货币</label>
+          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('货币') }}</label>
           <input id="pfCurrency" type="text" readonly
                  value="{{ currency_config.currency }}"
                  style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
@@ -353,7 +353,7 @@
                         cursor:default;">
         </div>
         <div>
-          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">标准价格</label>
+          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('标准价格') }}</label>
           <input id="pfPrice" type="number" step="0.01" min="0"
                  style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
                         border:1px solid var(--line);border-radius:6px;
@@ -365,20 +365,20 @@
 
       {# Status #}
       <div style="margin-bottom:14px;">
-        <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">状态</label>
+        <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('状态') }}</label>
         <select id="pfStatus"
                 style="width:100%;height:36px;padding:0 8px;
                        border:1px solid var(--line);border-radius:6px;
                        background:var(--bg);color:var(--ink);font-size:13px;outline:none;cursor:pointer;">
-          <option value="active">在售</option>
-          <option value="upcoming">即将上架</option>
-          <option value="discontinued">已停产</option>
+          <option value="active">{{ _('在售') }}</option>
+          <option value="upcoming">{{ _('即将上架') }}</option>
+          <option value="discontinued">{{ _('已停产') }}</option>
         </select>
       </div>
 
       {# Description #}
       <div>
-        <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">描述</label>
+        <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('描述') }}</label>
         <textarea id="pfDesc" rows="3"
                   style="width:100%;box-sizing:border-box;padding:8px 12px;
                          border:1px solid var(--line);border-radius:6px;
@@ -396,14 +396,14 @@
       <button onclick="atImport.closeProductForm()"
               style="height:34px;padding:0 16px;border-radius:6px;border:1px solid var(--line);
                      background:var(--bg-elev);color:var(--ink-2);font-size:13px;cursor:pointer;">
-        取消
+        {{ _('取消') }}
       </button>
       <button id="btnCreateProduct" onclick="atImport.submitProduct()"
               style="height:34px;padding:0 20px;border-radius:6px;border:none;
                      background:var(--accent);color:#fff;font-size:13px;font-weight:500;
                      cursor:pointer;transition:opacity 120ms;"
               onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">
-        <span id="btnCreateText">创建产品</span>
+        <span id="btnCreateText">{{ _('创建产品') }}</span>
       </button>
     </div>
   </div>
@@ -530,7 +530,7 @@
           var prod  = c.status === 'production';
           var cls   = 'cfg-item' + (dis?' cfg-item--dis':'') + (isSel?' cfg-item--sel':'');
           var scol  = dis ? '#9e9e9e' : (prod ? '#22a65a' : '#d97706');
-          var label = dis ? '已引入' : (c.status_display||'');
+          var label = dis ? '{{ _("已引入") }}' : (c.status_display||'');
           var clickAttr = dis ? '' : ' onclick="atImport._pick(\'' + cfgKey + '\')"';
           h += '<div class="' + cls + '"' + clickAttr
              + ' style="display:flex;align-items:center;justify-content:space-between;'
@@ -630,7 +630,7 @@
     _el('pfDesc').value   = '';
     _el('pfStatus').value = 'upcoming';   // 引入产品默认「即将上市」
     _el('pfFormError').style.display  = 'none';
-    _el('btnCreateText').textContent  = '创建产品';
+    _el('btnCreateText').textContent  = '{{ _("创建产品") }}';
     _el('btnCreateProduct').disabled  = false;
     closeCfgModal();
     _el('atProductFormModal').style.display = 'flex';
@@ -643,11 +643,11 @@
     if (!_selected) return;
     var c    = _selected;
     var name = _el('pfName').value.trim();
-    if (!name) { _showErr('请填写产品名称'); _el('pfName').focus(); return; }
+    if (!name) { _showErr('{{ _("请填写产品名称") }}'); _el('pfName').focus(); return; }
 
     var btn = _el('btnCreateProduct');
     btn.disabled = true;
-    _el('btnCreateText').textContent = '创建中…';
+    _el('btnCreateText').textContent = '{{ _("创建中…") }}';
     _el('pfFormError').style.display = 'none';
 
     var fd = new FormData();
@@ -680,9 +680,9 @@
       } else {
         var selRegion = _el('pfRegionSelect').value;
         if (!selRegion) {
-          _showErr('请选择销售区域');
+          _showErr('{{ _("请选择销售区域") }}');
           btn.disabled = false;
-          _el('btnCreateText').textContent = '创建产品';
+          _el('btnCreateText').textContent = '{{ _("创建产品") }}';
           return;
         }
         fd.append('region_id', selRegion);
@@ -699,14 +699,14 @@
         closeProductForm();
         window.location.href = d.redirect || ('/product/products/' + d.product.id);
       } else {
-        _showErr(d.message || '创建失败，请重试');
+        _showErr(d.message || '{{ _("创建失败，请重试") }}');
         btn.disabled = false;
-        _el('btnCreateText').textContent = '创建产品';
+        _el('btnCreateText').textContent = '{{ _("创建产品") }}';
       }
     } catch (e) {
-      _showErr('网络错误，请重试');
+      _showErr('{{ _("网络错误，请重试") }}');
       btn.disabled = false;
-      _el('btnCreateText').textContent = '创建产品';
+      _el('btnCreateText').textContent = '{{ _("创建产品") }}';
     }
   }
 

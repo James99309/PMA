@@ -2,23 +2,23 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
 
 {% block sidebar_active %}pricing_order{% endblock %}
-{% block page_title %}批价单{% endblock %}
-{% block category_label %}PRICING · 订单中心{% endblock %}
-{% block page_description %}从报价单或项目发起的批价审批流,审批通过即可生成结算单。{% endblock %}
+{% block page_title %}{{ _('批价单') }}{% endblock %}
+{% block category_label %}PRICING · {{ _('订单中心') }}{% endblock %}
+{% block page_description %}{{ _('从报价单或项目发起的批价审批流,审批通过即可生成结算单。') }}{% endblock %}
 
 {% block breadcrumb %}
-<a href="#" style="font-size:13px;color:var(--ink-3);">订单中心</a>
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('订单中心') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-<span style="font-size:13px;color:var(--ink);">批价单</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('批价单') }}</span>
 {% endblock %}
 
 {% block tabs %}
 {% set _tabs = [
-  {'k':'all',      'l':'全部',   'c':tab_counts.all},
-  {'k':'draft',    'l':'草稿',   'c':tab_counts.draft},
-  {'k':'pending',  'l':'审批中', 'c':tab_counts.pending},
-  {'k':'approved', 'l':'已批准', 'c':tab_counts.approved},
-  {'k':'rejected', 'l':'已驳回', 'c':tab_counts.rejected}
+  {'k':'all',      'l':_('全部'),   'c':tab_counts.all},
+  {'k':'draft',    'l':_('草稿'),   'c':tab_counts.draft},
+  {'k':'pending',  'l':_('审批中'), 'c':tab_counts.pending},
+  {'k':'approved', 'l':_('已批准'), 'c':tab_counts.approved},
+  {'k':'rejected', 'l':_('已驳回'), 'c':tab_counts.rejected}
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
@@ -42,13 +42,13 @@
         style="display:flex;gap:10px;align-items:center;">
     <input type="hidden" name="tab" value="{{ current_tab }}">
     {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
-    {{ at_input(name='search', value=search, placeholder='搜索批价单号 / 项目名…', icon_l='search', width='320px') }}
+    {{ at_input(name='search', value=search, placeholder=_('搜索批价单号 / 项目名…'), icon_l='search', width='320px') }}
   </form>
   {% if show_filter %}
   {{ at_filter_panel(
        action_url=url_for('pricing_order.at_list_view'),
        fields=[
-         {'key':'owner','label':'负责人','type':'user','items':owner_options,'values':owner_values},
+         {'key':'owner','label':_('负责人'),'type':'user','items':owner_options,'values':owner_values},
        ],
        hidden={'tab':current_tab,'search':search},
        panel_id='poFilterPanel') }}
@@ -57,8 +57,8 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('批价单号','left'),('项目','left'),('批价总额','right'),('折扣率','right'),
-                ('状态','left'),('负责人','left'),('创建时间','left')] %}
+{% for h, a in [(_('批价单号'),'left'),(_('项目'),'left'),(_('批价总额'),'right'),(_('折扣率'),'right'),
+                (_('状态'),'left'),(_('负责人'),'left'),(_('创建时间'),'left')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -108,7 +108,7 @@
 {% else %}
 <tr>
   <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-    没有符合筛选条件的批价单
+    {{ _('没有符合筛选条件的批价单') }}
   </td>
 </tr>
 {% endfor %}
@@ -117,15 +117,15 @@
 {% block pagination %}
 {% if pagination.pages > 1 %}
 <span class="at-mono at-dim" style="font-size:11.5px;">
-  第 {{ pagination.page }} / {{ pagination.pages }} 页
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
 </span>
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
-    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
               href=url_for('pricing_order.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
   {% endif %}
   {% if pagination.has_next %}
-    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
               href=url_for('pricing_order.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
   {% endif %}
 </div>

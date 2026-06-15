@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>客户订单 · PMA</title>
+<title>{{ _('客户订单') }} · PMA</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
@@ -30,15 +30,15 @@
                position:sticky;top:0;z-index:30;">
   <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
-    <span style="font-size:13px;color:var(--ink-3);">订单中心</span>
+    <span style="font-size:13px;color:var(--ink-3);">{{ _('订单中心') }}</span>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <span style="font-size:13px;color:var(--ink);">客户订单</span>
+    <span style="font-size:13px;color:var(--ink);">{{ _('客户订单') }}</span>
     <div style="flex:1;"></div>
     <button onclick="ATPrefs.toggleDark()"
             style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
                    background:var(--bg-elev);font-size:12px;color:var(--ink-2);
                    display:inline-flex;align-items:center;gap:4px;">
-      {{ at_icon('moon', 13) }} 暗色
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
     </button>
   </div>
 </header>
@@ -51,20 +51,20 @@
               margin-bottom:24px;flex-wrap:wrap;gap:16px;">
     <div>
       <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
-        SALES ORDER · 订单中心
+        SALES ORDER · {{ _('订单中心') }}
       </div>
       <h1 class="at-serif"
           style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
-        客户订单
+        {{ _('客户订单') }}
       </h1>
       <p class="at-dim" style="margin:8px 0 0;font-size:13px;max-width:560px;">
-        管理客户下达的订单,追踪生产到签收的完整生命周期。
+        {{ _('管理客户下达的订单,追踪生产到签收的完整生命周期。') }}
       </p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-      {{ at_btn('导出', variant='ghost', icon_l='download') }}
+      {{ at_btn(_('导出'), variant='ghost', icon_l='download') }}
       {% if has_permission('sales_order', 'create') %}
-      {{ at_btn('新建客户订单', variant='primary', icon_l='plus', onclick='atOpenSoCreate()') }}
+      {{ at_btn(_('新建客户订单'), variant='primary', icon_l='plus', onclick='atOpenSoCreate()') }}
       {% endif %}
     </div>
   </div>
@@ -73,12 +73,12 @@
   <div style="display:flex;align-items:center;gap:0;border-bottom:1px solid var(--line);
               margin-bottom:18px;flex-shrink:0;">
     {% for t in [
-      {'k':'all',       'l':'全部',   'c': tab_counts.all},
-      {'k':'draft',     'l':'草稿',   'c': tab_counts.draft},
-      {'k':'confirmed', 'l':'已确认', 'c': tab_counts.confirmed},
-      {'k':'shipped',   'l':'已发货', 'c': tab_counts.shipped},
-      {'k':'completed', 'l':'已完成', 'c': tab_counts.completed},
-      {'k':'cancelled', 'l':'已取消', 'c': tab_counts.cancelled}
+      {'k':'all',       'l':_('全部'),   'c': tab_counts.all},
+      {'k':'draft',     'l':_('草稿'),   'c': tab_counts.draft},
+      {'k':'confirmed', 'l':_('已确认'), 'c': tab_counts.confirmed},
+      {'k':'shipped',   'l':_('已发货'), 'c': tab_counts.shipped},
+      {'k':'completed', 'l':_('已完成'), 'c': tab_counts.completed},
+      {'k':'cancelled', 'l':_('已取消'), 'c': tab_counts.cancelled}
     ] %}
     {% set is_active = (current_tab == t.k) %}
     <a href="{{ url_for('sales_order.list_view', tab=t.k, search=search) }}"
@@ -97,7 +97,7 @@
     {% endfor %}
     <div style="flex:1;"></div>
     <div class="at-dim" style="font-size:12px;padding-right:4px;">
-      共 <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ pagination.total }}</span> 条
+      {{ _('共') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ pagination.total }}</span> {{ _('条') }}
     </div>
   </div>
 
@@ -105,8 +105,8 @@
   <form method="get" action="{{ url_for('sales_order.list_view') }}"
         style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
     <input type="hidden" name="tab" value="{{ current_tab }}">
-    {{ at_input(name='search', value=search, placeholder='搜索订单号 / 备注…', icon_l='search', width='320px') }}
-    {% set customer_options = [{'value':'', 'label':'全部客户'}] %}
+    {{ at_input(name='search', value=search, placeholder=_('搜索订单号 / 备注…'), icon_l='search', width='320px') }}
+    {% set customer_options = [{'value':'', 'label':_('全部客户')}] %}
     {% for c in customers %}
       {% set _ = customer_options.append({'value': c.id|string, 'label': c.company_name}) %}
     {% endfor %}
@@ -128,7 +128,7 @@
       </colgroup>
       <thead>
         <tr style="background:var(--bg-elev);">
-          {% for h, a in [('订单号','left'),('客户','left'),('金额','right'),('进度','left'),('状态','left'),('创建','left')] %}
+          {% for h, a in [(_('订单号'),'left'),(_('客户'),'left'),(_('金额'),'right'),(_('进度'),'left'),(_('状态'),'left'),(_('创建'),'left')] %}
           <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
                      color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
                      white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -184,7 +184,7 @@
         {% else %}
         <tr>
           <td colspan="6" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-            没有符合筛选条件的订单
+            {{ _('没有符合筛选条件的订单') }}
           </td>
         </tr>
         {% endfor %}
@@ -197,16 +197,15 @@
   <div style="display:flex;align-items:center;justify-content:space-between;
               padding:14px 4px;flex-shrink:0;">
     <div class="at-dim" style="font-size:12px;">
-      第 <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ pagination.page }}</span> /
-      <span class="at-mono at-tab-num">{{ pagination.pages }}</span> 页
+      {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
     </div>
     <div style="display:flex;gap:6px;">
       {% if pagination.has_prev %}
-      {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+      {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
                 href=url_for('sales_order.list_view', tab=current_tab, search=search, customer_id=current_customer_id, page=pagination.prev_num)) }}
       {% endif %}
       {% if pagination.has_next %}
-      {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+      {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
                 href=url_for('sales_order.list_view', tab=current_tab, search=search, customer_id=current_customer_id, page=pagination.next_num)) }}
       {% endif %}
     </div>

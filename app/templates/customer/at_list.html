@@ -4,14 +4,14 @@
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
 
 {% block sidebar_active %}customer{% endblock %}
-{% block page_title %}客户管理{% endblock %}
-{% block category_label %}CUSTOMER · 业务管理{% endblock %}
-{% block page_description %}维护客户档案、联系人、归属关系与跟进记录。{% endblock %}
+{% block page_title %}{{ _('客户管理') }}{% endblock %}
+{% block category_label %}CUSTOMER · {{ _('业务管理') }}{% endblock %}
+{% block page_description %}{{ _('维护客户档案、联系人、归属关系与跟进记录。') }}{% endblock %}
 
 {% block breadcrumb %}
-<a href="#" style="font-size:13px;color:var(--ink-3);">业务管理</a>
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-<span style="font-size:13px;color:var(--ink);">客户管理</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('客户管理') }}</span>
 {% endblock %}
 
 {% block extra_head %}
@@ -34,20 +34,20 @@
 
 {% block page_actions %}
 {% if has_permission('customer', 'view') %}
-{{ at_btn('智能合并', variant='ghost', icon_l='users', tag='a', href=url_for('customer.customer_merge_tool')) }}
+{{ at_btn(_('智能合并'), variant='ghost', icon_l='users', tag='a', href=url_for('customer.customer_merge_tool')) }}
 {% endif %}
 {% if has_permission('customer', 'create') %}
-{{ at_btn('新建客户', variant='primary', icon_l='plus', onclick="atOpenCustomerForm('create')") }}
+{{ at_btn(_('新建客户'), variant='primary', icon_l='plus', onclick="atOpenCustomerForm('create')") }}
 {% endif %}
 {% endblock %}
 
 {% block tabs %}
 {% set _tabs = [
-  {'k':'all',        'l':'全部',       'c':tab_counts.all},
-  {'k':'user',       'l':'终端用户',   'c':tab_counts.user},
-  {'k':'integrator', 'l':'集成商',     'c':tab_counts.integrator},
-  {'k':'designer',   'l':'设计院',     'c':tab_counts.designer},
-  {'k':'channel',    'l':'渠道',       'c':tab_counts.channel}
+  {'k':'all',        'l':_('全部'),       'c':tab_counts.all},
+  {'k':'user',       'l':_('终端用户'),   'c':tab_counts.user},
+  {'k':'integrator', 'l':_('集成商'),     'c':tab_counts.integrator},
+  {'k':'designer',   'l':_('设计院'),     'c':tab_counts.designer},
+  {'k':'channel',    'l':_('渠道'),       'c':tab_counts.channel}
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
@@ -73,15 +73,15 @@
     {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
     {% for v in geo_values %}<input type="hidden" name="{{ geo_key }}" value="{{ v }}">{% endfor %}
     {% for v in industry_values %}<input type="hidden" name="industry" value="{{ v }}">{% endfor %}
-    {{ at_input(name='search', value=search, placeholder='搜索公司名 / 编号…', icon_l='search', width='280px') }}
+    {{ at_input(name='search', value=search, placeholder=_('搜索公司名 / 编号…'), icon_l='search', width='280px') }}
   </form>
   {% if show_filter %}
   {{ at_filter_panel(
        action_url=url_for('customer.at_list_view'),
        fields=[
-         {'key':'owner','label':'负责人','type':'user','items':owner_options,'values':owner_values},
-         {'key':geo_key,'label':'地区','type':'select','options':geo_options,'values':geo_values},
-         {'key':'industry','label':'行业','type':'select','options':industry_options,'values':industry_values},
+         {'key':'owner','label':_('负责人'),'type':'user','items':owner_options,'values':owner_values},
+         {'key':geo_key,'label':_('地区'),'type':'select','options':geo_options,'values':geo_values},
+         {'key':'industry','label':_('行业'),'type':'select','options':industry_options,'values':industry_values},
        ],
        hidden={'tab':current_tab,'search':search},
        panel_id='custFilterPanel') }}
@@ -90,8 +90,8 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('公司','left'),('类型','left'),('国家·城市','left'),
-                ('所属','left'),('行业','left'),('更新','left')] %}
+{% for h, a in [(_('公司'),'left'),(_('类型'),'left'),(_('国家·城市'),'left'),
+                (_('所属'),'left'),(_('行业'),'left'),(_('更新'),'left')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -149,7 +149,7 @@
 {% else %}
 <tr>
   <td colspan="6" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-    没有符合筛选条件的客户
+    {{ _('没有符合筛选条件的客户') }}
   </td>
 </tr>
 {% endfor %}
@@ -158,15 +158,15 @@
 {% block pagination %}
 {% if pagination.pages > 1 %}
 <span class="at-mono at-dim" style="font-size:11.5px;">
-  第 {{ pagination.page }} / {{ pagination.pages }} 页
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
 </span>
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
-    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
               href=url_for('customer.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
   {% endif %}
   {% if pagination.has_next %}
-    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
               href=url_for('customer.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
   {% endif %}
 </div>
