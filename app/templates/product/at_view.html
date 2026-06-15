@@ -19,7 +19,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{{ product.product_name or product.model }} · 产品详情</title>
+<title>{{ product.product_name or product.model }} · {{ _('产品详情') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
@@ -54,9 +54,9 @@
                position:sticky;top:0;z-index:30;">
   <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
-    <a href="#" style="font-size:13px;color:var(--ink-3);">产品中心</a>
+    <a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('产品中心') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <a href="{{ url_for('product.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">产品库</a>
+    <a href="{{ url_for('product.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('产品库') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
     <span style="font-size:13px;color:var(--ink);
                  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;">{{ product.product_name or product.model }}</span>
@@ -65,7 +65,7 @@
             style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
                    background:var(--bg-elev);font-size:12px;color:var(--ink-2);
                    display:inline-flex;align-items:center;gap:4px;">
-      {{ at_icon('moon', 13) }} 暗色
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
     </button>
   </div>
 </header>
@@ -84,7 +84,7 @@
             style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.2;
                    flex:0 1 auto;min-width:0;max-width:min(100%, 720px);
                    overflow-wrap:anywhere;word-break:break-word;">
-          {{ product.product_name or product.model or '未命名产品' }}
+          {{ product.product_name or product.model or _('未命名产品') }}
         </h1>
         {% call at_header_chip_group() %}
           {# 状态：can_edit 时可下拉切换 #}
@@ -99,9 +99,9 @@
             <div id="atStatusMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;
                  background:var(--bg-elev);border:1px solid var(--line);border-radius:8px;
                  box-shadow:0 4px 16px rgba(0,0,0,.14);z-index:200;min-width:116px;padding:4px;">
-              <button onclick="atChangeStatus('active')"      class="at-sm-opt">生产中</button>
-              <button onclick="atChangeStatus('discontinued')" class="at-sm-opt">已停产</button>
-              <button onclick="atChangeStatus('upcoming')"    class="at-sm-opt">待上市</button>
+              <button onclick="atChangeStatus('active')"      class="at-sm-opt">{{ _('生产中') }}</button>
+              <button onclick="atChangeStatus('discontinued')" class="at-sm-opt">{{ _('已停产') }}</button>
+              <button onclick="atChangeStatus('upcoming')"    class="at-sm-opt">{{ _('待上市') }}</button>
             </div>
             {% else %}
             {{ at_status_pill(product.status or 'active', scope='product') }}
@@ -111,7 +111,7 @@
           {% if product.is_vendor_product %}
           <span style="font-size:11px;padding:2px 8px;border-radius:3px;
                        background:rgba(99,102,241,.1);color:rgb(99,102,241);
-                       font-weight:500;letter-spacing:0.02em;">厂商</span>
+                       font-weight:500;letter-spacing:0.02em;">{{ _('厂商') }}</span>
           {% endif %}
         {% endcall %}
       </div>
@@ -130,7 +130,7 @@
       {# 上一个 / 下一个 #}
       {% if prev_product_id %}
       <a href="{{ url_for('product.at_view_product', id=prev_product_id) }}"
-         title="上一个产品"
+         title="{{ _('上一个产品') }}"
          style="display:inline-flex;align-items:center;justify-content:center;
                 width:30px;height:30px;border:1px solid var(--line-2);border-radius:6px;
                 background:var(--bg-elev);color:var(--ink-2);text-decoration:none;
@@ -146,7 +146,7 @@
       {% endif %}
       {% if next_product_id %}
       <a href="{{ url_for('product.at_view_product', id=next_product_id) }}"
-         title="下一个产品"
+         title="{{ _('下一个产品') }}"
          style="display:inline-flex;align-items:center;justify-content:center;
                 width:30px;height:30px;border:1px solid var(--line-2);border-radius:6px;
                 background:var(--bg-elev);color:var(--ink-2);text-decoration:none;
@@ -167,7 +167,7 @@
                      border:1px solid var(--line-2);border-radius:6px;background:var(--bg-elev);
                      font-size:12px;color:var(--danger,#dc2626);cursor:pointer;
                      transition:background 100ms,border-color 100ms;">
-        <span class="material-symbols-outlined" style="font-size:14px;">delete</span>删除
+        <span class="material-symbols-outlined" style="font-size:14px;">delete</span>{{ _('删除') }}
       </button>
       {% endif %}
     </div>
@@ -180,14 +180,14 @@
     {# 中栏:tab 容器 #}
     <section>
       {# Card 1:概览(独立卡)#}
-      {% call at_detail_section('概览', body_padding='default') %}
+      {% call at_detail_section(_('概览'), body_padding='default') %}
         {{ at_product_overview(product, effective_image=effective_image, can_edit=can_edit) }}
       {% endcall %}
 
       {# Card 2:规格 / 配置 / 资料（手写 tab 头，右侧保留操作按钮槽）#}
       <div class="at-section" id="atProductSubTabs" data-active="specs" style="overflow:visible;">
         <nav style="display:flex;align-items:stretch;">
-          {% for t_key, t_label, t_icon in [('specs','规格','docs'),('config','配置','grid'),('files','资料','file')] %}
+          {% for t_key, t_label, t_icon in [('specs',_('规格'),'docs'),('config',_('配置'),'grid'),('files',_('资料'),'file')] %}
           {% set is_active = (t_key == 'specs') %}
           <button type="button" data-tab-key="{{ t_key }}"
                   onclick="atSelectTab('atProductSubTabs','{{ t_key }}')"
@@ -209,17 +209,17 @@
             {# 规格 tab 按钮 #}
             <div id="atTabAct-specs" style="display:flex;align-items:center;gap:6px;">
               {% if can_edit %}
-              <button id="editSpecsBtn"   style="{{ _tbtn }}color:var(--ink-3);">编辑</button>
-              <button id="importSpecsBtn" style="{{ _tbtn }}color:var(--ink-3);" onclick="atSpecImportOpen()">导入</button>
-              <button id="applySpecsBtn"  style="{{ _tbtn }}color:var(--accent);font-weight:500;" class="hidden">应用</button>
-              <button id="cancelSpecsBtn" style="{{ _tbtn }}color:var(--ink-4);" class="hidden">取消</button>
+              <button id="editSpecsBtn"   style="{{ _tbtn }}color:var(--ink-3);">{{ _('编辑') }}</button>
+              <button id="importSpecsBtn" style="{{ _tbtn }}color:var(--ink-3);" onclick="atSpecImportOpen()">{{ _('导入') }}</button>
+              <button id="applySpecsBtn"  style="{{ _tbtn }}color:var(--accent);font-weight:500;" class="hidden">{{ _('应用') }}</button>
+              <button id="cancelSpecsBtn" style="{{ _tbtn }}color:var(--ink-4);" class="hidden">{{ _('取消') }}</button>
               {% endif %}
             </div>
 
             {# 配置 tab 按钮 #}
             <div id="atTabAct-config" style="display:none;align-items:center;gap:6px;">
               {% if can_edit %}
-              <button style="{{ _tbtn }}color:var(--ink-3);" onclick="atRelModalOpen()">添加关联</button>
+              <button style="{{ _tbtn }}color:var(--ink-3);" onclick="atRelModalOpen()">{{ _('添加关联') }}</button>
               {% endif %}
             </div>
 
@@ -276,19 +276,19 @@
 
     {# 右栏:sticky 地区价格 + 二维码 + 元数据 #}
     <aside style="position:sticky;top:80px;">
-      {% call at_detail_section('地区面价', body_padding='default') %}
+      {% call at_detail_section(_('地区面价'), body_padding='default') %}
         {{ at_product_region_prices(product, can_edit=can_edit) }}
       {% endcall %}
-      {% call at_detail_section('产品二维码', body_padding='default') %}
+      {% call at_detail_section(_('产品二维码'), body_padding='default') %}
         {{ at_product_qrcode(product) }}
       {% endcall %}
       {# 引用数量(含推荐系数:植入品质用,仅 CEO/admin 可设,其余只读) #}
       <section class="at-section">
-        <header class="at-section-h"><h3 class="at-section-title">引用数量</h3></header>
+        <header class="at-section-h"><h3 class="at-section-title">{{ _('引用数量') }}</h3></header>
         <div class="at-section-body">
           <dl style="margin:0;">
             <div class="at-info-row">
-              <dt>推荐系数</dt>
+              <dt>{{ _('推荐系数') }}</dt>
               <dd>
                 {% if can_set_citation %}
                 <input id="citationCoefInput" type="number" step="0.1" min="0"
@@ -296,14 +296,14 @@
                        placeholder="0"
                        style="width:80px;padding:2px 6px;border:1px solid var(--line-2);border-radius:5px;background:var(--bg-elev);color:var(--ink);font:inherit;font-size:13px;"
                        onchange="saveCitationCoef(this.value)">
-                <span id="citationCoefHint" class="at-dim" style="font-size:11px;margin-left:6px;">失焦即保存 · 0/空=不计入品质</span>
+                <span id="citationCoefHint" class="at-dim" style="font-size:11px;margin-left:6px;">{{ _('失焦即保存 · 0/空=不计入品质') }}</span>
                 {% else %}
                 {{ '%g'|format(product.citation_coefficient) if product.citation_coefficient is not none else '—' }}
                 {% endif %}
               </dd>
             </div>
-            <div class="at-info-row"><dt>设计用量</dt><dd>{{ design_quantity }}</dd></div>
-            <div class="at-info-row"><dt>成单用量</dt><dd>{{ order_quantity }}</dd></div>
+            <div class="at-info-row"><dt>{{ _('设计用量') }}</dt><dd>{{ design_quantity }}</dd></div>
+            <div class="at-info-row"><dt>{{ _('成单用量') }}</dt><dd>{{ order_quantity }}</dd></div>
           </dl>
         </div>
       </section>
@@ -317,16 +317,16 @@
               headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
               body: JSON.stringify({ citation_coefficient: v === '' ? null : parseFloat(v) }),
             })).json();
-            if (hint) { hint.textContent = r.success ? '✓ 已保存' : (r.message || '保存失败'); hint.style.color = r.success ? 'var(--success)' : 'var(--danger)'; }
-          } catch (e) { if (hint) { hint.textContent = '保存失败,请重试'; hint.style.color = 'var(--danger)'; } }
+            if (hint) { hint.textContent = r.success ? '{{ _("✓ 已保存") }}' : (r.message || '{{ _("保存失败") }}'); hint.style.color = r.success ? 'var(--success)' : 'var(--danger)'; }
+          } catch (e) { if (hint) { hint.textContent = '{{ _("保存失败,请重试") }}'; hint.style.color = 'var(--danger)'; } }
         }
       </script>
       {% endif %}
-      {{ at_info_panel('元数据', [
-        ('产品 ID',   product.id, 'at-mono'),
-        ('创建人',    (product.owner.real_name or product.owner.username) if product.owner else '—'),
-        ('创建时间',  product.created_at.strftime('%Y-%m-%d') if product.created_at else '—'),
-        ('更新时间',  product.updated_at.strftime('%Y-%m-%d') if product.updated_at else '—'),
+      {{ at_info_panel(_('元数据'), [
+        (_('产品 ID'),   product.id, 'at-mono'),
+        (_('创建人'),    (product.owner.real_name or product.owner.username) if product.owner else '—'),
+        (_('创建时间'),  product.created_at.strftime('%Y-%m-%d') if product.created_at else '—'),
+        (_('更新时间'),  product.updated_at.strftime('%Y-%m-%d') if product.updated_at else '—'),
       ]) }}
     </aside>
 
@@ -381,10 +381,10 @@
   /* ── 删除产品 ── */
   window.atDeleteProduct = function() {
     ATConfirm.show({
-      title: '删除产品',
-      message: '确认永久删除「{{ product.product_name or product.model }}」？此操作不可撤销。',
+      title: '{{ _("删除产品") }}',
+      message: '{{ _("确认永久删除「%(name)s」？此操作不可撤销。", name=(product.product_name or product.model)) }}',
       variant: 'danger',
-      confirmText: '确认删除',
+      confirmText: '{{ _("确认删除") }}',
       onConfirm: function() {
         fetch('/api/products/' + PID + '/delete', {
           method: 'POST',
@@ -394,22 +394,22 @@
         .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
         .then(function(res) {
           if (res.ok && res.d.success) {
-            if (window.atToast) atToast('产品已删除', 'success');
+            if (window.atToast) atToast('{{ _("产品已删除") }}', 'success');
             setTimeout(function(){ window.location.href = '/product/at_list'; }, 800);
           } else if (res.d.code === 'PRODUCT_REFERENCED') {
             ATConfirm.show({
-              title: '无法删除',
-              message: res.d.message + '\n\n是否将该产品设为【已停产】？',
+              title: '{{ _("无法删除") }}',
+              message: res.d.message + '\n\n{{ _("是否将该产品设为【已停产】？") }}',
               variant: 'warn',
-              confirmText: '设为停产',
+              confirmText: '{{ _("设为停产") }}',
               onConfirm: function() { atChangeStatus('discontinued'); }
             });
           } else {
-            ATConfirm.show({ title: '删除失败', message: res.d.message || '删除失败', variant: 'warn', confirmText: '知道了', onCancel: null });
+            ATConfirm.show({ title: '{{ _("删除失败") }}', message: res.d.message || '{{ _("删除失败") }}', variant: 'warn', confirmText: '{{ _("知道了") }}', onCancel: null });
           }
         })
         .catch(function() {
-          if (window.atToast) atToast('网络错误', 'error');
+          if (window.atToast) atToast('{{ _("网络错误") }}', 'error');
         });
       }
     });
@@ -438,14 +438,14 @@
     .then(function(r){ return r.json(); })
     .then(function(d) {
       if (d.success) {
-        if (window.atToast) atToast('状态已更新', 'success');
+        if (window.atToast) atToast('{{ _("状态已更新") }}', 'success');
         setTimeout(function(){ location.reload(); }, 600);
       } else {
-        if (window.atToast) atToast(d.message || '更新失败', 'error');
+        if (window.atToast) atToast(d.message || '{{ _("更新失败") }}', 'error');
       }
     })
     .catch(function() {
-      if (window.atToast) atToast('网络错误', 'error');
+      if (window.atToast) atToast('{{ _("网络错误") }}', 'error');
     });
   };
 })();

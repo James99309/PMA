@@ -19,7 +19,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>PMA · 仪表盘</title>
+<title>PMA · {{ _('仪表盘') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
@@ -63,21 +63,21 @@
                 flex-wrap:wrap;gap:16px;">
       <div>
         <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:4px;">
-          DASHBOARD · 仪表盘
+          DASHBOARD · {{ _('仪表盘') }}
         </div>
         <h1 class="at-serif" style="margin:0;font-size:30px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;
                                     display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          欢迎回来,{{ (current_user.real_name or current_user.username) }}
+          {{ _('欢迎回来') }},{{ (current_user.real_name or current_user.username) }}
           {% if current_user.in_probation %}
-          <span title="新手 · 试用期{% if current_user.probation_end %}至 {{ current_user.probation_end }}{% endif %}"
+          <span title="{{ _('新手') }} · {{ _('试用期') }}{% if current_user.probation_end %}{{ _('至') }} {{ current_user.probation_end }}{% endif %}"
                 style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
                        background:var(--success-soft);color:var(--success);">
             <span class="material-symbols-outlined" style="font-size:15px;">eco</span></span>
           {% endif %}
         </h1>
         <div class="at-muted" style="margin-top:6px;font-size:13px;">
-          {{ now.strftime('%Y 年 %m 月 %d 日') if now else '' }}
-          {% if ai_enabled %} · <span style="color:var(--accent);">AI 已启用</span>{% endif %}
+          {{ now.strftime(_('%Y 年 %m 月 %d 日')) if now else '' }}
+          {% if ai_enabled %} · <span style="color:var(--accent);">{{ _('AI 已启用') }}</span>{% endif %}
         </div>
       </div>
       <div class="at-mono at-tab-num at-dim" style="font-size:11px;">v{{ app_version or current_version_number }}</div>
@@ -96,12 +96,12 @@
       <section class="dash-card" style="flex:3 1 380px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            <h3 class="dash-card-title">我的待办</h3>
+            <h3 class="dash-card-title">{{ _('我的待办') }}</h3>
             <div class="dash-card-sub">
               <span style="display:inline-flex;align-items:center;gap:8px;">
-                <span>共 {{ _todos | length }} 项</span>
+                <span>{{ _('共') }} {{ _todos | length }} {{ _('项') }}</span>
                 <span style="width:4px;height:4px;background:var(--ink-4);border-radius:2px;"></span>
-                <span style="color:var(--danger);">{{ _urgent_count }} 紧急</span>
+                <span style="color:var(--danger);">{{ _urgent_count }} {{ _('紧急') }}</span>
               </span>
             </div>
           </div>
@@ -109,10 +109,10 @@
         <div class="dash-card-body">
           {# Tabs(下划线轻量版,默认 all)— 简化为视觉静态(filter 用 JS 控制) #}
           {% set _types = [
-            {'k':'all','label':'全部','n': _todos|length,'tone':'neutral'},
-            {'k':'approval','label':'待审批','n': _todos|selectattr('type','equalto','approval')|list|length,'tone':'warn'},
-            {'k':'mention','label':'@我的','n': _todos|selectattr('type','equalto','mention')|list|length,'tone':'info'},
-            {'k':'action','label':'跟进提醒','n': _todos|selectattr('type','equalto','action')|list|length,'tone':'danger'}
+            {'k':'all','label':_('全部'),'n': _todos|length,'tone':'neutral'},
+            {'k':'approval','label':_('待审批'),'n': _todos|selectattr('type','equalto','approval')|list|length,'tone':'warn'},
+            {'k':'mention','label':_('@我的'),'n': _todos|selectattr('type','equalto','mention')|list|length,'tone':'info'},
+            {'k':'action','label':_('跟进提醒'),'n': _todos|selectattr('type','equalto','action')|list|length,'tone':'danger'}
           ] %}
           <div data-dash-tabs="todo"
                style="display:flex;gap:4px;margin-bottom:14px;padding:3px;background:var(--bg-page);border-radius:8px;">
@@ -156,11 +156,11 @@
                 </div>
               </div>
               {% if t.urgent %}
-              <span title="紧急" style="color:var(--danger);margin-top:2px;font-size:10px;">●</span>
+              <span title="{{ _('紧急') }}" style="color:var(--danger);margin-top:2px;font-size:10px;">●</span>
               {% endif %}
             </li>
             {% else %}
-            <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无待办</li>
+            <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">{{ _('暂无待办') }}</li>
             {% endfor %}
           </ul>
 
@@ -175,11 +175,11 @@
       <section class="dash-card" style="flex:2 1 320px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            <h3 class="dash-card-title">我的 KPI</h3>
-            <div class="dash-card-sub">实时聚合 · 同比上一周期</div>
+            <h3 class="dash-card-title">{{ _('我的 KPI') }}</h3>
+            <div class="dash-card-sub">{{ _('实时聚合 · 同比上一周期') }}</div>
           </div>
           <div data-dash-tabs="kpi" class="at-seg">
-            {% for p in [{'k':'month','label':'本月'},{'k':'quarter','label':'本季'},{'k':'year','label':'本年'}] %}
+            {% for p in [{'k':'month','label':_('本月')},{'k':'quarter','label':_('本季')},{'k':'year','label':_('本年')}] %}
             <button type="button" data-tab="{{ p.k }}" onclick="atDashKpiSwitch('{{ p.k }}')"
                     class="{{ 'on' if loop.first }}">{{ p.label }}</button>
             {% endfor %}
@@ -197,9 +197,9 @@
             {# 新绩效配置框架下该用户无任何目标(角色默认+个人覆盖均空)#}
             <div style="padding:28px 12px;text-align:center;color:var(--ink-3);font-size:12.5px;">
               <span class="material-symbols-outlined" style="font-size:26px;display:block;margin-bottom:6px;color:var(--ink-4);">flag</span>
-              KPI 未设定
+              {{ _('KPI 未设定') }}
               <div class="at-dim" style="font-size:11px;margin-top:4px;">
-                请在 配置管理 → 绩效配置(角色默认)或 个人配置 → 绩效目标 中设定
+                {{ _('请在 配置管理 → 绩效配置(角色默认)或 个人配置 → 绩效目标 中设定') }}
               </div>
             </div>
             {% endif %}
@@ -232,14 +232,14 @@
               <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
                 {% if _is_tiered %}
                 <span class="dash-tab-num at-serif" style="font-size:22px;font-weight:500;color:var(--ink);letter-spacing:-0.01em;">{{ '{:g}'.format(it.data.value) }}</span>
-                <span class="at-dim" style="font-size:11px;">/ {{ it.data.pass }} 分</span>
+                <span class="at-dim" style="font-size:11px;">/ {{ it.data.pass }} {{ _('分') }}</span>
                 <span style="font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:4px;color:{{ it.tone }};background:var(--bg-page);">{{ it.data.tier }}</span>
                 {% else %}
                 <span class="dash-tab-num at-serif" style="font-size:22px;font-weight:500;color:var(--ink);letter-spacing:-0.01em;">{{ _display }}</span>
                 {% if _has_target %}
                 <span class="at-dim" style="font-size:11px;">/ {{ _of }}</span>
                 {% else %}
-                <span class="at-dim" style="font-size:10.5px;font-style:italic;">未设目标</span>
+                <span class="at-dim" style="font-size:10.5px;font-style:italic;">{{ _('未设目标') }}</span>
                 {% endif %}
                 {% endif %}
                 <span style="flex:1;"></span>
@@ -248,7 +248,7 @@
                 {% endif %}
               </div>
               {% if _is_tiered %}
-              <div class="at-dim" style="font-size:10px;margin-top:-2px;margin-bottom:6px;">{{ it.data.pass }}=及格线 · 良好{{ it.data.good }} · 优秀{{ it.data.excellent }}</div>
+              <div class="at-dim" style="font-size:10px;margin-top:-2px;margin-bottom:6px;">{{ it.data.pass }}={{ _('及格线') }} · {{ _('良好') }}{{ it.data.good }} · {{ _('优秀') }}{{ it.data.excellent }}</div>
               {% endif %}
               <div style="height:3px;background:var(--bg-page);border-radius:2px;overflow:hidden;">
                 <div style="width:{{ _bar_width }}%;height:100%;background:{{ _bar_color }};border-radius:2px;
@@ -265,10 +265,10 @@
           <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--line);
                       display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
             <div style="font-size:10.5px;color:var(--ink-3);grid-column:1 / -1;margin-bottom:2px;">
-              今日 · {{ now.strftime('%-m/%-d') if now else '' }}
+              {{ _('今日') }} · {{ now.strftime('%-m/%-d') if now else '' }}
             </div>
-            {% for s in [{'n':_today.newCust,'l':'新客户'}, {'n':_today.newQuote,'l':'新报价'},
-                          {'n':_today.newAction,'l':'客户跟进'}, {'n':_today.newOrder,'l':'新订单'}] %}
+            {% for s in [{'n':_today.newCust,'l':_('新客户')}, {'n':_today.newQuote,'l':_('新报价')},
+                          {'n':_today.newAction,'l':_('客户跟进')}, {'n':_today.newOrder,'l':_('新订单')}] %}
             <div style="display:flex;flex-direction:column;gap:1px;
                         padding-left:{{ '0' if loop.first else '8px' }};
                         border-left:{{ '0' if loop.first else '1px solid var(--line)' }};">
@@ -293,17 +293,17 @@
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
             <h3 class="dash-card-title">
-              <span data-scope-title="mine">{{ dash.task.title | default('我的任务') }}</span>
-              {% if dash.task.has_team %}<span data-scope-title="team" hidden>{{ dash.task.teamLabel }}任务</span>{% endif %}
+              <span data-scope-title="mine">{{ dash.task.title | default(_('我的任务')) }}</span>
+              {% if dash.task.has_team %}<span data-scope-title="team" hidden>{{ dash.task.teamLabel }}{{ _('任务') }}</span>{% endif %}
             </h3>
             <div class="dash-card-sub">
-              <span data-scope-title="mine">共 {{ dash.task.mine.counts.all }} 项 · {{ dash.task.mine.counts.in_progress }} 进行中</span>
-              {% if dash.task.has_team %}<span data-scope-title="team" hidden>共 {{ dash.task.team.counts.all }} 项 · {{ dash.task.team.counts.in_progress }} 进行中</span>{% endif %}
+              <span data-scope-title="mine">{{ _('共') }} {{ dash.task.mine.counts.all }} {{ _('项') }} · {{ dash.task.mine.counts.in_progress }} {{ _('进行中') }}</span>
+              {% if dash.task.has_team %}<span data-scope-title="team" hidden>{{ _('共') }} {{ dash.task.team.counts.all }} {{ _('项') }} · {{ dash.task.team.counts.in_progress }} {{ _('进行中') }}</span>{% endif %}
             </div>
           </div>
           {% if dash.task.has_team %}
           <div style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;flex-shrink:0;">
-            {% for sc in [{'k':'mine','l':'我的'},{'k':'team','l':dash.task.teamLabel}] %}
+            {% for sc in [{'k':'mine','l':_('我的')},{'k':'team','l':dash.task.teamLabel}] %}
             <button type="button" data-card-scope-btn="{{ sc.k }}" onclick="atDashCardScope(this,'{{ sc.k }}')"
                     style="padding:4px 10px;font-size:11px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
                            color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
@@ -319,11 +319,11 @@
           {% set _tc = _td.counts %}
           <div data-scope-block="{{ sc }}"{% if sc != 'mine' %} hidden{% endif %}>
             {% set _ttabs = [
-              {'k':'all','label':'全部','n':_tc.all},
-              {'k':'in_progress','label':'进行中','n':_tc.in_progress},
-              {'k':'pending','label':'待开始','n':_tc.pending},
-              {'k':'pending_review','label':'待审核','n':_tc.pending_review},
-              {'k':'completed','label':'已完成','n':_tc.completed}
+              {'k':'all','label':_('全部'),'n':_tc.all},
+              {'k':'in_progress','label':_('进行中'),'n':_tc.in_progress},
+              {'k':'pending','label':_('待开始'),'n':_tc.pending},
+              {'k':'pending_review','label':_('待审核'),'n':_tc.pending_review},
+              {'k':'completed','label':_('已完成'),'n':_tc.completed}
             ] %}
             <div data-dash-tabs="task-{{ sc }}"
                  style="display:flex;gap:4px;margin-bottom:14px;padding:3px;background:var(--bg-page);border-radius:8px;">
@@ -352,13 +352,13 @@
                     {% set _meta = it.note or it.project %}
                     {% if _meta %}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;">{{ _meta }}</span><span style="color:var(--ink-4);">·</span>{% endif %}
                     {% if it.assignee %}<span>{{ it.assignee }}</span><span style="color:var(--ink-4);">·</span>{% endif %}
-                    <span>截止 {{ it.due }}</span>
+                    <span>{{ _('截止') }} {{ it.due }}</span>
                   </div>
                 </div>
                 <span class="dash-tab-num" style="font-size:11px;color:var(--ink-3);flex-shrink:0;margin-top:2px;">{{ it.progress }}%</span>
               </li>
               {% else %}
-              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无任务</li>
+              <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">{{ _('暂无任务') }}</li>
               {% endfor %}
             </ul>
           </div>
@@ -372,16 +372,16 @@
       <section class="dash-card" style="flex:1 1 300px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            <h3 class="dash-card-title">植入产值</h3>
+            <h3 class="dash-card-title">{{ _('植入产值') }}</h3>
             <div class="dash-card-sub">
               <span data-scope-title="mine">{{ _im.sub }}</span>
-              {% if _im.has_team %}<span data-scope-title="team" hidden>{{ _im.teamLabel }}报价</span>{% endif %}
+              {% if _im.has_team %}<span data-scope-title="team" hidden>{{ _im.teamLabel }}{{ _('报价') }}</span>{% endif %}
             </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
             {% if _im.has_team %}
             <div style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
-              {% for sc in [{'k':'mine','l':'我的'},{'k':'team','l':_im.teamLabel}] %}
+              {% for sc in [{'k':'mine','l':_('我的')},{'k':'team','l':_im.teamLabel}] %}
               <button type="button" data-card-scope-btn="{{ sc.k }}" onclick="atDashCardScope(this,'{{ sc.k }}')"
                       style="padding:4px 9px;font-size:11px;font-weight:500;border-radius:5px;border:0;cursor:pointer;
                              color:{{ 'var(--ink)' if loop.first else 'var(--ink-3)' }};
@@ -391,7 +391,7 @@
             </div>
             {% endif %}
             <div data-dash-tabs="implant" class="at-seg">
-              {% for p in [{'k':'month','label':'本月'},{'k':'quarter','label':'本季'},{'k':'year','label':'本年'}] %}
+              {% for p in [{'k':'month','label':_('本月')},{'k':'quarter','label':_('本季')},{'k':'year','label':_('本年')}] %}
               <button type="button" data-tab="{{ p.k }}" onclick="atDashImplantSwitch('{{ p.k }}')"
                       class="{{ 'on' if loop.first }}">{{ p.label }}</button>
               {% endfor %}
@@ -405,7 +405,7 @@
             {% set _ip = _im[sc].periods[pk] %}
             <div data-implant-period="{{ pk }}" style="display:{{ 'block' if pk == 'month' else 'none' }};">
               <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px;">
-                <span style="font-size:11px;color:var(--ink-3);">植入产值</span>
+                <span style="font-size:11px;color:var(--ink-3);">{{ _('植入产值') }}</span>
                 <span class="dash-tab-num at-serif" style="font-size:26px;font-weight:500;letter-spacing:-0.01em;color:var(--ink);">
                   {{ dash.currency }}{{ '{:,.0f}'.format(_ip.total) }}
                 </span>
@@ -419,7 +419,7 @@
                   <span class="dash-tab-num" style="color:var(--ink);font-weight:500;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
                 </li>
                 {% else %}
-                <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">本期暂无植入</li>
+                <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">{{ _('本期暂无植入') }}</li>
                 {% endfor %}
               </ul>
             </div>
@@ -444,18 +444,18 @@
       <section class="dash-card dash-card-scoped" data-dash-block="funnel" style="flex:1.4 1 360px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            <h3 class="dash-card-title">销售漏斗</h3>
+            <h3 class="dash-card-title">{{ _('销售漏斗') }}</h3>
             <div class="dash-card-sub">
-              <span data-dash-sub="mine">{{ '全部项目' if layout.kpi_variant == 'admin' else '我的项目' }} · 近 12 个月聚合</span>
-              {% if _has_sec %}<span data-dash-sub="team" hidden>{{ dash.scope.secondary.label }}项目 · 近 12 个月聚合</span>{% endif %}
+              <span data-dash-sub="mine">{{ _('全部项目') if layout.kpi_variant == 'admin' else _('我的项目') }} · {{ _('近 12 个月聚合') }}</span>
+              {% if _has_sec %}<span data-dash-sub="team" hidden>{{ dash.scope.secondary.label }}{{ _('项目') }} · {{ _('近 12 个月聚合') }}</span>{% endif %}
             </div>
           </div>
           {% for _sc in (['mine','team'] if _has_sec else ['mine']) %}
           {% set _sd = dash.scopeData.mine if _sc == 'mine' else dash.scopeData.secondary %}
           <div data-dash-scope-content="{{ _sc }}" style="display:flex;gap:6px;"{% if _sc != "mine" %} hidden{% endif %}>
-            {{ at_pill('转化 ' ~ _sd.funnelConversion ~ '%', tone='success', size='md') }}
+            {{ at_pill(_('转化') ~ ' ' ~ _sd.funnelConversion ~ '%', tone='success', size='md') }}
             {% if _sd.funnelLoss and _sd.funnelLoss.count > 0 %}
-              {{ at_pill('流失 ' ~ _sd.funnelLoss.rate ~ '%', tone='danger', size='md', dot=true) }}
+              {{ at_pill(_('流失') ~ ' ' ~ _sd.funnelLoss.rate ~ '%', tone='danger', size='md', dot=true) }}
             {% endif %}
           </div>
           {% endfor %}
@@ -488,7 +488,7 @@
                               display:flex;align-items:center;justify-content:space-between;
                               padding:0 12px;color:#fff;min-width:90px;
                               transition:width 600ms cubic-bezier(.2,.7,.2,1);">
-                    <span class="dash-tab-num" style="font-size:12px;font-weight:600;">{{ s.count }} 单</span>
+                    <span class="dash-tab-num" style="font-size:12px;font-weight:600;">{{ s.count }} {{ _('单') }}</span>
                     <span class="dash-tab-num" style="font-size:11.5px;opacity:0.9;">{{ dash.currency }}{{ '{:,.0f}'.format(s.amount) }}</span>
                   </div>
                 </div>
@@ -497,13 +497,13 @@
               <div style="display:flex;align-items:center;gap:12px;padding-left:68px;height:12px;">
                 <div style="height:12px;width:1px;border-left:1px dashed var(--line-2);margin-left:-2px;"></div>
                 {% if s.locked %}
-                <span title="该阶段有 {{ s.locked }} 个项目已锁定成功"
+                <span title="{{ _('该阶段有') }} {{ s.locked }} {{ _('个项目已锁定成功') }}"
                       style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;color:var(--warn);font-weight:600;">
-                  {{ at_win_lock_badge('该阶段 ' ~ s.locked ~ ' 个锁定', size='sm') }}{{ s.locked }}
+                  {{ at_win_lock_badge(_('该阶段') ~ ' ' ~ s.locked ~ ' ' ~ _('个锁定'), size='sm') }}{{ s.locked }}
                 </span>
                 {% endif %}
                 <span style="font-size:10.5px;color:var(--ink-3);">
-                  流失 <span class="dash-tab-num" style="color:var(--danger);">{{ drop }}%</span>
+                  {{ _('流失') }} <span class="dash-tab-num" style="color:var(--danger);">{{ drop }}%</span>
                 </span>
               </div>
               {% endif %}
@@ -516,10 +516,10 @@
                       display:flex;align-items:center;gap:14px;font-size:11.5px;color:var(--ink-3);">
             {{ at_icon('warn', 12) }}
             <span>
-              已流失/暂停 <b style="color:var(--danger);">{{ _sd.funnelLoss.count }}</b> 个项目
-              · 涉及植入额 <b class="dash-tab-num" style="color:var(--ink);">{{ dash.currency }}{{ '{:,.0f}'.format(_sd.funnelLoss.amount) }}</b>
-              ({% if _sd.funnelLoss.lost.count %}失败 {{ _sd.funnelLoss.lost.count }}{% endif %}
-              {% if _sd.funnelLoss.paused.count %} · 暂停 {{ _sd.funnelLoss.paused.count }}{% endif %})
+              {{ _('已流失/暂停') }} <b style="color:var(--danger);">{{ _sd.funnelLoss.count }}</b> {{ _('个项目') }}
+              · {{ _('涉及植入额') }} <b class="dash-tab-num" style="color:var(--ink);">{{ dash.currency }}{{ '{:,.0f}'.format(_sd.funnelLoss.amount) }}</b>
+              ({% if _sd.funnelLoss.lost.count %}{{ _('失败') }} {{ _sd.funnelLoss.lost.count }}{% endif %}
+              {% if _sd.funnelLoss.paused.count %} · {{ _('暂停') }} {{ _sd.funnelLoss.paused.count }}{% endif %})
             </span>
           </div>
           {% endif %}
@@ -534,13 +534,13 @@
       <section class="dash-card dash-card-scoped" data-dash-block="projects" style="flex:1 1 280px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            {{ dash_scope_title('项目', _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
+            {{ dash_scope_title(_('项目'), _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
             {% for _sc in (['mine','team'] if _has_sec else ['mine']) %}
             {% set _pc = (dash.scopeData.mine if _sc == 'mine' else dash.scopeData.secondary).projectCounts %}
             <div class="dash-card-sub" data-dash-scope-content="{{ _sc }}"{% if _sc != "mine" %} hidden{% endif %}>
-              进行中 <b class="dash-tab-num" style="color:var(--ink);">{{ _pc.active }}</b>
+              {{ _('进行中') }} <b class="dash-tab-num" style="color:var(--ink);">{{ _pc.active }}</b>
               <span style="color:var(--ink-4);"> · </span>
-              即将到期 <b class="dash-tab-num" style="color:var(--danger);">{{ _pc.dueSoon }}</b>
+              {{ _('即将到期') }} <b class="dash-tab-num" style="color:var(--danger);">{{ _pc.dueSoon }}</b>
             </div>
             {% endfor %}
           </div>
@@ -562,7 +562,7 @@
                 {% if p.dueRed %}
                 <span style="font-size:10.5px;color:var(--danger);font-weight:500;display:inline-flex;align-items:center;gap:4px;">
                   <span style="width:5px;height:5px;background:var(--danger);border-radius:3px;"></span>
-                  {{ p.dueIn }} 天到期
+                  {{ p.dueIn }} {{ _('天到期') }}
                 </span>
                 {% endif %}
               </div>
@@ -575,7 +575,7 @@
               </div>
             </li>
             {% else %}
-            <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无项目</li>
+            <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">{{ _('暂无项目') }}</li>
             {% endfor %}
           </ul>
           {% endfor %}
@@ -588,8 +588,8 @@
       <section class="dash-card dash-card-scoped" data-dash-block="quotes" style="flex:1 1 280px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            {{ dash_scope_title('报价', _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
-            <div class="dash-card-sub">按状态聚合</div>
+            {{ dash_scope_title(_('报价'), _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
+            <div class="dash-card-sub">{{ _('按状态聚合') }}</div>
           </div>
           {{ dash_scope_chips(_has_sec, dash.scope) }}
         </header>
@@ -599,9 +599,9 @@
         {% set _qc = _sd.quoteCounts %}
         {% set _quotes = _sd.quotes %}
         {% set _qstats = [
-          {'k':'new',          'label':'本月新增', 'n':_qc.newThisMonth, 'tone':'info'},
-          {'k':'awaitConfirm', 'label':'待确认',   'n':_qc.awaitConfirm, 'tone':'warn',    'hot':true},
-          {'k':'won',          'label':'本月成交', 'n':_qc.wonThisMonth, 'tone':'success'}
+          {'k':'new',          'label':_('本月新增'), 'n':_qc.newThisMonth, 'tone':'info'},
+          {'k':'awaitConfirm', 'label':_('待确认'),   'n':_qc.awaitConfirm, 'tone':'warn',    'hot':true},
+          {'k':'won',          'label':_('本月成交'), 'n':_qc.wonThisMonth, 'tone':'success'}
         ] %}
         <div data-dash-scope-content="{{ _sc }}"{% if _sc != "mine" %} hidden{% endif %}>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;">
@@ -632,7 +632,7 @@
               <span class="dash-tab-num at-mono" style="font-size:12px;color:var(--ink-2);">{{ dash.currency }}{{ '{:,.0f}'.format(q.amount) }}</span>
             </li>
             {% else %}
-            <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">暂无报价</li>
+            <li class="at-dim" style="text-align:center;padding:24px;font-size:12px;">{{ _('暂无报价') }}</li>
             {% endfor %}
           </ul>
         </div>
@@ -653,8 +653,8 @@
       <section class="dash-card dash-card-scoped" data-dash-block="expense" style="flex:1 1 340px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            {{ dash_scope_title('报销', _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
-            <div class="dash-card-sub">本年度 · 12 月趋势</div>
+            {{ dash_scope_title(_('报销'), _has_sec, dash.scope.secondary.label if dash.scope.secondary else '') }}
+            <div class="dash-card-sub">{{ _('本年度 · 12 月趋势') }}</div>
           </div>
           {{ dash_scope_chips(_has_sec, dash.scope) }}
         </header>
@@ -667,14 +667,14 @@
         {% set _yoy = (((_exp.yearTotal - _exp.yearTotalLast) / _exp.yearTotalLast * 100) | round(1)) if _exp.yearTotalLast > 0 else 0 %}
         <div data-dash-scope-content="{{ _sc }}"{% if _sc != "mine" %} hidden{% endif %}>
           <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px;">
-            <span style="font-size:11px;color:var(--ink-3);">今年累计</span>
+            <span style="font-size:11px;color:var(--ink-3);">{{ _('今年累计') }}</span>
             <span class="dash-tab-num at-serif" style="font-size:30px;font-weight:500;letter-spacing:-0.01em;color:var(--ink);">
               {{ _exp.currency }}{{ '{:,.0f}'.format(_exp.yearTotal) }}
             </span>
-            {{ at_pill('同比 ' ~ ('+' if _yoy > 0 else '') ~ _yoy ~ '%', tone=('warn' if _yoy > 0 else 'success'), size='md') }}
+            {{ at_pill(_('同比') ~ ' ' ~ ('+' if _yoy > 0 else '') ~ _yoy ~ '%', tone=('warn' if _yoy > 0 else 'success'), size='md') }}
           </div>
           <div style="font-size:11px;color:var(--ink-4);margin-bottom:14px;">
-            月均 {{ _exp.currency }}{{ '{:,.0f}'.format(_avg) }} · CNY 结算
+            {{ _('月均') }} {{ _exp.currency }}{{ '{:,.0f}'.format(_avg) }} · {{ _('CNY 结算') }}
           </div>
 
           {# SVG Chart 折线 + area + 均线 #}
@@ -720,7 +720,7 @@
           </div>
 
           {% if _exp.categories %}
-          <div style="font-size:11px;color:var(--ink-3);margin-bottom:8px;letter-spacing:0.04em;">科目分布 · 本年</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:8px;letter-spacing:0.04em;">{{ _('科目分布 · 本年') }}</div>
           <ul style="list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:7px;">
             {% for c in _exp.categories %}
             <li style="display:flex;align-items:center;gap:8px;font-size:12px;">
@@ -729,13 +729,13 @@
               <span style="flex:1;height:6px;background:var(--bg-page);border-radius:3px;overflow:hidden;min-width:0;">
                 <span style="display:block;height:100%;width:{{ c.pct }}%;background:{{ c.color }};border-radius:3px;"></span>
               </span>
-              <span class="dash-tab-num" style="width:66px;text-align:right;color:var(--ink);font-weight:500;flex-shrink:0;">{% if c.amount >= 10000 %}{{ _exp.currency }}{{ '{:.1f}'.format(c.amount/10000) }}万{% else %}{{ _exp.currency }}{{ '{:,.0f}'.format(c.amount) }}{% endif %}</span>
+              <span class="dash-tab-num" style="width:66px;text-align:right;color:var(--ink);font-weight:500;flex-shrink:0;">{% if c.amount >= 10000 %}{{ _exp.currency }}{{ '{:.1f}'.format(c.amount/10000) }}{{ _('万') }}{% else %}{{ _exp.currency }}{{ '{:,.0f}'.format(c.amount) }}{% endif %}</span>
             </li>
             {% endfor %}
           </ul>
           {% endif %}
 
-          <div style="font-size:11px;color:var(--ink-3);margin-bottom:6px;letter-spacing:0.04em;">最近 3 笔</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:6px;letter-spacing:0.04em;">{{ _('最近 3 笔') }}</div>
           <ul style="list-style:none;margin:0;padding:0;">
             {% for e in _exp.recent %}
             <li style="padding:8px 4px;border-top:{{ '0' if loop.first else '1px solid var(--line)' }};
@@ -759,20 +759,20 @@
       <section class="dash-card" style="flex:1.5 1 440px;min-width:0;">
         <header class="dash-card-h">
           <div style="flex:1;min-width:0;">
-            <h3 class="dash-card-title">工作记录</h3>
+            <h3 class="dash-card-title">{{ _('工作记录') }}</h3>
             <div class="dash-card-sub">
-              团队最近动态
+              {{ _('团队最近动态') }}
               {% if _unread > 0 %}
               <span style="color:var(--ink-4);"> · </span>
-              <span style="color:var(--accent);">@ 我的 {{ _unread }} 条未读</span>
+              <span style="color:var(--accent);">{{ _('@ 我的') }} {{ _unread }} {{ _('条未读') }}</span>
               {% endif %}
             </div>
           </div>
           {# 团队 tab 仅在有"非我的"工作记录时显示;@我的 仅在有 @我 时显示 #}
           {% set _wl_has_team = (_wl | rejectattr('is_mine') | list | length) > 0 %}
-          {% set _wl_tabs = [{'k':'all','label':'全部'}, {'k':'mine','label':'我的'}] %}
-          {% if _wl_has_team %}{% set _ = _wl_tabs.append({'k':'team','label':'团队'}) %}{% endif %}
-          {% if _unread > 0 %}{% set _ = _wl_tabs.append({'k':'mention','label':'@ 我的'}) %}{% endif %}
+          {% set _wl_tabs = [{'k':'all','label':_('全部')}, {'k':'mine','label':_('我的')}] %}
+          {% if _wl_has_team %}{% set _ = _wl_tabs.append({'k':'team','label':_('团队')}) %}{% endif %}
+          {% if _unread > 0 %}{% set _ = _wl_tabs.append({'k':'mention','label':_('@ 我的')}) %}{% endif %}
           <div data-dash-tabs="worklog"
                style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
             {% for f in _wl_tabs %}
@@ -790,7 +790,7 @@
           {% set yesterday = (now.date() - (now.date() - now.date()).__class__.resolution * 0)|string if now else '' %}
           {% set _grouped = {} %}
           {% for w in _wl %}
-            {% set _key = '今天' if w.date == today else ('昨天' if w.date == yesterday else (w.date or '更早')) %}
+            {% set _key = _('今天') if w.date == today else (_('昨天') if w.date == yesterday else (w.date or _('更早'))) %}
             {% if _key not in _grouped %}{% set _ = _grouped.update({_key: []}) %}{% endif %}
             {% set _ = _grouped[_key].append(w) %}
           {% endfor %}
@@ -841,7 +841,7 @@
                               display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ w.text }}</p>
                     {% if w.replies and w.replies > 0 %}
                     <div style="margin-top:6px;font-size:11px;color:var(--ink-3);display:inline-flex;align-items:center;gap:5px;">
-                      {{ at_icon('docs', 11) }}<span>{{ w.replies }} 条回复</span>
+                      {{ at_icon('docs', 11) }}<span>{{ w.replies }} {{ _('条回复') }}</span>
                     </div>
                     {% endif %}
                   </div>
@@ -850,13 +850,13 @@
               </ul>
             </div>
             {% else %}
-            <div class="at-dim" style="text-align:center;padding:30px;font-size:12px;">暂无工作记录</div>
+            <div class="at-dim" style="text-align:center;padding:30px;font-size:12px;">{{ _('暂无工作记录') }}</div>
             {% endfor %}
           </div>
 
           <button type="button" style="margin-top:14px;padding:10px;width:100%;font-size:12px;
                   color:var(--ink-3);font-weight:500;background:var(--bg-page);border:0;border-radius:6px;cursor:pointer;">
-            加载更早记录…
+            {{ _('加载更早记录…') }}
           </button>
         </div>
       </section>
@@ -935,7 +935,7 @@
   // 简易 tab 切换:高亮 + 过滤列表项
   window.atDashFilter = function(group, key) {
     document.querySelectorAll(`[data-dash-tabs="${group}"] button`).forEach(btn => {
-      const active = btn.dataset.tab === key || btn.textContent.trim() === ({all:'全部',mine:'我的',team:'团队',mention:'@ 我的'}[key]);
+      const active = btn.dataset.tab === key || btn.textContent.trim() === ({all:'{{ _("全部") }}',mine:'{{ _("我的") }}',team:'{{ _("团队") }}',mention:'{{ _("@ 我的") }}'}[key]);
       btn.style.background = active ? 'var(--bg-elev)' : 'transparent';
       btn.style.color = active ? 'var(--ink)' : 'var(--ink-3)';
       btn.style.boxShadow = active ? '0 1px 2px rgba(31,30,27,0.06)' : 'none';

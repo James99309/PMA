@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{{ u.name }} · 账户详情</title>
+<title>{{ u.name }} · {{ _('账户详情') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>.material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }</style>
@@ -33,12 +33,12 @@
 <header style="border-bottom:1px solid var(--line);background:var(--bg-elev);position:sticky;top:0;z-index:30;">
   <div style="max-width:1280px;margin:0 auto;width:100%;box-sizing:border-box;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
-    <a href="{{ url_for('user.at_list') }}" style="font-size:13px;color:var(--ink-3);text-decoration:none;">账户列表</a>
+    <a href="{{ url_for('user.at_list') }}" style="font-size:13px;color:var(--ink-3);text-decoration:none;">{{ _('账户列表') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
     <span style="font-size:13px;color:var(--ink);">{{ u.name }}</span>
     <div style="flex:1;"></div>
     {% if can_edit %}
-      {{ at_btn('编辑资料', variant='ghost', size='sm', icon_l='edit',
+      {{ at_btn(_('编辑资料'), variant='ghost', size='sm', icon_l='edit',
                 onclick='ucOpenEdit(EDIT_DATA, EDIT_ACTION)') }}
     {% endif %}
   </div>
@@ -54,11 +54,11 @@
     <div>
       <h1 class="at-serif" style="margin:0;font-size:24px;font-weight:600;display:flex;align-items:center;gap:10px;">
         {{ u.name }}
-        {% if u.is_active %}{{ at_pill('已激活', tone='success', dot=true) }}
-        {% else %}{{ at_pill('未激活', tone='neutral') }}{% endif %}
-        {% if u.is_dept_manager %}{{ at_pill('部门负责人', tone='accent') }}{% endif %}
+        {% if u.is_active %}{{ at_pill(_('已激活'), tone='success', dot=true) }}
+        {% else %}{{ at_pill(_('未激活'), tone='neutral') }}{% endif %}
+        {% if u.is_dept_manager %}{{ at_pill(_('部门负责人'), tone='accent') }}{% endif %}
         {% if u.in_probation %}
-        <span title="新手 · 试用期{% if u.probation_end %}至 {{ u.probation_end }}{% endif %}"
+        <span title="{{ _('新手') }} · {{ _('试用期') }}{% if u.probation_end %}{{ _('至') }} {{ u.probation_end }}{% endif %}"
               style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
                      background:var(--success-soft);color:var(--success);vertical-align:middle;">
           <span class="material-symbols-outlined" style="font-size:15px;">eco</span>
@@ -75,20 +75,20 @@
 
     {# ── 左:档案信息 ── #}
     <section class="at-section">
-      <header class="at-section-h"><h3 class="at-section-title">档案信息</h3></header>
+      <header class="at-section-h"><h3 class="at-section-title">{{ _('档案信息') }}</h3></header>
       <div class="at-section-body">
         <dl style="margin:0;">
           {% for label, value, mono in [
-            ('用户名', u.username, true),
-            ('真实姓名', u.name, false),
-            ('角色', u.role_display, false),
-            ('部门', u.department, false),
-            ('所属公司', u.company, false),
-            ('邮箱', u.email or '—', true),
-            ('手机', u.phone or '—', true),
-            ('微信', u.wechat or '—', false),
-            ('创建时间', u.created, true),
-            ('最近登录', u.last_login, true),
+            (_('用户名'), u.username, true),
+            (_('真实姓名'), u.name, false),
+            (_('角色'), u.role_display, false),
+            (_('部门'), u.department, false),
+            (_('所属公司'), u.company, false),
+            (_('邮箱'), u.email or '—', true),
+            (_('手机'), u.phone or '—', true),
+            (_('微信'), u.wechat or '—', false),
+            (_('创建时间'), u.created, true),
+            (_('最近登录'), u.last_login, true),
           ] %}
           <div class="at-info-row">
             <dt>{{ label }}</dt>
@@ -104,16 +104,16 @@
       {# ── 右:个人配置入口(四页签,?user= 预选) ── #}
       {% if can_person_config %}
       <section class="at-section" style="margin-bottom:0;">
-        <header class="at-section-h"><h3 class="at-section-title">个人配置</h3></header>
+        <header class="at-section-h"><h3 class="at-section-title">{{ _('个人配置') }}</h3></header>
         <div class="at-section-body" style="padding:8px;">
           {# 每项:(标签, 图标, 链接, 对应功能开关 feature_id);无该开关 → 灰显不可点 #}
           {% set _cfg_links = [
-            ('权限覆盖', 'shield_person',          url_for('user.at_person_permissions', user=u.id),  'pc_permission'),
-            ('归属关系', 'lan',                    url_for('user.at_person_affiliation', user=u.id),  'pc_affiliation'),
-            ('费用预算', 'account_balance_wallet', url_for('user.at_person_budget', user=u.id),       'pc_budget'),
-            ('绩效目标', 'flag',                   url_for('user.at_person_performance', user=u.id),  'pc_performance'),
-            ('薪资配置', 'payments',               url_for('user.at_person_salary', user=u.id),       'pc_salary'),
-            ('AI 代理', 'smart_toy',               url_for('user.at_person_ai', user=u.id),           'pc_ai'),
+            (_('权限覆盖'), 'shield_person',          url_for('user.at_person_permissions', user=u.id),  'pc_permission'),
+            (_('归属关系'), 'lan',                    url_for('user.at_person_affiliation', user=u.id),  'pc_affiliation'),
+            (_('费用预算'), 'account_balance_wallet', url_for('user.at_person_budget', user=u.id),       'pc_budget'),
+            (_('绩效目标'), 'flag',                   url_for('user.at_person_performance', user=u.id),  'pc_performance'),
+            (_('薪资配置'), 'payments',               url_for('user.at_person_salary', user=u.id),       'pc_salary'),
+            (_('AI 代理'), 'smart_toy',               url_for('user.at_person_ai', user=u.id),           'pc_ai'),
           ] %}
           {% for label, icon, url, fid in _cfg_links %}
             {% set _ok = (pc_tabs or {}).get(fid) %}
@@ -124,7 +124,7 @@
               {{ at_icon('chev', 13) }}
             </a>
             {% else %}
-            <span class="ud-link" style="opacity:.4;cursor:not-allowed;" title="无权限">
+            <span class="ud-link" style="opacity:.4;cursor:not-allowed;" title="{{ _('无权限') }}">
               <span class="material-symbols-outlined">{{ icon }}</span>
               <span style="flex:1;">{{ label }}</span>
             </span>
@@ -137,24 +137,24 @@
       {# ── 右:账户操作 ── #}
       {% if can_edit or can_delete %}
       <section class="at-section" style="margin-bottom:0;">
-        <header class="at-section-h"><h3 class="at-section-title">账户操作</h3></header>
+        <header class="at-section-h"><h3 class="at-section-title">{{ _('账户操作') }}</h3></header>
         <div class="at-section-body" style="display:flex;flex-direction:column;gap:10px;">
           {% if can_edit %}
           <button type="button" id="udToggleBtn" onclick="udToggleActive()"
                   style="height:34px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);
                          color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">
-            {{ '停用账户' if u.is_active else '激活账户' }}
+            {{ _('停用账户') if u.is_active else _('激活账户') }}
           </button>
           {% endif %}
           {% if can_delete %}
           <button type="button" onclick="udDelete()"
                   style="height:34px;border-radius:7px;border:1px solid var(--danger-soft);background:transparent;
                          color:var(--danger);font:inherit;font-size:12.5px;cursor:pointer;">
-            删除账户
+            {{ _('删除账户') }}
           </button>
           {% endif %}
           <div class="at-dim" style="font-size:11px;line-height:1.5;">
-            停用后该账户无法登录但数据保留;删除为软删/迁移逻辑,谨慎操作。
+            {{ _('停用后该账户无法登录但数据保留;删除为软删/迁移逻辑,谨慎操作。') }}
           </div>
         </div>
       </section>
@@ -182,36 +182,36 @@
   window.udToggleActive = function () {
     const active = {{ u.is_active | tojson }};
     ATConfirm.show({
-      title: active ? '停用账户' : '激活账户',
-      message: active ? '停用后 {{ u.name }} 将无法登录,确定停用?'
+      title: active ? '{{ _("停用账户") }}' : '{{ _("激活账户") }}',
+      message: active ? '{{ _("停用后") }} {{ u.name }} {{ _("将无法登录,确定停用?") }}'
         : ({{ (u.last_login == '—') | tojson }}
-            ? '激活 {{ u.name }} 并发送邀请邮件(含激活链接,用户自行设置密码)至 {{ u.email or "其邮箱" }},确定?'
-            : '激活后 {{ u.name }} 可用原密码正常登录,确定激活?'),
+            ? '{{ _("激活") }} {{ u.name }} {{ _("并发送邀请邮件(含激活链接,用户自行设置密码)至") }} {{ u.email or _("其邮箱") }}{{ _(",确定?") }}'
+            : '{{ _("激活后") }} {{ u.name }} {{ _("可用原密码正常登录,确定激活?") }}'),
       variant: active ? 'danger' : 'accent',
-      confirmText: active ? '停用' : '激活', cancelText: '取消',
+      confirmText: active ? '{{ _("停用") }}' : '{{ _("激活") }}', cancelText: '{{ _("取消") }}',
       onConfirm: async () => {
         try {
           const d = await (await fetch('{{ url_for("user.at_api_toggle_user_active", user_id=u.id) }}', {
             method: 'POST', headers: { 'X-CSRFToken': _csrf() } })).json();
           if (d.success) { ATToast.success(d.message); setTimeout(() => location.reload(), 500); }
-          else ATToast.error(d.message || '操作失败');
-        } catch (e) { ATToast.error('操作失败,请重试'); }
+          else ATToast.error(d.message || '{{ _("操作失败") }}');
+        } catch (e) { ATToast.error('{{ _("操作失败,请重试") }}'); }
       },
     });
   };
 
   window.udDelete = function () {
     ATConfirm.show({
-      title: '删除账户',
-      message: '删除 {{ u.name }}({{ u.username }})?该操作不可随意撤销。',
-      variant: 'danger', icon: 'trash', confirmText: '删除', cancelText: '取消',
+      title: '{{ _("删除账户") }}',
+      message: '{{ _("删除") }} {{ u.name }}({{ u.username }})?{{ _("该操作不可随意撤销。") }}',
+      variant: 'danger', icon: 'trash', confirmText: '{{ _("删除") }}', cancelText: '{{ _("取消") }}',
       onConfirm: async () => {
         try {
           const r = await fetch('{{ url_for("user.delete_user", user_id=u.id) }}', {
             method: 'POST', headers: { 'X-CSRFToken': _csrf() }, redirect: 'follow' });
-          if (r.ok) { ATToast.success('已删除'); setTimeout(() => location.href = '{{ url_for("user.at_list") }}', 500); }
-          else ATToast.error('删除失败');
-        } catch (e) { ATToast.error('删除失败,请重试'); }
+          if (r.ok) { ATToast.success('{{ _("已删除") }}'); setTimeout(() => location.href = '{{ url_for("user.at_list") }}', 500); }
+          else ATToast.error('{{ _("删除失败") }}');
+        } catch (e) { ATToast.error('{{ _("删除失败,请重试") }}'); }
       },
     });
   };

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{{ summary.title }} · 审批流程</title>
+<title>{{ summary.title }} · {{ _('审批流程') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
@@ -33,22 +33,22 @@
 <body class="at-page">
 <main style="max-width:900px;margin:0 auto;padding:28px 32px 80px;">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-    <a href="{{ url_for('approval.tw_center') }}" class="at-dim" style="font-size:12.5px;text-decoration:none;">← 审批中心</a>
+    <a href="{{ url_for('approval.tw_center') }}" class="at-dim" style="font-size:12.5px;text-decoration:none;">← {{ _('审批中心') }}</a>
     <span class="at-dim" style="font-size:12px;">{{ summary.type }}</span>
   </div>
   <h1 class="at-serif" style="margin:0 0 4px;font-size:23px;font-weight:600;">{{ summary.title }}</h1>
   <div class="at-dim" style="font-size:12.5px;margin-bottom:20px;">
-    状态:
-    {% if instance.status == ApprovalStatus.APPROVED %}<span style="color:var(--success);font-weight:500;">已通过</span>
-    {% elif instance.status == ApprovalStatus.REJECTED %}<span style="color:var(--danger);font-weight:500;">已驳回</span>
-    {% elif instance.status == ApprovalStatus.RECALLED %}<span style="color:var(--ink-3);">已召回</span>
-    {% else %}<span style="color:var(--warn);font-weight:500;">审批中</span>{% endif %}
+    {{ _('状态') }}:
+    {% if instance.status == ApprovalStatus.APPROVED %}<span style="color:var(--success);font-weight:500;">{{ _('已通过') }}</span>
+    {% elif instance.status == ApprovalStatus.REJECTED %}<span style="color:var(--danger);font-weight:500;">{{ _('已驳回') }}</span>
+    {% elif instance.status == ApprovalStatus.RECALLED %}<span style="color:var(--ink-3);">{{ _('已召回') }}</span>
+    {% else %}<span style="color:var(--warn);font-weight:500;">{{ _('审批中') }}</span>{% endif %}
   </div>
 
   <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:24px;align-items:start;">
     {# 业务摘要 #}
     <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;padding:18px 20px;">
-      <h2 class="at-serif" style="margin:0 0 12px;font-size:15px;font-weight:600;">业务信息</h2>
+      <h2 class="at-serif" style="margin:0 0 12px;font-size:15px;font-weight:600;">{{ _('业务信息') }}</h2>
       {% for k, v in summary.lines %}
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;">
         <span class="at-dim">{{ k }}</span><span style="font-weight:500;">{{ v }}</span>
@@ -58,18 +58,18 @@
 
       {% if can_approve %}
       <div style="margin-top:18px;padding-top:16px;border-top:2px solid var(--line);">
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">您是当前审批人</div>
-        <textarea id="apComment" rows="2" placeholder="审批意见(可选)"
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">{{ _('您是当前审批人') }}</div>
+        <textarea id="apComment" rows="2" placeholder="{{ _('审批意见(可选)') }}"
                   style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line-2);
                          border-radius:7px;background:var(--bg-page);font:inherit;font-size:12.5px;color:var(--ink);
                          outline:none;resize:vertical;margin-bottom:10px;"></textarea>
         <div style="display:flex;gap:10px;">
           <button type="button" onclick="apAct('approve')"
                   style="flex:1;height:36px;border-radius:7px;border:0;background:var(--success);color:#fff;
-                         font:inherit;font-size:13px;font-weight:500;cursor:pointer;">同意</button>
+                         font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('同意') }}</button>
           <button type="button" onclick="apAct('reject')"
                   style="flex:1;height:36px;border-radius:7px;border:1px solid var(--danger);background:var(--bg-elev);
-                         color:var(--danger);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">驳回</button>
+                         color:var(--danger);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('驳回') }}</button>
         </div>
       </div>
       {% endif %}
@@ -77,9 +77,9 @@
 
     {# 纵向流程图 #}
     <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;padding:22px 20px;">
-      <h2 class="at-serif" style="margin:0 0 16px;font-size:15px;font-weight:600;">审批流程</h2>
+      <h2 class="at-serif" style="margin:0 0 16px;font-size:15px;font-weight:600;">{{ _('审批流程') }}</h2>
       <div class="fl-col">
-        <div class="fl-endpoint"><span class="dot" style="background:var(--info);"></span>发起</div>
+        <div class="fl-endpoint"><span class="dot" style="background:var(--info);"></span>{{ _('发起') }}</div>
         {% for s in steps_view %}
         <div class="fl-link"></div>
         {% set cls = 'cur' if s.status=='current' else ('ok' if s.status in ['approve','done','skipped'] else ('no' if s.status=='reject' else '')) %}
@@ -97,18 +97,18 @@
               <span class="fl-no" style="background:var(--bg-sunk);color:var(--ink-3);">{{ s.order }}</span>
             {% endif %}
             <span class="fl-t">{{ s.name }}</span>
-            {% if s.status=='current' %}<span style="font-size:10.5px;color:var(--accent);font-weight:500;">待审批</span>{% endif %}
+            {% if s.status=='current' %}<span style="font-size:10.5px;color:var(--accent);font-weight:500;">{{ _('待审批') }}</span>{% endif %}
           </div>
-          <div class="fl-meta">审批人:{{ s.approver }}
-            {% if s.status=='approve' %}· <span style="color:var(--success);">已同意</span>
-            {% elif s.status=='reject' %}· <span style="color:var(--danger);">已驳回</span>
-            {% elif s.status=='skipped' %}· <span class="at-dim">已跳过</span>{% endif %}
+          <div class="fl-meta">{{ _('审批人') }}:{{ s.approver }}
+            {% if s.status=='approve' %}· <span style="color:var(--success);">{{ _('已同意') }}</span>
+            {% elif s.status=='reject' %}· <span style="color:var(--danger);">{{ _('已驳回') }}</span>
+            {% elif s.status=='skipped' %}· <span class="at-dim">{{ _('已跳过') }}</span>{% endif %}
           </div>
           {% if s.comment %}<div class="fl-cmt">「{{ s.comment }}」</div>{% endif %}
         </div>
         {% endfor %}
         <div class="fl-link"></div>
-        <div class="fl-endpoint"><span class="dot" style="background:var(--success);"></span>完成</div>
+        <div class="fl-endpoint"><span class="dot" style="background:var(--success);"></span>{{ _('完成') }}</div>
       </div>
     </div>
   </div>
@@ -123,9 +123,9 @@
       headers: { 'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content },
       body: fd,
     }).then(r => r.json()).then(d => {
-      if (d.success) { ATToast.success(d.message || (action === 'approve' ? '已同意' : '已驳回')); setTimeout(() => location.reload(), 700); }
-      else ATToast.error(d.message || '操作失败');
-    }).catch(() => ATToast.error('操作失败,请重试'));
+      if (d.success) { ATToast.success(d.message || (action === 'approve' ? '{{ _("已同意") }}' : '{{ _("已驳回") }}')); setTimeout(() => location.reload(), 700); }
+      else ATToast.error(d.message || '{{ _("操作失败") }}');
+    }).catch(() => ATToast.error('{{ _("操作失败,请重试") }}'));
   }
 </script>
 </body>
