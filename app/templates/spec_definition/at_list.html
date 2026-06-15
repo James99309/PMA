@@ -2,18 +2,18 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_input %}
 
 {% block sidebar_active %}spec_definition{% endblock %}
-{% block page_title %}规格字典{% endblock %}
-{% block category_label %}SPEC DICT · 产品中心{% endblock %}
-{% block page_description %}规格项基础字典 — 名称、单位、值类型、测试方法/条件。{% endblock %}
+{% block page_title %}{{ _('规格字典') }}{% endblock %}
+{% block category_label %}SPEC DICT · {{ _('产品中心') }}{% endblock %}
+{% block page_description %}{{ _('规格项基础字典 — 名称、单位、值类型、测试方法/条件。') }}{% endblock %}
 
 {% block breadcrumb %}
-<a href="#" style="font-size:13px;color:var(--ink-3);">产品中心</a>
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('产品中心') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-<span style="font-size:13px;color:var(--ink);">规格字典</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('规格字典') }}</span>
 {% endblock %}
 
 {% block page_actions %}
-{{ at_btn('管理测试方法', variant='ghost', size='sm', tag='a',
+{{ at_btn(_('管理测试方法'), variant='ghost', size='sm', tag='a',
           href=url_for('spec_definition.list_test_methods')) }}
 {% endblock %}
 
@@ -35,13 +35,13 @@
 <form method="get" action="{{ url_for('spec_definition.at_list_view') }}"
       style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
   <input type="hidden" name="category_id" value="{{ current_category_id }}">
-  {{ at_input(name='search', value=search, placeholder='搜索规格名(中/英)…', icon_l='search', width='320px') }}
+  {{ at_input(name='search', value=search, placeholder=_('搜索规格名(中/英)…'), icon_l='search', width='320px') }}
 </form>
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('名称(中文)','left'),('Name (EN)','left'),('单位','left'),
-                ('值类型','left'),('附件','left'),('排序','right')] %}
+{% for h, a in [(_('名称(中文)'),'left'),('Name (EN)','left'),(_('单位'),'left'),
+                (_('值类型'),'left'),(_('附件'),'left'),(_('排序'),'right')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -51,10 +51,10 @@
 
 {% block trows %}
 {% set type_meta = {
-  'text':    ('文本',   'neutral'),
-  'number':  ('数值',   'info'),
-  'select':  ('选项',   'accent'),
-  'boolean': ('布尔',   'warn')
+  'text':    (_('文本'),   'neutral'),
+  'number':  (_('数值'),   'info'),
+  'select':  (_('选项'),   'accent'),
+  'boolean': (_('布尔'),   'warn')
 } %}
 {% for d in definitions %}
 {% set tm = type_meta.get(d.value_type, (d.value_type, 'neutral')) %}
@@ -86,7 +86,7 @@
 {% else %}
 <tr>
   <td colspan="6" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-    此分类下暂无规格项
+    {{ _('此分类下暂无规格项') }}
   </td>
 </tr>
 {% endfor %}
@@ -95,15 +95,15 @@
 {% block pagination %}
 {% if pagination.pages > 1 %}
 <span class="at-mono at-dim" style="font-size:11.5px;">
-  第 {{ pagination.page }} / {{ pagination.pages }} 页
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
 </span>
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
-    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
               href=url_for('spec_definition.at_list_view', category_id=current_category_id, page=pagination.prev_num, search=search)) }}
   {% endif %}
   {% if pagination.has_next %}
-    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
               href=url_for('spec_definition.at_list_view', category_id=current_category_id, page=pagination.next_num, search=search)) }}
   {% endif %}
 </div>

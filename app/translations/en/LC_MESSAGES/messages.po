@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 13:08+0800\n"
+"POT-Creation-Date: 2026-06-15 13:17+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -1449,6 +1449,7 @@ msgstr "All Representatives"
 #: app/templates/expense/tw_expense_detail.html:379
 #: app/templates/files/tw_file_manager.html:349
 #: app/templates/files/tw_file_manager.html:801 app/templates/index.html:247
+#: app/templates/inventory/at_purchase_order_list.html:84
 #: app/templates/macros/approval_macros.html:102
 #: app/templates/meeting/tw_meeting_minutes_list.html:145
 #: app/templates/pricing_order/at_list.html:61
@@ -1536,6 +1537,7 @@ msgid "创建时间"
 msgstr "Created"
 
 #: app/routes/product.py:494 app/routes/product.py:579
+#: app/templates/inventory/at_purchase_order_list.html:34
 #: app/templates/product/create.html:192 app/utils/status_meta.py:38
 #: app/views/config_management.py:2099
 msgid "生产中"
@@ -1662,6 +1664,7 @@ msgstr "Product Name"
 #: app/templates/product_analysis/tw_analysis.html:443
 #: app/templates/product_analysis/tw_analysis.html:520
 #: app/templates/spec_definition/tw_list.html:603
+#: app/templates/spec_template/at_list.html:77
 #: app/templates/spec_template/tw_list.html:195
 #: app/views/product_analysis.py:1546
 msgid "型号"
@@ -1691,6 +1694,7 @@ msgstr "Spec"
 #: app/templates/quotation/tw_list.html:21
 #: app/templates/quotation/tw_quotation_detail.html:29
 #: app/templates/quotation/tw_quotation_detail.html:243
+#: app/templates/spec_definition/at_list.html:43
 #: app/templates/spec_definition/tw_list.html:246
 #: app/templates/spec_definition/tw_list.html:673
 #: app/templates/spec_template/tw_configurations.html:336
@@ -2107,6 +2111,7 @@ msgstr "Title"
 #: app/templates/product_code/tw_category_management.html:334
 #: app/templates/spec_template/tw_detail.html:126
 #: app/templates/spec_template/tw_edit.html:221
+#: app/templates/system_diagram/at_list.html:49
 #: app/templates/task/tw_task_management.html:781
 msgid "描述"
 msgstr "Description"
@@ -2640,6 +2645,7 @@ msgid "查看全部"
 msgstr "View All"
 
 #: app/templates/index.html:248
+#: app/templates/inventory/at_purchase_order_list.html:84
 #: app/templates/inventory/partials/_test_form.html:74
 #: app/templates/sales_order/at_list.html:131
 msgid "进度"
@@ -2667,6 +2673,7 @@ msgstr "Quotation No."
 #: app/templates/expense/at_list.html:68
 #: app/templates/expense/partials/_expense_modal_fields.html:315
 #: app/templates/index.html:298
+#: app/templates/inventory/at_purchase_order_list.html:84
 #: app/templates/macros/expense_detail_manager.html:530
 #: app/templates/product_analysis/tw_analysis.html:242
 #: app/templates/product_analysis/tw_analysis.html:450
@@ -3644,9 +3651,11 @@ msgstr "Published"
 #: app/templates/components/tw_access_request_modal.html:36
 #: app/templates/components/tw_access_request_modal.html:150
 #: app/templates/customer/at_list.html:93
+#: app/templates/inventory/at_purchase_order_list.html:83
 #: app/templates/product/file_preview_demo.html:268
 #: app/templates/project/at_list.html:87 app/templates/project/at_list.html:96
-#: app/templates/star_graph/tw_star_graph.html:228 app/views/quotation.py:644
+#: app/templates/star_graph/tw_star_graph.html:228
+#: app/templates/system_diagram/at_list.html:49 app/views/quotation.py:644
 msgid "类型"
 msgstr "Type"
 
@@ -4021,13 +4030,14 @@ msgstr "Forward failed"
 #: app/templates/components/tw_task_modal.html:282
 #: app/templates/components/tw_worklog_preview.html:444
 #: app/templates/config_management/tw_index.html:1554
+#: app/templates/spec_definition/at_list.html:44
 #: app/templates/task/tw_task_management.html:631
 #: app/templates/worklog/tw_calendar.html:885
 #: app/templates/worklog/tw_calendar.html:1100
 #: app/templates/worklog/tw_calendar.html:1323
 #: app/templates/worklog/tw_calendar.html:1567
 msgid "附件"
-msgstr "Attachments"
+msgstr "Attachment"
 
 #: app/templates/announcement/tw_list.html:631
 msgid "目标人数"
@@ -5004,6 +5014,7 @@ msgstr "Filter"
 #: app/templates/expense/at_list.html:22
 #: app/templates/files/tw_file_manager.html:334
 #: app/templates/files/tw_file_manager.html:352
+#: app/templates/inventory/at_purchase_order_list.html:32
 #: app/templates/macros/approval_macros.html:420
 #: app/templates/macros/approval_macros.html:433
 #: app/templates/pricing_order/at_list.html:17
@@ -5013,6 +5024,7 @@ msgstr "Filter"
 #: app/templates/prospect/tw_list.html:220
 #: app/templates/quotation/at_list.html:23
 #: app/templates/sales_order/at_list.html:76
+#: app/templates/spec_template/at_list.html:32
 #: app/templates/spec_template/tw_list.html:100
 #: app/templates/spec_template/tw_list.html:159
 #: app/templates/spec_template/tw_list.html:180
@@ -5039,6 +5051,7 @@ msgid "重置"
 msgstr "Reset"
 
 #: app/templates/components/at_list_layout.html:59
+#: app/templates/product_sn/at_list.html:34
 #: app/templates/sales_order/at_list.html:41
 msgid "暗色"
 msgstr ""
@@ -5080,7 +5093,9 @@ msgstr "items"
 #: app/templates/files/tw_file_manager.html:669
 #: app/templates/macros/ui_modals.html:233
 #: app/templates/product/at_list.html:61
+#: app/templates/spec_template/at_list.html:77
 #: app/templates/spec_template/tw_list.html:194
+#: app/templates/system_diagram/at_list.html:49
 msgid "名称"
 msgstr "Name"
 
@@ -5112,6 +5127,7 @@ msgstr "Quote Amount"
 #: app/templates/components/at_minitables.html:76
 #: app/templates/components/at_minitables.html:103
 #: app/templates/components/at_minitables.html:123
+#: app/templates/inventory/at_purchase_order_list.html:83
 msgid "单号"
 msgstr "No."
 
@@ -5120,6 +5136,7 @@ msgid "总额"
 msgstr "Total"
 
 #: app/templates/components/at_minitables.html:123
+#: app/templates/inventory/at_purchase_order_list.html:85
 #: app/templates/project/at_list.html:97
 msgid "交期"
 msgstr "Delivery"
@@ -5332,7 +5349,10 @@ msgstr "Invoice"
 msgid "查看发票"
 msgstr "View Invoice"
 
-#: app/templates/components/at_minitables.html:584 app/utils/status_meta.py:123
+#: app/templates/components/at_minitables.html:584
+#: app/templates/inventory/at_purchase_order_list.html:69
+#: app/templates/inventory/at_purchase_order_list.html:129
+#: app/utils/status_meta.py:123
 msgid "未上传"
 msgstr "Not Uploaded"
 
@@ -5405,8 +5425,11 @@ msgstr "Customer Orders"
 
 #: app/templates/components/at_sidebar.html:150
 #: app/templates/components/tw_message_panel.html:649
-#: app/templates/components/tw_nav_menu.html:202 app/views/approval.py:215
-#: app/views/approval.py:2131 app/views/approval.py:2951
+#: app/templates/components/tw_nav_menu.html:202
+#: app/templates/inventory/at_purchase_order_list.html:8
+#: app/templates/inventory/at_purchase_order_list.html:22
+#: app/views/approval.py:215 app/views/approval.py:2131
+#: app/views/approval.py:2951
 msgid "采购订单"
 msgstr "Purchase Orders"
 
@@ -5417,6 +5440,12 @@ msgstr "Serial Numbers"
 
 #: app/templates/components/at_sidebar.html:168
 #: app/templates/product/at_list.html:6 app/templates/product/at_list.html:10
+#: app/templates/spec_definition/at_list.html:6
+#: app/templates/spec_definition/at_list.html:10
+#: app/templates/spec_template/at_list.html:6
+#: app/templates/spec_template/at_list.html:10
+#: app/templates/system_diagram/at_list.html:6
+#: app/templates/system_diagram/at_list.html:10
 msgid "产品中心"
 msgstr "Product Center"
 
@@ -5475,6 +5504,8 @@ msgstr "Product Templates"
 #: app/templates/components/at_sidebar.html:236
 #: app/templates/components/tw_nav_menu.html:181
 #: app/templates/product_code/tw_category_management.html:87
+#: app/templates/spec_definition/at_list.html:5
+#: app/templates/spec_definition/at_list.html:12
 msgid "规格字典"
 msgstr "Spec Dictionary"
 
@@ -5798,12 +5829,15 @@ msgstr "No action records"
 #: app/templates/components/tw_action_list.html:276
 #: app/templates/customer/at_list.html:165
 #: app/templates/expense/at_list.html:130
+#: app/templates/inventory/at_purchase_order_list.html:159
 #: app/templates/pricing_order/at_list.html:124
 #: app/templates/product/at_list.html:122
 #: app/templates/product_analysis/tw_analysis.html:493
 #: app/templates/project/at_list.html:172
 #: app/templates/quotation/at_list.html:138
 #: app/templates/sales_order/at_list.html:204
+#: app/templates/spec_definition/at_list.html:102
+#: app/templates/system_diagram/at_list.html:96
 #: app/templates/user/at_list.html:154
 msgid "上一页"
 msgstr "Previous"
@@ -5811,12 +5845,15 @@ msgstr "Previous"
 #: app/templates/components/tw_action_list.html:280
 #: app/templates/customer/at_list.html:169
 #: app/templates/expense/at_list.html:134
+#: app/templates/inventory/at_purchase_order_list.html:163
 #: app/templates/pricing_order/at_list.html:128
 #: app/templates/product/at_list.html:126
 #: app/templates/product_analysis/tw_analysis.html:496
 #: app/templates/project/at_list.html:176
 #: app/templates/quotation/at_list.html:142
 #: app/templates/sales_order/at_list.html:208
+#: app/templates/spec_definition/at_list.html:106
+#: app/templates/system_diagram/at_list.html:100
 #: app/templates/user/at_list.html:158
 msgid "下一页"
 msgstr "Next"
@@ -8023,7 +8060,8 @@ msgid "创建者"
 msgstr "Creator"
 
 #: app/templates/components/tw_metadata_card.html:125
-#: app/templates/product/tw_product_detail.html:465 app/views/quotation.py:645
+#: app/templates/product/tw_product_detail.html:465
+#: app/templates/system_diagram/at_list.html:49 app/views/quotation.py:645
 #: app/views/user.py:383
 msgid "更新时间"
 msgstr "Updated"
@@ -8964,6 +9002,7 @@ msgid "供应商确认"
 msgstr "Supplier"
 
 #: app/templates/components/tw_po_timeline.html:59
+#: app/templates/inventory/at_purchase_order_list.html:33
 #: app/templates/quotation/at_list.html:25
 #: app/templates/quotation/tw_list.html:176
 #: app/templates/quotation/tw_list_rows.html:12
@@ -8980,6 +9019,7 @@ msgid "查看确认单"
 msgstr "Order"
 
 #: app/templates/components/tw_po_timeline.html:170
+#: app/templates/inventory/at_purchase_order_list.html:35
 #: app/templates/macros/approval_macros.html:439
 #: app/templates/sales_order/at_list.html:79 app/utils/status_meta.py:40
 #: app/utils/status_meta.py:51
@@ -9008,6 +9048,8 @@ msgstr "Current"
 #: app/templates/components/tw_po_timeline.html:254
 #: app/templates/components/tw_po_timeline.html:331
 #: app/templates/components/tw_task_audit.html:21
+#: app/templates/inventory/at_purchase_order_list.html:37
+#: app/templates/inventory/at_purchase_order_list.html:105
 msgid "超期"
 msgstr "Overdue"
 
@@ -9077,9 +9119,9 @@ msgid "生产"
 msgstr "In Production"
 
 #: app/templates/components/tw_po_timeline.html:455
-#, fuzzy
+#: app/templates/inventory/at_purchase_order_list.html:85
 msgid "测试"
-msgstr "Test Conditions"
+msgstr "Test"
 
 #: app/templates/components/tw_po_timeline.html:456
 #, fuzzy
@@ -9441,6 +9483,7 @@ msgstr "Save Failed"
 
 #: app/templates/components/tw_pricing_order_modal.html:2213
 #: app/templates/expense/tw_expense_detail.html:304
+#: app/templates/inventory/at_purchase_order_list.html:26
 #: app/templates/meeting/tw_meeting_minutes_detail.html:179
 #: app/templates/pricing_order/tw_list.html:255
 #: app/templates/product_analysis/tw_analysis.html:417
@@ -9650,9 +9693,9 @@ msgid "编辑采购订单"
 msgstr "Purchase Order"
 
 #: app/templates/components/tw_purchase_order_form.html:28
-#, fuzzy
+#: app/templates/inventory/at_purchase_order_list.html:27
 msgid "新建采购订单"
-msgstr "Purchase Order"
+msgstr "New PO"
 
 #: app/templates/components/tw_purchase_order_form.html:29
 #: app/templates/components/tw_task_modal.html:311
@@ -9667,6 +9710,7 @@ msgstr "Purchase Order"
 
 #: app/templates/components/tw_purchase_order_form.html:56
 #: app/templates/components/tw_purchase_order_form.html:128
+#: app/templates/inventory/at_purchase_order_list.html:83
 #: app/templates/inventory/partials/_shipment_form.html:24
 msgid "供应商"
 msgstr "Supplier"
@@ -9683,14 +9727,14 @@ msgid "订单类别"
 msgstr "Order"
 
 #: app/templates/components/tw_purchase_order_form.html:79
-#, fuzzy
+#: app/templates/inventory/at_purchase_order_list.html:75
 msgid "渠道订单"
-msgstr "Order"
+msgstr "Channel Order"
 
 #: app/templates/components/tw_purchase_order_form.html:80
-#, fuzzy
+#: app/templates/inventory/at_purchase_order_list.html:76
 msgid "直销订单"
-msgstr "Order"
+msgstr "Direct Order"
 
 #: app/templates/components/tw_purchase_order_form.html:85
 #, fuzzy
@@ -9970,9 +10014,9 @@ msgid "分享到聊天"
 msgstr "Share to Chat"
 
 #: app/templates/components/tw_share_to_chat_modal.html:62
-#, fuzzy
+#: app/templates/system_diagram/at_list.html:65
 msgid "未命名"
-msgstr "Unnamed Project"
+msgstr "Untitled"
 
 #: app/templates/components/tw_share_to_chat_modal.html:86
 #, fuzzy
@@ -10811,6 +10855,7 @@ msgstr "Region"
 #: app/templates/product/at_list.html:290
 #: app/templates/product/tw_product_detail.html:802
 #: app/templates/spec_definition/tw_test_methods.html:97
+#: app/templates/spec_template/at_list.html:77
 msgid "分类"
 msgstr "Category"
 
@@ -12208,8 +12253,9 @@ msgstr "Week"
 #: app/templates/config_management/tw_index.html:1552
 #: app/templates/config_management/tw_index.html:1635
 #: app/templates/config_management/tw_index.html:1677
+#: app/templates/spec_definition/at_list.html:55
 msgid "数值"
-msgstr "Value"
+msgstr "Number"
 
 #: app/templates/config_management/tw_index.html:1612
 msgid "月度录入"
@@ -13023,6 +13069,7 @@ msgid "设计院"
 msgstr "Design Institute"
 
 #: app/templates/customer/at_list.html:50
+#: app/templates/inventory/at_purchase_order_list.html:112
 msgid "渠道"
 msgstr "Channel"
 
@@ -13049,7 +13096,9 @@ msgstr "Country · City"
 #: app/templates/customer/at_list.html:94 app/templates/expense/at_list.html:68
 #: app/templates/guide/whats_new.html:209 app/templates/project/at_list.html:97
 #: app/templates/prospect/tw_list.html:1386
-#: app/templates/quotation/at_list.html:67 app/templates/user/at_list.html:77
+#: app/templates/quotation/at_list.html:67
+#: app/templates/spec_template/at_list.html:78
+#: app/templates/user/at_list.html:77
 msgid "更新"
 msgstr "Updated"
 
@@ -13059,11 +13108,14 @@ msgstr "No customers match the filters"
 
 #: app/templates/customer/at_list.html:161
 #: app/templates/expense/at_list.html:126
+#: app/templates/inventory/at_purchase_order_list.html:155
 #: app/templates/pricing_order/at_list.html:120
 #: app/templates/product/at_list.html:118
 #: app/templates/project/at_list.html:168
 #: app/templates/quotation/at_list.html:134
 #: app/templates/sales_order/at_list.html:200
+#: app/templates/spec_definition/at_list.html:98
+#: app/templates/system_diagram/at_list.html:92
 #: app/templates/user/at_list.html:150
 #, python-format
 msgid "第 %(page)s / %(pages)s 页"
@@ -14655,6 +14707,57 @@ msgstr "Entry Point"
 #: app/templates/guide/whats_new.html:573
 msgid "操作步骤"
 msgstr "Steps"
+
+# ===== 供应链类 =====
+#: app/templates/inventory/at_purchase_order_list.html:9
+#: app/templates/inventory/at_purchase_order_list.html:20
+#: app/views/worklog.py:146
+msgid "采购管理"
+msgstr "Purchasing"
+
+#: app/templates/inventory/at_purchase_order_list.html:10
+msgid "管理从供应商下单、生产到验收入库的完整生命周期。"
+msgstr "Manage the full lifecycle from supplier ordering and production to acceptance and stocking."
+"Manage customer orders across the full lifecycle from production to "
+"delivery."
+
+#: app/templates/inventory/at_purchase_order_list.html:36
+#: app/utils/status_meta.py:41
+msgid "已入库"
+msgstr "Stored"
+
+#: app/templates/inventory/at_purchase_order_list.html:58
+msgid "搜索订单号…"
+msgstr "Search order no.…"
+
+#: app/templates/inventory/at_purchase_order_list.html:59
+msgid "全部供应商"
+msgstr "All Suppliers"
+
+#: app/templates/inventory/at_purchase_order_list.html:67
+msgid "全部测试状态"
+msgstr "All Test Status"
+
+#: app/templates/inventory/at_purchase_order_list.html:68
+msgid "已通过测试"
+msgstr "Test Passed"
+
+#: app/templates/inventory/at_purchase_order_list.html:74
+msgid "所有订单类型"
+msgstr "All Order Types"
+
+#: app/templates/inventory/at_purchase_order_list.html:113
+msgid "直销"
+msgstr "Direct"
+
+#: app/templates/inventory/at_purchase_order_list.html:129
+msgid "已上传测试报告"
+msgstr "Test report uploaded"
+
+#: app/templates/inventory/at_purchase_order_list.html:146
+#: app/templates/sales_order/at_list.html:187
+msgid "没有符合筛选条件的订单"
+msgstr "No orders match the filters"
 
 #: app/templates/inventory/settlement_list.html:36
 msgid "结算明细"
@@ -17498,7 +17601,9 @@ msgstr "Global"
 
 #: app/templates/pricing_order/at_list.html:7
 msgid "从报价单或项目发起的批价审批流,审批通过即可生成结算单。"
-msgstr "Pricing approval flow from a quotation or project; generates a settlement on approval."
+msgstr ""
+"Pricing approval flow from a quotation or project; generates a settlement"
+" on approval."
 
 #: app/templates/pricing_order/at_list.html:45
 msgid "搜索批价单号 / 项目名…"
@@ -17551,7 +17656,9 @@ msgstr "Excel export failed"
 
 #: app/templates/product/at_list.html:7
 msgid "产品型号、规格、价格管理 — 报价/批价/采购共享数据源。"
-msgstr "Model, spec and price management — shared source for quotation, pricing and purchasing."
+msgstr ""
+"Model, spec and price management — shared source for quotation, pricing "
+"and purchasing."
 
 #: app/templates/product/at_list.html:22
 msgid "引入产品"
@@ -18645,6 +18752,44 @@ msgstr ""
 "Category specs will be inherited by all subcategories, indicators are "
 "managed in subcategories"
 
+#: app/templates/product_sn/at_list.html:9
+#: app/templates/product_sn/at_list.html:28
+#: app/templates/product_sn/at_list.html:46
+msgid "序号管理"
+msgstr "Serial Numbers"
+
+#: app/templates/product_sn/at_list.html:9
+msgid "查询"
+msgstr "Query"
+
+#: app/templates/product_sn/at_list.html:26
+msgid "库存中心"
+msgstr "Inventory Center"
+
+#: app/templates/product_sn/at_list.html:49
+msgid "序号查询"
+msgstr "SN Lookup"
+
+#: app/templates/product_sn/at_list.html:52
+msgid "输入完整或部分 SN 查询 · 支持扫码 · 精确匹配直达详情"
+msgstr "Enter full or partial SN · scan supported · exact match jumps to detail"
+
+#: app/templates/product_sn/at_list.html:56
+msgid "系统已登记"
+msgstr "Registered"
+
+#: app/templates/product_sn/at_list.html:56
+msgid "个序号"
+msgstr "SNs"
+
+#: app/templates/product_sn/at_list.html:66
+msgid "输入完整或部分 SN(支持扫码)…"
+msgstr "Enter full or partial SN (scan supported)…"
+
+#: app/templates/product_sn/at_list.html:85
+msgid "输入 SN 开始查询"
+msgstr "Enter an SN to start"
+
 #: app/templates/project/add.html:201
 msgid "添加项目"
 msgstr "Add Project"
@@ -18980,9 +19125,10 @@ msgid "全部地区"
 msgstr "All Regions"
 
 #: app/templates/prospect/tw_list.html:205
+#: app/templates/spec_definition/at_list.html:44
 #: app/templates/spec_template/tw_edit.html:253
 msgid "排序"
-msgstr "Sort"
+msgstr "Order"
 
 #: app/templates/prospect/tw_list.html:208
 msgid "情报更新 · 最新"
@@ -20455,7 +20601,9 @@ msgstr "Enter quotation notes..."
 
 #: app/templates/sales_order/at_list.html:61
 msgid "管理客户下达的订单,追踪生产到签收的完整生命周期。"
-msgstr "Manage customer orders across the full lifecycle from production to delivery."
+msgstr ""
+"Manage customer orders across the full lifecycle from production to "
+"delivery."
 
 # 侧边栏菜单缺失翻译
 #: app/templates/sales_order/at_list.html:67
@@ -20465,10 +20613,6 @@ msgstr "New Order"
 #: app/templates/sales_order/at_list.html:108
 msgid "搜索订单号 / 备注…"
 msgstr "Search order no. / notes…"
-
-#: app/templates/sales_order/at_list.html:187
-msgid "没有符合筛选条件的订单"
-msgstr "No orders match the filters"
 
 #: app/templates/sales_order/partials/_so_modal_fields.html:34
 #, fuzzy
@@ -20506,6 +20650,46 @@ msgstr ""
 msgid "买方承担"
 msgstr ""
 
+#: app/templates/spec_definition/at_list.html:7
+msgid "规格项基础字典 — 名称、单位、值类型、测试方法/条件。"
+msgstr "Base dictionary of spec items — name, unit, value type, test method/condition."
+
+#: app/templates/spec_definition/at_list.html:16
+msgid "管理测试方法"
+msgstr "Manage Test Methods"
+
+#: app/templates/spec_definition/at_list.html:38
+msgid "搜索规格名(中/英)…"
+msgstr "Search spec name (CN/EN)…"
+
+#: app/templates/spec_definition/at_list.html:43
+msgid "名称(中文)"
+msgstr "Name (CN)"
+
+#: app/templates/spec_definition/at_list.html:44
+#: app/templates/spec_definition/tw_list.html:247
+#: app/templates/spec_definition/tw_list.html:674
+msgid "值类型"
+msgstr "Value Type"
+
+#: app/templates/spec_definition/at_list.html:54
+#: app/templates/spec_definition/tw_list.html:675
+#: app/templates/spec_definition/tw_list.html:828
+msgid "文本"
+msgstr "Text"
+
+#: app/templates/spec_definition/at_list.html:56
+msgid "选项"
+msgstr "Options"
+
+#: app/templates/spec_definition/at_list.html:57
+msgid "布尔"
+msgstr "Boolean"
+
+#: app/templates/spec_definition/at_list.html:89
+msgid "此分类下暂无规格项"
+msgstr "No specs in this category"
+
 #: app/templates/spec_definition/tw_list.html:126
 #: app/templates/spec_template/tw_detail.html:215
 #: app/templates/spec_template/tw_edit.html:507
@@ -20535,11 +20719,6 @@ msgstr "Show disabled"
 #: app/templates/spec_definition/tw_list.html:984
 msgid "添加规格项"
 msgstr "Add Spec Item"
-
-#: app/templates/spec_definition/tw_list.html:247
-#: app/templates/spec_definition/tw_list.html:674
-msgid "值类型"
-msgstr "Value Type"
 
 #: app/templates/spec_definition/tw_list.html:248
 #: app/templates/spec_definition/tw_list.html:700
@@ -20657,11 +20836,6 @@ msgstr "e.g.: DL Freq Range"
 #: app/templates/spec_definition/tw_list.html:673
 msgid "如：MHz、dBm、°C"
 msgstr "e.g.: MHz, dBm, °C"
-
-#: app/templates/spec_definition/tw_list.html:675
-#: app/templates/spec_definition/tw_list.html:828
-msgid "文本"
-msgstr "Text"
 
 #: app/templates/spec_definition/tw_list.html:676
 #: app/templates/spec_definition/tw_list.html:828
@@ -20911,6 +21085,44 @@ msgstr "Test Methods"
 #, fuzzy
 msgid "确定要删除测试方法"
 msgstr "Are you sure you want to delete this test method?"
+
+#: app/templates/spec_template/at_list.html:5
+#: app/templates/spec_template/at_list.html:12
+#: app/templates/spec_template/tw_list.html:203
+msgid "规格模板"
+msgstr "Spec Templates"
+
+#: app/templates/spec_template/at_list.html:7
+msgid "型号级规格模板,定义产品的规格项与编码生成规则。"
+msgstr "Model-level spec templates defining spec items and code generation rules."
+
+#: app/templates/spec_template/at_list.html:17
+#: app/templates/spec_template/tw_edit.html:112
+#: app/templates/spec_template/tw_list.html:91
+msgid "新建模板"
+msgstr "New Template"
+
+#: app/templates/spec_template/at_list.html:55
+msgid "全部子分类"
+msgstr "All Subcategories"
+
+#: app/templates/spec_template/at_list.html:70
+msgid "搜索模板名 / 型号…"
+msgstr "Search template / model…"
+
+#: app/templates/spec_template/at_list.html:78
+#: app/templates/spec_template/tw_edit.html:243
+#: app/templates/spec_template/tw_list.html:196
+msgid "版本"
+msgstr "Version"
+
+#: app/templates/spec_template/at_list.html:78
+msgid "规格项"
+msgstr "Specs"
+
+#: app/templates/spec_template/at_list.html:119
+msgid "没有规格模板"
+msgstr "No spec templates"
 
 #: app/templates/spec_template/tw_configurations.html:14
 #: app/templates/spec_template/tw_configurations.html:73
@@ -21192,11 +21404,6 @@ msgstr "Edit Spec Template"
 msgid "新建规格模板"
 msgstr "New Spec Template"
 
-#: app/templates/spec_template/tw_edit.html:112
-#: app/templates/spec_template/tw_list.html:91
-msgid "新建模板"
-msgstr "New Template"
-
 #: app/templates/spec_template/tw_edit.html:167
 msgid "选择分类"
 msgstr "Select Category"
@@ -21227,11 +21434,6 @@ msgstr "Optional: Template Name (EN)"
 #: app/templates/spec_template/tw_edit.html:225
 msgid "可选：模板描述"
 msgstr "Optional: Template description"
-
-#: app/templates/spec_template/tw_edit.html:243
-#: app/templates/spec_template/tw_list.html:196
-msgid "版本"
-msgstr "Version"
 
 #: app/templates/spec_template/tw_edit.html:260
 #, fuzzy
@@ -21426,10 +21628,6 @@ msgstr "Import & Create"
 #, fuzzy
 msgid "配置 / 产品"
 msgstr "Select Configuration"
-
-#: app/templates/spec_template/tw_list.html:203
-msgid "规格模板"
-msgstr "Spec Templates"
 
 #: app/templates/spec_template/tw_list.html:210
 msgid "暂无规格模板"
@@ -21869,6 +22067,47 @@ msgstr "Click to expand more"
 msgid "数据加载失败，请刷新重试"
 msgstr "Failed to load data, please refresh"
 
+#: app/templates/system_diagram/at_list.html:5
+#: app/templates/system_diagram/at_list.html:12
+#: app/templates/system_diagram/at_list.html:72
+#: app/templates/system_diagram/tw_editor.html:391
+msgid "系统图"
+msgstr "System Diagrams"
+
+#: app/templates/system_diagram/at_list.html:7
+msgid "创建和管理产品系统图、技术方案模板。"
+msgstr "Create and manage system diagrams and solution templates."
+
+#: app/templates/system_diagram/at_list.html:16
+#: app/templates/system_diagram/tw_list.html:76
+#: app/templates/system_diagram/tw_list.html:141
+msgid "新建系统图"
+msgstr "New Diagram"
+
+#: app/templates/system_diagram/at_list.html:22
+msgid "我的图"
+msgstr "My Diagrams"
+
+#: app/templates/system_diagram/at_list.html:23
+msgid "我的模板"
+msgstr "My Templates"
+
+#: app/templates/system_diagram/at_list.html:44
+msgid "搜索图名…"
+msgstr "Search diagram name…"
+
+#: app/templates/system_diagram/at_list.html:72
+msgid "模板"
+msgstr "Template"
+
+#: app/templates/system_diagram/at_list.html:83
+msgid "没有模板"
+msgstr "No templates"
+
+#: app/templates/system_diagram/at_list.html:83
+msgid "没有系统图"
+msgstr "No diagrams"
+
 #: app/templates/system_diagram/tw_editor.html:7
 msgid "系统图编辑器"
 msgstr "System Diagram Editor"
@@ -21938,10 +22177,6 @@ msgstr "Calibrate Size"
 #: app/templates/system_diagram/tw_editor.html:386
 msgid "标定"
 msgstr "Calibrate"
-
-#: app/templates/system_diagram/tw_editor.html:391
-msgid "系统图"
-msgstr "System Diagram"
 
 #: app/templates/system_diagram/tw_editor.html:392
 msgid "添加楼层"
@@ -22031,11 +22266,6 @@ msgstr "Generate Pricing Order"
 #: app/templates/system_diagram/tw_list.html:71
 msgid "分享空白设计"
 msgstr "Share Blank Design"
-
-#: app/templates/system_diagram/tw_list.html:76
-#: app/templates/system_diagram/tw_list.html:141
-msgid "新建系统图"
-msgstr "New Diagram"
 
 #: app/templates/system_diagram/tw_list.html:96
 #: app/templates/system_diagram/tw_list.html:169
@@ -22362,7 +22592,9 @@ msgstr "System"
 
 #: app/templates/user/at_list.html:7
 msgid "账户、角色与归属一览;个人级配置(目标/预算/权限/归属)在「个人配置」中操作。"
-msgstr "Accounts, roles and affiliations. Personal config (targets/budget/permissions/affiliation) is under Personal Config."
+msgstr ""
+"Accounts, roles and affiliations. Personal config "
+"(targets/budget/permissions/affiliation) is under Personal Config."
 
 #: app/templates/user/at_list.html:22
 msgid "新建账户"
@@ -23448,10 +23680,6 @@ msgstr "Company not specified"
 #: app/utils/status_meta.py:39
 msgid "已测试"
 msgstr "Tested"
-
-#: app/utils/status_meta.py:41
-msgid "已入库"
-msgstr "Stored"
 
 #: app/utils/status_meta.py:50
 msgid "备货中"
@@ -25083,11 +25311,6 @@ msgstr "Product Planning"
 #: app/views/worklog.py:145
 msgid "供应链"
 msgstr "Supply Chain"
-
-# ===== 供应链类 =====
-#: app/views/worklog.py:146
-msgid "采购管理"
-msgstr "Procurement"
 
 #: app/views/worklog.py:148
 msgid "物流协调"

@@ -5,9 +5,9 @@
 {% from 'components/at_customer_needs_modal.html' import at_customer_needs_modal %}
 
 {% block sidebar_active %}purchase_order{% endblock %}
-{% block page_title %}采购订单{% endblock %}
-{% block category_label %}PURCHASE · 采购管理{% endblock %}
-{% block page_description %}管理从供应商下单、生产到验收入库的完整生命周期。{% endblock %}
+{% block page_title %}{{ _('采购订单') }}{% endblock %}
+{% block category_label %}PURCHASE · {{ _('采购管理') }}{% endblock %}
+{% block page_description %}{{ _('管理从供应商下单、生产到验收入库的完整生命周期。') }}{% endblock %}
 
 {% block extra_head %}
 <script src="{{ url_for('static', filename='js/at-product-picker.js') }}"></script>
@@ -17,24 +17,24 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<a href="#" style="font-size:13px;color:var(--ink-3);">采购管理</a>
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('采购管理') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-<span style="font-size:13px;color:var(--ink);">采购订单</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('采购订单') }}</span>
 {% endblock %}
 
 {% block page_actions %}
-{{ at_btn('导出', variant='ghost', icon_l='download') }}
-{{ at_btn('新建采购订单', variant='primary', icon_l='plus', onclick="atOpenOrderForm('create')") }}
+{{ at_btn(_('导出'), variant='ghost', icon_l='download') }}
+{{ at_btn(_('新建采购订单'), variant='primary', icon_l='plus', onclick="atOpenOrderForm('create')") }}
 {% endblock %}
 
 {% block tabs %}
 {% set _tabs = [
-  {'k':'all',     'l':'全部',   'c':tab_counts.all},
-  {'k':'pending', 'l':'待确认', 'c':tab_counts.pending},
-  {'k':'produce', 'l':'生产中', 'c':tab_counts.produce},
-  {'k':'shipped', 'l':'已发货', 'c':tab_counts.shipped},
-  {'k':'stored',  'l':'已入库', 'c':tab_counts.stored},
-  {'k':'overdue', 'l':'超期',   'c':tab_counts.overdue}
+  {'k':'all',     'l':_('全部'),   'c':tab_counts.all},
+  {'k':'pending', 'l':_('待确认'), 'c':tab_counts.pending},
+  {'k':'produce', 'l':_('生产中'), 'c':tab_counts.produce},
+  {'k':'shipped', 'l':_('已发货'), 'c':tab_counts.shipped},
+  {'k':'stored',  'l':_('已入库'), 'c':tab_counts.stored},
+  {'k':'overdue', 'l':_('超期'),   'c':tab_counts.overdue}
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
@@ -55,8 +55,8 @@
 <form method="get" action="{{ url_for('purchase_order.at_list_view') }}"
       style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
   <input type="hidden" name="tab" value="{{ current_tab }}">
-  {{ at_input(name='search', value=search, placeholder='搜索订单号…', icon_l='search', width='280px') }}
-  {% set supplier_options = [{'value':'', 'label':'全部供应商'}] %}
+  {{ at_input(name='search', value=search, placeholder=_('搜索订单号…'), icon_l='search', width='280px') }}
+  {% set supplier_options = [{'value':'', 'label':_('全部供应商')}] %}
   {% for s in suppliers %}
     {% set _ = supplier_options.append({'value': s.id|string, 'label': s.company_name}) %}
   {% endfor %}
@@ -64,25 +64,25 @@
                extra_attrs='onchange="this.form.submit()"') }}
   {{ at_select(name='test', value=current_test,
                options=[
-                 {'value':'',        'label':'全部测试状态'},
-                 {'value':'passed',  'label':'已通过测试'},
-                 {'value':'pending', 'label':'未上传'}
+                 {'value':'',        'label':_('全部测试状态')},
+                 {'value':'passed',  'label':_('已通过测试')},
+                 {'value':'pending', 'label':_('未上传')}
                ],
                width='160px', extra_attrs='onchange="this.form.submit()"') }}
   {{ at_select(name='category', value=current_category,
                options=[
-                 {'value':'',        'label':'所有订单类型'},
-                 {'value':'channel', 'label':'渠道订单'},
-                 {'value':'direct',  'label':'直销订单'}
+                 {'value':'',        'label':_('所有订单类型')},
+                 {'value':'channel', 'label':_('渠道订单')},
+                 {'value':'direct',  'label':_('直销订单')}
                ],
                width='160px', extra_attrs='onchange="this.form.submit()"') }}
 </form>
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('PO 单号','left'),('供应商','left'),('类型','left'),
-                ('金额','right'),('进度','left'),('状态','left'),
-                ('测试','left'),('交期','left')] %}
+{% for h, a in [('PO ' + _('单号'),'left'),(_('供应商'),'left'),(_('类型'),'left'),
+                (_('金额'),'right'),(_('进度'),'left'),(_('状态'),'left'),
+                (_('测试'),'left'),(_('交期'),'left')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -102,15 +102,15 @@
       <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
         {{ o.order_number }}
       </span>
-      {% if o.is_overdue %}{{ at_pill('超期', tone='danger') }}{% endif %}
+      {% if o.is_overdue %}{{ at_pill(_('超期'), tone='danger') }}{% endif %}
     </div>
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);">
     {{ o.company.company_name if o.company else '-' }}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};color:var(--ink-3);font-size:12.5px;white-space:nowrap;">
-    {% if o.order_category == 'channel' %}渠道
-    {% elif o.order_category == 'direct' %}直销
+    {% if o.order_category == 'channel' %}{{ _('渠道') }}
+    {% elif o.order_category == 'direct' %}{{ _('直销') }}
     {% else %}-{% endif %}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
@@ -126,7 +126,7 @@
     {{ at_status_pill(o.status, scope='purchase_order') }}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};">
-    <span title="{{ '已上传测试报告' if o.factory_test_status == 'passed' else '未上传' }}"
+    <span title="{{ _('已上传测试报告') if o.factory_test_status == 'passed' else _('未上传') }}"
           style="color:{{ 'var(--success)' if o.factory_test_status == 'passed' else 'var(--ink-4)' }};
                  display:inline-flex;">
       {{ at_icon('check' if o.factory_test_status == 'passed' else 'clock', 14) }}
@@ -143,7 +143,7 @@
 {% else %}
 <tr>
   <td colspan="8" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-    没有符合筛选条件的订单
+    {{ _('没有符合筛选条件的订单') }}
   </td>
 </tr>
 {% endfor %}
@@ -152,15 +152,15 @@
 {% block pagination %}
 {% if pagination.pages > 1 %}
 <span class="at-mono at-dim" style="font-size:11.5px;">
-  第 {{ pagination.page }} / {{ pagination.pages }} 页
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
 </span>
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
-    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
               href=url_for('purchase_order.at_list_view', tab=current_tab, page=pagination.prev_num, search=search)) }}
   {% endif %}
   {% if pagination.has_next %}
-    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
               href=url_for('purchase_order.at_list_view', tab=current_tab, page=pagination.next_num, search=search)) }}
   {% endif %}
 </div>

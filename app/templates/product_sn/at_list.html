@@ -6,7 +6,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>序号管理 · 查询</title>
+<title>{{ _('序号管理') }} · {{ _('查询') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
@@ -23,15 +23,15 @@
                position:sticky;top:0;z-index:30;">
   <div style="width:100%;box-sizing:border-box;max-width:1100px;margin:0 auto;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
-    <span style="font-size:13px;color:var(--ink-3);">库存中心</span>
+    <span style="font-size:13px;color:var(--ink-3);">{{ _('库存中心') }}</span>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-    <span style="font-size:13px;color:var(--ink);">序号管理</span>
+    <span style="font-size:13px;color:var(--ink);">{{ _('序号管理') }}</span>
     <div style="flex:1;"></div>
     <button onclick="ATPrefs.toggleDark()"
             style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
                    background:var(--bg-elev);font-size:12px;color:var(--ink-2);
                    display:inline-flex;align-items:center;gap:4px;">
-      {{ at_icon('moon', 13) }} 暗色
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
     </button>
   </div>
 </header>
@@ -43,17 +43,17 @@
               margin-bottom:36px;gap:16px;flex-wrap:wrap;">
     <div>
       <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
-        SERIAL NUMBER · 序号管理
+        SERIAL NUMBER · {{ _('序号管理') }}
       </div>
       <h1 class="at-serif" style="margin:0;font-size:36px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
-        序号查询
+        {{ _('序号查询') }}
       </h1>
       <div class="at-muted" style="margin-top:10px;font-size:13px;">
-        输入完整或部分 SN 查询 · 支持扫码 · 精确匹配直达详情
+        {{ _('输入完整或部分 SN 查询 · 支持扫码 · 精确匹配直达详情') }}
       </div>
     </div>
     <div class="at-mono at-tab-num at-dim" style="font-size:12px;">
-      系统已登记 <span style="color:var(--ink-2);font-weight:500;">{{ total_sn }}</span> 个序号
+      {{ _('系统已登记') }} <span style="color:var(--ink-2);font-weight:500;">{{ total_sn }}</span> {{ _('个序号') }}
     </div>
   </div>
 
@@ -63,7 +63,7 @@
       {{ at_icon('search', 18) }}
     </span>
     <input id="snSearchInput" type="text" autocomplete="off" autofocus
-           placeholder="输入完整或部分 SN(支持扫码)…"
+           placeholder="{{ _('输入完整或部分 SN(支持扫码)…') }}"
            style="width:100%;box-sizing:border-box;height:52px;padding:0 50px 0 50px;
                   font-size:15px;font-family:var(--font-mono);
                   background:var(--bg-elev);border:1px solid var(--line-2);
@@ -82,7 +82,7 @@
   <div id="snResults">
     <div id="snEmptyState" style="text-align:center;padding:48px 12px;color:var(--ink-4);">
       {{ at_icon('search', 40) }}
-      <div style="margin-top:12px;font-size:13px;">输入 SN 开始查询</div>
+      <div style="margin-top:12px;font-size:13px;">{{ _('输入 SN 开始查询') }}</div>
     </div>
   </div>
 
