@@ -885,6 +885,14 @@ def at_view_quotation(id):
                 'time': format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
                 'user': display_name, 'old': None, 'new': None,
             }
+        elif h.field_name == 'details':
+            # 产品配置变更:old/new 是 product_signature 哈希,无意义 → 只显示动作
+            _entry = {
+                'op': h.operation_type,
+                'title': _('修改了产品配置'),
+                'time': format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
+                'user': display_name, 'old': None, 'new': None,
+            }
         else:
             label = _CH_FIELD_LABEL.get(h.field_name, h.field_name) if h.field_name else _CH_OP_LABEL.get(h.operation_type, h.operation_type)
             _entry = {
@@ -5755,6 +5763,9 @@ def _recommend_quotation_confirmer(quotation, candidate_ids):
     if not candidate_ids:
         return None
     cset = set(candidate_ids)
+    # ⓪ 本单自己的历史确认人(再次确认场景最相关)
+    if quotation.confirmed_by and quotation.confirmed_by in cset:
+        return quotation.confirmed_by
     pid = quotation.project_id
     if not pid:
         return None
