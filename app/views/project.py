@@ -301,8 +301,9 @@ def at_view_project(project_id):
     # 9 阶段:发现 → 植入 → 标前 → 标中 → 中标 → 批价 → 签约;旁支:失败 / 搁置
     from app.models.projectpm_stage_history import ProjectStageHistory
     _stage_order = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
-    _stage_labels = {'discover':'发现','embed':'植入','pre_tender':'标前','tendering':'标中',
-                     'awarded':'中标','quoted':'批价','signed':'签约','lost':'失败','paused':'搁置'}
+    from flask_babel import gettext as _sg
+    _stage_labels = {'discover':_sg('发现'),'embed':_sg('植入'),'pre_tender':_sg('标前'),'tendering':_sg('标中'),
+                     'awarded':_sg('中标'),'quoted':_sg('批价'),'signed':_sg('签约'),'lost':_sg('失败'),'paused':_sg('搁置')}
     # 阶段图标 — 移植自 TW 项目阶段(Material Symbols);AT 阶段条 icon_set='material' 渲染
     _stage_icons  = {'discover':'travel_explore','embed':'biotech','pre_tender':'manage_search',
                      'tendering':'gavel','awarded':'emoji_events','quoted':'payments','signed':'handshake'}

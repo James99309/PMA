@@ -34811,3 +34811,12 @@ msgstr "Invalid feedback type."
 #~ msgid "输入审核意见（驳回时必填）..."
 #~ msgstr "Enter review comments (required for rejection)..."
 
+
+msgid "修改了报价金额"
+msgstr "Modified quote amount"
+
+msgid "修改了产品明细"
+msgstr "Modified product details"
+
+msgid "修改了产品配置"
+msgstr "Modified product configuration"

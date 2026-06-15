@@ -386,7 +386,8 @@ class PurchaseOrderProgressService:
                     changed_by_id=user_id
                 )
                 db.session.add(change_record)
-                changes_made.append(field_labels[field])
+                from flask_babel import gettext as _gt
+                changes_made.append(_gt(field_labels[field]))
 
         if not changes_made:
             return True, '无变更'
