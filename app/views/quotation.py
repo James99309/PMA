@@ -865,23 +865,37 @@ def at_view_quotation(id):
     from app.models.change_log import ChangeLog
     from app.models import User
     from app.utils.filters import format_datetime_local
-    _CH_FIELD_LABEL = {'amount': '报价金额', 'details_count': '明细数量', 'details': '产品配置'}
+    _CH_FIELD_LABEL = {'amount': '报价金额', 'details_count': '明细数量', 'details': '产品配置',
+                       'confirmation': '技术确认'}
     _CH_OP_LABEL    = {'CREATE': '创建', 'UPDATE': '修改', 'DELETE': '删除'}
+    # 技术确认动作:new_value 状态码 → 可读(随 locale)
+    _CH_CONFIRM_VAL = {'confirmed': _('技术确认通过'), 'reconfirm': _('需再次确认'),
+                       'pending': _('提交技术确认'), 'none': _('撤销确认')}
     _logs = ChangeLog.get_record_history('quotation', 'quotations', q.id)
     _uids = {l.user_id for l in _logs if l.user_id}
     _user_real = {u.id: (u.real_name or u.username) for u in User.query.filter(User.id.in_(_uids)).all()} if _uids else {}
     change_history = []
     for h in _logs:
-        label = _CH_FIELD_LABEL.get(h.field_name, h.field_name) if h.field_name else _CH_OP_LABEL.get(h.operation_type, h.operation_type)
         display_name = _user_real.get(h.user_id) or h.user_name or _('系统')
-        change_history.append({
-            'op':     h.operation_type,
-            'title':  _(label) if label else _('变更'),
-            'time':   format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
-            'user':   display_name,
-            'old':    h.old_value,
-            'new':    h.new_value,
-        })
+        if h.field_name == 'confirmation':
+            # 技术确认动作:直接用可读动作作标题,不显示 old→new 原始码
+            _entry = {
+                'op': h.operation_type,
+                'title': _CH_CONFIRM_VAL.get(h.new_value, _('技术确认')),
+                'time': format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
+                'user': display_name, 'old': None, 'new': None,
+            }
+        else:
+            label = _CH_FIELD_LABEL.get(h.field_name, h.field_name) if h.field_name else _CH_OP_LABEL.get(h.operation_type, h.operation_type)
+            _entry = {
+                'op':     h.operation_type,
+                'title':  _(label) if label else _('变更'),
+                'time':   format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
+                'user':   display_name,
+                'old':    h.old_value,
+                'new':    h.new_value,
+            }
+        change_history.append(_entry)
 
     # SM 确认上下文
     from app.models.quotation_confirmation_task import QuotationConfirmationTask
@@ -3836,10 +3850,22 @@ def save_quotation(id):
                     new_product_signature = quotation.calculate_product_signature()
                     if old_product_signature and new_product_signature != old_product_signature:
                         if quotation.confirmation_badge_status == 'confirmed':
-                            # 产品配置变更 → 回到草稿态,owner 改完再主动发起新一轮技术确认
-                            quotation.confirmation_badge_status = 'none'
-                            quotation.confirmation_badge_color = None
-                            current_app.logger.info(f"报价单 {quotation.id} 配置变更，状态回退为草稿")
+                            # 已确认后改了产品配置 → 置「需再次确认」(reconfirm),提示需重新技术确认
+                            quotation.confirmation_badge_status = 'reconfirm'
+                            quotation.confirmation_badge_color = '#f59e0b'
+                            current_app.logger.info(f"报价单 {quotation.id} 配置变更，确认状态置为 reconfirm")
+                            # 记入变更历史
+                            try:
+                                from app.models.change_log import ChangeLog
+                                ChangeLog.log_update(
+                                    module_name='quotation', table_name='quotations',
+                                    record_id=quotation.id, field_name='confirmation',
+                                    old_value='confirmed', new_value='reconfirm',
+                                    user_id=current_user.id,
+                                    user_name=(current_user.real_name or current_user.username),
+                                    description='confirm_reconfirm', ip_address=request.remote_addr)
+                            except Exception:
+                                pass
                     quotation.product_signature = new_product_signature
                     db.session.commit()
                 except Exception as sig_err:
@@ -6004,6 +6030,17 @@ def at_sm_confirm_quotation(quotation_id):
         q = Quotation.query.get(quotation_id)
         if q and (q.confirmation_badge_status or 'none') != 'confirmed':
             q.set_confirmation_badge('#28a745', current_user.id)
+            try:
+                from app.models.change_log import ChangeLog
+                ChangeLog.log_update(
+                    module_name='quotation', table_name='quotations',
+                    record_id=quotation_id, field_name='confirmation',
+                    old_value='', new_value='confirmed',
+                    user_id=current_user.id,
+                    user_name=(current_user.real_name or current_user.username),
+                    description='confirm_confirmed', ip_address=request.remote_addr)
+            except Exception:
+                pass
             db.session.commit()
         return jsonify({'success': True, 'message': '技术确认完成'})
     except Exception as e:

@@ -5403,6 +5403,21 @@ def _update_generic_object_status(instance, action, user_id, comment):
         import traceback
         current_app.logger.error(traceback.format_exc())
 
+def _log_quotation_confirmation(quotation_id, new_value, user_id, user=None):
+    """技术确认动作记入变更历史(field_name='confirmation';报价单详情卡按可读动作显示)。"""
+    try:
+        from app.models.change_log import ChangeLog
+        ChangeLog.log_update(
+            module_name='quotation', table_name='quotations',
+            record_id=quotation_id, field_name='confirmation',
+            old_value='', new_value=new_value,
+            user_id=user_id,
+            user_name=(user.real_name or user.username) if user else None,
+            description='confirm_' + str(new_value))
+    except Exception:
+        pass
+
+
 def _update_business_object_approval_status(instance, action, user_id, comment):
     """更新业务对象的审批状态 - 重构版，支持所有对象类型
     
@@ -5426,6 +5441,7 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                 try:
                     if action == ApprovalAction.APPROVE:
                         quotation.set_confirmation_badge('#28a745', user_id)
+                        _log_quotation_confirmation(quotation.id, 'confirmed', user_id, user)
                     elif action == ApprovalAction.REJECT:
                         quotation.clear_confirmation_badge()
                 except Exception as _badge_err:

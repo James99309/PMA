@@ -33,14 +33,20 @@ from app.models.user import User
 LOCK_REASON = '审批流程进行中，暂时锁定编辑'
 
 
-def ensure(object_type, name, step_name, pool, creator_id):
+def ensure(object_type, name, step_name, pool, creator_id, lock_on_start=True):
     tpl = ApprovalProcessTemplate.query.filter_by(object_type=object_type).first()
     if tpl:
-        print(f'[skip] {object_type} 模板已存在 id={tpl.id} name={tpl.name}')
+        # 幂等纠正:lock_object_on_start 若与期望不符则更正(技术确认不锁定)
+        if tpl.lock_object_on_start != lock_on_start:
+            tpl.lock_object_on_start = lock_on_start
+            db.session.commit()
+            print(f'[update] {object_type} 模板 id={tpl.id} lock_object_on_start→{lock_on_start}')
+        else:
+            print(f'[skip] {object_type} 模板已存在 id={tpl.id} name={tpl.name}')
         return tpl
     tpl = ApprovalProcessTemplate(
         name=name, object_type=object_type, is_active=True,
-        created_by=creator_id, lock_object_on_start=True,
+        created_by=creator_id, lock_object_on_start=lock_on_start,
         lock_reason=LOCK_REASON, required_fields=[])
     db.session.add(tpl)
     db.session.flush()
@@ -65,9 +71,10 @@ def main():
         admin = User.query.filter_by(role='admin').first() or User.query.first()
         creator_id = admin.id if admin else None
 
-        # 1) 报价单技术确认
+        # 1) 报价单技术确认 —— 只是确认"状态",不锁定报价单(锁了就无法编辑触发 reconfirm)
         ensure('quotation', '报价单技术确认', '技术确认',
-               {'roles': ['solution_manager'], 'companies': [company]}, creator_id)
+               {'roles': ['solution_manager'], 'companies': [company]}, creator_id,
+               lock_on_start=False)
 
         # 2) 采购订单
         if is_ovs:

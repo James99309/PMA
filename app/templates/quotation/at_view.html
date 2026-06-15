@@ -169,7 +169,7 @@
              兼容历史:155+ 老机制"已确认"无审批实例,必须读徽章才不会误显示草稿。 #}
           {% if not (is_new is defined and is_new) and quotation.id %}
           {% set _cbs_disp = quotation.confirmation_badge_status or 'none' %}
-          {% set _q_ap_status = {'none':'draft', 'pending':'pending', 'confirmed':'approved', 'reconfirm':'rejected'}.get(_cbs_disp, 'draft') %}
+          {% set _q_ap_status = {'none':'draft', 'pending':'pending', 'confirmed':'approved', 'reconfirm':'reconfirm'}.get(_cbs_disp, 'draft') %}
           {{ at_approval_dropdown(
                 object_type='quotation', object_id=quotation.id,
                 status=_q_ap_status, status_scope='quotation_approval',

@@ -126,11 +126,12 @@ FACTORY_TEST_STATUS_META = {
 
 # 报价单技术确认审批(标准 ApprovalInstance,与 SM confirmation_badge 区分)
 QUOTATION_APPROVAL_STATUS_META = {
-    'draft':    (_l('草稿'), 'neutral'),
-    'pending':  (_l('确认中'), 'warn'),
-    'approved': (_l('已确认'), 'success'),
-    'rejected': (_l('已驳回'), 'danger'),
-    'recalled': (_l('已召回'), 'neutral'),
+    'draft':     (_l('草稿'), 'neutral'),
+    'pending':   (_l('确认中'), 'warn'),
+    'approved':  (_l('已确认'), 'success'),
+    'rejected':  (_l('已驳回'), 'danger'),
+    'recalled':  (_l('已召回'), 'neutral'),
+    'reconfirm': (_l('需再次确认'), 'warn'),
 }
 
 # 项目失败/搁置审核 chip(审核中态;target 决定颜色)

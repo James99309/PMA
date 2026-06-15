@@ -95,9 +95,24 @@ def main():
                 if apply:
                     q.set_confirmation_badge('#28a745', appr.created_by)
                 sync_confirmed += 1
+        # ── Step C:解锁被"技术确认流程"锁住的报价单(技术确认只是状态,不该锁) ──
+        LOCK_REASONS = ('审批流程进行中，暂时锁定编辑', '产品确认中', '产品确认')
+        unlock_conf = 0
+        for q in Quotation.query.filter(Quotation.is_locked == True).all():  # noqa: E712
+            if (q.lock_reason or '') in LOCK_REASONS:
+                if apply:
+                    if hasattr(q, 'unlock'):
+                        q.unlock(None)
+                    else:
+                        q.is_locked = False
+                        q.lock_reason = None
+                        q.locked_by = None
+                        q.locked_at = None
+                unlock_conf += 1
         if apply:
             db.session.commit()
         print(f"== {'已落库 APPLY' if apply else 'DRY-RUN(未改)'} ==")
+        print(f"[C] 解锁技术确认流程锁住的报价单: {unlock_conf}")
         print(f"[A] badge∈(pending,reconfirm) 总数: {total}")
         print(f"    跳过(有 active 审批实例,不动): {skipped_active}")
         print(f"    归位为 none 的孤儿: {reset}  其中解锁: {unlocked}")
