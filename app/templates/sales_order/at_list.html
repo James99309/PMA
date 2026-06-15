@@ -108,7 +108,7 @@
     {{ at_input(name='search', value=search, placeholder=_('搜索订单号 / 备注…'), icon_l='search', width='320px') }}
     {% set customer_options = [{'value':'', 'label':_('全部客户')}] %}
     {% for c in customers %}
-      {% set _ = customer_options.append({'value': c.id|string, 'label': c.company_name}) %}
+      {% set _x = customer_options.append({'value': c.id|string, 'label': c.company_name}) %}
     {% endfor %}
     {{ at_select(name='customer_id', value=current_customer_id, options=customer_options, width='220px',
                  extra_attrs='onchange="this.form.submit()"') }}

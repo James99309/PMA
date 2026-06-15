@@ -39,7 +39,7 @@
         </label>
         {% set _customer_items = [] %}
         {% for c in customers %}
-          {% set _ = _customer_items.append({'value': c.id, 'label': c.company_name}) %}
+          {% set _x = _customer_items.append({'value': c.id, 'label': c.company_name}) %}
         {% endfor %}
         {{ at_searchable_select(
              id='atSoCustomer',

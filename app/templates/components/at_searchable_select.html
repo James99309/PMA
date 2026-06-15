@@ -27,14 +27,14 @@
   {# 归一已选值为字符串列表 #}
   {% set _vals = [] %}
   {% if multiple %}
-    {% for v in (values or []) %}{% set _ = _vals.append(v|string) %}{% endfor %}
+    {% for v in (values or []) %}{% set _x = _vals.append(v|string) %}{% endfor %}
   {% elif value not in [none, ''] %}
-    {% set _ = _vals.append(value|string) %}
+    {% set _x = _vals.append(value|string) %}
   {% endif %}
   {# 计算已选 label #}
   {% set _labels = [] %}
   {% for it in items %}
-    {% if (it.value|string) in _vals %}{% set _ = _labels.append(it.label) %}{% endif %}
+    {% if (it.value|string) in _vals %}{% set _x = _labels.append(it.label) %}{% endif %}
   {% endfor %}
   {% if multiple %}
     {% set _display = '' if _labels|length == 0 else (_labels[0] if _labels|length == 1 else (_labels|length ~ ' 项已选')) %}

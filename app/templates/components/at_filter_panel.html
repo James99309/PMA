@@ -49,8 +49,8 @@
                select 的 options(元组/dict)统一归一化成 [{value,label}] #}
             {% set _items = [] %}
             {% for o in (f['items'] if f['type'] == 'user' else f['options']) or [] %}
-              {% if o is mapping %}{% set _ = _items.append(o) %}
-              {% else %}{% set _ = _items.append({'value': o[0], 'label': o[1]}) %}{% endif %}
+              {% if o is mapping %}{% set _x = _items.append(o) %}
+              {% else %}{% set _x = _items.append({'value': o[0], 'label': o[1]}) %}{% endif %}
             {% endfor %}
             {{ at_searchable_select('atfilt_' ~ f['key'], name=f['key'], items=_items,
                                     multiple=true, values=(f['values'] or []),

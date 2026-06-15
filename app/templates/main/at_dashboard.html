@@ -771,8 +771,8 @@
           {# 团队 tab 仅在有"非我的"工作记录时显示;@我的 仅在有 @我 时显示 #}
           {% set _wl_has_team = (_wl | rejectattr('is_mine') | list | length) > 0 %}
           {% set _wl_tabs = [{'k':'all','label':_('全部')}, {'k':'mine','label':_('我的')}] %}
-          {% if _wl_has_team %}{% set _ = _wl_tabs.append({'k':'team','label':_('团队')}) %}{% endif %}
-          {% if _unread > 0 %}{% set _ = _wl_tabs.append({'k':'mention','label':_('@ 我的')}) %}{% endif %}
+          {% if _wl_has_team %}{% set _x =_wl_tabs.append({'k':'team','label':_('团队')}) %}{% endif %}
+          {% if _unread > 0 %}{% set _x =_wl_tabs.append({'k':'mention','label':_('@ 我的')}) %}{% endif %}
           <div data-dash-tabs="worklog"
                style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;">
             {% for f in _wl_tabs %}
@@ -791,8 +791,8 @@
           {% set _grouped = {} %}
           {% for w in _wl %}
             {% set _key = _('今天') if w.date == today else (_('昨天') if w.date == yesterday else (w.date or _('更早'))) %}
-            {% if _key not in _grouped %}{% set _ = _grouped.update({_key: []}) %}{% endif %}
-            {% set _ = _grouped[_key].append(w) %}
+            {% if _key not in _grouped %}{% set _x =_grouped.update({_key: []}) %}{% endif %}
+            {% set _x =_grouped[_key].append(w) %}
           {% endfor %}
 
           <div style="display:flex;flex-direction:column;gap:18px;

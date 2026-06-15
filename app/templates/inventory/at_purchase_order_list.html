@@ -58,7 +58,7 @@
   {{ at_input(name='search', value=search, placeholder=_('搜索订单号…'), icon_l='search', width='280px') }}
   {% set supplier_options = [{'value':'', 'label':_('全部供应商')}] %}
   {% for s in suppliers %}
-    {% set _ = supplier_options.append({'value': s.id|string, 'label': s.company_name}) %}
+    {% set _x = supplier_options.append({'value': s.id|string, 'label': s.company_name}) %}
   {% endfor %}
   {{ at_select(name='supplier_id', value=current_supplier_id, options=supplier_options, width='180px',
                extra_attrs='onchange="this.form.submit()"') }}
