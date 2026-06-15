@@ -19545,10 +19545,7 @@ msgstr "Product ID"
 #: app/templates/product/at_view.html:385
 #, python-format
 msgid "确认永久删除「%(name)s」？此操作不可撤销。"
-msgstr ""
-"Permanently delete “%(name)s”? This cannot be undone.Delete "
-"\\\"%(title)s\\\"? This cannot be undone.Are you sure you want to delete "
-"this specification? This action cannot be undone."
+msgstr "Permanently delete “%(name)s”? This cannot be undone."
 
 #: app/templates/product/at_view.html:397
 msgid "产品已删除"
@@ -20968,9 +20965,6 @@ msgstr "Delete Attachment"
 #, python-format
 msgid "确认删除「%(name)s」?此操作不可恢复。"
 msgstr "Delete \"%(name)s\"? This cannot be undone."
-"Permanently delete “%(name)s”? This cannot be undone.Delete "
-"\\\"%(title)s\\\"? This cannot be undone.Are you sure you want to delete "
-"this specification? This action cannot be undone."
 
 #: app/templates/project/at_view.html:547
 #: app/templates/project/at_view.html:562 app/templates/user/at_detail.html:214
@@ -21097,13 +21091,11 @@ msgid "✓ 审批记录: %(n)s 条"
 msgstr "✓ Approval records: %(n)s"
 
 #: app/templates/project/at_view.html:701
-#, fuzzy, python-format
+#, python-format
 msgid ""
 "确定要删除项目「%(name)s」吗?\n"
 "此操作无法撤销。"
-msgstr ""
-"Delete \\\"%(title)s\\\"? This cannot be undone.Are you sure you want to "
-"delete this specification? This action cannot be undone."
+msgstr "Delete project “%(name)s”?\nThis cannot be undone."
 
 #: app/templates/project/at_view.html:703
 #, python-format
