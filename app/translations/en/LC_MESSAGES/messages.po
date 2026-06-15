@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 23:25+0800\n"
+"POT-Creation-Date: 2026-06-15 23:36+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -28934,7 +28934,7 @@ msgstr "All Quotations"
 msgid "报价单编号"
 msgstr "Quotation Number"
 
-#: app/views/quotation.py:651 app/views/quotation.py:2070
+#: app/views/quotation.py:651 app/views/quotation.py:2078
 #, python-format
 msgid "加载报价单失败：%s"
 msgstr "Failed to load quotation: %s"
@@ -28956,100 +28956,105 @@ msgstr "Confirmation Revoked"
 
 #: app/views/quotation.py:892
 #, fuzzy
+msgid "修改了产品配置"
+msgstr "Modified product configuration"
+
+#: app/views/quotation.py:900
+#, fuzzy
 msgid "变更"
 msgstr "Change"
 
-#: app/views/quotation.py:1345
+#: app/views/quotation.py:1353
 msgid "您没有权限编辑此报价单"
 msgstr "You do not have permission to edit this quotation"
 
-#: app/views/quotation.py:1348
+#: app/views/quotation.py:1356
 msgid "报价单已被锁定，无法编辑"
 msgstr "Quotation is locked and cannot be edited"
 
-#: app/views/quotation.py:2024
+#: app/views/quotation.py:2032
 #, python-format
 msgid "报价单创建失败：%s"
 msgstr "Failed to create quotation: %s"
 
-#: app/views/quotation.py:2082
+#: app/views/quotation.py:2090
 msgid "您没有权限复制此报价单"
 msgstr "You do not have permission to copy this quotation"
 
-#: app/views/quotation.py:2124
+#: app/views/quotation.py:2132
 msgid "报价单复制成功！"
 msgstr "Quotation copied successfully!"
 
-#: app/views/quotation.py:2128
+#: app/views/quotation.py:2136
 #, python-format
 msgid "报价单复制失败：%s"
 msgstr "Failed to copy quotation: %s"
 
-#: app/views/quotation.py:2139
+#: app/views/quotation.py:2147
 msgid "您没有权限删除此报价单"
 msgstr "You do not have permission to delete this quotation"
 
-#: app/views/quotation.py:2187
+#: app/views/quotation.py:2195
 msgid "报价单删除成功！"
 msgstr "Quotation deleted successfully!"
 
-#: app/views/quotation.py:2190
+#: app/views/quotation.py:2198
 #, python-format
 msgid "删除失败：%s"
 msgstr "Delete failed: %s"
 
-#: app/views/quotation.py:3325
+#: app/views/quotation.py:3333
 msgid "您没有权限查看此报价单"
 msgstr "You do not have permission to view this quotation"
 
-#: app/views/quotation.py:3491
+#: app/views/quotation.py:3499
 #, python-format
 msgid "加载报价单详情失败：%s"
 msgstr "Failed to load quotation details: %s"
 
-#: app/views/quotation.py:4005
+#: app/views/quotation.py:4013
 msgid "您没有权限修改该报价单的拥有人"
 msgstr "You do not have permission to modify the owner of this quotation"
 
-#: app/views/quotation.py:4009
+#: app/views/quotation.py:4017
 msgid "请选择新的拥有人"
 msgstr "Please select a new owner"
 
-#: app/views/quotation.py:4014
+#: app/views/quotation.py:4022
 msgid "新拥有人不存在"
 msgstr "New owner does not exist"
 
-#: app/views/quotation.py:4019
+#: app/views/quotation.py:4027
 msgid "报价单拥有人已更新"
 msgstr "Quotation owner has been updated"
 
-#: app/views/quotation.py:4595 app/views/quotation.py:4695
-#: app/views/quotation.py:4734 app/views/quotation.py:4784
-#: app/views/quotation.py:4839
+#: app/views/quotation.py:4603 app/views/quotation.py:4703
+#: app/views/quotation.py:4742 app/views/quotation.py:4792
+#: app/views/quotation.py:4847
 msgid "权限不足，无法导出该报价单"
 msgstr "Insufficient permissions to export this quotation"
 
-#: app/views/quotation.py:4625 app/views/quotation.py:4758
-#: app/views/quotation.py:4868
+#: app/views/quotation.py:4633 app/views/quotation.py:4766
+#: app/views/quotation.py:4876
 #, python-format
 msgid "导出PDF失败：%s"
 msgstr "Failed to export PDF: %s"
 
-#: app/views/quotation.py:4650
+#: app/views/quotation.py:4658
 msgid "权限不足，无法下载该报价单"
 msgstr "Insufficient permissions to download this quotation"
 
-#: app/views/quotation.py:4680
+#: app/views/quotation.py:4688
 #, python-format
 msgid "下载PDF失败：%s"
 msgstr "Failed to download PDF: %s"
 
-#: app/views/quotation.py:4719
+#: app/views/quotation.py:4727
 #, python-format
 msgid "导出Word失败：%s"
 msgstr "Failed to export Word: %s"
 
-#: app/views/quotation.py:4813
+#: app/views/quotation.py:4821
 #, python-format
 msgid "导出Excel失败：%s"
 msgstr "Failed to export Excel: %s"
