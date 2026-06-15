@@ -147,15 +147,15 @@ COMPANY_TYPE_COLORS = {
 
 # 货币类型映射（中文显示名称，英文显示代码）
 CURRENCY_TYPE_LABELS = {
-    'CNY': {'zh': '人民币', 'en': 'CNY'},
-    'USD': {'zh': '美元', 'en': 'USD'},
-    'HKD': {'zh': '港币', 'en': 'HKD'},
-    'TWD': {'zh': '台币', 'en': 'TWD'},
-    'SGD': {'zh': '新加坡元', 'en': 'SGD'},
-    'MYR': {'zh': '马来西亚林吉特', 'en': 'MYR'},
-    'IDR': {'zh': '印尼盾', 'en': 'IDR'},
-    'THB': {'zh': '泰铢', 'en': 'THB'},
-    'VND': {'zh': '越南盾', 'en': 'VND'}
+    'CNY': {'zh': '人民币', 'en': 'RMB'},
+    'USD': {'zh': '美元', 'en': 'US Dollar'},
+    'HKD': {'zh': '港币', 'en': 'HK Dollar'},
+    'TWD': {'zh': '台币', 'en': 'TW Dollar'},
+    'SGD': {'zh': '新加坡元', 'en': 'SG Dollar'},
+    'MYR': {'zh': '马来西亚林吉特', 'en': 'Ringgit'},
+    'IDR': {'zh': '印尼盾', 'en': 'Rupiah'},
+    'THB': {'zh': '泰铢', 'en': 'Baht'},
+    'VND': {'zh': '越南盾', 'en': 'Dong'}
 }
 
 PRODUCT_SITUATION_LABELS = {
@@ -188,8 +188,14 @@ def get_product_situation_options():
         logging.warning(f"get_product_situation_options 获取语言失败: {e}")
         return [(k, v['zh']) for k, v in PRODUCT_SITUATION_LABELS.items()]
 
-def currency_type_label(key, lang='zh'):
-    """获取货币类型标签"""
+def currency_type_label(key, lang=None):
+    """获取货币类型标签(默认随当前语言环境;显式传 lang 时优先)"""
+    if lang is None:
+        try:
+            from app.utils.i18n import get_current_language
+            lang = get_current_language()
+        except Exception:
+            lang = 'zh'
     return CURRENCY_TYPE_LABELS.get(key, {}).get(lang, key)
 
 def get_currency_symbol(currency_code='CNY'):

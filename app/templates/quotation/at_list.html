@@ -75,7 +75,7 @@
 {% block trows %}
 {% for q in quotations %}
 {% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
-{% set currency_sym = '$' if (q.currency or '') == 'USD' else '¥' %}
+{% set currency_sym = get_currency_symbol(q.currency or get_default_currency()) %}
 <tr class="at-row" data-href="{{ url_for('quotation.at_view_quotation', id=q.id) }}"
     onclick="location.href=this.dataset.href"
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">

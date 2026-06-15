@@ -787,7 +787,8 @@ def at_view_quotation(id):
     perms = {
         'can_edit': can_edit_data(q, current_user),
     }
-    currency_sym = '$' if (q.currency or '') == 'USD' else ('RM' if (q.currency or '') == 'MYR' else '¥')
+    from app.utils.dictionary_helpers import get_currency_symbol as _qcur_sym
+    currency_sym = _qcur_sym(q.currency or Config.DEFAULT_CURRENCY)
 
     # ── 按产品类别分组(主产品 only · 配置子产品跟随主产品)──
     # 排序按 product_categories.display_order(产品分类管理设定的顺序)

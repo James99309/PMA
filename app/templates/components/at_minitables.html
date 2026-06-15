@@ -564,7 +564,7 @@
       <td title="{{ d.description or '' }}"><div style="color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">{{ d.description or '—' }}</div></td>
       <td style="text-align:center;color:var(--ink-3);">{{ d.document_count or 1 }}</td>
       <td class="at-mono" style="text-align:right;color:var(--ink-3);">
-        {%- set _cs = '$' if (d.currency or '') == 'USD' else ('RM' if (d.currency or '') == 'MYR' else '¥') -%}
+        {%- set _cs = get_currency_symbol(d.currency or get_default_currency()) -%}
         {%- if d.invoice_amount -%}{{ _cs }}{{ '{:,.2f}'.format(d.invoice_amount) }}{%- else -%}—{%- endif -%}
       </td>
       <td class="at-mono" style="text-align:right;font-weight:500;color:var(--ink);">

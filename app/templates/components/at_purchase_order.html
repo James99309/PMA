@@ -546,7 +546,7 @@
     {{ at_info_strip([
       {'k': _('PO 单号'), 'v': order.order_number, 'mono': true, 'strong': true},
       {'k': _('供应商'),  'v': order.company.company_name if order.company else '-'},
-      {'k': _('订单金额'),'v': ('$' if order.currency == 'USD' else '¥') ~ ('{:,.2f}'.format(order.total_amount or 0)), 'mono': true}
+      {'k': _('订单金额'),'v': get_currency_symbol(order.currency or get_default_currency()) ~ ('{:,.2f}'.format(order.total_amount or 0)), 'mono': true}
     ]) }}
     <div style="height:18px;"></div>
     <form id="atSupplierConfirmForm" enctype="multipart/form-data" onsubmit="return false;">

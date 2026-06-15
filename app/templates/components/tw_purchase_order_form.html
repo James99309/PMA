@@ -28,7 +28,7 @@
 {% set modal_title = _('编辑采购订单') if is_edit else _('新建采购订单') %}
 {% set submit_label = _('保存修改') if is_edit else _('创建采购订单') %}
 {% set default_currency = order.currency if is_edit and order else 'CNY' %}
-{% set currency_symbol = '$' if default_currency == 'USD' else '¥' %}
+{% set currency_symbol = get_currency_symbol(default_currency or get_default_currency()) %}
 
 <div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="POFormModal.close()"></div>

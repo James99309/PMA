@@ -76,7 +76,7 @@
 {% block trows %}
 {% for e in expenses %}
 {% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
-{% set currency_sym = '$' if e.currency == 'USD' else ('RM' if e.currency == 'MYR' else '¥') %}
+{% set currency_sym = get_currency_symbol(e.currency or get_default_currency()) %}
 <tr class="at-row" data-href="{{ url_for('expense.at_view_expense', id=e.id) }}"
     onclick="location.href=this.dataset.href"
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
