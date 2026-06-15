@@ -109,10 +109,31 @@ def main():
                         q.locked_by = None
                         q.locked_at = None
                 unlock_conf += 1
+        # ── Step D:作废老机制 pending 确认任务 + 关掉其日历待办(新流程不建此任务) ──
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        from app.models.worklog import WorkItem
+        old_tasks = QuotationConfirmationTask.query.filter_by(status='pending').all()
+        task_expired = 0
+        wi_cancelled = 0
+        for t in old_tasks:
+            if apply:
+                t.status = 'expired'
+                if t.workitem_id:
+                    wi = WorkItem.query.get(t.workitem_id)
+                    if wi and wi.status == 'planned':
+                        wi.status = 'cancelled'
+                        wi_cancelled += 1
+            else:
+                if t.workitem_id:
+                    wi = WorkItem.query.get(t.workitem_id)
+                    if wi and wi.status == 'planned':
+                        wi_cancelled += 1
+            task_expired += 1
         if apply:
             db.session.commit()
         print(f"== {'已落库 APPLY' if apply else 'DRY-RUN(未改)'} ==")
         print(f"[C] 解锁技术确认流程锁住的报价单: {unlock_conf}")
+        print(f"[D] 作废老 pending 确认任务: {task_expired}  关闭日历待办: {wi_cancelled}")
         print(f"[A] badge∈(pending,reconfirm) 总数: {total}")
         print(f"    跳过(有 active 审批实例,不动): {skipped_active}")
         print(f"    归位为 none 的孤儿: {reset}  其中解锁: {unlocked}")
