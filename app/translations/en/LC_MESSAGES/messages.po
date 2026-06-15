@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 23:36+0800\n"
+"POT-Creation-Date: 2026-06-15 23:41+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -2034,7 +2034,7 @@ msgstr "Planned"
 #: app/templates/knowledge/tw_wiki.html:689
 #: app/templates/knowledge/tw_wiki.html:738
 #: app/templates/knowledge/tw_wiki.html:742
-#: app/templates/knowledge/tw_wiki.html:923 app/views/quotation.py:879
+#: app/templates/knowledge/tw_wiki.html:923 app/views/quotation.py:880
 msgid "系统"
 msgstr "System"
 
@@ -3332,7 +3332,8 @@ msgstr "Approval instance ID not found"
 #: app/helpers/js_i18n_strings.py:116 app/static/js/at-approval-dropdown.js:270
 #: app/static/js/at-approval-dropdown.js:395
 #: app/templates/quotation/at_view.html:301
-#: app/templates/quotation/at_view.html:322 app/views/quotation.py:884
+#: app/templates/quotation/at_view.html:322 app/views/quotation.py:870
+#: app/views/quotation.py:885
 msgid "技术确认"
 msgstr "Technical Confirmation"
 
@@ -5716,9 +5717,9 @@ msgstr "Reply"
 #: app/templates/worklog/tw_calendar.html:1616
 #: app/templates/worklog/tw_calendar.html:1652
 #: app/templates/worklog/tw_calendar.html:1718
-#: app/templates/worklog/tw_calendar.html:1738
+#: app/templates/worklog/tw_calendar.html:1738 app/views/quotation.py:871
 msgid "删除"
-msgstr "Delete"
+msgstr "Deleted"
 
 #: app/templates/index.html:444
 msgid "添加回复"
@@ -9845,7 +9846,7 @@ msgstr "Quick Create"
 #: app/templates/spec_template/tw_list.html:198
 #: app/templates/star_graph/tw_star_graph.html:230
 #: app/templates/user/tw_department_management.html:263
-#: app/templates/worklog/tw_calendar.html:951
+#: app/templates/worklog/tw_calendar.html:951 app/views/quotation.py:871
 msgid "创建"
 msgstr "Created"
 
@@ -11430,8 +11431,9 @@ msgstr "Not specified"
 
 #: app/templates/components/tw_info_card.html:126
 #: app/templates/config_management/tw_index.html:2116
+#: app/views/quotation.py:871
 msgid "修改"
-msgstr "Modify"
+msgstr "Modified"
 
 #: app/templates/components/product/tw_spec_options_modal.html:81
 #: app/templates/components/tw_item_list_card.html:13
@@ -20184,8 +20186,9 @@ msgstr "Loading image..."
 
 #: app/templates/macros/product_config_modal.html:13
 #: app/templates/macros/product_config_modal.html:161
+#: app/views/quotation.py:869
 msgid "产品配置"
-msgstr "Product configuration"
+msgstr "Product Configuration"
 
 #: app/templates/macros/product_config_modal.html:100
 msgid "规格定制"
@@ -24614,7 +24617,7 @@ msgstr "Manage quotation submission, SM confirmation and deal closure."
 msgid "搜索报价单号…"
 msgstr "Search quotation no.…"
 
-#: app/templates/quotation/at_list.html:66
+#: app/templates/quotation/at_list.html:66 app/views/quotation.py:869
 msgid "报价金额"
 msgstr "Amount"
 
@@ -28258,8 +28261,7 @@ msgstr "Failed"
 msgid "确认中"
 msgstr "Confirming"
 
-#: app/utils/status_meta.py:134 app/views/quotation.py:872
-#, fuzzy
+#: app/utils/status_meta.py:134 app/views/quotation.py:873
 msgid "需再次确认"
 msgstr "Reconfirmation Required"
 
@@ -28934,127 +28936,126 @@ msgstr "All Quotations"
 msgid "报价单编号"
 msgstr "Quotation Number"
 
-#: app/views/quotation.py:651 app/views/quotation.py:2078
+#: app/views/quotation.py:651 app/views/quotation.py:2079
 #, python-format
 msgid "加载报价单失败：%s"
 msgstr "Failed to load quotation: %s"
 
-#: app/views/quotation.py:872
-#, fuzzy
+#: app/views/quotation.py:869
+msgid "明细数量"
+msgstr "Item Count"
+
+#: app/views/quotation.py:873
 msgid "技术确认通过"
 msgstr "Technically Confirmed"
 
-#: app/views/quotation.py:873
-#, fuzzy
+#: app/views/quotation.py:874
 msgid "提交技术确认"
 msgstr "Submitted for Confirmation"
 
-#: app/views/quotation.py:873
-#, fuzzy
+#: app/views/quotation.py:874
 msgid "撤销确认"
 msgstr "Confirmation Revoked"
 
-#: app/views/quotation.py:892
-#, fuzzy
+#: app/views/quotation.py:893
 msgid "修改了产品配置"
 msgstr "Modified product configuration"
 
-#: app/views/quotation.py:900
-#, fuzzy
+#: app/views/quotation.py:901
 msgid "变更"
 msgstr "Change"
 
-#: app/views/quotation.py:1353
+#: app/views/quotation.py:1354
 msgid "您没有权限编辑此报价单"
 msgstr "You do not have permission to edit this quotation"
 
-#: app/views/quotation.py:1356
+#: app/views/quotation.py:1357
 msgid "报价单已被锁定，无法编辑"
 msgstr "Quotation is locked and cannot be edited"
 
-#: app/views/quotation.py:2032
+#: app/views/quotation.py:2033
 #, python-format
 msgid "报价单创建失败：%s"
 msgstr "Failed to create quotation: %s"
 
-#: app/views/quotation.py:2090
+#: app/views/quotation.py:2091
 msgid "您没有权限复制此报价单"
 msgstr "You do not have permission to copy this quotation"
 
-#: app/views/quotation.py:2132
+#: app/views/quotation.py:2133
 msgid "报价单复制成功！"
 msgstr "Quotation copied successfully!"
 
-#: app/views/quotation.py:2136
+#: app/views/quotation.py:2137
 #, python-format
 msgid "报价单复制失败：%s"
 msgstr "Failed to copy quotation: %s"
 
-#: app/views/quotation.py:2147
+#: app/views/quotation.py:2148
 msgid "您没有权限删除此报价单"
 msgstr "You do not have permission to delete this quotation"
 
-#: app/views/quotation.py:2195
+#: app/views/quotation.py:2196
 msgid "报价单删除成功！"
 msgstr "Quotation deleted successfully!"
 
-#: app/views/quotation.py:2198
+#: app/views/quotation.py:2199
 #, python-format
 msgid "删除失败：%s"
 msgstr "Delete failed: %s"
 
-#: app/views/quotation.py:3333
+#: app/views/quotation.py:3334
 msgid "您没有权限查看此报价单"
 msgstr "You do not have permission to view this quotation"
 
-#: app/views/quotation.py:3499
+#: app/views/quotation.py:3500
 #, python-format
 msgid "加载报价单详情失败：%s"
 msgstr "Failed to load quotation details: %s"
 
-#: app/views/quotation.py:4013
+#: app/views/quotation.py:4014
 msgid "您没有权限修改该报价单的拥有人"
 msgstr "You do not have permission to modify the owner of this quotation"
 
-#: app/views/quotation.py:4017
+#: app/views/quotation.py:4018
 msgid "请选择新的拥有人"
 msgstr "Please select a new owner"
 
-#: app/views/quotation.py:4022
+#: app/views/quotation.py:4023
 msgid "新拥有人不存在"
 msgstr "New owner does not exist"
 
-#: app/views/quotation.py:4027
+#: app/views/quotation.py:4028
 msgid "报价单拥有人已更新"
 msgstr "Quotation owner has been updated"
 
-#: app/views/quotation.py:4603 app/views/quotation.py:4703
-#: app/views/quotation.py:4742 app/views/quotation.py:4792
-#: app/views/quotation.py:4847
+#: app/views/quotation.py:4604 app/views/quotation.py:4704
+#: app/views/quotation.py:4743 app/views/quotation.py:4793
+#: app/views/quotation.py:4848
 msgid "权限不足，无法导出该报价单"
 msgstr "Insufficient permissions to export this quotation"
 
-#: app/views/quotation.py:4633 app/views/quotation.py:4766
-#: app/views/quotation.py:4876
+#: app/views/quotation.py:4634 app/views/quotation.py:4767
+#: app/views/quotation.py:4877
 #, python-format
 msgid "导出PDF失败：%s"
 msgstr "Failed to export PDF: %s"
 
-#: app/views/quotation.py:4658
+#: app/views/quotation.py:4659
 msgid "权限不足，无法下载该报价单"
 msgstr "Insufficient permissions to download this quotation"
 
-#: app/views/quotation.py:4688
+#: app/views/quotation.py:4689
 #, python-format
 msgid "下载PDF失败：%s"
 msgstr "Failed to download PDF: %s"
 
-#: app/views/quotation.py:4727
+#: app/views/quotation.py:4728
 #, python-format
 msgid "导出Word失败：%s"
 msgstr "Failed to export Word: %s"
 
-#: app/views/quotation.py:4821
+#: app/views/quotation.py:4822
 #, python-format
 msgid "导出Excel失败：%s"
 msgstr "Failed to export Excel: %s"

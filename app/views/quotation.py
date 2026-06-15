@@ -865,9 +865,10 @@ def at_view_quotation(id):
     from app.models.change_log import ChangeLog
     from app.models import User
     from app.utils.filters import format_datetime_local
-    _CH_FIELD_LABEL = {'amount': '报价金额', 'details_count': '明细数量', 'details': '产品配置',
-                       'confirmation': '技术确认'}
-    _CH_OP_LABEL    = {'CREATE': '创建', 'UPDATE': '修改', 'DELETE': '删除'}
+    # 值用 _() 字面量 → pybabel 可提取(原先 _(变量) 抓不到,导致 明细数量 等不翻译)
+    _CH_FIELD_LABEL = {'amount': _('报价金额'), 'details_count': _('明细数量'), 'details': _('产品配置'),
+                       'confirmation': _('技术确认')}
+    _CH_OP_LABEL    = {'CREATE': _('创建'), 'UPDATE': _('修改'), 'DELETE': _('删除')}
     # 技术确认动作:new_value 状态码 → 可读(随 locale)
     _CH_CONFIRM_VAL = {'confirmed': _('技术确认通过'), 'reconfirm': _('需再次确认'),
                        'pending': _('提交技术确认'), 'none': _('撤销确认')}
