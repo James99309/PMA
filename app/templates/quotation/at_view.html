@@ -260,7 +260,7 @@
         </button>
         {# 旧「技术确认」按钮已移除 — 统一走标准审批「提交审批」入口(下方) #}
         {# 提交审批 / 重新提交(走标准 ApprovalInstance) #}
-        {% if not is_new and quotation.id and (quotation.owner_id == current_user.id or current_user.role == 'admin') and not quotation.is_locked %}
+        {% if not is_new and quotation.id and (quotation.owner_id == current_user.id or current_user.role == 'admin') and not quotation.is_locked and (quotation.confirmation_badge_status or 'none') != 'confirmed' %}
         {% set _q_status = (at_ap_status if at_ap_status is defined else 'draft') %}
         {% if _q_status in ('draft', 'rejected', 'recalled') %}
         {% set _q_submit_action = 'resubmit' if _q_status in ('rejected', 'recalled') else 'submit' %}
@@ -311,6 +311,28 @@
           {{ at_icon('check', 12) }}{{ _('保存') }}
         </button>
       </div>
+      {% endif %}
+      {# 解决方案经理/admin 一键技术确认 — 不走审批流(与审批流并存);仅无审批进行中时显示 #}
+      {% if not is_new and quotation.id and current_user.role in ('solution_manager', 'admin') %}
+        {% set _cbs = quotation.confirmation_badge_status or 'none' %}
+        {% set _apst2 = at_ap_status if at_ap_status is defined else 'draft' %}
+        {% if _apst2 != 'pending' %}
+          {% if _cbs == 'confirmed' %}
+          <button type="button" onclick="atQuoteDirectConfirm()"
+                  style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                         background:var(--bg-elev);color:var(--ink-2);font-size:12px;font-weight:500;
+                         display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+            {{ at_icon('close', 12) }}{{ _('取消确认') }}
+          </button>
+          {% elif not quotation.is_locked %}
+          <button type="button" onclick="atQuoteDirectConfirm()"
+                  style="height:32px;padding:0 14px;border-radius:6px;border:0;
+                         background:var(--success);color:#fff;font-size:12px;font-weight:500;
+                         display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+            {{ at_icon('check', 12) }}{{ _('技术确认') }}
+          </button>
+          {% endif %}
+        {% endif %}
       {% endif %}
     </div>
   </div>
@@ -981,6 +1003,22 @@
     // 已统一迁到标准 ApprovalInstance 流程,通过 chip dropdown 操作
 
     // 删除报价单 — 复用后端 form POST /{id}/delete(后端 redirect 到列表 + flash)
+    // SM 一键技术确认(切换):走 toggle_product_detail_confirmation,不创建审批实例
+    window.atQuoteDirectConfirm = function() {
+      const csrf = document.querySelector('meta[name="csrf-token"]').content;
+      fetch(`/quotation/${QUOTATION_ID}/toggle_product_detail_confirmation`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}
+      }).then(r => r.json()).then(res => {
+        if (res && res.success) {
+          if (window.ATToast) ATToast.success(res.message || '{{ _("操作成功") }}');
+          setTimeout(() => location.reload(), 500);
+        } else {
+          if (window.ATToast) ATToast.error((res && res.message) || '{{ _("操作失败") }}');
+        }
+      }).catch(() => { if (window.ATToast) ATToast.error('{{ _("网络错误") }}'); });
+    };
+
     window.atQuoteDelete = function() {
       if (!window.ATConfirm) return;
       ATConfirm.show({

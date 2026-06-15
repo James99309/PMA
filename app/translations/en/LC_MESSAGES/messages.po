@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 22:21+0800\n"
+"POT-Creation-Date: 2026-06-15 22:34+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -1544,7 +1544,7 @@ msgstr "Customer Orders"
 #: app/templates/macros/approval_macros.html:408
 #: app/templates/product_sn/at_detail.html:141
 #: app/templates/quotation/at_list.html:65
-#: app/templates/quotation/at_view.html:780
+#: app/templates/quotation/at_view.html:802
 #: app/templates/sales_order/at_detail.html:75
 #: app/templates/sales_order/at_detail.html:119
 #: app/templates/sales_order/at_list.html:132
@@ -1614,7 +1614,7 @@ msgstr "Mentions"
 #: app/templates/prospect/tw_list.html:1253
 #: app/templates/prospect/tw_list.html:1542
 #: app/templates/prospect/tw_list.html:2083
-#: app/templates/quotation/at_view.html:429 app/utils/status_meta.py:86
+#: app/templates/quotation/at_view.html:451 app/utils/status_meta.py:86
 #: app/views/product_analysis.py:1290
 msgid "发现"
 msgstr "Discover"
@@ -1624,7 +1624,7 @@ msgstr "Discover"
 #: app/templates/components/tw_performance_dashboard.html:2831
 #: app/templates/project/at_list.html:49 app/templates/project/at_view.html:522
 #: app/templates/project/statistics_dashboard_backup.html:176
-#: app/templates/quotation/at_view.html:430 app/utils/status_meta.py:87
+#: app/templates/quotation/at_view.html:452 app/utils/status_meta.py:87
 #: app/views/product_analysis.py:1291
 msgid "植入"
 msgstr "Embed"
@@ -1633,7 +1633,7 @@ msgstr "Embed"
 #: app/helpers/at_dashboard_helpers.py:1679
 #: app/templates/components/tw_performance_dashboard.html:2831
 #: app/templates/project/at_list.html:50 app/templates/project/at_view.html:522
-#: app/templates/quotation/at_view.html:431 app/utils/status_meta.py:88
+#: app/templates/quotation/at_view.html:453 app/utils/status_meta.py:88
 msgid "标前"
 msgstr "Pre-Bid"
 
@@ -1641,7 +1641,7 @@ msgstr "Pre-Bid"
 #: app/helpers/at_dashboard_helpers.py:1680
 #: app/templates/components/tw_performance_dashboard.html:2832
 #: app/templates/project/at_list.html:51 app/templates/project/at_view.html:522
-#: app/templates/quotation/at_view.html:432 app/utils/status_meta.py:90
+#: app/templates/quotation/at_view.html:454 app/utils/status_meta.py:90
 msgid "标中"
 msgstr "Bidding"
 
@@ -1651,7 +1651,7 @@ msgstr "Bidding"
 #: app/templates/project/at_list.html:52 app/templates/project/at_view.html:522
 #: app/templates/project/statistics_dashboard_backup.html:248
 #: app/templates/prospect/tw_lost_panel.html:14
-#: app/templates/quotation/at_view.html:433 app/utils/status_meta.py:91
+#: app/templates/quotation/at_view.html:455 app/utils/status_meta.py:91
 #: app/views/product_analysis.py:1295
 msgid "中标"
 msgstr "Won"
@@ -1660,7 +1660,7 @@ msgstr "Won"
 #: app/templates/components/tw_performance_dashboard.html:2832
 #: app/templates/project/at_view.html:522
 #: app/templates/project/statistics_dashboard_backup.html:272
-#: app/templates/quotation/at_view.html:434
+#: app/templates/quotation/at_view.html:456
 msgid "批价"
 msgstr "Price Approval"
 
@@ -1828,7 +1828,7 @@ msgstr "%(y)s "
 #: app/templates/components/tw_performance_dashboard.html:2833
 #: app/templates/project/at_list.html:54 app/templates/project/at_view.html:522
 #: app/templates/project/statistics_dashboard_backup.html:77
-#: app/templates/quotation/at_view.html:435 app/utils/status_meta.py:92
+#: app/templates/quotation/at_view.html:457 app/utils/status_meta.py:92
 #: app/views/product_analysis.py:1296
 msgid "签约"
 msgstr "Signed"
@@ -2421,7 +2421,7 @@ msgstr "Temporary products have no market price and discount"
 #: app/templates/product/at_list.html:313 app/templates/product/create.html:313
 #: app/templates/product/file_preview_demo.html:174
 #: app/templates/product_sn/at_detail.html:96
-#: app/templates/quotation/at_view.html:1538
+#: app/templates/quotation/at_view.html:1576
 #: app/templates/quotation/tw_list.html:17
 #: app/templates/quotation/tw_quotation_detail.html:25
 #: app/templates/quotation/tw_quotation_detail.html:238
@@ -2643,7 +2643,7 @@ msgstr "Unit Price"
 #: app/templates/macros/product_detail_manager.html:857
 #: app/templates/product/at_list.html:334 app/templates/product/create.html:329
 #: app/templates/product_analysis/tw_analysis.html:523
-#: app/templates/quotation/at_view.html:1566
+#: app/templates/quotation/at_view.html:1604
 #: app/templates/quotation/tw_list.html:21
 #: app/templates/quotation/tw_quotation_detail.html:29
 #: app/templates/quotation/tw_quotation_detail.html:243
@@ -2863,11 +2863,11 @@ msgstr "Once initiated, "
 #: app/templates/prospect/tw_list.html:606
 #: app/templates/prospect/tw_lost_detail.html:253
 #: app/templates/quotation/at_view.html:305
-#: app/templates/quotation/at_view.html:590
-#: app/templates/quotation/at_view.html:989
-#: app/templates/quotation/at_view.html:1025
-#: app/templates/quotation/at_view.html:1310
-#: app/templates/quotation/at_view.html:1594
+#: app/templates/quotation/at_view.html:612
+#: app/templates/quotation/at_view.html:1027
+#: app/templates/quotation/at_view.html:1063
+#: app/templates/quotation/at_view.html:1348
+#: app/templates/quotation/at_view.html:1632
 #: app/templates/quotation/tw_list.html:250
 #: app/templates/quotation/tw_quotation_detail.html:368
 #: app/templates/quotation/tw_quotation_detail.html:454
@@ -3007,7 +3007,7 @@ msgstr "Running in the background, please wait…"
 #: app/templates/product/at_list.html:62 app/templates/product/at_list.html:325
 #: app/templates/product/tw_product_detail.html:236
 #: app/templates/product_analysis/tw_analysis.html:522
-#: app/templates/quotation/at_view.html:1548
+#: app/templates/quotation/at_view.html:1586
 #: app/templates/quotation/tw_list.html:20
 #: app/templates/quotation/tw_quotation_detail.html:28
 #: app/templates/quotation/tw_quotation_detail.html:241
@@ -3074,8 +3074,8 @@ msgstr ""
 #: app/templates/customer/partials/_company_form_fields.html:120
 #: app/templates/inventory/partials/_test_form.html:326
 #: app/templates/prospect/tw_list.html:1124
-#: app/templates/quotation/at_view.html:1027
-#: app/templates/quotation/at_view.html:1466
+#: app/templates/quotation/at_view.html:1065
+#: app/templates/quotation/at_view.html:1504
 #: app/templates/quotation/partials/_quotation_modal_fields.html:155
 #: app/templates/quotation/tw_quotation_detail.html:247
 #: app/templates/quotation/tw_quotation_detail.html:352
@@ -3100,7 +3100,7 @@ msgstr "Notes"
 #: app/templates/project/at_view.html:522
 #: app/templates/project/at_view.html:889
 #: app/templates/project/statistics_dashboard_backup.html:101
-#: app/templates/quotation/at_view.html:436
+#: app/templates/quotation/at_view.html:458
 #: app/templates/spec_template/tw_spec_config_matrix.html:1780
 #: app/templates/worklog/tw_calendar.html:2969 app/utils/status_meta.py:93
 #: app/views/meeting.py:398
@@ -3332,6 +3332,7 @@ msgstr "Approval instance ID not found"
 #: app/helpers/js_i18n_strings.py:116 app/static/js/at-approval-dropdown.js:270
 #: app/static/js/at-approval-dropdown.js:395
 #: app/templates/quotation/at_view.html:267
+#: app/templates/quotation/at_view.html:332
 msgid "技术确认"
 msgstr "Technical Confirmation"
 
@@ -3444,6 +3445,7 @@ msgstr "Actions"
 #: app/templates/product/tw_product_detail.html:593
 #: app/templates/project/at_view.html:666
 #: app/templates/project/at_view.html:678
+#: app/templates/quotation/at_view.html:1017
 #: app/templates/quotation/tw_quotation_detail.html:712
 #: app/templates/quotation/tw_quotation_detail.html:734
 #: app/templates/quotation/tw_quotation_detail.html:809
@@ -3492,7 +3494,7 @@ msgstr "Collapse"
 #: app/templates/product_analysis/tw_analysis.html:239
 #: app/templates/product_analysis/tw_analysis.html:446
 #: app/templates/product_analysis/tw_analysis.html:524
-#: app/templates/quotation/at_view.html:1561
+#: app/templates/quotation/at_view.html:1599
 #: app/templates/quotation/tw_list.html:25
 #: app/templates/quotation/tw_quotation_detail.html:33
 #: app/templates/quotation/tw_quotation_detail.html:242
@@ -3549,7 +3551,7 @@ msgid "无类目数据"
 msgstr "No categories"
 
 #: app/helpers/js_i18n_strings.py:137 app/static/js/at-approval-dropdown.js:375
-#: app/templates/quotation/at_view.html:1066
+#: app/templates/quotation/at_view.html:1104
 msgid "明细"
 msgstr "Items"
 
@@ -3804,6 +3806,7 @@ msgstr "Note for the confirmer…"
 #: app/templates/knowledge/tw_wiki.html:1269
 #: app/templates/product/at_view.html:413
 #: app/templates/product/at_view.html:449
+#: app/templates/quotation/at_view.html:1019
 #: app/templates/worklog/tw_calendar.html:3057
 #: app/templates/worklog/tw_calendar.html:3087
 #: app/templates/worklog/tw_calendar.html:3134
@@ -3870,7 +3873,7 @@ msgstr " row's"
 #: app/templates/components/tw_pricing_order_modal.html:2774
 #: app/templates/macros/product_detail_manager.html:855
 #: app/templates/product/at_view.html:191
-#: app/templates/quotation/at_view.html:1553
+#: app/templates/quotation/at_view.html:1591
 #: app/templates/spec_template/tw_configurations.html:1062
 msgid "规格"
 msgstr "Spec"
@@ -4148,7 +4151,7 @@ msgstr "File preview"
 #: app/templates/product_analysis/tw_analysis.html:453
 #: app/templates/project/at_list.html:96
 #: app/templates/quotation/at_list.html:65
-#: app/templates/quotation/at_view.html:748
+#: app/templates/quotation/at_view.html:770
 #: app/templates/star_graph/tw_star_graph.html:165
 #: app/templates/star_graph/tw_star_graph.html:221
 #: app/templates/user/tw_detail.html:533
@@ -4465,7 +4468,7 @@ msgstr "Total"
 #: app/templates/product_sn/at_detail.html:178
 #: app/templates/project/at_view.html:354
 #: app/templates/prospect/tw_lost_panel.html:78
-#: app/templates/quotation/at_view.html:471
+#: app/templates/quotation/at_view.html:493
 #: app/templates/spec_template/tw_detail.html:120
 #: app/templates/task/tw_task_management.html:132
 #: app/templates/user/at_detail.html:91 app/views/expense.py:637
@@ -4575,7 +4578,7 @@ msgstr "items"
 #: app/templates/product_analysis/tw_analysis.html:230
 #: app/templates/product_analysis/tw_analysis.html:443
 #: app/templates/product_analysis/tw_analysis.html:520
-#: app/templates/quotation/at_view.html:1544
+#: app/templates/quotation/at_view.html:1582
 #: app/templates/sales_order/at_detail.html:153
 #: app/templates/spec_definition/tw_list.html:603
 #: app/templates/spec_template/at_list.html:77
@@ -4731,6 +4734,7 @@ msgstr "Your access request has been rejected"
 #: app/routes/resource_pool.py:280
 #: app/templates/components/tw_chat_panel.html:2241
 #: app/templates/inventory/at_purchase_order_detail.html:997
+#: app/templates/quotation/at_view.html:1014
 msgid "操作成功"
 msgstr "Operation Successful"
 
@@ -4998,8 +5002,8 @@ msgstr "Start Time"
 #: app/templates/index.html:436 app/templates/macros/approval_macros.html:90
 #: app/templates/product_sn/at_detail.html:142
 #: app/templates/project/add_action.html:28
-#: app/templates/quotation/at_view.html:371
-#: app/templates/quotation/at_view.html:465
+#: app/templates/quotation/at_view.html:393
+#: app/templates/quotation/at_view.html:487
 #: app/templates/quotation/partials/_quotation_modal_fields.html:29
 #: app/templates/quotation/tw_quotation_detail.html:166
 #: app/templates/sales_order/at_detail.html:121
@@ -5482,7 +5486,7 @@ msgstr "Recent Quotations"
 #: app/templates/index.html:296
 #: app/templates/product_analysis/tw_analysis.html:509
 #: app/templates/quotation/at_list.html:65
-#: app/templates/quotation/at_view.html:462
+#: app/templates/quotation/at_view.html:484
 msgid "报价单号"
 msgstr "Quotation No."
 
@@ -5564,8 +5568,8 @@ msgstr "Owner"
 #: app/templates/prospect/tw_list.html:977
 #: app/templates/prospect/tw_list.html:1117
 #: app/templates/prospect/tw_list.html:1312
-#: app/templates/quotation/at_view.html:412
-#: app/templates/quotation/at_view.html:469
+#: app/templates/quotation/at_view.html:434
+#: app/templates/quotation/at_view.html:491
 #: app/templates/quotation/tw_quotation_detail.html:168
 #: app/templates/quotation/tw_quotation_edit.html:517
 #: app/templates/star_graph/tw_star_graph.html:168
@@ -5679,7 +5683,7 @@ msgstr "Reply"
 #: app/templates/project/at_view.html:557
 #: app/templates/prospect/tw_panel.html:371
 #: app/templates/quotation/at_view.html:297
-#: app/templates/quotation/at_view.html:989
+#: app/templates/quotation/at_view.html:1027
 #: app/templates/sales_order/at_detail.html:89
 #: app/templates/sales_order/at_detail.html:255
 #: app/templates/spec_definition/tw_list.html:192
@@ -6348,7 +6352,7 @@ msgstr "View"
 #: app/templates/project/at_view.html:200
 #: app/templates/prospect/tw_panel.html:365
 #: app/templates/quotation/at_view.html:259
-#: app/templates/quotation/at_view.html:583
+#: app/templates/quotation/at_view.html:605
 #: app/templates/spec_definition/tw_list.html:185
 #: app/templates/spec_definition/tw_list.html:286
 #: app/templates/spec_definition/tw_list.html:441
@@ -6415,8 +6419,8 @@ msgstr "No announcements"
 #: app/templates/product_code/tw_category_management.html:512
 #: app/templates/project/add.html:316 app/templates/project/add_action.html:86
 #: app/templates/project/edit.html:113 app/templates/quotation/at_view.html:311
-#: app/templates/quotation/at_view.html:596
-#: app/templates/quotation/at_view.html:1024
+#: app/templates/quotation/at_view.html:618
+#: app/templates/quotation/at_view.html:1062
 #: app/templates/quotation/tw_list.html:394
 #: app/templates/quotation/tw_quotation_detail.html:464
 #: app/templates/quotation/tw_quotation_detail.html:981
@@ -6489,7 +6493,7 @@ msgstr ""
 #: app/templates/product/tw_product_detail.html:1246
 #: app/templates/product_code/tw_category_management.html:422
 #: app/templates/project/at_view.html:730
-#: app/templates/quotation/at_view.html:1311
+#: app/templates/quotation/at_view.html:1349
 #: app/templates/quotation/tw_quotation_detail.html:365
 #: app/templates/quotation/tw_quotation_detail.html:367
 #: app/templates/spec_definition/tw_list.html:710
@@ -6573,9 +6577,9 @@ msgstr "Please select target users"
 #: app/templates/prospect/tw_list.html:1403
 #: app/templates/prospect/tw_list.html:1682
 #: app/templates/prospect/tw_list.html:2205
-#: app/templates/quotation/at_view.html:1420
-#: app/templates/quotation/at_view.html:1423
-#: app/templates/quotation/at_view.html:1424
+#: app/templates/quotation/at_view.html:1458
+#: app/templates/quotation/at_view.html:1461
+#: app/templates/quotation/at_view.html:1462
 #: app/templates/quotation/tw_quotation_edit.html:1162
 #: app/templates/quotation/tw_quotation_edit.html:1163
 #: app/templates/quotation/tw_quotation_edit.html:1665
@@ -6844,7 +6848,7 @@ msgstr "Create Approval Template"
 #: app/templates/main/at_dashboard.html:302
 #: app/templates/meeting/tw_meeting_minutes_list.html:125
 #: app/templates/product/tw_product_detail.html:1332
-#: app/templates/quotation/at_view.html:327 app/views/approval.py:2197
+#: app/templates/quotation/at_view.html:349 app/views/approval.py:2197
 #: app/views/approval.py:2208 app/views/approval.py:2219
 #: app/views/approval.py:2230 app/views/approval.py:2241
 msgid "项"
@@ -7622,8 +7626,8 @@ msgstr "Please select project"
 #: app/templates/product_analysis/tw_analysis.html:455
 #: app/templates/project/at_view.html:311
 #: app/templates/project/at_view.html:840
-#: app/templates/quotation/at_view.html:392
-#: app/templates/quotation/at_view.html:466
+#: app/templates/quotation/at_view.html:414
+#: app/templates/quotation/at_view.html:488
 #: app/templates/quotation/partials/_quotation_modal_fields.html:64
 #: app/templates/quotation/tw_quotation_detail.html:167
 #: app/templates/worklog/tw_calendar.html:826
@@ -8168,8 +8172,8 @@ msgstr "Import from customer requirements"
 #: app/templates/expense/partials/_expense_modal_fields.html:314
 #: app/templates/product/at_list.html:347
 #: app/templates/product/tw_product_detail.html:1599
-#: app/templates/quotation/at_view.html:445
-#: app/templates/quotation/at_view.html:463
+#: app/templates/quotation/at_view.html:467
+#: app/templates/quotation/at_view.html:485
 #: app/templates/quotation/tw_quotation_edit.html:545
 msgid "货币"
 msgstr "Currency"
@@ -8331,7 +8335,7 @@ msgstr "Total"
 #: app/templates/components/tw_product_spec_modal.html:115
 #: app/templates/components/tw_product_spec_modal.html:136
 #: app/templates/product/tw_product_detail.html:241
-#: app/templates/quotation/at_view.html:1570
+#: app/templates/quotation/at_view.html:1608
 #: app/templates/quotation/tw_quotation_detail.html:35
 #: app/templates/quotation/tw_quotation_detail.html:246
 #: app/templates/quotation/tw_quotation_edit.html:424
@@ -8340,7 +8344,7 @@ msgid "产品编码"
 msgstr "Code"
 
 #: app/templates/components/at_minitables.html:300
-#: app/templates/quotation/at_view.html:1307
+#: app/templates/quotation/at_view.html:1345
 msgid "删除明细"
 msgstr "Delete row"
 
@@ -8482,7 +8486,7 @@ msgstr "Vendor products"
 
 #: app/templates/components/at_product_edit_modal.html:151
 #: app/templates/components/at_product_relation_modal.html:356
-#: app/templates/quotation/at_view.html:1328
+#: app/templates/quotation/at_view.html:1366
 msgid "保存中…"
 msgstr "Saving…"
 
@@ -8929,8 +8933,8 @@ msgstr "Enter project name first"
 #: app/templates/project/add.html:250 app/templates/project/at_view.html:299
 #: app/templates/project/edit.html:155
 #: app/templates/project/partials/_project_form_fields.html:55
-#: app/templates/quotation/at_view.html:418
-#: app/templates/quotation/at_view.html:467
+#: app/templates/quotation/at_view.html:440
+#: app/templates/quotation/at_view.html:489
 #: app/templates/quotation/tw_quotation_detail.html:170
 #: app/views/config_management.py:2067 app/views/config_management.py:2122
 msgid "项目类型"
@@ -10792,7 +10796,7 @@ msgid "必填"
 msgstr "Required"
 
 #: app/templates/components/tw_chat_panel.html:2244
-#: app/templates/quotation/at_view.html:1410
+#: app/templates/quotation/at_view.html:1448
 msgid "已创建"
 msgstr "Created"
 
@@ -11917,7 +11921,7 @@ msgstr "Creator"
 #: app/templates/product/tw_product_detail.html:465
 #: app/templates/product_sn/at_detail.html:179
 #: app/templates/project/at_view.html:355
-#: app/templates/quotation/at_view.html:472
+#: app/templates/quotation/at_view.html:494
 #: app/templates/sales_order/at_detail.html:137
 #: app/templates/system_diagram/at_list.html:49 app/views/quotation.py:645
 #: app/views/user.py:383
@@ -12123,7 +12127,7 @@ msgstr "No SE pricing data"
 #: app/templates/components/tw_performance_dashboard.html:531
 #: app/templates/components/tw_performance_dashboard.html:1600
 #: app/templates/main/at_dashboard.html:236
-#: app/templates/quotation/at_view.html:342
+#: app/templates/quotation/at_view.html:364
 msgid "分"
 msgstr "pts"
 
@@ -12570,7 +12574,7 @@ msgstr "Action Quality Trend"
 #: app/templates/project/at_view.html:522
 #: app/templates/project/at_view.html:883
 #: app/templates/project/statistics_dashboard_backup.html:125
-#: app/templates/quotation/at_view.html:437
+#: app/templates/quotation/at_view.html:459
 msgid "搁置"
 msgstr "Suspended"
 
@@ -13040,8 +13044,8 @@ msgstr ""
 
 #: app/templates/components/tw_pricing_order_modal.html:571
 #: app/templates/components/tw_pricing_order_modal.html:573
-#: app/templates/quotation/at_view.html:850
-#: app/templates/quotation/at_view.html:852
+#: app/templates/quotation/at_view.html:872
+#: app/templates/quotation/at_view.html:874
 #: app/templates/system_diagram/tw_editor.html:504
 msgid "放弃修改"
 msgstr "Discard Changes"
@@ -13053,7 +13057,7 @@ msgid "您有未保存的修改，确定要放弃这些修改吗？"
 msgstr "You have unsaved changes. Are you sure you want to discard them?"
 
 #: app/templates/components/tw_pricing_order_modal.html:574
-#: app/templates/quotation/at_view.html:853
+#: app/templates/quotation/at_view.html:875
 #: app/templates/spec_template/tw_spec_config_matrix.html:657
 msgid "继续编辑"
 msgstr "Continue Editing"
@@ -15014,8 +15018,8 @@ msgstr "Please select a user from the left"
 #: app/templates/macros/approval_macros.html:859
 #: app/templates/product_sn/at_detail.html:93
 #: app/templates/project/at_view.html:297
-#: app/templates/quotation/at_view.html:363
-#: app/templates/quotation/at_view.html:461
+#: app/templates/quotation/at_view.html:385
+#: app/templates/quotation/at_view.html:483
 #: app/templates/quotation/tw_quotation_detail.html:161
 #: app/templates/spec_template/tw_detail.html:103
 #: app/templates/spec_template/tw_edit.html:160
@@ -16326,7 +16330,7 @@ msgstr "Linked Quotations"
 
 #: app/templates/customer/at_view.html:195
 #: app/templates/project/at_view.html:366
-#: app/templates/quotation/at_view.html:1479
+#: app/templates/quotation/at_view.html:1517
 msgid "关联批价单"
 msgstr "Linked Pricing Orders"
 
@@ -16406,7 +16410,7 @@ msgstr "Customer deleted"
 
 #: app/templates/customer/at_view.html:364
 #: app/templates/project/at_view.html:745
-#: app/templates/quotation/at_view.html:1410
+#: app/templates/quotation/at_view.html:1448
 msgid "跳转中…"
 msgstr "Redirecting…"
 
@@ -16970,7 +16974,7 @@ msgstr "Editing"
 #: app/templates/files/tw_file_manager_admin.html:134
 #: app/templates/project/at_view.html:127
 #: app/templates/quotation/at_view.html:188
-#: app/templates/quotation/at_view.html:464
+#: app/templates/quotation/at_view.html:486
 #: app/templates/quotation/tw_quotation_detail.html:47
 msgid "已锁定"
 msgstr "Locked"
@@ -16997,9 +17001,9 @@ msgid "— 选择联系人 —"
 msgstr "— Select Contact —"
 
 #: app/templates/expense/at_view.html:307
-#: app/templates/quotation/at_view.html:414
-#: app/templates/quotation/at_view.html:737
-#: app/templates/quotation/at_view.html:804
+#: app/templates/quotation/at_view.html:436
+#: app/templates/quotation/at_view.html:759
+#: app/templates/quotation/at_view.html:826
 msgid "— 请先选客户 —"
 msgstr "— Select a customer first —"
 
@@ -17101,7 +17105,7 @@ msgid "审批备注"
 msgstr "Approval Note"
 
 #: app/templates/expense/at_view.html:446
-#: app/templates/quotation/at_view.html:464
+#: app/templates/quotation/at_view.html:486
 msgid "锁定状态"
 msgstr "Lock Status"
 
@@ -17526,7 +17530,7 @@ msgid "，某些功能可能受限。"
 msgstr ", some features may be limited."
 
 #: app/templates/expense/tw_expense_detail.html:36
-#: app/templates/quotation/at_view.html:464
+#: app/templates/quotation/at_view.html:486
 #: app/templates/quotation/tw_quotation_detail.html:52
 msgid "未锁定"
 msgstr "Unlocked"
@@ -18290,7 +18294,7 @@ msgstr "Pending"
 #: app/templates/product_analysis/tw_analysis.html:128
 #: app/templates/product_analysis/tw_analysis.html:144
 #: app/templates/product_analysis/tw_analysis.html:166
-#: app/templates/quotation/at_view.html:327
+#: app/templates/quotation/at_view.html:349
 #: app/templates/sales_order/at_detail.html:126
 msgid "件"
 msgstr "pcs"
@@ -19137,7 +19141,7 @@ msgid "序列号"
 msgstr "Serial No."
 
 #: app/templates/inventory/partials/_test_form.html:113
-#: app/templates/quotation/at_view.html:655
+#: app/templates/quotation/at_view.html:677
 msgid "结果"
 msgstr "Result"
 
@@ -20228,7 +20232,7 @@ msgid "该产品暂无配置选项"
 msgstr "This product has no configuration options"
 
 #: app/templates/macros/product_detail_manager.html:23
-#: app/templates/quotation/at_view.html:551 app/views/product_analysis.py:1533
+#: app/templates/quotation/at_view.html:573 app/views/product_analysis.py:1533
 msgid "产品明细"
 msgstr "Product Details"
 
@@ -21099,7 +21103,7 @@ msgid "在转录中搜索…（Enter 下一个，Esc 清空）"
 msgstr "Search the transcript… (Enter for next, Esc to clear)"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:880
-#: app/templates/quotation/at_view.html:655
+#: app/templates/quotation/at_view.html:677
 msgid "无匹配"
 msgstr "No match"
 
@@ -24635,23 +24639,28 @@ msgid "重新发起"
 msgstr "Restart"
 
 #: app/templates/quotation/at_view.html:293
-#: app/templates/quotation/at_view.html:987
+#: app/templates/quotation/at_view.html:1025
 msgid "删除报价单"
 msgstr "Delete Quotation"
 
 #: app/templates/quotation/at_view.html:325
+#, fuzzy
+msgid "取消确认"
+msgstr "Unconfirm"
+
+#: app/templates/quotation/at_view.html:347
 #: app/templates/quotation/tw_quotation_detail.html:171
 msgid "报价总额"
 msgstr "Quotation"
 
-#: app/templates/quotation/at_view.html:331
+#: app/templates/quotation/at_view.html:353
 #: app/templates/quotation/tw_quotation_detail.html:172
 msgid "植入总额"
 msgstr "Total Installation Amount"
 
-#: app/templates/quotation/at_view.html:336
-#: app/templates/quotation/at_view.html:425
-#: app/templates/quotation/at_view.html:468
+#: app/templates/quotation/at_view.html:358
+#: app/templates/quotation/at_view.html:447
+#: app/templates/quotation/at_view.html:490
 #: app/templates/quotation/tw_quotation_detail.html:169
 #: app/views/quotation.py:337 app/views/quotation.py:497
 #: app/views/quotation.py:643
@@ -24659,188 +24668,188 @@ msgid "报价阶段"
 msgstr "Quotation Stage"
 
 # 活跃度Tab页签翻译
-#: app/templates/quotation/at_view.html:341
+#: app/templates/quotation/at_view.html:363
 msgid "质量得分"
 msgstr "Quality Score"
 
-#: app/templates/quotation/at_view.html:343
+#: app/templates/quotation/at_view.html:365
 msgid "(植入品质 · 推荐产品系数和)"
 msgstr "(Embed quality · sum of recommended product factors)"
 
-#: app/templates/quotation/at_view.html:365
+#: app/templates/quotation/at_view.html:387
 msgid "从项目详情新建 · 关联信息已锁定"
 msgstr "Created from project detail · linked info locked"
 
-#: app/templates/quotation/at_view.html:365
+#: app/templates/quotation/at_view.html:387
 msgid "新建 · 必填后保存"
 msgstr "New · save after filling required fields"
 
-#: app/templates/quotation/at_view.html:371
+#: app/templates/quotation/at_view.html:393
 msgid "(项目和客户至少选其一)"
 msgstr "(Select at least a project or a customer)"
 
-#: app/templates/quotation/at_view.html:374
+#: app/templates/quotation/at_view.html:396
 msgid "输入 2 个以上字符搜索项目名称…"
 msgstr "Enter 2+ characters to search project names…"
 
-#: app/templates/quotation/at_view.html:392
+#: app/templates/quotation/at_view.html:414
 msgid "(同上)"
 msgstr "(same as above)"
 
-#: app/templates/quotation/at_view.html:395
+#: app/templates/quotation/at_view.html:417
 msgid "输入 2 个以上字符搜索客户名称…"
 msgstr "Enter 2+ characters to search customer names…"
 
-#: app/templates/quotation/at_view.html:414
-#: app/templates/quotation/at_view.html:740
+#: app/templates/quotation/at_view.html:436
+#: app/templates/quotation/at_view.html:762
 msgid "— 选择联系人(可选) —"
 msgstr "— Select Contact (optional) —"
 
-#: app/templates/quotation/at_view.html:425
+#: app/templates/quotation/at_view.html:447
 msgid "(选项目后自动同步)"
 msgstr "(Auto-synced after selecting project)"
 
-#: app/templates/quotation/at_view.html:427
+#: app/templates/quotation/at_view.html:449
 msgid "— 选择阶段 —"
 msgstr "— Select Stage —"
 
-#: app/templates/quotation/at_view.html:453
-#: app/templates/quotation/at_view.html:470
+#: app/templates/quotation/at_view.html:475
+#: app/templates/quotation/at_view.html:492
 msgid "销售负责人"
 msgstr "Sales Owner"
 
-#: app/templates/quotation/at_view.html:473
+#: app/templates/quotation/at_view.html:495
 msgid "确认时间"
 msgstr "Confirmed At"
 
-#: app/templates/quotation/at_view.html:495
+#: app/templates/quotation/at_view.html:517
 #: app/templates/quotation/tw_quotation_detail.html:184
 msgid "变更历史"
 msgstr "Change History"
 
-#: app/templates/quotation/at_view.html:540
+#: app/templates/quotation/at_view.html:562
 msgid "暂无变更"
 msgstr "No changes"
 
-#: app/templates/quotation/at_view.html:558
+#: app/templates/quotation/at_view.html:580
 msgid "全局折扣"
 msgstr "Global Discount"
 
-#: app/templates/quotation/at_view.html:568
+#: app/templates/quotation/at_view.html:590
 msgid "显示/隐藏 市场价 + 折扣 列"
 msgstr "Show/Hide Market Price + Discount columns"
 
-#: app/templates/quotation/at_view.html:573
-#: app/templates/quotation/at_view.html:826
+#: app/templates/quotation/at_view.html:595
+#: app/templates/quotation/at_view.html:848
 msgid "显示折扣"
 msgstr "Show Discount"
 
-#: app/templates/quotation/at_view.html:826
+#: app/templates/quotation/at_view.html:848
 msgid "隐藏折扣"
 msgstr "Hide Discount"
 
-#: app/templates/quotation/at_view.html:851
+#: app/templates/quotation/at_view.html:873
 msgid "当前有未保存的修改,确定放弃并回到只读模式?"
 msgstr "You have unsaved changes. Discard them and return to read-only mode?"
 
-#: app/templates/quotation/at_view.html:858
+#: app/templates/quotation/at_view.html:880
 msgid "放弃所有未保存的修改?"
 msgstr "Discard all unsaved changes?"
 
-#: app/templates/quotation/at_view.html:864
+#: app/templates/quotation/at_view.html:886
 msgid "当前有未保存的修改,确定离开?"
 msgstr "You have unsaved changes. Leave anyway?"
 
-#: app/templates/quotation/at_view.html:988
+#: app/templates/quotation/at_view.html:1026
 msgid "此操作不可撤销,确认删除当前报价单及其全部明细?"
 msgstr "This cannot be undone. Delete this quotation and all its items?"
 
-#: app/templates/quotation/at_view.html:1020
+#: app/templates/quotation/at_view.html:1058
 msgid "编辑备注"
 msgstr "Edit Note"
 
-#: app/templates/quotation/at_view.html:1028
+#: app/templates/quotation/at_view.html:1066
 msgid "请填写备注…"
 msgstr "Please enter a note…"
 
-#: app/templates/quotation/at_view.html:1075
+#: app/templates/quotation/at_view.html:1113
 msgid "已删除明细"
 msgstr "Item deleted"
 
-#: app/templates/quotation/at_view.html:1075
+#: app/templates/quotation/at_view.html:1113
 #, python-format
 msgid "%(n)s 已从报价单中移除"
 msgstr "%(n)s removed from quotation"
 
-#: app/templates/quotation/at_view.html:1110
+#: app/templates/quotation/at_view.html:1148
 msgid "产品选择器未加载"
 msgstr "Product selector not loaded"
 
-#: app/templates/quotation/at_view.html:1156
+#: app/templates/quotation/at_view.html:1194
 #, python-format
 msgid "已添加 %(n)s 条明细"
 msgstr "%(n)s items added"
 
-#: app/templates/quotation/at_view.html:1156
+#: app/templates/quotation/at_view.html:1194
 msgid "保存后归类"
 msgstr "Categorized after saving"
 
-#: app/templates/quotation/at_view.html:1225
+#: app/templates/quotation/at_view.html:1263
 msgid "已添加"
 msgstr "Added"
 
-#: app/templates/quotation/at_view.html:1225
+#: app/templates/quotation/at_view.html:1263
 #, python-format
 msgid "「%(n)s」加入明细"
 msgstr "\"%(n)s\" added to items"
 
-#: app/templates/quotation/at_view.html:1372
+#: app/templates/quotation/at_view.html:1410
 msgid "请选择关联项目(可先选客户后从其项目中选)"
 msgstr ""
 "Please select a linked project (you can pick a customer first, then "
 "choose from its projects)"
 
-#: app/templates/quotation/at_view.html:1373
+#: app/templates/quotation/at_view.html:1411
 msgid "请至少添加一条明细"
 msgstr "Please add at least one item"
 
-#: app/templates/quotation/at_view.html:1416
+#: app/templates/quotation/at_view.html:1454
 msgid "已保存"
 msgstr "Saved"
 
-#: app/templates/quotation/at_view.html:1478
+#: app/templates/quotation/at_view.html:1516
 msgid "同项目其他报价"
 msgstr "Other quotations in this project"
 
-#: app/templates/quotation/at_view.html:1518
+#: app/templates/quotation/at_view.html:1556
 msgid "自定义产品"
 msgstr "Custom Product"
 
-#: app/templates/quotation/at_view.html:1520
+#: app/templates/quotation/at_view.html:1558
 msgid "手动输入一条明细"
 msgstr "Enter an item manually"
 
-#: app/templates/quotation/at_view.html:1539
+#: app/templates/quotation/at_view.html:1577
 msgid "例如:定制法兰天线"
 msgstr "e.g. Custom flange antenna"
 
-#: app/templates/quotation/at_view.html:1576
+#: app/templates/quotation/at_view.html:1614
 msgid "报价单价"
 msgstr "Quoted Unit Price"
 
-#: app/templates/quotation/at_view.html:1580
+#: app/templates/quotation/at_view.html:1618
 msgid "自定义产品无市场价,不参与全局折扣计算"
 msgstr ""
 "Custom products have no market price and are excluded from global "
 "discount calculation"
 
-#: app/templates/quotation/at_view.html:1589
+#: app/templates/quotation/at_view.html:1627
 msgid "自定义产品不入产品库,仅本报价生效"
 msgstr ""
 "Custom products are not added to the product library and apply only to "
 "this quotation"
 
-#: app/templates/quotation/at_view.html:1603
+#: app/templates/quotation/at_view.html:1641
 msgid "添加到明细"
 msgstr "Add to Items"
 
