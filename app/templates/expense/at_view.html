@@ -397,8 +397,7 @@
       <div class="at-section-body">
         <div style="display:flex;flex-direction:column;gap:7px;font-size:12.5px;">
           {% for code, label, color in _cat_meta %}
-          {% set c = (_bs.category_comparison or {}).get(code) %}
-          {% set _act = (c.actual if c else 0) or 0 %}
+          {% set _act = (_bs.by_category or {}).get(code, 0) or 0 %}
           {% if _act > 0 %}
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="width:7px;height:7px;border-radius:50%;background:{{ color }};flex-shrink:0;"></span>
