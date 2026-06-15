@@ -28,14 +28,14 @@
 
 {% macro at_project_form_modal(modal_id, mode='create') %}
   {% set _is_edit = (mode == 'edit') %}
-  {% set _title = '编辑项目' if _is_edit else '新建项目' %}
-  {% set _submit_label = '保存修改' if _is_edit else '创建项目' %}
+  {% set _title = _('编辑项目') if _is_edit else _('新建项目') %}
+  {% set _submit_label = _('保存修改') if _is_edit else _('创建项目') %}
   {% set _icon = 'pen' if _is_edit else 'plus' %}
   {% set _submit_btn_id = modal_id ~ '_submit' %}
   {% set footer = '<button onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
                 ~ 'style="padding:8px 16px;border-radius:8px;background:transparent;'
                 ~ 'border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;'
-                ~ 'margin-right:8px;">取消</button>'
+                ~ 'margin-right:8px;">' ~ _('取消') ~ '</button>'
                 ~ '<button id="' ~ _submit_btn_id ~ '" '
                 ~ 'onclick="atSubmitProjectForm(\'' ~ mode ~ '\', \'' ~ modal_id ~ '\')" '
                 ~ 'style="padding:8px 18px;border-radius:8px;background:var(--accent);'
@@ -53,11 +53,11 @@
     {% set _form_prefix = modal_id ~ '__' %}
 
     {# 项目名称 — 必填 + (新建态) AI 智能回填 + 查重 #}
-    {% call at_field('项目名称', required=true, hint=('输入名称后可点 AI 智能回填行业/地址/描述' if not _is_edit else '修改后会重新查重')) %}
+    {% call at_field(_('项目名称'), required=true, hint=(_('输入名称后可点 AI 智能回填行业/地址/描述') if not _is_edit else _('修改后会重新查重'))) %}
       <div style="display:flex;gap:8px;position:relative;">
         <div style="position:relative;flex:1;">
           <input type="text" id="{{ _form_prefix }}name" data-field-code="project_name"
-                 autocomplete="off" placeholder="请输入项目名称(必填)" style="{{ _inp }}">
+                 autocomplete="off" placeholder="{{ _('请输入项目名称(必填)') }}" style="{{ _inp }}">
           <div id="{{ _form_prefix }}similarList" class="hidden"
                style="position:absolute;top:100%;left:0;right:0;z-index:10;
                       margin-top:4px;background:var(--bg-elev);border:1px solid var(--line-2);
@@ -66,7 +66,7 @@
         </div>
         {% if not _is_edit %}
         <button type="button" id="{{ _form_prefix }}aiBtn" disabled
-                title="先输入项目名称"
+                title="{{ _('先输入项目名称') }}"
                 style="flex-shrink:0;padding:0 12px;height:34px;border-radius:6px;
                        border:1px solid var(--line-2);background:var(--bg-sunk);
                        color:var(--ink-4);font-size:12px;font-weight:500;cursor:not-allowed;
@@ -85,7 +85,7 @@
            style="margin-top:10px;padding:12px;border:1px solid var(--accent-soft);
                   border-radius:8px;background:var(--accent-tint);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <span style="font-size:12.5px;font-weight:500;color:var(--ink);">AI 建议</span>
+          <span style="font-size:12.5px;font-weight:500;color:var(--ink);">{{ _('AI 建议') }}</span>
           <button type="button" id="{{ _form_prefix }}aiClose"
                   style="background:transparent;border:0;color:var(--ink-3);cursor:pointer;
                          padding:2px;border-radius:4px;font-size:14px;line-height:1;">✕</button>
@@ -98,26 +98,26 @@
 
     {# 类型 + 行业 #}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      {% call at_field('项目类型', required=true) %}
+      {% call at_field(_('项目类型'), required=true) %}
         <select id="{{ _form_prefix }}type" data-field-code="project_type" style="{{ _inp }}">
-          <option value="">请选择项目类型</option>
+          <option value="">{{ _('请选择项目类型') }}</option>
         </select>
       {% endcall %}
-      {% call at_field('项目行业', required=true) %}
+      {% call at_field(_('项目行业'), required=true) %}
         <select id="{{ _form_prefix }}industry" data-field-code="industry" style="{{ _inp }}">
-          <option value="">请选择行业</option>
+          <option value="">{{ _('请选择行业') }}</option>
         </select>
       {% endcall %}
     </div>
 
     {# 项目地址 — 地图定位(create + edit 都允许) #}
-    {% call at_field('项目地址', hint='可直接输入,或点右侧定位按钮在地图上选取') %}
+    {% call at_field(_('项目地址'), hint=_('可直接输入,或点右侧定位按钮在地图上选取')) %}
       <div style="display:flex;gap:8px;">
         <input type="text" id="{{ _form_prefix }}address" data-field-code="address" autocomplete="off"
-               placeholder="输入地址,或点击右侧定位按钮" style="{{ _inp }}">
+               placeholder="{{ _('输入地址,或点击右侧定位按钮') }}" style="{{ _inp }}">
         <button type="button"
                 onclick="if(window.AddressPicker){var _n=(document.getElementById('{{ _form_prefix }}name')||{}).value||'';AddressPicker.open('{{ _form_prefix }}address',{initialQuery:_n.trim()});}"
-                title="地图定位"
+                title="{{ _('地图定位') }}"
                 style="flex-shrink:0;padding:0 12px;height:34px;border-radius:6px;
                        border:1px solid var(--line-2);background:var(--bg-elev);
                        color:var(--ink-3);cursor:pointer;
@@ -140,31 +140,31 @@
 
     {# 报备时间 + 预测出货时间 — 编辑态:报备时间只读 #}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      {% call at_field('报备时间', hint=('授权批准时自动设置,不可手改' if _is_edit else '默认今天 · 仅供参考,实际报备时间由授权批准流程设置')) %}
+      {% call at_field(_('报备时间'), hint=(_('授权批准时自动设置,不可手改') if _is_edit else _('默认今天 · 仅供参考,实际报备时间由授权批准流程设置'))) %}
         <input type="date" id="{{ _form_prefix }}reportTime"
                {% if _is_edit %}readonly disabled{% endif %}
                style="{{ _ro if _is_edit else _inp }}">
       {% endcall %}
-      {% call at_field('预测出货时间') %}
+      {% call at_field(_('预测出货时间')) %}
         <input type="date" id="{{ _form_prefix }}delivery" style="{{ _inp }}">
       {% endcall %}
     </div>
 
     {# 报备源 + 产品情况 + 厂商销售 #}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-      {% call at_field('报备源', required=true) %}
+      {% call at_field(_('报备源'), required=true) %}
         <select id="{{ _form_prefix }}reportSource" style="{{ _inp }}">
-          <option value="">请选择报备源</option>
+          <option value="">{{ _('请选择报备源') }}</option>
         </select>
       {% endcall %}
-      {% call at_field('产品情况') %}
+      {% call at_field(_('产品情况')) %}
         <select id="{{ _form_prefix }}productSituation" style="{{ _inp }}">
-          <option value="">请选择产品情况</option>
+          <option value="">{{ _('请选择产品情况') }}</option>
         </select>
       {% endcall %}
-      {% call at_field('厂商销售负责人') %}
+      {% call at_field(_('厂商销售负责人')) %}
         <select id="{{ _form_prefix }}vendorSales" style="{{ _inp }}">
-          <option value="">请选择厂商销售负责人</option>
+          <option value="">{{ _('请选择厂商销售负责人') }}</option>
         </select>
       {% endcall %}
     </div>
@@ -172,22 +172,22 @@
     {% if _is_edit %}
     {# 编辑态特有:授权编号 + 当前阶段 + 负责人 — 全部只读 #}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-      {% call at_field('授权编号', hint='通过授权申请流程获得,不可手改') %}
+      {% call at_field(_('授权编号'), hint=_('通过授权申请流程获得,不可手改')) %}
         <input type="text" id="{{ _form_prefix }}authCode" readonly disabled style="{{ _ro }}">
       {% endcall %}
-      {% call at_field('当前阶段', hint='请通过阶段推进按钮变更') %}
+      {% call at_field(_('当前阶段'), hint=_('请通过阶段推进按钮变更')) %}
         <input type="text" id="{{ _form_prefix }}stage" readonly disabled style="{{ _ro }}">
       {% endcall %}
-      {% call at_field('负责人', hint='请通过转交功能变更') %}
+      {% call at_field(_('负责人'), hint=_('请通过转交功能变更')) %}
         <input type="text" id="{{ _form_prefix }}owner" readonly disabled style="{{ _ro }}">
       {% endcall %}
     </div>
     {% endif %}
 
     {# 项目描述 — 必填 #}
-    {% call at_field('项目描述', required=true, hint='项目背景、要解决的问题,便于报备时区分') %}
+    {% call at_field(_('项目描述'), required=true, hint=_('项目背景、要解决的问题,便于报备时区分')) %}
       <textarea id="{{ _form_prefix }}description" data-field-code="stage_description" rows="3"
-                placeholder="请详细描述项目的背景和情况,以供报备时区分"
+                placeholder="{{ _('请详细描述项目的背景和情况,以供报备时区分') }}"
                 style="{{ _ta }}"></textarea>
     {% endcall %}
 

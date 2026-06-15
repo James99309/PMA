@@ -40,105 +40,105 @@
 <div id="ucOverlay" class="uc-overlay" onclick="if(event.target===this)ucClose()">
   <div class="uc-modal">
     <div style="padding:18px 22px 0;display:flex;align-items:center;">
-      <h3 id="ucTitle" style="margin:0;font-size:16px;font-weight:600;color:var(--ink);">新建账户</h3>
+      <h3 id="ucTitle" style="margin:0;font-size:16px;font-weight:600;color:var(--ink);">{{ _('新建账户') }}</h3>
       <div style="flex:1;"></div>
       <button type="button" onclick="ucClose()"
               style="border:0;background:transparent;cursor:pointer;color:var(--ink-3);
                      font-size:18px;line-height:1;padding:4px;">✕</button>
     </div>
     <div id="ucHint" class="at-dim" style="padding:6px 22px 0;font-size:12px;">
-      创建后默认<b>未激活</b>,系统生成临时密码;在账户详情中激活。
+      {{ _('创建后默认') }}<b>{{ _('未激活') }}</b>,{{ _('系统生成临时密码;在账户详情中激活。') }}
     </div>
     <form id="ucForm" method="post" action="{{ create_action or url_for('user.create_user') }}"
           style="padding:16px 22px 20px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="uc-grid">
         <div class="uc-field">
-          <label>用户名 <span class="req">*</span></label>
+          <label>{{ _('用户名') }} <span class="req">*</span></label>
           <input class="uc-input" id="ucUsername" name="username" required autocomplete="off"
-                 placeholder="登录名(创建后不可改)">
+                 placeholder="{{ _('登录名(创建后不可改)') }}">
         </div>
         <div class="uc-field">
-          <label>真实姓名 <span class="req">*</span></label>
+          <label>{{ _('真实姓名') }} <span class="req">*</span></label>
           <input class="uc-input" name="real_name" required>
         </div>
         <div class="uc-field">
-          <label>角色 <span class="req">*</span></label>
+          <label>{{ _('角色') }} <span class="req">*</span></label>
           <select class="uc-select" name="role" required>
-            <option value="">选择角色…</option>
+            <option value="">{{ _('选择角色…') }}</option>
             {% for o in options.roles %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         <div class="uc-field">
-          <label>所属公司 <span class="req">*</span></label>
+          <label>{{ _('所属公司') }} <span class="req">*</span></label>
           <select class="uc-select" name="company" required onchange="ucFilterDepts()">
-            <option value="">选择公司…</option>
+            <option value="">{{ _('选择公司…') }}</option>
             {% for o in options.companies %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         <div class="uc-field">
-          <label>部门归属</label>
+          <label>{{ _('部门归属') }}</label>
           {# 部门来自部门字典(Department 表),按所选公司联动 #}
           <select class="uc-select" name="department">
-            <option value="">选择部门…</option>
+            <option value="">{{ _('选择部门…') }}</option>
             {% for o in options.departments %}<option value="{{ o.value }}" data-company="{{ o.company }}">{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         <div class="uc-field" style="display:flex;align-items:flex-end;padding-bottom:7px;">
-          <label class="uc-check" style="margin:0;" title="自动建立与本部门成员的归属关系">
-            <input type="checkbox" name="is_department_manager"> 设为部门负责人
+          <label class="uc-check" style="margin:0;" title="{{ _('自动建立与本部门成员的归属关系') }}">
+            <input type="checkbox" name="is_department_manager"> {{ _('设为部门负责人') }}
           </label>
         </div>
         <div class="uc-field">
-          <label>邮箱 <span class="req">*</span></label>
+          <label>{{ _('邮箱') }} <span class="req">*</span></label>
           <input class="uc-input" name="email" type="email" required>
         </div>
         <div class="uc-field">
-          <label>手机</label>
+          <label>{{ _('手机') }}</label>
           <input class="uc-input" name="phone">
         </div>
         <div class="uc-field">
-          <label>结算货币</label>
+          <label>{{ _('结算货币') }}</label>
           <select class="uc-select" name="settlement_currency">
-            <option value="">系统默认</option>
+            <option value="">{{ _('系统默认') }}</option>
             {% for c in ['CNY','USD','SGD','MYR','HKD'] %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
         <div class="uc-field" style="display:flex;align-items:flex-end;padding-bottom:7px;">
-          <label class="uc-check" style="margin:0;" title="设定试用期区间,账户显示试用期徽章,结束后自动消失">
-            <input type="checkbox" id="ucProbToggle" name="is_probation" onchange="ucToggleProb(this.checked)"> 试用期
+          <label class="uc-check" style="margin:0;" title="{{ _('设定试用期区间,账户显示试用期徽章,结束后自动消失') }}">
+            <input type="checkbox" id="ucProbToggle" name="is_probation" onchange="ucToggleProb(this.checked)"> {{ _('试用期') }}
           </label>
         </div>
         <div class="uc-field" id="ucProbStartField" hidden>
-          <label>试用期开始</label>
+          <label>{{ _('试用期开始') }}</label>
           <input class="uc-input" name="probation_start" type="date">
         </div>
         <div class="uc-field" id="ucProbEndField" hidden>
-          <label>试用期结束</label>
+          <label>{{ _('试用期结束') }}</label>
           <input class="uc-input" name="probation_end" type="date">
         </div>
       </div>
 
       {# 编辑态专属:账户状态与安全 #}
       <div id="ucEditZone" hidden>
-        <div class="uc-sep">账户状态与安全</div>
+        <div class="uc-sep">{{ _('账户状态与安全') }}</div>
         <div class="uc-grid">
           <div class="uc-field">
-            <label>重置密码</label>
+            <label>{{ _('重置密码') }}</label>
             <input class="uc-input" name="password" type="password" autocomplete="new-password"
-                   placeholder="留空 = 不修改密码">
+                   placeholder="{{ _('留空 = 不修改密码') }}">
           </div>
           {# 激活状态不在编辑里改(统一走详情页激活按钮,新账户会发邀请邮件);
              后端按「字段是否存在」判定,这里用 hidden 透传当前状态防止保存时被误停用 #}
           <input type="hidden" id="ucActiveKeep" name="is_active" value="on" disabled>
           <div class="uc-field" style="display:flex;align-items:flex-end;padding-bottom:7px;">
-            <label class="uc-check" style="margin:0;" title="在另一站点(CN/SG)以外部身份显示">
-              <input type="checkbox" name="cross_team_visible"> 跨团队可见
+            <label class="uc-check" style="margin:0;" title="{{ _('在另一站点(CN/SG)以外部身份显示') }}">
+              <input type="checkbox" name="cross_team_visible"> {{ _('跨团队可见') }}
             </label>
           </div>
           <div class="uc-field">
-            <label>对外身份标签</label>
-            <input class="uc-input" name="cross_team_label" placeholder="如:海外技术支持">
+            <label>{{ _('对外身份标签') }}</label>
+            <input class="uc-input" name="cross_team_label" placeholder="{{ _('如:海外技术支持') }}">
           </div>
         </div>
       </div>
@@ -146,10 +146,10 @@
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
         <button type="button" onclick="ucClose()"
                 style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
-                       background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">取消</button>
+                       background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
         <button type="submit" id="ucSubmit"
                 style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);
-                       color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">创建账户</button>
+                       color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('创建账户') }}</button>
       </div>
     </form>
   </div>
@@ -187,15 +187,15 @@
     const form = document.getElementById('ucForm');
     form.reset();
     form.setAttribute('action', CREATE_ACTION);
-    document.getElementById('ucTitle').textContent = '新建账户';
+    document.getElementById('ucTitle').textContent = '{{ _("新建账户") }}';
     document.getElementById('ucHint').hidden = false;
-    document.getElementById('ucSubmit').textContent = '创建账户';
+    document.getElementById('ucSubmit').textContent = '{{ _("创建账户") }}';
     document.getElementById('ucEditZone').hidden = true;
     document.getElementById('ucActiveKeep').disabled = true;
     ucToggleProb(false);
     ucFilterDepts();   // 公司未选 → 部门下拉先清空
     const un = $('#ucUsername');
-    un.readOnly = false; un.value = ''; un.placeholder = '登录名(创建后不可改)';
+    un.readOnly = false; un.value = ''; un.placeholder = '{{ _("登录名(创建后不可改)") }}';
     show();
   };
 
@@ -203,9 +203,9 @@
     const form = document.getElementById('ucForm');
     form.reset();
     form.setAttribute('action', action);
-    document.getElementById('ucTitle').textContent = '编辑账户 · ' + (u.real_name || u.username);
+    document.getElementById('ucTitle').textContent = '{{ _("编辑账户") }} · ' + (u.real_name || u.username);
     document.getElementById('ucHint').hidden = true;
-    document.getElementById('ucSubmit').textContent = '保存修改';
+    document.getElementById('ucSubmit').textContent = '{{ _("保存修改") }}';
     document.getElementById('ucEditZone').hidden = false;
     const un = $('#ucUsername');
     un.value = u.username || ''; un.readOnly = true;

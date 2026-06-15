@@ -38,7 +38,7 @@
               box-shadow:0 4px 16px rgba(31,30,27,0.04);{% endif %}">
     {% if dimmed %}
     <div class="at-dim" style="font-size:11.5px;margin-bottom:12px;letter-spacing:0.04em;">
-      ⓘ 待审批通过后进入执行阶段
+      ⓘ {{ _('待审批通过后进入执行阶段') }}
     </div>
     {% endif %}
     <div style="display:flex;align-items:stretch;justify-content:space-between;
@@ -75,14 +75,14 @@
           </div>
           <div class="at-mono at-tab-num" style="font-size:10px;color:var(--ink-4);letter-spacing:0.02em;">
             {% if s.date %}{{ s.date[5:] if s.date|length > 5 else s.date }}
-            {% elif is_current %}进行中
+            {% elif is_current %}{{ _('进行中') }}
             {% else %}—
             {% endif %}
           </div>
           {% if is_done and s.attachments and s.attachments|length > 0 %}
           <button type="button"
                   onclick="atOpenFilePreview('{{ s.key }}', '{{ s.label }}', {{ s.attachments|tojson|forceescape }}, {{ (s.notes or '')|tojson|forceescape }})"
-                  title="查看附件"
+                  title="{{ _('查看附件') }}"
                   style="margin-top:2px;display:inline-flex;align-items:center;gap:4px;
                          padding:1px 6px;border-radius:99px;
                          background:var(--bg-page);border:1px solid var(--line);
@@ -123,7 +123,7 @@
       <div style="min-width:0;">
         <div style="display:flex;align-items:baseline;gap:10px;">
           <span class="at-mono at-dim" style="font-size:11px;letter-spacing:0.12em;">
-            {{ action.title_label or '当前阶段' }}
+            {{ action.title_label or _('当前阶段') }}
           </span>
           <span style="font-size:16px;font-weight:500;color:var(--ink);">{{ action.title }}</span>
         </div>
@@ -151,18 +151,18 @@
 {# items: [{desc,model,code,qty,unit,price}] · currency: '¥' or '$' #}
 {% macro at_item_table(items, currency='¥') %}
   {% if not items %}
-    {{ at_empty(label='无明细', icon='cube') }}
+    {{ at_empty(label=_('无明细'), icon='cube') }}
   {% else %}
   <table style="width:100%;font-size:13px;border-collapse:separate;border-spacing:0;">
     <thead>
       <tr>
         {% for h in [
-          {'l':'产品','a':'left'},
-          {'l':'型号','a':'left'},
-          {'l':'产品编号','a':'left'},
-          {'l':'数量','a':'right'},
-          {'l':'单价','a':'right'},
-          {'l':'金额','a':'right'}
+          {'l':_('产品'),'a':'left'},
+          {'l':_('型号'),'a':'left'},
+          {'l':_('产品编号'),'a':'left'},
+          {'l':_('数量'),'a':'right'},
+          {'l':_('单价'),'a':'right'},
+          {'l':_('金额'),'a':'right'}
         ] %}
         <th style="text-align:{{ h.a }};padding:8px 22px 10px;
                    font-size:10.5px;font-weight:500;color:var(--ink-4);
@@ -212,7 +212,7 @@
       <tr>
         <td colspan="3" style="padding:16px 22px;color:var(--ink-3);
                                 font-size:12px;letter-spacing:0.05em;
-                                border-top:1px solid var(--line);">合计</td>
+                                border-top:1px solid var(--line);">{{ _('合计') }}</td>
         <td class="at-mono at-tab-num"
             style="padding:16px 22px;text-align:right;border-top:1px solid var(--line);">
           {{ ns.total_qty }}
@@ -238,10 +238,10 @@
 {% macro at_shipment_list(shipments, can_create=false, on_create='', can_sign=true, can_delete=false) %}
   {% if not shipments or shipments|length == 0 %}
     {{ at_empty(
-      label='尚未发货',
-      sub=('可立即创建发货单' if can_create else '订单进入「待发货」阶段后可创建发货单'),
+      label=_('尚未发货'),
+      sub=(_('可立即创建发货单') if can_create else _('订单进入「待发货」阶段后可创建发货单')),
       icon='truck',
-      cta_html=(at_btn('创建发货单', variant='accent', icon_l='plus', size='md', onclick=on_create)|string if can_create else '')
+      cta_html=(at_btn(_('创建发货单'), variant='accent', icon_l='plus', size='md', onclick=on_create)|string if can_create else '')
     ) }}
   {% else %}
   <table style="width:100%;table-layout:fixed;font-size:13px;
@@ -257,8 +257,8 @@
     </colgroup>
     <thead>
       <tr>
-        {% for h, a in [('', 'left'), ('发货单号','left'), ('目标','left'),
-                       ('数量','right'), ('状态','left'), ('日期','left'),
+        {% for h, a in [('', 'left'), (_('发货单号'),'left'), (_('目标'),'left'),
+                       (_('数量'),'right'), (_('状态'),'left'), (_('日期'),'left'),
                        ('', 'right')] %}
         <th style="text-align:{{ a }};padding:8px 20px 10px;font-size:10.5px;font-weight:500;
                    color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;">{{ h }}</th>
@@ -306,7 +306,7 @@
                   onclick='event.stopPropagation(); atOpenSignReceipt({{ s|tojson }})'
                   style="padding:6px 12px;border-radius:6px;background:var(--accent);color:#fff;
                          font-size:12px;font-weight:500;border:1px solid var(--accent);
-                         white-space:nowrap;cursor:pointer;">签收入库</button>
+                         white-space:nowrap;cursor:pointer;">{{ _('签收入库') }}</button>
           {% endif %}
         </td>
       </tr>
@@ -318,10 +318,10 @@
             <div style="display:flex;align-items:flex-start;gap:14px;">
               <div style="flex:1;display:grid;grid-template-columns:repeat(4, 1fr);gap:14px;padding:2px 0;">
                 {% for k, v, mono in [
-                  ('承运商', s.carrier or '—', false),
-                  ('运单号', s.waybill or '—', true),
-                  ('发货日期', s.ship_date or s.date or '—', true),
-                  ('预计到达', s.eta or '—', true)
+                  (_('承运商'), s.carrier or '—', false),
+                  (_('运单号'), s.waybill or '—', true),
+                  (_('发货日期'), s.ship_date or s.date or '—', true),
+                  (_('预计到达'), s.eta or '—', true)
                 ] %}
                 <div>
                   <div class="at-dim" style="font-size:11px;margin-bottom:4px;letter-spacing:0.04em;">{{ k }}</div>
@@ -335,10 +335,10 @@
               {% if can_delete and s.status == 'pending' %}
               <button type="button"
                       onclick='event.stopPropagation(); atDeleteShipment({{ s.id }}, {{ (s.number or "")|tojson }})'
-                      title="删除此发货单"
+                      title="{{ _('删除此发货单') }}"
                       style="margin-top:14px;padding:6px 12px;border-radius:6px;background:var(--bg-elev);
                              color:var(--danger);font-size:12px;border:1px solid var(--danger-soft, #f1d4cf);
-                             cursor:pointer;white-space:nowrap;align-self:flex-start;">删除发货单</button>
+                             cursor:pointer;white-space:nowrap;align-self:flex-start;">{{ _('删除发货单') }}</button>
               {% endif %}
             </div>
 
@@ -349,13 +349,13 @@
               <div style="padding:10px 14px;display:flex;align-items:center;gap:8px;">
                 <span class="at-mono at-dim"
                       style="font-size:10.5px;letter-spacing:0.1em;">
-                  本次发货明细 · {{ s.ship_items|length }} 项
+                  {{ _('本次发货明细') }} · {{ s.ship_items|length }} {{ _('项') }}
                 </span>
               </div>
               <table style="width:100%;font-size:12.5px;border-collapse:separate;border-spacing:0;">
                 <thead>
                   <tr>
-                    {% for h, a in [('产品','left'),('型号','left'),('数量','right'),('SN 段','left')] %}
+                    {% for h, a in [(_('产品'),'left'),(_('型号'),'left'),(_('数量'),'right'),(_('SN 段'),'left')] %}
                     <th style="text-align:{{ a }};padding:6px 14px 10px;font-size:10px;font-weight:500;
                                color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;">{{ h }}</th>
                     {% endfor %}
@@ -369,7 +369,7 @@
                     <td class="at-mono at-tab-num"
                         style="padding:10px 14px;text-align:right;">{{ it.qty }}</td>
                     <td class="at-mono at-dim" style="padding:10px 14px;">
-                      {% if it.sn_count %}{{ it.sn_range or (it.sn_count|string ~ ' 个') }}
+                      {% if it.sn_count %}{{ it.sn_range or (it.sn_count|string ~ ' ' ~ _('个')) }}
                       {% else %}—{% endif %}
                     </td>
                   </tr>
@@ -382,11 +382,11 @@
             {# 附件:快递单 + 签收单 — 不再在签收单空态下塞重复的"签收入库"按钮
                (行右侧已经有主按钮,展开里再放一个属于重复) #}
             <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;">
-              {{ at_document_card(title='快递单',  file=s.express, tone='info',
-                                  empty_hint='发货时上传',
+              {{ at_document_card(title=_('快递单'),  file=s.express, tone='info',
+                                  empty_hint=_('发货时上传'),
                                   notes=s.notes or '') }}
-              {{ at_document_card(title='签收单',  file=s.receipt, tone='success',
-                                  empty_hint='签收时上传',
+              {{ at_document_card(title=_('签收单'),  file=s.receipt, tone='success',
+                                  empty_hint=_('签收时上传'),
                                   notes=s.received_notes or '') }}
             </div>
 
@@ -482,7 +482,8 @@
 {# ─── 文件拖拽上传区 ──────────────────────────────── #}
 {# input_name: 表单字段名;input_id: 唯一 id,JS 用来取文件
    multiple=true:允许选多文件,展示文件列表(filled 区改为列表样式) #}
-{% macro at_drop_zone(input_id, input_name='file', name_label='文件', accept='PDF · JPG · PNG', max_size='10 MB', multiple=false) %}
+{% macro at_drop_zone(input_id, input_name='file', name_label=None, accept='PDF · JPG · PNG', max_size='10 MB', multiple=false) %}
+  {% set name_label = name_label or _('文件') %}
   <div id="{{ input_id }}-wrap" class="at-dz-wrap" data-multiple="{{ '1' if multiple else '0' }}">
     <label class="at-dz-empty" style="display:flex;flex-direction:column;align-items:center;
                                        justify-content:center;gap:8px;padding:32px 20px;border-radius:8px;
@@ -495,10 +496,10 @@
         {{ at_icon('upload', 18) }}
       </span>
       <div style="font-size:13px;color:var(--ink-2);margin-top:2px;font-weight:500;">
-        点击或拖拽上传{{ name_label }}{% if multiple %}<span class="at-dim" style="font-weight:400;font-size:11.5px;">(可多选)</span>{% endif %}
+        {{ _('点击或拖拽上传') }}{{ name_label }}{% if multiple %}<span class="at-dim" style="font-weight:400;font-size:11.5px;">{{ _('(可多选)') }}</span>{% endif %}
       </div>
       <div class="at-dim at-mono" style="font-size:11px;letter-spacing:0.04em;">
-        {{ accept }} · 单个最大 {{ max_size }}
+        {{ accept }} · {{ _('单个最大') }} {{ max_size }}
       </div>
       <input type="file" id="{{ input_id }}" name="{{ input_name }}"
              {% if multiple %}multiple{% endif %}
@@ -520,7 +521,7 @@
       </div>
       <button type="button" onclick="atDzClear('{{ input_id }}')"
               style="color:var(--ink-3);font-size:12px;padding:4px 10px;
-                     border-radius:4px;border:1px solid var(--line-2);">移除</button>
+                     border-radius:4px;border:1px solid var(--line-2);">{{ _('移除') }}</button>
     </div>
     {# 多文件模式:文件列表容器(JS 注入) #}
     <div class="at-dz-list" style="display:none;border:1px solid var(--line-2);border-radius:8px;
@@ -534,26 +535,26 @@
 {% macro at_supplier_confirm_modal(order, modal_id='atSupplierConfirmModal') %}
   {% set footer = '<button type="button" onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
                 ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
-                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">' ~ _('取消') ~ '</button>'
                 ~ '<button type="button" onclick="atSubmitSupplierConfirm(' ~ order.id|string ~ ')" '
                 ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
                 ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
                 ~ 'border-radius:6px;font-size:13px;font-weight:500;">'
                 ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
-                ~ '确认供应商已确认</button>' %}
-  {% call at_modal_shell(modal_id, '供应商确认', icon='check', footer_html=footer) %}
+                ~ _('确认供应商已确认') ~ '</button>' %}
+  {% call at_modal_shell(modal_id, _('供应商确认'), icon='check', footer_html=footer) %}
     {{ at_info_strip([
-      {'k': 'PO 单号', 'v': order.order_number, 'mono': true, 'strong': true},
-      {'k': '供应商',  'v': order.company.company_name if order.company else '-'},
-      {'k': '订单金额','v': ('$' if order.currency == 'USD' else '¥') ~ ('{:,.2f}'.format(order.total_amount or 0)), 'mono': true}
+      {'k': _('PO 单号'), 'v': order.order_number, 'mono': true, 'strong': true},
+      {'k': _('供应商'),  'v': order.company.company_name if order.company else '-'},
+      {'k': _('订单金额'),'v': ('$' if order.currency == 'USD' else '¥') ~ ('{:,.2f}'.format(order.total_amount or 0)), 'mono': true}
     ]) }}
     <div style="height:18px;"></div>
     <form id="atSupplierConfirmForm" enctype="multipart/form-data" onsubmit="return false;">
-      {% call at_field('确认回执', required=true) %}
-        {{ at_drop_zone('atSupplierConfirmFile', input_name='file', name_label='供应商盖章确认单', multiple=true) }}
+      {% call at_field(_('确认回执'), required=true) %}
+        {{ at_drop_zone('atSupplierConfirmFile', input_name='file', name_label=_('供应商盖章确认单'), multiple=true) }}
       {% endcall %}
-      {% call at_field('备注') %}
-        <textarea name="notes" placeholder="可选备注信息"
+      {% call at_field(_('备注')) %}
+        <textarea name="notes" placeholder="{{ _('可选备注信息') }}"
                   style="width:100%;min-height:64px;padding:10px 12px;
                          border:1px solid var(--line-2);border-radius:6px;
                          background:var(--bg-page);font-size:13px;resize:vertical;
@@ -568,25 +569,25 @@
 {% macro at_upload_test_modal(order, modal_id='atUploadTestModal') %}
   {% set footer = '<button type="button" onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
                 ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
-                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">' ~ _('取消') ~ '</button>'
                 ~ '<button type="button" onclick="atSubmitTestReport(' ~ order.id|string ~ ')" '
                 ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
                 ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
                 ~ 'border-radius:6px;font-size:13px;font-weight:500;">'
                 ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>'
-                ~ '提交测试报告</button>' %}
-  {% call at_modal_shell(modal_id, '上传测试报告', icon='flask', footer_html=footer) %}
+                ~ _('提交测试报告') ~ '</button>' %}
+  {% call at_modal_shell(modal_id, _('上传测试报告'), icon='flask', footer_html=footer) %}
     {{ at_info_strip([
-      {'k': 'PO 单号', 'v': order.order_number, 'mono': true, 'strong': true},
-      {'k': '当前阶段','v': '测试'}
+      {'k': _('PO 单号'), 'v': order.order_number, 'mono': true, 'strong': true},
+      {'k': _('当前阶段'),'v': _('测试')}
     ]) }}
     <div style="height:18px;"></div>
     <form id="atUploadTestForm" enctype="multipart/form-data" onsubmit="return false;">
-      {% call at_field('测试报告', required=true, hint='可一次上传多个文件,合并存档') %}
-        {{ at_drop_zone('atUploadTestFile', input_name='file', name_label='测试报告文件', multiple=true) }}
+      {% call at_field(_('测试报告'), required=true, hint=_('可一次上传多个文件,合并存档')) %}
+        {{ at_drop_zone('atUploadTestFile', input_name='file', name_label=_('测试报告文件'), multiple=true) }}
       {% endcall %}
-      {% call at_field('备注') %}
-        <textarea name="notes" placeholder="可选备注信息"
+      {% call at_field(_('备注')) %}
+        <textarea name="notes" placeholder="{{ _('可选备注信息') }}"
                   style="width:100%;min-height:64px;padding:10px 12px;
                          border:1px solid var(--line-2);border-radius:6px;
                          background:var(--bg-page);font-size:13px;resize:vertical;
@@ -601,32 +602,32 @@
 {% macro at_sign_receipt_modal(modal_id='atSignReceiptModal') %}
   {% set footer = '<button type="button" onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
                 ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
-                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">' ~ _('取消') ~ '</button>'
                 ~ '<button type="button" id="atSignReceiptSubmitBtn" onclick="atSubmitSignReceipt()" '
                 ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
                 ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
                 ~ 'border-radius:6px;font-size:13px;font-weight:500;">'
                 ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
-                ~ '确认签收</button>' %}
-  {% call at_modal_shell(modal_id, '签收入库', icon='archive', width=560, footer_html=footer) %}
+                ~ _('确认签收') ~ '</button>' %}
+  {% call at_modal_shell(modal_id, _('签收入库'), icon='archive', width=560, footer_html=footer) %}
     {# 信息条 — 由 atOpenSignReceipt 注入内容 #}
     <div id="atSignReceiptInfo" style="background:var(--bg-page);border:1px solid var(--line);
                                        border-radius:8px;padding:14px 16px;
                                        display:flex;flex-direction:column;gap:8px;"></div>
     <div style="height:18px;"></div>
     <form id="atSignReceiptForm" enctype="multipart/form-data" onsubmit="return false;">
-      {% call at_field('签收日期', required=true) %}
+      {% call at_field(_('签收日期'), required=true) %}
         <input type="date" id="atSignReceiptDate" name="received_date"
                style="width:100%;height:34px;padding:0 12px;background:var(--bg-elev);
                       border:1px solid var(--line-2);border-radius:6px;font-size:13px;color:var(--ink);
                       outline:none;font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
       {% endcall %}
-      {% call at_field('签收单', required=true, hint='可拍照上传(JPG/PNG)或扫描 PDF') %}
-        {{ at_drop_zone('atSignReceiptFile', input_name='file', name_label='签收单',
+      {% call at_field(_('签收单'), required=true, hint=_('可拍照上传(JPG/PNG)或扫描 PDF')) %}
+        {{ at_drop_zone('atSignReceiptFile', input_name='file', name_label=_('签收单'),
                          accept='PDF · JPG · PNG', max_size='10 MB', multiple=true) }}
       {% endcall %}
-      {% call at_field('备注') %}
-        <textarea id="atSignReceiptNote" name="notes" placeholder="可选备注信息"
+      {% call at_field(_('备注')) %}
+        <textarea id="atSignReceiptNote" name="notes" placeholder="{{ _('可选备注信息') }}"
                   style="width:100%;min-height:60px;padding:10px 12px;
                          border:1px solid var(--line-2);border-radius:6px;
                          background:var(--bg-page);font-size:13px;resize:vertical;
@@ -648,14 +649,14 @@
   {% set is_edit = (mode == 'edit') %}
   {% set modal_id = modal_id or ('atOrderEditModal' if is_edit else 'atOrderCreateModal') %}
   {% set submit_fn = ('atSubmitOrderForm(\'edit\', ' ~ order.id|string ~ ')') if is_edit else 'atSubmitOrderForm(\'create\')' %}
-  {% set title = ('编辑采购订单 · ' ~ order.order_number) if is_edit else '新建采购订单' %}
-  {% set submit_label = '保存修改' if is_edit else '创建采购订单' %}
+  {% set title = (_('编辑采购订单') ~ ' · ' ~ order.order_number) if is_edit else _('新建采购订单') %}
+  {% set submit_label = _('保存修改') if is_edit else _('创建采购订单') %}
   {# create 模式下按钮默认禁用,edit 模式下默认可用 #}
   {% set btn_disabled_attr = '' if is_edit else 'disabled' %}
   {% set btn_disabled_style = '' if is_edit else 'opacity:0.5;cursor:not-allowed;' %}
   {% set footer = '<button type="button" onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
                 ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
-                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">' ~ _('取消') ~ '</button>'
                 ~ '<button type="button" id="atOrderSubmitBtn" ' ~ btn_disabled_attr ~ ' onclick="' ~ submit_fn ~ '" '
                 ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
                 ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
@@ -670,9 +671,9 @@
       <div style="grid-column:span 2;min-width:0;">
         <label style="display:flex;align-items:baseline;gap:4px;font-size:12.5px;
                       font-weight:500;color:var(--ink-2);margin-bottom:8px;">
-          <span>供应商</span>
+          <span>{{ _('供应商') }}</span>
           {% if is_edit %}
-            <span class="at-dim" style="font-weight:400;font-size:11px;">(不可修改)</span>
+            <span class="at-dim" style="font-weight:400;font-size:11px;">{{ _('(不可修改)') }}</span>
           {% else %}
             <span style="color:var(--danger);">*</span>
           {% endif %}
@@ -690,7 +691,7 @@
             <select id="atOrderSupplier" onchange="atUpdateOrderSubmitBtn()"
                     style="appearance:none;border:0;outline:none;background:transparent;
                            color:var(--ink);font:inherit;padding-right:22px;width:100%;">
-              <option value="">请选择供应商</option>
+              <option value="">{{ _('请选择供应商') }}</option>
               {% for s in suppliers %}<option value="{{ s.id }}">{{ s.company_name }}</option>{% endfor %}
             </select>
             <span style="position:absolute;right:8px;color:var(--ink-3);pointer-events:none;">
@@ -702,7 +703,7 @@
 
       {# 订单类别 #}
       <div style="min-width:0;">
-        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">订单类别</label>
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('订单类别') }}</label>
         <div style="display:flex;align-items:center;height:34px;padding:0 10px 0 12px;
                     background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
                     font-size:13px;position:relative;width:100%;min-width:0;box-sizing:border-box;">
@@ -710,7 +711,7 @@
           <select id="atOrderCategory"
                   style="appearance:none;border:0;outline:none;background:transparent;
                          color:var(--ink);font:inherit;padding-right:22px;width:100%;">
-            {% for v, l in [('channel','渠道订单'),('direct','直销订单'),('stock','备货订单')] %}
+            {% for v, l in [('channel',_('渠道订单')),('direct',_('直销订单')),('stock',_('备货订单'))] %}
             <option value="{{ v }}" {% if _v_cat == v %}selected{% endif %}>{{ l }}</option>
             {% endfor %}
           </select>
@@ -722,7 +723,7 @@
       <div style="min-width:0;">
         <label style="display:flex;align-items:baseline;gap:4px;font-size:12.5px;
                       font-weight:500;color:var(--ink-2);margin-bottom:8px;">
-          <span>需求日期</span><span style="color:var(--danger);">*</span>
+          <span>{{ _('需求日期') }}</span><span style="color:var(--danger);">*</span>
         </label>
         <input type="date" id="atOrderNeedBy"
                {% if is_edit and order and order.required_date %}value="{{ order.required_date.strftime('%Y-%m-%d') }}"{% endif %}
@@ -733,14 +734,14 @@
 
       {# 第 2 行:贸易术语 / 运输方式 / 运费承担 / 验证测试 #}
       {% set _selects = [
-        ('atOrderIncoterm', '贸易术语', (order.incoterms if is_edit and order else ''),
-            [('','请选择'),('EXW','EXW'),('FOB','FOB'),('CIF','CIF'),('DDP','DDP')]),
-        ('atOrderShipping', '运输方式', (order.shipping_method if is_edit and order else ''),
-            [('','请选择'),('truck','汽运'),('air','空运'),('express','快递'),('self_pickup','自提')]),
-        ('atOrderFreight',  '运费承担', (order.freight_terms if is_edit and order else 'buyer'),
-            [('buyer','采购方'),('seller','供应商')]),
-        ('atOrderVerifyTest', '验证测试', (order.verification_test_type if is_edit and order else ''),
-            [('','到货测试'),('factory','出厂测试'),('none','不测试')]),
+        ('atOrderIncoterm', _('贸易术语'), (order.incoterms if is_edit and order else ''),
+            [('',_('请选择')),('EXW','EXW'),('FOB','FOB'),('CIF','CIF'),('DDP','DDP')]),
+        ('atOrderShipping', _('运输方式'), (order.shipping_method if is_edit and order else ''),
+            [('',_('请选择')),('truck',_('汽运')),('air',_('空运')),('express',_('快递')),('self_pickup',_('自提'))]),
+        ('atOrderFreight',  _('运费承担'), (order.freight_terms if is_edit and order else 'buyer'),
+            [('buyer',_('采购方')),('seller',_('供应商'))]),
+        ('atOrderVerifyTest', _('验证测试'), (order.verification_test_type if is_edit and order else ''),
+            [('',_('到货测试')),('factory',_('出厂测试')),('none',_('不测试'))]),
       ] %}
       {% for fid, fname, fvalue, opts in _selects %}
       <div style="min-width:0;">
@@ -760,18 +761,18 @@
 
       {# 交货地点 colSpan=2 + 付款条件 colSpan=2 #}
       <div style="grid-column:span 2;min-width:0;">
-        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">交货地点</label>
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('交货地点') }}</label>
         <input type="text" id="atOrderShipTo"
                {% if is_edit and order %}value="{{ order.ship_to or '' }}"{% endif %}
-               placeholder="请输入交货地址"
+               placeholder="{{ _('请输入交货地址') }}"
                style="width:100%;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;background:var(--bg-elev);
                       border:1px solid var(--line-2);border-radius:6px;font-size:13px;color:var(--ink);outline:none;">
       </div>
       <div style="grid-column:span 2;min-width:0;">
-        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">付款条件</label>
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('付款条件') }}</label>
         <input type="text" id="atOrderPayment"
                {% if is_edit and order %}value="{{ order.payment_terms or '' }}"{% endif %}
-               placeholder="例:50% 预付, 发货后 45 天付清"
+               placeholder="{{ _('例:50% 预付, 发货后 45 天付清') }}"
                style="width:100%;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;background:var(--bg-elev);
                       border:1px solid var(--line-2);border-radius:6px;font-size:13px;color:var(--ink);outline:none;">
       </div>
@@ -779,13 +780,13 @@
       {# 交期计划(仅 edit 模式 + 未锁定时) — 3 列 + spacer #}
       {% if is_edit and order and not order.delivery_schedule_locked %}
       <div style="grid-column:span 4;display:flex;align-items:center;gap:10px;margin-top:4px;margin-bottom:-4px;">
-        <span class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;">交期计划</span>
+        <span class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;">{{ _('交期计划') }}</span>
         <div style="flex:1;border-top:1px solid var(--line-soft);"></div>
       </div>
       {% for fid, fname, fvalue in [
-        ('atOrderConfirmedDate',  '总交期',       order.confirmed_date),
-        ('atOrderTestDate',       '测试完成日期', order.milestone_test_complete_date),
-        ('atOrderShipDate',       '发货日期',     order.milestone_ship_date),
+        ('atOrderConfirmedDate',  _('总交期'),       order.confirmed_date),
+        ('atOrderTestDate',       _('测试完成日期'), order.milestone_test_complete_date),
+        ('atOrderShipDate',       _('发货日期'),     order.milestone_ship_date),
       ] %}
       <div style="min-width:0;">
         <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ fname }}</label>
@@ -801,8 +802,8 @@
 
       {# 备注 colSpan=4 #}
       <div style="grid-column:span 4;min-width:0;">
-        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">备注</label>
-        <textarea id="atOrderNote" placeholder="订单备注信息"
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('备注') }}</label>
+        <textarea id="atOrderNote" placeholder="{{ _('订单备注信息') }}"
                   style="width:100%;min-width:0;box-sizing:border-box;min-height:56px;padding:9px 12px;
                          background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
                          font-size:13px;resize:vertical;outline:none;font-family:inherit;color:var(--ink);">{% if is_edit and order %}{{ order.description or '' }}{% endif %}</textarea>
@@ -832,18 +833,18 @@
 {% macro at_create_shipment_modal(order, modal_id='atCreateShipmentModal') %}
   {% set footer = '<button type="button" onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
                 ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
-                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">取消</button>'
+                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">' ~ _('取消') ~ '</button>'
                 ~ '<button type="button" id="atShipSubmitBtn" disabled onclick="atSubmitCreateShipment(' ~ order.id|string ~ ')" '
                 ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
                 ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
                 ~ 'border-radius:6px;font-size:13px;font-weight:500;opacity:0.5;cursor:not-allowed;">'
                 ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>'
-                ~ '创建发货单<span id="atShipQtyBadge" class="at-mono at-tab-num" style="display:none;opacity:0.85;"></span></button>' %}
-  {% call at_modal_shell(modal_id, '创建发货单', icon='truck', width=880, footer_html=footer) %}
+                ~ _('创建发货单') ~ '<span id="atShipQtyBadge" class="at-mono at-tab-num" style="display:none;opacity:0.85;"></span></button>' %}
+  {% call at_modal_shell(modal_id, _('创建发货单'), icon='truck', width=880, footer_html=footer) %}
     {# 发货去向(2 列网格,带副标签) #}
-    {% call at_field('发货去向') %}
+    {% call at_field(_('发货去向')) %}
       <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;" id="atShipTargetRow">
-        {% for v, label, sub in [('sales_order','发给客户订单','出库 → 客户'), ('warehouse','入公司仓库','出库 → 自有仓')] %}
+        {% for v, label, sub in [('sales_order',_('发给客户订单'),_('出库 → 客户')), ('warehouse',_('入公司仓库'),_('出库 → 自有仓'))] %}
         <button type="button" data-target="{{ v }}" onclick="atSetShipTarget('{{ v }}')"
                 class="at-ship-target"
                 style="padding:12px 14px;border-radius:8px;text-align:left;
@@ -867,14 +868,14 @@
 
     {# 目标客户订单(sales_order 模式时显示) #}
     <div id="atShipSOWrap">
-      {% call at_field('目标客户订单', required=true) %}
+      {% call at_field(_('目标客户订单'), required=true) %}
         <div style="display:flex;align-items:center;height:34px;padding:0 10px 0 12px;
                     background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
                     font-size:13px;position:relative;width:100%;min-width:0;box-sizing:border-box;">
           <select id="atShipSOSelect" onchange="atOnShipSOChange()"
                   style="appearance:none;border:0;outline:none;background:transparent;
                          color:var(--ink);font:inherit;padding-right:22px;width:100%;">
-            <option value="">选择客户订单…</option>
+            <option value="">{{ _('选择客户订单…') }}</option>
           </select>
           <span style="position:absolute;right:8px;color:var(--ink-3);pointer-events:none;">
             {{ at_icon('chevd', 14) }}
@@ -884,13 +885,13 @@
     </div>
 
     {# 发货明细(4 列) #}
-    {% call at_field('发货明细') %}
+    {% call at_field(_('发货明细')) %}
       <div id="atShipDetailHint" class="at-dim" style="font-size:11px;margin-top:-6px;margin-bottom:6px;"></div>
       <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg-elev);">
         <table style="width:100%;font-size:12.5px;border-collapse:separate;border-spacing:0;">
           <thead>
             <tr style="background:var(--bg-page);">
-              {% for h, a, w in [('产品','left',''),('已发 / 可发','center','96px'),('本次发货','right','88px'),('序列号 (SN)','left','280px')] %}
+              {% for h, a, w in [(_('产品'),'left',''),(_('已发 / 可发'),'center','96px'),(_('本次发货'),'right','88px'),(_('序列号 (SN)'),'left','280px')] %}
               <th style="text-align:{{ a }};padding:10px 14px 12px;font-size:10.5px;font-weight:500;
                          color:var(--ink-4);letter-spacing:0.06em;text-transform:uppercase;
                          {% if w %}width:{{ w }};{% endif %}white-space:nowrap;
@@ -899,7 +900,7 @@
             </tr>
           </thead>
           <tbody id="atShipDetailBody">
-            <tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">加载中…</td></tr>
+            <tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">{{ _('加载中…') }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -907,14 +908,14 @@
 
     {# 物流(可选) #}
     <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;">
-      {% call at_field('承运商') %}
-        <input type="text" id="atShipCarrier" placeholder="如:顺丰速运"
+      {% call at_field(_('承运商')) %}
+        <input type="text" id="atShipCarrier" placeholder="{{ _('如:顺丰速运') }}"
                style="width:100%;box-sizing:border-box;height:34px;padding:0 12px;
                       background:var(--bg-elev);border:1px solid var(--line-2);
                       border-radius:6px;font-size:13px;color:var(--ink);outline:none;">
       {% endcall %}
-      {% call at_field('运单号') %}
-        <input type="text" id="atShipTracking" placeholder="如:SF1234567890"
+      {% call at_field(_('运单号')) %}
+        <input type="text" id="atShipTracking" placeholder="{{ _('如:SF1234567890') }}"
                style="width:100%;box-sizing:border-box;height:34px;padding:0 12px;
                       background:var(--bg-elev);border:1px solid var(--line-2);
                       border-radius:6px;font-size:13px;color:var(--ink);outline:none;">
@@ -922,8 +923,8 @@
     </div>
 
     {# 快递单附件 — 必填,作为发货凭证存档 #}
-    {% call at_field('快递单', required=true, hint='发货凭证必传 · 物流运单 / 自提单 / 内部转仓单据均可') %}
-      {{ at_drop_zone('atShipCourierFile', input_name='courier_document', name_label='快递单',
+    {% call at_field(_('快递单'), required=true, hint=_('发货凭证必传 · 物流运单 / 自提单 / 内部转仓单据均可')) %}
+      {{ at_drop_zone('atShipCourierFile', input_name='courier_document', name_label=_('快递单'),
                        accept='PDF · JPG · PNG', max_size='10 MB', multiple=true) }}
     {% endcall %}
   {% endcall %}

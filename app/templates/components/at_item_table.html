@@ -61,20 +61,20 @@
           <tr>
             {% for l, a, w in [
               ('',          'left',  '30px'),
-              ('产品名称',  'left',  '220px'),
-              ('型号',      'left',  '130px'),
-              ('编码',      'left',  '120px'),
-              ('规格描述',  'left',  '260px'),
-              ('数量',      'right', '76px'),
-              ('单位',      'left',  '64px'),
-              ('单价',      'right', '110px'),
-              ('金额',      'right', '120px'),
+              (_('产品名称'),  'left',  '220px'),
+              (_('型号'),      'left',  '130px'),
+              (_('编码'),      'left',  '120px'),
+              (_('规格描述'),  'left',  '260px'),
+              (_('数量'),      'right', '76px'),
+              (_('单位'),      'left',  '64px'),
+              (_('单价'),      'right', '110px'),
+              (_('金额'),      'right', '120px'),
               ('',          'left',  '36px')
             ] %}
             <th style="text-align:{{ a }};padding:10px 12px 12px;font-size:10.5px;font-weight:500;
                        color:var(--ink-4);letter-spacing:0.06em;text-transform:uppercase;
                        {% if w %}width:{{ w }};{% endif %}white-space:nowrap;">
-              {% if l == '产品名称' %}产品名称 <span style="color:var(--danger);">*</span>{% else %}{{ l }}{% endif %}
+              {% if l == _('产品名称') %}{{ _('产品名称') }} <span style="color:var(--danger);">*</span>{% else %}{{ l }}{% endif %}
             </th>
             {% endfor %}
           </tr>
@@ -88,7 +88,7 @@
                       style="width:100%;padding:18px 14px;display:flex;align-items:center;justify-content:flex-start;gap:10px;
                              color:var(--ink-3);font-size:13px;border-top:1px solid var(--line-soft);
                              background:transparent;border-left:0;border-right:0;border-bottom:0;cursor:pointer;transition:background 100ms;">
-                {{ at_icon('plus', 14) }} 点击选择产品…
+                {{ at_icon('plus', 14) }} {{ _('点击选择产品…') }}
               </button>
             </td>
           </tr>
@@ -101,30 +101,30 @@
               style="height:28px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;
                      background:transparent;color:var(--ink);border:1px solid var(--line-2);
                      border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">
-        {{ at_icon('plus', 14) }} 添加产品
+        {{ at_icon('plus', 14) }} {{ _('添加产品') }}
       </button>
       <button type="button" id="atItImportBtn"
               style="height:28px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;
                      background:transparent;color:var(--ink);border:1px solid var(--line-2);
                      border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">
-        {{ at_icon('cart', 14) }} 从客户需求导入
+        {{ at_icon('cart', 14) }} {{ _('从客户需求导入') }}
       </button>
       <div style="flex:1;"></div>
-      <span class="at-dim" style="font-size:12px;">货币</span>
+      <span class="at-dim" style="font-size:12px;">{{ _('货币') }}</span>
       <div style="display:inline-flex;align-items:center;height:30px;padding:0 8px 0 10px;
                   background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
                   font-size:12px;position:relative;min-width:100px;box-sizing:border-box;">
         <select id="atItCurrency"
                 style="appearance:none;border:0;outline:none;background:transparent;
                        color:var(--ink);font:inherit;padding-right:18px;width:100%;">
-          <option value="CNY">人民币</option>
-          <option value="USD">美元</option>
-          <option value="EUR">欧元</option>
-          <option value="HKD">港币</option>
+          <option value="CNY">{{ _('人民币') }}</option>
+          <option value="USD">{{ _('美元') }}</option>
+          <option value="EUR">{{ _('欧元') }}</option>
+          <option value="HKD">{{ _('港币') }}</option>
         </select>
         <span style="position:absolute;right:6px;color:var(--ink-3);pointer-events:none;">{{ at_icon('chevd', 12) }}</span>
       </div>
-      <span class="at-dim" style="font-size:12px;margin-left:14px;">合计金额</span>
+      <span class="at-dim" style="font-size:12px;margin-left:14px;">{{ _('合计金额') }}</span>
       <span class="at-mono at-tab-num" id="atItTotal"
             style="font-size:18px;font-weight:600;color:var(--ink);">¥0.00</span>
     </div>
