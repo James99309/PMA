@@ -84,6 +84,7 @@
        action_url=url_for('project.at_list_view'),
        fields=[
          {'key':'owner','label':_('负责人'),'type':'user','items':owner_options,'values':owner_values},
+         {'key':'vsm','label':_('厂商销售负责人'),'type':'user','items':vsm_options,'values':vsm_values},
          {'key':'ptype','label':_('类型'),'type':'select','options':type_options,'values':ptype_values},
        ],
        hidden={'tab':current_tab,'search':search},

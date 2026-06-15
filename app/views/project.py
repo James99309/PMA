@@ -467,6 +467,7 @@ def at_list_view():
     # 多选:同名多个 query 参数(阶段维度已由 tab 表达,这里不再重复筛选)
     owner_values = [v for v in request.args.getlist('owner') if v.strip()]
     ptype_values = [v for v in request.args.getlist('ptype') if v.strip()]
+    vsm_values = [v for v in request.args.getlist('vsm') if v.strip()]  # 厂商销售负责人(多选)
 
     base = get_viewable_data(Project, current_user).filter(Project.is_deleted == False)
 
@@ -478,6 +479,9 @@ def at_list_view():
     owner_options = build_owner_filter_options(_owner_ids)
     type_options = [(t, project_type_label(t)) for t in sorted(
         {x[0] for x in base.with_entities(Project.project_type).distinct().all() if x[0]})]
+    # 厂商销售负责人筛选选项(可见数据中出现过的)
+    _vsm_ids = [r[0] for r in base.with_entities(Project.vendor_sales_manager_id).distinct().all() if r[0]]
+    vsm_options = build_owner_filter_options(_vsm_ids)
 
     # ── 应用筛选(多选 → IN)──
     _owner_ids_sel = [int(v) for v in owner_values if v.isdigit()]
@@ -485,6 +489,9 @@ def at_list_view():
         base = base.filter(Project.owner_id.in_(_owner_ids_sel))
     if ptype_values:
         base = base.filter(Project.project_type.in_(ptype_values))
+    _vsm_ids_sel = [int(v) for v in vsm_values if v.isdigit()]
+    if _vsm_ids_sel:
+        base = base.filter(Project.vendor_sales_manager_id.in_(_vsm_ids_sel))
 
     # tab → current_stage
     TAB_STAGE_MAP = {
@@ -534,6 +541,8 @@ def at_list_view():
         list_qs['owner'] = owner_values
     if ptype_values:
         list_qs['ptype'] = ptype_values
+    if vsm_values:
+        list_qs['vsm'] = vsm_values
 
     # 未跟进天数(当前页批量;排除 签约/暂停/失败;≥20 天才标识)
     overdue_days = {}
@@ -586,6 +595,8 @@ def at_list_view():
                            owner_values=owner_values,
                            type_options=type_options,
                            ptype_values=ptype_values,
+                           vsm_options=vsm_options,
+                           vsm_values=vsm_values,
                            list_qs=list_qs)
 
 
