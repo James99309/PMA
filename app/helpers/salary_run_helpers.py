@@ -8,9 +8,28 @@
 - 终审通过 → 永久锁定(status=approved),不可再编辑。
 - snapshot 固化提交时各人各项当月应发,后续改标准额/结构/考核方法不影响已锁定月份。
 """
+import os
 from sqlalchemy.orm.attributes import flag_modified
 
 SALARY_RUN_OBJECT_TYPE = 'salary_run'
+
+
+def _salary_chain():
+    """月度薪资审批角色链。每级 = (可接受角色码列表[容拼写], 步骤名)。
+
+    按数据库环境区分:
+      - OVS(SG): 仅「财务总监」一级,到此结束(不上 CEO);
+      - SP8D(CN)及默认: 财务主管 → 财务总监 → 总经理。
+    财务总监 CN 用笔误码 finace_director、SG 用正确码 finance_director —— 两者都认。
+    """
+    db_type = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+    if db_type == 'ovs':
+        return [(['finance_director', 'finace_director'], '财务总监审批')]
+    return [
+        (['finance_supervisor'], '财务主管复核'),
+        (['finace_director', 'finance_director'], '财务总监审批'),
+        (['ceo'], '总经理审批'),
+    ]
 
 # 发放方式 → 当月是否有效(月发全月 / 季发 3·6·9·12 / 年发仅 12)
 _EFF_MONTHS = {
@@ -121,31 +140,27 @@ def build_month_snapshot(company_name, year, month):
 
 
 def resolve_salary_approvers(company_name, initiator_id):
-    """按 SALARY_RUN_APPROVER_ROLES 顺序解析审批人(优先同公司,回退全局)。
-    Returns (approvers[list[User]], err)。任一角色缺人 → err。"""
+    """按 _salary_chain() 顺序解析审批人(优先同公司,回退全局)。
+    Returns (approvers[list[User]], err)。任一级缺人 → err。"""
     from app.models.user import User
-    from app.models.salary_structure import SALARY_RUN_APPROVER_ROLES
 
     approvers = []
-    for role in SALARY_RUN_APPROVER_ROLES:
-        q = User.query.filter(User.role == role, User._is_active.is_(True))
+    for roles, name in _salary_chain():
+        q = User.query.filter(User.role.in_(roles), User._is_active.is_(True))
         u = q.filter(User.company_name == company_name).first() or q.first()
         if not u:
-            try:
-                from app.utils.role_mappings import get_role_display_name
-                disp = get_role_display_name(role)
-            except Exception:
-                disp = role
-            return None, f'未找到审批角色「{disp}」的在职用户,请先配置后再发起'
+            return None, f'未找到审批角色「{name}」的在职用户,请先配置后再发起'
         approvers.append(u)
     return approvers, None
 
 
 def get_or_create_salary_template(created_by=None):
-    """幂等确保 salary_run 模板 + 三个 submitter_designate 步骤(财务主管/财务总监/总经理)。"""
+    """幂等确保 salary_run 模板 + 步骤(按 _salary_chain,级数随环境:SG 1 级 / CN 3 级)。"""
     from app import db
     from app.models.approval import ApprovalProcessTemplate, ApprovalStep
     from app.models.user import User
+
+    names = [name for _, name in _salary_chain()]
 
     tpl = ApprovalProcessTemplate.query.filter_by(object_type=SALARY_RUN_OBJECT_TYPE).first()
     if not tpl:
@@ -161,11 +176,10 @@ def get_or_create_salary_template(created_by=None):
 
     steps = (ApprovalStep.query.filter_by(process_id=tpl.id)
              .order_by(ApprovalStep.step_order).all())
-    if len(steps) < 3:
+    if len(steps) != len(names):
         for s in steps:
             db.session.delete(s)
         db.session.flush()
-        names = ['财务主管复核', '财务总监审批', '总经理审批']
         steps = []
         for i, nm in enumerate(names, start=1):
             st = ApprovalStep(process_id=tpl.id, step_order=i, step_name=nm,
