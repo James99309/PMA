@@ -86,7 +86,7 @@
         const targetUnitPriceTh = ths[7];
         if (!targetUnitPriceTh) return;
         const th = document.createElement('th');
-        th.textContent = '折扣率';
+        th.textContent = t('折扣率');
         th.style.cssText = targetUnitPriceTh.style.cssText;
         th.style.width = '74px';
         th.style.textAlign = 'right';
@@ -154,7 +154,7 @@
             key: `${p.id || 'x'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             product_id: p.id, name: p.name, model: p.model || '',
             code: p.code || '', spec: p.spec || '',
-            qty: incomingQty, unit: p.unit || '套', price: Number(p.price) || 0,
+            qty: incomingQty, unit: p.unit || t('套'), price: Number(p.price) || 0,
             // 透传可选元数据(如客户需求池导入时携带的 SO 关联信息)
             sales_order_detail_id: p.sales_order_detail_id || null,
             sales_order_id:        p.sales_order_id || null,
@@ -264,7 +264,7 @@
                                        color:var(--ink-3);font-size:13px;border-top:1px solid var(--line-soft);
                                        background:transparent;border:0;border-top:1px solid var(--line-soft);cursor:pointer;transition:background 100ms;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                            点击选择产品…
+                            ${t('点击选择产品…')}
                         </button>
                     </td>
                 </tr>`;
@@ -281,7 +281,7 @@
             return `
                 <tr data-row-key="${escapeHtml(it.key)}" data-row-idx="${i}" draggable="true"
                     style="border-top:1px solid var(--line-soft);transition:background 100ms;">
-                    <td style="padding:12px 6px 12px 12px;vertical-align:middle;cursor:grab;color:var(--ink-4);white-space:nowrap;" title="拖动排序">
+                    <td style="padding:12px 6px 12px 12px;vertical-align:middle;cursor:grab;color:var(--ink-4);white-space:nowrap;" title="${t('拖动排序')}">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
                             <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
@@ -307,7 +307,7 @@
                                       background:var(--bg-elev);outline:none;font-size:13px;">
                     </td>
                     <td style="padding:12px 14px;vertical-align:middle;white-space:nowrap;">
-                        <span class="at-dim" style="font-size:12px;">${escapeHtml(it.unit || '套')}</span>
+                        <span class="at-dim" style="font-size:12px;">${escapeHtml(it.unit || t('套'))}</span>
                     </td>
                     ${State.showMarketDiscount ? `
                     <td style="padding:12px 8px;text-align:right;vertical-align:middle;white-space:nowrap;">
@@ -333,7 +333,7 @@
                         ${sym}${fmt(amount)}
                     </td>
                     <td style="padding:12px 10px;text-align:right;vertical-align:middle;white-space:nowrap;">
-                        <button type="button" data-action="remove" title="移除"
+                        <button type="button" data-action="remove" title="${t('移除')}"
                                 onmouseenter="this.style.background='var(--danger-soft)';this.style.color='var(--danger)';"
                                 onmouseleave="this.style.background='transparent';this.style.color='var(--ink-4)';"
                                 style="width:24px;height:24px;border-radius:4px;color:var(--ink-4);

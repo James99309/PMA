@@ -42,13 +42,13 @@
         return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     }
     function loading(text) {
-        return `<div class="at-dim" style="padding:16px 10px;font-size:12px;">${text || '加载中…'}</div>`;
+        return `<div class="at-dim" style="padding:16px 10px;font-size:12px;">${text || t('加载中…')}</div>`;
     }
     function errorMsg(text) {
-        return `<div style="padding:16px 10px;font-size:12px;color:var(--danger);">${text || '加载失败'}</div>`;
+        return `<div style="padding:16px 10px;font-size:12px;color:var(--danger);">${text || t('加载失败')}</div>`;
     }
     function emptyMsg(text) {
-        return `<div class="at-dim" style="padding:16px 10px;font-size:12px;">${text || '暂无数据'}</div>`;
+        return `<div class="at-dim" style="padding:16px 10px;font-size:12px;">${text || t('暂无数据')}</div>`;
     }
 
     function open(opts) {
@@ -63,10 +63,10 @@
         // 列 4 容器永远 flex column,底部固定 confirm bar
         _setupCol4Layout();
         _renderConfirmBar();
-        el('atPpCol4Title').textContent = State.replaceMode ? '替换为' : '具体产品';
-        el('atPpSubcatList').innerHTML = emptyMsg('请先选择类目');
-        el('atPpNameList').innerHTML = emptyMsg('请先选择子分类');
-        el('atPpSpecList').innerHTML = emptyMsg('请先选择产品族');
+        el('atPpCol4Title').textContent = State.replaceMode ? t('替换为') : t('具体产品');
+        el('atPpSubcatList').innerHTML = emptyMsg(t('请先选择类目'));
+        el('atPpNameList').innerHTML = emptyMsg(t('请先选择子分类'));
+        el('atPpSpecList').innerHTML = emptyMsg(t('请先选择产品族'));
         el(State.modalId).style.display = 'flex';
         loadCategories();
     }
@@ -105,7 +105,7 @@
             .then(r => r.json())
             .then(cats => {
                 if (!Array.isArray(cats) || cats.length === 0) {
-                    list.innerHTML = emptyMsg('无类目数据');
+                    list.innerHTML = emptyMsg(t('无类目数据'));
                     return;
                 }
                 State.categories = cats;
@@ -149,14 +149,14 @@
         const cat = catName(State.categories[idx]);
         const subList = el('atPpSubcatList');
         subList.innerHTML = loading();
-        el('atPpNameList').innerHTML = emptyMsg('请先选择子分类');
-        el('atPpSpecList').innerHTML = emptyMsg('请先选择产品族');
+        el('atPpNameList').innerHTML = emptyMsg(t('请先选择子分类'));
+        el('atPpSpecList').innerHTML = emptyMsg(t('请先选择产品族'));
         fetch(`/api/products/subcategories?category=${encodeURIComponent(cat)}`)
             .then(r => r.json())
             .then(res => {
                 const subs = (res && res.subcategories) || [];
                 if (!subs.length) {
-                    subList.innerHTML = emptyMsg('该类目下暂无子分类');
+                    subList.innerHTML = emptyMsg(t('该类目下暂无子分类'));
                     State.subcats = [];
                     return;
                 }
@@ -184,7 +184,7 @@
                                transition:background 100ms;">
                     <div style="flex:1;min-width:0;">
                         <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(display)}</div>
-                        ${s.count != null ? `<div class="at-dim" style="font-size:11px;margin-top:1px;">${s.count} 个产品</div>` : ''}
+                        ${s.count != null ? `<div class="at-dim" style="font-size:11px;margin-top:1px;">${s.count}${t(' 个产品')}</div>` : ''}
                     </div>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>`;
@@ -202,7 +202,7 @@
         const sub = State.subcats[idx].name;
         const nameList = el('atPpNameList');
         nameList.innerHTML = loading();
-        el('atPpSpecList').innerHTML = emptyMsg('请先选择产品族');
+        el('atPpSpecList').innerHTML = emptyMsg(t('请先选择产品族'));
         const curQs = State.currency ? `&currency=${encodeURIComponent(State.currency)}` : '';
         fetch(`/api/products/by-subcategory?category=${encodeURIComponent(cat)}&subcategory=${encodeURIComponent(sub)}${curQs}`)
             .then(r => r.json())
@@ -210,7 +210,7 @@
                 // 后端返回 {success, model_groups:[{product_name, model, count, products:[...]}]}
                 const groups = (res && Array.isArray(res.model_groups)) ? res.model_groups : [];
                 if (!groups.length) {
-                    nameList.innerHTML = emptyMsg('该子分类下暂无产品');
+                    nameList.innerHTML = emptyMsg(t('该子分类下暂无产品'));
                     State.names = [];
                     return;
                 }
@@ -240,7 +240,7 @@
     function renderNameList() {
         const list = el('atPpNameList');
         if (!State.names.length) {
-            list.innerHTML = emptyMsg('该子分类下暂无产品');
+            list.innerHTML = emptyMsg(t('该子分类下暂无产品'));
             return;
         }
         list.innerHTML = State.names.map((n, i) => {
@@ -258,7 +258,7 @@
                                transition:background 100ms;">
                     <div style="flex:1;min-width:0;">
                         <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(n.name)}</div>
-                        <div class="at-dim at-mono" style="font-size:11px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(n.modelOptions || []).length} 型号 · ${n.totalCount || 0} 个</div>
+                        <div class="at-dim at-mono" style="font-size:11px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(n.modelOptions || []).length}${t(' 型号 · ')}${n.totalCount || 0}${t(' 个')}</div>
                     </div>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>`;
@@ -321,7 +321,7 @@
         });
         const list = el('atPpSpecList');
         if (!items.length) {
-            list.innerHTML = emptyMsg('暂无产品');
+            list.innerHTML = emptyMsg(t('暂无产品'));
             return;
         }
         const targetCur = State.currency || '';
@@ -351,8 +351,8 @@
             }
 
             const priceHtml = _disabled
-                ? `<div class="at-mono at-dim" style="font-size:13px;white-space:nowrap;">—<div style="font-size:10px;font-weight:400;margin-top:1px;">无 ${escapeHtml(targetCur)} 价</div></div>`
-                : `<div class="at-mono at-tab-num" style="font-size:13.5px;font-weight:500;color:var(--accent);white-space:nowrap;">${curSym}${(_price || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}${_priceSource === 'region' ? '<span class="at-dim" style="font-size:9.5px;margin-left:4px;font-weight:400;">区域价</span>' : ''}</div>`;
+                ? `<div class="at-mono at-dim" style="font-size:13px;white-space:nowrap;">—<div style="font-size:10px;font-weight:400;margin-top:1px;">${t('无 ')}${escapeHtml(targetCur)}${t(' 价')}</div></div>`
+                : `<div class="at-mono at-tab-num" style="font-size:13.5px;font-weight:500;color:var(--accent);white-space:nowrap;">${curSym}${(_price || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}${_priceSource === 'region' ? `<span class="at-dim" style="font-size:9.5px;margin-left:4px;font-weight:400;">${t('区域价')}</span>` : ''}</div>`;
 
             return `
                 <button type="button" data-spec-idx="${i}" data-spec-id="${p.id}" data-disabled="${_disabled ? '1' : ''}"
@@ -375,7 +375,7 @@
                                               border:1px solid var(--line-2);border-radius:5px;background:var(--bg-elev);
                                               font-family:var(--font-mono);font-weight:500;font-size:12.5px;
                                               color:var(--ink);outline:none;">
-                                <span class="at-dim" style="font-size:11px;">${escapeHtml(p.unit || '套')}</span>
+                                <span class="at-dim" style="font-size:11px;">${escapeHtml(p.unit || t('套'))}</span>
                             </div>
                             ${priceHtml}
                         </div>
@@ -413,7 +413,7 @@
             spec:  p.specification || p.product_spec || '',
             brand: p.brand || p.product_brand || '',
             price: pickedPrice,
-            unit:  p.unit || '套',
+            unit:  p.unit || t('套'),
             _raw:  p,
         };
         // toggle cart:已存在 → 移出 + 收 panel;否则 → 加入 + 展开 panel(loading,异步 fetch 配套)
@@ -516,11 +516,11 @@
         card.insertAdjacentElement('afterend', panel);
 
         const data = entry.configData;
-        if (!data) { panel.innerHTML = loading('加载配套中…'); return; }
+        if (!data) { panel.innerHTML = loading(t('加载配套中…')); return; }
         const blocks = [];
         if (data.required && data.required.length) {
             blocks.push(`<div style="margin-bottom:12px;">
-                <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">必选配套 · ${data.required.length}</div>
+                <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">${t('必选配套 · ')}${data.required.length}</div>
                 ${data.required.map(it => _renderConfigItem(it, 'required', { picksSet: entry.configPicks.required, cfgQuantities: entry.configQuantities })).join('')}
             </div>`);
         }
@@ -529,7 +529,7 @@
         });
         if (data.recommended && data.recommended.length) {
             blocks.push(`<div style="margin-bottom:12px;">
-                <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">推荐配套 · ${data.recommended.length}</div>
+                <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">${t('推荐配套 · ')}${data.recommended.length}</div>
                 ${data.recommended.map(it => _renderConfigItem(it, 'recommended', { picksSet: entry.configPicks.recommended, cfgQuantities: entry.configQuantities })).join('')}
             </div>`);
         }
@@ -567,9 +567,9 @@
         panel.style.cssText = 'margin:6px 4px 12px;padding:10px 12px;border-left:2px solid var(--accent);background:var(--bg-page);border-radius:0 6px 6px 0;';
         selectedCard.insertAdjacentElement('afterend', panel);
         const data = State.configData;
-        if (State.configLoading) { panel.innerHTML = loading('加载配套中…'); return; }
+        if (State.configLoading) { panel.innerHTML = loading(t('加载配套中…')); return; }
         if (!data) {
-            panel.innerHTML = `<div class="at-dim" style="padding:6px 10px;font-size:11.5px;">已选中 「${escapeHtml(State.selectedSpec.name)}」</div>`;
+            panel.innerHTML = `<div class="at-dim" style="padding:6px 10px;font-size:11.5px;">${t('已选中 「')}${escapeHtml(State.selectedSpec.name)}${t('」')}</div>`;
             _renderConfirmBar();
             return;
         }
@@ -577,7 +577,7 @@
         // 必选配套
         if (data.required && data.required.length) {
             blocks.push(`<div style="margin-bottom:12px;">
-                <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">必选配套 · ${data.required.length}</div>
+                <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">${t('必选配套 · ')}${data.required.length}</div>
                 ${data.required.map(it => _renderConfigItem(it, 'required')).join('')}
             </div>`);
         }
@@ -589,7 +589,7 @@
         // 推荐配套
         if (data.recommended && data.recommended.length) {
             blocks.push(`<div style="margin-bottom:12px;">
-                <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">推荐配套 · ${data.recommended.length}</div>
+                <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">${t('推荐配套 · ')}${data.recommended.length}</div>
                 ${data.recommended.map(it => _renderConfigItem(it, 'recommended')).join('')}
             </div>`);
         }
@@ -598,7 +598,7 @@
             blocks.push(_renderMutualGroup(g, false));
         });
         if (!blocks.length) {
-            panel.innerHTML = `<div class="at-dim" style="padding:6px 10px;font-size:11.5px;">该产品无配套</div>`;
+            panel.innerHTML = `<div class="at-dim" style="padding:6px 10px;font-size:11.5px;">${t('该产品无配套')}</div>`;
         } else {
             panel.innerHTML = blocks.join('');
         }
@@ -621,7 +621,7 @@
         const isRadio = !!opts.radio;
         const radioName = opts.radioName || '';
         const cfgQty = (opts.cfgQuantities && opts.cfgQuantities[it.id]) || 1;
-        const cfgUnit = it.unit || '套';
+        const cfgUnit = it.unit || t('套');
         const price = Number(it.retail_price || it.market_price || it.price || 0);
         const curSym = _currencySym(State.currency || it.currency || 'CNY');
         const _spec  = it.specification || it.product_spec || it.spec || '';
@@ -665,7 +665,7 @@
         const items = group.items || group.products || [];
         return `<div style="margin-bottom:12px;">
             <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;">
-                ${isRequired ? '必选互斥' : '可选互斥'} · ${escapeHtml(group.group_name || gid)} · N 选 1
+                ${isRequired ? t('必选互斥') : t('可选互斥')} · ${escapeHtml(group.group_name || gid)}${t(' · N 选 1')}
             </div>
             ${items.map(it => _renderConfigItem(it, null, {
                 radio: true,
@@ -728,13 +728,13 @@
             bar.id = 'atPpConfirmBar';
             bar.style.cssText = 'flex-shrink:0;display:flex;align-items:center;gap:8px;padding:10px 0 0;border-top:1px solid var(--line);margin-top:8px;';
             bar.innerHTML = `
-                <div id="atPpCartSummary" style="flex:1;font-size:12px;color:var(--ink-3);">未选产品</div>
+                <div id="atPpCartSummary" style="flex:1;font-size:12px;color:var(--ink-3);">${t('未选产品')}</div>
                 <button type="button" id="atPpCancelBtn"
                         style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
-                               background:var(--bg-elev);color:var(--ink);font-size:12.5px;cursor:pointer;">取消</button>
+                               background:var(--bg-elev);color:var(--ink);font-size:12.5px;cursor:pointer;">${t('取消')}</button>
                 <button type="button" id="atPpConfirmBtn"
                         style="height:32px;padding:0 14px;border-radius:6px;border:0;
-                               background:var(--accent);color:#fff;font-size:12.5px;font-weight:500;cursor:pointer;">+ 添加到明细</button>`;
+                               background:var(--accent);color:#fff;font-size:12.5px;font-weight:500;cursor:pointer;">${t('+ 添加到明细')}</button>`;
             col4.appendChild(bar);
             bar.querySelector('#atPpCancelBtn').addEventListener('click', close);
             bar.querySelector('#atPpConfirmBtn').addEventListener('click', _emitCart);
@@ -776,13 +776,13 @@
         });
         const curSym = _currencySym(State.currency || 'CNY');
         summary.innerHTML = n > 0
-            ? `已选 <span class="at-mono at-tab-num" style="font-weight:500;color:var(--ink);">${n}</span> 个主产品 · 共 <span class="at-mono at-tab-num">${totalItems}</span> 条 · <span class="at-mono at-tab-num" style="color:var(--accent);font-weight:500;">${curSym}${totalAmount.toLocaleString('en-US', {minimumFractionDigits:2})}</span>`
-            : '未选产品';
+            ? `${t('已选 ')}<span class="at-mono at-tab-num" style="font-weight:500;color:var(--ink);">${n}</span>${t(' 个主产品 · 共 ')}<span class="at-mono at-tab-num">${totalItems}</span>${t(' 条 · ')}<span class="at-mono at-tab-num" style="color:var(--accent);font-weight:500;">${curSym}${totalAmount.toLocaleString('en-US', {minimumFractionDigits:2})}</span>`
+            : t('未选产品');
         const canConfirm = n > 0 && allRequiredMutualPicked;
         btn.disabled = !canConfirm;
         btn.style.opacity = canConfirm ? '1' : '0.5';
         btn.style.cursor  = canConfirm ? 'pointer' : 'not-allowed';
-        btn.title = (n > 0 && !allRequiredMutualPicked) ? '部分必选互斥组未选择' : '';
+        btn.title = (n > 0 && !allRequiredMutualPicked) ? t('部分必选互斥组未选择') : '';
     }
 
     function _emitCart() {
@@ -887,7 +887,7 @@
             spec:  it.specification || it.product_spec || '',
             brand: it.brand || it.product_brand || '',
             price: Number(it.retail_price || it.market_price || it.price || 0),
-            unit:  it.unit || '套',
+            unit:  it.unit || t('套'),
         };
     }
 

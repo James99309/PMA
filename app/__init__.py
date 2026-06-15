@@ -869,7 +869,13 @@ def create_app(config_class=Config):
         except Exception:
             return {'available_task_types': [], 'available_task_type_groups': [],
                     'task_type_labels_map': {}, 'task_type_review_codes': [], 'task_type_nolink_codes': []}
-        
+
+    @app.context_processor
+    def inject_js_i18n():
+        """向模板注入 js_i18n_map(供 _js_i18n.html 渲染 window.I18N 给客户端 JS)"""
+        from app.helpers.js_i18n import js_i18n_map
+        return {'js_i18n_map': js_i18n_map}
+
     # 添加权限检查全局上下文处理器
     @app.context_processor
     def inject_permissions():
