@@ -75,7 +75,7 @@
     }
     const shell = document.getElementById('atFilePreviewShell');
     shell.style.maxWidth = _files.length > 1 ? '820px' : '580px';
-    document.getElementById('atFilePreviewTitle').textContent = _label ? (_label + ' · 附件') : '附件预览';
+    document.getElementById('atFilePreviewTitle').textContent = _label ? (_label + ' · ' + t('附件')) : t('附件预览');
     renderBody();
     modal.style.display = 'flex';
   }
@@ -102,13 +102,13 @@
                      background:var(--bg-sunk);color:var(--ink-2);
                      padding:2px 8px;border-radius:999px;font-size:11px;
                      font-weight:500;line-height:1.5;white-space:nowrap;letter-spacing:0.02em;">
-          阶段 · ${escapeHtml(_label)}
+          ${t('阶段')} · ${escapeHtml(_label)}
         </span>
       </div>` : '';
 
     if (!files.length) {
       document.getElementById('atFilePreviewBody').innerHTML = pillHtml +
-        `<div style="padding:40px;text-align:center;color:var(--ink-3);font-size:13px;">暂无附件</div>`;
+        `<div style="padding:40px;text-align:center;color:var(--ink-3);font-size:13px;">${t('暂无附件')}</div>`;
       return;
     }
 
@@ -118,7 +118,7 @@
     const listHtml = !multi ? '' : `
       <div style="border-right:1px solid var(--line);padding-right:12px;">
         <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;margin-bottom:10px;">
-          文件 · ${files.length}
+          ${t('文件')} · ${files.length}
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;">
           ${files.map((f, i) => {
@@ -157,7 +157,7 @@
         <img src="${escapeHtml(file.url)}" alt="${escapeHtml(file.name || '')}"
              style="max-width:100%;max-height:100%;min-width:0;min-height:0;
                     width:auto;height:auto;object-fit:contain;border-radius:4px;display:block;"
-             onerror="this.parentElement.innerHTML='<div class=\\'at-dim\\' style=\\'font-size:12px;\\'>图片加载失败</div>'">`;
+             onerror="this.parentElement.innerHTML='<div class=\\'at-dim\\' style=\\'font-size:12px;\\'>${t('图片加载失败')}</div>'">`;
     } else if (isPdf && hasUrl) {
       previewInner = `
         <iframe src="${escapeHtml(file.url)}#toolbar=0&view=FitH"
@@ -171,7 +171,7 @@
                     font-family:var(--font-mono);font-weight:700;font-size:14px;letter-spacing:0.05em;">
           ${meta.label}
         </div>
-        <div class="at-dim" style="font-size:12px;">${hasUrl ? '此格式暂不支持页内预览' : '文件预览(示意)'}</div>`;
+        <div class="at-dim" style="font-size:12px;">${hasUrl ? t('此格式暂不支持页内预览') : t('文件预览(示意)')}</div>`;
     }
 
     const showFrame = isImage || isPdf;
@@ -200,7 +200,7 @@
                  stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>
             </svg>
-            下载
+            ${t('下载')}
           </a>
         </div>
       </div>`;
@@ -210,7 +210,7 @@
       <div style="margin-top:14px;padding:12px 14px;background:var(--bg-page);
                   border:1px solid var(--line);border-radius:8px;">
         <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;
-                     margin-bottom:6px;text-transform:uppercase;">备注</div>
+                     margin-bottom:6px;text-transform:uppercase;">${t('备注')}</div>
         <div style="font-size:12.5px;color:var(--ink-2);line-height:1.55;
                     white-space:pre-wrap;word-break:break-word;">${escapeHtml(_notes)}</div>
       </div>` : '';

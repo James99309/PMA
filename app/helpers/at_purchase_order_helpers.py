@@ -15,19 +15,20 @@ shipment.delivery_proof 等),不新增数据库列。
 import json
 import logging
 from datetime import datetime, date
+from flask_babel import lazy_gettext as _l, gettext as _
 
 logger = logging.getLogger(__name__)
 
 
 # ─── 7 阶段配置 ─────────────────────────────────────────
 STAGE_DEFS = [
-    {'key': 'submit',  'label': '提交审批', 'icon': 'edit'},
-    {'key': 'confirm', 'label': '供应商确认', 'icon': 'check'},
-    {'key': 'prep',    'label': '备料',      'icon': 'box'},
-    {'key': 'produce', 'label': '生产',      'icon': 'factory'},
-    {'key': 'test',    'label': '测试',      'icon': 'flask'},
-    {'key': 'ship',    'label': '待发货',    'icon': 'truck'},
-    {'key': 'receive', 'label': '验收入库',  'icon': 'archive'},
+    {'key': 'submit',  'label': _l('提交审批'), 'icon': 'edit'},
+    {'key': 'confirm', 'label': _l('供应商确认'), 'icon': 'check'},
+    {'key': 'prep',    'label': _l('备料'),      'icon': 'box'},
+    {'key': 'produce', 'label': _l('生产'),      'icon': 'factory'},
+    {'key': 'test',    'label': _l('测试'),      'icon': 'flask'},
+    {'key': 'ship',    'label': _l('待发货'),    'icon': 'truck'},
+    {'key': 'receive', 'label': _l('验收入库'),  'icon': 'archive'},
 ]
 
 # production_status 对应的阶段索引(0-based,指向 STAGE_DEFS)
@@ -66,7 +67,7 @@ def _safe_json_load(raw):
         return []
 
 
-def _unpack_multi_file_field(raw_value, default_name='附件', uploaded_at=None):
+def _unpack_multi_file_field(raw_value, default_name=_l('附件'), uploaded_at=None):
     """
     把一个数据库列(可能是单 URL 字符串、或 JSON 数组字符串)解包成 attachment 列表。
 
@@ -113,7 +114,7 @@ def _attachment_record(name, url, uploaded_at=None, size=None):
     if not ext and name and '.' in name:
         ext = name.rsplit('.', 1)[-1].lower()
     return {
-        'name': name or '附件',
+        'name': name or _('附件'),
         'url': url or '#',
         'uploaded_at': _fmt_date(uploaded_at) if uploaded_at else None,
         'size': size,
@@ -210,13 +211,13 @@ def build_stages_data(order, approval_done):
         elif sdef['key'] == 'confirm':
             attachments.extend(_unpack_multi_file_field(
                 order.supplier_confirmation_file,
-                default_name='供应商确认单',
+                default_name=_('供应商确认单'),
                 uploaded_at=order.supplier_confirmed_date,
             ))
         elif sdef['key'] == 'test':
             attachments.extend(_unpack_multi_file_field(
                 order.factory_test_report_url,
-                default_name='出厂测试报告',
+                default_name=_('出厂测试报告'),
                 uploaded_at=order.factory_test_signed_at,
             ))
         elif sdef['key'] == 'ship':
@@ -226,7 +227,7 @@ def build_stages_data(order, approval_done):
                     docs = _safe_json_load(getattr(s, 'documents', None))
                     for d in docs:
                         attachments.append(_attachment_record(
-                            name=f"{s.shipment_number} · {d.get('name', '发货单据')}",
+                            name=f"{s.shipment_number} · {d.get('name', _('发货单据'))}",
                             url=d.get('url'),
                             uploaded_at=s.ship_date,
                         ))
@@ -237,7 +238,7 @@ def build_stages_data(order, approval_done):
                     proofs = _safe_json_load(getattr(s, 'delivery_proof', None))
                     for p in proofs:
                         attachments.append(_attachment_record(
-                            name=f"{s.shipment_number} · {p.get('name', '签收回执')}",
+                            name=f"{s.shipment_number} · {p.get('name', _('签收回执'))}",
                             url=p.get('url'),
                             uploaded_at=s.received_date,
                         ))
@@ -350,12 +351,12 @@ SHIPMENT_STATUS_TONE = {
 }
 # 发货单自身状态映射(与 PO 主阶段"待发货"区分,pending = 已开单未发出)
 SHIPMENT_STATUS_LABEL = {
-    'pending':    '已开单',
-    'shipped':    '已发出',
-    'in_transit': '运输中',
-    'delivered':  '已送达',
-    'received':   '已签收',
-    'exception':  '异常',
+    'pending':    _l('已开单'),
+    'shipped':    _l('已发出'),
+    'in_transit': _l('运输中'),
+    'delivered':  _l('已送达'),
+    'received':   _l('已签收'),
+    'exception':  _l('异常'),
 }
 
 
@@ -385,7 +386,7 @@ def build_shipments_data(order):
             'number': s.shipment_number,
             'target': (s.sales_order.customer.company_name
                        if s.sales_order and getattr(s.sales_order, 'customer', None)
-                       else '入公司仓库'),
+                       else _('入公司仓库')),
             'target_sub': s.sales_order.order_number if s.sales_order else None,
             'qty': s.total_quantity or 0,
             'status': s.status,
@@ -454,48 +455,48 @@ def build_current_action(order, approval_data, current_user_id=None):
             return {
                 'phase': 'execution',
                 'icon': 'archive',
-                'title_label': '当前阶段',
-                'title': '验收入库',
-                'desc': '所有货物已发出,等待签收',
-                'hint': '在下方发货记录逐单签收,全部签收后自动入库',
+                'title_label': _('当前阶段'),
+                'title': _('验收入库'),
+                'desc': _('所有货物已发出,等待签收'),
+                'hint': _('在下方发货记录逐单签收,全部签收后自动入库'),
                 'btn_label': '',
                 'btn_onclick': '',
             }
 
     action_map = {
         'not_started': {
-            'icon': 'check', 'title': '供应商确认',
-            'desc': '等待供应商盖章确认订单',
-            'hint': '确认完成后将进入备料环节',
-            'btn_label': '上传供应商确认单',
+            'icon': 'check', 'title': _('供应商确认'),
+            'desc': _('等待供应商盖章确认订单'),
+            'hint': _('确认完成后将进入备料环节'),
+            'btn_label': _('上传供应商确认单'),
             'btn_onclick': 'atOpenStageModal(\'supplier-confirm\')',
         },
         'preparing': {
-            'icon': 'box', 'title': '备料',
-            'desc': '采购部正在准备物料',
-            'hint': '物料备齐后点击完成,进入生产环节',
-            'btn_label': '备料完成',
-            'btn_onclick': "atAdvanceStage('producing', '备料完成')",
+            'icon': 'box', 'title': _('备料'),
+            'desc': _('采购部正在准备物料'),
+            'hint': _('物料备齐后点击完成,进入生产环节'),
+            'btn_label': _('备料完成'),
+            'btn_onclick': "atAdvanceStage('producing', '%s')" % _('备料完成'),
         },
         'producing': {
-            'icon': 'factory', 'title': '生产',
-            'desc': '供应商正在生产订单中的物料',
-            'hint': '生产完毕后点击完成,进入测试环节',
-            'btn_label': '生产完成',
-            'btn_onclick': "atAdvanceStage('testing', '生产完成')",
+            'icon': 'factory', 'title': _('生产'),
+            'desc': _('供应商正在生产订单中的物料'),
+            'hint': _('生产完毕后点击完成,进入测试环节'),
+            'btn_label': _('生产完成'),
+            'btn_onclick': "atAdvanceStage('testing', '%s')" % _('生产完成'),
         },
         'testing': {
-            'icon': 'flask', 'title': '出厂测试',
-            'desc': '需要上传 QA 测试报告',
-            'hint': '通过后即可发货',
-            'btn_label': '上传测试报告',
+            'icon': 'flask', 'title': _('出厂测试'),
+            'desc': _('需要上传 QA 测试报告'),
+            'hint': _('通过后即可发货'),
+            'btn_label': _('上传测试报告'),
             'btn_onclick': 'atOpenStageModal(\'upload-test\')',
         },
         'ready': {
-            'icon': 'truck', 'title': '待发货',
-            'desc': '可向客户订单或公司仓库发货',
-            'hint': '可分多次发货',
-            'btn_label': '创建发货单',
+            'icon': 'truck', 'title': _('待发货'),
+            'desc': _('可向客户订单或公司仓库发货'),
+            'hint': _('可分多次发货'),
+            'btn_label': _('创建发货单'),
             'btn_onclick': 'atOpenStageModal(\'create-shipment\')',
         },
     }
@@ -505,7 +506,7 @@ def build_current_action(order, approval_data, current_user_id=None):
     return {
         'phase': 'execution',
         'icon': a['icon'],
-        'title_label': '当前阶段',
+        'title_label': _('当前阶段'),
         'title': a['title'],
         'desc': a.get('desc'),
         'hint': a.get('hint'),

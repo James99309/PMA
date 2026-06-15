@@ -43,7 +43,7 @@
           {{ at_icon('file', 16) }}
         </span>
         <h3 class="at-serif" id="{{ modal_id }}Title"
-            style="margin:0;font-size:18px;font-weight:500;letter-spacing:0.01em;flex:1;">附件预览</h3>
+            style="margin:0;font-size:18px;font-weight:500;letter-spacing:0.01em;flex:1;">{{ _('附件预览') }}</h3>
         <button onclick="ATFilePreview.close()"
                 style="color:var(--ink-3);padding:4px;border-radius:6px;">
           {{ at_icon('close', 18) }}
@@ -56,7 +56,7 @@
                 style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;
                        background:transparent;color:var(--ink);border:1px solid var(--line-2);
                        border-radius:6px;font-size:13px;font-weight:500;letter-spacing:0.01em;">
-          关闭
+          {{ _('关闭') }}
         </button>
       </footer>
     </div>

@@ -296,6 +296,7 @@ class ShipmentService:
                 # 代理商签收后，自动增加代理商仓库库存
                 if sales_order.customer_id:
                     from app.utils.inventory_helpers import update_inventory
+                    from flask_babel import gettext as _gt
                     for detail in shipment.details:
                         if detail.received_quantity and detail.received_quantity > 0:
                             update_inventory(
@@ -305,7 +306,7 @@ class ShipmentService:
                                 transaction_type='in',
                                 reference_type='shipment',
                                 reference_id=shipment.id,
-                                description=f'发货单 {shipment.shipment_number} 签收入库',
+                                description=_gt('发货单 %(no)s 签收入库') % {'no': shipment.shipment_number},
                                 user_id=current_user_id
                             )
 

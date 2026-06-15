@@ -871,10 +871,10 @@ def at_view_quotation(id):
     change_history = []
     for h in _logs:
         label = _CH_FIELD_LABEL.get(h.field_name, h.field_name) if h.field_name else _CH_OP_LABEL.get(h.operation_type, h.operation_type)
-        display_name = _user_real.get(h.user_id) or h.user_name or '系统'
+        display_name = _user_real.get(h.user_id) or h.user_name or _('系统')
         change_history.append({
             'op':     h.operation_type,
-            'title':  label or '变更',
+            'title':  _(label) if label else _('变更'),
             'time':   format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
             'user':   display_name,
             'old':    h.old_value,
