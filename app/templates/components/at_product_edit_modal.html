@@ -23,53 +23,53 @@ transition:border-color 120ms;{% endset %}
           onclick="document.getElementById('atProductEditModal').style.display='none'"
           style="padding:8px 16px;border-radius:8px;background:transparent;
                  border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;">
-    取消
+    {{ _('取消') }}
   </button>
   <button type="button" id="atProdEditSubmit"
           onclick="atProdEditSubmit()"
           style="padding:8px 20px;border-radius:8px;background:var(--accent);
                  color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;
                  display:inline-flex;align-items:center;gap:6px;">
-    {{ at_icon('check', 14) }} 保存
+    {{ at_icon('check', 14) }} {{ _('保存') }}
   </button>
 {% endset %}
 
-{% call at_modal_shell('atProductEditModal', '编辑产品', icon='edit', width=660, footer_html=_footer) %}
+{% call at_modal_shell('atProductEditModal', _('编辑产品'), icon='edit', width=660, footer_html=_footer) %}
   <form id="atProdEditForm">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;">
 
       {# 型号 #}
-      {% call at_field('型号', required=true) %}
+      {% call at_field(_('型号'), required=true) %}
         <input name="model" id="atPeModel" value="{{ product.model or '' }}"
                style="{{ _inp }}" required>
       {% endcall %}
 
       {# 产品名称 #}
-      {% call at_field('产品名称') %}
+      {% call at_field(_('产品名称')) %}
         <input name="name" id="atPeName" value="{{ product.product_name or '' }}"
                style="{{ _inp }}">
       {% endcall %}
 
       {# 品牌 #}
-      {% call at_field('品牌') %}
+      {% call at_field(_('品牌')) %}
         <input name="brand" id="atPeBrand" value="{{ product.brand or '' }}"
                style="{{ _inp }}">
       {% endcall %}
 
       {# 单位 #}
-      {% call at_field('单位') %}
+      {% call at_field(_('单位')) %}
         <input name="unit" id="atPeUnit" value="{{ product.unit or '' }}"
-               style="{{ _inp }}" placeholder="台 / 套 / 个">
+               style="{{ _inp }}" placeholder="{{ _('台 / 套 / 个') }}">
       {% endcall %}
 
       {# 产品类型 #}
-      {% call at_field('产品类型') %}
+      {% call at_field(_('产品类型')) %}
         <select name="type" id="atPeType" style="{{ _sel }}">
-          <option value="">— 不指定 —</option>
+          <option value="">{{ _('— 不指定 —') }}</option>
           {% for val, label in [
-            ('third party', '第三方产品'),
-            ('channel',     '渠道产品'),
-            ('project',     '项目产品'),
+            ('third party', _('第三方产品')),
+            ('channel',     _('渠道产品')),
+            ('project',     _('项目产品')),
           ] %}
           <option value="{{ val }}" {{ 'selected' if product.type == val else '' }}>{{ label }}</option>
           {% endfor %}
@@ -78,9 +78,9 @@ transition:border-color 120ms;{% endset %}
 
       {# 状态（仅管理员） #}
       {% if is_admin %}
-      {% call at_field('状态') %}
+      {% call at_field(_('状态')) %}
         <select name="status" id="atPeStatus" style="{{ _sel }}">
-          {% for val, label in [('active','生产中'),('upcoming','待上市'),('discontinued','已停产')] %}
+          {% for val, label in [('active', _('生产中')),('upcoming', _('待上市')),('discontinued', _('已停产'))] %}
           <option value="{{ val }}" {{ 'selected' if product.status == val else '' }}>{{ label }}</option>
           {% endfor %}
         </select>
@@ -90,19 +90,19 @@ transition:border-color 120ms;{% endset %}
       {% endif %}
 
       {# 零售价 #}
-      {% call at_field('零售价') %}
+      {% call at_field(_('零售价')) %}
         <input name="retail_price" id="atPePrice" type="number" step="0.01" min="0"
                value="{{ product.retail_price or '' }}"
                style="{{ _inp }}" placeholder="0.00">
       {% endcall %}
 
       {# 货币 #}
-      {% call at_field('货币') %}
+      {% call at_field(_('货币')) %}
         <select name="currency" id="atPeCurrency" style="{{ _sel }}">
           {% for code, cname in [
-            ('CNY','CNY 人民币'), ('USD','USD 美元'), ('SGD','SGD 新加坡元'),
-            ('MYR','MYR 马来西亚林吉特'), ('HKD','HKD 港币'),
-            ('IDR','IDR 印尼盾'), ('THB','THB 泰铢'),
+            ('CNY', 'CNY ' + _('人民币')), ('USD', 'USD ' + _('美元')), ('SGD', 'SGD ' + _('新加坡元')),
+            ('MYR', 'MYR ' + _('马来西亚林吉特')), ('HKD', 'HKD ' + _('港币')),
+            ('IDR', 'IDR ' + _('印尼盾')), ('THB', 'THB ' + _('泰铢')),
           ] %}
           <option value="{{ code }}" {{ 'selected' if (product.currency or 'CNY') == code else '' }}>{{ cname }}</option>
           {% endfor %}
@@ -118,7 +118,7 @@ transition:border-color 120ms;{% endset %}
         <input type="checkbox" id="atPeVendor" name="is_vendor_product"
                style="width:15px;height:15px;cursor:pointer;"
                {{ 'checked' if product.is_vendor_product else '' }}>
-        厂商产品
+        {{ _('厂商产品') }}
       </label>
     </div>
 
@@ -148,7 +148,7 @@ transition:border-color 120ms;{% endset %}
     fd.set('is_vendor_product', document.getElementById('atPeVendor').checked ? 'on' : '');
 
     btn.disabled = true;
-    btn.innerHTML = '保存中…';
+    btn.innerHTML = '{{ _("保存中…") }}';
 
     fetch(SUBMIT_URL, {
       method: 'POST',
@@ -158,19 +158,19 @@ transition:border-color 120ms;{% endset %}
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (d.success) {
-        if (window.atToast) atToast('产品信息已更新', 'success');
+        if (window.atToast) atToast('{{ _("产品信息已更新") }}', 'success');
         document.getElementById('atProductEditModal').style.display = 'none';
         // 刷新页面（型号/名称可能已改变，需全量刷新）
         setTimeout(function () { location.reload(); }, 400);
       } else {
-        if (window.atToast) atToast(d.message || '保存失败', 'error');
-        else alert(d.message || '保存失败');
+        if (window.atToast) atToast(d.message || '{{ _("保存失败") }}', 'error');
+        else alert(d.message || '{{ _("保存失败") }}');
         btn.disabled = false;
-        btn.innerHTML = '{{ at_icon("check", 14)|e }} 保存';
+        btn.innerHTML = '{{ at_icon("check", 14)|e }} {{ _("保存") }}';
       }
     })
     .catch(function () {
-      if (window.atToast) atToast('网络错误，请重试', 'error');
+      if (window.atToast) atToast('{{ _("网络错误，请重试") }}', 'error');
       btn.disabled = false;
     });
   };

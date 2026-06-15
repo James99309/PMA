@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 16:13+0800\n"
+"POT-Creation-Date: 2026-06-15 17:05+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -2102,7 +2102,9 @@ msgstr "cannot be empty (manual input field)"
 
 #: app/helpers/js_i18n_strings.py:16
 msgid "个规格未选择，系统将使用推荐的默认选项。"
-msgstr " spec(s) not selected; the system will use the recommended default options."
+msgstr ""
+" spec(s) not selected; the system will use the recommended default "
+"options."
 
 #: app/helpers/js_i18n_strings.py:17
 msgid "中的一个配置选项"
@@ -2120,6 +2122,7 @@ msgstr "Temporary products have no market price and discount"
 #: app/templates/components/at_item_table.html:64
 #: app/templates/components/at_item_table.html:77
 #: app/templates/components/at_minitables.html:193
+#: app/templates/components/at_product_edit_modal.html:48
 #: app/templates/components/product/tw_product_modal.html:116
 #: app/templates/components/tw_pricing_order_modal.html:378
 #: app/templates/components/tw_pricing_order_modal.html:426
@@ -2179,6 +2182,9 @@ msgstr "Specifications"
 
 #: app/helpers/js_i18n_strings.py:24 app/static/js/product-detail-manager.js:64
 #: app/templates/components/at_item_table.html:120
+#: app/templates/components/at_product_edit_modal.html:103
+#: app/templates/components/at_product_sidebar.html:74
+#: app/templates/components/at_product_sidebar.html:130
 #: app/templates/components/at_sales_order.html:19
 #: app/templates/product/tw_product_detail.html:1500
 #: app/templates/user/edit.html:180 app/templates/user/tw_detail.html:251
@@ -2211,6 +2217,9 @@ msgstr "Delete row"
 
 #: app/helpers/js_i18n_strings.py:30
 #: app/templates/components/at_product_picker.html:52
+#: app/templates/components/at_product_relation_modal.html:158
+#: app/templates/components/at_product_sidebar.html:90
+#: app/templates/components/at_product_specs_relations.html:292
 #: app/templates/components/at_purchase_order.html:903
 #: app/templates/product/at_list.html:177
 msgid "加载中…"
@@ -2219,6 +2228,7 @@ msgstr "Loading…"
 #: app/helpers/js_i18n_strings.py:31
 #: app/templates/announcement/tw_list.html:455
 #: app/templates/backup/tw_index.html:87
+#: app/templates/components/at_product_sidebar.html:167
 #: app/templates/components/product/tw_product_modal.html:329
 #: app/templates/components/product/tw_spec_import_modal.html:194
 #: app/templates/components/product/tw_spec_import_modal.html:199
@@ -2299,6 +2309,7 @@ msgstr "Unit Price"
 #: app/static/js/product-detail-manager.js:123
 #: app/templates/components/at_item_table.html:69
 #: app/templates/components/at_minitables.html:198
+#: app/templates/components/at_product_edit_modal.html:60
 #: app/templates/components/product/tw_product_modal.html:162
 #: app/templates/components/product/tw_spec_options_modal.html:105
 #: app/templates/components/tw_editable_table.html:564
@@ -2323,6 +2334,9 @@ msgid "单位"
 msgstr "Unit"
 
 #: app/helpers/js_i18n_strings.py:37 app/static/js/product-detail-manager.js:67
+#: app/templates/components/at_product_edit_modal.html:105
+#: app/templates/components/at_product_sidebar.html:74
+#: app/templates/components/at_product_sidebar.html:132
 #: app/templates/product/tw_product_detail.html:1505
 #: app/templates/user/edit.html:184 app/templates/user/tw_detail.html:251
 msgid "印尼盾"
@@ -2337,6 +2351,10 @@ msgstr "Indonesian Rupiah"
 #: app/templates/backup/tw_index.html:328
 #: app/templates/components/at_customer_modal.html:44
 #: app/templates/components/at_minitables.html:310
+#: app/templates/components/at_product_edit_modal.html:26
+#: app/templates/components/at_product_relation_modal.html:14
+#: app/templates/components/at_product_sidebar.html:205
+#: app/templates/components/at_product_specs_relations.html:212
 #: app/templates/components/at_project_modal.html:38
 #: app/templates/components/at_purchase_order.html:538
 #: app/templates/components/at_purchase_order.html:572
@@ -2566,6 +2584,8 @@ msgstr "Sync main product qty"
 #: app/helpers/js_i18n_strings.py:42 app/routes/product.py:540
 #: app/routes/product.py:609 app/static/js/product-detail-manager.js:122
 #: app/templates/components/at_minitables.html:196
+#: app/templates/components/at_product_edit_modal.html:54
+#: app/templates/components/at_product_media.html:73
 #: app/templates/components/product/tw_product_modal.html:178
 #: app/templates/components/tw_editable_table.html:563
 #: app/templates/components/tw_pricing_order_modal.html:381
@@ -2664,6 +2684,7 @@ msgstr "To be determined"
 
 #: app/helpers/js_i18n_strings.py:54 app/static/js/product-config-modal.js:1110
 #: app/static/js/product-config-modal.js:1653
+#: app/templates/components/at_product_specs_relations.html:368
 #: app/templates/components/product/tw_spec_import_modal.html:62
 #: app/templates/components/tw_product_spec_modal.html:1999
 #: app/templates/components/tw_product_spec_modal.html:2000
@@ -2775,6 +2796,7 @@ msgstr "Actions"
 #: app/static/js/product-detail-manager.js:124
 #: app/templates/components/at_item_table.html:68
 #: app/templates/components/at_minitables.html:197
+#: app/templates/components/at_product_relation_modal.html:70
 #: app/templates/components/at_purchase_order.html:163
 #: app/templates/components/at_purchase_order.html:261
 #: app/templates/components/at_purchase_order.html:358
@@ -2802,6 +2824,9 @@ msgid "数量"
 msgstr "Qty"
 
 #: app/helpers/js_i18n_strings.py:67 app/static/js/product-detail-manager.js:65
+#: app/templates/components/at_product_edit_modal.html:103
+#: app/templates/components/at_product_sidebar.html:74
+#: app/templates/components/at_product_sidebar.html:131
 #: app/templates/product/tw_product_detail.html:1502
 #: app/templates/user/edit.html:183 app/templates/user/tw_detail.html:251
 msgid "新加坡元"
@@ -2870,6 +2895,7 @@ msgid "替换为"
 msgstr "Replace with"
 
 #: app/helpers/js_i18n_strings.py:75
+#: app/templates/components/at_product_relation_modal.html:241
 msgid "未找到匹配产品"
 msgstr "No matching product found"
 
@@ -2879,7 +2905,9 @@ msgstr "No matching product found; please check the spec selection"
 
 #: app/helpers/js_i18n_strings.py:77 app/static/js/product-config-modal.js:966
 msgid "未找到匹配的产品，请检查规格选择或稍后重试"
-msgstr "No matching product found; please check the spec selection or try again later"
+msgstr ""
+"No matching product found; please check the spec selection or try again "
+"later"
 
 #: app/helpers/js_i18n_strings.py:78 app/static/js/product-config-modal.js:825
 #: app/static/js/product-config-modal.js:918
@@ -2908,6 +2936,9 @@ msgid "正在计算新MN..."
 msgstr "Calculating new MN..."
 
 #: app/helpers/js_i18n_strings.py:82 app/static/js/product-detail-manager.js:68
+#: app/templates/components/at_product_edit_modal.html:105
+#: app/templates/components/at_product_sidebar.html:74
+#: app/templates/components/at_product_sidebar.html:132
 #: app/templates/product/tw_product_detail.html:1506
 #: app/templates/user/edit.html:185 app/templates/user/tw_detail.html:251
 msgid "泰铢"
@@ -2940,6 +2971,9 @@ msgid "确认产品配置"
 msgstr "Confirm Product Config"
 
 #: app/helpers/js_i18n_strings.py:88 app/static/js/product-config-modal.js:1265
+#: app/templates/components/at_product_relation_modal.html:20
+#: app/templates/components/at_product_relation_modal.html:370
+#: app/templates/components/at_product_relation_modal.html:375
 msgid "确认添加"
 msgstr "Confirm Add"
 
@@ -2970,6 +3004,9 @@ msgstr "Page "
 
 #: app/helpers/js_i18n_strings.py:93 app/static/js/product-detail-manager.js:63
 #: app/templates/components/at_item_table.html:121
+#: app/templates/components/at_product_edit_modal.html:103
+#: app/templates/components/at_product_sidebar.html:74
+#: app/templates/components/at_product_sidebar.html:130
 #: app/templates/components/at_sales_order.html:19
 #: app/templates/product/tw_product_detail.html:1501
 #: app/templates/user/edit.html:181 app/templates/user/tw_detail.html:251
@@ -3097,6 +3134,9 @@ msgstr "Some required groups not selected"
 
 #: app/helpers/js_i18n_strings.py:112
 #: app/static/js/product-detail-manager.js:66
+#: app/templates/components/at_product_edit_modal.html:104
+#: app/templates/components/at_product_sidebar.html:74
+#: app/templates/components/at_product_sidebar.html:131
 #: app/templates/product/tw_product_detail.html:1503
 #: app/templates/user/edit.html:182 app/templates/user/tw_detail.html:251
 msgid "马来西亚林吉特"
@@ -3243,6 +3283,7 @@ msgstr "All Representatives"
 #: app/templates/components/at_minitables.html:103
 #: app/templates/components/at_minitables.html:123
 #: app/templates/components/at_minitables.html:143
+#: app/templates/components/at_product_edit_modal.html:81
 #: app/templates/components/at_purchase_order.html:261
 #: app/templates/components/tw_detail_layout.html:173
 #: app/templates/components/tw_detail_layout.html:220
@@ -3358,6 +3399,7 @@ msgid "创建时间"
 msgstr "Created"
 
 #: app/routes/product.py:494 app/routes/product.py:579
+#: app/templates/components/at_product_edit_modal.html:83
 #: app/templates/inventory/at_purchase_order_list.html:34
 #: app/templates/product/at_view.html:103 app/templates/product/create.html:192
 #: app/utils/status_meta.py:38 app/views/config_management.py:2099
@@ -3365,6 +3407,7 @@ msgid "生产中"
 msgstr "Producing"
 
 #: app/routes/product.py:495 app/routes/product.py:587
+#: app/templates/components/at_product_edit_modal.html:83
 #: app/templates/product/at_list.html:32 app/templates/product/at_list.html:375
 #: app/templates/product/at_view.html:104 app/templates/product/create.html:193
 #: app/templates/product/tw_list.html:151
@@ -3374,6 +3417,7 @@ msgid "已停产"
 msgstr "Discontinued"
 
 #: app/routes/product.py:496 app/routes/product.py:595
+#: app/templates/components/at_product_edit_modal.html:83
 #: app/templates/product/at_view.html:105 app/templates/product/create.html:194
 msgid "待上市"
 msgstr "Upcoming"
@@ -3382,7 +3426,9 @@ msgstr "Upcoming"
 msgid "产品名称、MN号或型号"
 msgstr "Product name, MN number or model"
 
-#: app/routes/product.py:526 app/templates/product/create.html:181
+#: app/routes/product.py:526
+#: app/templates/components/at_product_edit_modal.html:66
+#: app/templates/product/create.html:181
 msgid "产品类型"
 msgstr "Type"
 
@@ -3431,6 +3477,8 @@ msgstr "items"
 
 #: app/routes/product.py:607 app/templates/components/at_item_table.html:65
 #: app/templates/components/at_minitables.html:194
+#: app/templates/components/at_product_edit_modal.html:42
+#: app/templates/components/at_product_media.html:77
 #: app/templates/components/at_purchase_order.html:161
 #: app/templates/components/at_purchase_order.html:358
 #: app/templates/components/product/tw_config_selector_modal.html:203
@@ -4161,6 +4209,7 @@ msgid "产品库"
 msgstr "Products"
 
 #: app/templates/base.html:369 app/templates/base.html:387
+#: app/templates/components/at_product_media.html:67
 #: app/templates/components/at_sidebar.html:234
 #: app/templates/components/tw_nav_menu.html:173
 #: app/templates/product/tw_product_detail.html:220
@@ -4528,6 +4577,11 @@ msgstr "Reply"
 #: app/templates/backup/tw_index.html:229
 #: app/templates/backup/tw_index.html:300
 #: app/templates/components/at_minitables.html:411
+#: app/templates/components/at_product_sidebar.html:150
+#: app/templates/components/at_product_sidebar.html:235
+#: app/templates/components/at_product_specs_relations.html:159
+#: app/templates/components/at_product_specs_relations.html:402
+#: app/templates/components/at_product_specs_relations.html:423
 #: app/templates/components/product/tw_spec_list.html:59
 #: app/templates/components/product/tw_spec_list.html:125
 #: app/templates/components/product/tw_spec_options_modal.html:172
@@ -4689,6 +4743,10 @@ msgstr "Submission failed"
 
 #: app/templates/announcement/tw_list.html:599
 #: app/templates/backup/tw_index.html:457
+#: app/templates/components/at_product_sidebar.html:242
+#: app/templates/components/at_product_sidebar.html:243
+#: app/templates/components/at_product_specs_relations.html:411
+#: app/templates/components/at_product_specs_relations.html:433
 #: app/templates/components/product/tw_spec_options_modal.html:1061
 #: app/templates/components/tw_pricing_order_modal.html:2434
 #: app/templates/components/tw_pricing_order_modal.html:2438
@@ -5204,6 +5262,7 @@ msgid "查看"
 msgstr "View"
 
 #: app/templates/announcement/tw_list.html:191
+#: app/templates/components/at_product_sidebar.html:149
 #: app/templates/components/product/tw_spec_list.html:56
 #: app/templates/components/product/tw_spec_list.html:122
 #: app/templates/components/product/tw_spec_options_modal.html:910
@@ -5257,6 +5316,9 @@ msgstr "No announcements"
 
 #: app/templates/announcement/tw_list.html:224
 #: app/templates/approval_config/template_form.html:231
+#: app/templates/components/at_product_edit_modal.html:33
+#: app/templates/components/at_product_edit_modal.html:169
+#: app/templates/components/at_product_sidebar.html:204
 #: app/templates/components/product/tw_product_modal.html:325
 #: app/templates/components/product/tw_spec_options_modal.html:158
 #: app/templates/components/product/tw_spec_options_modal.html:611
@@ -5413,6 +5475,10 @@ msgid "请选择发布对象"
 msgstr "Please select target users"
 
 #: app/templates/announcement/tw_list.html:525
+#: app/templates/components/at_product_edit_modal.html:166
+#: app/templates/components/at_product_edit_modal.html:167
+#: app/templates/components/at_product_sidebar.html:181
+#: app/templates/components/at_product_sidebar.html:183
 #: app/templates/components/product/tw_product_modal.html:328
 #: app/templates/components/product/tw_product_relation_modal.html:276
 #: app/templates/components/tw_action_modal.html:423
@@ -6239,6 +6305,7 @@ msgid "年龄"
 msgstr "Age"
 
 #: app/templates/backup/tw_index.html:224
+#: app/templates/components/at_product_media.html:149
 #: app/templates/components/tw_file_preview.html:74
 #: app/templates/components/tw_file_preview_modal.html:54
 #: app/templates/components/tw_file_upload.html:152
@@ -6300,6 +6367,7 @@ msgstr "Backup failed"
 #: app/templates/backup/tw_index.html:403
 #: app/templates/backup/tw_index.html:460
 #: app/templates/backup/tw_index.html:481 app/templates/cli/terminal.html:144
+#: app/templates/components/at_product_relation_modal.html:374
 #: app/templates/components/tw_approval_flow.html:224
 #: app/templates/components/tw_task_modal.html:597
 #: app/templates/components/tw_task_modal.html:787
@@ -6539,6 +6607,9 @@ msgid "输入问题，按 Enter 发送..."
 msgstr "Enter question, press Enter to send..."
 
 #: app/templates/components/at_base.html:192
+#: app/templates/components/at_product_media.html:155
+#: app/templates/components/at_product_media.html:326
+#: app/templates/components/at_product_media.html:329
 #: app/templates/components/tw_header.html:50
 #: app/templates/components/tw_layout.html:196
 #: app/templates/components/tw_signature_pad.html:79
@@ -6870,6 +6941,7 @@ msgid "从客户需求导入"
 msgstr "Import from customer requirements"
 
 #: app/templates/components/at_item_table.html:113
+#: app/templates/components/at_product_edit_modal.html:100
 #: app/templates/components/at_sales_order.html:67
 #: app/templates/components/product/tw_product_modal.html:151
 #: app/templates/components/tw_purchase_order_form.html:204
@@ -6890,6 +6962,9 @@ msgid "欧元"
 msgstr "EUR"
 
 #: app/templates/components/at_item_table.html:123
+#: app/templates/components/at_product_edit_modal.html:104
+#: app/templates/components/at_product_sidebar.html:74
+#: app/templates/components/at_product_sidebar.html:132
 #: app/templates/product/tw_product_detail.html:1504
 #: app/templates/user/tw_detail.html:251
 msgid "港币"
@@ -7036,6 +7111,8 @@ msgid "总价"
 msgstr "Total"
 
 #: app/templates/components/at_minitables.html:203
+#: app/templates/components/at_product_media.html:82
+#: app/templates/components/at_product_specs_relations.html:192
 #: app/templates/components/product/tw_spec_modals.html:17
 #: app/templates/components/tw_pricing_order_modal.html:387
 #: app/templates/components/tw_pricing_order_modal.html:435
@@ -7148,6 +7225,7 @@ msgid "查看发票"
 msgstr "View Invoice"
 
 #: app/templates/components/at_minitables.html:584
+#: app/templates/components/at_product_media.html:35
 #: app/templates/inventory/at_purchase_order_list.html:69
 #: app/templates/inventory/at_purchase_order_list.html:129
 #: app/utils/status_meta.py:123
@@ -7165,6 +7243,192 @@ msgstr "No expense items"
 #: app/templates/expense/at_view.html:530
 msgid "报销合计"
 msgstr "Total"
+
+#: app/templates/components/at_product_edit_modal.html:37
+#: app/templates/components/product/tw_product_modal.html:323
+#: app/templates/macros/ui_helpers.html:384 app/templates/product/create.html:5
+#: app/templates/product/create.html:122
+msgid "编辑产品"
+msgstr "Edit"
+
+#: app/templates/components/at_product_edit_modal.html:62
+msgid "台 / 套 / 个"
+msgstr "unit / set / piece"
+
+#: app/templates/components/at_product_edit_modal.html:68
+msgid "— 不指定 —"
+msgstr "— Not specified —"
+
+#: app/templates/components/at_product_edit_modal.html:70
+#: app/templates/product/create.html:184
+msgid "第三方产品"
+msgstr "Third Party Product"
+
+#: app/templates/components/at_product_edit_modal.html:71
+#: app/templates/product/create.html:185
+msgid "渠道产品"
+msgstr "Channel Product"
+
+#: app/templates/components/at_product_edit_modal.html:72
+#: app/templates/product/create.html:186
+msgid "项目产品"
+msgstr "Project Product"
+
+#: app/templates/components/at_product_edit_modal.html:93
+#: app/templates/components/at_product_media.html:94
+#: app/templates/components/product/tw_product_modal.html:141
+#: app/templates/product_analysis/tw_analysis.html:236
+msgid "零售价"
+msgstr "Retail price"
+
+#: app/templates/components/at_product_edit_modal.html:121
+#: app/templates/components/product/tw_product_modal.html:194
+#: app/templates/product/create.html:359
+msgid "厂商产品"
+msgstr "Vendor products"
+
+#: app/templates/components/at_product_edit_modal.html:151
+#: app/templates/components/at_product_relation_modal.html:356
+#: app/templates/quotation/at_view.html:1328
+msgid "保存中…"
+msgstr "Saving…"
+
+#: app/templates/components/at_product_edit_modal.html:161
+msgid "产品信息已更新"
+msgstr "Product updated"
+
+#: app/templates/components/at_product_edit_modal.html:173
+#: app/templates/components/product/tw_spec_options_modal.html:557
+#: app/templates/components/product/tw_spec_options_modal.html:761
+#: app/templates/components/product/tw_spec_options_modal.html:962
+#: app/templates/components/product/tw_spec_options_modal.html:1016
+#: app/templates/components/product/tw_spec_options_modal.html:1065
+#: app/templates/components/tw_access_request_modal.html:339
+#: app/templates/components/tw_access_request_modal.html:408
+#: app/templates/components/tw_action_modal.html:427
+#: app/templates/components/tw_diagram_share_modal.html:163
+#: app/templates/components/tw_purchase_order_form.html:484
+#: app/templates/customer/merge_tool_optimized.html:622
+#: app/templates/customer/merge_tool_optimized.html:1168
+#: app/templates/inventory/partials/_acceptance_form.html:401
+#: app/templates/inventory/partials/_shipment_form.html:220
+#: app/templates/inventory/partials/_test_form.html:431
+#: app/templates/inventory/partials/_test_form.html:481
+#: app/templates/product/at_list.html:707
+#: app/templates/product/upload_files.html:360
+msgid "网络错误，请重试"
+msgstr "Network error, please retry"
+
+#: app/templates/components/at_product_media.html:40
+#: app/templates/points/tw_points.html:225
+#: app/templates/task/tw_task_management.html:646
+msgid "上传"
+msgstr "Upload"
+
+#: app/templates/components/at_product_media.html:49
+#: app/templates/product/tw_product_detail.html:178
+msgid "清除图片"
+msgstr "Clear Image"
+
+#: app/templates/components/at_product_media.html:60
+#: app/templates/product/tw_product_detail.html:214
+#: app/templates/spec_definition/tw_list.html:704
+#: app/templates/spec_template/tw_configurations.html:1055
+msgid "规格说明"
+msgstr "Specifications"
+
+#: app/templates/components/at_product_media.html:83
+msgid "MN 已锁定"
+msgstr "MN locked"
+
+#: app/templates/components/at_product_media.html:90
+#: app/templates/product/tw_product_detail.html:257
+#: app/templates/spec_template/tw_edit.html:228
+msgid "计量单位"
+msgstr "Unit of Measurement"
+
+#: app/templates/components/at_product_media.html:116
+msgid "SVG 图标"
+msgstr "SVG icon"
+
+#: app/templates/components/at_product_media.html:117
+msgid "用于设计图、报价单图示"
+msgstr "Used in design drawings and quotation diagrams"
+
+#: app/templates/components/at_product_media.html:129
+msgid "数据手册 (PDF)"
+msgstr "Datasheet (PDF)"
+
+#: app/templates/components/at_product_media.html:130
+msgid "技术规格 / 接口定义文档"
+msgstr "Technical specs / interface definition document"
+
+#: app/templates/components/at_product_media.html:143
+msgid "上传 PDF"
+msgstr "Upload PDF"
+
+#: app/templates/components/at_product_media.html:143
+msgid "暂无文件"
+msgstr "No files"
+
+#: app/templates/components/at_product_media.html:152
+#: app/templates/knowledge/tw_wiki.html:386
+#: app/templates/prospect/tw_list.html:1277
+msgid "替换"
+msgstr "Replace"
+
+#: app/templates/components/at_product_media.html:320
+#: app/templates/knowledge/tw_wiki.html:1432
+#: app/templates/knowledge/tw_wiki.html:1440
+#: app/templates/product/tw_product_detail.html:580
+#: app/templates/product/upload_files.html:131
+#: app/templates/project/at_view.html:536
+#: app/templates/spec_template/tw_edit.html:963
+#: app/templates/spec_template/tw_edit.html:967
+#: app/templates/spec_template/tw_spec_config_matrix.html:1252
+#: app/views/spec_template.py:3536 app/views/spec_template.py:3565
+#: app/views/spec_template.py:3758 app/views/spec_template.py:3787
+#: app/views/worklog.py:571 app/views/worklog.py:575 app/views/worklog.py:802
+#: app/views/worklog.py:806
+msgid "上传失败"
+msgstr "Upload failed"
+
+#: app/templates/components/at_product_media.html:324
+#: app/templates/components/tw_chat_panel.html:1347
+#: app/templates/files/tw_file_manager_admin.html:256
+#: app/templates/product/file_preview_demo.html:205
+#: app/templates/product/file_preview_demo.html:234
+#: app/templates/product/tw_product_detail.html:801
+msgid "图片"
+msgstr "Image"
+
+# =====================================
+# 配置管理模块 - 薪资配置模态框
+#: app/templates/components/at_product_media.html:327
+msgid "确定清除该"
+msgstr "Clear this"
+
+#: app/templates/components/at_product_media.html:327
+#: app/templates/spec_definition/tw_list.html:1074
+#: app/templates/spec_definition/tw_list.html:1449
+#: app/templates/spec_definition/tw_list.html:1557
+#: app/templates/spec_definition/tw_test_conditions.html:245
+#: app/templates/spec_definition/tw_test_methods.html:266
+#: app/templates/spec_template/tw_configurations.html:769
+#: app/templates/spec_template/tw_edit.html:1524
+#: app/templates/spec_template/tw_list.html:428
+#: app/templates/spec_template/tw_spec_config_matrix.html:2604
+#: app/templates/user/tw_department_management.html:432
+msgid "吗？"
+msgstr "?"
+
+#: app/templates/components/at_product_media.html:334
+#: app/templates/config_management/tw_index.html:5965
+#: app/templates/config_management/tw_index.html:7799
+#: app/templates/macros/approval_macros.html:1293
+#: app/templates/product/tw_product_detail.html:582
+msgid "清除失败"
+msgstr "Failed to clear"
 
 #: app/templates/components/at_product_picker.html:50
 msgid "类目"
@@ -7210,6 +7474,278 @@ msgstr "Product Family"
 #: app/templates/worklog/tw_calendar.html:1675
 msgid "关闭"
 msgstr "Close"
+
+#: app/templates/components/at_product_relation_modal.html:24
+#: app/templates/components/product/tw_product_relation_modal.html:36
+msgid "添加关联产品"
+msgstr "Add associated products"
+
+#: app/templates/components/at_product_relation_modal.html:30
+msgid "搜索型号或名称…"
+msgstr "Search model or name…"
+
+#: app/templates/components/at_product_relation_modal.html:45
+msgid "已选产品"
+msgstr "Selected products"
+
+#: app/templates/components/at_product_relation_modal.html:50
+#: app/templates/components/at_product_relation_modal.html:277
+msgid "从左侧选择产品"
+msgstr "Select a product on the left"
+
+#: app/templates/components/at_product_relation_modal.html:58
+#: app/templates/components/product/tw_product_relation_modal.html:107
+msgid "配置类型"
+msgstr "Configuration type"
+
+#: app/templates/components/at_product_relation_modal.html:63
+#: app/templates/components/product/tw_product_relation_modal.html:110
+#: app/templates/components/product/tw_product_relation_modal.html:270
+#: app/templates/product/tw_product_detail.html:585
+msgid "必选配件"
+msgstr "Required Accessory"
+
+#: app/templates/components/at_product_relation_modal.html:64
+#: app/templates/components/product/tw_product_relation_modal.html:111
+#: app/templates/components/product/tw_product_relation_modal.html:271
+#: app/templates/product/tw_product_detail.html:586
+msgid "推荐配件"
+msgstr "Recommended Accessory"
+
+#: app/templates/components/at_product_relation_modal.html:65
+#: app/templates/components/product/tw_product_relation_modal.html:272
+#: app/templates/product/tw_product_detail.html:587
+msgid "互斥组（必选）"
+msgstr "Exclusive Group (Required)"
+
+#: app/templates/components/at_product_relation_modal.html:66
+#: app/templates/components/product/tw_product_relation_modal.html:273
+#: app/templates/product/tw_product_detail.html:588
+msgid "互斥组（可选）"
+msgstr "Exclusive Group (Optional)"
+
+#: app/templates/components/at_product_relation_modal.html:82
+#: app/templates/components/product/tw_product_relation_modal.html:128
+msgid "互斥组名称"
+msgstr "Group name"
+
+#: app/templates/components/at_product_relation_modal.html:84
+#: app/templates/components/product/tw_product_relation_modal.html:133
+msgid "例如：电源线规格"
+msgstr "Example: Power cable specification"
+
+#: app/templates/components/at_product_relation_modal.html:90
+#: app/templates/components/product/tw_product_relation_modal.html:138
+msgid "默认选项"
+msgstr "Default option"
+
+#: app/templates/components/at_product_relation_modal.html:95
+#: app/templates/components/at_product_relation_modal.html:307
+#: app/templates/components/product/tw_product_relation_modal.html:141
+#: app/templates/components/product/tw_product_relation_modal.html:274
+msgid "无默认"
+msgstr "No default"
+
+#: app/templates/components/at_product_relation_modal.html:102
+msgid "互斥组内的产品只能选一个，适用于相同功能但规格不同的配件。"
+msgstr "Only one product can be selected within an exclusive group; use it for accessories with the same function but different specs."
+"Only one product can be selected within a mutually exclusive group, "
+"suited to accessories with the same function but different specs.Only one"
+" product can be selected from a mutual exclusion group, suitable for "
+"accessories with same function but different specs."
+
+#: app/templates/components/at_product_relation_modal.html:111
+msgid "从左侧产品树中选择产品"
+msgstr "Select a product from the tree on the left"
+
+#: app/templates/components/at_product_relation_modal.html:163
+#: app/templates/components/product/tw_spec_options_modal.html:380
+#: app/templates/config_management/tw_index.html:3453
+#: app/templates/config_management/tw_index.html:3517
+#: app/templates/config_management/tw_index.html:4982
+#: app/templates/config_management/tw_index.html:5639
+#: app/templates/prospect/tw_list.html:818
+#: app/templates/prospect/tw_list.html:891
+#: app/templates/prospect/tw_list.html:1470
+msgid "加载失败，请重试"
+msgstr "Load failed, please retry"
+
+#: app/templates/components/at_product_relation_modal.html:241
+#: app/templates/components/product/tw_product_relation_modal.html:80
+msgid "暂无可选产品"
+msgstr "No products available"
+
+#: app/templates/components/at_product_relation_modal.html:366
+msgid "关联已添加"
+msgstr "Relation added"
+
+#: app/templates/components/at_product_relation_modal.html:369
+#: app/templates/components/product/tw_spec_options_modal.html:553
+#: app/templates/components/product/tw_spec_options_modal.html:1012
+#: app/templates/knowledge/tw_wiki.html:1265
+#: app/templates/spec_definition/tw_list.html:1411
+#: app/templates/spec_definition/tw_list.html:1415
+#: app/templates/spec_template/tw_edit.html:1487
+#: app/templates/spec_template/tw_edit.html:1491
+#: app/templates/spec_template/tw_spec_config_matrix.html:2559
+#: app/templates/spec_template/tw_spec_config_matrix.html:2563
+msgid "添加失败"
+msgstr "Add failed"
+
+#: app/templates/components/at_product_sidebar.html:84
+msgid "主价格"
+msgstr "Main Price"
+
+#: app/templates/components/at_product_sidebar.html:95
+msgid "添加地区面价"
+msgstr "Add regional price"
+
+#: app/templates/components/at_product_sidebar.html:107
+#: app/templates/product/at_view.html:283
+#: app/templates/product/tw_product_detail.html:439
+#: app/templates/product/tw_product_detail.html:444
+msgid "产品二维码"
+msgstr "Product QR Code"
+
+#: app/templates/components/at_product_sidebar.html:108
+msgid "二维码生成失败"
+msgstr "Failed to generate QR code"
+
+#: app/templates/components/at_product_sidebar.html:113
+msgid "扫码查看产品详情"
+msgstr "Scan to view product details"
+
+#: app/templates/components/at_product_sidebar.html:142
+msgid "暂无，点击下方添加"
+msgstr "None, click below to add"
+
+#: app/templates/components/at_product_sidebar.html:142
+#: app/templates/product/tw_product_detail.html:1521
+msgid "暂无地区面价"
+msgstr "No regional prices"
+
+#: app/templates/components/at_product_sidebar.html:198
+#: app/templates/product/tw_product_detail.html:1592
+msgid "所有货币的面价都已配置"
+msgstr "Market prices for all currencies are configured"
+
+#: app/templates/components/at_product_sidebar.html:232
+msgid "删除地区面价"
+msgstr "Delete regional price"
+
+#: app/templates/components/at_product_sidebar.html:233
+#: app/templates/product/tw_product_detail.html:1635
+msgid "确认删除此地区面价？"
+msgstr "Confirm deletion of this regional price?"
+
+#: app/templates/components/at_product_specs_relations.html:170
+#: app/templates/components/product/tw_spec_list.html:74
+#: app/templates/components/product/tw_spec_list.html:138
+#: app/templates/product/tw_product_detail.html:1326
+msgid "暂无规格信息"
+msgstr "No specification info"
+
+#: app/templates/components/at_product_specs_relations.html:188
+#: app/templates/components/product/tw_spec_modals.html:12
+msgid "编码更新预览"
+msgstr "Code Update Preview"
+
+#: app/templates/components/at_product_specs_relations.html:195
+#: app/templates/components/product/tw_spec_modals.html:20
+msgid "更新前"
+msgstr "Before"
+
+#: app/templates/components/at_product_specs_relations.html:200
+#: app/templates/components/product/tw_spec_modals.html:25
+msgid "更新后"
+msgstr "After"
+
+#: app/templates/components/at_product_specs_relations.html:206
+#: app/templates/components/product/tw_spec_modals.html:35
+msgid "产品描述将根据规格重新生成。"
+msgstr "Product description will be regenerated based on specifications."
+
+#: app/templates/components/at_product_specs_relations.html:217
+#: app/templates/components/product/tw_spec_modals.html:42
+#: app/templates/components/tw_chat_panel.html:2209
+#: app/templates/components/tw_meeting_panel.html:467
+#: app/templates/config_management/tw_index.html:1731
+#: app/templates/customer/at_view.html:433
+#: app/templates/files/tw_file_manager.html:984
+#: app/templates/knowledge/tw_wiki.html:624
+#: app/templates/product/tw_product_detail.html:1278
+#: app/templates/project/at_view.html:934
+msgid "确定"
+msgstr "Confirm"
+
+#: app/templates/components/at_product_specs_relations.html:254
+msgid "规格已保存"
+msgstr "Spec saved"
+
+#: app/templates/components/at_product_specs_relations.html:295
+#: app/templates/product/tw_product_detail.html:324
+#: app/templates/product/tw_product_detail.html:583
+msgid "暂无关联产品配置"
+msgstr "No related product configuration"
+
+#: app/templates/components/at_product_specs_relations.html:337
+#: app/templates/product/tw_product_detail.html:311
+msgid "普通关联"
+msgstr "Normal Relation"
+
+#: app/templates/components/at_product_specs_relations.html:353
+msgid "互斥分组"
+msgstr "Exclusive Group"
+
+#: app/templates/components/at_product_specs_relations.html:366
+msgid "组"
+msgstr "group"
+
+#: app/templates/components/at_product_specs_relations.html:368
+#: app/templates/components/product/tw_spec_import_modal.html:90
+#: app/templates/components/tw_action_modal.html:120
+#: app/templates/components/tw_action_modal.html:135
+#: app/templates/components/tw_action_modal.html:160
+#: app/templates/components/tw_action_modal.html:190
+#: app/templates/components/tw_action_modal.html:206
+#: app/templates/components/tw_product_spec_modal.html:2002
+#: app/templates/inventory/partials/_acceptance_form.html:258
+#: app/templates/macros/ui_modals.html:247
+#: app/templates/product/upload_files.html:53
+#: app/templates/product/upload_files.html:84
+#: app/templates/product_code/tw_category_management.html:337
+msgid "可选"
+msgstr "Optional"
+
+#: app/templates/components/at_product_specs_relations.html:389
+msgid "加载失败，请刷新重试"
+msgstr "Loading failed, please refresh and try again"
+
+#: app/templates/components/at_product_specs_relations.html:399
+msgid "删除关联产品"
+msgstr "Delete related product"
+
+#: app/templates/components/at_product_specs_relations.html:400
+msgid "确认删除此关联产品？"
+msgstr "Delete this related product?"
+
+#: app/templates/components/at_product_specs_relations.html:410
+#: app/templates/components/at_product_specs_relations.html:432
+#: app/templates/expense/at_view.html:640
+#: app/templates/project/at_view.html:546
+#: app/templates/project/at_view.html:561
+#: app/templates/prospect/tw_list.html:1847
+#: app/templates/user/at_detail.html:213 app/views/meeting.py:2080
+msgid "已删除"
+msgstr "Deleted"
+
+#: app/templates/components/at_product_specs_relations.html:420
+msgid "删除互斥组"
+msgstr "Delete exclusive group"
+
+#: app/templates/components/at_product_specs_relations.html:421
+msgid "确认删除整个互斥组？组内所有关联产品将被移出。"
+msgstr "Delete the entire exclusive group? All related products in it will be removed."
 
 #: app/templates/components/at_project_modal.html:31
 #: app/templates/macros/ui_helpers.html:400 app/templates/project/edit.html:107
@@ -8391,27 +8927,6 @@ msgstr "After sharing, the requester can view the above data."
 msgid "请求失败"
 msgstr "Request failed"
 
-#: app/templates/components/product/tw_spec_options_modal.html:557
-#: app/templates/components/product/tw_spec_options_modal.html:761
-#: app/templates/components/product/tw_spec_options_modal.html:962
-#: app/templates/components/product/tw_spec_options_modal.html:1016
-#: app/templates/components/product/tw_spec_options_modal.html:1065
-#: app/templates/components/tw_access_request_modal.html:339
-#: app/templates/components/tw_access_request_modal.html:408
-#: app/templates/components/tw_action_modal.html:427
-#: app/templates/components/tw_diagram_share_modal.html:163
-#: app/templates/components/tw_purchase_order_form.html:484
-#: app/templates/customer/merge_tool_optimized.html:622
-#: app/templates/customer/merge_tool_optimized.html:1168
-#: app/templates/inventory/partials/_acceptance_form.html:401
-#: app/templates/inventory/partials/_shipment_form.html:220
-#: app/templates/inventory/partials/_test_form.html:431
-#: app/templates/inventory/partials/_test_form.html:481
-#: app/templates/product/at_list.html:707
-#: app/templates/product/upload_files.html:360
-msgid "网络错误，请重试"
-msgstr "Network error, please retry"
-
 #: app/templates/components/tw_action_list.html:137
 #: app/templates/components/tw_action_list.html:139
 #: app/templates/components/tw_action_list.html:326
@@ -8526,21 +9041,6 @@ msgstr "Add Action Record"
 #: app/templates/project/add_action.html:33
 msgid "相关企业"
 msgstr "Related Company"
-
-#: app/templates/components/product/tw_spec_import_modal.html:90
-#: app/templates/components/tw_action_modal.html:120
-#: app/templates/components/tw_action_modal.html:135
-#: app/templates/components/tw_action_modal.html:160
-#: app/templates/components/tw_action_modal.html:190
-#: app/templates/components/tw_action_modal.html:206
-#: app/templates/components/tw_product_spec_modal.html:2002
-#: app/templates/inventory/partials/_acceptance_form.html:258
-#: app/templates/macros/ui_modals.html:247
-#: app/templates/product/upload_files.html:53
-#: app/templates/product/upload_files.html:84
-#: app/templates/product_code/tw_category_management.html:337
-msgid "可选"
-msgstr "Optional"
 
 #: app/templates/components/tw_action_modal.html:124
 #: app/templates/components/user/tw_user_form_modal.html:123
@@ -8945,14 +9445,6 @@ msgstr "New Chat"
 msgid "向 AI 提问"
 msgstr "Ask AI"
 
-#: app/templates/components/tw_chat_panel.html:1347
-#: app/templates/files/tw_file_manager_admin.html:256
-#: app/templates/product/file_preview_demo.html:205
-#: app/templates/product/file_preview_demo.html:234
-#: app/templates/product/tw_product_detail.html:801
-msgid "图片"
-msgstr "Image"
-
 #: app/templates/components/tw_chat_panel.html:1352
 #: app/templates/files/tw_file_manager_admin.html:257
 msgid "视频"
@@ -9113,18 +9605,6 @@ msgstr "Forward Message"
 #: app/templates/components/tw_share_to_chat_modal.html:123
 msgid "留言..."
 msgstr "Add a note..."
-
-#: app/templates/components/product/tw_spec_modals.html:42
-#: app/templates/components/tw_chat_panel.html:2209
-#: app/templates/components/tw_meeting_panel.html:467
-#: app/templates/config_management/tw_index.html:1731
-#: app/templates/customer/at_view.html:433
-#: app/templates/files/tw_file_manager.html:984
-#: app/templates/knowledge/tw_wiki.html:624
-#: app/templates/product/tw_product_detail.html:1278
-#: app/templates/project/at_view.html:934
-msgid "确定"
-msgstr "Confirm"
 
 #: app/templates/components/tw_chat_panel.html:2210
 msgid "转发成功"
@@ -12867,11 +13347,6 @@ msgstr "Enter or select product name"
 msgid "输入或选择产品型号"
 msgstr "Enter or select product model"
 
-#: app/templates/components/product/tw_product_modal.html:141
-#: app/templates/product_analysis/tw_analysis.html:236
-msgid "零售价"
-msgstr "Retail price"
-
 #: app/templates/components/product/tw_product_modal.html:145
 msgid "请输入零售价"
 msgstr "Please enter retail price"
@@ -12889,11 +13364,6 @@ msgstr "Enter or select brand"
 #: app/templates/product/create.html:351
 msgid "产品标记"
 msgstr "Product tag"
-
-#: app/templates/components/product/tw_product_modal.html:194
-#: app/templates/product/create.html:359
-msgid "厂商产品"
-msgstr "Vendor products"
 
 #: app/templates/components/product/tw_product_modal.html:206
 msgid "研发目的"
@@ -12939,12 +13409,6 @@ msgstr "Confirm Category Change"
 msgid "确认更改区域"
 msgstr "Confirm Region Change"
 
-#: app/templates/components/product/tw_product_modal.html:323
-#: app/templates/macros/ui_helpers.html:384 app/templates/product/create.html:5
-#: app/templates/product/create.html:122
-msgid "编辑产品"
-msgstr "Edit"
-
 #: app/templates/components/product/tw_product_modal.html:327
 msgid "请选择产品系列"
 msgstr "Please select product series"
@@ -12952,10 +13416,6 @@ msgstr "Please select product series"
 #: app/templates/components/product/tw_product_modal.html:979
 msgid "从配置引入产品"
 msgstr "Import Product from Config"
-
-#: app/templates/components/product/tw_product_relation_modal.html:36
-msgid "添加关联产品"
-msgstr "Add associated products"
 
 #: app/templates/components/product/tw_product_relation_modal.html:57
 #: app/templates/macros/product_tree_selector.html:45
@@ -12966,10 +13426,6 @@ msgstr "Search product model or name..."
 #: app/templates/macros/product_tree_selector.html:54
 msgid "正在加载产品数据..."
 msgstr "Loading product data..."
-
-#: app/templates/components/product/tw_product_relation_modal.html:80
-msgid "暂无可选产品"
-msgstr "No products available"
 
 #: app/templates/components/product/tw_product_relation_modal.html:86
 msgid "未找到匹配的产品"
@@ -12986,39 +13442,6 @@ msgstr "Currently selected:"
 msgid "请从左侧选择产品"
 msgstr "Please select product from the left"
 
-#: app/templates/components/product/tw_product_relation_modal.html:107
-msgid "配置类型"
-msgstr "Configuration type"
-
-#: app/templates/components/product/tw_product_relation_modal.html:110
-#: app/templates/components/product/tw_product_relation_modal.html:270
-#: app/templates/product/tw_product_detail.html:585
-msgid "必选配件"
-msgstr "Required Accessory"
-
-#: app/templates/components/product/tw_product_relation_modal.html:111
-#: app/templates/components/product/tw_product_relation_modal.html:271
-#: app/templates/product/tw_product_detail.html:586
-msgid "推荐配件"
-msgstr "Recommended Accessory"
-
-#: app/templates/components/product/tw_product_relation_modal.html:128
-msgid "互斥组名称"
-msgstr "Group name"
-
-#: app/templates/components/product/tw_product_relation_modal.html:133
-msgid "例如：电源线规格"
-msgstr "Example: Power cable specification"
-
-#: app/templates/components/product/tw_product_relation_modal.html:138
-msgid "默认选项"
-msgstr "Default option"
-
-#: app/templates/components/product/tw_product_relation_modal.html:141
-#: app/templates/components/product/tw_product_relation_modal.html:274
-msgid "无默认"
-msgstr "No default"
-
 #: app/templates/components/product/tw_product_relation_modal.html:152
 msgid "互斥组说明"
 msgstr "Group description"
@@ -13034,16 +13457,6 @@ msgstr ""
 #: app/templates/components/product/tw_product_relation_modal.html:164
 msgid "从左侧产品树中选择要关联的产品"
 msgstr "Select products to associate from the product tree on the left"
-
-#: app/templates/components/product/tw_product_relation_modal.html:272
-#: app/templates/product/tw_product_detail.html:587
-msgid "互斥组（必选）"
-msgstr "Exclusive Group (Required)"
-
-#: app/templates/components/product/tw_product_relation_modal.html:273
-#: app/templates/product/tw_product_detail.html:588
-msgid "互斥组（可选）"
-msgstr "Exclusive Group (Optional)"
 
 #: app/templates/components/product/tw_product_relation_modal.html:278
 msgid "请输入互斥组名称"
@@ -13099,31 +13512,9 @@ msgstr "Exclude from description"
 msgid "包含到描述中"
 msgstr "Include in description"
 
-#: app/templates/components/product/tw_spec_list.html:74
-#: app/templates/components/product/tw_spec_list.html:138
-#: app/templates/product/tw_product_detail.html:1326
-msgid "暂无规格信息"
-msgstr "No specification info"
-
-#: app/templates/components/product/tw_spec_modals.html:12
-msgid "编码更新预览"
-msgstr "Code Update Preview"
-
-#: app/templates/components/product/tw_spec_modals.html:20
-msgid "更新前"
-msgstr "Before"
-
-#: app/templates/components/product/tw_spec_modals.html:25
-msgid "更新后"
-msgstr "After"
-
 #: app/templates/components/product/tw_spec_modals.html:29
 msgid "不更新"
 msgstr "No update"
-
-#: app/templates/components/product/tw_spec_modals.html:35
-msgid "产品描述将根据规格重新生成。"
-msgstr "Product description will be regenerated based on specifications."
 
 #: app/templates/components/product/tw_spec_options_modal.html:33
 #: app/templates/spec_template/tw_edit.html:395
@@ -13211,17 +13602,6 @@ msgstr "Manage"
 msgid "仅显示当前子分类下的指标"
 msgstr "Only show indicators under current subcategory"
 
-#: app/templates/components/product/tw_spec_options_modal.html:380
-#: app/templates/config_management/tw_index.html:3453
-#: app/templates/config_management/tw_index.html:3517
-#: app/templates/config_management/tw_index.html:4982
-#: app/templates/config_management/tw_index.html:5639
-#: app/templates/prospect/tw_list.html:818
-#: app/templates/prospect/tw_list.html:891
-#: app/templates/prospect/tw_list.html:1470
-msgid "加载失败，请重试"
-msgstr "Load failed, please retry"
-
 #: app/templates/components/product/tw_spec_options_modal.html:444
 msgid "暂无可用指标"
 msgstr "No available indicators"
@@ -13241,18 +13621,6 @@ msgstr "Please select an indicator first"
 #: app/templates/spec_template/tw_spec_config_matrix.html:2553
 msgid "添加成功"
 msgstr "Added successfully"
-
-#: app/templates/components/product/tw_spec_options_modal.html:553
-#: app/templates/components/product/tw_spec_options_modal.html:1012
-#: app/templates/knowledge/tw_wiki.html:1265
-#: app/templates/spec_definition/tw_list.html:1411
-#: app/templates/spec_definition/tw_list.html:1415
-#: app/templates/spec_template/tw_edit.html:1487
-#: app/templates/spec_template/tw_edit.html:1491
-#: app/templates/spec_template/tw_spec_config_matrix.html:2559
-#: app/templates/spec_template/tw_spec_config_matrix.html:2563
-msgid "添加失败"
-msgstr "Add failed"
 
 #: app/templates/components/product/tw_spec_options_modal.html:605
 msgid "创建新指标"
@@ -14645,13 +15013,6 @@ msgstr "Clear personal salary settings for selected users?"
 msgid "清除成功"
 msgstr "Cleared successfully"
 
-#: app/templates/config_management/tw_index.html:5965
-#: app/templates/config_management/tw_index.html:7799
-#: app/templates/macros/approval_macros.html:1293
-#: app/templates/product/tw_product_detail.html:582
-msgid "清除失败"
-msgstr "Failed to clear"
-
 #: app/templates/config_management/tw_index.html:5969
 #: app/templates/config_management/tw_index.html:7803
 #: app/templates/macros/approval_macros.html:1294
@@ -15936,14 +16297,6 @@ msgstr "Invoice Preview"
 #: app/templates/expense/at_view.html:624
 msgid "此操作不可撤销,确认删除当前报销单及其全部明细?"
 msgstr "This cannot be undone. Delete this expense and all its items?"
-
-#: app/templates/expense/at_view.html:640
-#: app/templates/project/at_view.html:546
-#: app/templates/project/at_view.html:561
-#: app/templates/prospect/tw_list.html:1847
-#: app/templates/user/at_detail.html:213 app/views/meeting.py:2080
-msgid "已删除"
-msgstr "Deleted"
 
 #: app/templates/expense/at_view.html:640
 msgid "跳转列表中…"
@@ -17469,11 +17822,6 @@ msgstr "(no description)"
 msgid "已替换"
 msgstr "Replaced"
 
-#: app/templates/knowledge/tw_wiki.html:386
-#: app/templates/prospect/tw_list.html:1277
-msgid "替换"
-msgstr "Replace"
-
 #: app/templates/knowledge/tw_wiki.html:408
 msgid "Wiki 问答"
 msgstr "Wiki Q&A"
@@ -17656,21 +18004,6 @@ msgstr "Access revoked"
 #: app/templates/knowledge/tw_wiki.html:1284
 msgid "撤销失败"
 msgstr "Failed to revoke"
-
-#: app/templates/knowledge/tw_wiki.html:1432
-#: app/templates/knowledge/tw_wiki.html:1440
-#: app/templates/product/tw_product_detail.html:580
-#: app/templates/product/upload_files.html:131
-#: app/templates/project/at_view.html:536
-#: app/templates/spec_template/tw_edit.html:963
-#: app/templates/spec_template/tw_edit.html:967
-#: app/templates/spec_template/tw_spec_config_matrix.html:1252
-#: app/views/spec_template.py:3536 app/views/spec_template.py:3565
-#: app/views/spec_template.py:3758 app/views/spec_template.py:3787
-#: app/views/worklog.py:571 app/views/worklog.py:575 app/views/worklog.py:802
-#: app/views/worklog.py:806
-msgid "上传失败"
-msgstr "Upload failed"
 
 #: app/templates/knowledge/tw_wiki.html:1449
 msgid "开始编译"
@@ -19792,11 +20125,6 @@ msgstr "No points records"
 msgid "知识贡献排行"
 msgstr "Knowledge Leaderboard"
 
-#: app/templates/points/tw_points.html:225
-#: app/templates/task/tw_task_management.html:646
-msgid "上传"
-msgstr "Upload"
-
 #: app/templates/points/tw_points.html:227
 msgid "被引"
 msgstr "Cited"
@@ -20086,12 +20414,6 @@ msgstr "Add Relation"
 msgid "地区面价"
 msgstr "Regional Pricing"
 
-#: app/templates/product/at_view.html:283
-#: app/templates/product/tw_product_detail.html:439
-#: app/templates/product/tw_product_detail.html:444
-msgid "产品二维码"
-msgstr "Product QR Code"
-
 #: app/templates/product/at_view.html:288
 msgid "引用数量"
 msgstr "Quote Count"
@@ -20158,18 +20480,6 @@ msgstr "Spec MN code preview"
 #: app/templates/product/create.html:183
 msgid "请选择产品类型"
 msgstr "Please select product type"
-
-#: app/templates/product/create.html:184
-msgid "第三方产品"
-msgstr "Third Party Product"
-
-#: app/templates/product/create.html:185
-msgid "渠道产品"
-msgstr "Channel Product"
-
-#: app/templates/product/create.html:186
-msgid "项目产品"
-msgstr "Project Product"
 
 #: app/templates/product/create.html:196
 msgid "已停产的产品不会在报价单中显示"
@@ -20382,16 +20692,6 @@ msgstr "Product Overview"
 msgid "上传图片"
 msgstr "Upload Image"
 
-#: app/templates/product/tw_product_detail.html:178
-msgid "清除图片"
-msgstr "Clear Image"
-
-#: app/templates/product/tw_product_detail.html:214
-#: app/templates/spec_definition/tw_list.html:704
-#: app/templates/spec_template/tw_configurations.html:1055
-msgid "规格说明"
-msgstr "Specifications"
-
 #: app/templates/product/tw_product_detail.html:245
 msgid "点击切换锁定状态"
 msgstr "Click to toggle lock status"
@@ -20403,11 +20703,6 @@ msgstr "Code Locked"
 #: app/templates/product/tw_product_detail.html:249
 msgid "编码未锁定"
 msgstr "Code Unlocked"
-
-#: app/templates/product/tw_product_detail.html:257
-#: app/templates/spec_template/tw_edit.html:228
-msgid "计量单位"
-msgstr "Unit of Measurement"
 
 #: app/templates/product/tw_product_detail.html:273
 #: app/templates/product/tw_product_detail.html:1426
@@ -20427,18 +20722,9 @@ msgstr "Import"
 msgid "关联产品配置"
 msgstr "Related Product Configuration"
 
-#: app/templates/product/tw_product_detail.html:311
-msgid "普通关联"
-msgstr "Normal Relation"
-
 #: app/templates/product/tw_product_detail.html:312
 msgid "互斥组"
 msgstr "Exclusive Group"
-
-#: app/templates/product/tw_product_detail.html:324
-#: app/templates/product/tw_product_detail.html:583
-msgid "暂无关联产品配置"
-msgstr "No related product configuration"
 
 #: app/templates/product/tw_product_detail.html:330
 msgid "产品文档"
@@ -20684,21 +20970,9 @@ msgstr "No matching specifications"
 msgid "暂无地区面价，点击添加"
 msgstr "No regional prices yet, click to add"
 
-#: app/templates/product/tw_product_detail.html:1521
-msgid "暂无地区面价"
-msgstr "No regional prices"
-
-#: app/templates/product/tw_product_detail.html:1592
-msgid "所有货币的面价都已配置"
-msgstr "Market prices for all currencies are configured"
-
 #: app/templates/product/tw_product_detail.html:1605
 msgid "面价"
 msgstr "Market Price"
-
-#: app/templates/product/tw_product_detail.html:1635
-msgid "确认删除此地区面价？"
-msgstr "Confirm deletion of this regional price?"
 
 #: app/templates/product/upload_files.html:4
 #: app/templates/product/upload_files.html:12
@@ -21210,7 +21484,7 @@ msgstr "SN Stock-In"
 
 #: app/templates/product_sn/at_detail.html:195
 msgid "填写仓库位置后将该 SN 入库,状态推进至「库存中」。"
-msgstr ""
+msgstr "Enter the warehouse location to stock in this SN, advancing its status to \"In Stock\"."
 "Enter the warehouse location to stock in this SN, advancing its status to"
 " \"In Stock\"."
 
@@ -21412,7 +21686,7 @@ msgstr "Current project status:"
 
 #: app/templates/project/at_view.html:277
 msgid "进度条下方显示恢复前的最后正常阶段;点击节点可恢复"
-msgstr ""
+msgstr "The last normal stage before restoring is shown below the progress bar; click a node to restore"
 "The last normal stage before restoring is shown below the progress bar; "
 "click a node to restore"
 
@@ -21466,7 +21740,7 @@ msgstr "No linked expenses"
 
 #: app/templates/project/at_view.html:392
 msgid "自动从公开来源收集项目背景、参与方、招标动态等信息。"
-msgstr ""
+msgstr "Automatically gathers project background, parties, and bidding updates from public sources."
 "Automatically gathers project background, parties, and bidding updates "
 "from public sources."
 
@@ -21580,7 +21854,7 @@ msgstr "Restore Project"
 #: app/templates/project/at_view.html:611
 #, python-format
 msgid "项目当前为 [%(cur)s] 状态,将恢复到搁置/失败前的阶段 [%(target)s]。可填写备注。"
-msgstr ""
+msgstr "The project is currently [%(cur)s] and will be restored to its pre-pause/lost stage [%(target)s]. You may add a note."
 "The project is currently [%(cur)s] and will be restored to its pre-"
 "pause/lost stage [%(target)s]. You may add a note."
 
@@ -21717,7 +21991,7 @@ msgstr "Dept. Manager → General Manager"
 
 #: app/templates/project/at_view.html:876
 msgid "。审批通过后项目阶段才会置灰标记，期间阶段不变、可恢复。"
-msgstr ""
+msgstr ". The project stage is greyed out only after approval; until then the stage stays unchanged and can be restored."
 ". The project stage is greyed out only after approval; until then the "
 "stage stays unchanged and can be restored."
 
@@ -21743,7 +22017,7 @@ msgstr "Select a new supplier sales owner from active supplier staff."
 
 #: app/templates/project/at_view.html:1012
 msgid "预判该项目必赢并锁定;所有项目展示处将带「锁定成功」徽章,签约时自动解除,也可人为解除。"
-msgstr ""
+msgstr "Predict this project as a sure win and lock it; a \"Win Locked\" badge appears everywhere the project is shown, auto-released on signing, or released manually."
 "Predict this project as a sure win and lock it; a \"Win Locked\" badge "
 "appears everywhere the project is shown, auto-released on signing, or "
 "released manually."
@@ -23143,13 +23417,9 @@ msgstr "Added"
 msgid "「%(n)s」加入明细"
 msgstr "\"%(n)s\" added to items"
 
-#: app/templates/quotation/at_view.html:1328
-msgid "保存中…"
-msgstr "Saving…"
-
 #: app/templates/quotation/at_view.html:1372
 msgid "请选择关联项目(可先选客户后从其项目中选)"
-msgstr ""
+msgstr "Please select a linked project (you can pick a customer first, then choose from its projects)"
 "Please select a linked project (you can pick a customer first, then "
 "choose from its projects)"
 
@@ -23183,13 +23453,13 @@ msgstr "Quoted Unit Price"
 
 #: app/templates/quotation/at_view.html:1580
 msgid "自定义产品无市场价,不参与全局折扣计算"
-msgstr ""
+msgstr "Custom products have no market price and are excluded from global discount calculation"
 "Custom products have no market price and are excluded from global "
 "discount calculation"
 
 #: app/templates/quotation/at_view.html:1589
 msgid "自定义产品不入产品库,仅本报价生效"
-msgstr ""
+msgstr "Custom products are not added to the product library and apply only to this quotation"
 "Custom products are not added to the product library and apply only to "
 "this quotation"
 
@@ -23662,7 +23932,7 @@ msgstr "Delete Draft Order"
 #: app/templates/sales_order/at_detail.html:254
 #, python-format
 msgid "订单号 %(number)s 将被永久删除(含明细),无法恢复。是否继续?"
-msgstr ""
+msgstr "Order %(number)s will be permanently deleted (including items) and cannot be recovered. Continue?"
 "Order %(number)s will be permanently deleted (including items) and cannot"
 " be recovered. Continue?"
 
@@ -23673,7 +23943,7 @@ msgstr "Order deleted"
 #: app/templates/sales_order/at_detail.html:281
 #, python-format
 msgid "订单号 %(number)s 将被取消,记录保留但状态变为已取消。是否继续?"
-msgstr ""
+msgstr "Order %(number)s will be cancelled; the record is kept but its status becomes Cancelled. Continue?"
 "Order %(number)s will be cancelled; the record is kept but its status "
 "becomes Cancelled. Continue?"
 
@@ -23960,19 +24230,6 @@ msgstr "Edit spec item"
 #: app/templates/spec_definition/tw_list.html:1074
 msgid "确定要删除规格项"
 msgstr "Delete spec item"
-
-#: app/templates/spec_definition/tw_list.html:1074
-#: app/templates/spec_definition/tw_list.html:1449
-#: app/templates/spec_definition/tw_list.html:1557
-#: app/templates/spec_definition/tw_test_conditions.html:245
-#: app/templates/spec_definition/tw_test_methods.html:266
-#: app/templates/spec_template/tw_configurations.html:769
-#: app/templates/spec_template/tw_edit.html:1524
-#: app/templates/spec_template/tw_list.html:428
-#: app/templates/spec_template/tw_spec_config_matrix.html:2604
-#: app/templates/user/tw_department_management.html:432
-msgid "吗？"
-msgstr "?"
 
 #: app/templates/spec_definition/tw_list.html:1352
 msgid "同步完成"

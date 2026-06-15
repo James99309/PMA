@@ -32,12 +32,12 @@
         {% else %}
           <div class="at-pm-image-placeholder">
             {{ at_icon('box', 42) }}
-            <span class="at-dim" style="font-size:11px;margin-top:6px;">未上传</span>
+            <span class="at-dim" style="font-size:11px;margin-top:6px;">{{ _('未上传') }}</span>
           </div>
         {% endif %}
         {% if can_edit %}
         <div class="at-pm-overlay">
-          {{ at_icon('upload', 18) }}<span>上传</span>
+          {{ at_icon('upload', 18) }}<span>{{ _('上传') }}</span>
         </div>
         {% endif %}
       </div>
@@ -46,7 +46,7 @@
       {% if product.image_path %}
       <div style="text-align:center;margin-top:8px;">
         <button type="button" class="at-pm-clear" onclick="atProductMedia.clear('image')">
-          {{ at_icon('trash', 12) }} 清除图片
+          {{ at_icon('trash', 12) }} {{ _('清除图片') }}
         </button>
       </div>
       {% endif %}
@@ -57,41 +57,41 @@
     <div class="at-pm-info-col">
       {% if product.specification %}
       <div class="at-pm-spec">
-        <div class="at-pm-spec-label">规格说明</div>
+        <div class="at-pm-spec-label">{{ _('规格说明') }}</div>
         <p class="at-pm-spec-text">{{ product.specification }}</p>
       </div>
       {% endif %}
 
       <div class="at-pm-fields">
         <div class="at-pm-field">
-          <div class="at-pm-field-label">产品分类</div>
+          <div class="at-pm-field-label">{{ _('产品分类') }}</div>
           <div class="at-pm-field-value">
             {{ (product.subcategory_obj.name if product.subcategory_obj else '') or '—' }}
           </div>
         </div>
         <div class="at-pm-field">
-          <div class="at-pm-field-label">品牌</div>
+          <div class="at-pm-field-label">{{ _('品牌') }}</div>
           <div class="at-pm-field-value">{{ product.brand or '—' }}</div>
         </div>
         <div class="at-pm-field">
-          <div class="at-pm-field-label">型号</div>
+          <div class="at-pm-field-label">{{ _('型号') }}</div>
           <div class="at-pm-field-value at-mono">{{ product.model or '—' }}</div>
         </div>
         <div class="at-pm-field">
           <div class="at-pm-field-label">
-            产品编码
-            <span class="at-pm-lock-icon at-pm-lock-on" title="MN 已锁定">
+            {{ _('产品编码') }}
+            <span class="at-pm-lock-icon at-pm-lock-on" title="{{ _('MN 已锁定') }}">
               {{ at_icon('lock', 12) }}
             </span>
           </div>
           <div class="at-pm-field-value at-mono">{{ product.product_mn or '—' }}</div>
         </div>
         <div class="at-pm-field">
-          <div class="at-pm-field-label">计量单位</div>
+          <div class="at-pm-field-label">{{ _('计量单位') }}</div>
           <div class="at-pm-field-value">{{ product.unit or '—' }}</div>
         </div>
         <div class="at-pm-field">
-          <div class="at-pm-field-label">零售价</div>
+          <div class="at-pm-field-label">{{ _('零售价') }}</div>
           <div class="at-pm-field-value">
             {% if product.unit_price %}{{ product.currency or '' }} {{ product.unit_price }}{% else %}—{% endif %}
           </div>
@@ -113,8 +113,8 @@
   {% if product.icon_svg %}
   <div class="at-pm-file-row">
     <div class="at-pm-file-label">
-      <div class="at-pm-file-name">SVG 图标</div>
-      <div class="at-pm-file-hint">用于设计图、报价单图示</div>
+      <div class="at-pm-file-name">{{ _('SVG 图标') }}</div>
+      <div class="at-pm-file-hint">{{ _('用于设计图、报价单图示') }}</div>
     </div>
     <div class="at-pm-svg-wrap">
       <div class="at-pm-svg-box">{{ product.icon_svg | safe }}</div>
@@ -126,8 +126,8 @@
   {# PDF 数据手册 #}
   <div class="at-pm-file-row">
     <div class="at-pm-file-label">
-      <div class="at-pm-file-name">数据手册 (PDF)</div>
-      <div class="at-pm-file-hint">技术规格 / 接口定义文档</div>
+      <div class="at-pm-file-name">{{ _('数据手册 (PDF)') }}</div>
+      <div class="at-pm-file-hint">{{ _('技术规格 / 接口定义文档') }}</div>
     </div>
     <div class="at-pm-pdf">
       {% if product.pdf_path %}
@@ -140,19 +140,19 @@
         <div class="at-pm-pdf-empty{% if can_edit %} at-pm-clickable{% endif %}"
              {% if can_edit %}onclick="document.getElementById('atPmPdfInput').click()"{% endif %}>
           {{ at_icon('file', 22) }}
-          {% if can_edit %}<span>上传 PDF</span>{% else %}<span>暂无文件</span>{% endif %}
+          {% if can_edit %}<span>{{ _('上传 PDF') }}</span>{% else %}<span>{{ _('暂无文件') }}</span>{% endif %}
         </div>
       {% endif %}
     </div>
     <div class="at-pm-file-actions">
       {% if product.pdf_path %}
-        {{ at_btn('下载', variant='ghost', size='sm', tag='a',
+        {{ at_btn(_('下载'), variant='ghost', size='sm', tag='a',
                   href=url_for('product.download_pdf', id=product.id)) }}
         {% if can_edit %}
-        {{ at_btn('替换', variant='ghost', size='sm',
+        {{ at_btn(_('替换'), variant='ghost', size='sm',
                   onclick="document.getElementById('atPmPdfInput').click()") }}
         <button type="button" class="at-pm-clear" onclick="atProductMedia.clear('pdf')">
-          {{ at_icon('trash', 12) }} 清除
+          {{ at_icon('trash', 12) }} {{ _('清除') }}
         </button>
         {% endif %}
       {% endif %}
@@ -317,21 +317,21 @@
       var id = pid(); if (!id || !file) return;
       postFile('/api/products/' + id + '/upload-' + kind, file, kind)
         .then(function(){ _saveTabAndReload(); })
-        .catch(function(err){ _toast(err, '上传失败'); });
+        .catch(function(err){ _toast(err, '{{ _("上传失败") }}'); });
     },
     clear: function(kind) {
       var id = pid(); if (!id) return;
-      var label = kind === 'image' ? '图片' : kind === 'svg' ? 'SVG' : 'PDF';
+      var label = kind === 'image' ? '{{ _("图片") }}' : kind === 'svg' ? 'SVG' : 'PDF';
       ATConfirm.show({
-        title: '清除' + label,
-        message: '确定清除该' + label + '吗？',
+        title: '{{ _("清除") }}' + label,
+        message: '{{ _("确定清除该") }}' + label + '{{ _("吗？") }}',
         variant: 'danger',
-        confirmText: '清除',
+        confirmText: '{{ _("清除") }}',
         onConfirm: function() {
           var ep = kind === 'svg' ? '/api/products/' + id + '/delete-svg'
                                   : '/api/products/' + id + '/clear-' + kind;
           postAction(ep).then(function(){ _saveTabAndReload(); })
-            .catch(function(err){ _toast(err, '清除失败'); });
+            .catch(function(err){ _toast(err, '{{ _("清除失败") }}'); });
         }
       });
     },

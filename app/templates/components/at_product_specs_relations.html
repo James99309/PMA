@@ -128,7 +128,7 @@
       {% if rows %}
       <div class="spec-category-header" data-category-id="{{ category.id }}">
         {{ category.name }}
-      </div>
+      </div>{# category.name 为数据值，不翻译 #}
       {% for spec in rows %}
       <div class="spec-row"
            data-spec-id="{{ spec.id }}"
@@ -156,7 +156,7 @@
         {# 操作按钮（编辑模式：仅删除）#}
         {% if can_edit %}
         <div class="spec-actions hidden">
-          <button type="button" class="at-spec-act-btn del" onclick="deleteSpec(this)" title="删除">
+          <button type="button" class="at-spec-act-btn del" onclick="deleteSpec(this)" title="{{ _('删除') }}">
             <span class="material-symbols-outlined" style="font-size:15px;">delete</span>
           </button>
         </div>
@@ -167,7 +167,7 @@
     {% endfor %}
   </dl>
   {% else %}
-  <div id="emptySpecsMessage" class="at-specs-empty">暂无规格信息</div>
+  <div id="emptySpecsMessage" class="at-specs-empty">{{ _('暂无规格信息') }}</div>
   {% endif %}
 </div>
 {% endmacro %}
@@ -185,36 +185,36 @@
       <h3 class="at-serif" style="margin:0 0 14px;font-size:17px;font-weight:500;
                                    display:flex;align-items:center;gap:8px;">
         <span class="material-symbols-outlined" style="font-size:20px;color:var(--accent);">info</span>
-        编码更新预览
+        {{ _('编码更新预览') }}
       </h3>
       <div style="padding:12px 14px;background:var(--bg-page);border:1px solid var(--line);
                   border-radius:8px;margin-bottom:12px;">
-        <div style="font-size:11.5px;color:var(--ink-4);margin-bottom:8px;">产品编码</div>
+        <div style="font-size:11.5px;color:var(--ink-4);margin-bottom:8px;">{{ _('产品编码') }}</div>
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="flex:1;">
-            <div style="font-size:11px;color:var(--ink-4);">更新前</div>
+            <div style="font-size:11px;color:var(--ink-4);">{{ _('更新前') }}</div>
             <div id="previewProductMnBefore" class="at-mono" style="font-size:13px;color:var(--ink);">-</div>
           </div>
           <span class="material-symbols-outlined" style="font-size:16px;color:var(--ink-4);">arrow_forward</span>
           <div style="flex:1;">
-            <div style="font-size:11px;color:var(--ink-4);">更新后</div>
+            <div style="font-size:11px;color:var(--ink-4);">{{ _('更新后') }}</div>
             <div id="previewProductMnAfter" class="at-mono" style="font-size:13px;color:var(--ink);">-</div>
           </div>
           <div id="previewProductMnResult"></div>
         </div>
       </div>
-      <p style="font-size:11.5px;color:var(--ink-4);margin:0;">产品描述将根据规格重新生成。</p>
+      <p style="font-size:11.5px;color:var(--ink-4);margin:0;">{{ _('产品描述将根据规格重新生成。') }}</p>
     </div>
     <div style="padding:10px 22px 18px;display:flex;justify-content:flex-end;gap:8px;">
       <button onclick="closeSpecMnPreviewModal()"
               style="padding:7px 16px;border-radius:7px;border:1px solid var(--line-2);
                      background:transparent;color:var(--ink-2);font-size:13px;cursor:pointer;">
-        取消
+        {{ _('取消') }}
       </button>
       <button onclick="confirmSpecMnPreview()"
               style="padding:7px 18px;border-radius:7px;border:0;
                      background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;">
-        确定
+        {{ _('确定') }}
       </button>
     </div>
   </div>
@@ -251,7 +251,7 @@
       specEditor.showPreviewModal(data, confirmFn);
     },
     onSaveSuccess: function () {
-      if (window.atToast) atToast('规格已保存', 'success');
+      if (window.atToast) atToast('{{ _("规格已保存") }}', 'success');
       setTimeout(function () { location.reload(); }, 500);
     }
   });
@@ -289,10 +289,10 @@
 {# ── 配置 tab 内容（懒加载，支持删除操作）── #}
 {% macro at_product_relations(product, can_edit=false) %}
 <div id="atRelWrap">
-  <div id="atRelLoading" class="at-rel-loading">加载中…</div>
+  <div id="atRelLoading" class="at-rel-loading">{{ _('加载中…') }}</div>
   <div id="atRelNormal"  style="display:none;"></div>
   <div id="atRelMutual"  style="display:none;"></div>
-  <div id="atRelEmpty"   class="at-rel-empty" style="display:none;">暂无关联产品配置</div>
+  <div id="atRelEmpty"   class="at-rel-empty" style="display:none;">{{ _('暂无关联产品配置') }}</div>
 </div>
 
 <script>
@@ -334,7 +334,7 @@
 
     if (normal.length) {
       var el = document.getElementById('atRelNormal');
-      el.innerHTML = '<div class="at-rel-sec-label">普通关联</div>'
+      el.innerHTML = '<div class="at-rel-sec-label">{{ _("普通关联") }}</div>'
         + normal.map(function(r) {
             return '<div class="at-rel-item">'
               + '<span class="at-rel-mn">' + esc(r.product_mn) + '</span>'
@@ -350,7 +350,7 @@
 
     if (groupList.length) {
       var el2 = document.getElementById('atRelMutual');
-      el2.innerHTML = '<div class="at-rel-sec-label">互斥分组</div>'
+      el2.innerHTML = '<div class="at-rel-sec-label">{{ _("互斥分组") }}</div>'
         + groupList.map(function(g) {
             var items = (g.products || []).map(function(p) {
               return '<div class="at-rel-item" style="padding-left:14px;">'
@@ -363,9 +363,9 @@
             }).join('');
             return '<div class="at-rel-group">'
               + '<div class="at-rel-group-hd">'
-              + esc(g.group_name || ('组 ' + g.group_id))
+              + esc(g.group_name || ('{{ _("组") }} ' + g.group_id))
               + '<span class="at-rel-badge' + (g.is_required ? ' req' : '') + '">'
-              + (g.is_required ? '必选' : '可选') + '</span>'
+              + (g.is_required ? '{{ _("必选") }}' : '{{ _("可选") }}') + '</span>'
               + '<span style="flex:1;"></span>'
               + _delBtn('atRelDeleteGroup(' + JSON.stringify(g.group_id) + ')')
               + '</div>'
@@ -386,7 +386,7 @@
     .then(function(r){ return r.json(); })
     .then(function(d){ _render(d); })
     .catch(function(){
-      document.getElementById('atRelLoading').textContent = '加载失败，请刷新重试';
+      document.getElementById('atRelLoading').textContent = '{{ _("加载失败，请刷新重试") }}';
     });
   }
 
@@ -396,10 +396,10 @@
   /* 删除单条关联 */
   window.atRelDelete = function (relId) {
     ATConfirm.show({
-      title: '删除关联产品',
-      message: '确认删除此关联产品？',
+      title: '{{ _("删除关联产品") }}',
+      message: '{{ _("确认删除此关联产品？") }}',
       variant: 'danger',
-      confirmText: '删除',
+      confirmText: '{{ _("删除") }}',
       onConfirm: function() {
         fetch('/api/product/' + PID + '/relations/' + relId, {
           method: 'DELETE',
@@ -407,8 +407,8 @@
         })
         .then(function(r){ return r.json(); })
         .then(function(d){
-          if (d.success) { if (window.atToast) atToast('已删除', 'success'); _reload(); }
-          else if (window.atToast) atToast(d.message || '删除失败', 'error');
+          if (d.success) { if (window.atToast) atToast('{{ _("已删除") }}', 'success'); _reload(); }
+          else if (window.atToast) atToast(d.message || '{{ _("删除失败") }}', 'error');
         });
       }
     });
@@ -417,10 +417,10 @@
   /* 删除互斥组 */
   window.atRelDeleteGroup = function (groupId) {
     ATConfirm.show({
-      title: '删除互斥组',
-      message: '确认删除整个互斥组？组内所有关联产品将被移出。',
+      title: '{{ _("删除互斥组") }}',
+      message: '{{ _("确认删除整个互斥组？组内所有关联产品将被移出。") }}',
       variant: 'danger',
-      confirmText: '删除',
+      confirmText: '{{ _("删除") }}',
       onConfirm: function() {
         fetch('/api/product/' + PID + '/mutual-exclusion-group', {
           method: 'DELETE',
@@ -429,8 +429,8 @@
         })
         .then(function(r){ return r.json(); })
         .then(function(d){
-          if (d.success) { if (window.atToast) atToast('已删除', 'success'); _reload(); }
-          else if (window.atToast) atToast(d.message || '删除失败', 'error');
+          if (d.success) { if (window.atToast) atToast('{{ _("已删除") }}', 'success'); _reload(); }
+          else if (window.atToast) atToast(d.message || '{{ _("删除失败") }}', 'error');
         });
       }
     });
