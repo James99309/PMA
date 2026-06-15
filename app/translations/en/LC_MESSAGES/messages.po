@@ -16027,7 +16027,6 @@ msgid "确定要删除客户「"
 msgstr "Delete customer “"
 
 #: app/templates/customer/at_view.html:337
-#, fuzzy
 msgid ""
 "」吗?\n"
 "此操作无法撤销。"
