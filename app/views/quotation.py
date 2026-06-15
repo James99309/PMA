@@ -935,7 +935,8 @@ def at_view_quotation(id):
         "JOIN products p ON p.product_mn=dp.product_mn AND p.citation_coefficient>0"),
         {'qid': q.id}).scalar() or 0
     _qscore = round(float(_qscore), 1)
-    _qrating = '优秀' if _qscore >= 7 else ('良好' if _qscore >= 5 else ('及格' if _qscore >= 3 else '待提升'))
+    from flask_babel import gettext as _gt
+    _qrating = _gt('优秀') if _qscore >= 7 else (_gt('良好') if _qscore >= 5 else (_gt('及格') if _qscore >= 3 else _gt('待提升')))
 
     return render_template('quotation/at_view.html',
                            quotation=q,

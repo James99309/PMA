@@ -340,7 +340,7 @@
     {
       'label': _('质量得分'),
       'value': '{:g}'.format(quality_score|default(0)) ~ ' ' ~ _('分'),
-      'sub': (quality_rating|default('—')) ~ _('(植入品质 · 推荐产品系数和)'),
+      'sub_safe': '<span style="font-weight:600;color:' ~ ('var(--warn)' if (quality_score|default(0)) < 3 else ('var(--success)' if (quality_score|default(0)) < 7 else 'var(--info)')) ~ ';">' ~ (quality_rating|default('—')) ~ '</span><br>' ~ _('(植入品质 · 推荐产品系数和)'),
     },
   ]) }}
 

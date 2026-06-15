@@ -14,7 +14,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{{ order.order_number }} · 采购订单</title>
+<title>{{ order.order_number }} · {{ _('采购订单') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
@@ -39,10 +39,10 @@
   <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
               display:flex;align-items:center;gap:8px;">
     <a href="{{ url_for('purchase_order.at_list_view') }}"
-       style="font-size:13px;color:var(--ink-3);">采购管理</a>
+       style="font-size:13px;color:var(--ink-3);">{{ _('采购管理') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
     <a href="{{ url_for('purchase_order.at_list_view') }}"
-       style="font-size:13px;color:var(--ink-3);">采购订单</a>
+       style="font-size:13px;color:var(--ink-3);">{{ _('采购订单') }}</a>
     <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
     <span class="at-mono" style="font-size:13px;color:var(--ink);">{{ order.order_number }}</span>
     <div style="flex:1;"></div>
@@ -50,7 +50,7 @@
             style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
                    background:var(--bg-elev);font-size:12px;color:var(--ink-2);
                    display:inline-flex;align-items:center;gap:4px;">
-      {{ at_icon('moon', 13) }} 暗色
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
     </button>
   </div>
 </header>
@@ -63,9 +63,9 @@
     <div>
       <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
         PURCHASE ORDER ·
-        {% if order.order_category == 'channel' %}渠道订单
-        {% elif order.order_category == 'direct' %}直销订单
-        {% else %}{{ order.order_category or '采购订单' }}
+        {% if order.order_category == 'channel' %}{{ _('渠道订单') }}
+        {% elif order.order_category == 'direct' %}{{ _('直销订单') }}
+        {% else %}{{ order.order_category or _('采购订单') }}
         {% endif %}
       </div>
       <div style="display:flex;align-items:baseline;gap:14px;">
@@ -77,17 +77,17 @@
           {{ order.order_number }}
         </h1>
         {% set status_map = {
-          'draft':     {'tone':'neutral','label':'草稿'},
-          'pending':   {'tone':'warn','label':'审批中'},
-          'rejected':  {'tone':'danger','label':'已驳回'},
-          'approved':  {'tone':'success','label':'已批准'},
-          'confirmed': {'tone':'info','label':'已确认'},
-          'producing': {'tone':'accent','label':'生产中'},
-          'tested':    {'tone':'accent','label':'已测试'},
-          'shipped':   {'tone':'info','label':'已发货'},
-          'stored':    {'tone':'success','label':'已入库'},
-          'completed': {'tone':'success','label':'已完成'},
-          'cancelled': {'tone':'neutral','label':'已取消'},
+          'draft':     {'tone':'neutral','label':_('草稿')},
+          'pending':   {'tone':'warn','label':_('审批中')},
+          'rejected':  {'tone':'danger','label':_('已驳回')},
+          'approved':  {'tone':'success','label':_('已批准')},
+          'confirmed': {'tone':'info','label':_('已确认')},
+          'producing': {'tone':'accent','label':_('生产中')},
+          'tested':    {'tone':'accent','label':_('已测试')},
+          'shipped':   {'tone':'info','label':_('已发货')},
+          'stored':    {'tone':'success','label':_('已入库')},
+          'completed': {'tone':'success','label':_('已完成')},
+          'cancelled': {'tone':'neutral','label':_('已取消')},
         } %}
         {% set sm = status_map.get(order.status, {'tone':'neutral','label':order.status}) %}
         {% set _ap_status = {
@@ -113,28 +113,28 @@
         {% endcall %}
       </div>
       <div style="margin-top:10px;color:var(--ink-3);font-size:13px;display:flex;gap:18px;flex-wrap:wrap;">
-        <span>供应商 · <span style="color:var(--ink-2);">{{ order.company.company_name if order.company else '-' }}</span></span>
+        <span>{{ _('供应商') }} · <span style="color:var(--ink-2);">{{ order.company.company_name if order.company else '-' }}</span></span>
         <span style="color:var(--line-2);">|</span>
-        <span>创建于 <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ order.formatted_order_date }}</span></span>
+        <span>{{ _('创建于') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ order.formatted_order_date }}</span></span>
         {% if order.required_date %}
         <span style="color:var(--line-2);">|</span>
-        <span>交期 <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ order.required_date.strftime('%Y-%m-%d') }}</span></span>
+        <span>{{ _('交期') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ order.required_date.strftime('%Y-%m-%d') }}</span></span>
         {% endif %}
       </div>
     </div>
 
     <div style="display:flex;gap:8px;">
-      {{ at_btn('返回', variant='ghost', icon_l='back', tag='a', href=url_for('purchase_order.at_list_view')) }}
-      {{ at_btn('导出 PO', variant='ghost', icon_l='download') }}
+      {{ at_btn(_('返回'), variant='ghost', icon_l='back', tag='a', href=url_for('purchase_order.at_list_view')) }}
+      {{ at_btn(_('导出 PO'), variant='ghost', icon_l='download') }}
       {% set _is_creator = (order.created_by_id == current_user.id) %}
       {# 编辑仅在 draft / rejected / recalled 三态开放(对齐 tw 版业务规则) #}
       {% set _editable_status = order.status in ('draft', 'rejected', 'recalled') %}
       {% if _editable_status and has_permission('order', 'edit') %}
-        {{ at_btn('编辑', variant='ghost', icon_l='edit', onclick='atOpenEditOrder()') }}
+        {{ at_btn(_('编辑'), variant='ghost', icon_l='edit', onclick='atOpenEditOrder()') }}
       {% endif %}
       {# 删除更严格:仅创建人 + 可编辑状态 #}
       {% if _editable_status and _is_creator %}
-        {{ at_btn('删除', variant='ghost', icon_l='close', onclick='atDeleteOrder()',
+        {{ at_btn(_('删除'), variant='ghost', icon_l='close', onclick='atDeleteOrder()',
                   extra_style='color:var(--danger);border-color:var(--danger-soft, #f1d4cf);') }}
       {% endif %}
       {# 头部不再单独放「提交审批/召回/重新提交」按钮 — 全部聚合到状态 chip 点击的 dropdown 浮层里 #}
@@ -160,22 +160,22 @@
   <div style="margin-bottom:20px;">
     {% set edit_btn_html = '' %}
     {% if order.status in ('draft', 'rejected', 'recalled') %}
-      {% set edit_btn_html = at_btn('编辑', variant='bare', size='sm', icon_l='edit') %}
+      {% set edit_btn_html = at_btn(_('编辑'), variant='bare', size='sm', icon_l='edit') %}
     {% endif %}
-    {% call at_section('基本信息', action_html=edit_btn_html) %}
+    {% call at_section(_('基本信息'), action_html=edit_btn_html) %}
       {{ at_info_grid(items=[
-        {'k': '供应商',   'v': order.company.company_name if order.company else '-'},
-        {'k': '订单日期', 'v': order.formatted_order_date, 'mono': true},
-        {'k': '需求日期', 'v': order.required_date.strftime('%Y-%m-%d') if order.required_date else '—', 'mono': true},
-        {'k': '订单类别', 'v': ('渠道订单' if order.order_category == 'channel' else '直销订单') if order.order_category else '-'},
-        {'k': '贸易术语', 'v': order.incoterms or 'EXW'},
-        {'k': '运输方式', 'v': {'truck':'汽运','air':'空运','express':'快递','self_pickup':'自提'}.get(order.shipping_method, order.shipping_method or '汽运')},
-        {'k': '付款条件', 'v': order.payment_terms or '—'},
-        {'k': '交货地点', 'v': order.ship_to or '—'},
-        {'k': '创建者',   'v': (order.created_by.real_name or order.created_by.username) if order.created_by else '—'},
-        {'k': '创建时间', 'v': order.formatted_order_date, 'mono': true},
-        {'k': '更新时间', 'v': order.updated_at.strftime('%Y-%m-%d') if order.updated_at else '—', 'mono': true},
-        {'k': '订单金额', 'v': (currency_symbol ~ ('{:,.2f}'.format(order.total_amount or 0))), 'mono': true, 'strong': true}
+        {'k': _('供应商'),   'v': order.company.company_name if order.company else '-'},
+        {'k': _('订单日期'), 'v': order.formatted_order_date, 'mono': true},
+        {'k': _('需求日期'), 'v': order.required_date.strftime('%Y-%m-%d') if order.required_date else '—', 'mono': true},
+        {'k': _('订单类别'), 'v': (_('渠道订单') if order.order_category == 'channel' else _('直销订单')) if order.order_category else '-'},
+        {'k': _('贸易术语'), 'v': order.incoterms or 'EXW'},
+        {'k': _('运输方式'), 'v': {'truck':_('汽运'),'air':_('空运'),'express':_('快递'),'self_pickup':_('自提')}.get(order.shipping_method, order.shipping_method or _('汽运'))},
+        {'k': _('付款条件'), 'v': order.payment_terms or '—'},
+        {'k': _('交货地点'), 'v': order.ship_to or '—'},
+        {'k': _('创建者'),   'v': (order.created_by.real_name or order.created_by.username) if order.created_by else '—'},
+        {'k': _('创建时间'), 'v': order.formatted_order_date, 'mono': true},
+        {'k': _('更新时间'), 'v': order.updated_at.strftime('%Y-%m-%d') if order.updated_at else '—', 'mono': true},
+        {'k': _('订单金额'), 'v': (currency_symbol ~ ('{:,.2f}'.format(order.total_amount or 0))), 'mono': true, 'strong': true}
       ], cols=4) }}
     {% endcall %}
   </div>
@@ -184,8 +184,8 @@
   <div style="margin-bottom:20px;">
     {% set qty_ns = namespace(t=0) %}
     {% for it in items %}{% set qty_ns.t = qty_ns.t + (it.qty or 0) %}{% endfor %}
-    {% set _items_subtitle = '<span class="at-mono at-tab-num">' ~ (items|length) ~ ' 项 · 共 ' ~ qty_ns.t ~ ' 套</span>' %}
-    {% call at_section('订单明细', subtitle=_items_subtitle) %}
+    {% set _items_subtitle = '<span class="at-mono at-tab-num">' ~ (items|length) ~ ' ' ~ _('项') ~ ' · ' ~ _('共') ~ ' ' ~ qty_ns.t ~ ' ' ~ _('套') ~ '</span>' %}
+    {% call at_section(_('订单明细'), subtitle=_items_subtitle) %}
       {{ at_item_table(items, currency=currency_symbol) }}
     {% endcall %}
   </div>
@@ -194,9 +194,9 @@
   <div style="margin-bottom:20px;">
     {% set ship_subtitle = '' %}
     {% if shipments and shipments|length > 0 %}
-      {% set ship_subtitle = '<span class="at-mono at-tab-num">' ~ shipments|length ~ ' 次发货</span>' %}
+      {% set ship_subtitle = '<span class="at-mono at-tab-num">' ~ shipments|length ~ ' ' ~ _('次发货') ~ '</span>' %}
     {% endif %}
-    {% call at_section('发货记录', subtitle=ship_subtitle) %}
+    {% call at_section(_('发货记录'), subtitle=ship_subtitle) %}
       {% set can_create_ship = (order.production_status == 'ready') %}
       {{ at_shipment_list(shipments, can_create=can_create_ship, on_create="atOpenStageModal('create-shipment')", can_delete=true) }}
     {% endcall %}
@@ -245,26 +245,26 @@ function escapeHtml(s) {
 // ─── 审批动作(走 ATConfirm 而非原生 confirm) ───
 function atSubmitApproval() {
   ATConfirm.show({
-    title: '提交审批', icon: 'send', variant: 'accent',
-    message: '确定要提交此采购订单进行审批吗?提交后将进入审批流程,可在审批中召回修改。',
-    confirmText: '提交审批', cancelText: '取消',
-    onConfirm: () => atApprovalCall('submit', '提交审批')
+    title: '{{ _("提交审批") }}', icon: 'send', variant: 'accent',
+    message: '{{ _("确定要提交此采购订单进行审批吗?提交后将进入审批流程,可在审批中召回修改。") }}',
+    confirmText: '{{ _("提交审批") }}', cancelText: '{{ _("取消") }}',
+    onConfirm: () => atApprovalCall('submit', '{{ _("提交审批") }}')
   });
 }
 function atResubmitApproval() {
   ATConfirm.show({
-    title: '重新提交审批', icon: 'send', variant: 'accent',
-    message: '确定要重新提交此订单进行审批吗?',
-    confirmText: '重新提交', cancelText: '取消',
-    onConfirm: () => atApprovalCall('resubmit', '重新提交审批')
+    title: '{{ _("重新提交审批") }}', icon: 'send', variant: 'accent',
+    message: '{{ _("确定要重新提交此订单进行审批吗?") }}',
+    confirmText: '{{ _("重新提交") }}', cancelText: '{{ _("取消") }}',
+    onConfirm: () => atApprovalCall('resubmit', '{{ _("重新提交审批") }}')
   });
 }
 function atRecallApproval() {
   ATConfirm.show({
-    title: '召回审批', icon: 'warn', variant: 'warn',
-    message: '召回后此订单将回到草稿状态,需要修订完成后重新提交审批。是否继续?',
-    confirmText: '召回', cancelText: '取消',
-    onConfirm: () => atApprovalCall('recall', '召回审批')
+    title: '{{ _("召回审批") }}', icon: 'warn', variant: 'warn',
+    message: '{{ _("召回后此订单将回到草稿状态,需要修订完成后重新提交审批。是否继续?") }}',
+    confirmText: '{{ _("召回") }}', cancelText: '{{ _("取消") }}',
+    onConfirm: () => atApprovalCall('recall', '{{ _("召回审批") }}')
   });
 }
 function atApprovalCall(action, label) {
@@ -277,22 +277,22 @@ function atApprovalCall(action, label) {
     .then(r => r.json())
     .then(res => {
       if (res.success) {
-        ATToast.success(label + '成功');
+        ATToast.success(label + '{{ _("成功") }}');
         setTimeout(() => location.reload(), 800);
       } else {
-        ATToast.error(label + '失败', res.message || '');
+        ATToast.error(label + '{{ _("失败") }}', res.message || '');
       }
     })
-    .catch(err => ATToast.error(label + '失败', String(err)));
+    .catch(err => ATToast.error(label + '{{ _("失败") }}', String(err)));
 }
 
 
 // ─── 删除采购订单 ───
 function atDeleteOrder() {
   ATConfirm.show({
-    title: '删除采购订单', icon: 'warn', variant: 'danger',
-    message: '订单号 {{ order.order_number }} 将被永久删除,且无法恢复。是否继续?',
-    confirmText: '删除', cancelText: '取消',
+    title: '{{ _("删除采购订单") }}', icon: 'warn', variant: 'danger',
+    message: '{{ _("订单号") }} {{ order.order_number }} {{ _("将被永久删除,且无法恢复。是否继续?") }}',
+    confirmText: '{{ _("删除") }}', cancelText: '{{ _("取消") }}',
     onConfirm: () => {
       const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       fetch('/purchase-order/api/{{ order.id }}/delete', {
@@ -302,13 +302,13 @@ function atDeleteOrder() {
         .then(r => r.json())
         .then(res => {
           if (res.success) {
-            ATToast.success('已删除');
+            ATToast.success('{{ _("已删除") }}');
             setTimeout(() => { location.href = '{{ url_for("purchase_order.at_list_view") }}'; }, 700);
           } else {
-            ATToast.error('删除失败', res.message || '');
+            ATToast.error('{{ _("删除失败") }}', res.message || '');
           }
         })
-        .catch(err => ATToast.error('删除失败', String(err)));
+        .catch(err => ATToast.error('{{ _("删除失败") }}', String(err)));
     }
   });
 }
@@ -355,7 +355,7 @@ function atInitCreateShipment(orderId) {
 
   // 初始未选 SO → 提示用户选择
   document.getElementById('atShipDetailBody').innerHTML =
-    `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">请先选择目标客户订单或入公司仓库</td></tr>`;
+    `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">{{ _("请先选择目标客户订单或入公司仓库") }}</td></tr>`;
   _atShipDetails = [];
   atUpdateShipTotal();
 
@@ -364,7 +364,7 @@ function atInitCreateShipment(orderId) {
     .then(r => r.json())
     .then(res => {
       const sel = document.getElementById('atShipSOSelect');
-      sel.innerHTML = '<option value="">选择客户订单…</option>';
+      sel.innerHTML = '<option value="">{{ _("选择客户订单…") }}</option>';
       const list = (res && res.orders) || [];
       list.forEach(o => {
         const opt = document.createElement('option');
@@ -373,7 +373,7 @@ function atInitCreateShipment(orderId) {
                         : (o.total_quantity != null ? o.total_quantity : null);
         let label = o.order_number;
         if (o.customer_name) label += ' · ' + o.customer_name;
-        if (pending != null)  label += ' · 待 ' + pending + ' 件';
+        if (pending != null)  label += ' · {{ _("待") }} ' + pending + ' {{ _("件") }}';
         opt.textContent = label;
         sel.appendChild(opt);
       });
@@ -417,7 +417,7 @@ function atReloadShipDetails() {
     if (!soId) {
       _atShipDetails = [];
       tbody.innerHTML =
-        `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">请先选择目标客户订单</td></tr>`;
+        `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">{{ _("请先选择目标客户订单") }}</td></tr>`;
       atUpdateShipTotal();
       return;
     }
@@ -427,7 +427,7 @@ function atReloadShipDetails() {
     url += `?target=warehouse`;
   }
   tbody.innerHTML =
-    `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">加载中…</td></tr>`;
+    `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">{{ _("加载中…") }}</td></tr>`;
 
   fetch(url)
     .then(r => r.json())
@@ -437,7 +437,7 @@ function atReloadShipDetails() {
       if (!details.length) {
         tbody.innerHTML =
           `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">${
-            _atShipTarget === 'warehouse' ? '该订单无可入备库的多订部分' : '该客户订单下无可发明细'
+            _atShipTarget === 'warehouse' ? '{{ _("该订单无可入备库的多订部分") }}' : '{{ _("该客户订单下无可发明细") }}'
           }</td></tr>`;
         atUpdateShipTotal();
       } else {
@@ -447,14 +447,14 @@ function atReloadShipDetails() {
     .catch(() => {
       _atShipDetails = [];
       tbody.innerHTML =
-        `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">加载明细失败</td></tr>`;
+        `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">{{ _("加载明细失败") }}</td></tr>`;
     });
 }
 
 function atRenderShipRows() {
   const tbody = document.getElementById('atShipDetailBody');
   if (!_atShipDetails.length) {
-    tbody.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">无可发明细</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ink-3);font-size:12.5px;">{{ _("无可发明细") }}</td></tr>`;
     atUpdateShipTotal();
     return;
   }
@@ -493,12 +493,12 @@ function atRenderShipRows() {
       <td style="padding:14px 14px;vertical-align:top;">
         <div class="at-sn-editor" style="display:block;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <input type="text" class="at-sn-prefix at-mono" value="${escapeHtml(prefix)}" placeholder="前缀"
+            <input type="text" class="at-sn-prefix at-mono" value="${escapeHtml(prefix)}" placeholder="{{ _('前缀') }}"
                    oninput="atUpdateSnPreview(${i})"
                    style="flex:1;min-width:0;height:30px;padding:0 8px;
                           border:1px solid var(--line-2);border-radius:4px;
                           background:var(--bg-elev);outline:none;font-size:12px;">
-            <input type="text" class="at-sn-start at-mono at-tab-num" value="001" placeholder="起始"
+            <input type="text" class="at-sn-start at-mono at-tab-num" value="001" placeholder="{{ _('起始') }}"
                    oninput="atUpdateSnPreview(${i})"
                    style="width:64px;height:30px;padding:0 8px;
                           border:1px solid var(--line-2);border-radius:4px;
@@ -508,12 +508,12 @@ function atRenderShipRows() {
                style="font-size:10.5px;color:var(--ink-3);margin-top:5px;letter-spacing:0.02em;
                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
         </div>
-        <div class="at-sn-skipped at-dim" style="display:none;font-size:12px;padding-top:6px;">无需序列号</div>
+        <div class="at-sn-skipped at-dim" style="display:none;font-size:12px;padding-top:6px;">{{ _("无需序列号") }}</div>
         <label style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;
                        font-size:11px;color:var(--ink-3);cursor:pointer;user-select:none;">
           <input type="checkbox" class="at-sn-skip" onchange="atOnSkipChange(${i})"
                  style="accent-color:var(--accent);">
-          无序列号
+          {{ _("无序列号") }}
         </label>
       </td>
     </tr>`;
@@ -554,7 +554,7 @@ function atUpdateShipTotal() {
   const hint = document.getElementById('atShipDetailHint');
   if (hint) {
     hint.textContent = _atShipDetails.length
-      ? `${_atShipDetails.length} 项物料 · 本次共 ${total} 件`
+      ? `${_atShipDetails.length} {{ _("项物料") }} · {{ _("本次共") }} ${total} {{ _("件") }}`
       : '';
   }
   // 按钮 qty badge + 禁用
@@ -567,7 +567,7 @@ function atUpdateShipTotal() {
   }
   if (badge) {
     badge.style.display = total > 0 ? 'inline' : 'none';
-    badge.textContent = total > 0 ? `· ${total} 件` : '';
+    badge.textContent = total > 0 ? `· ${total} {{ _("件") }}` : '';
   }
 }
 
@@ -612,7 +612,7 @@ function atUpdateSnPreview(idx) {
 function atSubmitCreateShipment(orderId) {
   const target = _atShipTarget;
   const soId = document.getElementById('atShipSOSelect').value;
-  if (target === 'sales_order' && !soId) { ATToast.warn('无法创建发货单', '请选择目标客户订单'); return; }
+  if (target === 'sales_order' && !soId) { ATToast.warn('{{ _("无法创建发货单") }}', '{{ _("请选择目标客户订单") }}'); return; }
 
   const details = [];
   document.querySelectorAll('#atShipDetailBody tr[data-row-idx]').forEach(row => {
@@ -642,12 +642,12 @@ function atSubmitCreateShipment(orderId) {
     details.push(item);
   });
 
-  if (!details.length) { ATToast.warn('无法创建发货单', '请至少填写一件本次发货数量'); return; }
+  if (!details.length) { ATToast.warn('{{ _("无法创建发货单") }}', '{{ _("请至少填写一件本次发货数量") }}'); return; }
 
   // 快递单必填:作为发货凭证强制留档
   const courierFiles = atDzGetFiles('atShipCourierFile');
   if (!courierFiles.length) {
-    ATToast.warn('无法创建发货单', '请上传快递单(发货凭证必传)');
+    ATToast.warn('{{ _("无法创建发货单") }}', '{{ _("请上传快递单(发货凭证必传)") }}');
     return;
   }
 
@@ -672,7 +672,7 @@ function atSubmitCreateShipment(orderId) {
 
   btn.disabled = true;
   const orig = btn.innerHTML;
-  btn.innerHTML = '创建中…';
+  btn.innerHTML = '{{ _("创建中…") }}';
 
   fetch('/shipment/api/create-from-po', {
     method: 'POST',
@@ -683,15 +683,15 @@ function atSubmitCreateShipment(orderId) {
     .then(res => {
       if (res.success) {
         document.getElementById('atCreateShipmentModal').style.display = 'none';
-        ATToast.success('发货单已创建', totalNow > 0 ? `本次共发货 ${totalNow} 件` : '');
+        ATToast.success('{{ _("发货单已创建") }}', totalNow > 0 ? `{{ _("本次共发货") }} ${totalNow} {{ _("件") }}` : '');
         setTimeout(() => location.reload(), 900);
       } else {
-        ATToast.error('创建失败', res.message || '');
+        ATToast.error('{{ _("创建失败") }}', res.message || '');
         btn.disabled = false; btn.innerHTML = orig;
       }
     })
     .catch(err => {
-      ATToast.error('创建失败', String(err));
+      ATToast.error('{{ _("创建失败") }}', String(err));
       btn.disabled = false; btn.innerHTML = orig;
     });
 }
@@ -739,7 +739,7 @@ function _atDzRenderMulti(inputId) {
                     text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.name)}</div>
         <div class="at-dim at-mono at-tab-num" style="font-size:10.5px;margin-top:1px;">${_atDzFmtSize(f.size)}</div>
       </div>
-      <button type="button" onclick="atDzRemoveOne('${inputId}', ${i})" title="移除"
+      <button type="button" onclick="atDzRemoveOne('${inputId}', ${i})" title="{{ _('移除') }}"
               style="width:22px;height:22px;border-radius:50%;
                      background:var(--bg-page);color:var(--ink-3);border:1px solid var(--line-2);
                      display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
@@ -757,7 +757,7 @@ function _atDzRenderMulti(inputId) {
                    display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      添加文件 (${files.length} 个)
+      {{ _("添加文件") }} (${files.length} {{ _("个") }})
     </button>`;
 }
 
@@ -846,14 +846,14 @@ function atSubmitSupplierConfirm(orderId) {
   const form = document.getElementById('atSupplierConfirmForm');
   const files = atDzGetFiles('atSupplierConfirmFile');
   if (!files.length) {
-    ATToast.warn('无法提交', '请上传供应商确认回执文件');
+    ATToast.warn('{{ _("无法提交") }}', '{{ _("请上传供应商确认回执文件") }}');
     return;
   }
   const fd = new FormData();
   files.forEach(f => fd.append('files', f));
   fd.append('file', files[0]); // 兼容旧字段
   fd.append('notes', form.querySelector('textarea[name="notes"]').value || '');
-  atSubmitForm(`/purchase-order/api/${orderId}/supplier-confirm`, fd, 'atSupplierConfirmModal', '供应商确认已记录');
+  atSubmitForm(`/purchase-order/api/${orderId}/supplier-confirm`, fd, 'atSupplierConfirmModal', '{{ _("供应商确认已记录") }}');
 }
 
 // ─── 提交:测试报告上传(支持多文件) ───
@@ -861,7 +861,7 @@ function atSubmitTestReport(orderId) {
   const form = document.getElementById('atUploadTestForm');
   const files = atDzGetFiles('atUploadTestFile');
   if (!files.length) {
-    ATToast.warn('无法提交', '请上传测试报告文件');
+    ATToast.warn('{{ _("无法提交") }}', '{{ _("请上传测试报告文件") }}');
     return;
   }
   const fd = new FormData();
@@ -869,15 +869,15 @@ function atSubmitTestReport(orderId) {
   fd.append('file', files[0]); // 兼容旧字段
   fd.append('notes', form.querySelector('textarea[name="notes"]').value || '');
   fd.append('test_status', 'passed');
-  atSubmitForm(`/purchase-order/api/${orderId}/test-report`, fd, 'atUploadTestModal', '测试报告已提交');
+  atSubmitForm(`/purchase-order/api/${orderId}/test-report`, fd, 'atUploadTestModal', '{{ _("测试报告已提交") }}');
 }
 
 // ─── 阶段推进(无附件类:备料 / 生产) ───
 function atAdvanceStage(newStage, label) {
   ATConfirm.show({
-    title: label || '阶段推进', icon: 'check', variant: 'accent',
-    message: `确认 ${label || '推进当前阶段'} 吗?推进后会进入下一阶段。`,
-    confirmText: '确认', cancelText: '取消',
+    title: label || '{{ _("阶段推进") }}', icon: 'check', variant: 'accent',
+    message: `{{ _("确认") }} ${label || '{{ _("推进当前阶段") }}'} {{ _("吗?推进后会进入下一阶段。") }}`,
+    confirmText: '{{ _("确认") }}', cancelText: '{{ _("取消") }}',
     onConfirm: () => {
       const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       fetch('/purchase-order/api/{{ order.id }}/advance-stage', {
@@ -888,13 +888,13 @@ function atAdvanceStage(newStage, label) {
         .then(r => r.json())
         .then(res => {
           if (res.success) {
-            ATToast.success(label + '已记录');
+            ATToast.success(label + '{{ _("已记录") }}');
             setTimeout(() => location.reload(), 700);
           } else {
-            ATToast.error('操作失败', res.message || '');
+            ATToast.error('{{ _("操作失败") }}', res.message || '');
           }
         })
-        .catch(err => ATToast.error('操作失败', String(err)));
+        .catch(err => ATToast.error('{{ _("操作失败") }}', String(err)));
     }
   });
 }
@@ -902,9 +902,9 @@ function atAdvanceStage(newStage, label) {
 // ─── 删除发货单(仅 pending 且无快递单) ───
 function atDeleteShipment(shipId, shipNumber) {
   ATConfirm.show({
-    title: '删除发货单',
-    message: `确认删除发货单 ${shipNumber || '#' + shipId} 吗?\n已分配的采购数量、占用的 SN 都会同步回收`,
-    confirmText: '删除',
+    title: '{{ _("删除发货单") }}',
+    message: `{{ _("确认删除发货单") }} ${shipNumber || '#' + shipId} {{ _("吗?") }}\n{{ _("已分配的采购数量、占用的 SN 都会同步回收") }}`,
+    confirmText: '{{ _("删除") }}',
     variant: 'danger',
     icon: 'trash',
     onConfirm: () => {
@@ -915,13 +915,13 @@ function atDeleteShipment(shipId, shipNumber) {
         .then(r => r.json())
         .then(res => {
           if (res.success) {
-            ATToast.success(res.message || '发货单已删除');
+            ATToast.success(res.message || '{{ _("发货单已删除") }}');
             setTimeout(() => location.reload(), 400);
           } else {
-            ATToast.error(res.message || '删除失败');
+            ATToast.error(res.message || '{{ _("删除失败") }}');
           }
         })
-        .catch(() => ATToast.error('删除失败,请重试'));
+        .catch(() => ATToast.error('{{ _("删除失败,请重试") }}'));
     }
   });
 }
@@ -935,10 +935,10 @@ function atOpenSignReceipt(shipment) {
   // 注入信息条
   const infoEl = document.getElementById('atSignReceiptInfo');
   const lineItems = [
-    { k: '发货单号', v: shipment.number, mono: true, strong: true },
-    { k: '目标',     v: shipment.target + (shipment.target_sub ? ' · ' + shipment.target_sub : '') },
-    { k: '数量',     v: (shipment.qty != null ? shipment.qty : '—') + ' 件', mono: true },
-    { k: '承运商',   v: (shipment.carrier || '—') + (shipment.waybill ? ' · ' + shipment.waybill : '') },
+    { k: '{{ _("发货单号") }}', v: shipment.number, mono: true, strong: true },
+    { k: '{{ _("目标") }}',     v: shipment.target + (shipment.target_sub ? ' · ' + shipment.target_sub : '') },
+    { k: '{{ _("数量") }}',     v: (shipment.qty != null ? shipment.qty : '—') + ' {{ _("件") }}', mono: true },
+    { k: '{{ _("承运商") }}',   v: (shipment.carrier || '—') + (shipment.waybill ? ' · ' + shipment.waybill : '') },
   ];
   infoEl.innerHTML = lineItems.map(it => `
     <div style="display:flex;justify-content:space-between;align-items:baseline;">
@@ -966,7 +966,7 @@ function atSubmitSignReceipt() {
   if (!_atCurrentSignShipment) return;
   const files = atDzGetFiles('atSignReceiptFile');
   if (!files.length) {
-    ATToast.warn('无法提交', '请上传签收单文件');
+    ATToast.warn('{{ _("无法提交") }}', '{{ _("请上传签收单文件") }}');
     return;
   }
   const fd = new FormData();
@@ -982,7 +982,7 @@ function atSubmitSignReceipt() {
     `/shipment/api/${_atCurrentSignShipment.id}/receive-with-file`,
     fd,
     'atSignReceiptModal',
-    '已签收入库'
+    '{{ _("已签收入库") }}'
   );
 }
 
@@ -994,13 +994,13 @@ function atSubmitForm(url, formData, modalId, successTitle) {
     .then(res => {
       if (res.success) {
         if (modalId) document.getElementById(modalId).style.display = 'none';
-        ATToast.success(successTitle || '操作成功');
+        ATToast.success(successTitle || '{{ _("操作成功") }}');
         setTimeout(() => location.reload(), 900);
       } else {
-        ATToast.error('操作失败', res.message || '');
+        ATToast.error('{{ _("操作失败") }}', res.message || '');
       }
     })
-    .catch(err => ATToast.error('操作失败', String(err)));
+    .catch(err => ATToast.error('{{ _("操作失败") }}', String(err)));
 }
 
 // ─── 编辑模态:ATItemTable 初始化(产品挑选器 / 需求池 回调) ───
@@ -1021,7 +1021,7 @@ ATItemTable.init({
           code:  p.code  || p.product_mn,
           spec:  p.spec  || p.product_desc || '',
           price: p.price || 0,
-          unit:  p.unit  || '套',
+          unit:  p.unit  || '{{ _("套") }}',
           quantity: qty || 1,
         });
         (result.items || []).forEach(it => {
@@ -1044,7 +1044,7 @@ ATItemTable.init({
       existingPicks,
       onImport: (demands) => {
         demands.forEach(d => ATItemTable.addItem(d));
-        if (demands.length) ATToast.success('已导入 ' + demands.length + ' 项客户需求');
+        if (demands.length) ATToast.success('{{ _("已导入") }} ' + demands.length + ' {{ _("项客户需求") }}');
       }
     });
   },
