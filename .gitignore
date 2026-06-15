@@ -194,3 +194,4 @@ storage/
 mobile-app/node_modules/
 mobile-app/dist/
 mobile-app/ios/App/Pods/
+i18n_preview/

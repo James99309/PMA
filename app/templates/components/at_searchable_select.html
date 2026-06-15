@@ -21,7 +21,7 @@
 {% from 'components/at_base.html' import at_icon %}
 
 
-{% macro at_searchable_select(id, name='', items=[], value='', placeholder='搜索或选择…',
+{% macro at_searchable_select(id, name='', items=[], value='', placeholder=_('搜索或选择…'),
                                required=false, width='100%', on_change='',
                                multiple=false, values=[]) %}
   {# 归一已选值为字符串列表 #}
@@ -93,7 +93,7 @@
       <script type="application/json" class="at-ss-data">{{ items|tojson }}</script>
       <div class="at-ss-list" style="padding:4px;"></div>
       <div class="at-ss-empty" style="display:none;padding:14px 12px;text-align:center;
-                                       color:var(--ink-4);font-size:12px;">无匹配项</div>
+                                       color:var(--ink-4);font-size:12px;">{{ _('无匹配项') }}</div>
     </div>
   </div>
 {% endmacro %}

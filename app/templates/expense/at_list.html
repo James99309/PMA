@@ -2,30 +2,30 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
 
 {% block sidebar_active %}expense{% endblock %}
-{% block page_title %}报销管理{% endblock %}
-{% block category_label %}EXPENSE · 业务管理{% endblock %}
-{% block page_description %}提交、审批、付款一站式管理,个人财务隔离。{% endblock %}
+{% block page_title %}{{ _('报销管理') }}{% endblock %}
+{% block category_label %}EXPENSE · {{ _('业务管理') }}{% endblock %}
+{% block page_description %}{{ _('提交、审批、付款一站式管理,个人财务隔离。') }}{% endblock %}
 
 {% block breadcrumb %}
-<a href="#" style="font-size:13px;color:var(--ink-3);">业务管理</a>
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
-<span style="font-size:13px;color:var(--ink);">报销管理</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('报销管理') }}</span>
 {% endblock %}
 
 {% block page_actions %}
-{{ at_btn('提交报销', variant='primary', icon_l='plus', tag='a',
+{{ at_btn(_('提交报销'), variant='primary', icon_l='plus', tag='a',
           href=url_for('expense.at_new_expense')) }}
 {% endblock %}
 
 {% block tabs %}
 {% set _tabs = [
-  {'k':'all',              'l':'全部',     'c':tab_counts.all},
-  {'k':'draft',            'l':'草稿',     'c':tab_counts.draft},
-  {'k':'pending',          'l':'待审批',   'c':tab_counts.pending},
-  {'k':'approved',         'l':'已通过',   'c':tab_counts.approved},
-  {'k':'awaiting_payment', 'l':'待付款',   'c':tab_counts.awaiting_payment},
-  {'k':'paid',             'l':'已支付',   'c':tab_counts.paid},
-  {'k':'rejected',         'l':'已驳回',   'c':tab_counts.rejected}
+  {'k':'all',              'l':_('全部'),     'c':tab_counts.all},
+  {'k':'draft',            'l':_('草稿'),     'c':tab_counts.draft},
+  {'k':'pending',          'l':_('待审批'),   'c':tab_counts.pending},
+  {'k':'approved',         'l':_('已通过'),   'c':tab_counts.approved},
+  {'k':'awaiting_payment', 'l':_('待付款'),   'c':tab_counts.awaiting_payment},
+  {'k':'paid',             'l':_('已支付'),   'c':tab_counts.paid},
+  {'k':'rejected',         'l':_('已驳回'),   'c':tab_counts.rejected}
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
@@ -49,13 +49,13 @@
         style="display:flex;gap:10px;align-items:center;">
     <input type="hidden" name="tab" value="{{ current_tab }}">
     {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
-    {{ at_input(name='search', value=search, placeholder='搜索报销编号 / 标题…', icon_l='search', width='320px') }}
+    {{ at_input(name='search', value=search, placeholder=_('搜索报销编号 / 标题…'), icon_l='search', width='320px') }}
   </form>
   {% if show_filter %}
   {{ at_filter_panel(
        action_url=url_for('expense.at_list_view'),
        fields=[
-         {'key':'owner','label':'申请人','type':'user','items':owner_options,'values':owner_values},
+         {'key':'owner','label':_('申请人'),'type':'user','items':owner_options,'values':owner_values},
        ],
        hidden={'tab':current_tab,'search':search},
        panel_id='expFilterPanel') }}
@@ -64,8 +64,8 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('报销编号','left'),('主题','left'),('客户·项目','left'),
-                ('金额','right'),('状态','left'),('申请人','left'),('更新','left')] %}
+{% for h, a in [(_('报销编号'),'left'),(_('主题'),'left'),(_('客户·项目'),'left'),
+                (_('金额'),'right'),(_('状态'),'left'),(_('申请人'),'left'),(_('更新'),'left')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
@@ -114,7 +114,7 @@
 {% else %}
 <tr>
   <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
-    没有符合筛选条件的报销
+    {{ _('没有符合筛选条件的报销') }}
   </td>
 </tr>
 {% endfor %}
@@ -123,15 +123,15 @@
 {% block pagination %}
 {% if pagination.pages > 1 %}
 <span class="at-mono at-dim" style="font-size:11.5px;">
-  第 {{ pagination.page }} / {{ pagination.pages }} 页
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
 </span>
 <div style="display:flex;gap:6px;">
   {% if pagination.has_prev %}
-    {{ at_btn('上一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
               href=url_for('expense.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
   {% endif %}
   {% if pagination.has_next %}
-    {{ at_btn('下一页', variant='ghost', size='sm', tag='a',
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
               href=url_for('expense.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
   {% endif %}
 </div>

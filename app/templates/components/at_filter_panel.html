@@ -22,7 +22,7 @@
   {% set _active = fields | selectattr('values') | list | length %}
   <div style="position:relative;" data-at-filter-root>
     {# 触发:纯图标,无文字、无边框/背景;有筛选时图标变橙 + 右上角小圆点 #}
-    <button type="button" onclick="atFilterToggle('{{ panel_id }}')" title="筛选"
+    <button type="button" onclick="atFilterToggle('{{ panel_id }}')" title="{{ _('筛选') }}"
             style="height:34px;width:34px;padding:0;border:none;background:transparent;cursor:pointer;
                    display:inline-flex;align-items:center;justify-content:center;position:relative;
                    color:{{ 'var(--accent)' if _active else 'var(--ink-3)' }};transition:color 120ms;">
@@ -54,15 +54,15 @@
             {% endfor %}
             {{ at_searchable_select('atfilt_' ~ f['key'], name=f['key'], items=_items,
                                     multiple=true, values=(f['values'] or []),
-                                    placeholder='全部' ~ f['label'], width='100%') }}
+                                    placeholder=_('全部') ~ f['label'], width='100%') }}
           </div>
           {% endfor %}
         </div>
         <div style="display:flex;gap:8px;margin-top:16px;">
           <button type="submit"
                   style="flex:1;height:34px;border-radius:6px;border:none;cursor:pointer;
-                         background:var(--accent);color:#fff;font-size:13px;font-weight:500;">应用筛选</button>
-          <a href="{{ action_url }}{% if hidden.tab %}?tab={{ hidden.tab }}{% endif %}" title="重置"
+                         background:var(--accent);color:#fff;font-size:13px;font-weight:500;">{{ _('应用筛选') }}</button>
+          <a href="{{ action_url }}{% if hidden.tab %}?tab={{ hidden.tab }}{% endif %}" title="{{ _('重置') }}"
              style="width:34px;height:34px;border-radius:6px;border:1px solid var(--line-2);
                     background:var(--bg-elev);color:var(--ink-3);
                     display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
