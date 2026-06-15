@@ -349,7 +349,7 @@ class PerformanceDashboardService:
             }
 
     @staticmethod
-    def get_expense_budget_data(user_id, year, scope_user_ids=None, target_user=None):
+    def get_expense_budget_data(user_id, year, scope_user_ids=None, target_user=None, statuses=None):
         """获取报销预算数据
 
         Args:
@@ -359,6 +359,8 @@ class PerformanceDashboardService:
             target_user: 可选，目标用户对象（用于确定结算货币）
                         - 查看自己时：使用自己的结算货币
                         - 查看他人时：使用对方的结算货币
+            statuses: 可选，统计的报销状态列表(默认 已审批+待付款+已付款);
+                      传 ['pending','approved','awaiting_payment','paid'] 含待审批(所有非草稿非驳回)
 
         Returns:
             dict: 报销预算数据（包含 currency 字段表示使用的货币）
@@ -432,11 +434,11 @@ class PerformanceDashboardService:
                             has_any_budget = True
 
             # 先计算月度趋势（使用目标货币），然后复用其结果求总额（避免冗余全量查询）
-            monthly_trend = PerformanceDashboardService._get_expense_monthly_trend(target_user_ids, year, target_currency)
+            monthly_trend = PerformanceDashboardService._get_expense_monthly_trend(target_user_ids, year, target_currency, statuses)
             expense_total = sum(m['amount'] for m in monthly_trend) if monthly_trend else 0.0
 
             # 按科目统计实际报销（使用目标货币）
-            by_category = PerformanceDashboardService._get_expense_by_category(target_user_ids, year, target_currency)
+            by_category = PerformanceDashboardService._get_expense_by_category(target_user_ids, year, target_currency, statuses)
 
             # 计算使用率和剩余
             remaining = budget_total - expense_total
@@ -503,7 +505,7 @@ class PerformanceDashboardService:
             return PerformanceDashboardService._empty_expense_budget()
 
     @staticmethod
-    def _get_expense_by_category(user_ids, year, target_currency=None):
+    def _get_expense_by_category(user_ids, year, target_currency=None, statuses=None):
         """按科目统计实际报销金额（支持多货币转换）
 
         Args:
@@ -527,7 +529,7 @@ class PerformanceDashboardService:
             ).join(Expense).filter(
                 func.coalesce(Expense.attributed_to_id, Expense.owner_id).in_(user_ids),
                 extract('year', Expense.created_at) == year,
-                Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
+                Expense.status.in_(statuses or ['approved', 'awaiting_payment', 'paid']),
                 Expense.is_deleted == False
             )
 
@@ -562,7 +564,7 @@ class PerformanceDashboardService:
             return {}
 
     @staticmethod
-    def _get_expense_monthly_trend(user_ids, year, target_currency=None):
+    def _get_expense_monthly_trend(user_ids, year, target_currency=None, statuses=None):
         """获取月度报销趋势（支持多货币转换）
 
         Args:
@@ -586,7 +588,7 @@ class PerformanceDashboardService:
             ).filter(
                 func.coalesce(Expense.attributed_to_id, Expense.owner_id).in_(user_ids),
                 extract('year', Expense.created_at) == year,
-                Expense.status.in_(['approved', 'awaiting_payment', 'paid']),
+                Expense.status.in_(statuses or ['approved', 'awaiting_payment', 'paid']),
                 Expense.is_deleted == False
             )
 

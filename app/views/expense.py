@@ -757,8 +757,22 @@ def at_view_expense(id):
     # 导出 PDF 按钮可见性(仅审批通过 + admin/ceo 或参与审批的财务)
     can_export_pdf = can_export_expense_pdf(current_user, e)
 
+    # 申请人本年报销聚合(科目分类 + 预算执行;口径=所有非草稿/含待审批)
+    budget_summary = None
+    try:
+        from app.services.performance_dashboard_service import PerformanceDashboardService
+        _yr = e.created_at.year if e.created_at else None
+        if _yr:
+            budget_summary = PerformanceDashboardService.get_expense_budget_data(
+                e.owner_id, _yr,
+                statuses=['pending', 'approved', 'awaiting_payment', 'paid'])
+            budget_summary['year'] = _yr
+    except Exception as _be:
+        current_app.logger.warning(f'报销聚合计算失败: {_be}')
+
     return render_template('expense/at_view.html',
                            expense=e,
+                           budget_summary=budget_summary,
                            related=related,
                            perms=perms,
                            can_export_pdf=can_export_pdf,

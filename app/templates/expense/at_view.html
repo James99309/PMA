@@ -518,6 +518,54 @@
   {% endcall %}
   {% endif %}
 
+  {# ── 科目汇总 · 预算执行(申请人本年,含待审批口径)── #}
+  {% if budget_summary %}
+  {% set _bs = budget_summary %}
+  {% set _cur = {'CNY':'¥','USD':'$','HKD':'HK$','TWD':'NT$','SGD':'S$','MYR':'RM','IDR':'Rp','THB':'฿','VND':'₫'}.get(_bs.currency, currency_sym or '¥') %}
+  {% set _cat_meta = [('entertainment','招待','#ff6b6b'),('travel','差旅','#45b7d1'),('transport','交通','#4ecdc4'),('office','办公','#96ceb4'),('communication','通讯','#ffeaa7'),('other','其他','#aab7b8')] %}
+  <section class="at-section" style="margin-bottom:16px;">
+    <header class="at-section-h">
+      <h3 class="at-section-title">科目汇总 · {{ _bs.year }}年</h3>
+      <div style="flex:1;"></div>
+      <span style="font-size:11px;color:var(--ink-4);">{{ (expense.owner.real_name or expense.owner.username) if expense.owner else '申请人' }} · 含待审批{% if _bs.has_budget %} · 预算执行{% endif %}</span>
+    </header>
+    <div style="padding:2px 4px 6px;">
+      {% for code, label, color in _cat_meta %}
+      {% set c = (_bs.category_comparison or {}).get(code) %}
+      {% set _act = (c.actual if c else 0) or 0 %}
+      {% set _bud = (c.budget if c else 0) or 0 %}
+      {% if _act > 0 or _bud > 0 %}
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 2px;font-size:12.5px;border-top:1px solid var(--line-soft);">
+        <span style="width:7px;height:7px;border-radius:50%;background:{{ color }};flex-shrink:0;"></span>
+        <span style="width:52px;flex-shrink:0;color:var(--ink-2);">{{ label }}</span>
+        {% if _bud > 0 %}
+        <span style="flex:1;height:6px;background:var(--bg-page);border-radius:3px;overflow:hidden;min-width:30px;">
+          <span style="display:block;height:100%;width:{{ [(_act/_bud*100), 100]|min }}%;background:{{ color }};"></span>
+        </span>
+        <span class="at-mono" style="width:42px;text-align:right;font-size:11px;flex-shrink:0;color:{{ 'var(--danger)' if (_act>_bud) else 'var(--ink-4)' }};">{{ (_act/_bud*100)|round|int }}%</span>
+        {% else %}
+        <span style="flex:1;"></span>
+        {% endif %}
+        <span class="at-mono" style="width:100px;text-align:right;color:var(--ink);flex-shrink:0;">{{ _cur }}{{ '{:,.0f}'.format(_act) }}{% if _bud > 0 %}<span style="color:var(--ink-4);font-size:10.5px;"> / {{ '{:,.0f}'.format(_bud) }}</span>{% endif %}</span>
+      </div>
+      {% endif %}
+      {% endfor %}
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 2px 4px;border-top:2px solid var(--line);font-weight:600;font-size:13px;">
+        <span style="width:61px;flex-shrink:0;margin-left:17px;">合计</span>
+        {% if _bs.has_budget %}
+        <span style="flex:1;height:6px;background:var(--bg-page);border-radius:3px;overflow:hidden;min-width:30px;">
+          <span style="display:block;height:100%;width:{{ [(_bs.usage_rate or 0), 100]|min }}%;background:var(--accent);"></span>
+        </span>
+        <span class="at-mono" style="width:42px;text-align:right;font-size:11px;flex-shrink:0;color:{{ 'var(--danger)' if (_bs.usage_rate or 0)>100 else 'var(--ink-3)' }};">{{ (_bs.usage_rate or 0)|round|int }}%</span>
+        {% else %}
+        <span style="flex:1;"></span>
+        {% endif %}
+        <span class="at-mono" style="width:100px;text-align:right;flex-shrink:0;">{{ _cur }}{{ '{:,.0f}'.format(_bs.expense_total or 0) }}{% if _bs.has_budget %}<span style="color:var(--ink-4);font-size:10.5px;font-weight:400;"> / {{ '{:,.0f}'.format(_bs.budget_total or 0) }}</span>{% endif %}</span>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
   {# ── 关联(同项目其他报销)— 仅只读态 ── #}
   {% if not _editable and related and related.expense and related.expense['items'] %}
     {% call at_detail_section('同项目其他报销',
