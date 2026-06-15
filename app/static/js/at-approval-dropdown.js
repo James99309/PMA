@@ -337,8 +337,12 @@
                   ' onmouseout="this.style.background=\'transparent\'">' +
                     '<input type="radio" name="designate_step_' + s.step_id + '" value="' + c.id + '"' +
                     ' data-designate-step="' + s.step_id + '"' +
+                    (c.recommended ? ' checked' : '') +
                     ' style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;">' +
-                    '<span style="flex:1;font-size:14px;font-weight:500;color:var(--ink);">' + esc(c.name) + '</span>' +
+                    '<span style="flex:1;font-size:14px;font-weight:500;color:var(--ink);">' + esc(c.name) +
+                    (c.recommended ?
+                      ' <span style="color:var(--accent);font-size:11px;font-weight:600;">(' + t('推荐') + ')</span>' : '') +
+                    '</span>' +
                     (c.role ?
                       '<span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.06em;">' +
                         esc(c.role.toUpperCase()) +

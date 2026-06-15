@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-15 18:39+0800\n"
+"POT-Creation-Date: 2026-06-15 22:21+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -1498,7 +1498,7 @@ msgid "批价单"
 msgstr "Pricing Orders"
 
 #: app/helpers/at_dashboard_helpers.py:91 app/helpers/js_i18n_strings.py:119
-#: app/static/js/at-approval-dropdown.js:389
+#: app/static/js/at-approval-dropdown.js:393
 #: app/templates/components/tw_access_request_modal.html:64
 #: app/templates/components/tw_access_request_modal.html:76
 #: app/templates/components/tw_access_request_modal.html:177
@@ -1531,7 +1531,7 @@ msgid "客户订单"
 msgstr "Customer Orders"
 
 #: app/helpers/at_dashboard_helpers.py:92 app/helpers/js_i18n_strings.py:83
-#: app/routes/resource_pool.py:112 app/static/js/at-approval-dropdown.js:369
+#: app/routes/resource_pool.py:112 app/static/js/at-approval-dropdown.js:373
 #: app/templates/components/at_customer_needs_modal.html:77
 #: app/templates/components/at_sales_order.html:38
 #: app/templates/components/tw_chat_panel.html:2218
@@ -2034,7 +2034,7 @@ msgstr "Planned"
 #: app/templates/knowledge/tw_wiki.html:689
 #: app/templates/knowledge/tw_wiki.html:738
 #: app/templates/knowledge/tw_wiki.html:742
-#: app/templates/knowledge/tw_wiki.html:923 app/views/quotation.py:875
+#: app/templates/knowledge/tw_wiki.html:923 app/views/quotation.py:876
 msgid "系统"
 msgstr "System"
 
@@ -2073,8 +2073,8 @@ msgstr "Quotes I created/confirmed"
 
 #: app/helpers/at_purchase_order_helpers.py:25
 #: app/helpers/js_i18n_strings.py:125 app/static/js/at-approval-dropdown.js:220
-#: app/static/js/at-approval-dropdown.js:513
-#: app/static/js/at-approval-dropdown.js:629
+#: app/static/js/at-approval-dropdown.js:517
+#: app/static/js/at-approval-dropdown.js:633
 #: app/templates/components/tw_approval_flow.html:101
 #: app/templates/components/tw_approval_flow.html:127
 #: app/templates/components/tw_pricing_order_modal.html:2181
@@ -2323,7 +2323,7 @@ msgstr " price"
 msgid " 型号 · "
 msgstr " models · "
 
-#: app/helpers/js_i18n_strings.py:12 app/static/js/at-approval-dropdown.js:371
+#: app/helpers/js_i18n_strings.py:12 app/static/js/at-approval-dropdown.js:375
 msgid " 条"
 msgstr " items"
 
@@ -2339,8 +2339,8 @@ msgstr " nodes"
 msgid "+ 添加到明细"
 msgstr "+ Add to items"
 
-#: app/helpers/js_i18n_strings.py:16 app/static/js/at-approval-dropdown.js:516
-#: app/static/js/at-approval-dropdown.js:537
+#: app/helpers/js_i18n_strings.py:16 app/static/js/at-approval-dropdown.js:520
+#: app/static/js/at-approval-dropdown.js:541
 msgid "AT 弹窗组件未加载"
 msgstr "AT modal component not loaded"
 
@@ -2522,8 +2522,8 @@ msgstr "Error analyzing product code"
 msgid "删除行"
 msgstr "Delete row"
 
-#: app/helpers/js_i18n_strings.py:43 app/static/js/at-approval-dropdown.js:478
-#: app/static/js/at-approval-dropdown.js:595
+#: app/helpers/js_i18n_strings.py:43 app/static/js/at-approval-dropdown.js:482
+#: app/static/js/at-approval-dropdown.js:599
 msgid "刷新中…"
 msgstr "Refreshing…"
 
@@ -2656,7 +2656,7 @@ msgstr "Unit Price"
 msgid "单位"
 msgstr "Unit"
 
-#: app/helpers/js_i18n_strings.py:52 app/static/js/at-approval-dropdown.js:389
+#: app/helpers/js_i18n_strings.py:52 app/static/js/at-approval-dropdown.js:393
 #: app/templates/components/at_minitables.html:553
 #: app/templates/expense/partials/_expense_modal_fields.html:313
 #: app/templates/expense/tw_expense_detail.html:422
@@ -2680,13 +2680,13 @@ msgstr "Indonesian Rupiah"
 msgid "参与方"
 msgstr "Participants"
 
-#: app/helpers/js_i18n_strings.py:56 app/static/js/at-approval-dropdown.js:389
+#: app/helpers/js_i18n_strings.py:56 app/static/js/at-approval-dropdown.js:393
 msgid "发起后"
 msgstr "Once initiated, "
 
-#: app/helpers/js_i18n_strings.py:57 app/static/js/at-approval-dropdown.js:400
-#: app/static/js/at-approval-dropdown.js:521
-#: app/static/js/at-approval-dropdown.js:565
+#: app/helpers/js_i18n_strings.py:57 app/static/js/at-approval-dropdown.js:404
+#: app/static/js/at-approval-dropdown.js:525
+#: app/static/js/at-approval-dropdown.js:569
 #: app/templates/announcement/tw_list.html:225
 #: app/templates/announcement/tw_list.html:264
 #: app/templates/announcement/tw_list.html:274
@@ -2924,7 +2924,7 @@ msgid "取消"
 msgstr "Cancel"
 
 #: app/helpers/js_i18n_strings.py:58 app/static/js/at-approval-dropdown.js:221
-#: app/static/js/at-approval-dropdown.js:521
+#: app/static/js/at-approval-dropdown.js:525
 #: app/templates/components/tw_approval_flow.html:139
 #: app/templates/components/tw_pricing_order_modal.html:546
 #: app/templates/components/tw_pricing_order_modal.html:2190
@@ -2934,11 +2934,11 @@ msgstr "Cancel"
 msgid "召回"
 msgstr "Recall"
 
-#: app/helpers/js_i18n_strings.py:59 app/static/js/at-approval-dropdown.js:523
+#: app/helpers/js_i18n_strings.py:59 app/static/js/at-approval-dropdown.js:527
 msgid "召回原因(可选)"
 msgstr "Recall reason (optional)"
 
-#: app/helpers/js_i18n_strings.py:60 app/static/js/at-approval-dropdown.js:518
+#: app/helpers/js_i18n_strings.py:60 app/static/js/at-approval-dropdown.js:522
 #: app/templates/components/tw_approval_flow.html:107
 #: app/templates/components/tw_approval_flow.html:137
 #: app/templates/expense/tw_expense_detail.html:149
@@ -2958,7 +2958,7 @@ msgstr "Optional exclusive"
 msgid "可选互斥组"
 msgstr "Optional exclusive group"
 
-#: app/helpers/js_i18n_strings.py:63 app/static/js/at-approval-dropdown.js:351
+#: app/helpers/js_i18n_strings.py:63 app/static/js/at-approval-dropdown.js:355
 msgid "可选范围内无可用用户 — 请联系管理员调整模板「指定范围」"
 msgstr ""
 "No available users in the allowed scope — please ask an admin to adjust "
@@ -2974,7 +2974,7 @@ msgid "合作伙伴"
 msgstr "Partner"
 
 #: app/helpers/js_i18n_strings.py:66 app/static/js/at-approval-dropdown.js:226
-#: app/static/js/at-approval-dropdown.js:534
+#: app/static/js/at-approval-dropdown.js:538
 #: app/templates/approval/at_detail.html:70
 #: app/templates/components/tw_approval_flow.html:220
 #: app/templates/macros/approval_macros.html:502
@@ -3086,7 +3086,7 @@ msgstr ""
 msgid "备注"
 msgstr "Notes"
 
-#: app/helpers/js_i18n_strings.py:77 app/static/js/at-approval-dropdown.js:592
+#: app/helpers/js_i18n_strings.py:77 app/static/js/at-approval-dropdown.js:596
 #: app/templates/components/tw_performance_dashboard.html:2833
 #: app/templates/dingtalk/tw_sync_queue.html:62
 #: app/templates/dingtalk/tw_sync_queue.html:78
@@ -3116,12 +3116,12 @@ msgstr "Lost"
 msgid "套"
 msgstr "set"
 
-#: app/helpers/js_i18n_strings.py:79 app/static/js/at-approval-dropdown.js:559
+#: app/helpers/js_i18n_strings.py:79 app/static/js/at-approval-dropdown.js:563
 #: app/templates/macros/approval_macros.html:524
 msgid "审批"
 msgstr "Approval"
 
-#: app/helpers/js_i18n_strings.py:80 app/static/js/at-approval-dropdown.js:567
+#: app/helpers/js_i18n_strings.py:80 app/static/js/at-approval-dropdown.js:571
 #: app/templates/macros/approval_macros.html:544
 #: app/templates/macros/approval_macros.html:1272
 msgid "审批意见"
@@ -3136,7 +3136,7 @@ msgstr "Approval Flow · "
 msgid "审核修改"
 msgstr "Review Changes"
 
-#: app/helpers/js_i18n_strings.py:84 app/static/js/at-approval-dropdown.js:389
+#: app/helpers/js_i18n_strings.py:84 app/static/js/at-approval-dropdown.js:393
 msgid "将被锁定,被指派人会收到日程待办"
 msgstr " will be locked, and the assignee will receive a calendar to-do."
 
@@ -3162,7 +3162,7 @@ msgstr "Subtotal"
 msgid "尚未提交审批"
 msgstr "Not submitted for approval yet"
 
-#: app/helpers/js_i18n_strings.py:87 app/static/js/at-approval-dropdown.js:595
+#: app/helpers/js_i18n_strings.py:87 app/static/js/at-approval-dropdown.js:599
 msgid "已"
 msgstr "Done"
 
@@ -3189,7 +3189,7 @@ msgstr "A product with the same spec already exists, price"
 msgid "已完成"
 msgstr "Done"
 
-#: app/helpers/js_i18n_strings.py:90 app/static/js/at-approval-dropdown.js:478
+#: app/helpers/js_i18n_strings.py:90 app/static/js/at-approval-dropdown.js:482
 msgid "已操作"
 msgstr "Acted"
 
@@ -3325,12 +3325,12 @@ msgstr "Strategy"
 msgid "手动输入字段，可以修改"
 msgstr "Manual input field, editable"
 
-#: app/helpers/js_i18n_strings.py:115 app/static/js/at-approval-dropdown.js:536
+#: app/helpers/js_i18n_strings.py:115 app/static/js/at-approval-dropdown.js:540
 msgid "找不到审批实例 ID"
 msgstr "Approval instance ID not found"
 
 #: app/helpers/js_i18n_strings.py:116 app/static/js/at-approval-dropdown.js:270
-#: app/static/js/at-approval-dropdown.js:391
+#: app/static/js/at-approval-dropdown.js:395
 #: app/templates/quotation/at_view.html:267
 msgid "技术确认"
 msgstr "Technical Confirmation"
@@ -3354,7 +3354,7 @@ msgstr "Expense Approval"
 msgid "拖动排序"
 msgstr "Drag to reorder"
 
-#: app/helpers/js_i18n_strings.py:122
+#: app/helpers/js_i18n_strings.py:122 app/static/js/at-approval-dropdown.js:344
 #: app/static/js/product-config-modal.js:1111
 #: app/static/js/product-config-modal.js:1904
 #: app/templates/components/tw_product_spec_modal.html:2001
@@ -3365,7 +3365,7 @@ msgstr "Recommended"
 msgid "推荐配套 · "
 msgstr "Recommended bundle · "
 
-#: app/helpers/js_i18n_strings.py:124 app/static/js/at-approval-dropdown.js:390
+#: app/helpers/js_i18n_strings.py:124 app/static/js/at-approval-dropdown.js:394
 msgid "提交后将进入审批流程,审批中可召回"
 msgstr ""
 "After submission it enters the approval flow and can be recalled while in"
@@ -3420,7 +3420,7 @@ msgstr ""
 msgid "操作"
 msgstr "Actions"
 
-#: app/helpers/js_i18n_strings.py:127 app/static/js/at-approval-dropdown.js:475
+#: app/helpers/js_i18n_strings.py:127 app/static/js/at-approval-dropdown.js:479
 #: app/templates/approval/at_detail.html:128
 #: app/templates/components/tw_access_request_modal.html:405
 #: app/templates/components/tw_approval_flow.html:226
@@ -3548,7 +3548,7 @@ msgstr "No "
 msgid "无类目数据"
 msgstr "No categories"
 
-#: app/helpers/js_i18n_strings.py:137 app/static/js/at-approval-dropdown.js:371
+#: app/helpers/js_i18n_strings.py:137 app/static/js/at-approval-dropdown.js:375
 #: app/templates/quotation/at_view.html:1066
 msgid "明细"
 msgstr "Items"
@@ -3667,7 +3667,7 @@ msgstr "Invalid format"
 msgid "正在计算新MN..."
 msgstr "Calculating new MN..."
 
-#: app/helpers/js_i18n_strings.py:154 app/static/js/at-approval-dropdown.js:519
+#: app/helpers/js_i18n_strings.py:154 app/static/js/at-approval-dropdown.js:523
 msgid "此操作会撤回当前审批,需要重新提交。"
 msgstr "This will recall the current approval; you'll need to resubmit."
 
@@ -3708,7 +3708,7 @@ msgstr "Click to select..."
 msgid "点击选择产品…"
 msgstr "Click to select product…"
 
-#: app/helpers/js_i18n_strings.py:161 app/static/js/at-approval-dropdown.js:380
+#: app/helpers/js_i18n_strings.py:161 app/static/js/at-approval-dropdown.js:384
 msgid "留言(可选)"
 msgstr "Comment (optional)"
 
@@ -3758,7 +3758,7 @@ msgstr "Confirm Spec"
 msgid "确认选择"
 msgstr "Confirm Selection"
 
-#: app/helpers/js_i18n_strings.py:168 app/static/js/at-approval-dropdown.js:561
+#: app/helpers/js_i18n_strings.py:168 app/static/js/at-approval-dropdown.js:565
 msgid "确认通过当前审批节点?可填写审批意见。"
 msgstr "Approve the current node? You may add a comment."
 
@@ -3781,12 +3781,12 @@ msgstr "Completion Date"
 msgid "第"
 msgstr "Page "
 
-#: app/helpers/js_i18n_strings.py:172 app/static/js/at-approval-dropdown.js:381
+#: app/helpers/js_i18n_strings.py:172 app/static/js/at-approval-dropdown.js:385
 msgid "给确认人的备注…"
 msgstr "Note for the confirmer…"
 
-#: app/helpers/js_i18n_strings.py:173 app/static/js/at-approval-dropdown.js:483
-#: app/static/js/at-approval-dropdown.js:599
+#: app/helpers/js_i18n_strings.py:173 app/static/js/at-approval-dropdown.js:487
+#: app/static/js/at-approval-dropdown.js:603
 #: app/templates/backup/tw_index.html:403
 #: app/templates/backup/tw_index.html:460
 #: app/templates/backup/tw_index.html:481 app/templates/cli/terminal.html:144
@@ -3891,13 +3891,13 @@ msgstr "Run Research"
 msgid "订单审批"
 msgstr "Order Approval"
 
-#: app/helpers/js_i18n_strings.py:185 app/static/js/at-approval-dropdown.js:551
+#: app/helpers/js_i18n_strings.py:185 app/static/js/at-approval-dropdown.js:555
 msgid "认定:个人因素为主(计入项目负责人的个人失败率)"
 msgstr ""
 "Verdict: mainly personal factors (counted toward the project owner's "
 "personal failure rate)"
 
-#: app/helpers/js_i18n_strings.py:186 app/static/js/at-approval-dropdown.js:554
+#: app/helpers/js_i18n_strings.py:186 app/static/js/at-approval-dropdown.js:558
 msgid "认定:团队管理失责(计入部门的团队失败率)"
 msgstr ""
 "Verdict: team management failure (counted toward the department's team "
@@ -3933,7 +3933,7 @@ msgstr "No products in this subcategory"
 msgid "该类目下暂无子分类"
 msgstr "No subcategories in this category"
 
-#: app/helpers/js_i18n_strings.py:192 app/static/js/at-approval-dropdown.js:524
+#: app/helpers/js_i18n_strings.py:192 app/static/js/at-approval-dropdown.js:528
 msgid "说明召回理由,审批人可见…"
 msgstr "Explain the recall reason, visible to approvers…"
 
@@ -3941,7 +3941,7 @@ msgstr "Explain the recall reason, visible to approvers…"
 msgid "请为"
 msgstr "Please set"
 
-#: app/helpers/js_i18n_strings.py:194 app/static/js/at-approval-dropdown.js:443
+#: app/helpers/js_i18n_strings.py:194 app/static/js/at-approval-dropdown.js:447
 msgid "请为每个步骤选择审批人"
 msgstr "Select an approver for each step"
 
@@ -3963,7 +3963,7 @@ msgstr "Select a subcategory first"
 msgid "请先选择类目"
 msgstr "Select a category first"
 
-#: app/helpers/js_i18n_strings.py:198 app/static/js/at-approval-dropdown.js:568
+#: app/helpers/js_i18n_strings.py:198 app/static/js/at-approval-dropdown.js:572
 msgid "请写下你对本次申请的最终评判…"
 msgstr "Write your final verdict on this request…"
 
@@ -3971,7 +3971,7 @@ msgstr "Write your final verdict on this request…"
 msgid "请检查规格选择是否正确"
 msgstr "Please check that the spec selection is correct"
 
-#: app/helpers/js_i18n_strings.py:200 app/static/js/at-approval-dropdown.js:568
+#: app/helpers/js_i18n_strings.py:200 app/static/js/at-approval-dropdown.js:572
 msgid "请说明驳回原因(必填)"
 msgstr "Please state the rejection reason (required)"
 
@@ -4057,8 +4057,8 @@ msgid "部分必选互斥组未选择"
 msgstr "Some required groups not selected"
 
 #: app/helpers/js_i18n_strings.py:214 app/static/js/at-approval-dropdown.js:222
-#: app/static/js/at-approval-dropdown.js:514
-#: app/static/js/at-approval-dropdown.js:629
+#: app/static/js/at-approval-dropdown.js:518
+#: app/static/js/at-approval-dropdown.js:633
 #: app/templates/components/tw_approval_flow.html:113
 #: app/templates/components/tw_approval_flow.html:149
 #: app/templates/components/tw_pricing_order_modal.html:555
@@ -4084,7 +4084,7 @@ msgstr "Re-research"
 msgid "重试调研"
 msgstr "Retry Research"
 
-#: app/helpers/js_i18n_strings.py:217 app/static/js/at-approval-dropdown.js:363
+#: app/helpers/js_i18n_strings.py:217 app/static/js/at-approval-dropdown.js:367
 #: app/templates/components/at_item_table.html:71
 #: app/templates/components/at_minitables.html:52
 #: app/templates/components/at_minitables.html:103
@@ -4133,7 +4133,7 @@ msgid "附件预览"
 msgstr "File preview"
 
 #: app/helpers/js_i18n_strings.py:222 app/routes/resource_pool.py:112
-#: app/static/js/at-approval-dropdown.js:370
+#: app/static/js/at-approval-dropdown.js:374
 #: app/templates/components/at_minitables.html:50
 #: app/templates/components/at_minitables.html:77
 #: app/templates/components/tw_chat_panel.html:2219
@@ -4193,7 +4193,7 @@ msgid "马来西亚林吉特"
 msgstr "Malaysian Ringgit"
 
 #: app/helpers/js_i18n_strings.py:229 app/static/js/at-approval-dropdown.js:225
-#: app/static/js/at-approval-dropdown.js:534
+#: app/static/js/at-approval-dropdown.js:538
 #: app/templates/approval/at_detail.html:73
 #: app/templates/components/tw_approval_flow.html:221
 #: app/templates/components/tw_task_audit.html:66
@@ -4203,11 +4203,11 @@ msgstr "Malaysian Ringgit"
 msgid "驳回"
 msgstr "Reject"
 
-#: app/helpers/js_i18n_strings.py:230 app/static/js/at-approval-dropdown.js:567
+#: app/helpers/js_i18n_strings.py:230 app/static/js/at-approval-dropdown.js:571
 msgid "驳回原因"
 msgstr "Rejection Reason"
 
-#: app/helpers/js_i18n_strings.py:231 app/static/js/at-approval-dropdown.js:562
+#: app/helpers/js_i18n_strings.py:231 app/static/js/at-approval-dropdown.js:566
 msgid "驳回后该报销单会回到驳回态,申请人可重新提交。请填写驳回原因。"
 msgstr ""
 "After rejection, the expense returns to rejected status and the applicant"
@@ -9598,7 +9598,9 @@ msgstr "Enable sharing"
 
 #: app/templates/components/at_share_modal.html:54
 msgid "勾选后选中的用户可查看此项目/客户;取消则仅归属人和管理者可见"
-msgstr "When enabled, selected users can view this project/customer; otherwise only the owner and admins can see it"
+msgstr ""
+"When enabled, selected users can view this project/customer; otherwise "
+"only the owner and admins can see it"
 
 #: app/templates/components/at_share_modal.html:65
 #, fuzzy
@@ -28927,107 +28929,107 @@ msgstr "All Quotations"
 msgid "报价单编号"
 msgstr "Quotation Number"
 
-#: app/views/quotation.py:651 app/views/quotation.py:2055
+#: app/views/quotation.py:651 app/views/quotation.py:2056
 #, python-format
 msgid "加载报价单失败：%s"
 msgstr "Failed to load quotation: %s"
 
-#: app/views/quotation.py:878
+#: app/views/quotation.py:879
 #, fuzzy
 msgid "变更"
 msgstr "Change"
 
-#: app/views/quotation.py:1330
+#: app/views/quotation.py:1331
 msgid "您没有权限编辑此报价单"
 msgstr "You do not have permission to edit this quotation"
 
-#: app/views/quotation.py:1333
+#: app/views/quotation.py:1334
 msgid "报价单已被锁定，无法编辑"
 msgstr "Quotation is locked and cannot be edited"
 
-#: app/views/quotation.py:2009
+#: app/views/quotation.py:2010
 #, python-format
 msgid "报价单创建失败：%s"
 msgstr "Failed to create quotation: %s"
 
-#: app/views/quotation.py:2067
+#: app/views/quotation.py:2068
 msgid "您没有权限复制此报价单"
 msgstr "You do not have permission to copy this quotation"
 
-#: app/views/quotation.py:2109
+#: app/views/quotation.py:2110
 msgid "报价单复制成功！"
 msgstr "Quotation copied successfully!"
 
-#: app/views/quotation.py:2113
+#: app/views/quotation.py:2114
 #, python-format
 msgid "报价单复制失败：%s"
 msgstr "Failed to copy quotation: %s"
 
-#: app/views/quotation.py:2124
+#: app/views/quotation.py:2125
 msgid "您没有权限删除此报价单"
 msgstr "You do not have permission to delete this quotation"
 
-#: app/views/quotation.py:2172
+#: app/views/quotation.py:2173
 msgid "报价单删除成功！"
 msgstr "Quotation deleted successfully!"
 
-#: app/views/quotation.py:2175
+#: app/views/quotation.py:2176
 #, python-format
 msgid "删除失败：%s"
 msgstr "Delete failed: %s"
 
-#: app/views/quotation.py:3310
+#: app/views/quotation.py:3311
 msgid "您没有权限查看此报价单"
 msgstr "You do not have permission to view this quotation"
 
-#: app/views/quotation.py:3476
+#: app/views/quotation.py:3477
 #, python-format
 msgid "加载报价单详情失败：%s"
 msgstr "Failed to load quotation details: %s"
 
-#: app/views/quotation.py:3978
+#: app/views/quotation.py:3979
 msgid "您没有权限修改该报价单的拥有人"
 msgstr "You do not have permission to modify the owner of this quotation"
 
-#: app/views/quotation.py:3982
+#: app/views/quotation.py:3983
 msgid "请选择新的拥有人"
 msgstr "Please select a new owner"
 
-#: app/views/quotation.py:3987
+#: app/views/quotation.py:3988
 msgid "新拥有人不存在"
 msgstr "New owner does not exist"
 
-#: app/views/quotation.py:3992
+#: app/views/quotation.py:3993
 msgid "报价单拥有人已更新"
 msgstr "Quotation owner has been updated"
 
-#: app/views/quotation.py:4568 app/views/quotation.py:4668
-#: app/views/quotation.py:4707 app/views/quotation.py:4757
-#: app/views/quotation.py:4812
+#: app/views/quotation.py:4569 app/views/quotation.py:4669
+#: app/views/quotation.py:4708 app/views/quotation.py:4758
+#: app/views/quotation.py:4813
 msgid "权限不足，无法导出该报价单"
 msgstr "Insufficient permissions to export this quotation"
 
-#: app/views/quotation.py:4598 app/views/quotation.py:4731
-#: app/views/quotation.py:4841
+#: app/views/quotation.py:4599 app/views/quotation.py:4732
+#: app/views/quotation.py:4842
 #, python-format
 msgid "导出PDF失败：%s"
 msgstr "Failed to export PDF: %s"
 
-#: app/views/quotation.py:4623
+#: app/views/quotation.py:4624
 msgid "权限不足，无法下载该报价单"
 msgstr "Insufficient permissions to download this quotation"
 
-#: app/views/quotation.py:4653
+#: app/views/quotation.py:4654
 #, python-format
 msgid "下载PDF失败：%s"
 msgstr "Failed to download PDF: %s"
 
-#: app/views/quotation.py:4692
+#: app/views/quotation.py:4693
 #, python-format
 msgid "导出Word失败：%s"
 msgstr "Failed to export Word: %s"
 
-#: app/views/quotation.py:4786
+#: app/views/quotation.py:4787
 #, python-format
 msgid "导出Excel失败：%s"
 msgstr "Failed to export Excel: %s"

@@ -5722,10 +5722,51 @@ def mobile_view_quotation(token):
 # 与现有 SM 销售指派机制并行(SM 用于 confirmation_badge_status,这套用于 ApprovalInstance)
 # ════════════════════════════════════════════════════════════════
 
+def _recommend_quotation_confirmer(quotation, candidate_ids):
+    """推荐技术确认人(仅在候选池内):
+       ① 同项目历史确认人(最近确认优先) → ② 项目跟进记录(Action)负责人 → ③ 系统设计 owner。
+       命中第一个在候选池里的即返回;都没有则 None。"""
+    if not candidate_ids:
+        return None
+    cset = set(candidate_ids)
+    pid = quotation.project_id
+    if not pid:
+        return None
+    # ① 同项目其它报价单的历史确认人(最近确认优先)
+    rows = (Quotation.query
+            .filter(Quotation.project_id == pid,
+                    Quotation.confirmed_by.isnot(None),
+                    Quotation.id != quotation.id)
+            .order_by(Quotation.confirmed_at.desc()).all())
+    for r in rows:
+        if r.confirmed_by in cset:
+            return r.confirmed_by
+    # ② 项目跟进记录(Action)负责人中的候选(最近优先)
+    try:
+        from app.models.action import Action
+        acts = (Action.query.filter(Action.project_id == pid)
+                .order_by(Action.date.desc(), Action.id.desc()).all())
+        for a in acts:
+            if a.owner_id in cset:
+                return a.owner_id
+    except Exception:
+        pass
+    # ③ 系统设计图 owner
+    try:
+        from app.models.system_diagram import SystemDiagram
+        diag = (SystemDiagram.query.filter(SystemDiagram.project_id == pid)
+                .order_by(SystemDiagram.id.desc()).first())
+        if diag and diag.owner_id in cset:
+            return diag.owner_id
+    except Exception:
+        pass
+    return None
+
+
 @quotation.route('/api/approval/<int:quotation_id>/templates')
 @login_required
 def at_get_quotation_approval_templates(quotation_id):
-    """获取报价单可用的审批模板,含 designate_steps(submitter_designate 候选审批人)"""
+    """获取报价单可用的审批模板,含 designate_steps(submitter_designate 候选审批人 + 推荐人)"""
     try:
         from app.helpers.approval_helpers import get_approval_templates as _list_tpls
         from app.helpers.approval_helpers import get_designate_steps_info
@@ -5737,12 +5778,19 @@ def at_get_quotation_approval_templates(quotation_id):
         tpls = _list_tpls(object_type='quotation', is_active=True)
 
         def _ser(t):
+            steps = get_designate_steps_info(t.id)
+            for s in steps:
+                cids = [c['id'] for c in (s.get('candidates') or [])]
+                rec = _recommend_quotation_confirmer(q, cids)
+                s['recommended_id'] = rec
+                for c in (s.get('candidates') or []):
+                    c['recommended'] = (c['id'] == rec)
             return {
                 'id': t.id,
                 'name': t.name,
                 'object_type': t.object_type,
                 'required_fields': t.required_fields or [],
-                'designate_steps': get_designate_steps_info(t.id),
+                'designate_steps': steps,
             }
         items = tpls.items if hasattr(tpls, 'items') else tpls
         return jsonify({'success': True, 'templates': [_ser(t) for t in items]})
