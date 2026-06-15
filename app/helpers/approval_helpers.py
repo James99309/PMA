@@ -5422,6 +5422,15 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
             quotation = Quotation.query.get(instance.object_id)
             
             if quotation and quotation.project:
+                # 技术确认徽章 = 审批结果的显示(单一来源):通过→点亮绿徽章 / 驳回→清除
+                try:
+                    if action == ApprovalAction.APPROVE:
+                        quotation.set_confirmation_badge('#28a745', user_id)
+                    elif action == ApprovalAction.REJECT:
+                        quotation.clear_confirmation_badge()
+                except Exception as _badge_err:
+                    current_app.logger.warning(f"同步报价单确认徽章失败: {_badge_err}")
+
                 # 根据项目当前阶段确定审批状态
                 project_stage = quotation.project.current_stage
                 target_approval_status = QuotationApprovalStatus.STAGE_TO_APPROVAL.get(project_stage)

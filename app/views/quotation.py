@@ -5945,9 +5945,69 @@ def at_submit_quotation_approval(quotation_id):
         )
         if not instance:
             return jsonify({'success': False, 'message': '提交审批失败,请检查是否已有进行中的审批'}), 400
+        # 徽章 = 审批结果显示:提交即进入「待确认」(pending)
+        try:
+            q.set_pending_confirmation_badge()
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         return jsonify({'success': True, 'message': '已提交审批', 'instance_id': instance.id})
     except Exception as e:
         logger.error(f"提交报价单审批失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@quotation.route('/api/approval/<int:quotation_id>/sm-confirm', methods=['POST'])
+@login_required
+def at_sm_confirm_quotation(quotation_id):
+    """解决方案经理一键技术确认 = 自动跑完审批流(建实例并指定自己为审批人 + 立即通过)。
+    徽章由审批结果回调驱动,与 owner 提交→SM审批 殊途同归、状态单一。"""
+    try:
+        from app.helpers.approval_helpers import (
+            get_object_approval_instance, process_approval,
+            start_approval_process, get_approval_templates as _list_tpls,
+            get_designate_steps_info,
+        )
+        from app.models.approval import ApprovalStatus
+
+        if current_user.role not in ('solution_manager', 'admin'):
+            return jsonify({'success': False, 'message': '只有解决方案经理可以直接技术确认'}), 403
+        q = Quotation.query.get_or_404(quotation_id)
+        if not can_view_quotation(current_user, q):
+            return jsonify({'success': False, 'message': '无权限'}), 403
+
+        inst = get_object_approval_instance('quotation', quotation_id)
+        if inst and inst.status == ApprovalStatus.PENDING:
+            ok = process_approval(inst.id, 'approve', user_id=current_user.id, comment='技术确认')
+            if not ok:
+                return jsonify({'success': False, 'message': '当前审批人不是您,请在审批流程中操作'}), 400
+        else:
+            tpls = _list_tpls(object_type='quotation', is_active=True)
+            items = tpls.items if hasattr(tpls, 'items') else tpls
+            if not items:
+                return jsonify({'success': False, 'message': '没有可用的报价单审批模板'}), 400
+            tpl_id = items[0].id
+            steps = get_designate_steps_info(tpl_id)
+            designated = {str(s['step_id']): current_user.id for s in steps}
+            inst = start_approval_process('quotation', quotation_id, tpl_id, current_user.id,
+                                          auto_commit=True, designated_approvers=designated)
+            if not inst:
+                return jsonify({'success': False, 'message': '发起确认失败(可能已有进行中的审批)'}), 400
+            db.session.refresh(inst)
+            # 发起人即审批人时步骤会被自动跳过、实例直接完成(不经 process_approval);
+            # 仍 PENDING 则正常审批通过。
+            if inst.status == ApprovalStatus.PENDING:
+                ok = process_approval(inst.id, 'approve', user_id=current_user.id, comment='技术确认')
+                if not ok:
+                    return jsonify({'success': False, 'message': '确认失败'}), 400
+        # 兜底:确保徽章点亮(自审跳过完成时回调可能未触发) —— 徽章=审批结果显示
+        q = Quotation.query.get(quotation_id)
+        if q and (q.confirmation_badge_status or 'none') != 'confirmed':
+            q.set_confirmation_badge('#28a745', current_user.id)
+            db.session.commit()
+        return jsonify({'success': True, 'message': '技术确认完成'})
+    except Exception as e:
+        logger.error(f"SM 技术确认失败: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

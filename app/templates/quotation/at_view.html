@@ -258,35 +258,7 @@
                        display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
           {{ at_icon('pen', 12) }}{{ _('编辑') }}
         </button>
-        {# 旧「技术确认」按钮已移除 — 统一走标准审批「提交审批」入口(下方) #}
-        {# 提交审批 / 重新提交(走标准 ApprovalInstance) #}
-        {% if not is_new and quotation.id and (quotation.owner_id == current_user.id or current_user.role == 'admin') and not quotation.is_locked and (quotation.confirmation_badge_status or 'none') != 'confirmed' %}
-        {% set _q_status = (at_ap_status if at_ap_status is defined else 'draft') %}
-        {% if _q_status in ('draft', 'rejected', 'recalled') %}
-        {% set _q_submit_action = 'resubmit' if _q_status in ('rejected', 'recalled') else 'submit' %}
-        {% set _q_submit_label = _('重新发起') if _q_submit_action == 'resubmit' else _('技术确认') %}
-        <button type="button"
-                data-at-approval-quick="{{ _q_submit_action }}"
-                data-api-base="/quotation/api/approval"
-                data-object-id="{{ quotation.id }}"
-                data-meta='{{ {
-                  "currency_sym": currency_sym or "¥",
-                  "total_amount": quotation.amount or 0,
-                  "customer_name": (quotation.customer.company_name if quotation.customer else ""),
-                  "project_name":  (quotation.project.project_name if quotation.project else ""),
-                  "line_count":    ((quotation.details|length) if quotation.details else 0),
-                  "title":         (quotation.quotation_number or "")
-                } | tojson }}'
-                style="height:32px;padding:0 14px;border-radius:6px;border:0;
-                       background:var(--accent);color:#fff;font-size:12px;font-weight:500;
-                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>
-          </svg>
-          {{ _q_submit_label }}
-        </button>
-        {% endif %}
-        {% endif %}
+        {# 技术确认按钮已移到 can_edit 块外的统一入口(下方),对 SM/owner/admin 都可见、按角色分流 #}
 
         {# 删除 — 已存在且未锁定的报价才允许 #}
         {% if not is_new and not quotation.is_locked %}
@@ -312,24 +284,43 @@
         </button>
       </div>
       {% endif %}
-      {# 解决方案经理/admin 一键技术确认 — 不走审批流(与审批流并存);仅无审批进行中时显示 #}
-      {% if not is_new and quotation.id and current_user.role in ('solution_manager', 'admin') %}
+      {# ── 统一「技术确认」按钮(can_edit 外,SM/owner/admin 都可见,按角色分流)──
+         · 已确认(confirmation_badge=confirmed)→ 不显示(顶部徽章已反映)
+         · 审批进行中(pending)→ 不显示(走标题旁 chip 浮层操作)
+         · 已锁定 → 不显示
+         · 解决方案经理点 → 一键直接确认(toggle,不建审批实例)
+         · owner/admin 点(且状态=draft)→ 提交审批指定 SM(带推荐);rejected/recalled 走 chip 浮层 Resubmit #}
+      {% if not is_new and quotation.id %}
         {% set _cbs = quotation.confirmation_badge_status or 'none' %}
         {% set _apst2 = at_ap_status if at_ap_status is defined else 'draft' %}
-        {% if _apst2 != 'pending' %}
-          {% if _cbs == 'confirmed' %}
-          <button type="button" onclick="atQuoteDirectConfirm()"
-                  style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
-                         background:var(--bg-elev);color:var(--ink-2);font-size:12px;font-weight:500;
-                         display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
-            {{ at_icon('close', 12) }}{{ _('取消确认') }}
-          </button>
-          {% elif not quotation.is_locked %}
-          <button type="button" onclick="atQuoteDirectConfirm()"
+        {% if _cbs != 'confirmed' and _apst2 not in ('pending', 'approved') and not quotation.is_locked %}
+          {% if current_user.role == 'solution_manager' %}
+          <button type="button" onclick="atQuoteDirectConfirm()" class="view-only"
                   style="height:32px;padding:0 14px;border-radius:6px;border:0;
                          background:var(--success);color:#fff;font-size:12px;font-weight:500;
                          display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
             {{ at_icon('check', 12) }}{{ _('技术确认') }}
+          </button>
+          {% elif (quotation.owner_id == current_user.id or current_user.role == 'admin') and _apst2 == 'draft' %}
+          <button type="button" class="view-only"
+                  data-at-approval-quick="submit"
+                  data-api-base="/quotation/api/approval"
+                  data-object-id="{{ quotation.id }}"
+                  data-meta='{{ {
+                    "currency_sym": currency_sym or "¥",
+                    "total_amount": quotation.amount or 0,
+                    "customer_name": (quotation.customer.company_name if quotation.customer else ""),
+                    "project_name":  (quotation.project.project_name if quotation.project else ""),
+                    "line_count":    ((quotation.details|length) if quotation.details else 0),
+                    "title":         (quotation.quotation_number or "")
+                  } | tojson }}'
+                  style="height:32px;padding:0 14px;border-radius:6px;border:0;
+                         background:var(--accent);color:#fff;font-size:12px;font-weight:500;
+                         display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>
+            </svg>
+            {{ _('技术确认') }}
           </button>
           {% endif %}
         {% endif %}
@@ -1003,10 +994,10 @@
     // 已统一迁到标准 ApprovalInstance 流程,通过 chip dropdown 操作
 
     // 删除报价单 — 复用后端 form POST /{id}/delete(后端 redirect 到列表 + flash)
-    // SM 一键技术确认(切换):走 toggle_product_detail_confirmation,不创建审批实例
+    // SM 一键技术确认 = 自动跑完审批流(建实例+自审通过),徽章由审批结果驱动
     window.atQuoteDirectConfirm = function() {
       const csrf = document.querySelector('meta[name="csrf-token"]').content;
-      fetch(`/quotation/${QUOTATION_ID}/toggle_product_detail_confirmation`, {
+      fetch(`/quotation/api/approval/${QUOTATION_ID}/sm-confirm`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}
       }).then(r => r.json()).then(res => {
