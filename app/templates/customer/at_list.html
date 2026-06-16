@@ -123,8 +123,12 @@
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
       <span style="font-size:13px;font-weight:500;color:var(--ink);
                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.company_name }}</span>
+      {# 未跟进提醒(橙):有编号跟在编号后,否则单独占名称下一行 #}
+      {% set _fd = followup_overdue.get(c.id) if followup_overdue else none %}
       {% if c.company_code %}
-      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ c.company_code }}</span>
+      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ c.company_code }}{% if _fd %} <span style="color:var(--warn);font-weight:500;">· {{ _('%(d)s 天未跟进', d=_fd) }}</span>{% endif %}</span>
+      {% elif _fd %}
+      <span style="font-size:11px;color:var(--warn);font-weight:500;">{{ _('%(d)s 天未跟进', d=_fd) }}</span>
       {% endif %}
     </div>
   </td>

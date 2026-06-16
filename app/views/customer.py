@@ -416,6 +416,43 @@ def at_list_view():
         page=page, per_page=per_page, error_out=False,
     )
 
+    # ── 跟进提醒:当前页客户「X 天未跟进」(聚合 客户直属 Action + 名下联系人 Action)──
+    # 口径:取该客户最近一次跟进日期(自身 company_id 的 Action ∪ 其联系人的 Action),
+    #       距今 ≥ 阈值天则标橙提醒;从无跟进且建档已超阈值 → 同样提醒(以建档时间起算)。
+    #       项目跟进只要记录了客户(company_id)即被自身 Action 涵盖。
+    FOLLOWUP_OVERDUE_DAYS = 30
+    followup_overdue = {}   # company_id → 未跟进天数
+    try:
+        from app.models.action import Action
+        from app.models.customer import Contact
+        from datetime import date as _date
+        _cids = [c.id for c in pagination.items]
+        if _cids:
+            # 直属客户的最近跟进
+            _last = dict(db.session.query(Action.company_id, func.max(Action.date))
+                         .filter(Action.company_id.in_(_cids))
+                         .group_by(Action.company_id).all())
+            # 名下联系人的最近跟进 → 归并到所属客户
+            for _coid, _d in (db.session.query(Contact.company_id, func.max(Action.date))
+                              .join(Action, Action.contact_id == Contact.id)
+                              .filter(Contact.company_id.in_(_cids))
+                              .group_by(Contact.company_id).all()):
+                if _d and (_coid not in _last or _d > _last[_coid]):
+                    _last[_coid] = _d
+            _today = _date.today()
+            for c in pagination.items:
+                _d = _last.get(c.id)
+                if _d:
+                    _days = (_today - _d).days
+                else:
+                    # 从无跟进 → 以建档时间起算
+                    _base = c.created_at.date() if c.created_at else None
+                    _days = (_today - _base).days if _base else None
+                if _days is not None and _days >= FOLLOWUP_OVERDUE_DAYS:
+                    followup_overdue[c.id] = _days
+    except Exception as _fe:
+        logger.warning(f'客户未跟进天数计算失败: {_fe}')
+
     list_qs = {}
     if search:
         list_qs['search'] = search
@@ -440,6 +477,7 @@ def at_list_view():
                            geo_key=geo_key,
                            geo_options=geo_options,
                            geo_values=geo_values,
+                           followup_overdue=followup_overdue,
                            list_qs=list_qs)
 
 
