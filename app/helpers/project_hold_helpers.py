@@ -301,13 +301,14 @@ def resolve_win_lock_candidates(project):
         cands = _role_users('ceo')
         return (cands, None) if cands else (None, '未找到总经理(ceo)，请联系管理员')
     owner = project.owner
+    # 业务线主审 → 缺位逐级兜底,最终到总经理(ceo)。仅取在职(_is_active),离职自动跳过。
     if (project.report_source or '') == 'channel':
-        cands = _role_users('channel_manager') or _role_users('sales_director')
+        cands = _role_users('channel_manager') or _role_users('sales_director') or _role_users('ceo')
     elif owner and ('服务' in (owner.department or '') or owner.role == 'service_manager'):
-        cands = _role_users('service_manager')
-    else:
-        cands = _role_users('sales_director')
-    return (cands, None) if cands else (None, '未找到对应业务线审核人，请联系管理员配置')
+        cands = _role_users('service_manager') or _role_users('sales_director') or _role_users('ceo')
+    else:  # 销售/其余 → 营销总监,缺位 → 总经理
+        cands = _role_users('sales_director') or _role_users('ceo')
+    return (cands, None) if cands else (None, '未找到审核人(营销总监/总经理均缺),请联系管理员')
 
 
 def get_or_create_win_lock_template(created_by=None):

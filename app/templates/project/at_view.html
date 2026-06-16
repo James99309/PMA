@@ -1021,6 +1021,18 @@ window.atOpenProjectShare = function () {
               style="width:100%;box-sizing:border-box;padding:9px 11px;background:var(--bg-page);
                      border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
                      color:var(--ink);outline:none;resize:vertical;"></textarea>
+    {% if (win_lock_candidates or []) | length == 1 %}
+    {# 唯一在职审核人 → 自动指定,无需手选 #}
+    {% set _wlap = win_lock_candidates[0] %}
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('审核人') }}
+      <span class="at-dim" style="font-weight:400;">{{ _('(按业务线自动指定;通过后才生效)') }}</span></label>
+    <input type="hidden" id="wlApprover" value="{{ _wlap.id }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;height:36px;padding:0 11px;
+                background:var(--bg-sunk);border:1px solid var(--line-2);border-radius:7px;font-size:13px;color:var(--ink-2);">
+      <span>{{ _wlap.name }}</span>
+      <span class="at-mono" style="font-size:11px;color:var(--ink-4);">{{ _wlap.role_label }}</span>
+    </div>
+    {% else %}
     <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('审核人') }} <span style="color:var(--danger);">*</span>
       <span class="at-dim" style="font-weight:400;">{{ _('(按业务线;通过后才生效)') }}</span></label>
     <select id="wlApprover"
@@ -1032,6 +1044,7 @@ window.atOpenProjectShare = function () {
       <option value="{{ c.id }}">{{ c.name }}（{{ c.role_label }}）</option>
       {% endfor %}
     </select>
+    {% endif %}
     <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('锁定报价单') }} <span style="color:var(--danger);">*</span></label>
     {% if lock_quotations | length == 1 %}
     {% set _q0 = lock_quotations[0] %}

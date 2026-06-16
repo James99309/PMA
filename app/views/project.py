@@ -194,8 +194,17 @@ def at_api_win_lock(project_id):
             return jsonify({'success': False, 'message': '请选择锁定的报价单'}), 400
     # 改为「提交审核」:不直接锁定,创建审批实例,通过回调才真正 win_locked
     approver_id = payload.get('approver_id')
+    # 未指定 → 若唯一在职候选则自动指定(多数业务线只有1人,无需手选);多个才要求选
     if not approver_id:
-        return jsonify({'success': False, 'message': '请选择审核人'}), 400
+        from app.helpers.project_hold_helpers import resolve_win_lock_candidates
+        _cands, _cerr = resolve_win_lock_candidates(p)
+        _cands = [u for u in (_cands or []) if u.id != current_user.id]
+        if len(_cands) == 1:
+            approver_id = _cands[0].id
+        elif len(_cands) == 0:
+            return jsonify({'success': False, 'message': _cerr or '未找到可用审核人'}), 400
+        else:
+            return jsonify({'success': False, 'message': '存在多个可选审核人，请选择'}), 400
     try:
         from app.helpers.project_hold_helpers import submit_win_lock
         inst, err = submit_win_lock(p, reason, current_user.id, approver_id,

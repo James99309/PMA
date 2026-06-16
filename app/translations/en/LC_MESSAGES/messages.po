@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PMA 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-16 08:19+0800\n"
+"POT-Creation-Date: 2026-06-16 08:26+0800\n"
 "PO-Revision-Date: 2024-01-01 00:00+0800\n"
 "Last-Translator: \n"
 "Language: en\n"
@@ -2858,7 +2858,7 @@ msgstr "Once initiated, "
 #: app/templates/project/at_view.html:736
 #: app/templates/project/at_view.html:908
 #: app/templates/project/at_view.html:936
-#: app/templates/project/at_view.html:1075 app/templates/project/edit.html:114
+#: app/templates/project/at_view.html:1088 app/templates/project/edit.html:114
 #: app/templates/prospect/tw_list.html:445
 #: app/templates/prospect/tw_list.html:486
 #: app/templates/prospect/tw_list.html:606
@@ -4552,7 +4552,7 @@ msgstr "Total Products"
 #: app/templates/prospect/tw_list.html:1086
 #: app/templates/prospect/tw_list.html:1087
 #: app/templates/prospect/tw_list.html:1088
-#: app/templates/prospect/tw_list.html:2125 app/views/project.py:3103
+#: app/templates/prospect/tw_list.html:2125 app/views/project.py:3112
 #: app/views/user.py:260 app/views/user.py:268 app/views/user.py:276
 #: app/views/user.py:284
 msgid "个"
@@ -5107,8 +5107,8 @@ msgstr "No permission to view this work item"
 #: app/services/worklog_service.py:687 app/services/worklog_service.py:778
 #: app/views/customer.py:1475 app/views/customer.py:1564
 #: app/views/customer.py:1662 app/views/customer.py:1915
-#: app/views/customer.py:2043 app/views/project.py:2623
-#: app/views/project.py:4637 app/views/project.py:4750
+#: app/views/customer.py:2043 app/views/project.py:2632
+#: app/views/project.py:4646 app/views/project.py:4759
 #: app/views/system_diagram.py:229 app/views/system_diagram.py:497
 #: app/views/system_diagram.py:925 app/views/system_diagram.py:958
 #: app/views/system_diagram.py:1216
@@ -5124,7 +5124,7 @@ msgid "计划日期不能为空"
 msgstr "Planned date cannot be empty"
 
 #: app/services/worklog_service.py:697 app/services/worklog_service.py:791
-#: app/views/customer.py:1493 app/views/project.py:2641
+#: app/views/customer.py:1493 app/views/project.py:2650
 #: app/views/worklog.py:344 app/views/worklog.py:360 app/views/worklog.py:372
 #: app/views/worklog.py:411 app/views/worklog.py:426 app/views/worklog.py:697
 #: app/views/worklog.py:817 app/views/worklog.py:856 app/views/worklog.py:1086
@@ -9011,7 +9011,7 @@ msgstr "Vendor"
 #: app/templates/macros/ui_modals.html:48 app/templates/project/edit.html:205
 #: app/templates/project/edit.html:407
 #: app/templates/project/partials/_project_form_fields.html:148
-#: app/views/project.py:2864
+#: app/views/project.py:2873
 msgid "请选择厂商销售负责人"
 msgstr "Please select vendor sales manager"
 
@@ -10203,7 +10203,7 @@ msgid "条记录"
 msgstr "records"
 
 #: app/templates/components/tw_action_list.html:433 app/views/customer.py:1451
-#: app/views/customer.py:1540 app/views/project.py:2695
+#: app/views/customer.py:1540 app/views/project.py:2704
 msgid "行动记录添加成功"
 msgstr "Action record added successfully"
 
@@ -23310,7 +23310,7 @@ msgid "请填写锁定理由"
 msgstr "Please enter a lock reason"
 
 #: app/templates/project/at_view.html:659
-#: app/templates/project/at_view.html:1030
+#: app/templates/project/at_view.html:1042
 msgid "请选择审核人"
 msgstr "Select approver"
 
@@ -23332,7 +23332,7 @@ msgstr "Submitting…"
 #: app/templates/project/at_view.html:800
 #: app/templates/project/at_view.html:804
 #: app/templates/project/at_view.html:911
-#: app/templates/project/at_view.html:1078
+#: app/templates/project/at_view.html:1091
 msgid "提交审核"
 msgstr "Submit for Review"
 
@@ -23465,35 +23465,40 @@ msgstr ""
 msgid "为何判断该项目已锁定成功…"
 msgstr "Why this project is judged a win…"
 
-#: app/templates/project/at_view.html:1024
+#: app/templates/project/at_view.html:1027
+#: app/templates/project/at_view.html:1036
 msgid "审核人"
 msgstr "Approver"
 
-#: app/templates/project/at_view.html:1025
+#: app/templates/project/at_view.html:1028
+msgid "(按业务线自动指定;通过后才生效)"
+msgstr "(Auto-assigned by business line; effective after approval)"
+
+#: app/templates/project/at_view.html:1037
 msgid "(按业务线;通过后才生效)"
 msgstr "(By business line; takes effect after approval)"
 
-#: app/templates/project/at_view.html:1035
+#: app/templates/project/at_view.html:1048
 msgid "锁定报价单"
 msgstr "Lock Quotation"
 
-#: app/templates/project/at_view.html:1058
+#: app/templates/project/at_view.html:1071
 msgid "锁定金额"
 msgstr "Locked Amount"
 
-#: app/templates/project/at_view.html:1064
+#: app/templates/project/at_view.html:1077
 msgid "操作人:"
 msgstr "Operator:"
 
-#: app/templates/project/at_view.html:1064
+#: app/templates/project/at_view.html:1077
 msgid "(锁定后记录,徽章点击可见)"
 msgstr "(Recorded after locking, visible by clicking the badge)"
 
-#: app/templates/project/at_view.html:1066
+#: app/templates/project/at_view.html:1079
 msgid "预计交付日期"
 msgstr "Estimated Delivery Date"
 
-#: app/templates/project/at_view.html:1067
+#: app/templates/project/at_view.html:1080
 msgid "(确认后更新到项目交期)"
 msgstr "(Updated to project delivery date once confirmed)"
 
@@ -28451,15 +28456,15 @@ msgstr "Customer not found"
 msgid "联系人不存在或不属于该客户"
 msgstr "Contact does not exist or does not belong to this customer"
 
-#: app/views/customer.py:1485 app/views/project.py:2633
+#: app/views/customer.py:1485 app/views/project.py:2642
 msgid "请填写沟通情况"
 msgstr "Please fill in communication details"
 
-#: app/views/customer.py:1487 app/views/project.py:2635
+#: app/views/customer.py:1487 app/views/project.py:2644
 msgid "请选择日期"
 msgstr "Please select date"
 
-#: app/views/customer.py:1549 app/views/project.py:2704
+#: app/views/customer.py:1549 app/views/project.py:2713
 msgid "添加行动记录失败"
 msgstr "Failed to add action record"
 
@@ -28499,7 +28504,7 @@ msgstr "Failed to edit contact"
 msgid "您没有权限编辑此客户"
 msgstr "You do not have permission to edit this customer"
 
-#: app/views/customer.py:1921 app/views/project.py:4643
+#: app/views/customer.py:1921 app/views/project.py:4652
 msgid "请填写所有必填字段"
 msgstr "Please fill in all required fields"
 
@@ -28836,89 +28841,89 @@ msgstr "Only administrators can use export feature"
 msgid "设计数量"
 msgstr "Design count"
 
-#: app/views/project.py:2305
+#: app/views/project.py:2314
 msgid "项目已签约，自动锁定"
 msgstr "Project signed, automatically locked"
 
-#: app/views/project.py:2852
+#: app/views/project.py:2861
 msgid "您没有权限修改该项目的厂商销售负责人"
 msgstr ""
 "You don't have permission to change this project's vendor sales ownerYou "
 "do not have permission to modify the vendor sales manager for this "
 "project"
 
-#: app/views/project.py:2859
+#: app/views/project.py:2868
 #, python-format
 msgid "项目已被锁定，无法修改厂商销售负责人: %(reason)s"
 msgstr "Project is locked, cannot modify vendor sales manager: %(reason)s"
 
-#: app/views/project.py:2870
+#: app/views/project.py:2879
 msgid "厂商销售负责人不存在"
 msgstr "Vendor sales manager does not exist"
 
-#: app/views/project.py:2875
+#: app/views/project.py:2884
 msgid "厂商销售负责人必须是厂商企业账户"
 msgstr "Vendor sales manager must be a vendor enterprise account"
 
-#: app/views/project.py:2903
+#: app/views/project.py:2912
 #, python-format
 msgid "厂商销售负责人已更新为 %(name)s"
 msgstr "Vendor sales manager updated to %(name)s"
 
-#: app/views/project.py:3338
+#: app/views/project.py:3347
 msgid "您没有权限编辑此项目的共享设置"
 msgstr "You do not have permission to edit sharing settings for this project"
 
-#: app/views/project.py:3344
+#: app/views/project.py:3353
 msgid "项目共享设置已更新"
 msgstr "Project sharing settings updated"
 
-#: app/views/project.py:3347
+#: app/views/project.py:3356
 msgid "更新共享设置失败"
 msgstr "Failed to update sharing settings"
 
-#: app/views/project.py:3351
+#: app/views/project.py:3360
 msgid "更新共享设置时发生错误"
 msgstr "Error updating sharing settings"
 
-#: app/views/project.py:4648
+#: app/views/project.py:4657
 msgid "项目名称已存在"
 msgstr "Project name already exists"
 
-#: app/views/project.py:4656 app/views/project.py:4773
+#: app/views/project.py:4665 app/views/project.py:4782
 msgid "报备时间格式不正确"
 msgstr "Registration date format is incorrect"
 
-#: app/views/project.py:4663 app/views/project.py:4779
+#: app/views/project.py:4672 app/views/project.py:4788
 msgid "出货时间格式不正确"
 msgstr "Shipping date format is incorrect"
 
-#: app/views/project.py:4721
+#: app/views/project.py:4730
 msgid "项目创建成功"
 msgstr "Project created successfully"
 
-#: app/views/project.py:4741 app/views/project.py:4810
-#: app/views/project.py:4879 app/views/project.py:4898
+#: app/views/project.py:4750 app/views/project.py:4819
+#: app/views/project.py:4888 app/views/project.py:4907
 msgid "项目不存在"
 msgstr "Project not found"
 
-#: app/views/project.py:4745
+#: app/views/project.py:4754
 msgid "您没有权限编辑此项目"
 msgstr "You do not have permission to edit this project"
 
-#: app/views/project.py:4794
+#: app/views/project.py:4803
 msgid "项目更新成功"
 msgstr "Project updated successfully"
 
-#: app/views/project.py:4814
+#: app/views/project.py:4823
 msgid "您没有权限查看此项目"
 msgstr "You do not have permission to view this project"
 
-#: app/views/project.py:4902
+#: app/views/project.py:4911
 msgid "已触发 AI 调研"
 msgstr "AI research triggered"
 
-#: app/views/project.py:4920
+#: app/views/project.py:4929
 msgid "已启动调研"
 msgstr "Research started"
 
