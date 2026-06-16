@@ -1614,6 +1614,11 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
             ApprovalInstance.object_type == 'project_hold'
         )
+    elif object_type == 'project_win_lock':
+        # 项目成功锁定审核(object_id 关联 Project)
+        query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
+            ApprovalInstance.object_type == 'project_win_lock'
+        )
     elif object_type == 'quotation':
         query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
             ApprovalInstance.object_type == 'quotation'
@@ -2852,6 +2857,7 @@ def get_object_type_display(object_type):
         'salary_run': '月度薪资审批',
         'dealer_apply': '客户渠道身份',
         'project_hold': '项目失败/搁置',
+        'project_win_lock': '项目成功锁定',
         'user': '用户',
         'department': '部门'
     }
@@ -5572,6 +5578,34 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                 elif action == ApprovalAction.REJECT:
                     current_app.logger.info(
                         f"项目 {project.project_name} 失败/搁置审核被驳回，维持原阶段")
+
+        elif instance.object_type == 'project_win_lock':
+            # 成功锁定审核(gated):整条通过才真正 win_locked(打金额/报价/交期快照);驳回不锁。
+            from app.models.project import Project
+            project = Project.query.get(instance.object_id)
+            if project:
+                if action == ApprovalAction.APPROVE and instance.status == ApprovalStatus.APPROVED:
+                    snap = instance.template_snapshot or {}
+                    from app.models.quotation import Quotation
+                    qid = snap.get('wl_quotation_id')
+                    lock_q = Quotation.query.get(qid) if qid else None
+                    project.win_locked = True
+                    project.win_lock_reason = snap.get('wl_reason')
+                    project.win_locked_by = snap.get('wl_initiator_id') or user_id
+                    project.win_locked_at = datetime.now()
+                    if lock_q:
+                        project.win_locked_quotation_id = lock_q.id
+                        project.win_locked_amount = float(lock_q.amount or 0)
+                    dlv = snap.get('wl_delivery')
+                    if dlv:
+                        try:
+                            from datetime import date as _date
+                            project.delivery_forecast = _date.fromisoformat(dlv)
+                        except Exception:
+                            pass
+                    current_app.logger.info(f"项目 {project.project_name} 成功锁定审核通过 → 已锁定")
+                elif action == ApprovalAction.REJECT:
+                    current_app.logger.info(f"项目 {project.project_name} 成功锁定审核被驳回，不锁定")
 
         elif instance.object_type == 'dealer_apply':
             # 客户渠道身份审批:整条流程通过 → company_type=目标身份;驳回 → 仅清 pending

@@ -192,7 +192,9 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      {% if can_win_lock and not project.win_locked and project.current_stage not in ('signed', 'lost')
+      {% if win_lock_pending and not project.win_locked %}
+        {{ at_pill(_('锁定审核中'), tone='warn') }}
+      {% elif can_win_lock and not project.win_locked and project.current_stage not in ('signed', 'lost')
             and lock_quotations %}
         {{ at_btn(_('锁定成功'), variant='ghost', size='sm', icon_l='lock', onclick='wlLock()') }}
       {% endif %}
@@ -651,20 +653,23 @@
       const delivery = document.getElementById('wlDelivery').value;
       const qel = document.getElementById('wlQuotation');
       const quotationId = qel ? parseInt(qel.value) : null;
+      const apEl = document.getElementById('wlApprover');
+      const approverId = apEl ? parseInt(apEl.value) : null;
       if (!reason) { ATToast.error('{{ _("请填写锁定理由") }}'); return; }
+      if (!approverId) { ATToast.error('{{ _("请选择审核人") }}'); return; }
       if (!quotationId) { ATToast.error('{{ _("请选择锁定的报价单") }}'); return; }
       if (!delivery) { ATToast.error('{{ _("请填写预计交付日期") }}'); return; }
       const btn = document.getElementById('wlSubmitBtn');
-      btn.disabled = true; btn.textContent = '{{ _("锁定中…") }}';
+      btn.disabled = true; btn.textContent = '{{ _("提交中…") }}';
       try {
         const d = await (await fetch('/project/at-api/{{ project.id }}/win-lock', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
-          body: JSON.stringify({ reason: reason, delivery_forecast: delivery, quotation_id: quotationId }),
+          body: JSON.stringify({ reason: reason, delivery_forecast: delivery, quotation_id: quotationId, approver_id: approverId }),
         })).json();
         if (d.success) { ATToast.success(d.message); setTimeout(() => location.reload(), 500); }
-        else { ATToast.error(d.message || '{{ _("操作失败") }}'); btn.disabled = false; btn.textContent = '{{ _("锁定") }}'; }
-      } catch (_) { ATToast.error('{{ _("操作失败,请重试") }}'); btn.disabled = false; btn.textContent = '{{ _("锁定") }}'; }
+        else { ATToast.error(d.message || '{{ _("操作失败") }}'); btn.disabled = false; btn.textContent = '{{ _("提交审核") }}'; }
+      } catch (_) { ATToast.error('{{ _("操作失败,请重试") }}'); btn.disabled = false; btn.textContent = '{{ _("提交审核") }}'; }
     };
     window.wlUnlock = function () {
       ATConfirm.show({
@@ -1016,6 +1021,17 @@ window.atOpenProjectShare = function () {
               style="width:100%;box-sizing:border-box;padding:9px 11px;background:var(--bg-page);
                      border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
                      color:var(--ink);outline:none;resize:vertical;"></textarea>
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('审核人') }} <span style="color:var(--danger);">*</span>
+      <span class="at-dim" style="font-weight:400;">{{ _('(按业务线;通过后才生效)') }}</span></label>
+    <select id="wlApprover"
+            style="width:100%;box-sizing:border-box;height:36px;padding:0 11px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                   color:var(--ink);outline:none;">
+      <option value="">{{ _('请选择审核人') }}</option>
+      {% for c in (win_lock_candidates or []) %}
+      <option value="{{ c.id }}">{{ c.name }}（{{ c.role_label }}）</option>
+      {% endfor %}
+    </select>
     <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('锁定报价单') }} <span style="color:var(--danger);">*</span></label>
     {% if lock_quotations | length == 1 %}
     {% set _q0 = lock_quotations[0] %}
@@ -1059,7 +1075,7 @@ window.atOpenProjectShare = function () {
                      background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
       <button type="button" id="wlSubmitBtn" onclick="wlSubmit()"
               style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);
-                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('锁定') }}</button>
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('提交审核') }}</button>
     </div>
   </div>
 </div>

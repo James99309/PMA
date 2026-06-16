@@ -192,31 +192,41 @@ def at_api_win_lock(project_id):
         lock_q = next((q for q in proj_quotes if q.id == qid), None)
         if not lock_q:
             return jsonify({'success': False, 'message': '请选择锁定的报价单'}), 400
+    # 改为「提交审核」:不直接锁定,创建审批实例,通过回调才真正 win_locked
+    approver_id = payload.get('approver_id')
+    if not approver_id:
+        return jsonify({'success': False, 'message': '请选择审核人'}), 400
     try:
-        from app.utils.change_tracker import ChangeTracker
-        old_values = {'win_locked': p.win_locked, 'win_lock_reason': p.win_lock_reason,
-                      'delivery_forecast': p.delivery_forecast}
-        p.win_locked = True
-        p.win_lock_reason = reason
-        p.win_locked_by = current_user.id
-        p.win_locked_at = datetime.now()
-        p.win_locked_quotation_id = lock_q.id
-        p.win_locked_amount = float(lock_q.amount or 0)   # 锁定金额快照
-        p.delivery_forecast = delivery_date   # 锁定即承诺交期,同步到项目详情
-        db.session.commit()
-        try:
-            ChangeTracker.log_update(p, old_values,
-                                     {'win_locked': True, 'win_lock_reason': reason,
-                                      'delivery_forecast': delivery_date})
-        except Exception:
-            pass
-        return jsonify({'success': True, 'message': '已锁定成功',
-                        'locked_by': current_user.real_name or current_user.username,
-                        'locked_at': p.win_locked_at.strftime('%Y-%m-%d %H:%M')})
+        from app.helpers.project_hold_helpers import submit_win_lock
+        inst, err = submit_win_lock(p, reason, current_user.id, approver_id,
+                                    lock_q.id, delivery_date)
+        if err:
+            return jsonify({'success': False, 'message': err}), 400
+        return jsonify({'success': True, 'message': '已提交成功锁定审核，待审核通过后生效'})
     except Exception as e:
         db.session.rollback()
-        logger.error(f'成功锁定失败: {e}', exc_info=True)
+        logger.error(f'提交成功锁定审核失败: {e}', exc_info=True)
         return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@project.route('/at-api/<int:project_id>/win-lock-candidates')
+@login_required
+@permission_required('project', 'view')
+def at_api_win_lock_candidates(project_id):
+    """成功锁定审核人候选(供前端弹窗强制选择)。"""
+    p = Project.query.get_or_404(project_id)
+    if not _can_win_lock(p, current_user):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    from app.helpers.project_hold_helpers import resolve_win_lock_candidates
+    cands, err = resolve_win_lock_candidates(p)
+    if err:
+        return jsonify({'success': False, 'message': err}), 400
+    # 排除发起人自己(不能自审)
+    out = [{'id': u.id, 'name': u.real_name or u.username, 'role': u.role}
+           for u in cands if u.id != current_user.id]
+    if not out:
+        return jsonify({'success': False, 'message': '没有可指定的审核人(可选人均为您本人或缺位)'}), 400
+    return jsonify({'success': True, 'candidates': out})
 
 
 @project.route('/at-api/<int:project_id>/win-unlock', methods=['POST'])
@@ -429,6 +439,18 @@ def at_view_project(project_id):
                      'amount': float(q.amount or 0), 'currency': q.currency or 'CNY'}
                     for q in _Q.query.filter_by(project_id=p.id).order_by(_Q.created_at.desc()).all()]
     _locked_q = next((q for q in _lock_quotes if q['id'] == p.win_locked_quotation_id), None)
+
+    # 成功锁定审核:进行中实例(徽章橙) + 审核人候选(弹窗强制选)
+    from app.helpers.project_hold_helpers import get_pending_win_lock_instance, resolve_win_lock_candidates
+    from app.utils.role_mappings import get_role_display_name
+    win_lock_pending = bool(get_pending_win_lock_instance(p.id))
+    win_lock_candidates = []
+    if _can_win_lock(p, current_user) and not p.win_locked and not win_lock_pending:
+        _cands, _cerr = resolve_win_lock_candidates(p)
+        if _cands:
+            win_lock_candidates = [{'id': u.id, 'name': u.real_name or u.username,
+                                    'role_label': get_role_display_name(u.role)}
+                                   for u in _cands if u.id != current_user.id]
     return render_template('project/at_view.html',
                            project=p,
                            can_win_lock=_can_win_lock(p, current_user),
@@ -449,6 +471,8 @@ def at_view_project(project_id):
                            hold_pending=hold_pending,
                            hold_target=hold_target,
                            can_request_hold=can_request_hold,
+                           win_lock_pending=win_lock_pending,
+                           win_lock_candidates=win_lock_candidates,
                            recover_stage=(last_normal if _abnormal else None),
                            project_attachments=project_attachments,
                            project_diagrams=project_diagrams)
@@ -533,6 +557,21 @@ def at_list_view():
         page=page, per_page=per_page, error_out=False,
     )
 
+    # 当页中"成功锁定审核中"的项目(徽章橙;批量查避免 N+1)
+    win_lock_pending_ids = set()
+    try:
+        from app.models.approval import ApprovalInstance, ApprovalStatus
+        _pg_ids = [pp.id for pp in pagination.items]
+        if _pg_ids:
+            win_lock_pending_ids = {
+                r[0] for r in db.session.query(ApprovalInstance.object_id).filter(
+                    ApprovalInstance.object_type == 'project_win_lock',
+                    ApprovalInstance.status == ApprovalStatus.PENDING,
+                    ApprovalInstance.object_id.in_(_pg_ids),
+                ).all()}
+    except Exception as _wlp_err:
+        logger.warning(f"批量查成功锁定审核中状态失败: {_wlp_err}")
+
     # 非空查询参数(供 tab/分页链接保留筛选+搜索状态;多选 → 列表值)
     list_qs = {}
     if search:
@@ -597,6 +636,7 @@ def at_list_view():
                            ptype_values=ptype_values,
                            vsm_options=vsm_options,
                            vsm_values=vsm_values,
+                           win_lock_pending_ids=win_lock_pending_ids,
                            list_qs=list_qs)
 
 

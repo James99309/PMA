@@ -273,3 +273,113 @@ def submit_project_report_approval(project, user_id):
         except Exception:
             pass
     return instance, None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 项目成功锁定审核 (object_type='project_win_lock') —— 2026-06-16 用户确认:
+# 单级审核;审核人由提交人弹窗强制指定。
+#   CN(sp8d) 业务线路由: 渠道→渠道经理(缺位营销总监) / 服务→服务经理 / 其余→营销总监
+#   SG(ovs) 任何类型 → 总经理(ceo)
+# 提交→进行中(徽章橙「锁定审核中」);通过→真正 win_locked(徽章绿,打金额/报价/交期快照);
+# 驳回→不锁定(无徽章)。徽章=审批结果显示。
+# ─────────────────────────────────────────────────────────────────────────────
+
+WIN_LOCK_OBJECT_TYPE = 'project_win_lock'
+
+
+def resolve_win_lock_candidates(project):
+    """成功锁定审核人候选(供提交人指定弹窗)。Returns (candidates[list[User]], err)。"""
+    import os
+    from app.models.user import User
+
+    def _role_users(role):
+        return User.query.filter(User.role == role, User._is_active.is_(True)).order_by(
+            User.real_name.asc(), User.username.asc()).all()
+
+    db_type = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+    if db_type == 'ovs':
+        cands = _role_users('ceo')
+        return (cands, None) if cands else (None, '未找到总经理(ceo)，请联系管理员')
+    owner = project.owner
+    if (project.report_source or '') == 'channel':
+        cands = _role_users('channel_manager') or _role_users('sales_director')
+    elif owner and ('服务' in (owner.department or '') or owner.role == 'service_manager'):
+        cands = _role_users('service_manager')
+    else:
+        cands = _role_users('sales_director')
+    return (cands, None) if cands else (None, '未找到对应业务线审核人，请联系管理员配置')
+
+
+def get_or_create_win_lock_template(created_by=None):
+    """幂等确保 project_win_lock 模板 + 单步 submitter_designate。Returns (template, step1)。"""
+    from app import db
+    from app.models.approval import ApprovalProcessTemplate, ApprovalStep
+    from app.models.user import User
+
+    tpl = ApprovalProcessTemplate.query.filter_by(object_type=WIN_LOCK_OBJECT_TYPE).first()
+    if not tpl:
+        creator_id = created_by
+        if not creator_id or not User.query.get(creator_id):
+            admin = User.query.filter_by(role='admin').first() or User.query.first()
+            creator_id = admin.id if admin else None
+        tpl = ApprovalProcessTemplate(
+            name='项目成功锁定审核', object_type=WIN_LOCK_OBJECT_TYPE, is_active=True,
+            created_by=creator_id, lock_object_on_start=False,
+            lock_reason='成功锁定审核进行中')
+        db.session.add(tpl)
+        db.session.flush()
+    steps = ApprovalStep.query.filter_by(process_id=tpl.id).order_by(ApprovalStep.step_order).all()
+    if len(steps) < 1:
+        step1 = ApprovalStep(process_id=tpl.id, step_order=1, step_name='成功锁定审核',
+                             approver_type='submitter_designate', send_email=True)
+        db.session.add(step1)
+        db.session.flush()
+        steps = [step1]
+        db.session.commit()
+    return tpl, steps[0]
+
+
+def get_pending_win_lock_instance(project_id):
+    """该项目进行中的成功锁定审核实例(PENDING),无则 None。"""
+    from app.helpers.approval_helpers import get_object_approval_instance
+    from app.models.approval import ApprovalStatus
+    inst = get_object_approval_instance(WIN_LOCK_OBJECT_TYPE, project_id, include_rejected=False)
+    if inst and inst.status == ApprovalStatus.PENDING:
+        return inst
+    return None
+
+
+def submit_win_lock(project, reason, user_id, approver_id, quotation_id, delivery_date):
+    """发起成功锁定审核。不立即锁定;通过回调才锁。Returns (instance, err)。"""
+    from app import db
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.helpers.approval_helpers import start_approval_process
+    from app.models.user import User
+
+    reason = (reason or '').strip()
+    if not reason:
+        return None, '请填写锁定理由（必填）'
+    if not approver_id or not User.query.get(int(approver_id)):
+        return None, '请选择审核人'
+    if int(approver_id) == int(user_id):
+        return None, '不能指定自己为审核人，请由他人审核'
+    if get_pending_win_lock_instance(project.id):
+        return None, '已有进行中的成功锁定审核，请勿重复发起'
+
+    tpl, step1 = get_or_create_win_lock_template(created_by=user_id)
+    instance = start_approval_process(
+        WIN_LOCK_OBJECT_TYPE, project.id, tpl.id, user_id,
+        auto_commit=False, designated_approvers={str(step1.id): int(approver_id)})
+    if not instance:
+        return None, '发起审核失败（可能已存在审核流程）'
+    snap = instance.template_snapshot or {}
+    snap.update({
+        'wl_reason': reason,
+        'wl_quotation_id': quotation_id,
+        'wl_delivery': delivery_date.isoformat() if delivery_date else None,
+        'wl_initiator_id': user_id,
+    })
+    instance.template_snapshot = snap
+    flag_modified(instance, 'template_snapshot')
+    db.session.commit()
+    return instance, None
