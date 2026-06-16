@@ -197,8 +197,8 @@ def at_api_win_lock(project_id):
     # 未指定 → 若唯一在职候选则自动指定(多数业务线只有1人,无需手选);多个才要求选
     if not approver_id:
         from app.helpers.project_hold_helpers import resolve_win_lock_candidates
-        _cands, _cerr = resolve_win_lock_candidates(p)
-        _cands = [u for u in (_cands or []) if u.id != current_user.id]
+        _cands, _cerr = resolve_win_lock_candidates(p, exclude_user_id=current_user.id)
+        _cands = list(_cands or [])
         if len(_cands) == 1:
             approver_id = _cands[0].id
         elif len(_cands) == 0:
@@ -227,12 +227,11 @@ def at_api_win_lock_candidates(project_id):
     if not _can_win_lock(p, current_user):
         return jsonify({'success': False, 'message': '无权限'}), 403
     from app.helpers.project_hold_helpers import resolve_win_lock_candidates
-    cands, err = resolve_win_lock_candidates(p)
+    cands, err = resolve_win_lock_candidates(p, exclude_user_id=current_user.id)
     if err:
         return jsonify({'success': False, 'message': err}), 400
-    # 排除发起人自己(不能自审)
     out = [{'id': u.id, 'name': u.real_name or u.username, 'role': u.role}
-           for u in cands if u.id != current_user.id]
+           for u in (cands or [])]
     if not out:
         return jsonify({'success': False, 'message': '没有可指定的审核人(可选人均为您本人或缺位)'}), 400
     return jsonify({'success': True, 'candidates': out})
@@ -455,11 +454,11 @@ def at_view_project(project_id):
     win_lock_pending = bool(get_pending_win_lock_instance(p.id))
     win_lock_candidates = []
     if _can_win_lock(p, current_user) and not p.win_locked and not win_lock_pending:
-        _cands, _cerr = resolve_win_lock_candidates(p)
+        _cands, _cerr = resolve_win_lock_candidates(p, exclude_user_id=current_user.id)
         if _cands:
             win_lock_candidates = [{'id': u.id, 'name': u.real_name or u.username,
                                     'role_label': get_role_display_name(u.role)}
-                                   for u in _cands if u.id != current_user.id]
+                                   for u in _cands]
     return render_template('project/at_view.html',
                            project=p,
                            can_win_lock=_can_win_lock(p, current_user),

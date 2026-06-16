@@ -287,21 +287,27 @@ def submit_project_report_approval(project, user_id):
 WIN_LOCK_OBJECT_TYPE = 'project_win_lock'
 
 
-def resolve_win_lock_candidates(project):
-    """成功锁定审核人候选(供提交人指定弹窗)。Returns (candidates[list[User]], err)。"""
+def resolve_win_lock_candidates(project, exclude_user_id=None):
+    """成功锁定审核人候选(供提交人指定弹窗)。Returns (candidates[list[User]], err)。
+
+    逐级排除提交人(exclude_user_id):某级在职人员只剩提交人本人 → 视为该级无效,自动升上一级
+    (避免自审 + 满足"该级不存在则上一级")。最终兜底到总经理(ceo)。
+    """
     import os
     from app.models.user import User
 
     def _role_users(role):
-        return User.query.filter(User.role == role, User._is_active.is_(True)).order_by(
-            User.real_name.asc(), User.username.asc()).all()
+        q = User.query.filter(User.role == role, User._is_active.is_(True))
+        if exclude_user_id:
+            q = q.filter(User.id != exclude_user_id)
+        return q.order_by(User.real_name.asc(), User.username.asc()).all()
 
     db_type = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
     if db_type == 'ovs':
         cands = _role_users('ceo')
         return (cands, None) if cands else (None, '未找到总经理(ceo)，请联系管理员')
     owner = project.owner
-    # 业务线主审 → 缺位逐级兜底,最终到总经理(ceo)。仅取在职(_is_active),离职自动跳过。
+    # 业务线主审 → 缺位/仅自己 逐级兜底,最终到总经理(ceo)。仅取在职(_is_active),离职自动跳过。
     if (project.report_source or '') == 'channel':
         cands = _role_users('channel_manager') or _role_users('sales_director') or _role_users('ceo')
     elif owner and ('服务' in (owner.department or '') or owner.role == 'service_manager'):
