@@ -42,14 +42,18 @@ def resolve_hold_approvers(project):
     if not ceo:
         return None, None, '未找到总经理(ceo)，请联系管理员配置后再发起'
 
-    # 第一步按业务线分流(2026-06-12 确认):
-    #   渠道业务(report_source=channel) → 渠道经理;岗位无人 → 营销总监代理
-    #   服务类(负责人属服务部门/服务经理) → 服务经理;岗位无人 → 直达总经理
-    #   其余(销售/营销报备) → 营销总监;岗位无人 → 直达总经理
-    if (project.report_source or '') == 'channel':
-        first = _active_role('channel_manager') or _active_role('sales_director')
-    elif '服务' in (owner.department or '') or owner.role == 'service_manager':
+    # 第一步按「项目类型」(project_type,即列表显示的「类型」)分流(2026-06-16 修正):
+    #   服务(business_opportunity)/负责人属服务部门或服务经理 → 服务经理;无在职 → 直达总经理
+    #   渠道(channel_follow,或报备来源=channel) → 渠道经理;无在职 → 营销总监代理 → 总经理
+    #   销售(sales_focus)/其余 → 营销总监;无在职 → 直达总经理
+    # 原按 report_source 判渠道:服务项目若报备来源恰为 channel 会被误判成渠道(漏看「类型」),
+    # 导致服务经理的搁置/报备审批落到平级营销总监而非其上级 CEO。
+    pt = (project.project_type or '')
+    _owner_is_service = (owner.role == 'service_manager') or ('服务' in (owner.department or ''))
+    if pt == 'business_opportunity' or _owner_is_service:
         first = _active_role('service_manager')
+    elif pt == 'channel_follow' or (project.report_source or '') == 'channel':
+        first = _active_role('channel_manager') or _active_role('sales_director')
     else:
         first = _active_role('sales_director')
     return first, ceo, None
