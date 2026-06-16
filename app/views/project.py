@@ -451,6 +451,7 @@ def at_view_project(project_id):
     # 成功锁定审核:进行中实例(徽章橙) + 审核人候选(弹窗强制选)
     from app.helpers.project_hold_helpers import get_pending_win_lock_instance, resolve_win_lock_candidates
     from app.utils.role_mappings import get_role_display_name
+    # 审核中:用 AT 通用审批组件(at_approval_dropdown)就地展示流程,流程数据由 /project/api/win-lock/<id>/flow 提供
     win_lock_pending = bool(get_pending_win_lock_instance(p.id))
     win_lock_candidates = []
     if _can_win_lock(p, current_user) and not p.win_locked and not win_lock_pending:
@@ -561,6 +562,14 @@ def at_list_view():
             Project.authorization_code.ilike(like),
         ))
 
+    # 当前 tab+筛选下的报价总额(全量,非仅当页)。
+    # 跨币种(SG: MYR/SGD/USD)用 MultiCurrencyAggregationService 按行换算到实例默认币种
+    # (ovs=USD / sp8d=CNY),与仪表盘漏斗同一套口径;sp8d 全 CNY 时为无损相加。
+    from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
+    tab_total_amount = MultiCurrencyAggregationService.sum_converted(
+        q, Project.quotation_customer, Project.quotation_currency
+    )
+
     pagination = q.order_by(Project.updated_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
@@ -645,6 +654,7 @@ def at_list_view():
                            vsm_options=vsm_options,
                            vsm_values=vsm_values,
                            win_lock_pending_ids=win_lock_pending_ids,
+                           tab_total_amount=tab_total_amount,
                            list_qs=list_qs)
 
 
@@ -4505,6 +4515,69 @@ def recall_project_hold(project_id):
     except Exception as e:
         db.session.rollback()
         logging.error(f"撤回失败/搁置审核失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'撤回失败：{str(e)}'}), 500
+
+
+@project.route('/api/win-lock/<int:project_id>/flow')
+@login_required
+@permission_required('project', 'view')
+def get_project_win_lock_flow(project_id):
+    """获取项目成功锁定审核流程 — 复用通用构建 + 前置「发起申请」节点(含发起人理由)。"""
+    result = _get_project_approval_flow_impl(project_id, object_type='project_win_lock')
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+
+    # 前置「发起申请」节点:展示发起人 + 锁定理由
+    if result.get('success') and result.get('has_approval') and result.get('approval_flow'):
+        try:
+            from app.helpers.approval_helpers import get_object_approval_instance
+            from app.models.user import User as _U
+            inst = get_object_approval_instance('project_win_lock', project_id, include_rejected=True)
+            snap = (inst.template_snapshot or {}) if inst else {}
+            initiator = _U.query.get(snap.get('wl_initiator_id')) if snap.get('wl_initiator_id') else None
+            started = inst.started_at.isoformat() if inst and inst.started_at else None
+            origin_node = {
+                'id': 'initiator', 'stage_name': '发起申请', 'stage_order': 0,
+                'approver_name': (initiator.real_name or initiator.username) if initiator else '发起人',
+                'approver_id': initiator.id if initiator else None,
+                'status': 'approved', 'completed_time': started,
+                'comment': snap.get('wl_reason') or '', 'action': 'submit',
+                'arrived_at': started, 'can_approve': False,
+            }
+            result['approval_flow'].setdefault('stages', [])
+            result['approval_flow']['stages'].insert(0, origin_node)
+        except Exception as _e:
+            logging.warning(f"前置发起节点失败(win-lock): {_e}")
+    return jsonify(result)
+
+
+@project.route('/api/win-lock/<int:project_id>/editable-fields')
+@login_required
+@permission_required('project', 'view')
+def get_project_win_lock_editable_fields(project_id):
+    """成功锁定审核无「审核修改」场景,返回空字段(供下拉组件并发拉取)。"""
+    return jsonify({'success': True, 'fields': [], 'editable_fields': []})
+
+
+@project.route('/api/win-lock/<int:project_id>/recall', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def recall_project_win_lock(project_id):
+    """撤回进行中的成功锁定审核(仅发起人或管理员)。"""
+    try:
+        from app.helpers.approval_helpers import get_object_approval_instance, recall_approval_process
+        inst = get_object_approval_instance('project_win_lock', project_id)
+        if not inst:
+            return jsonify({'success': False, 'message': '没有进行中的成功锁定审核'}), 400
+        if inst.created_by != current_user.id and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '只有发起人或管理员可撤回'}), 403
+        if inst.status != ApprovalStatus.PENDING:
+            return jsonify({'success': False, 'message': '只有进行中的审核可撤回'}), 400
+        success, message = recall_approval_process('project_win_lock', project_id, current_user.id)
+        return jsonify({'success': success, 'message': message}), (200 if success else 500)
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"撤回成功锁定审核失败：{str(e)}")
         return jsonify({'success': False, 'message': f'撤回失败：{str(e)}'}), 500
 
 

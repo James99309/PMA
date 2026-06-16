@@ -99,12 +99,13 @@
 {# ─── 成功锁定徽章(锁单预判)──────────────────────────────
    所有显示项目的地方统一使用;size='sm' 列表行用。
    title 带锁定理由;详情页的交互版(点击看理由/解除)在 at_view 单独实现。 #}
-{% macro at_win_lock_badge(reason='', size='md', title_extra='') %}
+{% macro at_win_lock_badge(reason='', size='md', title_extra='', tone='success') %}
   {%- set ic = 13 if size == 'sm' else 15 -%}
-  {# 纯奖杯图标(无圈无底色;同中标阶段 emoji_events 语义,内联 SVG 不依赖图标字体)#}
-  <span title="锁定成功{{ (':' ~ reason) if reason }}{{ title_extra }}"
+  {%- set _wlcolor = 'var(--warn)' if tone == 'warn' else 'var(--success)' -%}
+  {# 纯奖杯图标(无圈无底色);tone=success 绿色=已锁定 / warn 橙色=审核中 #}
+  <span title="{{ '成功锁定审核中' if tone == 'warn' else '锁定成功' }}{{ (':' ~ reason) if reason }}{{ title_extra }}"
         style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
-               color:var(--warn);vertical-align:middle;margin-left:4px;">
+               color:{{ _wlcolor }};vertical-align:middle;margin-left:4px;">
     <svg width="{{ ic }}" height="{{ ic }}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
          stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>

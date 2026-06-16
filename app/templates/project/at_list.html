@@ -42,6 +42,11 @@
 <script src="{{ url_for('static', filename='js/at-project-form.js') }}"></script>
 {% endblock %}
 
+{% block total_extra %}
+<span style="color:var(--ink-4);">·</span>
+<span title="{{ _('多币种按当前汇率折算为%(cur)s合计', cur=get_default_currency()) }}">{{ _('总额') }} <span class="at-mono at-tab-num" style="color:var(--accent);font-weight:500;">{{ get_currency_symbol(get_default_currency()) }}{{ '{:,.0f}'.format(tab_total_amount or 0) }}</span></span>
+{% endblock %}
+
 {% block tabs %}
 {% set _tabs = [
   {'k':'all',        'l':_('全部'),  'c':tab_counts.all},
@@ -127,7 +132,7 @@
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
     {{ at_status_pill(p.current_stage or 'discover', scope='project') }}
     {% if p.win_locked and p.current_stage != 'signed' %}{{ at_win_lock_badge(p.win_lock_reason or '', size='sm') }}
-    {% elif p.id in (win_lock_pending_ids or []) %}{{ at_pill(_('锁定审核中'), tone='warn') }}{% endif %}
+    {% elif p.id in (win_lock_pending_ids or []) %}{{ at_win_lock_badge('', size='sm', tone='warn') }}{% endif %}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-3);font-size:12px;">
     {{ (p.project_type | project_type_label) if p.project_type else '—' }}

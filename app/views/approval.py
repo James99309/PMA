@@ -793,6 +793,26 @@ def at_detail(instance_id):
                 ('人数', f"{run.headcount or 0} 人"),
                 ('应发合计', f"¥{float(run.total_amount or 0):,.2f}"),
             ]
+    elif instance.object_type == 'project_win_lock':
+        from app.models.project import Project
+        proj = Project.query.get(instance.object_id)
+        snap = instance.template_snapshot or {}
+        if proj:
+            summary['title'] = f"{proj.project_name} · {_('成功锁定审核')}"
+            lines = []
+            initor = User.query.get(snap.get('wl_initiator_id')) if snap.get('wl_initiator_id') else None
+            if initor:
+                lines.append((_('发起人'), initor.real_name or initor.username))
+            _qid = snap.get('wl_quotation_id')
+            if _qid:
+                from app.models.quotation import Quotation
+                _q = Quotation.query.get(_qid)
+                if _q:
+                    _sym = '$' if (getattr(_q, 'currency', None) == 'USD') else '¥'
+                    lines.append((_('锁定报价单'), f"{_q.quotation_number or ('#' + str(_q.id))} · {_sym}{float(_q.amount or 0):,.2f}"))
+            if snap.get('wl_reason'):
+                lines.append((_('锁定理由'), snap.get('wl_reason')))
+            summary['lines'] = lines
     if 'title' not in summary:
         summary['title'] = f"{summary['type']} #{instance.object_id}"
 

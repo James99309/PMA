@@ -131,7 +131,7 @@
           <span style="position:relative;display:inline-flex;">
             <button type="button" onclick="wlToggle(event)" title="{{ _('锁定成功:点击查看锁定理由') }}"
                     style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
-                           padding:2px;border:0;background:transparent;cursor:pointer;color:var(--warn);">
+                           padding:2px;border:0;background:transparent;cursor:pointer;color:var(--success);">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
@@ -174,6 +174,17 @@
                 meta={'project_name': project.project_name or '', 'title': project.project_name or ''}
               ) }}
           {% endif %}
+          {# 成功锁定审核中 — 徽章右侧橙色奖杯+箭头,点击就地展开审批流程时间线+内联同意/驳回 #}
+          {% if win_lock_pending and not project.win_locked %}
+          {{ at_approval_dropdown(
+                object_type='project_win_lock', object_id=project.id,
+                status='pending', status_scope='project_win_lock',
+                api_base='/project/api/win-lock',
+                chip_variant='trophy',
+                chip_title=_('成功锁定审核中:点击查看审批流程'),
+                meta={'project_name': project.project_name or '', 'title': project.project_name or ''}
+              ) }}
+          {% endif %}
         {% endcall %}
       </div>
       <div style="margin-top:8px;color:var(--ink-3);font-size:13px;
@@ -191,11 +202,9 @@
         {% endif %}
       </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      {% if win_lock_pending and not project.win_locked %}
-        {{ at_pill(_('锁定审核中'), tone='warn') }}
-      {% elif can_win_lock and not project.win_locked and project.current_stage not in ('signed', 'lost')
-            and lock_quotations %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% if can_win_lock and not project.win_locked and not win_lock_pending
+            and project.current_stage not in ('signed', 'lost') and lock_quotations %}
         {{ at_btn(_('锁定成功'), variant='ghost', size='sm', icon_l='lock', onclick='wlLock()') }}
       {% endif %}
       {% if perms.can_edit %}

@@ -91,7 +91,7 @@ def _build_todos(user):
         'quotation': _t('报价单'), 'sales_order': _t('客户订单'),
         'customer': _t('客户'), 'project_hold': _t('项目搁置/失败审核'),
         'dealer_apply': _t('渠道身份审批'), 'perf_settlement': _t('绩效结算'),
-        'salary_run': _t('月度薪资审批'),
+        'salary_run': _t('月度薪资审批'), 'project_win_lock': _t('成功锁定审核'),
     }
 
     # 1) 待审批 — 复用 get_user_pending_approvals
@@ -100,6 +100,7 @@ def _build_todos(user):
         'expense':         lambda i: f'/expense/{i}/at_view#approval',
         'project':         lambda i: f'/project/{i}/at_view#approval',
         'project_hold':    lambda i: f'/project/{i}/at_view#approval-project_hold',
+        'project_win_lock': lambda i: f'/project/{i}/at_view#approval-project_win_lock',
         'quotation':       lambda i: f'/quotation/{i}/at_view#approval',
         'purchase_order':  lambda i: f'/purchase-order/{i}#approval',
         'dealer_apply':    None,   # 占位:下面按实例跳审批中心
@@ -128,7 +129,7 @@ def _build_todos(user):
                     _sn = (_su.real_name or _su.username) if _su else ''
                     title = f'{_sn} · {_st.year} Q{_st.quarter} {_t("绩效结算")}'
                     route_url = f'/user/at-config/performance?user={_st.user_id}&settle_q={_st.quarter}'
-            if ai.object_type in ('project', 'project_hold'):
+            if ai.object_type in ('project', 'project_hold', 'project_win_lock'):
                 from app.models.project import Project
                 _proj = Project.query.get(ai.object_id)
                 _pname = _proj.project_name if _proj else None

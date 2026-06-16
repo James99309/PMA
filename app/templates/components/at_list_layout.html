@@ -89,8 +89,9 @@
               overflow-x:auto;">
     {% block tabs %}{% endblock %}
     <div style="flex:1;"></div>
-    <div class="at-dim" style="font-size:12px;padding-right:4px;">
-      {{ _('共') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{% block total_count %}{% if pagination is defined %}{{ pagination.total }}{% endif %}{% endblock %}</span> {{ _('条') }}
+    <div class="at-dim" style="font-size:12px;padding-right:4px;display:flex;align-items:center;gap:10px;">
+      <span>{{ _('共') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{% block total_count %}{% if pagination is defined %}{{ pagination.total }}{% endif %}{% endblock %}</span> {{ _('条') }}</span>
+      {% block total_extra %}{% endblock %}
     </div>
   </div>
 

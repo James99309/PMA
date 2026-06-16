@@ -32,7 +32,8 @@
 {% from 'components/at_base.html' import at_status_pill %}
 
 {% macro at_approval_dropdown(object_type, object_id, status, status_scope='expense',
-                               api_base='/expense/api/approval', meta={}, size='md') %}
+                               api_base='/expense/api/approval', meta={}, size='md',
+                               chip_variant='pill', chip_title='') %}
 {% set _meta = meta or {} %}
 <span class="at-approval-wrap"
       data-at-approval
@@ -50,7 +51,24 @@
       } | tojson }}'
       style="position:relative;display:inline-flex;">
 
-  {# 可点击 chip — 包装 at_status_pill,加 hover 指针 + 下拉箭头 #}
+  {# 可点击 chip — 默认包装 at_status_pill;chip_variant='trophy' 时改橙色奖杯触发器(成功锁定审核中) #}
+  {% if chip_variant == 'trophy' %}
+  {# 徽章式触发器:橙色奖杯 + 右侧小箭头(无边框/无盒子,贴在状态徽章右侧)#}
+  <button type="button" data-at-approval-chip title="{{ chip_title or '成功锁定审核中:点击查看审批流程' }}"
+          style="display:inline-flex;align-items:center;gap:1px;flex-shrink:0;
+                 padding:0;border:0;background:transparent;cursor:pointer;color:var(--warn);
+                 line-height:1;vertical-align:middle;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+      <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.7;">
+      <path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  {% else %}
   <button type="button" data-at-approval-chip
           style="border:0;background:transparent;padding:0;margin:0;cursor:pointer;
                  display:inline-flex;align-items:center;gap:3px;
@@ -60,6 +78,7 @@
       <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   </button>
+  {% endif %}
 
   {# 浮层 — 默认隐藏,JS 弹出时定位 + 拉 flow 渲染 #}
   <div data-at-approval-panel
