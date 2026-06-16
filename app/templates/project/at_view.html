@@ -281,12 +281,46 @@
       {{ at_icon('warn' if abnormal_status == 'lost' else 'clock', 16) }}
     </div>
     <div style="flex:1;">
-      <div style="font-size:13.5px;font-weight:500;color:var(--ink);">
-        {{ _('当前项目状态:') }}{{ abnormal_label }}
+      <div style="font-size:13.5px;font-weight:500;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span>{{ _('当前项目状态:') }}{{ abnormal_label }}</span>
+        {# 失败责任认定徽章(失败审批时由审批人勾选)#}
+        {% if abnormal_status == 'lost' and project.fail_owner_fault %}{{ at_pill(_('个人因素为主'), tone='danger') }}{% endif %}
+        {% if abnormal_status == 'lost' and project.fail_mgmt_fault %}{{ at_pill(_('团队管理失责'), tone='warn') }}{% endif %}
+        {% if abnormal_status == 'lost' and not project.fail_owner_fault and not project.fail_mgmt_fault %}{{ at_pill(_('未认定责任'), tone='neutral') }}{% endif %}
       </div>
       <div class="at-dim" style="font-size:11.5px;margin-top:2px;">
         {{ _('进度条下方显示恢复前的最后正常阶段;点击节点可恢复') }}
       </div>
+      {# 失败审批详情(理由 + 审批人意见)— 审批通过后 chip 已消失,这里补全可追溯 #}
+      {% if abnormal_status == 'lost' and fail_approval and (fail_approval.reason or fail_approval.records) %}
+      <button type="button" onclick="failDetailToggle(event)"
+              style="margin-top:8px;border:0;background:transparent;padding:0;cursor:pointer;
+                     color:var(--danger);font-size:12px;display:inline-flex;align-items:center;gap:3px;">
+        {{ _('查看失败审批详情') }}
+        <svg id="failDetailChev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="failDetailPanel" hidden style="margin-top:8px;padding:10px 12px;background:var(--bg-elev);
+           border:1px solid var(--line);border-radius:8px;font-size:12px;">
+        {% if fail_approval.reason %}
+        <div style="margin-bottom:8px;">
+          <span class="at-dim">{{ _('申请理由') }}{% if fail_approval.initiator %} · {{ fail_approval.initiator }}{% endif %}：</span>
+          <span style="color:var(--ink);white-space:pre-wrap;word-break:break-word;">{{ fail_approval.reason }}</span>
+        </div>
+        {% endif %}
+        {% for r in fail_approval.records %}
+        <div style="display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--line-soft);">
+          <span style="flex-shrink:0;color:{{ 'var(--success)' if r.action == 'approve' else 'var(--danger)' }};">
+            {{ '✓' if r.action == 'approve' else '✕' }}</span>
+          <div style="flex:1;min-width:0;">
+            <span style="color:var(--ink);font-weight:500;">{{ r.name }}</span>
+            <span class="at-dim">· {{ _('同意') if r.action == 'approve' else _('驳回') }} · {{ r.time }}</span>
+            {% if r.comment %}<div style="color:var(--ink-2);margin-top:2px;white-space:pre-wrap;word-break:break-word;">{{ r.comment }}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -641,6 +675,14 @@
       const pop = document.getElementById('wlPop');
       if (pop && !pop.hidden) pop.hidden = true;
     });
+    window.failDetailToggle = function (e) {
+      e.stopPropagation();
+      const panel = document.getElementById('failDetailPanel');
+      const chev = document.getElementById('failDetailChev');
+      if (!panel) return;
+      panel.hidden = !panel.hidden;
+      if (chev) chev.style.transform = panel.hidden ? '' : 'rotate(180deg)';
+    };
     window.wlLock = function () {
       document.getElementById('wlModal').classList.add('open');
       setTimeout(() => document.getElementById('wlReason').focus(), 50);

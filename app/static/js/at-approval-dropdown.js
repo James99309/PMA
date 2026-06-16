@@ -541,21 +541,25 @@
     if (!g.ATConfirm) { if (g.ATToast) ATToast.error(t('AT 弹窗组件未加载')); return; }
 
     // 项目失败审核(lost)同意时的归因认定:
-    // 步骤1(部门经理)→ 个人因素为主;步骤2(总经理)→ 团队管理失责
+    //   首个业务审批步(部门经理/服务经理)→ 个人因素为主;末步(总经理)→ 团队管理失责
+    //   说明:flow.stages 含一个前置"发起申请"合成节点(id==='initiator')须排除;
+    //         被跳过的步(提交人本人即该级审批人)不在 stages 里 → 用过滤后的真实业务步算位置。
     var attribution = null, chkOpt = null;
     if (action === 'approve' && root.dataset.objectType === 'project_hold'
         && root.dataset.status === 'lost') {
-      var _steps = (flow && flow.steps) || [];
+      var _stages = (flow && flow.stages) || [];
+      var _steps = _stages.filter(function (s) { return s && s.id !== 'initiator'; });
       var _curIdx = -1;
       for (var i = 0; i < _steps.length; i++) {
         if (_steps[i].status === 'current') { _curIdx = i; break; }
       }
-      if (_curIdx === 0) {
-        attribution = 'owner_fault';
-        chkOpt = { label: t('认定:个人因素为主(计入项目负责人的个人失败率)') };
-      } else if (_curIdx === 1) {
+      var _isFinal = (_curIdx >= 0 && _curIdx === _steps.length - 1);
+      if (_isFinal) {
         attribution = 'mgmt_fault';
         chkOpt = { label: t('认定:团队管理失责(计入部门的团队失败率)') };
+      } else if (_curIdx === 0) {
+        attribution = 'owner_fault';
+        chkOpt = { label: t('认定:个人因素为主(计入项目负责人的个人失败率)') };
       }
     }
 

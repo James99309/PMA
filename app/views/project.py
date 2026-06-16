@@ -413,6 +413,41 @@ def at_view_project(project_id):
         and not hold_pending
     )
 
+    # ─── 失败项目:展示已通过的失败审批理由 + 责任认定(审批通过后 chip 消失,这里补全可见)───
+    fail_approval = None
+    if cur == 'lost':
+        try:
+            from app.models.approval import ApprovalInstance, ApprovalStatus, ApprovalRecord
+            from app.models.user import User as _U
+            _fi = (ApprovalInstance.query
+                   .filter(ApprovalInstance.object_type == 'project_hold',
+                           ApprovalInstance.object_id == project_id,
+                           ApprovalInstance.status == ApprovalStatus.APPROVED)
+                   .order_by(ApprovalInstance.started_at.desc()).first())
+            if _fi and (_fi.template_snapshot or {}).get('hold_target') == 'lost':
+                _snap = _fi.template_snapshot or {}
+                _initor = _U.query.get(_snap.get('hold_initiator_id')) if _snap.get('hold_initiator_id') else None
+                _recs = (ApprovalRecord.query.filter_by(instance_id=_fi.id)
+                         .order_by(ApprovalRecord.timestamp.asc()).all())
+                _rlist = []
+                for _r in _recs:
+                    if _r.action == 'skipped':
+                        continue
+                    _ru = _U.query.get(_r.approver_id) if _r.approver_id else None
+                    _rlist.append({
+                        'name': (_ru.real_name or _ru.username) if _ru else '—',
+                        'action': _r.action,
+                        'comment': _r.comment or '',
+                        'time': _r.timestamp.strftime('%Y-%m-%d %H:%M') if _r.timestamp else '',
+                    })
+                fail_approval = {
+                    'reason': _snap.get('hold_reason') or '',
+                    'initiator': (_initor.real_name or _initor.username) if _initor else '',
+                    'records': _rlist,
+                }
+        except Exception as _fa_err:
+            current_app.logger.warning(f"加载失败审批信息失败: {_fa_err}")
+
     # 项目附件:补全上传人姓名(新文件已存 uploaded_by_name,旧文件按 uploaded_by 反查)
     project_attachments = []
     try:
@@ -480,6 +515,7 @@ def at_view_project(project_id):
                            hold_pending=hold_pending,
                            hold_target=hold_target,
                            can_request_hold=can_request_hold,
+                           fail_approval=fail_approval,
                            win_lock_pending=win_lock_pending,
                            win_lock_candidates=win_lock_candidates,
                            recover_stage=(last_normal if _abnormal else None),
