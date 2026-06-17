@@ -52,6 +52,7 @@ class WorkItem(db.Model):
     related_subtask_id = Column(Integer, ForeignKey('subtasks.id'), nullable=True)
     related_task = relationship('Task', foreign_keys=[related_task_id])
     related_subtask = relationship('SubTask', foreign_keys=[related_subtask_id])
+    related_action_id = Column(Integer, ForeignKey('actions.id'), nullable=True)  # 关联项目时生成的跟进记录(评论作为其 ActionReply)
 
     work_type = Column(String(50))                      # 工作类型（visit/meeting/development/research/admin/other）
 

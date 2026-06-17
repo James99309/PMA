@@ -516,11 +516,16 @@ function messagePanel() {
                 }
                 return params.length ? `${url}?${params.join('&')}` : url;
             } else if (item.related_object_type === 'worklog') {
-                // 日志@消息，跳转到发送者的日历
-                if (item.metadata && item.metadata.log_date) {
-                    return `/worklog/calendar?date=${item.metadata.log_date}&owner_id=${item.sender_id}`;
+                // 日报评论:收件人即日报创建者 → 打开自己的日报(不带 owner_id)
+                if (item.message_type === 'worklog_comment') {
+                    const d = item.metadata && item.metadata.log_date;
+                    return d ? `/worklog/at-calendar?date=${d}&open_log=1` : '/worklog/at-calendar';
                 }
-                return `/worklog/calendar?owner_id=${item.sender_id}`;
+                // 日志@消息，跳转到发送者的 AT 日历并打开当天日报
+                if (item.metadata && item.metadata.log_date) {
+                    return `/worklog/at-calendar?date=${item.metadata.log_date}&owner_id=${item.sender_id}&open_log=1`;
+                }
+                return `/worklog/at-calendar?owner_id=${item.sender_id}`;
             } else if (item.related_object_type === 'quotation') {
                 // 报价单消息，跳转到报价单详情页
                 return `/quotation/${item.related_object_id}/detail`;
@@ -540,6 +545,8 @@ function messagePanel() {
                 'worklog_mention': 'alternate_email',
                 'worklog_submitted': 'task_alt',
                 'workitem_shared': 'event',
+                'workitem_comment': 'chat_bubble',
+                'worklog_comment': 'chat_bubble',
                 'meeting_invite': 'record_voice_over',
                 'workitem_cancelled': 'event_busy',
                 'workitem_completed': 'event_available',

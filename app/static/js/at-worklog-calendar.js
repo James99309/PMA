@@ -22,7 +22,8 @@
   var accountsData = null;                    // 可查看账户缓存
   var contribMode = false;                    // 当前打开的工作项为"他人/共享"态(只读+可评论+可传附件)
   var attachCanDelete = true;                  // 附件是否可删除(仅本人编辑态)
-  var customerPicker, projectPicker, titleCtl, startTimeCtl, endTimeCtl, startDateCtl, endDateCtl, peopleCtl;
+  var logDatesSub = {}, logDatesDraft = {};    // 有日报的日期集合(已提交/草稿) → 日历日记图标
+  var customerPicker, projectPicker, titleCtl, startTimeCtl, endTimeCtl, startDateCtl, endDateCtl, peopleCtl, logDateCtl;
   var WK = ['一', '二', '三', '四', '五', '六', '日'];                                  // 周一→周日(表头);init 按语言切换
   var WKFULL = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];               // getDay() 索引;init 按语言切换
   var WK_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -67,6 +68,10 @@
         el.addEventListener('dragstart', function (ev) { ev.dataTransfer.setData('text/plain', el.dataset.evid); ev.dataTransfer.effectAllowed = 'move'; el.style.opacity = '0.4'; });
         el.addEventListener('dragend', function () { el.style.opacity = ''; });
       }
+    });
+    grid.querySelectorAll('.cal-logmark[data-logdate]').forEach(function (el) {
+      el.style.pointerEvents = 'auto'; el.style.cursor = 'pointer';
+      el.addEventListener('click', function (ev) { ev.stopPropagation(); g.openLog(el.dataset.logdate); });
     });
     grid.querySelectorAll('[data-date]').forEach(function (cell) {
       cell.addEventListener('click', function () { wiOpenNew(cell.dataset.date); });
@@ -144,6 +149,17 @@
     });
   }
 
+  // 日历右下角日记图标:已提交(实心)/有内容草稿(空心待提交)
+  function logMarkHtml(di) {
+    var sub = logDatesSub[di], draft = !sub && logDatesDraft[di];
+    if (!sub && !draft) return '';
+    var fill = sub ? 'currentColor' : 'none';
+    return '<span class="cal-logmark' + (draft ? ' draft' : '') + '" data-logdate="' + di + '" title="' +
+      (sub ? t('已提交日报') : t('日报草稿(待提交)')) + '">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="' + fill + '" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M4 4h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-2 1V6a2 2 0 0 1 2-2z" fill="' + fill + '"/></svg></span>';
+  }
+
   // 账户选择(查看他人日历)
   function loadAccounts(cb) {
     if (accountsData) { cb && cb(); return; }
@@ -206,7 +222,7 @@
       var inner = evs.length ? evs.map(chipHtml).join('')
         : '<div class="at-dim" style="padding:48px;text-align:center;font-size:13px;">' + t('当天暂无安排,点击新建') + '</div>';
       grid.innerHTML = '<div class="cal-cell cal-day' + (di === todayISO ? ' today' : '') + '" data-date="' + di + '">' +
-        '<span class="cal-daynum">' + d.getDate() + '</span>' + holidayHtml(di) + inner + '</div>';
+        '<span class="cal-daynum">' + d.getDate() + '</span>' + holidayHtml(di) + logMarkHtml(di) + inner + '</div>';
       bindCells(); return;
     }
     var cells, headLabels, otherCheck;
@@ -240,7 +256,7 @@
       var cap = (viewMode === 'week') ? evs.length : 5;
       evs.slice(0, cap).forEach(function (e) { chips += chipHtml(e); });
       if (evs.length > cap) chips += '<div class="cal-more">+' + (evs.length - cap) + ' ' + t('更多') + '</div>';
-      html += '<div class="' + cls + '" data-date="' + di + '"><span class="cal-daynum">' + d.getDate() + '</span>' + holidayHtml(di) + chips + '</div>';
+      html += '<div class="' + cls + '" data-date="' + di + '"><span class="cal-daynum">' + d.getDate() + '</span>' + holidayHtml(di) + logMarkHtml(di) + chips + '</div>';
     });
     grid.innerHTML = html;
     bindCells();
@@ -253,6 +269,11 @@
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (res) { return res.json(); })
       .then(function (data) {
+        // 日报日期集合(日历右下角日记图标):已提交 + 有内容草稿;看他人时已读/未读都算已提交
+        logDatesSub = {}; logDatesDraft = {};
+        (data.datesWithSubmittedLogs || []).concat(data.datesWithReadLogs || [], data.datesWithUnreadLogs || [])
+          .forEach(function (d) { logDatesSub[d] = 1; });
+        (data.datesWithDraftLogs || []).forEach(function (d) { logDatesDraft[d] = 1; });
         eventsByDate = {};
         (data.events || []).forEach(function (e) {
           var s = parseISO(e.start);
@@ -319,14 +340,18 @@
     $('wiEndDateBox').style.display = allDay ? '' : 'none';
   }
   function openModal() { $('wiModal').classList.add('open'); }
+  function promptMarkComplete(id) {
+    if (!id) return;
+    var run = function () { completeItem(id); };
+    if (g.ATConfirm) ATConfirm.show({ title: t('标记完成?'), message: t('该工作项已过计划结束时间,是否标记为已完成?'), variant: 'accent', confirmText: t('标记完成'), cancelText: t('暂不'), onConfirm: run });
+    else if (confirm(t('该工作项已过计划结束时间,是否标记为已完成?'))) run();
+  }
   g.wiClose = function () {
     $('wiModal').classList.remove('open');
     // 超过计划结束时间且未完成:打开后关闭 → 提醒是否标记完成
     if (wiCompletePromptId) {
       var id = wiCompletePromptId; wiCompletePromptId = null;
-      var run = function () { completeItem(id); };
-      if (g.ATConfirm) ATConfirm.show({ title: t('标记完成?'), message: t('该工作项已过计划结束时间,是否标记为已完成?'), variant: 'accent', confirmText: t('标记完成'), cancelText: t('暂不'), onConfirm: run });
-      else if (confirm(t('该工作项已过计划结束时间,是否标记为已完成?'))) run();
+      promptMarkComplete(id);
     }
   };
 
@@ -384,7 +409,7 @@
         $('wiAttachAddBtn').style.display = (it.status === 'completed') ? 'none' : '';
         renderAttach();
         $('wiCommentSection').style.display = '';   // 编辑/查看态:显示评论区
-        loadComments(it.id);
+        if (wiComments) wiComments.open(it.id);
         if (it.status === 'completed') {
           // 已完成:查看态,全部只读;保存/删除隐藏,仅取消
           $('wiModalTitle').textContent = t('查看工作项');
@@ -527,53 +552,11 @@
   }
 
   /* ───────── 评论 ───────── */
-  function loadComments(itemId) {
-    fetch(CFG.comments_url.replace('{id}', itemId), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      .then(function (r) { return r.json(); })
-      .then(function (d) { renderComments(d.comments || []); })
-      .catch(function () { renderComments([]); });
-  }
-  function renderComments(list) {
-    var box = $('wiCommentList');
-    if (!list.length) { box.innerHTML = '<div class="at-dim" style="font-size:12px;">' + t('暂无评论') + '</div>'; return; }
-    box.innerHTML = '';
-    list.forEach(function (c) {
-      var own = String(c.owner_id) === String(CFG.current_user_id);
-      var nm = c.owner_name || '?';
-      var row = document.createElement('div'); row.className = 'wc-row ' + (own ? 'own' : 'other');
-      var av = document.createElement('div'); av.className = 'wc-av'; av.textContent = nm.charAt(0); av.title = nm;
-      var bubble = document.createElement('div'); bubble.className = 'wc-bubble';
-      var text = document.createElement('div'); text.className = 'wc-text'; text.textContent = c.content;
-      var foot = document.createElement('div'); foot.className = 'wc-foot';
-      foot.innerHTML = '<span class="wc-time">' + esc(c.created_at || '') + '</span>';
-      if (c.can_delete) {
-        var x = document.createElement('button'); x.type = 'button'; x.className = 'wc-del'; x.textContent = '×'; x.title = t('删除');
-        x.addEventListener('click', function () {
-          fetch(CFG.comment_del_url.replace('{id}', c.id), { method: 'POST', headers: { 'X-CSRFToken': csrf() } })
-            .then(function (r) { return r.json(); })
-            .then(function (d) { if (d.success) loadComments($('wiId').value); else toast(d.message || t('删除失败'), 'error'); });
-        });
-        foot.appendChild(x);
-      }
-      bubble.appendChild(text); bubble.appendChild(foot);
-      row.appendChild(av); row.appendChild(bubble); box.appendChild(row);
-    });
-  }
-  g.wiPostComment = function () {
-    var id = $('wiId').value; if (!id) return;
-    var inp = $('wiCommentInput'); var content = (inp.value || '').trim();
-    if (!content) { toast(t('评论不能为空'), 'error'); return; }
-    var btn = $('wiCommentSend'); btn.disabled = true;
-    fetch(CFG.comments_url.replace('{id}', id), {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-      body: JSON.stringify({ content: content })
-    }).then(function (r) { return r.json(); })
-      .then(function (d) { btn.disabled = false; if (d.success) { inp.value = ''; loadComments(id); } else toast(d.message || t('评论失败'), 'error'); })
-      .catch(function () { btn.disabled = false; toast(t('评论失败'), 'error'); });
-  };
+  // 评论:工作项 + 日报共用 AtComments 组件(init 中 bind)
+  var wiComments = null, logComments = null;
 
   g.wiSave = function () {
-    wiCompletePromptId = null;   // 保存后不再弹"标记完成"提醒
+    wiCompletePromptId = null;
     var content = titleCtl ? titleCtl.getContent() : '';
     var title = titleCtl ? titleCtl.getTitle() : '';
     var date = startDateCtl ? startDateCtl.getValue() : '';
@@ -598,9 +581,33 @@
       related_subtask_id: $('wiSubtaskId').value || null
     };
     var id = $('wiId').value;
-    var btn = $('wiSaveBtn'); btn.disabled = true;
+    var endStr = (!allDay && payload.end_time && date) ? (date + 'T' + payload.end_time)
+                 : ((payload.end_date || date) + 'T23:59');
+    var overdue = new Date() > new Date(endStr);
+    // 已过结束时间:先问是否标记完成,再继续保存(确认=保存+完成 / 仅保存=只保存)
+    if (overdue) {
+      if (g.ATConfirm) {
+        ATConfirm.show({
+          title: t('标记完成?'), message: t('该工作项已过计划结束时间,是否标记为已完成?'),
+          variant: 'accent', confirmText: t('标记完成并保存'), cancelText: t('仅保存'),
+          onConfirm: function () { doSaveItem(payload, id, true); },
+          onCancel: function () { doSaveItem(payload, id, false); }
+        });
+      } else {
+        doSaveItem(payload, id, confirm(t('该工作项已过计划结束时间,是否标记为已完成?')));
+      }
+    } else {
+      doSaveItem(payload, id, false);
+    }
+  };
+
+  function doSaveItem(payload, id, markComplete) {
     var method = id ? 'PUT' : 'POST';
     var url = id ? (CFG.items_url + '/' + id) : CFG.items_url;
+    var filesQueue = pendingFiles.slice(); pendingFiles = [];
+    wiCompletePromptId = null;
+    toast(filesQueue.length ? t('已保存,附件上传中…') : t('已保存'));
+    g.wiClose();   // 乐观:立即关闭,保存/上传后台进行
     fetch(url, {
       method: method,
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
@@ -608,17 +615,13 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d.success && !d.id && !(d.data && d.data.id)) { btn.disabled = false; toast(d.message || t('保存失败'), 'error'); return; }
+        if (!d.success && !d.id && !(d.data && d.data.id)) { toast(d.message || t('保存失败'), 'error'); return; }
         var newId = id || (d.data && d.data.id) || d.id;
-        uploadPending(newId, function () {
-          btn.disabled = false;
-          toast(t('已保存'));
-          g.wiClose();
-          loadEvents();
-        });
+        if (filesQueue.length) { pendingFiles = filesQueue; uploadPending(newId, function () { toast(t('附件已上传')); loadEvents(); }); }
+        if (markComplete) completeItem(newId); else loadEvents();   // completeItem 内含 loadEvents
       })
-      .catch(function () { btn.disabled = false; toast(t('保存失败,请重试'), 'error'); });
-  };
+      .catch(function () { toast(t('保存失败,请重试'), 'error'); });
+  }
 
   // 重新拉取工作项附件并刷新(他人/共享态即时上传后用)
   function reloadAttachments(itemId) {
@@ -662,6 +665,118 @@
   };
 
   /* ───────── 初始化 ───────── */
+  /* ───────── 日报 ───────── */
+  var curLogDate = null, logReadonly = false;
+  function logStat(num, lbl) {
+    return '<div class="log-stat"><div class="log-stat-num">' + num + '</div><div class="log-stat-lbl">' + esc(lbl) + '</div></div>';
+  }
+  function renderLogModal(d, dateISO) {
+    var log = d.log || {};
+    var submitted = log.status === 'submitted';
+    logReadonly = submitted || !!d.is_readonly;
+    // 状态徽标
+    var pill = $('logStatusPill');
+    if (submitted) {
+      pill.style.display = ''; pill.textContent = t('已提交');
+      pill.style.background = 'var(--accent-tint)'; pill.style.color = 'var(--accent)';
+    } else if ((log.additional_notes || '').trim()) {
+      pill.style.display = ''; pill.textContent = t('草稿');
+      pill.style.background = 'var(--bg-sunk)'; pill.style.color = 'var(--ink-3)';
+    } else { pill.style.display = 'none'; }
+    // 统计
+    var st = d.statistics || {};
+    $('logStats').innerHTML = logStat(st.total_items || 0, t('工作项')) +
+      logStat(st.completed_items || 0, t('已完成')) +
+      logStat((st.total_hours || 0) + 'h', t('工时')) +
+      logStat(st.project_count || 0, t('关联项目'));
+    // 正文
+    $('logNotes').value = log.additional_notes || '';
+    // 当天工作项(只读上下文)
+    var rows = '';
+    (d.completed_items || []).concat(d.pending_items || []).forEach(function (it) {
+      var done = it.status === 'completed';
+      var tm = it.start_time ? it.start_time.slice(0, 5) : '';
+      rows += '<div class="log-item-row">' +
+        (done ? '<span class="cal-ev-check" style="font-size:11px;color:' + (it.color || 'var(--accent)') + ';">✓</span>'
+              : '<span class="log-item-dot" style="background:' + (it.color || 'var(--accent)') + ';"></span>') +
+        (tm ? '<span class="log-item-time">' + tm + '</span>' : '') +
+        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(it.title || '') + '</span></div>';
+    });
+    $('logItems').innerHTML = rows;
+    // 只读控制
+    var card = $('logCard');
+    if (logReadonly) {
+      card.classList.add('log-view');
+      $('logAiBtn').style.display = 'none';
+      $('logSaveBtn').style.display = 'none';
+      $('logSubmitBtn').style.display = 'none';
+      $('logReadonlyNote').style.display = d.is_readonly ? 'none' : '';
+    } else {
+      card.classList.remove('log-view');
+      $('logAiBtn').style.display = ''; $('logAiBtn').disabled = false;
+      $('logSaveBtn').style.display = ''; $('logSubmitBtn').style.display = '';
+      $('logReadonlyNote').style.display = 'none';
+    }
+  }
+  g.openLog = function (dateISO, ownerId) {
+    curLogDate = dateISO;
+    $('logDate').value = dateISO;
+    if (logDateCtl) logDateCtl.setValue(dateISO);   // setValue 不触发 onChange,无循环
+    $('logNotes').value = ''; $('logItems').innerHTML = ''; $('logStats').innerHTML = '';
+    var url = CFG.daily_url.replace('{date}', dateISO);
+    var oid = ownerId || viewOwnerId;
+    if (oid) url += '?owner_id=' + oid;
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res.success) { toast(res.message || t('加载失败'), 'error'); return; }
+        renderLogModal(res.data, dateISO);
+        if (logComments) logComments.open(dateISO);
+        $('logModal').classList.add('open');
+      })
+      .catch(function () { toast(t('加载失败'), 'error'); });
+  };
+  g.logClose = function () { $('logModal').classList.remove('open'); };
+  function logBody() { return { additional_notes: $('logNotes').value.trim() }; }
+  g.logSave = function () {
+    var btn = $('logSaveBtn'); btn.disabled = true;
+    fetch(CFG.daily_url.replace('{date}', curLogDate), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: JSON.stringify(logBody())
+    }).then(function (r) { return r.json(); })
+      .then(function (d) { btn.disabled = false; if (d.success) { toast(t('已保存')); g.logClose(); loadEvents(); } else toast(d.message || t('保存失败'), 'error'); })
+      .catch(function () { btn.disabled = false; toast(t('保存失败'), 'error'); });
+  };
+  g.logSubmit = function () {
+    if (!$('logNotes').value.trim()) { toast(t('请填写工作描述'), 'error'); return; }
+    var btn = $('logSubmitBtn'); btn.disabled = true;
+    // 先存草稿再提交(确保最新正文)
+    fetch(CFG.daily_url.replace('{date}', curLogDate), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() }, body: JSON.stringify(logBody())
+    }).then(function () {
+      return fetch(CFG.daily_submit_url.replace('{date}', curLogDate), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() }, body: '{}'
+      });
+    }).then(function (r) { return r.json(); })
+      .then(function (d) { btn.disabled = false; if (d.success) { toast(t('提交成功')); g.logClose(); loadEvents(); } else toast(d.message || t('提交失败'), 'error'); })
+      .catch(function () { btn.disabled = false; toast(t('提交失败'), 'error'); });
+  };
+  g.logAiDraft = function () {
+    var btn = $('logAiBtn'); btn.disabled = true;
+    var span = btn.querySelector('span'); var old = span ? span.textContent : '';
+    if (span) span.textContent = t('生成中…');
+    fetch(CFG.daily_ai_url.replace('{date}', curLogDate), { method: 'POST', headers: { 'X-CSRFToken': csrf() } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false; if (span) span.textContent = old;
+        if (d.success) {
+          var cur = $('logNotes').value.trim();
+          $('logNotes').value = cur ? (cur + '\n\n' + d.draft) : d.draft;
+        } else toast(d.message || t('AI 生成失败'), 'error');
+      })
+      .catch(function () { btn.disabled = false; if (span) span.textContent = old; toast(t('AI 生成失败'), 'error'); });
+  };
+
   function init() {
     var cfgEl = $('calConfig');
     try { CFG = JSON.parse(cfgEl.textContent); } catch (e) { console.error('calConfig parse failed', e); return; }
@@ -713,7 +828,11 @@
     // 时间选择器(小时 + 30 分钟间隔)
     if (g.AtTimePicker) { startTimeCtl = AtTimePicker.init('wiStartTime'); endTimeCtl = AtTimePicker.init('wiEndTime'); }
     // 日期选择器(弹出月历)
-    if (g.AtDatePicker) { startDateCtl = AtDatePicker.init('wiStartDate'); endDateCtl = AtDatePicker.init('wiEndDate'); }
+    if (g.AtDatePicker) {
+      startDateCtl = AtDatePicker.init('wiStartDate'); endDateCtl = AtDatePicker.init('wiEndDate');
+      logDateCtl = AtDatePicker.init('logDatePicker');
+      if (logDateCtl) logDateCtl.onChange(function (d) { if (d) g.openLog(d); });
+    }
     // 关联人员多选
     if (g.AtPeopleSelect) peopleCtl = AtPeopleSelect.init('wiParticipants');
     // 全天勾选 → 控制时间输入显隐
@@ -721,10 +840,24 @@
       toggleAllDay(this.checked);
     });
 
-    // 评论:回车发送
-    $('wiCommentInput').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); g.wiPostComment(); }
-    });
+    // 评论组件:工作项 + 日报共用 AtComments(回车发送/删除/气泡渲染都在组件内)
+    if (g.AtComments) {
+      wiComments = AtComments.bind({
+        listEl: $('wiCommentList'), inputEl: $('wiCommentInput'), sendEl: $('wiCommentSend'),
+        currentUserId: CFG.current_user_id,
+        threadUrl: function (id) { return CFG.comments_url.replace('{id}', id); },
+        deleteUrl: function (cid) { return CFG.comment_del_url.replace('{id}', cid); }
+      });
+      logComments = AtComments.bind({
+        listEl: $('logCommentList'), inputEl: $('logCommentInput'), sendEl: $('logCommentSend'),
+        currentUserId: CFG.current_user_id,
+        threadUrl: function (date) {
+          var u = CFG.daily_comments_url.replace('{date}', date);
+          return viewOwnerId ? (u + '?owner_id=' + viewOwnerId) : u;
+        },
+        deleteUrl: function (cid) { return CFG.daily_comment_del_url.replace('{id}', cid); }
+      });
+    }
 
     // 关联任务:点击展开 2 级列表(可选,不选即不关联)
     $('wiTaskBtn').addEventListener('click', function (e) {
@@ -784,10 +917,21 @@
     // 通知点击跳转:?owner_id=&date=&open_item=(查看他人 / 定位日期 / 打开工作项)
     var params = new URLSearchParams(location.search);
     var pOwner = params.get('owner_id'), pDate = params.get('date'), pOpen = params.get('open_item');
+    var pToday = params.get('open_today');   // 顶栏「写日志」:进入即打开当天日报
+    var pLog = params.get('open_log');       // 通知:打开某人某天日报
+    if (pToday) {
+      history.replaceState({}, '', location.pathname);
+      loadEvents();
+      setTimeout(function () { g.openLog(iso(new Date())); }, 300);
+      return;
+    }
     if (pOwner || pDate || pOpen) {
       history.replaceState({}, '', location.pathname);
       if (pDate) { var pd = parseISO(pDate); if (!isNaN(pd)) anchor = pd; }
-      var afterLoad = function () { if (pOpen) setTimeout(function () { g.wiOpenEdit(+pOpen); }, 350); };
+      var afterLoad = function () {
+        if (pOpen) setTimeout(function () { g.wiOpenEdit(+pOpen); }, 350);
+        else if (pLog && pDate) setTimeout(function () { g.openLog(pDate, pOwner || null); }, 350);
+      };
       if (pOwner && CFG.can_view_others && String(pOwner) !== String(CFG.current_user_id)) {
         loadAccounts(function () {
           viewOwnerId = pOwner;

@@ -394,12 +394,18 @@ def add_item_comment(item_id):
                 task_id=wi.related_task_id, subtask_id=wi.related_subtask_id,
                 author_id=current_user.id, content='[工作项] ' + content, reply_type='comment'))
         if wi.project_id:
-            db.session.add(Action(
-                date=date.today(), project_id=wi.project_id, company_id=wi.customer_id,
-                contact_id=wi.contact_id, communication='[工作项评论] ' + content,
-                owner_id=current_user.id, is_shared=True))
+            # 评论作为工作项跟进记录(Action)下的回复(ActionReply),不再单独成一条跟进
+            from app.models.action import ActionReply
+            owner_user = User.query.get(wi.owner_id) or current_user
+            aid = worklog_service.sync_work_item_action(wi, owner_user)
+            if aid:
+                db.session.add(ActionReply(action_id=aid, content=content, owner_id=current_user.id))
+        # 通知工作项创建者(评论者非本人)→ 进「@我」代办
+        if wi.owner_id and wi.owner_id != current_user.id:
+            from app.models.message import Message
+            db.session.add(Message.create_workitem_comment(current_user.id, wi.owner_id, wi, content))
     except Exception as _e:
-        logger.warning(f'工作项评论镜像失败: {_e}')
+        logger.warning(f'工作项评论镜像/通知失败: {_e}')
     db.session.commit()
     return jsonify({'success': True, 'comment': dict(c.to_dict(), can_delete=True)})
 
@@ -603,6 +609,102 @@ def submit_daily_log(log_date):
     except worklog_service.WorklogItemError as e:
         return jsonify({'success': False, 'message': e.message}), e.code
     return jsonify({'success': True, 'message': _('提交成功'), 'data': wl.to_dict()})
+
+
+@worklog.route('/api/daily/<log_date>/ai-draft', methods=['POST'])
+@login_required
+def ai_draft_daily_log(log_date):
+    """AI 梳理当天工作项+业务动态为工作描述草稿(仅本人,手动触发)。"""
+    from app.services import worklog_service
+    try:
+        target_date = datetime.strptime(log_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'success': False, 'message': _('日期格式无效')}), 400
+    try:
+        draft = worklog_service.generate_daily_draft(current_user, target_date)
+    except worklog_service.WorklogItemError as e:
+        return jsonify({'success': False, 'message': e.message}), e.code
+    return jsonify({'success': True, 'draft': draft})
+
+
+def _resolve_log_for_comment(log_date_str, create_if_self=False):
+    """解析日报(date[+owner_id]) + 权限。返回 (worklog 或 None, error_response 或 None)。"""
+    from app.services import worklog_service
+    from app.models.worklog import WorkLog
+    try:
+        target_date = datetime.strptime(log_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return None, (jsonify({'success': False, 'message': _('日期格式无效')}), 400)
+    owner_id = request.args.get('owner_id', type=int) or current_user.id
+    if owner_id != current_user.id and not worklog_service.can_view_user(current_user, owner_id):
+        return None, (jsonify({'success': False, 'message': _('无权查看')}), 403)
+    if owner_id == current_user.id and create_if_self:
+        wl = WorkLog.get_or_create(current_user.id, target_date)
+        db.session.commit()
+    else:
+        wl = WorkLog.query.filter_by(owner_id=owner_id, log_date=target_date).first()
+    return wl, None
+
+
+@worklog.route('/api/daily/<log_date>/comments', methods=['GET'])
+@login_required
+def list_log_comments(log_date):
+    """日报评论列表。"""
+    from app.models.worklog import WorkLogComment
+    wl, err = _resolve_log_for_comment(log_date)
+    if err:
+        return err
+    if not wl:
+        return jsonify({'success': True, 'comments': []})
+    cs = WorkLogComment.query.filter_by(worklog_id=wl.id, is_deleted=False) \
+        .order_by(WorkLogComment.created_at.asc()).all()
+    out = []
+    for c in cs:
+        d = c.to_dict()
+        d['can_delete'] = (c.owner_id == current_user.id or current_user.role in ('admin', 'ceo'))
+        out.append(d)
+    return jsonify({'success': True, 'comments': out})
+
+
+@worklog.route('/api/daily/<log_date>/comments', methods=['POST'])
+@login_required
+def add_log_comment(log_date):
+    """新增日报评论(可对自己或有权查看的他人日报)。"""
+    from app.models.worklog import WorkLogComment
+    wl, err = _resolve_log_for_comment(log_date, create_if_self=True)
+    if err:
+        return err
+    if not wl:
+        return jsonify({'success': False, 'message': _('日志不存在')}), 404
+    content = ((request.get_json() or {}).get('content') or '').strip()
+    if not content:
+        return jsonify({'success': False, 'message': _('评论不能为空')}), 400
+    c = WorkLogComment(worklog_id=wl.id, content=content, owner_id=current_user.id)
+    db.session.add(c)
+    # 通知日报创建者(评论者非本人)→ 进「@我」代办
+    if wl.owner_id and wl.owner_id != current_user.id:
+        try:
+            from app.models.message import Message
+            db.session.add(Message.create_worklog_comment(current_user.id, wl.owner_id, wl, content))
+        except Exception as _e:
+            logger.warning(f'日报评论通知失败: {_e}')
+    db.session.commit()
+    return jsonify({'success': True, 'comment': dict(c.to_dict(), can_delete=True)})
+
+
+@worklog.route('/api/daily/comments/<int:comment_id>', methods=['DELETE', 'POST'])
+@login_required
+def delete_log_comment(comment_id):
+    """删除日报评论(本人或管理员)。"""
+    from app.models.worklog import WorkLogComment
+    c = WorkLogComment.query.get(comment_id)
+    if not c or c.is_deleted:
+        return jsonify({'success': False, 'message': _('评论不存在')}), 404
+    if c.owner_id != current_user.id and current_user.role not in ('admin', 'ceo'):
+        return jsonify({'success': False, 'message': _('只能删除自己的评论')}), 403
+    c.is_deleted = True
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 @worklog.route('/api/daily/<log_date>/delete', methods=['DELETE', 'POST'])

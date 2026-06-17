@@ -409,16 +409,23 @@ def _log_status_dates(user, owner_id, start_date, end_date):
             }
         return {'datesWithUnreadLogs': [], 'datesWithReadLogs': []}
 
-    # 查看自己的日历：返回已提交日志的日期（显示绿点）
-    submitted_logs = WorkLog.query.filter(
+    # 查看自己的日历：已提交日志(实心日记图标) + 有内容的草稿(空心=待提交)
+    own_logs = WorkLog.query.filter(
         WorkLog.owner_id == user.id,
         WorkLog.log_date >= start_date,
-        WorkLog.log_date < end_date,
-        WorkLog.status == 'submitted'
+        WorkLog.log_date < end_date
     ).all()
-    return {'datesWithSubmittedLogs': list(set(
-        log.log_date.isoformat() for log in submitted_logs
-    ))}
+    submitted, drafts = [], []
+    for log in own_logs:
+        ds = log.log_date.isoformat()
+        if log.status == 'submitted':
+            submitted.append(ds)
+        elif (log.additional_notes or '').strip():   # 空草稿(打开即建)不计
+            drafts.append(ds)
+    return {
+        'datesWithSubmittedLogs': list(set(submitted)),
+        'datesWithDraftLogs': list(set(drafts)),
+    }
 
 
 def get_viewable_items(user, start_date, end_date, owner_id=None):
@@ -692,6 +699,30 @@ def get_item_detail(user, item_id):
     return work_item.to_dict()
 
 
+def sync_work_item_action(work_item, user):
+    """工作项关联项目 → 维护一条「跟进记录」(Action);评论作为其 ActionReply。
+    返回 action_id 或 None。无 project_id 不建。需在 work_item 已 flush(有 id)后调用。"""
+    if not work_item.project_id:
+        return work_item.related_action_id
+    comm = '[工作项] ' + (work_item.title or '').strip()
+    if work_item.description:
+        comm += '\n' + work_item.description.strip()
+    if work_item.related_action_id:
+        act = Action.query.get(work_item.related_action_id)
+        if act:
+            act.communication = comm
+            act.company_id = work_item.customer_id
+            act.contact_id = work_item.contact_id
+            return act.id
+    act = Action(date=work_item.planned_date, project_id=work_item.project_id,
+                 company_id=work_item.customer_id, contact_id=work_item.contact_id,
+                 communication=comm, owner_id=user.id, is_shared=True)
+    db.session.add(act)
+    db.session.flush()
+    work_item.related_action_id = act.id
+    return act.id
+
+
 def create_item(user, data):
     """创建工作项(忠实 create_item + 共享通知)。返回 WorkItem。"""
     if not data:
@@ -768,6 +799,8 @@ def create_item(user, data):
         shared_with_users=shared_with_users if shared_with_users else None
     )
     db.session.add(work_item)
+    db.session.flush()
+    sync_work_item_action(work_item, user)   # 关联项目 → 生成跟进记录
     db.session.commit()
 
     if shared_with_users:
@@ -892,6 +925,7 @@ def update_item(user, item_id, data):
         else:
             work_item.shared_with_users = None
 
+    sync_work_item_action(work_item, user)   # 关联项目 → 维护跟进记录(标题/描述变更同步)
     db.session.commit()
 
     from app.models.message import Message
@@ -1178,3 +1212,85 @@ def submit_daily_log(user, target_date, data):
     #     db.session.commit()
 
     return worklog
+
+
+# ===== 日报 AI 草稿(梳理当天工作项+业务动态为一段工作描述) =====
+# 复用报销发票识别同款客户端(claude_vision_ocr.get_client → ANTHROPIC_BASE_URL 反代 + bearer),
+# 模型默认 haiku(便宜/快/不受 OAuth 模型门禁),env WORKLOG_DRAFT_MODEL 可覆盖。
+
+def generate_daily_draft(user, target_date):
+    """用 AI 把当天工作项 + 业务动态(项目/报价单/跟进)梳理成一段当天工作描述。
+    无 key → 503;无数据 → 400;调用失败 → 502。返回草稿文本。"""
+    import os
+    import anthropic
+    from app.services.claude_vision_ocr import get_client
+    try:
+        from app.utils.i18n import get_current_language
+        lang = get_current_language()
+    except Exception:
+        lang = 'zh'
+    en = str(lang).startswith('en')
+
+    if not os.environ.get('ANTHROPIC_API_KEY'):
+        raise WorklogItemError(_('AI 服务未配置,请手动填写'), 503)
+
+    items = WorkItem.query.filter(
+        WorkItem.planned_date == target_date,
+        WorkItem.owner_id == user.id,
+        WorkItem.is_deleted == False
+    ).order_by(WorkItem.start_time.nullslast(), WorkItem.created_at).all()
+
+    lines = []
+    for it in items:
+        st = {'completed': '已完成', 'cancelled': '已取消'}.get(it.status, '计划')
+        seg = f'[{st}] {it.title or ""}'.strip()
+        desc = (it.description or '').strip().replace('\n', '; ')
+        if desc:
+            seg += f' — {desc}'
+        lines.append(seg)
+
+    acts = get_daily_activities(user.id, target_date)
+    s = acts.get('summary', {})
+    biz = []
+    if s.get('projects_created'): biz.append(f"新建项目 {s['projects_created']} 个")
+    if s.get('projects_updated'): biz.append(f"推进/更新项目 {s['projects_updated']} 个")
+    if s.get('quotations_created'): biz.append(f"新建报价单 {s['quotations_created']} 张")
+    if s.get('quotations_updated'): biz.append(f"更新报价单 {s['quotations_updated']} 张")
+    if s.get('orders_created'): biz.append(f"新建批价单 {s['orders_created']} 张")
+    if s.get('actions_created'): biz.append(f"新增行动记录 {s['actions_created']} 条")
+    if s.get('customers_created'): biz.append(f"新建客户 {s['customers_created']} 个")
+    if s.get('contacts_created'): biz.append(f"新建联系人 {s['contacts_created']} 个")
+
+    if not lines and not biz:
+        raise WorklogItemError(_('当天暂无工作项或业务动态,无法生成'), 400)
+
+    data_block = '工作项:\n' + ('\n'.join('- ' + l for l in lines) if lines else '(无)')
+    data_block += '\n\n业务动态:\n' + ('; '.join(biz) if biz else '(无)')
+
+    if en:
+        system = ("You are a work-log assistant. Based on the day's work items and business activity, "
+                  "write a concise first-person daily work summary in English (3-6 short bullet points or a short paragraph). "
+                  "Group related items by project/customer, keep it factual and professional, no fabrication, no preamble. "
+                  "Output only the summary text.")
+    else:
+        system = ("你是工作日报助手。根据当天的工作项和业务动态,梳理成一段简洁的第一人称当天工作小结"
+                  "(3-6 条要点或一小段话)。按项目/客户归类相关内容,客观专业、不要编造、不要开场白。只输出小结正文。")
+
+    model = os.environ.get('WORKLOG_DRAFT_MODEL', 'claude-haiku-4-5-20251001')
+    try:
+        msg = get_client().messages.create(
+            model=model, max_tokens=1200, system=system,
+            messages=[{'role': 'user', 'content': data_block}],
+        )
+        text = (msg.content[0].text if msg.content else '').strip()
+        if not text:
+            raise WorklogItemError(_('AI 生成失败,请稍后重试或手动填写'), 502)
+        return text
+    except WorklogItemError:
+        raise
+    except anthropic.APIStatusError as e:
+        logger.warning(f'日报 AI 草稿 API 错误: {getattr(e, "status_code", "?")}')
+        raise WorklogItemError(_('AI 生成失败,请稍后重试或手动填写'), 502)
+    except Exception as e:
+        logger.warning(f'日报 AI 草稿异常: {e}')
+        raise WorklogItemError(_('AI 生成失败,请稍后重试或手动填写'), 502)

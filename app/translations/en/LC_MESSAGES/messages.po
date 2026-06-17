@@ -35279,3 +35279,49 @@ msgstr "Training"
 
 msgid "团建"
 msgstr "Team Building"
+
+# === 日报/工作项补充 ===
+
+msgid "已保存,附件上传中…"
+msgstr "Saved. Uploading attachments…"
+
+msgid "标记完成并保存"
+msgstr "Complete & Save"
+
+msgid "仅保存"
+msgstr "Save only"
+
+# === 日报/评论 i18n ===
+
+msgid "AI 梳理草稿"
+msgstr "AI Draft"
+
+msgid "AI 生成失败"
+msgstr "AI generation failed"
+
+msgid "保存草稿"
+msgstr "Save Draft"
+
+msgid "工作描述"
+msgstr "Work Summary"
+
+msgid "工时"
+msgstr "Hours"
+
+msgid "已提交日报"
+msgstr "Daily report submitted"
+
+msgid "总结当天工作,或点「AI 梳理草稿」自动生成后再修改…"
+msgstr "Summarize today's work, or click AI Draft to generate, then edit…"
+
+msgid "日报"
+msgstr "Daily Report"
+
+msgid "日报草稿(待提交)"
+msgstr "Draft (not submitted)"
+
+msgid "生成中…"
+msgstr "Generating…"
+
+msgid "请填写工作描述"
+msgstr "Please enter a work summary"

@@ -57,6 +57,9 @@ def get_panel_data():
             elif msg.related_object_type == 'workitem':
                 # 行程类消息（共享、取消、完成等），用户自己收到的通知，可以查看自己的日历
                 can_view = True
+            # 日报评论:收件人即日报创建者,可看自己的日报
+            if msg.message_type == 'worklog_comment':
+                can_view = True
 
             msg_dict['can_view_calendar'] = can_view
             mention_list.append(msg_dict)

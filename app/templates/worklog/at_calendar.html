@@ -82,6 +82,26 @@
   body.at-page .wi-card.wi-view .wi-attach-area * { pointer-events:auto; }
   /* 附件预览层必须盖在工作项弹窗(z-index:1000)之上 */
   #atFilePreview { z-index:2000 !important; }
+  /* 日报弹窗 */
+  .log-stats { display:flex; gap:10px; margin-top:4px; }
+  .log-stat { flex:1; background:var(--bg-sunk); border-radius:9px; padding:10px 8px; text-align:center; }
+  .log-stat-num { font-size:20px; font-weight:600; color:var(--ink); line-height:1.1; font-variant-numeric:tabular-nums; }
+  .log-stat-lbl { font-size:11px; color:var(--ink-4); margin-top:3px; }
+  .log-ai-btn { display:inline-flex; align-items:center; gap:5px; height:28px; padding:0 11px; font-size:12px;
+                border:1px solid var(--accent); color:var(--accent); background:var(--accent-tint);
+                border-radius:14px; cursor:pointer; }
+  .log-ai-btn:hover { background:var(--accent); color:#fff; }
+  .log-ai-btn:disabled { opacity:.55; cursor:default; }
+  .log-items { margin-top:14px; max-height:160px; overflow:auto; }
+  .log-item-row { display:flex; align-items:center; gap:7px; padding:4px 0; font-size:12.5px; color:var(--ink-2); border-top:1px solid var(--line-soft); }
+  .log-item-row:first-child { border-top:0; }
+  .log-item-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .log-item-time { color:var(--ink-4); font-variant-numeric:tabular-nums; flex-shrink:0; font-size:11.5px; }
+  /* 日报只读(已提交):禁输入 + 隐藏保存/提交,由 JS 控制 */
+  body.at-page #logCard.log-view textarea { pointer-events:none; background:var(--bg-sunk); }
+  /* 日历日记图标(右下角):实心=已提交, 空心=草稿待提交 */
+  .cal-logmark { position:absolute; bottom:5px; right:6px; line-height:1; color:var(--accent); opacity:.85; pointer-events:none; }
+  .cal-logmark.draft { color:var(--ink-4); }
   .cal-cell.cal-week { min-height:420px; }
   .cal-cell.cal-day { min-height:480px; }
   .cal-ev { display:flex; align-items:center; gap:5px; font-size:11.5px; line-height:1.4;
@@ -113,6 +133,9 @@
   body.at-page .wi-card.wi-view select,
   body.at-page .wi-card.wi-view label,
   body.at-page .wi-card.wi-view button:not(.wi-keep) { pointer-events:none; }
+  /* 关联人员组件:只读态整体禁用(chip 删除×/添加框) */
+  body.at-page .wi-card.wi-view .at-ps,
+  body.at-page .wi-card.wi-view .at-ps * { pointer-events:none; }
   /* 评论区的 label 不禁(其实无交互),但确保区域整体可用 */
   body.at-page .wi-card.wi-view .wi-comment-area label { pointer-events:auto; }
   body.at-page .wi-card.wi-view .at-gsi,
@@ -311,12 +334,12 @@
     <div id="wiAttachSection" class="wi-attach-area" style="margin-top:12px;">
       <div style="display:flex;align-items:center;gap:10px;">
         <label class="wi-label" style="margin:0;">{{ _('附件') }}</label>
-        <input id="wiAttachInput" type="file" multiple style="display:none;">
-        <button type="button" id="wiAttachAddBtn" onclick="document.getElementById('wiAttachInput').click()" title="{{ _('添加附件') }}"
-                style="border:0;background:transparent;cursor:pointer;color:var(--ink-3);padding:2px;display:inline-flex;align-items:center;">
+        <input id="wiAttachInput" type="file" multiple style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);">
+        <label for="wiAttachInput" id="wiAttachAddBtn" title="{{ _('添加附件') }}"
+                style="cursor:pointer;color:var(--ink-3);padding:2px;display:inline-flex;align-items:center;margin:0;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-        </button>
+        </label>
       </div>
       <div id="wiAttachList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
     </div>
@@ -328,7 +351,7 @@
       <div style="display:flex;gap:8px;align-items:center;">
         <input id="wiCommentInput" type="text" placeholder="{{ _('输入评论内容…') }}"
                style="flex:1;box-sizing:border-box;height:36px;padding:0 13px;background:var(--bg-page);border:1px solid var(--line-2);border-radius:18px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
-        <button type="button" id="wiCommentSend" onclick="wiPostComment()"
+        <button type="button" id="wiCommentSend"
                 style="height:34px;padding:0 16px;border-radius:18px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:13px;cursor:pointer;flex-shrink:0;">{{ _('发送') }}</button>
       </div>
     </div>
@@ -346,6 +369,56 @@
   </div>
 </div>
 
+{# ── 日报弹窗 ── #}
+<div id="logModal" class="wi-overlay" onclick="if(event.target===this)logClose()">
+  <div id="logCard" class="wi-card" style="width:620px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--ink);">{{ _('日报') }}</h3>
+      {{ at_date_picker('logDatePicker') }}
+      <span id="logStatusPill" style="display:none;font-size:11.5px;padding:2px 9px;border-radius:10px;margin-left:2px;"></span>
+    </div>
+    <input type="hidden" id="logDate">
+
+    {# 统计 #}
+    <div id="logStats" class="log-stats"></div>
+
+    {# 工作描述 + AI #}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 6px;">
+      <label class="wi-label" style="margin:0;">{{ _('工作描述') }}</label>
+      <button type="button" id="logAiBtn" class="log-ai-btn" onclick="logAiDraft()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L19.5 10l-5.6 1.2L12 17l-1.9-5.8L4.5 10l5.6-1.2z"/></svg>
+        <span>{{ _('AI 梳理草稿') }}</span>
+      </button>
+    </div>
+    <textarea id="logNotes" rows="14" class="wi-inp" style="resize:vertical;line-height:1.6;min-height:300px;"
+              placeholder="{{ _('总结当天工作,或点「AI 梳理草稿」自动生成后再修改…') }}"></textarea>
+
+    {# 当天工作项(只读上下文) #}
+    <div id="logItems" class="log-items"></div>
+
+    {# 评论(与工作项共用 AtComments 组件) #}
+    <div class="wi-comment-area" style="margin-top:16px;border-top:1px solid var(--line-soft);padding-top:14px;">
+      <label class="wi-label">{{ _('评论') }}</label>
+      <div id="logCommentList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;max-height:264px;overflow-y:auto;"></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="logCommentInput" type="text" placeholder="{{ _('输入评论内容…') }}"
+               style="flex:1;box-sizing:border-box;height:36px;padding:0 13px;background:var(--bg-page);border:1px solid var(--line-2);border-radius:18px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
+        <button type="button" id="logCommentSend"
+                style="height:34px;padding:0 16px;border-radius:18px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:13px;cursor:pointer;flex-shrink:0;">{{ _('发送') }}</button>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;margin-top:18px;">
+      <span id="logReadonlyNote" class="at-dim" style="display:none;font-size:12px;">✓ {{ _('已提交') }}</span>
+      <div style="display:flex;gap:10px;margin-left:auto;">
+        <button type="button" class="log-keep" onclick="logClose()" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+        <button type="button" id="logSaveBtn" onclick="logSave()" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('保存草稿') }}</button>
+        <button type="button" id="logSubmitBtn" onclick="logSubmit()" style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('提交') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script id="calConfig" type="application/json">
 {
   "items_url": "/worklog/api/items",
@@ -353,6 +426,11 @@
   "my_tasks_url": "/worklog/api/my-tasks",
   "comments_url": "/worklog/api/items/{id}/comments",
   "comment_del_url": "/worklog/api/items/comments/{id}",
+  "daily_url": "/worklog/api/daily/{date}",
+  "daily_submit_url": "/worklog/api/daily/{date}/submit",
+  "daily_ai_url": "/worklog/api/daily/{date}/ai-draft",
+  "daily_comments_url": "/worklog/api/daily/{date}/comments",
+  "daily_comment_del_url": "/worklog/api/daily/comments/{id}",
   "current_user_id": {{ current_user.id }},
   "current_user_name": {{ (current_user.real_name or current_user.username) | tojson }},
   "accounts_url": "/worklog/api/calendar-accounts",
@@ -369,6 +447,7 @@
 {# 附件预览 — 复用 AT 通用预览组件 #}
 {{ at_file_preview_modal() }}
 <script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-comments.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-worklog-calendar.js') }}"></script>
 </body>
 </html>

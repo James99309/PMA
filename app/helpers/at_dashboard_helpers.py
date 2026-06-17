@@ -188,21 +188,31 @@ def _build_todos(user):
         from app.models.message import Message
         msgs = Message.query.filter(
             Message.recipient_id == user.id,
-            Message.message_type.in_(['worklog_mention', 'task_reply', 'task_assigned']),
+            Message.message_type.in_(['worklog_mention', 'task_reply', 'task_assigned',
+                                      'workitem_comment', 'worklog_comment']),
             Message.is_read == False,
         ).order_by(Message.created_at.desc()).limit(2).all()
         type_label_map = {
             'worklog_mention': _t('日志 @ 我'),
             'task_reply':      _t('任务回复'),
             'task_assigned':   _t('任务指派'),
+            'workitem_comment': _t('工作项评论'),
+            'worklog_comment':  _t('日报评论'),
         }
         for m in msgs:
             from app.models.user import User
             sender = User.query.get(m.sender_id) if m.sender_id else None
             # 可点击跳转:任务类 → 任务管理页并打开该任务
             _route = '#'
+            _ed = m.extra_data or {}
             if m.related_object_type == 'task' and m.related_object_id:
                 _route = f'/task/management?task_id={m.related_object_id}'
+            elif m.message_type == 'workitem_comment' and m.related_object_id:
+                _d = _ed.get('planned_date')
+                _route = f'/worklog/at-calendar?open_item={m.related_object_id}' + (f'&date={_d}' if _d else '')
+            elif m.message_type == 'worklog_comment':
+                _d = _ed.get('log_date')
+                _route = f'/worklog/at-calendar?open_log=1' + (f'&date={_d}' if _d else '')
             out.append({
                 'id': f'M{m.id}', 'type': 'mention', 'typeLabel': type_label_map.get(m.message_type, _t('@我')),
                 'tone': 'info',

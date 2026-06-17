@@ -406,6 +406,47 @@ class Message(db.Model):
         )
 
     @classmethod
+    def create_workitem_comment(cls, sender_id, recipient_id, work_item, content):
+        """工作项评论通知(发给工作项创建者)。"""
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+        return cls(
+            message_type='workitem_comment',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 评论了你的工作项',
+            content=(content or '')[:100],
+            related_object_type='workitem',
+            related_object_id=work_item.id,
+            extra_data={
+                'planned_date': work_item.planned_date.isoformat() if work_item.planned_date else None,
+                'work_type': work_item.work_type,
+                'title': work_item.title,
+            }
+        )
+
+    @classmethod
+    def create_worklog_comment(cls, sender_id, recipient_id, worklog, content):
+        """日报评论通知(发给日报创建者)。"""
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+        return cls(
+            message_type='worklog_comment',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 评论了你的日报',
+            content=(content or '')[:100],
+            related_object_type='worklog',
+            related_object_id=worklog.id,
+            extra_data={
+                'log_date': worklog.log_date.isoformat() if worklog.log_date else None,
+                'owner_id': worklog.owner_id,
+            }
+        )
+
+    @classmethod
     def create_worklog_submitted(cls, sender_id, recipient_id, worklog):
         """创建日志提交通知
 
