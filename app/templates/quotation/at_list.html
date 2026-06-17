@@ -3,6 +3,14 @@
 {% from 'components/quality_badge.html' import quality_badge %}
 
 {% block sidebar_active %}quotation{% endblock %}
+{% block extra_head %}
+<style>
+  /* 复选框列默认隐藏,进入选择模式(body.q-selmode)才显示 */
+  .q-selcol { display:none; }
+  body.q-selmode .q-selcol { display:table-cell; }
+  body.q-selmode .at-row { cursor:default; }
+</style>
+{% endblock %}
 {% block page_title %}{{ _('报价管理') }}{% endblock %}
 {% block category_label %}QUOTATION · {{ _('业务管理') }}{% endblock %}
 {% block page_description %}{{ _('管理报价单的提交、SM 确认、成交闭环。') }}{% endblock %}
@@ -14,6 +22,23 @@
 {% endblock %}
 
 {% block page_actions %}
+{# 默认只显示「批量导出」(进入选择模式);进入后显示 导出(N)+取消 #}
+<button type="button" id="qSelStart" onclick="qBS.enter()"
+        style="height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
+               background:var(--bg-elev);color:var(--ink);font-size:13px;font-weight:500;
+               display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+  {{ at_icon('download', 14) }}{{ _('批量导出') }}
+</button>
+<button type="button" id="qExportGo" onclick="qBatchExport()" disabled
+        style="display:none;height:34px;padding:0 14px;border-radius:6px;border:0;
+               background:var(--accent);color:#fff;font-size:13px;font-weight:500;
+               align-items:center;gap:6px;cursor:pointer;opacity:.5;">
+  {{ at_icon('download', 14) }}<span id="qExportGoLabel">{{ _('导出') }}</span>
+</button>
+<button type="button" id="qSelCancel" onclick="qBS.exit()"
+        style="display:none;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
+               background:var(--bg-elev);color:var(--ink-2);font-size:13px;font-weight:500;
+               align-items:center;gap:6px;cursor:pointer;">{{ _('取消') }}</button>
 {{ at_btn(_('新建报价'), variant='primary', icon_l='plus', tag='a',
           href=url_for('quotation.at_new_quotation')) }}
 {% endblock %}
@@ -62,6 +87,9 @@
 {% endblock %}
 
 {% block thead %}
+<th class="q-selcol" style="width:38px;padding:14px 0 14px 16px;position:sticky;top:0;z-index:2;background:var(--bg-elev);border-bottom:1px solid var(--line);">
+  <input type="checkbox" id="qSelAll" onclick="qBS.toggleAll(this)" title="{{ _('全选本页') }}" style="cursor:pointer;">
+</th>
 {% for h, a in [(_('报价单号'),'left'),(_('客户'),'left'),(_('项目'),'left'),
                 (_('报价金额'),'right'),(_('植入额'),'right'),(_('状态'),'left'),
                 (_('所属'),'left'),(_('更新'),'left')] %}
@@ -77,8 +105,11 @@
 {% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
 {% set currency_sym = get_currency_symbol(q.currency or get_default_currency()) %}
 <tr class="at-row" data-href="{{ url_for('quotation.at_view_quotation', id=q.id) }}"
-    onclick="location.href=this.dataset.href"
+    onclick="qBS.rowClick(this)"
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
+  <td class="q-selcol" style="padding:0 0 0 16px;border-bottom:{{ cell_bd }};" onclick="event.stopPropagation()">
+    <input type="checkbox" class="q-sel" data-id="{{ q.id }}" onclick="qBS.toggle(this)" style="cursor:pointer;">
+  </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
     <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
       {{ q.quotation_number }}
@@ -121,11 +152,43 @@
 </tr>
 {% else %}
 <tr>
-  <td colspan="8" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+  <td colspan="9" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
     {{ _('没有符合筛选条件的报价') }}
   </td>
 </tr>
 {% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/at-batch-select.js') }}"></script>
+<script>
+(function () {
+  'use strict';
+  var qSelStart  = document.getElementById('qSelStart');
+  var qExportGo  = document.getElementById('qExportGo');
+  var qSelCancel = document.getElementById('qSelCancel');
+  var qExportLbl = document.getElementById('qExportGoLabel');
+
+  window.qBS = AtBatchSelect.init({
+    key: 'quot', bodyClass: 'q-selmode', cbSel: '.q-sel', selectAllSel: '#qSelAll',
+    onModeChange: function (on) {
+      qSelStart.style.display  = on ? 'none' : 'inline-flex';
+      qExportGo.style.display  = on ? 'inline-flex' : 'none';
+      qSelCancel.style.display = on ? 'inline-flex' : 'none';
+    },
+    onCount: function (n) {
+      if (n > 0) { qExportGo.disabled = false; qExportGo.style.opacity = '1'; qExportLbl.textContent = '{{ _("导出") }} (' + n + ')'; }
+      else { qExportGo.disabled = true; qExportGo.style.opacity = '.5'; qExportLbl.textContent = '{{ _("导出") }}'; }
+    }
+  });
+
+  window.qBatchExport = function () {
+    var ids = qBS.getSelected(); if (!ids.length) return;
+    // 不退出选择模式、不清空选择:导出仅触发文件下载,页面留在原状,可继续再导出。需手动「取消」才退出。
+    window.location.href = '{{ url_for("quotation.export_batch") }}?ids=' + ids.join(',');
+  };
+})();
+</script>
 {% endblock %}
 
 {% block pagination %}

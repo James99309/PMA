@@ -4886,6 +4886,44 @@ def export_excel_pdf(quotation_id):
         return redirect(url_for('quotation.at_view_quotation', id=quotation_id))
 
 
+@quotation.route('/export-batch')
+@login_required
+@permission_required('quotation', 'view')
+def export_batch():
+    """多选报价单 → 导出产品统计电子表格(薄壳;构建逻辑见 quotation_export_service)。
+    ids 通过 ?ids=1,2,3 传入;仅导出当前用户有权查看的报价单。"""
+    from flask import send_file
+    from app.services.quotation_export_service import build_batch_product_xlsx
+    try:
+        from app.utils.i18n import get_current_language
+        lang = get_current_language()
+    except Exception:
+        lang = 'zh'
+
+    id_list = [int(x) for x in (request.args.get('ids') or '').split(',') if x.strip().isdigit()]
+    if not id_list:
+        flash(_('请先选择要导出的报价单'), 'warning')
+        return redirect(url_for('quotation.at_list_view'))
+
+    quotations = [q for q in (Quotation.query.get(i) for i in id_list)
+                  if q and can_view_quotation(current_user, q)]
+    if not quotations:
+        flash(_('没有可导出的报价单'), 'warning')
+        return redirect(url_for('quotation.at_list_view'))
+
+    bio = build_batch_product_xlsx(quotations, lang)
+    # 文件名:报价产品统计-YYYYMMDD-序号.xlsx(序号按当天递增,会话内计数)
+    from datetime import datetime as _dt
+    from flask import session
+    today = _dt.now().strftime('%Y%m%d')
+    _seq = session.get('quot_export_seq') or {}
+    n = (_seq.get(today, 0) if isinstance(_seq, dict) else 0) + 1
+    session['quot_export_seq'] = {today: n}   # 只保留当天,避免无限膨胀
+    fname = '%s-%s-%d.xlsx' % (_('报价产品统计'), today, n)
+    return send_file(bio, as_attachment=True, download_name=fname,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 @quotation.route('/export_pdf_with_info', methods=['POST'])
 @login_required
 @permission_required('quotation', 'view')

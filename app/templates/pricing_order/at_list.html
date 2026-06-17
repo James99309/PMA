@@ -2,6 +2,14 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
 
 {% block sidebar_active %}pricing_order{% endblock %}
+{% block extra_head %}
+<style>
+  /* 复选框列默认隐藏,进入选择模式(body.po-selmode)才显示 */
+  .po-selcol { display:none; }
+  body.po-selmode .po-selcol { display:table-cell; }
+  body.po-selmode .at-row { cursor:default; }
+</style>
+{% endblock %}
 {% block page_title %}{{ _('批价单') }}{% endblock %}
 {% block category_label %}PRICING · {{ _('订单中心') }}{% endblock %}
 {% block page_description %}{{ _('从报价单或项目发起的批价审批流,审批通过即可生成结算单。') }}{% endblock %}
@@ -10,6 +18,46 @@
 <a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('订单中心') }}</a>
 <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
 <span style="font-size:13px;color:var(--ink);">{{ _('批价单') }}</span>
+{% endblock %}
+
+{% block page_actions %}
+{# 默认只显示「批量导出」(进入选择模式);进入后显示 导出(N)▾ + 取消。导出需二次选择批价单/结算单 #}
+<button type="button" id="poSelStart" onclick="poBS.enter()"
+        style="height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
+               background:var(--bg-elev);color:var(--ink);font-size:13px;font-weight:500;
+               display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+  {{ at_icon('download', 14) }}{{ _('批量导出') }}
+</button>
+<div id="poExportWrap" style="display:none;position:relative;">
+  <button type="button" id="poExportGo" onclick="poToggleMenu(event)" disabled
+          style="height:34px;padding:0 14px;border-radius:6px;border:0;
+                 background:var(--accent);color:#fff;font-size:13px;font-weight:500;
+                 display:inline-flex;align-items:center;gap:6px;cursor:pointer;opacity:.5;">
+    {{ at_icon('download', 14) }}<span id="poExportGoLabel">{{ _('导出') }}</span>
+    {% if can_view_settlement %}{{ at_icon('chev', 12) }}{% endif %}
+  </button>
+  <div id="poExportMenu"
+       style="display:none;position:absolute;top:38px;right:0;z-index:50;min-width:160px;
+              background:var(--bg-elev);border:1px solid var(--line-2);border-radius:8px;
+              box-shadow:0 8px 24px rgba(0,0,0,.12);padding:6px;">
+    <button type="button" onclick="poExport('pricing')"
+            style="width:100%;text-align:left;height:34px;padding:0 12px;border:0;border-radius:6px;
+                   background:transparent;color:var(--ink);font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;">
+      {{ at_icon('file', 14) }}{{ _('按批价单导出') }}
+    </button>
+    {% if can_view_settlement %}
+    <button type="button" onclick="poExport('settlement')"
+            style="width:100%;text-align:left;height:34px;padding:0 12px;border:0;border-radius:6px;
+                   background:transparent;color:var(--ink);font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;">
+      {{ at_icon('file', 14) }}{{ _('按结算单导出') }}
+    </button>
+    {% endif %}
+  </div>
+</div>
+<button type="button" id="poSelCancel" onclick="poBS.exit()"
+        style="display:none;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
+               background:var(--bg-elev);color:var(--ink-2);font-size:13px;font-weight:500;
+               align-items:center;gap:6px;cursor:pointer;">{{ _('取消') }}</button>
 {% endblock %}
 
 {% block tabs %}
@@ -57,6 +105,9 @@
 {% endblock %}
 
 {% block thead %}
+<th class="po-selcol" style="width:38px;padding:14px 0 14px 16px;position:sticky;top:0;z-index:2;background:var(--bg-elev);border-bottom:1px solid var(--line);">
+  <input type="checkbox" id="poSelAll" onclick="poBS.toggleAll(this)" title="{{ _('全选本页') }}" style="cursor:pointer;">
+</th>
 {% for h, a in [(_('批价单号'),'left'),(_('项目'),'left'),(_('批价总额'),'right'),(_('折扣率'),'right'),
                 (_('状态'),'left'),(_('负责人'),'left'),(_('创建时间'),'left')] %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
@@ -71,8 +122,11 @@
 {% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
 {% set currency_sym = get_currency_symbol(o.currency or get_default_currency()) %}
 <tr class="at-row" data-href="{{ url_for('pricing_order.edit_pricing_order', order_id=o.id) }}"
-    onclick="location.href=this.dataset.href"
+    onclick="poBS.rowClick(this)"
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
+  <td class="po-selcol" style="padding:0 0 0 16px;border-bottom:{{ cell_bd }};" onclick="event.stopPropagation()">
+    <input type="checkbox" class="po-sel" data-id="{{ o.id }}" onclick="poBS.toggle(this)" style="cursor:pointer;">
+  </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
     <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
       {{ o.order_number }}
@@ -107,11 +161,57 @@
 </tr>
 {% else %}
 <tr>
-  <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+  <td colspan="8" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
     {{ _('没有符合筛选条件的批价单') }}
   </td>
 </tr>
 {% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/at-batch-select.js') }}"></script>
+<script>
+(function () {
+  'use strict';
+  var poSelStart  = document.getElementById('poSelStart');
+  var poExportWrap = document.getElementById('poExportWrap');
+  var poExportGo  = document.getElementById('poExportGo');
+  var poSelCancel = document.getElementById('poSelCancel');
+  var poExportLbl = document.getElementById('poExportGoLabel');
+  var poMenu      = document.getElementById('poExportMenu');
+
+  window.poBS = AtBatchSelect.init({
+    key: 'po', bodyClass: 'po-selmode', cbSel: '.po-sel', selectAllSel: '#poSelAll',
+    onModeChange: function (on) {
+      poSelStart.style.display   = on ? 'none' : 'inline-flex';
+      poExportWrap.style.display = on ? 'inline-block' : 'none';
+      poSelCancel.style.display  = on ? 'inline-flex' : 'none';
+      if (!on) poMenu.style.display = 'none';
+    },
+    onCount: function (n) {
+      if (n > 0) { poExportGo.disabled = false; poExportGo.style.opacity = '1'; poExportLbl.textContent = '{{ _("导出") }} (' + n + ')'; }
+      else { poExportGo.disabled = true; poExportGo.style.opacity = '.5'; poExportLbl.textContent = '{{ _("导出") }}'; poMenu.style.display = 'none'; }
+    }
+  });
+
+  var PO_CAN_SETTLE = {{ 'true' if can_view_settlement else 'false' }};
+  window.poToggleMenu = function (ev) {
+    ev.stopPropagation();
+    if (poExportGo.disabled) return;
+    // 无结算权限 → 只有批价一种维度,直接导出,不弹菜单
+    if (!PO_CAN_SETTLE) { poExport('pricing'); return; }
+    poMenu.style.display = (poMenu.style.display === 'block') ? 'none' : 'block';
+  };
+  document.addEventListener('click', function () { poMenu.style.display = 'none'; });
+
+  window.poExport = function (mode) {
+    var ids = poBS.getSelected(); if (!ids.length) return;
+    poMenu.style.display = 'none';
+    // 不退出选择模式、不清空选择:导出仅触发文件下载,可继续按另一维度再导出。需手动「取消」才退出。
+    window.location.href = '{{ url_for("pricing_order.export_batch") }}?mode=' + mode + '&ids=' + ids.join(',');
+  };
+})();
+</script>
 {% endblock %}
 
 {% block pagination %}

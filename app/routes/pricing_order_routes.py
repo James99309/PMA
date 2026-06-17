@@ -1545,7 +1545,57 @@ def at_list_view():
                            show_filter=show_filter,
                            owner_options=owner_options,
                            owner_values=owner_values,
+                           can_view_settlement=PricingOrderService.can_view_settlement_tab(current_user),
                            list_qs=list_qs)
+
+
+@pricing_order_bp.route('/export-batch')
+@login_required
+@permission_required('pricing_order', 'view')
+def export_batch():
+    """多选批价单 → 导出产品统计电子表格(薄壳;构建逻辑见 pricing_order_export_service)。
+    ids 通过 ?ids=1,2,3 传入;mode=pricing|settlement 决定导出批价/结算明细。
+    仅导出当前用户有权查看的批价单(复用 _build_pricing_order_query)。"""
+    from flask_babel import gettext as _
+    from app.services.pricing_order_export_service import build_batch_pricing_xlsx
+    try:
+        from app.utils.i18n import get_current_language
+        lang = get_current_language()
+    except Exception:
+        lang = 'zh'
+
+    mode = request.args.get('mode', 'pricing')
+    if mode not in ('pricing', 'settlement'):
+        mode = 'pricing'
+
+    # 结算单导出需额外的结算查看权限(settlement 模块);批价导出仅需 pricing_order:view
+    if mode == 'settlement' and not PricingOrderService.can_view_settlement_tab(current_user):
+        flash(_('您没有查看结算单的权限'), 'warning')
+        return redirect(url_for('pricing_order.at_list_view'))
+
+    id_list = [int(x) for x in (request.args.get('ids') or '').split(',') if x.strip().isdigit()]
+    if not id_list:
+        flash(_('请先选择要导出的批价单'), 'warning')
+        return redirect(url_for('pricing_order.at_list_view'))
+
+    # 仅取当前用户可见的批价单
+    orders = _build_pricing_order_query(current_user).filter(PricingOrder.id.in_(id_list)).all()
+    if not orders:
+        flash(_('没有可导出的批价单'), 'warning')
+        return redirect(url_for('pricing_order.at_list_view'))
+
+    bio = build_batch_pricing_xlsx(orders, mode=mode, lang=lang)
+    # 文件名:批价产品统计/结算产品统计-YYYYMMDD-序号.xlsx(序号当天会话内递增)
+    from flask import session
+    title = _('结算产品统计') if mode == 'settlement' else _('批价产品统计')
+    today = datetime.now().strftime('%Y%m%d')
+    skey = 'po_export_seq_' + mode
+    _seq = session.get(skey) or {}
+    n = (_seq.get(today, 0) if isinstance(_seq, dict) else 0) + 1
+    session[skey] = {today: n}
+    fname = '%s-%s-%d.xlsx' % (title, today, n)
+    return send_file(bio, as_attachment=True, download_name=fname,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 @pricing_order_bp.route('/api/list')
