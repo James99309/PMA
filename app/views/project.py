@@ -674,6 +674,23 @@ def at_list_view():
     except Exception as _wlp_err:
         logger.warning(f"批量查成功锁定审核中状态失败: {_wlp_err}")
 
+    # 当页各项目「最新报价单」的确认状态(金额着色:confirmed→绿/reconfirm→橘;批量避免 N+1)
+    quote_confirm_status = {}
+    try:
+        from app.models.quotation import Quotation
+        from sqlalchemy import func as _qf
+        _pg_ids2 = [pp.id for pp in pagination.items]
+        if _pg_ids2:
+            _latest = db.session.query(
+                Quotation.project_id, _qf.max(Quotation.id).label('mid')
+            ).filter(Quotation.project_id.in_(_pg_ids2)).group_by(Quotation.project_id).subquery()
+            for pid, st in db.session.query(
+                Quotation.project_id, Quotation.confirmation_badge_status
+            ).join(_latest, Quotation.id == _latest.c.mid).all():
+                quote_confirm_status[pid] = st
+    except Exception as _qcs_err:
+        logger.warning(f"批量查报价单确认状态失败: {_qcs_err}")
+
     # 非空查询参数(供 tab/分页链接保留筛选+搜索状态;多选 → 列表值)
     list_qs = {}
     if search:
@@ -726,6 +743,7 @@ def at_list_view():
     return render_template('project/at_list.html',
                            projects=pagination.items,
                            overdue_days=overdue_days,
+                           quote_confirm_status=quote_confirm_status,
                            quality_scores=quality_scores,
                            pagination=pagination,
                            tab_counts=tab_counts,

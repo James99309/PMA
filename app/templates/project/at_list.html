@@ -141,8 +141,11 @@
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
     <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;">
       {{ quality_badge(quality_scores.get(p.id) if quality_scores else none, is_project=true) }}
+      {% set _cf = (quote_confirm_status.get(p.id) if quote_confirm_status else none) %}
+      {% set _amt_color = 'var(--success)' if _cf == 'confirmed' else ('var(--warn)' if _cf == 'reconfirm' else ('var(--ink)' if p.quotation_customer else 'var(--ink-4)')) %}
       <span class="at-mono at-tab-num"
-            style="color:{{ 'var(--ink)' if p.quotation_customer else 'var(--ink-4)' }};font-size:13px;">
+            title="{% if _cf == 'confirmed' %}{{ _('报价单已确认') }}{% elif _cf == 'reconfirm' %}{{ _('报价单再次确认') }}{% endif %}"
+            style="color:{{ _amt_color }};font-size:13px;font-weight:{{ '600' if _cf in ['confirmed','reconfirm'] else '400' }};">
         {{ currency_sym }}{{ '{:,.0f}'.format(p.quotation_customer or 0) }}
       </span>
     </span>

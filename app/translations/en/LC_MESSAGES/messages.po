@@ -35331,3 +35331,9 @@ msgstr "Leaving"
 
 msgid "离职"
 msgstr "Resigned"
+
+msgid "报价单已确认"
+msgstr "Quotation confirmed"
+
+msgid "报价单再次确认"
+msgstr "Quotation re-confirmed"
