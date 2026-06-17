@@ -1,0 +1,110 @@
+{#
+  AT 文件管理后台(管理员)— 复用 /api/file-manager/admin/* 后端。
+  左:全员列表+统计;右:选中用户的文件 + 锁定/转移/下载/预览。
+#}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_topbar.html' import at_topbar with context %}
+{% from 'components/at_base.html' import at_icon, at_btn with context %}
+{% from 'components/at_file_preview.html' import at_file_preview_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>PMA · {{ _('文件管理后台') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<style>
+  .fa-wrap { display:flex; gap:18px; align-items:flex-start; }
+  .fa-users { width:280px; flex-shrink:0; background:var(--bg-elev); border:1px solid var(--line); border-radius:12px; max-height:74vh; overflow:auto; }
+  .fa-user { padding:10px 12px; border-bottom:1px solid var(--line-soft); cursor:pointer; }
+  .fa-user:hover { background:var(--bg-hover); } .fa-user.on { background:var(--accent-tint); }
+  .fa-user-name { font-size:13px; color:var(--ink); font-weight:500; }
+  .fa-user-meta { font-size:11px; color:var(--ink-4); margin-top:2px; }
+  .fa-main { flex:1; min-width:0; background:var(--bg-elev); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .fa-toolbar { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line-soft); flex-wrap:wrap; }
+  .fa-content { padding:6px 8px 12px; }
+  .fa-inp { height:34px; box-sizing:border-box; padding:0 12px; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-elev); font-size:13px; color:var(--ink); outline:none; }
+  .fa-list { width:100%; border-collapse:collapse; }
+  .fa-list th { text-align:left; font-size:11px; color:var(--ink-4); font-weight:500; padding:7px 10px; border-bottom:1px solid var(--line); }
+  .fa-list td { padding:8px 10px; border-bottom:1px solid var(--line-soft); font-size:12.5px; color:var(--ink-2); }
+  .fa-acts { display:inline-flex; gap:4px; }
+  body.at-page .fa-act { border:0; background:transparent; cursor:pointer; color:var(--ink-3); padding:3px 8px; font-size:12px; border-radius:6px; }
+  body.at-page .fa-act:hover { color:var(--accent); background:var(--bg-hover); }
+  body.at-page .fa-act.danger:hover { color:var(--danger); }
+  .fa-lock { font-size:11px; color:var(--warn); }
+  .fa-empty { text-align:center; padding:50px; color:var(--ink-4); font-size:13px; }
+  .fa-list tr.frow { cursor:pointer; } .fa-list tr.frow:hover { background:var(--bg-hover); }
+  .fa-rowmenu { opacity:0; color:var(--ink-4); cursor:pointer; padding:2px 6px; } .fa-list tr.frow:hover .fa-rowmenu { opacity:1; }
+  .fa-menu { position:fixed; z-index:1200; min-width:140px; background:var(--bg-elev); border:1px solid var(--line-2); border-radius:9px; box-shadow:0 8px 28px rgba(0,0,0,.14); padding:5px; }
+  .fa-menu-item { padding:8px 11px; border-radius:6px; font-size:13px; color:var(--ink-2); cursor:pointer; }
+  .fa-menu-item:hover { background:var(--bg-hover); }
+  .fa-overlay { position:fixed; inset:0; z-index:1000; background:rgba(31,30,27,0.4); display:none; align-items:center; justify-content:center; }
+  .fa-overlay.open { display:flex; }
+  .fa-modal { width:420px; background:var(--bg-elev); border:1px solid var(--line); border-radius:14px; padding:20px 22px; box-shadow:0 24px 64px rgba(31,30,27,0.25); }
+  #atFilePreview { z-index:2000 !important; }
+</style>
+</head>
+<body class="at-page">
+<div style="display:flex;">
+{{ at_sidebar(active_key='') }}
+<div style="flex:1;min-width:0;">
+  {{ at_topbar() }}
+  <main style="width:100%;box-sizing:border-box;max-width:1320px;margin:0 auto;padding:24px 36px 80px;">
+    <div style="margin-bottom:18px;display:flex;align-items:flex-end;justify-content:space-between;">
+      <div>
+        <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:6px;">FILES · ADMIN</div>
+        <h1 class="at-serif" style="margin:0;font-size:30px;font-weight:500;">{{ _('文件管理后台') }}</h1>
+      </div>
+      <a href="/files" style="font-size:13px;color:var(--accent);">{{ _('返回资料管理') }} →</a>
+    </div>
+
+    <div class="fa-wrap">
+      <div class="fa-users" id="faUsers"></div>
+      <div class="fa-main">
+        <div class="fa-toolbar">
+          <span id="faUserTitle" style="font-size:14px;font-weight:600;color:var(--ink);">{{ _('选择左侧用户查看文件') }}</span>
+          <div style="flex:1;"></div>
+          <input type="search" id="faSearch" class="fa-inp" placeholder="{{ _('搜索文件…') }}" style="width:180px;">
+          <select id="faSort" class="fa-inp">
+            <option value="recent">{{ _('最近') }}</option>
+            <option value="name">{{ _('名称') }}</option>
+            <option value="size">{{ _('大小') }}</option>
+          </select>
+          <label style="font-size:12px;color:var(--ink-3);display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" id="faShowDeleted"> {{ _('含已删除') }}</label>
+        </div>
+        <div class="fa-content"><div id="faBody"><div class="fa-empty">{{ _('选择左侧用户查看文件') }}</div></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+{# 行内菜单 #}
+<div id="faMenu" class="fa-menu" hidden></div>
+
+{# 转移 弹窗 #}
+<div id="faTransferModal" class="fa-overlay" onclick="if(event.target===this)faClose()">
+  <div class="fa-modal">
+    <h3 style="margin:0 0 14px;font-size:15px;font-weight:600;color:var(--ink);">{{ _('转移文件到') }}</h3>
+    <select id="faTransferUser" class="fa-inp" style="width:100%;"></select>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+      <button type="button" onclick="faClose()" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+      <button type="button" id="faTransferOk" style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('转移') }}</button>
+    </div>
+  </div>
+</div>
+
+{{ at_file_preview_modal() }}
+
+<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-file-utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-file-manager-admin.js') }}"></script>
+</body>
+</html>

@@ -248,6 +248,23 @@
         </div>
       </div>
       {% endif %}
+      {# 批价单:已确认 + 项目处于批价/签约阶段才显示;有进行中批价单则进入,否则生成 #}
+      {% if not is_new and quotation.id %}
+        {% set _can_pricing = (quotation.confirmation_badge_status == 'confirmed') and quotation.project and (quotation.project.current_stage in ['quoted','signed']) %}
+        {% if active_pricing_order %}
+        <a href="/pricing_order/{{ active_pricing_order.id }}/excel-edit" class="view-only"
+           style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--accent);
+                  background:var(--accent-tint);color:var(--accent);font-size:12px;font-weight:500;
+                  display:inline-flex;align-items:center;gap:5px;cursor:pointer;text-decoration:none;">
+          {{ at_icon('money', 12) }}{{ _('批价单') }}</a>
+        {% elif _can_pricing %}
+        <button type="button" onclick="atStartPricing(this)" class="view-only"
+                style="height:32px;padding:0 12px;border-radius:6px;border:0;
+                       background:var(--accent);color:#fff;font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('plus', 12) }}{{ _('生成批价单') }}</button>
+        {% endif %}
+      {% endif %}
       {# 编辑按钮 + 技术确认 — 与产品明细 header 那组同步(都通过 data-mode 切换)#}
       {% if perms.can_edit and not quotation.is_locked %}
       <div class="view-only" style="display:inline-flex;gap:6px;align-items:center;">
@@ -1028,6 +1045,23 @@
           form.submit();
         },
       });
+    };
+
+    // 生成批价单:从报价单发起批价流程 → 跳转老 excel 编辑页(不重做批价单)
+    window.atStartPricing = function(btn) {
+      {% if quotation.project_id %}
+      if (btn) { btn.disabled = true; }
+      const csrf = document.querySelector('meta[name="csrf-token"]').content;
+      fetch(`/pricing_order/project/{{ quotation.project_id }}/start_pricing_process`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({ quotation_id: QUOTATION_ID })
+      }).then(r => r.json()).then(d => {
+        if (d.success && d.redirect_url) { window.location.href = d.redirect_url; }
+        else if (d.success && d.pricing_order_id) { window.location.href = `/pricing_order/${d.pricing_order_id}/excel-edit`; }
+        else { if (window.ATToast) ATToast.error(d.message || '{{ _("生成失败") }}'); if (btn) btn.disabled = false; }
+      }).catch(() => { if (window.ATToast) ATToast.error('{{ _("生成失败") }}'); if (btn) btn.disabled = false; });
+      {% endif %}
     };
 
     // 旧 SM 发起 modal(atQuoteInitiateSM)已移除 — 改走 chip dropdown 提交标准审批

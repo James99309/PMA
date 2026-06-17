@@ -35337,3 +35337,95 @@ msgstr "Quotation confirmed"
 
 msgid "报价单再次确认"
 msgstr "Quotation re-confirmed"
+
+# === 资料管理(文件)模块 i18n ===
+
+msgid "上传文件夹"
+msgstr "Upload folder"
+
+msgid "列表"
+msgstr "List"
+
+msgid "删除文件夹及其内容?"
+msgstr "Delete folder and its contents?"
+
+msgid "含已删除"
+msgstr "Include deleted"
+
+msgid "存储空间"
+msgstr "Storage"
+
+msgid "将所选文件移入回收站?"
+msgstr "Move selected files to trash?"
+
+msgid "将文件移入回收站?"
+msgstr "Move file to trash?"
+
+msgid "尚未共享"
+msgstr "Not shared yet"
+
+msgid "已共享"
+msgstr "Shared"
+
+msgid "已清空"
+msgstr "Emptied"
+
+msgid "已转移"
+msgstr "Transferred"
+
+msgid "已还原"
+msgstr "Restored"
+
+msgid "已选 {n} 项"
+msgstr "{n} selected"
+
+msgid "彻底删除该文件?不可恢复"
+msgstr "Permanently delete this file? Cannot be undone"
+
+msgid "搜索文件…"
+msgstr "Search files…"
+
+msgid "文件管理后台"
+msgstr "File Admin"
+
+msgid "暂无共享"
+msgstr "No shares"
+
+msgid "暂无文件夹"
+msgstr "No folders"
+
+msgid "暂无用户"
+msgstr "No users"
+
+msgid "最近"
+msgstr "Recent"
+
+msgid "正在创建文件夹结构…"
+msgstr "Creating folder structure…"
+
+msgid "此文件夹为空,拖拽或点上传添加文件"
+msgstr "This folder is empty. Drag or click Upload to add files."
+
+msgid "清空回收站?不可恢复"
+msgstr "Empty trash? Cannot be undone"
+
+msgid "移动到此"
+msgstr "Move here"
+
+msgid "网格"
+msgstr "Grid"
+
+msgid "请输入名称"
+msgstr "Please enter a name"
+
+msgid "资料管理"
+msgstr "Files"
+
+msgid "转移文件到"
+msgstr "Transfer file to"
+
+msgid "返回资料管理"
+msgstr "Back to Files"
+
+msgid "选择左侧用户查看文件"
+msgstr "Select a user on the left to view files"

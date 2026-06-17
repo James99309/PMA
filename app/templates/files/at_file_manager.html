@@ -1,0 +1,259 @@
+{#
+  AT 资料管理(文件管理)— 复用 /files 既有后端 API。
+  左:文件夹树 + 共享给我 + 回收站 + 配额;右:面包屑 + 工具栏 + 文件网格/列表。
+#}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_topbar.html' import at_topbar with context %}
+{% from 'components/at_base.html' import at_icon, at_btn with context %}
+{% from 'components/at_people_select.html' import at_people_select %}
+{% from 'components/at_file_preview.html' import at_file_preview_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>PMA · {{ _('资料管理') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<style>
+  .fm-wrap { display:flex; gap:18px; align-items:flex-start; }
+  .fm-side { width:248px; flex-shrink:0; }
+  .fm-card { background:var(--bg-elev); border:1px solid var(--line); border-radius:12px; }
+  .fm-side-sec { padding:10px; }
+  .fm-side-sec + .fm-side-sec { border-top:1px solid var(--line-soft); }
+  .fm-nav { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; font-size:13px;
+            color:var(--ink-2); cursor:pointer; user-select:none; }
+  .fm-nav:hover { background:var(--bg-hover); }
+  .fm-nav.on { background:var(--accent-tint); color:var(--accent); font-weight:600; }
+  .fm-nav .ct { margin-left:auto; font-size:11px; color:var(--ink-4); }
+  /* 文件夹树 */
+  .fm-tree-row { display:flex; align-items:center; gap:4px; padding:6px 8px; border-radius:7px; font-size:13px;
+                 color:var(--ink-2); cursor:pointer; white-space:nowrap; }
+  .fm-tree-row:hover { background:var(--bg-hover); }
+  .fm-tree-row.on { background:var(--accent-tint); color:var(--accent); font-weight:600; }
+  .fm-tree-row.drop { background:var(--accent-tint); box-shadow:inset 0 0 0 1.5px var(--accent); }
+  .fm-tree-caret { width:14px; flex-shrink:0; display:inline-flex; color:var(--ink-4); transition:transform .12s; }
+  .fm-tree-caret.open { transform:rotate(90deg); }
+  .fm-tree-name { overflow:hidden; text-overflow:ellipsis; }
+  .fm-tree-row .fm-tree-act { margin-left:auto; opacity:0; color:var(--ink-4); }
+  .fm-tree-row:hover .fm-tree-act { opacity:1; }
+  /* 配额 */
+  .fm-quota-bar { height:6px; border-radius:3px; background:var(--bg-sunk); overflow:hidden; margin:6px 0 4px; }
+  .fm-quota-fill { height:100%; background:var(--accent); transition:width .3s; }
+  /* 主区(卡片) */
+  .fm-main { flex:1; min-width:0; background:var(--bg-elev); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .fm-toolbar { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line-soft); flex-wrap:wrap; }
+  .fm-content { padding:16px; min-height:420px; }
+  .fm-crumbs { display:flex; align-items:center; gap:5px; font-size:13px; color:var(--ink-3); flex-wrap:wrap; }
+  .fm-crumb { cursor:pointer; } .fm-crumb:hover { color:var(--accent); } .fm-crumb.cur { color:var(--ink); font-weight:600; cursor:default; }
+  .fm-search { height:34px; box-sizing:border-box; padding:0 12px; border:1px solid var(--line-2); border-radius:8px;
+               background:var(--bg-elev); font-size:13px; color:var(--ink); outline:none; width:200px; }
+  .fm-seg { display:inline-flex; border:1px solid var(--line-2); border-radius:8px; overflow:hidden; height:34px; }
+  body.at-page .fm-seg button { border:0; background:transparent; padding:0 11px; cursor:pointer; color:var(--ink-3); display:inline-flex; align-items:center; }
+  body.at-page .fm-seg button.on { background:var(--accent-tint); color:var(--accent); }
+  /* 文件网格 */
+  .fm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+  .fm-tile { position:relative; background:var(--bg-elev); border:1px solid var(--line); border-radius:10px; padding:14px 12px;
+             cursor:pointer; transition:box-shadow .1s,border-color .1s; }
+  .fm-tile:hover { border-color:var(--line-2); box-shadow:0 4px 14px rgba(0,0,0,.06); }
+  .fm-tile.sel { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+  .fm-tile-ico { font-size:30px; line-height:1; text-align:center; margin-bottom:8px; }
+  .fm-tile-name { font-size:12.5px; color:var(--ink); word-break:break-word; line-height:1.35;
+                  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .fm-tile-meta { font-size:10.5px; color:var(--ink-4); margin-top:4px; }
+  .fm-tile-chk { position:absolute; top:7px; left:7px; opacity:0; }
+  .fm-tile:hover .fm-tile-chk, .fm-tile.sel .fm-tile-chk { opacity:1; }
+  .fm-tile-menu { position:absolute; top:6px; right:6px; opacity:0; color:var(--ink-4); cursor:pointer; }
+  .fm-tile:hover .fm-tile-menu { opacity:1; }
+  /* 列表视图 */
+  .fm-list { width:100%; border-collapse:collapse; }
+  .fm-list th { text-align:left; font-size:11px; color:var(--ink-4); font-weight:500; padding:6px 10px; border-bottom:1px solid var(--line); }
+  .fm-list td { padding:8px 10px; border-bottom:1px solid var(--line-soft); font-size:12.5px; color:var(--ink-2); }
+  .fm-list tr.sel { background:var(--accent-tint); }
+  .fm-list tr.file-row { cursor:pointer; } .fm-list tr.file-row:hover { background:var(--bg-hover); }
+  /* 拖放区高亮 */
+  .fm-drop-zone.dragover { box-shadow:inset 0 0 0 2px var(--accent); border-radius:12px; }
+  /* 行内菜单 */
+  .fm-menu { position:fixed; z-index:1200; min-width:150px; background:var(--bg-elev); border:1px solid var(--line-2);
+             border-radius:9px; box-shadow:0 8px 28px rgba(0,0,0,.14); padding:5px; }
+  .fm-menu-item { padding:8px 11px; border-radius:6px; font-size:13px; color:var(--ink-2); cursor:pointer; display:flex; align-items:center; gap:8px; }
+  .fm-menu-item:hover { background:var(--bg-hover); }
+  .fm-menu-item.danger { color:var(--danger); }
+  /* 批量操作条 */
+  .fm-batchbar { display:none; align-items:center; gap:10px; padding:8px 14px; background:var(--accent-tint);
+                 border-radius:10px; margin-bottom:12px; font-size:13px; color:var(--accent); }
+  /* 弹窗 */
+  .fm-overlay { position:fixed; inset:0; z-index:1000; background:rgba(31,30,27,0.4); display:none; align-items:center; justify-content:center; padding:20px; }
+  .fm-overlay.open { display:flex; }
+  .fm-modal { width:460px; max-width:100%; background:var(--bg-elev); border:1px solid var(--line); border-radius:14px;
+              box-shadow:0 24px 64px rgba(31,30,27,0.25); padding:20px 22px; }
+  .fm-inp { width:100%; box-sizing:border-box; height:36px; padding:0 12px; border:1px solid var(--line-2); border-radius:8px;
+            background:var(--bg-page); font:inherit; font-size:13px; color:var(--ink); outline:none; }
+  .fm-empty { text-align:center; padding:60px 20px; color:var(--ink-4); font-size:13px; }
+  /* 上传进度面板 */
+  .fm-uppanel { position:fixed; right:22px; bottom:22px; width:340px; max-height:50vh; z-index:1500;
+                background:var(--bg-elev); border:1px solid var(--line-2); border-radius:12px;
+                box-shadow:0 12px 40px rgba(0,0,0,.18); overflow:hidden; display:flex; flex-direction:column; }
+  .fm-uppanel[hidden] { display:none !important; }   /* 否则 display:flex 会盖住 hidden 属性 */
+  .fm-up-head { display:flex; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line-soft);
+                font-size:13px; font-weight:600; color:var(--ink); }
+  .fm-up-close { margin-left:auto; cursor:pointer; color:var(--ink-4); font-size:16px; line-height:1; }
+  .fm-up-list { overflow:auto; padding:6px; }
+  .fm-up-row { padding:7px 8px; }
+  .fm-up-name { font-size:12px; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; gap:6px; }
+  .fm-up-name .st { margin-left:auto; flex-shrink:0; font-size:11px; }
+  .fm-up-bar { height:4px; border-radius:2px; background:var(--bg-sunk); overflow:hidden; margin-top:4px; }
+  .fm-up-fill { height:100%; background:var(--accent); width:0; transition:width .15s; }
+  .fm-up-row.done .fm-up-fill { background:var(--success); }
+  .fm-up-row.err .fm-up-fill { background:var(--danger); }
+  #atFilePreview { z-index:2000 !important; }
+</style>
+</head>
+<body class="at-page">
+<div style="display:flex;">
+{{ at_sidebar(active_key='') }}
+<div style="flex:1;min-width:0;">
+  {{ at_topbar() }}
+  <main style="width:100%;box-sizing:border-box;max-width:1320px;margin:0 auto;padding:24px 36px 80px;">
+    <div style="margin-bottom:18px;">
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:6px;">FILES · {{ _('资料管理') }}</div>
+      <h1 class="at-serif" style="margin:0;font-size:30px;font-weight:500;letter-spacing:-0.005em;">{{ _('资料管理') }}</h1>
+    </div>
+
+    <div class="fm-wrap">
+      {# ── 左侧 ── #}
+      <div class="fm-side">
+        <div class="fm-card">
+          <div class="fm-side-sec">
+            <div id="fmNavAll" class="fm-nav on">{{ at_icon('grid', 15) }}<span>{{ _('全部文件') }}</span></div>
+            <div id="fmNavShared" class="fm-nav">{{ at_icon('users', 15) }}<span>{{ _('共享给我') }}</span></div>
+            <div id="fmNavTrash" class="fm-nav">{{ at_icon('trash', 15) }}<span>{{ _('回收站') }}</span></div>
+          </div>
+          <div class="fm-side-sec">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:11px;color:var(--ink-4);letter-spacing:.05em;">{{ _('文件夹') }}</span>
+              <button type="button" id="fmNewFolderBtn" title="{{ _('新建文件夹') }}"
+                      style="border:0;background:transparent;cursor:pointer;color:var(--ink-3);padding:2px;">{{ at_icon('plus', 15) }}</button>
+            </div>
+            <div id="fmTree"></div>
+          </div>
+          <div class="fm-side-sec">
+            <div style="font-size:11px;color:var(--ink-4);">{{ _('存储空间') }}</div>
+            <div class="fm-quota-bar"><div id="fmQuotaFill" class="fm-quota-fill" style="width:0%"></div></div>
+            <div id="fmQuotaText" class="at-dim" style="font-size:11px;"></div>
+          </div>
+          {% if is_admin %}
+          <div class="fm-side-sec">
+            <a href="/file-manager/admin" class="fm-nav">{{ at_icon('settings', 15) }}<span>{{ _('文件管理后台') }}</span></a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ── 主区(卡片) ── #}
+      <div class="fm-main fm-drop-zone" id="fmDropZone">
+        <div class="fm-toolbar">
+          <div id="fmCrumbs" class="fm-crumbs"></div>
+          <div style="flex:1;"></div>
+          <input type="search" id="fmSearch" class="fm-search" placeholder="{{ _('搜索文件…') }}">
+          <div class="fm-seg" id="fmViewSeg">
+            <button type="button" data-view="grid" class="on" title="{{ _('网格') }}">{{ at_icon('grid', 15) }}</button>
+            <button type="button" data-view="list" title="{{ _('列表') }}">{{ at_icon('docs', 15) }}</button>
+          </div>
+          {{ at_btn(_('新建文件夹'), variant='ghost', size='sm', icon_l='plus', onclick='fmNewFolder()') }}
+          {{ at_btn(_('上传'), variant='primary', size='sm', icon_l='upload', onclick='fmUploadMenu(event)') }}
+          <input type="file" id="fmUploadInput" multiple style="display:none;">
+          <input type="file" id="fmFolderInput" webkitdirectory directory multiple style="display:none;">
+        </div>
+        <div class="fm-content">
+          <div id="fmBatchBar" class="fm-batchbar">
+            <span id="fmBatchCount"></span>
+            <div style="flex:1;"></div>
+            <button type="button" onclick="fmBatchMove()" style="border:0;background:transparent;color:var(--accent);cursor:pointer;font:inherit;font-size:13px;">{{ _('移动') }}</button>
+            <button type="button" onclick="fmBatchDelete()" style="border:0;background:transparent;color:var(--danger);cursor:pointer;font:inherit;font-size:13px;">{{ _('删除') }}</button>
+            <button type="button" onclick="fmClearSel()" style="border:0;background:transparent;color:var(--ink-3);cursor:pointer;font:inherit;font-size:13px;">{{ _('取消') }}</button>
+          </div>
+          <div id="fmBody"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+{# 行内右键/更多 菜单 #}
+<div id="fmCtxMenu" class="fm-menu" hidden></div>
+
+{# 上传进度面板 #}
+<div id="fmUploadPanel" class="fm-uppanel" hidden>
+  <div class="fm-up-head"><span id="fmUpTitle"></span><span class="fm-up-close" onclick="fmCloseUpload()">×</span></div>
+  <div id="fmUpList" class="fm-up-list"></div>
+</div>
+
+{# 重命名/新建文件夹 弹窗 #}
+<div id="fmNameModal" class="fm-overlay" onclick="if(event.target===this)fmCloseModal('fmNameModal')">
+  <div class="fm-modal" style="width:380px;">
+    <h3 id="fmNameTitle" style="margin:0 0 14px;font-size:15px;font-weight:600;color:var(--ink);"></h3>
+    <input id="fmNameInput" class="fm-inp" autocomplete="off">
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+      <button type="button" onclick="fmCloseModal('fmNameModal')" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+      <button type="button" id="fmNameOk" style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('确定') }}</button>
+    </div>
+  </div>
+</div>
+
+{# 移动到 弹窗(文件夹选择) #}
+<div id="fmMoveModal" class="fm-overlay" onclick="if(event.target===this)fmCloseModal('fmMoveModal')">
+  <div class="fm-modal">
+    <h3 style="margin:0 0 12px;font-size:15px;font-weight:600;color:var(--ink);">{{ _('移动到') }}</h3>
+    <div id="fmMoveTree" style="max-height:320px;overflow:auto;border:1px solid var(--line-soft);border-radius:8px;padding:6px;"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+      <button type="button" onclick="fmCloseModal('fmMoveModal')" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+      <button type="button" id="fmMoveOk" style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('移动到此') }}</button>
+    </div>
+  </div>
+</div>
+
+{# 共享 弹窗 #}
+<div id="fmShareModal" class="fm-overlay" onclick="if(event.target===this)fmCloseModal('fmShareModal')">
+  <div class="fm-modal" style="width:480px;">
+    <h3 id="fmShareTitle" style="margin:0 0 12px;font-size:15px;font-weight:600;color:var(--ink);">{{ _('共享文件夹') }}</h3>
+    <label class="at-dim" style="font-size:12px;">{{ _('添加共享对象') }}</label>
+    <div style="display:flex;gap:8px;align-items:center;margin:6px 0 12px;">
+      {{ at_people_select('fmShareUsers', placeholder=_('选择用户')) }}
+      <select id="fmSharePerm" class="fm-inp" style="width:110px;flex-shrink:0;">
+        <option value="read">{{ _('只读') }}</option>
+        <option value="edit">{{ _('可编辑') }}</option>
+      </select>
+      <button type="button" id="fmShareAdd" style="height:36px;padding:0 14px;border-radius:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:13px;cursor:pointer;flex-shrink:0;">{{ _('添加') }}</button>
+    </div>
+    <div id="fmShareList" style="max-height:240px;overflow:auto;"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+      <button type="button" onclick="fmCloseModal('fmShareModal')" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('完成') }}</button>
+    </div>
+  </div>
+</div>
+
+{{ at_file_preview_modal() }}
+
+<script id="fmConfig" type="application/json">
+{
+  "initial_folder_id": {{ initial_folder_id | tojson }},
+  "is_admin": {{ is_admin | tojson }},
+  "current_user_id": {{ current_user.id }},
+  "lang": "{{ session.get('language', 'zh') }}",
+  "chunk_threshold": 52428800,
+  "chunk_size": 5242880
+}
+</script>
+<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-people-select.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-file-utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-file-manager.js') }}"></script>
+</body>
+</html>

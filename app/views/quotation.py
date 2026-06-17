@@ -963,8 +963,16 @@ def at_view_quotation(id):
     from flask_babel import gettext as _gt
     _qrating = _gt('优秀') if _qscore >= 7 else (_gt('良好') if _qscore >= 5 else (_gt('及格') if _qscore >= 3 else _gt('待提升')))
 
+    # 进行中批价单(草稿/待审批)— 用于「生成批价单 / 批价单」按钮
+    from app.models.pricing_order import PricingOrder
+    active_pricing_order = PricingOrder.query.filter(
+        PricingOrder.quotation_id == q.id,
+        PricingOrder.status.in_(['draft', 'pending'])
+    ).order_by(PricingOrder.created_at.desc()).first()
+
     return render_template('quotation/at_view.html',
                            quotation=q,
+                           active_pricing_order=active_pricing_order,
                            quality_score=_qscore,
                            quality_rating=_qrating,
                            is_new=False,

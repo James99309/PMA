@@ -28,7 +28,7 @@ def _require_admin():
 def admin_page():
     if current_user.role not in ('admin', 'ceo'):
         abort(403)
-    return render_template('files/tw_file_manager_admin.html')
+    return render_template('files/at_file_manager_admin.html')
 
 
 @file_manager_admin_bp.route('/api/file-manager/admin/users', methods=['GET'])

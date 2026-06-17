@@ -29,7 +29,7 @@ def index():
     """文件管理主页面"""
     folder_id = request.args.get('folder_id', None, type=int)
     return render_template(
-        'files/tw_file_manager.html',
+        'files/at_file_manager.html',
         active_page='file_manager',
         initial_folder_id=folder_id,
         is_admin=current_user.role in ('admin', 'ceo'),
