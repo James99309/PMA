@@ -36,6 +36,7 @@
 <script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
 {% if _editable %}
 <script src="{{ url_for('static', filename='js/at-search-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-person-picker.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-expense-form.js') }}"></script>
 {% endif %}
 {{ at_detail_styles() }}
@@ -54,6 +55,18 @@
     caret-color: var(--ink);
     transition: background-color 9999s ease-out 0s;
   }
+  /* 归属人 AtPersonPicker 下拉(同个人配置页角色下拉样式) */
+  .cm-role-menu { position:absolute; top:calc(100% + 6px); left:0; min-width:280px; z-index:60;
+                  background:var(--bg-elev); border:1px solid var(--line); border-radius:10px;
+                  box-shadow:0 12px 32px rgba(0,0,0,0.12); padding:6px; max-height:360px; overflow-y:auto; }
+  .cm-role-item { display:flex; align-items:center; gap:8px; padding:7px 12px; border-radius:6px;
+                  cursor:pointer; font-size:13px; color:var(--ink); }
+  .cm-role-item:hover { background:var(--bg-hover); }
+  .cm-role-item.active { background:var(--accent-tint); }
+  .pp-dep { font-size:10.5px; letter-spacing:0.08em; color:var(--ink-4); padding:8px 12px 2px; }
+  .pp-search { width:calc(100% - 12px); margin:4px 6px 6px; box-sizing:border-box; height:30px; padding:0 10px;
+               background:var(--bg-page); border:1px solid var(--line-2); border-radius:6px;
+               font:inherit; font-size:12.5px; color:var(--ink); outline:none; }
 </style>
 </head>
 <body class="at-page">
@@ -324,6 +337,17 @@
                      {% if expense.attribute_to_self is not defined or expense.attribute_to_self %}checked{% endif %}>
               {{ _('本人报销') }}
             </label>
+            {# 代他人报销:归属人选择器(AtPersonPicker — 搜索 + 按部门分组;默认隐藏,取消"本人报销"时显示)#}
+            <div id="expAttributedToWrap" style="position:relative;{% if expense.attribute_to_self is not defined or expense.attribute_to_self %}display:none;{% endif %}">
+              <button type="button" id="expAttributedToBtn"
+                      style="{{ _inp }};color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer;">
+                <span id="expAttributedToLabel" class="at-dim">{{ _('请选择归属人') }}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                     stroke-linecap="round" stroke-linejoin="round" style="opacity:.5;flex-shrink:0;"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <input type="hidden" id="expAttributedToId" data-current="{{ expense.attributed_to_id if (expense and expense.attributed_to_id) else '' }}">
+              <div id="expAttributedToMenu" class="cm-role-menu" style="display:none;"></div>
+            </div>
           </div>
           <div style="grid-column:1 / -1;">
             <label style="{{ _label }}">{{ _('报销说明') }}</label>

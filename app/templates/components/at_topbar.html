@@ -142,7 +142,7 @@
     <span style="width:10px;"></span>
 
     {# 工作日历(未读用红圆点 — 后端 unread_calendar 标记) #}
-    {{ _icon_btn('clock', _('工作日历'), href='/worklog/calendar',
+    {{ _icon_btn('clock', _('工作日历'), href='/worklog/at-calendar',
                  dot_color=('var(--accent)' if (unread_calendar | default(false)) else '')) }}
 
     {# 上传（文件管理 TW 页） #}

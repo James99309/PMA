@@ -196,3 +196,103 @@ body.at-page .at-revert-btn { display:inline-flex; align-items:center; justify-c
                    border:0; background:transparent; padding:3px; border-radius:5px;
                    cursor:pointer; color:var(--ink-3); line-height:0; transition:all 120ms; }
 body.at-page .at-revert-btn:hover { color:var(--accent); background:var(--bg-hover); }
+
+/* ── AT 组合输入框(at_grouped_select):前半分组下拉 + 后半文本输入 ── */
+.at-gsi { display:flex; align-items:stretch; box-sizing:border-box; height:34px; border:1px solid var(--line-2);
+          border-radius:7px; background:var(--bg-page); position:relative; }
+.at-gsi:focus-within { border-color:var(--accent); }
+/* 带 body.at-page 前缀压过全局按钮重置(body.at-page button{padding:0}) */
+body.at-page .at-gsi-trigger { display:flex; align-items:center; gap:7px; height:100%; padding:0 14px;
+                  border:0; border-right:1px solid var(--line-2); background:transparent; cursor:pointer;
+                  font:inherit; font-size:13px; color:var(--ink); border-radius:7px 0 0 7px;
+                  flex-shrink:0; white-space:nowrap; }
+body.at-page .at-gsi-trigger:hover { background:var(--bg-hover); }
+.at-gsi-sep { display:none; }
+.at-gsi-input { flex:1; min-width:0; height:100%; border:0; background:transparent; font:inherit;
+                font-size:13px; color:var(--ink); outline:none; padding:0 14px; }
+.at-gsi-menu { position:absolute; top:calc(100% + 4px); left:0; min-width:210px; z-index:40;
+               background:var(--bg-elev); border:1px solid var(--line); border-radius:8px;
+               box-shadow:0 12px 32px rgba(0,0,0,0.12); padding:5px; max-height:280px; overflow-y:auto; }
+.at-gsi-grp { font-size:10.5px; letter-spacing:0.06em; color:var(--ink-4); padding:7px 10px 2px; }
+.at-gsi-item { padding:7px 12px; border-radius:6px; cursor:pointer; font-size:13px; color:var(--ink); }
+.at-gsi-item:hover { background:var(--bg-hover); }
+
+/* ── AT 时间选择器(at_time_picker):小时 + 分钟两列 ── */
+.at-tp { position:relative; width:100%; }
+body.at-page .at-tp-trigger { display:flex; align-items:center; gap:7px; width:100%; box-sizing:border-box;
+                  height:34px; padding:0 11px; border:1px solid var(--line-2); border-radius:7px;
+                  background:var(--bg-page); cursor:pointer; font:inherit; font-size:13px; color:var(--ink); }
+body.at-page .at-tp-trigger:hover { border-color:var(--line-2); }
+.at-tp:focus-within .at-tp-trigger { border-color:var(--accent); }
+.at-tp-ph { color:var(--ink-4); }
+.at-tp-menu { position:absolute; top:calc(100% + 4px); left:0; z-index:40;
+              background:var(--bg-elev); border:1px solid var(--line); border-radius:8px;
+              box-shadow:0 12px 32px rgba(0,0,0,0.12); padding:5px; }
+.at-tp-list { width:104px; max-height:220px; overflow-y:auto; }
+.at-tp-item { padding:7px 14px; text-align:center; border-radius:6px; cursor:pointer; font-size:13px;
+              color:var(--ink); font-variant-numeric:tabular-nums; }
+.at-tp-item:hover { background:var(--bg-hover); }
+body.at-page .at-tp-item.on { background:var(--accent); color:#fff; }
+
+/* ── AT 日期选择器(at_date_picker):弹出月历 ── */
+.at-dp { position:relative; display:inline-flex; }
+body.at-page .at-dp-trigger { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 11px;
+                  border:1px solid var(--line-2); border-radius:7px; background:var(--bg-page); cursor:pointer;
+                  font:inherit; font-size:13px; color:var(--ink); }
+.at-dp-ph { color:var(--ink-4); }
+.at-dp-menu { position:absolute; top:calc(100% + 4px); left:0; z-index:50; width:268px; background:var(--bg-elev);
+              border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 32px rgba(0,0,0,0.14); padding:12px; }
+.at-dp-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+              font-size:13.5px; font-weight:600; color:var(--ink); }
+.at-dp-nav { display:inline-flex; gap:2px; }
+body.at-page .at-dp-nav button { width:26px; height:26px; border-radius:6px; display:inline-flex;
+                  align-items:center; justify-content:center; color:var(--ink-2); }
+body.at-page .at-dp-nav button:hover { background:var(--bg-hover); }
+.at-dp-wk { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px; }
+.at-dp-wk span { text-align:center; font-size:11px; color:var(--ink-4); padding:4px 0; }
+.at-dp-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+body.at-page .at-dp-day { height:32px; border-radius:6px; font-size:12.5px; color:var(--ink); cursor:pointer; border:0; background:transparent; }
+body.at-page .at-dp-day:hover { background:var(--bg-hover); }
+.at-dp-day.other { color:var(--ink-4); }
+.at-dp-day.today { color:var(--accent); font-weight:600; }
+body.at-page .at-dp-day.on { background:var(--accent); color:#fff; }
+.at-dp-foot { display:flex; justify-content:flex-end; margin-top:8px; }
+body.at-page .at-dp-foot button { font-size:12px; color:var(--ink-2); border:1px solid var(--line-2);
+                  border-radius:6px; padding:4px 12px; }
+body.at-page .at-dp-foot button:hover { background:var(--bg-hover); }
+
+/* ── 内联日期/时间行(wi-dtrow):无框 + 加粗大字(仿日程头部) ── */
+.wi-dtrow { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.wi-dtrow .at-dp, .wi-dtrow .at-tp { width:auto; }
+body.at-page .wi-dtrow .at-dp-trigger,
+body.at-page .wi-dtrow .at-tp-trigger { border:0; background:transparent; height:auto; padding:4px 7px;
+                  font-size:15px; font-weight:600; width:auto; border-radius:6px; }
+body.at-page .wi-dtrow .at-dp-trigger:hover,
+body.at-page .wi-dtrow .at-tp-trigger:hover { background:var(--bg-hover); }
+.wi-dtrow .at-tp-trigger svg { display:none; }
+.wi-dtrow .at-dp-ph, .wi-dtrow .at-tp-ph { font-weight:400; }
+.wi-dt-dash { color:var(--ink-3); font-weight:600; margin:0 10px; }
+
+/* ── AT 人员多选(at_people_select):chips + 可搜索分组下拉 ── */
+.at-ps { position:relative; }
+.at-ps-box { display:flex; flex-wrap:wrap; align-items:center; gap:6px; box-sizing:border-box; min-height:34px; padding:4px 8px;
+             border:1px solid var(--line-2); border-radius:7px; background:var(--bg-page); cursor:text; }
+.at-ps:focus-within .at-ps-box { border-color:var(--accent); }
+.at-ps-input { flex:1; min-width:120px; border:0; background:transparent; outline:none; font:inherit;
+               font-size:13px; color:var(--ink); height:24px; }
+.at-ps-input::placeholder { color:var(--ink-4); }
+.at-ps-chip { display:inline-flex; align-items:center; gap:5px; padding:2px 4px 2px 2px; border-radius:14px;
+              background:var(--bg-sunk); font-size:12.5px; color:var(--ink); }
+body.at-page .at-ps-chip button { color:var(--ink-4); font-size:13px; line-height:1; padding:0 2px; }
+body.at-page .at-ps-chip button:hover { color:var(--danger); }
+.at-ps-av { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px;
+            border-radius:50%; background:var(--accent-tint); color:var(--accent); font-size:10.5px; font-weight:600; flex-shrink:0; }
+.at-ps-menu { position:absolute; top:calc(100% + 4px); left:0; min-width:240px; max-width:340px; z-index:50;
+              background:var(--bg-elev); border:1px solid var(--line); border-radius:8px;
+              box-shadow:0 12px 32px rgba(0,0,0,0.12); padding:5px; max-height:300px; overflow-y:auto; }
+.at-ps-grp { font-size:10.5px; letter-spacing:0.06em; color:var(--ink-4); padding:7px 10px 2px; }
+.at-ps-item { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:6px; cursor:pointer;
+              font-size:13px; color:var(--ink); }
+.at-ps-item:hover { background:var(--bg-hover); }
+.at-ps-item.on { background:var(--accent-tint); }
+.at-ps-check { color:var(--accent); font-weight:600; }

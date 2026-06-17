@@ -658,6 +658,17 @@ def _int_or_none(v):
         return None
 
 
+def _hours_between(start_time, end_time):
+    """按起止 time 计算工时(小时,2 位小数);end<=start 返回 None。"""
+    if not start_time or not end_time:
+        return None
+    sm = start_time.hour * 60 + start_time.minute
+    em = end_time.hour * 60 + end_time.minute
+    if em <= sm:
+        return None
+    return round((em - sm) / 60.0, 2)
+
+
 def can_view_item(user, work_item):
     """忠实 can_view_work_item:本人 / admin·ceo / 下属 / 被共享。"""
     if work_item.owner_id == user.id:
@@ -727,6 +738,9 @@ def create_item(user, data):
             estimated_hours = float(estimated_hours)
         except (ValueError, TypeError):
             estimated_hours = None
+    # 未显式传工时 → 按起止时间自动计算(后台计算)
+    if estimated_hours is None and start_time and end_time:
+        estimated_hours = _hours_between(start_time, end_time)
 
     shared_with_users = data.get('shared_with_users', [])
     if isinstance(shared_with_users, list):
@@ -747,6 +761,8 @@ def create_item(user, data):
         project_id=_int_or_none(data.get('project_id')),
         customer_id=_int_or_none(data.get('customer_id')),
         contact_id=_int_or_none(data.get('contact_id')),
+        related_task_id=_int_or_none(data.get('related_task_id')),
+        related_subtask_id=_int_or_none(data.get('related_subtask_id')),
         work_type=data.get('work_type', 'other'),
         owner_id=user.id,
         shared_with_users=shared_with_users if shared_with_users else None
@@ -830,6 +846,9 @@ def update_item(user, item_id, data):
                 work_item.estimated_hours = float(val)
             except (ValueError, TypeError):
                 work_item.estimated_hours = None
+    else:
+        # 未显式传 → 按起止时间自动计算(与起止时间保持同步)
+        work_item.estimated_hours = _hours_between(work_item.start_time, work_item.end_time)
     if 'project_id' in data:
         val = data['project_id']
         if val == '' or val is None:
@@ -858,6 +877,10 @@ def update_item(user, item_id, data):
                 work_item.contact_id = int(val)
             except (ValueError, TypeError):
                 work_item.contact_id = None
+    if 'related_task_id' in data:
+        work_item.related_task_id = _int_or_none(data['related_task_id'])
+    if 'related_subtask_id' in data:
+        work_item.related_subtask_id = _int_or_none(data['related_subtask_id'])
     if 'work_type' in data:
         work_item.work_type = data['work_type']
 

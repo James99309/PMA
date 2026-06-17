@@ -5,6 +5,7 @@
 提供日历页面渲染和 AJAX API 接口
 """
 import logging
+import os
 from datetime import datetime, date, timedelta
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
@@ -194,6 +195,80 @@ def calendar():
     )
 
 
+@worklog.route('/at-calendar')
+@login_required
+def at_calendar():
+    """AT 风格工作日历(纯手写月历网格;复用 /worklog/api/* 后端)。
+    工作类型 = 通用(人人可见) + 按当前角色考核领域追加的专属组(如 HR 才显示人事类)。
+    日报/团队/评论/reaction/共享 后续迭代。"""
+    # 考核驱动:每个角色的「可记录活动」取自其 KPI 考核中的活动型项(非自动统计指标)。
+    # 组目录(key → (组名, [(工作类型值, 标签)]))
+    _CATALOG = {
+        'solution': ('解决方案', [('se_quote_confirm', _('报价确认')), ('se_sales_support', _('销售支持'))]),
+        'sales':    ('行销', [('customer_visit', _('拜访客户')), ('business_negotiation', _('商务洽谈')), ('customer_maintenance', _('客户维护'))]),
+        'channel':  ('渠道', [('customer_visit', _('拜访客户')), ('channel_activity', _('渠道活动'))]),
+        'marketing':('市场', [('video_production', _('视频制作')), ('material_design', _('物料设计')), ('social_media_operation', _('社媒运营')), ('channel_activity', _('渠道活动')), ('brand_event', _('品牌活动'))]),
+        'service':  ('服务', [('onsite_maintenance', _('现场运维')), ('service_response', _('服务响应')), ('technical_support', _('技术支持')), ('troubleshooting', _('故障处理'))]),
+        'product':  ('产品', [('pm_rd_task', _('研发任务')), ('pm_quality_task', _('质量处理')), ('pm_launch_support', _('上市支持'))]),
+        'hr':       ('人事', [('recruitment', _('招聘面试')), ('hr_training', _('培训')), ('hr_team_build', _('团建')), ('admin_affairs', _('行政事务'))]),
+        'finance':  ('财务', [('finance_work', _('财务工作')), ('expense_review', _('报销审核')), ('accounting', _('账务处理'))]),
+        'supply_chain': ('供应链', [('procurement', _('采购管理')), ('inventory_management', _('库存管理')), ('logistics', _('物流协调')), ('quality_tracking', _('品质跟踪'))]),
+        'admin':    ('行政', [('admin_affairs', _('行政事务')), ('office_management', _('办公管理')), ('asset_management', _('资产管理'))]),
+    }
+    # 角色 → 考核组(只有该角色进入才显示;按 role_kpi_schemes 的活动型考核项)
+    _ROLE_GROUPS = {
+        'solution_manager': ['solution'],
+        'sales_manager': ['sales'], 'customer_sales': ['sales'], 'sales_director': ['sales'],
+        'channel_manager': ['channel'], 'dealer': ['channel'],
+        'marketing_manager': ['marketing'], 'marketingplan': ['marketing'],
+        'service_manager': ['service'], 'engineer': ['service'],
+        'hr_manager': ['hr'],
+        'finance_supervisor': ['finance'], 'finace_director': ['finance'], 'finance': ['finance'], 'Treasurer': ['finance'],
+        'product_manager': ['product'],
+        'supplychain_manager': ['supply_chain'], 'Buyer': ['supply_chain'],
+        'business_admin': ['admin'],
+    }
+    _role = current_user.role or ''
+    _keys = list(_CATALOG.keys()) if _role in ('admin', 'ceo') else _ROLE_GROUPS.get(_role, [])
+
+    work_type_groups = [{'key': 'common', 'label': _('通用'), 'options': [
+        {'value': 'meeting', 'label': _('会议')},
+        {'value': 'internal_training', 'label': _('内部培训')},
+        {'value': 'other', 'label': _('其他')},
+    ]}]
+    for _k in _keys:
+        if _k in _CATALOG:
+            _name, _opts = _CATALOG[_k]
+            work_type_groups.append({'key': _k, 'label': _(_name),
+                                     'options': [{'value': v, 'label': lb} for v, lb in _opts]})
+
+    work_type_labels_json = {key: _(label) for key, label in WorkItem.TYPE_LABELS.items()}
+
+    # 节假日:发送全部国家数据(前后一年,便于跨年导航),前端按选中国家过滤
+    _db_type = (os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE') or 'sp8d').lower()
+    _default_countries = ['SG', 'MY'] if _db_type == 'ovs' else ['CN']
+    _yr = date.today().year
+    holidays_data = {}
+    for _y in (_yr - 1, _yr, _yr + 1):
+        for _ds, _entries in get_holidays_for_api(_y).items():
+            holidays_data.setdefault(_ds, []).extend(_entries)
+
+    # 是否显示账户选择器(可查看他人日历):本人之外还有可查看账户即显示
+    from app.services import worklog_service
+    _acct_ids = worklog_service.list_viewable_account_ids(current_user)
+    _can_view_others = len(_acct_ids - {current_user.id}) > 0
+
+    return render_template(
+        'worklog/at_calendar.html',
+        work_type_groups=work_type_groups,
+        work_type_labels_json=work_type_labels_json,
+        holidays_data=holidays_data,
+        supported_countries=SUPPORTED_COUNTRIES,
+        default_countries=_default_countries,
+        can_view_others=_can_view_others,
+    )
+
+
 # ===== AJAX API =====
 
 @worklog.route('/api/holidays/<int:year>', methods=['GET'])
@@ -204,6 +279,27 @@ def get_holidays(year):
     countries = [c.strip() for c in countries if c.strip()]
     data = get_holidays_for_api(year, countries if countries else None)
     return jsonify({'success': True, 'data': data})
+
+
+@worklog.route('/api/calendar-accounts', methods=['GET'])
+@login_required
+def get_calendar_accounts():
+    """可查看工作日历的账户列表(本人 + 下属/部门/公司/全员,按权限)。
+    供 AT 日历账户选择器列举可切换查看的人。"""
+    from app.services import worklog_service
+    ids = worklog_service.list_viewable_account_ids(current_user)
+    ids.discard(current_user.id)  # 本人单独置顶
+    accounts = []
+    if ids:
+        users = User.query.filter(User.id.in_(list(ids))).all()
+        for u in users:
+            accounts.append({
+                'id': u.id,
+                'name': u.real_name or u.username,
+                'department': u.department or '',
+            })
+        accounts.sort(key=lambda a: (a['department'], a['name']))
+    return jsonify({'success': True, 'accounts': accounts})
 
 
 @worklog.route('/api/customers/<int:customer_id>/contacts', methods=['GET'])
@@ -228,6 +324,99 @@ def get_customer_contacts(customer_id):
             for c in viewable_contacts
         ]
     })
+
+
+@worklog.route('/api/my-tasks', methods=['GET'])
+@login_required
+def get_my_unfinished_tasks():
+    """工作项「关联任务」用:未完成的(自建/负责/共享/审核)任务 + 其未完成子任务(二级)。"""
+    from app.models.task import Task, TaskReviewer
+    from app.models.subtask import SubTask
+    _UNDONE = ['pending', 'in_progress', 'paused', 'pending_review']
+    reviewer_ids = db.session.query(TaskReviewer.task_id).filter(
+        TaskReviewer.reviewer_id == current_user.id).subquery()
+    tasks = Task.query.filter(
+        or_(Task.assignee_id == current_user.id, Task.creator_id == current_user.id,
+            Task.id.in_(reviewer_ids)),
+        Task.is_deleted == False, Task.status.in_(_UNDONE)
+    ).order_by(Task.created_at.desc()).limit(50).all()
+    out = []
+    for t in tasks:
+        subs = SubTask.query.filter(
+            SubTask.task_id == t.id, SubTask.is_deleted == False, SubTask.status.in_(_UNDONE)
+        ).order_by(SubTask.sort_order).all()
+        out.append({'id': t.id, 'title': t.title,
+                    'subtasks': [{'id': s.id, 'title': s.title} for s in subs]})
+    return jsonify({'success': True, 'tasks': out})
+
+
+@worklog.route('/api/items/<int:item_id>/comments', methods=['GET'])
+@login_required
+def list_item_comments(item_id):
+    """工作项评论列表。"""
+    from app.services import worklog_service
+    from app.models.worklog import WorkItemComment
+    wi = WorkItem.query.get(item_id)
+    if not wi or wi.is_deleted:
+        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
+    if not worklog_service.can_view_item(current_user, wi):
+        return jsonify({'success': False, 'message': _('无权查看')}), 403
+    cs = WorkItemComment.query.filter_by(work_item_id=item_id, is_deleted=False) \
+        .order_by(WorkItemComment.created_at.asc()).all()
+    out = []
+    for c in cs:
+        d = c.to_dict()
+        d['can_delete'] = (c.owner_id == current_user.id or current_user.role in ('admin', 'ceo'))
+        out.append(d)
+    return jsonify({'success': True, 'comments': out})
+
+
+@worklog.route('/api/items/<int:item_id>/comments', methods=['POST'])
+@login_required
+def add_item_comment(item_id):
+    """新增工作项评论;镜像到关联任务(TaskReply)与关联项目(Action 跟进)。"""
+    from app.services import worklog_service
+    from app.models.worklog import WorkItemComment
+    wi = WorkItem.query.get(item_id)
+    if not wi or wi.is_deleted:
+        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
+    if not worklog_service.can_view_item(current_user, wi):
+        return jsonify({'success': False, 'message': _('无权评论')}), 403
+    content = ((request.get_json() or {}).get('content') or '').strip()
+    if not content:
+        return jsonify({'success': False, 'message': _('评论不能为空')}), 400
+    c = WorkItemComment(work_item_id=item_id, content=content, owner_id=current_user.id)
+    db.session.add(c)
+    try:
+        if wi.related_task_id:
+            from app.models.task import TaskReply
+            db.session.add(TaskReply(
+                task_id=wi.related_task_id, subtask_id=wi.related_subtask_id,
+                author_id=current_user.id, content='[工作项] ' + content, reply_type='comment'))
+        if wi.project_id:
+            db.session.add(Action(
+                date=date.today(), project_id=wi.project_id, company_id=wi.customer_id,
+                contact_id=wi.contact_id, communication='[工作项评论] ' + content,
+                owner_id=current_user.id, is_shared=True))
+    except Exception as _e:
+        logger.warning(f'工作项评论镜像失败: {_e}')
+    db.session.commit()
+    return jsonify({'success': True, 'comment': dict(c.to_dict(), can_delete=True)})
+
+
+@worklog.route('/api/items/comments/<int:comment_id>', methods=['DELETE', 'POST'])
+@login_required
+def delete_item_comment(comment_id):
+    """删除工作项评论(本人或管理员;仅删工作项侧,镜像不动)。"""
+    from app.models.worklog import WorkItemComment
+    c = WorkItemComment.query.get(comment_id)
+    if not c or c.is_deleted:
+        return jsonify({'success': False, 'message': _('评论不存在')}), 404
+    if c.owner_id != current_user.id and current_user.role not in ('admin', 'ceo'):
+        return jsonify({'success': False, 'message': _('只能删除自己的评论')}), 403
+    c.is_deleted = True
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 @worklog.route('/api/items', methods=['GET'])
@@ -493,11 +682,13 @@ def upload_workitem_attachment(item_id):
     from werkzeug.utils import secure_filename
     import uuid
 
+    from app.services import worklog_service
     work_item = WorkItem.query.get(item_id)
     if not work_item or work_item.is_deleted:
         return jsonify({'success': False, 'message': _('工作项不存在')}), 404
 
-    if work_item.owner_id != current_user.id:
+    # 本人 + 被共享/可查看者(下属管理/admin)均可上传附件
+    if not worklog_service.can_view_item(current_user, work_item):
         return jsonify({'success': False, 'message': _('无权操作此工作项')}), 403
 
     if 'file' not in request.files:
@@ -670,6 +861,22 @@ def preview_workitem_attachment(item_id, index):
                 return Response(resp.content, headers=headers)
             else:
                 return jsonify({'success': False, 'message': _('文件获取失败')}), 404
+        elif url and url.startswith('/storage/'):
+            # 本地存储(FORCE_LOCAL_STORAGE):直接读 ./storage 下文件返回
+            import os
+            from flask import current_app
+            rel = url.split('?', 1)[0][len('/storage/'):]
+            storage_dir = os.path.abspath(os.path.join(current_app.root_path, '..', 'storage'))
+            fpath = os.path.abspath(os.path.join(storage_dir, rel))
+            if fpath.startswith(storage_dir) and os.path.exists(fpath):
+                with open(fpath, 'rb') as _f:
+                    content = _f.read()
+                headers = {
+                    'Content-Type': mime_type,
+                    'Content-Disposition': f"{disposition_type}; filename*=UTF-8''{encoded_filename}"
+                }
+                return Response(content, headers=headers)
+            return jsonify({'success': False, 'message': _('文件不存在')}), 404
         else:
             return jsonify({'success': False, 'message': _('无效的文件URL')}), 400
 

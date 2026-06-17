@@ -1,0 +1,45 @@
+{#
+  AT 日期选择器:点击弹出月历(月份导航 + 今天)。可复用。
+  ───────────────────────────────────────────────────────────────
+  用法:
+    {% from 'components/at_date_picker.html' import at_date_picker %}
+    {{ at_date_picker('wiStartDate', placeholder=_('选择日期')) }}
+    {{ at_date_picker('wiStartDate', inline=true) }}   # 内联无框(嵌一行内)
+
+  配套 JS:static/js/at-date-picker.js
+    var ctl = AtDatePicker.init('wiStartDate');
+    ctl.getValue() → 'YYYY-MM-DD' | '' ; setValue('2026-06-16') ; clear() ; onChange(fn)
+#}
+{% macro at_date_picker(field_id, placeholder='', inline=false) %}
+<div class="at-dp{{ ' at-dp-inline' if inline else '' }}" id="{{ field_id }}" data-at-date-picker>
+  <button type="button" class="at-dp-trigger" data-dp-trigger>
+    {% if not inline %}
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" style="opacity:.5;flex-shrink:0;">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    {% endif %}
+    <span data-dp-label class="at-dp-ph">{{ placeholder or _('选择日期') }}</span>
+  </button>
+  <input type="hidden" data-dp-value>
+  <div class="at-dp-menu" data-dp-menu hidden>
+    <div class="at-dp-head">
+      <span data-dp-title></span>
+      <span class="at-dp-nav">
+        <button type="button" data-dp-prev aria-label="prev">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <button type="button" data-dp-next aria-label="next">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </span>
+    </div>
+    <div class="at-dp-wk">
+      <span>{{ _('日') }}</span><span>{{ _('一') }}</span><span>{{ _('二') }}</span><span>{{ _('三') }}</span><span>{{ _('四') }}</span><span>{{ _('五') }}</span><span>{{ _('六') }}</span>
+    </div>
+    <div class="at-dp-grid" data-dp-grid></div>
+    <div class="at-dp-foot">
+      <button type="button" data-dp-today>{{ _('今天') }}</button>
+    </div>
+  </div>
+</div>
+{% endmacro %}

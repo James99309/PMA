@@ -726,7 +726,13 @@
     var projId = $('expProjectId').value;
     if (projId) fd.append('project_id', projId);
     fd.append('description', $('expDescription').value.trim());
-    if ($('expAttributeToSelf').checked) fd.append('attribute_to_self', '1');
+    if ($('expAttributeToSelf').checked) {
+      fd.append('attribute_to_self', '1');
+    } else {
+      // 代他人报销:必须选归属人
+      var _attr = $('expAttributedToId');
+      fd.append('attributed_to_id', (_attr && _attr.value) || '');
+    }
 
     // 明细行
     var rows = document.querySelectorAll('#expDetailsBody tr[data-row-idx]');
@@ -929,6 +935,50 @@
     initPickers();
     $('expNoCustomerMode').addEventListener('change', applyNoCustomerMode);
     applyNoCustomerMode();
+
+    // 费用归属:本人报销 ↔ 代他人报销(AtPersonPicker 搜索+部门分组);后端按 attribute_to_self / attributed_to_id 处理
+    (function initAttribution() {
+      var chk = $('expAttributeToSelf');
+      var wrap = $('expAttributedToWrap');
+      var hidden = $('expAttributedToId');
+      var label = $('expAttributedToLabel');
+      if (!chk || !wrap || !hidden) return;
+      function toggle() { wrap.style.display = chk.checked ? 'none' : ''; }
+      chk.addEventListener('change', toggle);
+      toggle();
+
+      var users = [];                                  // {id,name,department,role_display}
+      var want = hidden.getAttribute('data-current') || '';
+      function setSelected(id) {
+        hidden.value = id || '';
+        var u = users.filter(function (x) { return String(x.id) === String(id); })[0];
+        if (label) {
+          label.textContent = u ? u.name : '请选择归属人';
+          label.classList.toggle('at-dim', !u);
+        }
+      }
+      fetch('/expense/api/users/same-company')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !d.success) return;
+          users = (d.users || []).filter(function (u) { return !u.is_current_user; })
+            .map(function (u) {
+              return { id: u.id, name: u.real_name, department: u.department || '未分组', role_display: u.role_display || '' };
+            });
+          if (want) setSelected(want);
+          if (g.AtPersonPicker) {
+            AtPersonPicker.init({
+              button: 'expAttributedToBtn',
+              menu: 'expAttributedToMenu',
+              getUsers: function () { return users; },
+              activeId: function () { return parseInt(hidden.value) || null; },
+              onSelect: function (id) { setSelected(id); },
+              placeholder: '搜索人员 / 部门…'
+            });
+          }
+        })
+        .catch(function () {});
+    })();
 
     // 报销说明 blur → 如果标题为空 + 描述非空 → AI 异步生成标题(fire-and-forget)
     var descEl = $('expDescription');

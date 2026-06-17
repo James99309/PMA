@@ -810,7 +810,7 @@
                     data-wl-mentioned="{{ '1' if w.mentioned else '0' }}"
                     {% if w.project_id %}data-href="/project/{{ w.project_id }}/at_view"
                     {% elif w.customer_id %}data-href="/customer/{{ w.customer_id }}/at_view"
-                    {% else %}data-href="/worklog/calendar"{% endif %}
+                    {% else %}data-href="/worklog/at-calendar"{% endif %}
                     style="padding:12px 4px;display:flex;gap:12px;position:relative;border-radius:6px;cursor:pointer;
                            background:{{ 'var(--accent-tint)' if w.mentioned else 'transparent' }};
                            border-left:{{ '2px solid var(--accent)' if w.mentioned else '2px solid transparent' }};

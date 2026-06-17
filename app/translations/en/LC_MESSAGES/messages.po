@@ -35152,3 +35152,130 @@ msgstr "Invalid feedback type."
 #~ msgid "确认中"
 #~ msgstr "Confirming"
 
+
+# === AT 工作日历 i18n (auto-added) ===
+
+msgid "— 不关联 —"
+msgstr "— None —"
+
+msgid "不指定联系人"
+msgstr "No contact"
+
+msgid "他人"
+msgstr "another user"
+
+msgid "他人日历"
+msgstr "Other's Calendar"
+
+msgid "先选客户"
+msgstr "Select a customer first"
+
+msgid "删除工作项"
+msgstr "Delete Work Item"
+
+msgid "已移动"
+msgstr "Moved"
+
+msgid "当天暂无安排,点击新建"
+msgstr "Nothing scheduled. Click to add."
+
+msgid "搜索姓名 / 部门"
+msgstr "Search name / department"
+
+msgid "新建工作项"
+msgstr "New Work Item"
+
+msgid "无未完成任务"
+msgstr "No open tasks"
+
+msgid "暂不"
+msgstr "Not now"
+
+msgid "更多"
+msgstr "more"
+
+msgid "本人"
+msgstr "Me"
+
+msgid "查看工作项"
+msgstr "View Work Item"
+
+msgid "标记完成?"
+msgstr "Mark as completed?"
+
+msgid "由 {name} 创建,你可以查看、评论与上传附件"
+msgstr "Created by {name}. You can view, comment and upload attachments."
+
+msgid "确定删除?"
+msgstr "Delete?"
+
+msgid "确定删除这个工作项吗?"
+msgstr "Delete this work item?"
+
+msgid "移动失败"
+msgstr "Failed to move"
+
+msgid "评论不能为空"
+msgstr "Comment cannot be empty"
+
+msgid "该工作项已过计划结束时间,是否标记为已完成?"
+msgstr "This item is past its planned end time. Mark it as completed?"
+
+msgid "请选择开始日期"
+msgstr "Please select a start date"
+
+msgid "选择任务 / 子任务"
+msgstr "Select task / subtask"
+
+msgid "附件已上传"
+msgstr "Attachment uploaded"
+
+msgid "关联客户(可选)"
+msgstr "Linked customer (optional)"
+
+msgid "已完成 · 不可编辑"
+msgstr "Completed · read-only"
+
+msgid "描述(可选)"
+msgstr "Description (optional)"
+
+msgid "添加关联人员"
+msgstr "Add participants"
+
+msgid "点击空白日期新建工作项;点击事件查看/编辑。"
+msgstr "Click an empty date to create a work item; click an event to view/edit."
+
+msgid "输入 2+ 字搜索客户…"
+msgstr "Type 2+ characters to search customers…"
+
+msgid "输入 2+ 字搜索项目…"
+msgstr "Type 2+ characters to search projects…"
+
+msgid "输入评论内容…"
+msgstr "Write a comment…"
+
+# === AT 工作类型分组 i18n ===
+
+msgid "解决方案"
+msgstr "Solution"
+
+msgid "报价确认"
+msgstr "Quotation Confirmation"
+
+msgid "销售支持"
+msgstr "Sales Support"
+
+msgid "研发任务"
+msgstr "R&D Task"
+
+msgid "质量处理"
+msgstr "Quality Handling"
+
+msgid "上市支持"
+msgstr "Launch Support"
+
+msgid "培训"
+msgstr "Training"
+
+msgid "团建"
+msgstr "Team Building"

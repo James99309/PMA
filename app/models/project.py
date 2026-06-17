@@ -57,6 +57,9 @@ class Project(SharingMixin, db.Model):
     # 失败归因(失败审核流程中认定:步骤1部门经理→个人因素;步骤2总经理→管理失责)
     fail_owner_fault = Column(Boolean, default=False, nullable=False)   # 个人因素为主
     fail_mgmt_fault = Column(Boolean, default=False, nullable=False)    # 团队管理失责
+    fail_attribution_note = Column(Text, nullable=True)                # 失败责任认定评语(CEO 补录;不依赖审批实例)
+    fail_attribution_by = Column(Integer, nullable=True)               # 认定人 user id
+    fail_attribution_at = Column(DateTime, nullable=True)              # 认定时间
     
     # 软删除
     is_deleted = Column(Boolean, default=False, nullable=False)

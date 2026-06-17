@@ -101,7 +101,7 @@
                 {% for t in items %}
                 <tr>
                     <td class="px-4 py-2 text-slate-500">#{{ t.id }}</td>
-                    <td class="px-4 py-2">{% if t.work_item_id %}<a class="text-primary hover:underline" href="/worklog/calendar">#{{ t.work_item_id }}</a>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+                    <td class="px-4 py-2">{% if t.work_item_id %}<a class="text-primary hover:underline" href="/worklog/at-calendar?open_item={{ t.work_item_id }}">#{{ t.work_item_id }}</a>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
                     <td class="px-4 py-2"><span class="font-mono text-xs">{{ t.action }}</span></td>
                     <td class="px-4 py-2">
                         {% if t.status == 'pending' %}<span class="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-xs">pending</span>

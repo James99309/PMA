@@ -87,7 +87,7 @@ PROJECT_STAGE_META = {
     'discover':   (_l('发现'), 'neutral'),
     'embed':      (_l('植入'), 'accent'),
     'pre_tender': (_l('标前'), 'warn'),
-    'quoted':     (_l('已报价'), 'info'),
+    'quoted':     (_l('批价'), 'info'),
     'tendering':  (_l('标中'), 'info'),
     'awarded':    (_l('中标'), 'success'),
     'signed':     (_l('签约'), 'success'),

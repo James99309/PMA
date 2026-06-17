@@ -268,6 +268,43 @@ def at_api_win_unlock(project_id):
         return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
 
 
+@project.route('/at-api/<int:project_id>/fail-attribution', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def at_api_fail_attribution(project_id):
+    """CEO 对已失败项目补录责任认定(个人因素为主/团队管理失责),输入内容作为 CEO 认定评语。仅 CEO 有效。"""
+    if current_user.role != 'ceo':
+        return jsonify({'success': False, 'message': '仅总经理(CEO)可补录责任认定'}), 403
+    p = Project.query.get_or_404(project_id)
+    if (p.current_stage or '') != 'lost':
+        return jsonify({'success': False, 'message': '仅失败项目可补录责任认定'}), 400
+    data = request.get_json(silent=True) or {}
+    # 个人因素 / 团队管理失责 可同时成立(非二选一) → 接受列表;兼容旧单值 attribution
+    attrs = data.get('attributions')
+    if not attrs and data.get('attribution'):
+        attrs = [data.get('attribution')]
+    attrs = [a for a in (attrs or []) if a in ('owner_fault', 'mgmt_fault')]
+    comment = (data.get('comment') or '').strip()
+    if not attrs:
+        return jsonify({'success': False, 'message': '请至少选择一种责任类型'}), 400
+    if not comment:
+        return jsonify({'success': False, 'message': '请填写认定评语'}), 400
+    try:
+        from datetime import datetime as _dt
+        for a in attrs:
+            setattr(p, f'fail_{a}', True)
+        # 评语直接存到项目(不依赖审批实例 — 直接置失败、无审批流的项目也能展示)
+        p.fail_attribution_note = comment
+        p.fail_attribution_by = current_user.id
+        p.fail_attribution_at = _dt.now()
+        db.session.commit()
+        return jsonify({'success': True, 'message': '责任认定已补录'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'补录责任认定失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
 @project.route('/<int:project_id>/at_view')
 @login_required
 @permission_required('project', 'view')
@@ -448,6 +485,16 @@ def at_view_project(project_id):
         except Exception as _fa_err:
             current_app.logger.warning(f"加载失败审批信息失败: {_fa_err}")
 
+    # CEO 补录的责任认定评语(存项目自身,不依赖审批实例)
+    fail_attribution = None
+    if cur == 'lost' and getattr(p, 'fail_attribution_note', None):
+        _ab = User.query.get(p.fail_attribution_by) if p.fail_attribution_by else None
+        fail_attribution = {
+            'note': p.fail_attribution_note,
+            'by': (_ab.real_name or _ab.username) if _ab else '',
+            'at': p.fail_attribution_at.strftime('%Y-%m-%d %H:%M') if p.fail_attribution_at else '',
+        }
+
     # 项目附件:补全上传人姓名(新文件已存 uploaded_by_name,旧文件按 uploaded_by 反查)
     project_attachments = []
     try:
@@ -516,6 +563,7 @@ def at_view_project(project_id):
                            hold_target=hold_target,
                            can_request_hold=can_request_hold,
                            fail_approval=fail_approval,
+                           fail_attribution=fail_attribution,
                            win_lock_pending=win_lock_pending,
                            win_lock_candidates=win_lock_candidates,
                            recover_stage=(last_normal if _abnormal else None),
@@ -566,7 +614,8 @@ def at_list_view():
     TAB_STAGE_MAP = {
         'discover':   ['discover'],
         'embed':      ['embed'],
-        'pre_tender': ['pre_tender', 'quoted'],
+        'pre_tender': ['pre_tender'],
+        'quoted':     ['quoted'],
         'tendering':  ['tendering'],
         'awarded':    ['awarded'],
         'signed':     ['signed'],            # 签约(独立 tab)

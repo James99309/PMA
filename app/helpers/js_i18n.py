@@ -15,6 +15,7 @@ _JS_FILES = [
     'at-approval-dropdown.js',
     'at-ai-research.js',
     'at-file-preview.js',
+    'at-worklog-calendar.js',
 ]
 _PAT = re.compile(r"""(?<![\w.$])t\(\s*(['"])(.*?)\1""")
 

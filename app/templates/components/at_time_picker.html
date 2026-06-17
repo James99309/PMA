@@ -1,0 +1,26 @@
+{#
+  AT 时间选择器组件:点击展开「小时 + 分钟」两列(分钟可设间隔)。可复用。
+  ───────────────────────────────────────────────────────────────
+  用法:
+    {% from 'components/at_time_picker.html' import at_time_picker %}
+    {{ at_time_picker('wiStartTime', placeholder=_('选择时间'), minute_step=30) }}
+
+  配套 JS:static/js/at-time-picker.js
+    var ctl = AtTimePicker.init('wiStartTime');
+    ctl.getValue()        → 'HH:MM' 或 ''
+    ctl.setValue('09:30') / ctl.clear() / ctl.onChange(fn)
+#}
+{% macro at_time_picker(field_id, placeholder='', minute_step=30) %}
+<div class="at-tp" id="{{ field_id }}" data-at-time-picker data-step="{{ minute_step }}">
+  <button type="button" class="at-tp-trigger" data-tp-trigger>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" style="opacity:.5;flex-shrink:0;">
+      <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    <span data-tp-label class="at-tp-ph">{{ placeholder or _('选择时间') }}</span>
+  </button>
+  <input type="hidden" data-tp-value>
+  <div class="at-tp-menu" data-tp-menu hidden>
+    <div class="at-tp-list" data-tp-list></div>
+  </div>
+</div>
+{% endmacro %}
