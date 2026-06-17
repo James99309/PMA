@@ -2595,7 +2595,7 @@ def add_action_for_project(project_id):
             # 记录日历工作项
             record_activity('create', 'action', project.project_name, current_user,
                 customer_id=int(company_id) if company_id and company_id.isdigit() else None,
-                project_id=project_id, description=f'添加行动记录 {project.project_name}')
+                project_id=project_id, description=action.communication)
 
             # 新增：每次添加行动记录后自动刷新项目活跃度和更新时间
             project.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
@@ -2662,7 +2662,7 @@ def api_add_action_for_project(project_id):
         record_activity('create', 'action', p.project_name, current_user,
             project_id=project_id,
             customer_id=int(company_id) if company_id else None,
-            description=f'添加跟进记录 {p.project_name}')
+            description=action.communication)
 
         # 刷新项目活跃度
         try:
@@ -2759,7 +2759,7 @@ def api_add_action(project_id):
         # 记录日历工作项
         record_activity('create', 'action', project_obj.project_name, current_user,
             customer_id=int(company_id) if company_id else None,
-            project_id=project_id, description=f'添加行动记录 {project_obj.project_name}')
+            project_id=project_id, description=action.communication)
 
         # 更新项目活跃度和更新时间
         project_obj.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)

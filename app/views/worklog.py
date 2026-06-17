@@ -297,8 +297,10 @@ def get_calendar_accounts():
                 'id': u.id,
                 'name': u.real_name or u.username,
                 'department': u.department or '',
+                'active': bool(u.is_active),   # 停用(离职)账号排到最下面
             })
-        accounts.sort(key=lambda a: (a['department'], a['name']))
+        # 在职优先,停用(将离职)沉底;各自按部门+姓名
+        accounts.sort(key=lambda a: (not a['active'], a['department'], a['name']))
     return jsonify({'success': True, 'accounts': accounts})
 
 

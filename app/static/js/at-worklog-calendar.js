@@ -188,13 +188,20 @@
       html += '<div class="cal-acct-item' + (!viewOwnerId ? ' on' : '') + '" data-id="" data-name="">' +
         esc(selfName) + '<span class="acct-dept">' + t('本人') + '</span></div>';
     }
-    var curDept = null;
+    var curDept = null, leftHeader = false;
     (accountsData || []).forEach(function (a) {
       var hay = (a.name + ' ' + (a.department || '')).toLowerCase();
       if (q && hay.indexOf(q) < 0) return;
-      var dept = a.department || t('其他');
-      if (dept !== curDept) { html += '<div class="cal-acct-group">' + esc(dept) + '</div>'; curDept = dept; }
+      var inactive = a.active === false;
+      if (inactive) {
+        // 将离职(停用)账号统一归到底部一个组
+        if (!leftHeader) { html += '<div class="cal-acct-group">' + t('离职') + '</div>'; leftHeader = true; curDept = null; }
+      } else {
+        var dept = a.department || t('其他');
+        if (dept !== curDept) { html += '<div class="cal-acct-group">' + esc(dept) + '</div>'; curDept = dept; }
+      }
       html += '<div class="cal-acct-item' + (String(viewOwnerId) === String(a.id) ? ' on' : '') +
+        (inactive ? ' inactive' : '') +
         '" data-id="' + a.id + '" data-name="' + escAttr(a.name) + '">' + esc(a.name) + '</div>';
     });
     if (!html) html = '<div class="at-dim" style="padding:14px;text-align:center;font-size:12px;">' + t('无匹配') + '</div>';
