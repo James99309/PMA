@@ -60,7 +60,9 @@ def translate_to(text: str, target_lang: str) -> str:
         return text
     src = text.strip()
 
-    if target_lang == 'zh' and _CJK_RE.search(src) and not _LATIN_RE.search(src):
+    # 目标 zh:只要已含中文即视为"已是中文",直接返回(不必因夹带英文词/产品名去调 AI 翻译,
+    # 否则 CN 区域每次保存含中英混排的标题/描述/评论都要等 1~2s AI 调用,体感卡顿)。
+    if target_lang == 'zh' and _CJK_RE.search(src):
         return text
 
     target_name = _TARGET_NAME.get(target_lang, 'English')

@@ -19,6 +19,7 @@ _JS_FILES = [
     'at-comments.js',
     'at-file-manager.js',
     'at-file-manager-admin.js',
+    'at-task-detail.js',
 ]
 _PAT = re.compile(r"""(?<![\w.$])t\(\s*(['"])(.*?)\1""")
 

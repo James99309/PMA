@@ -10,11 +10,13 @@
  * 自动在文档加载时应用到 <html data-*>;暴露 window.ATPrefs 供脚本调用。
  */
 (function (window) {
+    // 每个强调色含浅色/深色两套 tint·soft;深色模式必须用 dark* 值,
+    // 否则内联 setProperty 会盖过 [data-theme="dark"] 的 CSS → 深色下 accent 背景仍是浅色(全站通病)。
     const ACCENT_TINT_MAP = {
-        '#C15F3C': { soft: '#F2DCCC', tint: '#FBF1E9' },
-        '#2A5F8F': { soft: '#D5E2EF', tint: '#EDF3F9' },
-        '#1F2937': { soft: '#D9DDE3', tint: '#EEEFF2' },
-        '#2F7155': { soft: '#D4E5DC', tint: '#EDF4F0' }
+        '#C15F3C': { soft: '#F2DCCC', tint: '#FBF1E9', darkSoft: '#3A2519', darkTint: '#2A1B12' },
+        '#2A5F8F': { soft: '#D5E2EF', tint: '#EDF3F9', darkSoft: '#1E3145', darkTint: '#16222E' },
+        '#1F2937': { soft: '#D9DDE3', tint: '#EEEFF2', darkSoft: '#252A32', darkTint: '#1A1D22' },
+        '#2F7155': { soft: '#D4E5DC', tint: '#EDF4F0', darkSoft: '#1F3A2C', darkTint: '#16241D' }
     };
 
     function read() {
@@ -34,8 +36,8 @@
         root.dataset.headlineFont = p.headlineFont;
         root.style.setProperty('--accent', p.accent);
         const m = ACCENT_TINT_MAP[p.accent] || { soft: 'var(--bg-sunk)', tint: 'var(--bg-hover)' };
-        root.style.setProperty('--accent-soft', m.soft);
-        root.style.setProperty('--accent-tint', m.tint);
+        root.style.setProperty('--accent-soft', (p.dark && m.darkSoft) ? m.darkSoft : m.soft);
+        root.style.setProperty('--accent-tint', (p.dark && m.darkTint) ? m.darkTint : m.tint);
         root.style.setProperty('--accent-2', p.accent);
         document.dispatchEvent(new CustomEvent('at-prefs-changed', { detail: p }));
     }

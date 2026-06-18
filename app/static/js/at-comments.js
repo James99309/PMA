@@ -14,6 +14,9 @@
 (function (g) {
   'use strict';
   var t = (typeof g.t === 'function') ? g.t : function (s) { return s; };
+  // 头像调色板(与 at_avatar 宏一致:idx=(名字长度+1)%6) → 同一人全站同色
+  var AV_PALETTE = ['#D97757', '#2A5F8F', '#2F7155', '#7A5AE0', '#B8742E', '#A23B3B'];
+  function avColor(name) { return AV_PALETTE[((name || '?').length + 1) % AV_PALETTE.length]; }
   function csrf() { return (document.querySelector('meta[name="csrf-token"]') || {}).content || ''; }
   function toast(m, ty) { if (g.ATToast) ATToast[ty || 'success'](m); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
@@ -30,6 +33,7 @@
         var nm = c.owner_name || '?';
         var row = document.createElement('div'); row.className = 'wc-row ' + (own ? 'own' : 'other');
         var av = document.createElement('div'); av.className = 'wc-av'; av.textContent = nm.charAt(0); av.title = nm;
+        av.style.background = avColor(nm); av.style.color = '#fff';
         var bubble = document.createElement('div'); bubble.className = 'wc-bubble';
         var text = document.createElement('div'); text.className = 'wc-text'; text.textContent = c.content;
         var foot = document.createElement('div'); foot.className = 'wc-foot';
@@ -56,17 +60,34 @@
         .catch(function () { render([]); });
     }
 
+    function appendOptimistic(content) {
+      // 乐观渲染:发送瞬间先上屏一个半透明气泡,服务端返回后由 load() 对齐替换
+      var box = cfg.listEl;
+      var ph = box.querySelector('.at-dim');
+      if (ph && box.children.length === 1) box.innerHTML = '';
+      var nm = cfg.currentUserName || t('我');
+      var row = document.createElement('div'); row.className = 'wc-row own'; row.style.opacity = '0.5';
+      var av = document.createElement('div'); av.className = 'wc-av'; av.textContent = nm.charAt(0); av.title = nm;
+      av.style.background = avColor(nm); av.style.color = '#fff';
+      var bubble = document.createElement('div'); bubble.className = 'wc-bubble';
+      var text = document.createElement('div'); text.className = 'wc-text'; text.textContent = content;
+      bubble.appendChild(text); row.appendChild(av); row.appendChild(bubble); box.appendChild(row);
+      box.scrollTop = box.scrollHeight;
+    }
+
     function post() {
       if (key == null || key === '') return;
       var content = (cfg.inputEl.value || '').trim();
       if (!content) { toast(t('评论不能为空'), 'error'); return; }
       cfg.sendEl.disabled = true;
+      appendOptimistic(content);          // 立即上屏
+      cfg.inputEl.value = '';
       fetch(cfg.threadUrl(key), {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
         body: JSON.stringify({ content: content })
       }).then(function (r) { return r.json(); })
-        .then(function (d) { cfg.sendEl.disabled = false; if (d.success) { cfg.inputEl.value = ''; load(); } else toast(d.message || t('评论失败'), 'error'); })
-        .catch(function () { cfg.sendEl.disabled = false; toast(t('评论失败'), 'error'); });
+        .then(function (d) { cfg.sendEl.disabled = false; if (!d.success) toast(d.message || t('评论失败'), 'error'); load(); })
+        .catch(function () { cfg.sendEl.disabled = false; toast(t('评论失败'), 'error'); load(); });
     }
 
     cfg.sendEl.addEventListener('click', post);

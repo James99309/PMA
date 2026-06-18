@@ -165,9 +165,22 @@ def pause_task(actor, t, reason):
                 f'{t.title} - 暂停理由: {reason}', t.id)
     try:
         db.session.add(TaskReply(
-            task_id=t.id, author_id=actor.id, content=f'[任务暂停] {reason}'))
+            task_id=t.id, author_id=actor.id, content=f'[任务暂停] {reason}', reply_type='update'))
     except Exception as e:
         logger.warning(f'记录暂停理由失败: {e}')
+    db.session.commit()
+    return t
+
+
+def resume_task(actor, t):
+    """从暂停恢复为进行中。"""
+    if t.status != 'paused':
+        return t
+    t.status = 'in_progress'
+    try:
+        db.session.add(TaskReply(task_id=t.id, author_id=actor.id, content='[任务恢复]', reply_type='update'))
+    except Exception as e:
+        logger.warning(f'记录任务恢复失败: {e}')
     db.session.commit()
     return t
 
@@ -190,6 +203,17 @@ def change_status(actor, t, to, reason=''):
     if to == 'pending':
         return back_to_pending(actor, t)
     raise ValueError('非法目标状态')
+
+
+def delete_reply(actor, reply):
+    """软删除评论/进展。权限:作者本人 / 任务创建人 / 管理员。"""
+    t = Task.query.get(reply.task_id)
+    is_admin = getattr(actor, 'role', None) in ('admin', 'ceo')
+    if reply.author_id != actor.id and not is_admin and not (t and t.creator_id == actor.id):
+        raise ValueError('无权删除此评论')
+    reply.is_deleted = True
+    db.session.commit()
+    return reply
 
 
 def add_reply(actor, t, content, subtask_id=None, reply_type='comment'):
@@ -419,6 +443,13 @@ def update_task(actor, t, data):
             task_id=t.id, subtask_id=None, author_id=actor.id,
             content='\n'.join(change_lines), reply_type='update',
         ))
+
+    # 通知:新指派人 + 新增协助人(审核人不在此通知,仅完成发起审批流程时才通知)
+    if t.assignee_id and t.assignee_id != before['assignee_id'] and t.assignee_id != actor.id:
+        notif.notify_task_assigned(actor.id, t.assignee_id, t)
+    for uid in (set(t.shared_with_users or []) - set(before['shared_with_users'] or [])):
+        if uid != actor.id:
+            notif.notify_task_assigned(actor.id, uid, t)
 
     db.session.commit()
     return t

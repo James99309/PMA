@@ -296,6 +296,25 @@ def pause_task(id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@task.route('/api/<int:id>/resume', methods=['POST'])
+@login_required
+def resume_task(id):
+    """从暂停恢复为进行中。"""
+    try:
+        t = Task.query.filter_by(id=id, is_deleted=False).first()
+        if not t:
+            return jsonify({'success': False, 'message': '任务不存在'}), 404
+        if not _can_access(t):
+            return jsonify({'success': False, 'message': '无权操作此任务'}), 403
+        from app.services import task_service
+        task_service.resume_task(current_user, t)
+        return jsonify({'success': True, 'message': _('任务已恢复'), 'data': t.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"恢复任务失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @task.route('/api/<int:id>', methods=['DELETE'])
 @login_required
 def delete_task(id):
@@ -435,6 +454,37 @@ def download_attachment(id, att_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@task.route('/api/<int:id>/attachments/<int:att_id>/preview', methods=['GET'])
+@login_required
+def preview_attachment(id, att_id):
+    """内联预览附件(图片/PDF 直接渲染),供公用 ATFilePreview 组件使用。"""
+    try:
+        att = TaskAttachment.query.filter_by(id=att_id, task_id=id, is_deleted=False).first()
+        if not att:
+            return jsonify({'success': False, 'message': '附件不存在'}), 404
+        t = Task.query.filter_by(id=id, is_deleted=False).first()
+        if not t or not _can_access(t):
+            return jsonify({'success': False, 'message': '无权操作'}), 403
+
+        import mimetypes
+        from flask import Response
+        from urllib.parse import quote
+        from app.utils.smart_storage_manager import get_smart_storage
+
+        file_data = get_smart_storage().download_file(att.storage_path, bucket_type='task')
+        if not file_data:
+            return jsonify({'success': False, 'message': '文件不存在'}), 404
+
+        mime = mimetypes.guess_type(att.filename)[0] or 'application/octet-stream'
+        encoded = quote(att.filename)
+        return Response(file_data, mimetype=mime, headers={
+            'Content-Disposition': f"inline; filename*=UTF-8''{encoded}",
+        })
+    except Exception as e:
+        logger.error(f"预览附件失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @task.route('/api/<int:id>/replies', methods=['POST'])
 @login_required
 def add_reply(id):
@@ -478,6 +528,87 @@ def add_reply(id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"添加回复失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@task.route('/api/<int:id>/comments', methods=['GET'])
+@login_required
+def list_comments(id):
+    """评论/进展线程(兼容 at-comments 公用组件契约)。
+    query: subtask_id(空=任务级) + reply_type(comment|update)。"""
+    t = Task.query.filter_by(id=id, is_deleted=False).first()
+    if not t:
+        return jsonify({'success': False, 'message': '任务不存在'}), 404
+    if not _can_access(t):
+        return jsonify({'success': False, 'message': '无权访问'}), 403
+    subtask_id = request.args.get('subtask_id', type=int)
+    reply_type = request.args.get('reply_type', 'comment')
+    q = TaskReply.query.options(joinedload(TaskReply.author)).filter_by(
+        task_id=id, is_deleted=False, reply_type=reply_type)
+    q = q.filter_by(subtask_id=subtask_id) if subtask_id else q.filter(TaskReply.subtask_id.is_(None))
+    is_admin = current_user.role in ('admin', 'ceo')
+    out = [{
+        'id': r.id, 'owner_id': r.author_id,
+        'owner_name': (r.author.real_name or r.author.username) if r.author else None,
+        'content': r.content,
+        'created_at': r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '',
+        'can_delete': (r.author_id == current_user.id or is_admin or t.creator_id == current_user.id),
+    } for r in q.order_by(TaskReply.created_at.asc()).all()]
+    return jsonify({'success': True, 'comments': out})
+
+
+@task.route('/api/<int:id>/comments', methods=['POST'])
+@login_required
+def add_comment(id):
+    """新增评论/进展(兼容 at-comments)。subtask_id/reply_type 走 query。"""
+    t = Task.query.filter_by(id=id, is_deleted=False).first()
+    if not t:
+        return jsonify({'success': False, 'message': '任务不存在'}), 404
+    if not _can_access(t):
+        return jsonify({'success': False, 'message': '无权操作'}), 403
+    subtask_id = request.args.get('subtask_id', type=int)
+    reply_type = request.args.get('reply_type', 'comment')
+    data = request.get_json() or {}
+    from app.services import task_service
+    try:
+        task_service.add_reply(current_user, t, data.get('content'), subtask_id=subtask_id, reply_type=reply_type)
+    except ValueError as ve:
+        return jsonify({'success': False, 'message': str(ve)}), 400
+    return jsonify({'success': True})
+
+
+@task.route('/api/<int:id>/comments/<int:cid>/delete', methods=['POST'])
+@login_required
+def delete_comment(id, cid):
+    """删除评论/进展(兼容 at-comments 的 POST 删除)。"""
+    r = TaskReply.query.filter_by(id=cid, task_id=id, is_deleted=False).first()
+    if not r:
+        return jsonify({'success': False, 'message': '评论不存在'}), 404
+    from app.services import task_service
+    try:
+        task_service.delete_reply(current_user, r)
+    except ValueError as ve:
+        return jsonify({'success': False, 'message': str(ve)}), 403
+    return jsonify({'success': True})
+
+
+@task.route('/api/<int:id>/replies/<int:reply_id>', methods=['DELETE'])
+@login_required
+def delete_reply(id, reply_id):
+    """删除评论/进展(软删除)。权限:作者/创建人/管理员。"""
+    try:
+        r = TaskReply.query.filter_by(id=reply_id, task_id=id, is_deleted=False).first()
+        if not r:
+            return jsonify({'success': False, 'message': '评论不存在'}), 404
+        from app.services import task_service
+        try:
+            task_service.delete_reply(current_user, r)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 403
+        return jsonify({'success': True, 'message': _('已删除')})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除评论失败: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -548,6 +679,199 @@ def task_management():
     )
 
 
+def _resolve_proxy_uid():
+    """代理查看他人任务的 uid 解析(管理员/公司级 task 权限/部门负责人);无权限回落本人。"""
+    uid = current_user.id
+    view_user_id = request.args.get('view_user_id', type=int)
+    if view_user_id and view_user_id != uid:
+        is_admin = current_user.role in ('admin', 'ceo')
+        is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+        is_company_viewer = current_user.get_permission_level('task') in ('company', 'system')
+        if is_admin:
+            uid = view_user_id
+        elif is_company_viewer and current_user.company_name:
+            target = User.query.get(view_user_id)
+            if target and target._is_active and target.company_name == current_user.company_name:
+                uid = view_user_id
+        elif is_dept_mgr and current_user.department and current_user.company_name:
+            target = User.query.get(view_user_id)
+            if target and target._is_active \
+                    and target.department == current_user.department \
+                    and target.company_name == current_user.company_name:
+                uid = view_user_id
+    return uid
+
+
+def _build_task_list_query(uid, tab='my', status='', search=''):
+    """构建任务列表查询(不含排序/分页)。tab: my/created/shared/review/all。
+    API(management_list)与 AT 页面(at_list_view)共用,避免重复。"""
+    from app.models.subtask import MilestoneReviewer, SubTask
+    query = Task.query.filter(Task.is_deleted == False)
+
+    reviewer_task_ids = db.session.query(TaskReviewer.task_id).filter(
+        TaskReviewer.reviewer_id == uid).scalar_subquery()
+    milestone_task_ids = db.session.query(SubTask.task_id).join(
+        MilestoneReviewer, MilestoneReviewer.subtask_id == SubTask.id).filter(
+        MilestoneReviewer.reviewer_id == uid,
+        MilestoneReviewer.status == 'pending').scalar_subquery()
+
+    if tab == 'my':
+        query = query.filter(Task.assignee_id == uid)
+    elif tab == 'created':
+        query = query.filter(Task.creator_id == uid)
+    elif tab == 'shared':
+        query = query.filter(Task.shared_with_users.cast(db.Text).contains(str(uid)))
+    elif tab == 'review':
+        query = query.filter(db.or_(
+            Task.id.in_(reviewer_task_ids), Task.id.in_(milestone_task_ids)))
+    else:  # all
+        query = query.filter(db.or_(
+            Task.assignee_id == uid, Task.creator_id == uid,
+            Task.shared_with_users.cast(db.Text).contains(str(uid)),
+            Task.id.in_(reviewer_task_ids), Task.id.in_(milestone_task_ids)))
+
+    if status:
+        query = query.filter(Task.status == status)
+    if search:
+        query = query.filter(Task.title.ilike(f'%{search}%'))
+    return query
+
+
+def _apply_task_sort(query, sort='updated'):
+    """统一排序:已完成/已取消沉底。"""
+    completed_last = db.case((Task.status.in_(['completed', 'cancelled']), 1), else_=0)
+    if sort == 'due_date':
+        return query.order_by(completed_last, Task.due_date.asc().nullslast(), Task.updated_at.desc())
+    if sort == 'priority':
+        priority_order = db.case(
+            (Task.priority == 'urgent', 1), (Task.priority == 'high', 2),
+            (Task.priority == 'normal', 3), (Task.priority == 'low', 4), else_=5)
+        return query.order_by(completed_last, priority_order, Task.updated_at.desc())
+    if sort == 'created':
+        return query.order_by(completed_last, Task.created_at.desc())
+    return query.order_by(completed_last, Task.updated_at.desc())
+
+
+def _task_team_members(uid):
+    """代理查看下拉的团队成员(管理员/公司级/部门负责人可见;含本人)。返回 (can_view, members)。"""
+    is_admin = current_user.role in ('admin', 'ceo')
+    is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+    is_company_viewer = current_user.get_permission_level('task') in ('company', 'system')
+    if not (is_admin or is_dept_mgr or is_company_viewer):
+        return False, []
+    active_ids = [r[0] for r in db.session.query(Task.assignee_id).filter(
+        Task.is_deleted == False, Task.status.notin_(['completed', 'cancelled'])
+    ).distinct().all() if r[0] is not None]
+    if not active_ids:
+        return True, []
+    q = User.query.filter(User.id.in_(active_ids), User._is_active == True)
+    if is_admin:
+        pass
+    elif is_company_viewer and current_user.company_name:
+        q = q.filter(User.company_name == current_user.company_name)
+    elif is_dept_mgr and current_user.department and current_user.company_name:
+        q = q.filter(User.department == current_user.department,
+                     User.company_name == current_user.company_name)
+    else:
+        return False, []
+    members = [{'id': u.id, 'name': u.real_name or u.username} for u in q.order_by(User.real_name).all()]
+    return True, members
+
+
+@task.route('/at')
+@login_required
+def at_list_view():
+    """AT 风格任务列表(服务端渲染,复用 management_list 同款查询/排序/代理查看)。"""
+    _auto_promote_pending_tasks()
+    tab = request.args.get('tab', 'my')
+    sort = request.args.get('sort', 'updated')
+    status = request.args.get('status', '').strip()
+    search = request.args.get('search', '').strip()
+    page = max(request.args.get('page', 1, type=int), 1)
+    per_page = 30
+
+    uid = _resolve_proxy_uid()
+    view_user_id = request.args.get('view_user_id', type=int)
+    can_view_team, team_members = _task_team_members(current_user.id)
+
+    # 各 tab 计数(不带 status/search)
+    tab_counts = {k: _build_task_list_query(uid, k).count()
+                  for k in ('all', 'my', 'created', 'shared', 'review')}
+
+    query = _apply_task_sort(_build_task_list_query(uid, tab, status, search), sort)
+    pagination = query.options(
+        joinedload(Task.creator), joinedload(Task.assignee), joinedload(Task.project),
+    ).paginate(page=page, per_page=per_page, error_out=False)
+
+    # 保留筛选态用于翻页链接
+    list_qs = {}
+    if status:
+        list_qs['status'] = status
+    if search:
+        list_qs['search'] = search
+    if sort and sort != 'updated':
+        list_qs['sort'] = sort
+    if view_user_id:
+        list_qs['view_user_id'] = view_user_id
+
+    team_options = [{'value': str(m['id']), 'label': m['name']} for m in team_members]
+
+    return render_template(
+        'task/at_list.html',
+        tasks=[t.to_dict() for t in pagination.items], pagination=pagination,
+        tab_counts=tab_counts, current_tab=tab,
+        status=status, search=search, sort=sort,
+        can_view_team=can_view_team, team_options=team_options,
+        view_user_id=view_user_id, list_qs=list_qs,
+    )
+
+
+@task.route('/api/generate-title', methods=['POST'])
+@login_required
+def api_generate_title():
+    """根据任务描述用 AI 生成简短标题(复用通用 generate_title,domain=task)。
+    入参 {description};出参 {success, title}。"""
+    from flask import session as flask_session
+    data = request.get_json(silent=True) or {}
+    description = (data.get('description') or '').strip()
+    if not description:
+        return jsonify({'success': True, 'title': ''})
+    from app.services.expense_title_generator import generate_title
+    lang = 'en' if flask_session.get('language') == 'en' else 'zh'
+    try:
+        title = generate_title(description, fallback='', lang=lang, domain='task')
+    except Exception as e:
+        logger.warning(f'task auto-title failed: {e}')
+        return jsonify({'success': False, 'message': str(e)})
+    return jsonify({'success': True, 'title': title or ''})
+
+
+@task.route('/at/new')
+@login_required
+def at_create_view():
+    """AT 风格新建任务(复用详情页表单基础设施,创建模式)。"""
+    from app.helpers.task_types import task_type_groups_for, task_type_labels_for
+    return render_template('task/at_detail.html', task_id='new', task_title=_('新建任务'),
+                           task_type_groups=task_type_groups_for(current_user),
+                           task_type_labels=task_type_labels_for(current_user))
+
+
+@task.route('/at/<int:id>')
+@login_required
+def at_detail_view(id):
+    """AT 风格任务详情(独立页 + 选卡)。数据由 /task/api/<id> 客户端拉取渲染。"""
+    from flask import abort
+    from app.helpers.task_types import task_type_groups_for, task_type_labels_for
+    t = Task.query.filter_by(id=id, is_deleted=False).first()
+    if not t:
+        abort(404)
+    if not _can_access(t):
+        abort(403)
+    return render_template('task/at_detail.html', task_id=id, task_title=t.title,
+                           task_type_groups=task_type_groups_for(current_user),
+                           task_type_labels=task_type_labels_for(current_user))
+
+
 @task.route('/api/management/list', methods=['GET'])
 @login_required
 def management_list():
@@ -561,100 +885,10 @@ def management_list():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
 
-        uid = current_user.id
-
-        # 代理查看：管理员、公司级 task 权限（如 HR）或部门负责人可查看他人任务
-        view_user_id = request.args.get('view_user_id', type=int)
-        if view_user_id and view_user_id != uid:
-            is_admin = current_user.role in ('admin', 'ceo')
-            is_dept_mgr = getattr(current_user, 'is_department_manager', False)
-            is_company_viewer = current_user.get_permission_level('task') in ('company', 'system')
-            if is_admin:
-                uid = view_user_id
-            elif is_company_viewer and current_user.company_name:
-                # 公司级：仅限本公司成员
-                target = User.query.get(view_user_id)
-                if target and target._is_active \
-                        and target.company_name == current_user.company_name:
-                    uid = view_user_id
-            elif is_dept_mgr and current_user.department and current_user.company_name:
-                target = User.query.get(view_user_id)
-                if target and target._is_active \
-                        and target.department == current_user.department \
-                        and target.company_name == current_user.company_name:
-                    uid = view_user_id
-
-        query = Task.query.filter(Task.is_deleted == False)
-
-        # 作为审计人的任务ID
-        reviewer_task_ids = db.session.query(TaskReviewer.task_id).filter(
-            TaskReviewer.reviewer_id == uid
-        ).scalar_subquery()
-
-        # 作为里程碑确认人的任务ID（通过子任务关联）
-        from app.models.subtask import MilestoneReviewer, SubTask
-        milestone_task_ids = db.session.query(SubTask.task_id).join(
-            MilestoneReviewer, MilestoneReviewer.subtask_id == SubTask.id
-        ).filter(
-            MilestoneReviewer.reviewer_id == uid,
-            MilestoneReviewer.status == 'pending',
-        ).scalar_subquery()
-
-        # Tab 筛选
-        if tab == 'my':
-            query = query.filter(Task.assignee_id == uid)
-        elif tab == 'created':
-            query = query.filter(Task.creator_id == uid)
-        elif tab == 'shared':
-            query = query.filter(Task.shared_with_users.cast(db.Text).contains(str(uid)))
-        elif tab == 'review':
-            query = query.filter(db.or_(
-                Task.id.in_(reviewer_task_ids),
-                Task.id.in_(milestone_task_ids),
-            ))
-        else:
-            # tab == 'all': 我能看到的全部
-            query = query.filter(db.or_(
-                Task.assignee_id == uid,
-                Task.creator_id == uid,
-                Task.shared_with_users.cast(db.Text).contains(str(uid)),
-                Task.id.in_(reviewer_task_ids),
-                Task.id.in_(milestone_task_ids),
-            ))
-
-        # 状态筛选
-        if status:
-            query = query.filter(Task.status == status)
-
-        # 搜索
-        if search:
-            query = query.filter(Task.title.ilike(f'%{search}%'))
-
-        # 统计
+        uid = _resolve_proxy_uid()
+        query = _build_task_list_query(uid, tab, status, search)
         total = query.count()
-
-        # 排序：已完成/已取消 排到底部
-        completed_last = db.case(
-            (Task.status.in_(['completed', 'cancelled']), 1),
-            else_=0
-        )
-        if sort == 'due_date':
-            query = query.order_by(completed_last, Task.due_date.asc().nullslast(), Task.updated_at.desc())
-        elif sort == 'priority':
-            priority_order = db.case(
-                (Task.priority == 'urgent', 1),
-                (Task.priority == 'high', 2),
-                (Task.priority == 'normal', 3),
-                (Task.priority == 'low', 4),
-                else_=5
-            )
-            query = query.order_by(completed_last, priority_order, Task.updated_at.desc())
-        elif sort == 'created':
-            query = query.order_by(completed_last, Task.created_at.desc())
-        else:
-            query = query.order_by(completed_last, Task.updated_at.desc())
-
-        # 分页
+        query = _apply_task_sort(query, sort)
         tasks = query.options(
             joinedload(Task.creator),
             joinedload(Task.assignee),

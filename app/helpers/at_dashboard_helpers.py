@@ -143,6 +143,18 @@ def _build_todos(user):
                 from app.models.pricing_order import PricingOrder
                 _po = PricingOrder.query.get(ai.object_id)
                 title = f'{obj_label} {_po.order_number}' if (_po and _po.order_number) else title
+            elif ai.object_type == 'expense':
+                # 报销单显示报销主题(title)而非内部 ID
+                from app.models.expense import Expense
+                _ex = Expense.query.get(ai.object_id)
+                _subj = (_ex.title or _ex.description) if _ex else None
+                title = f'{obj_label} · {_subj}' if _subj else title
+            elif ai.object_type == 'quotation':
+                # 报价单显示所属项目名称(而非内部 ID)
+                from app.models.quotation import Quotation
+                _q = Quotation.query.get(ai.object_id)
+                _qp = (_q.project.project_name if (_q and _q.project) else None)
+                title = f'{obj_label} · {_qp}' if _qp else title
             out.append({
                 'id': f'AI{ai.id}', 'type': 'approval', 'typeLabel': _t('待审批'), 'tone': 'warn',
                 'title': title,
@@ -150,6 +162,7 @@ def _build_todos(user):
                 'meta': _fmt_user(submitter),
                 'who': '—',
                 'when': _ago(ai.started_at),
+                '_ts': ai.started_at,
                 'route': route_url, 'urgent': urgent,
             })
     except Exception as e:
@@ -173,8 +186,8 @@ def _build_todos(user):
                 'id': f'TR{t.id}', 'type': 'approval', 'typeLabel': _t('待审核'), 'tone': 'warn',
                 'title': f'{_t("任务审核")} · {t.title}',
                 'meta': _fmt_user(submitter), 'who': '—',
-                'when': _ago(t.updated_at),
-                'route': f'/task/management?task_id={t.id}', 'urgent': False,
+                'when': _ago(t.updated_at), '_ts': t.updated_at,
+                'route': f'/task/at/{t.id}#review', 'urgent': False,
             })
     except Exception as e:
         import logging; logging.warning(f'todos task-review err: {e}')
@@ -206,7 +219,8 @@ def _build_todos(user):
             _route = '#'
             _ed = m.extra_data or {}
             if m.related_object_type == 'task' and m.related_object_id:
-                _route = f'/task/management?task_id={m.related_object_id}'
+                # 任务评论 → AT 详情评论区;指派等 → 详情页
+                _route = f'/task/at/{m.related_object_id}' + ('#comments' if m.message_type == 'task_reply' else '')
             elif m.message_type == 'workitem_comment' and m.related_object_id:
                 _d = _ed.get('planned_date')
                 _route = f'/worklog/at-calendar?open_item={m.related_object_id}' + (f'&date={_d}' if _d else '')
@@ -219,7 +233,7 @@ def _build_todos(user):
                 'title': (m.title or '')[:60],
                 'meta': (m.content or '')[:60],
                 'who': _fmt_user(sender),
-                'when': _ago(m.created_at),
+                'when': _ago(m.created_at), '_ts': m.created_at,
                 'route': _route, 'urgent': False,
             })
     except Exception as e:
@@ -326,7 +340,7 @@ def _build_todos(user):
                     'id': f'T{t.id}', 'type': 'action', 'typeLabel': _t('任务跟进'), 'tone': 'danger',
                     'title': f'{t.title} · {_t("%(d)s 天未更新", d=days)}', 'meta': _t('任务'),
                     'who': '—', 'when': _t('%(d)s天', d=days),
-                    'route': f'/task/management?task={t.id}', 'urgent': days > 20, '_d': days,
+                    'route': f'/task/at/{t.id}', 'urgent': days > 20, '_d': days,
                 })
 
         # 4c) 锁定成功提醒 — 给「项目负责人的部门经理 / 总经理(ceo)/ 管理员」的跟进提醒
@@ -368,6 +382,10 @@ def _build_todos(user):
     except Exception as e:
         import logging; logging.warning(f'todos followup err: {e}')
 
+    # 全局按时间倒序(最新在最上面);无 _ts 的(跟进提醒)沉底、内部保留逾期序(稳定排序)
+    out.sort(key=lambda x: x.get('_ts') or datetime.min, reverse=True)
+    for it in out:
+        it.pop('_ts', None)
     return out
 
 
@@ -1865,7 +1883,7 @@ def _build_expense(user, monthly_stats, year_total, currency_symbol, scope_filte
             status_lbl, tone = stat_map.get(e.status, (e.status or '—', 'neutral'))
             recent.append({
                 'id': f'EXP-{e.id}',
-                'title': (e.expense_subject or e.notes or _t('报销单'))[:24],
+                'title': (e.title or e.description or _t('报销单'))[:24],
                 'amount': float(e.total_amount or 0),
                 'status': status_lbl,
                 'tone': tone,
@@ -2086,7 +2104,7 @@ def _tasks_payload(user, task_filter, with_assignee=False):
             'status': es, 'statusLabel': _t(_TASK_STATUS_LABELS.get(es, es)),
             'tone': _TASK_STATUS_TONE.get(es, 'neutral'), 'progress': prog,
             'assignee': _fmt_user(t.assignee) if with_assignee else '',
-            'route': f'/task/management?task={t.id}',
+            'route': f'/task/at/{t.id}',
         })
     return {'counts': counts, 'items': items}
 

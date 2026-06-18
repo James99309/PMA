@@ -71,9 +71,14 @@
       });
     }
     function toggle(id) {
-      var i = selected.indexOf(id);
-      if (i >= 0) selected.splice(i, 1); else selected.push(id);
-      renderChips(); renderMenu();
+      if (opts.single) {
+        selected = (selected.length && selected[0] === id) ? [] : [id];
+        renderChips(); renderMenu(); close();
+      } else {
+        var i = selected.indexOf(id);
+        if (i >= 0) selected.splice(i, 1); else selected.push(id);
+        renderChips(); renderMenu();
+      }
       if (api._onChange) api._onChange(selected.slice());
     }
     function open() { renderMenu(); menu.hidden = false; }

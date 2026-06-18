@@ -135,6 +135,22 @@ QUOTATION_APPROVAL_STATUS_META = {
     'reconfirm': (_l('需再次确认'), 'warn'),
 }
 
+# 任务状态(Task.status / effective_status)
+TASK_STATUS_META = {
+    'pending':     (_l('待办'), 'warn'),
+    'in_progress': (_l('进行中'), 'info'),
+    'completed':   (_l('已完成'), 'success'),
+    'paused':      (_l('已暂停'), 'neutral'),
+    'cancelled':   (_l('已取消'), 'neutral'),
+}
+
+# 任务复核状态(Task.review_status)
+TASK_REVIEW_STATUS_META = {
+    'pending_review': (_l('待复核'), 'warn'),
+    'approved':       (_l('复核通过'), 'success'),
+    'rejected':       (_l('复核驳回'), 'danger'),
+}
+
 # 项目失败/搁置审核 chip(审核中态;target 决定颜色)
 PROJECT_HOLD_STATUS_META = {
     'paused': (_l('搁置审核中'), 'warn'),
@@ -156,6 +172,8 @@ _REGISTRY = {
     'payment':          PAYMENT_STATUS_META,
     'workitem':         WORKITEM_STATUS_META,
     'factory_test':     FACTORY_TEST_STATUS_META,
+    'task':             TASK_STATUS_META,
+    'task_review':      TASK_REVIEW_STATUS_META,
 }
 
 
