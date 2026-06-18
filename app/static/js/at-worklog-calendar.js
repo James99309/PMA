@@ -330,6 +330,7 @@
     $('wiReadonlyNote').style.display = 'none';
     $('wiSaveBtn').style.display = '';
     $('wiCard').classList.remove('wi-view', 'wi-contrib');
+    $('wiDesc').readOnly = false;
     contribMode = false;
     attachCanDelete = true;
     var _addBtn = $('wiAttachAddBtn'); if (_addBtn) _addBtn.style.display = '';
@@ -394,6 +395,8 @@
         if (startDateCtl) startDateCtl.setValue(it.planned_date || '');
         if (endDateCtl) endDateCtl.setValue(it.end_date || it.planned_date || '');
         $('wiDesc').value = it.description || '';
+        // 描述按内容自动撑高(完成只读态也能看全文,封顶 480px 后可滚动/拖拽)
+        (function (el) { setTimeout(function () { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 480) + 'px'; }, 0); })($('wiDesc'));
         $('wiAllDay').checked = !!it.is_all_day;
         toggleAllDay(!!it.is_all_day);
         if (startTimeCtl) startTimeCtl.setValue(it.start_time ? it.start_time.slice(0, 5) : '');
@@ -421,6 +424,7 @@
           // 已完成:查看态,全部只读;保存/删除隐藏,仅取消
           $('wiModalTitle').textContent = t('查看工作项');
           $('wiCard').classList.add('wi-view');
+          $('wiDesc').readOnly = true;   // 只读防编辑,但仍可滚动/拖拽查看全文
           $('wiSaveBtn').style.display = 'none';
           $('wiDeleteBtn').style.display = 'none';
           $('wiReadonlyNote').style.display = '';
@@ -431,6 +435,7 @@
           contribMode = true;
           $('wiModalTitle').textContent = t('查看工作项');
           $('wiCard').classList.add('wi-view', 'wi-contrib');
+          $('wiDesc').readOnly = true;
           $('wiSaveBtn').style.display = 'none';
           $('wiDeleteBtn').style.display = 'none';
           $('wiReadonlyNote').style.display = 'none';

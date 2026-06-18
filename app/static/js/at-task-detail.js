@@ -701,19 +701,35 @@
       var title = _gsCtl ? _gsCtl.getContent() : '';
       if (!title) { toast(t('任务标题不能为空'), 'error'); return; }
       var aid = pickValue('ctAssignee')[0]; if (!aid) { toast(t('请选择指派人'), 'error'); return; }
+      var ttype = (_gsCtl && _gsCtl.getWorkType()) || 'general';
+      var reviewers = pickValue('ctReviewers');
+      if (needReview(ttype) && !reviewers.length) { toast(t('该任务类型需指定审核人'), 'error'); return; }
       return jsend('/task/api/create', 'POST', {
-        title: title, task_type: (_gsCtl && _gsCtl.getWorkType()) || 'general',
+        title: title, task_type: ttype,
         description: val('ctDesc').trim(), assignee_id: aid,
         priority: val('ctPriority'), start_date: dpValue('ctStart') || null, due_date: dpValue('ctDue') || null,
-        shared_with_users: pickValue('ctShared'), reviewer_ids: pickValue('ctReviewers')
+        shared_with_users: pickValue('ctShared'), reviewer_ids: reviewers
       }).then(function (r) {
         if (r.success && r.data) { toast(r.message || t('已创建')); location.href = '/task/at/' + r.data.id; }
         else toast(r.message || t('创建失败'), 'error');
       });
     });
+    // 选到"需审核"类型 → 自动带入指派人的上级为审核人(可改)
+    if (_gsCtl) _gsCtl.onChange(function (code) {
+      if (!needReview(code)) return;
+      if (_ps['ctReviewers'] && _ps['ctReviewers'].getValue().length) return;
+      var aid = pickValue('ctAssignee')[0] || UID;
+      jget('/task/api/superior?user_id=' + aid).then(function (d) {
+        if (d && d.id && _ps['ctReviewers'] && !_ps['ctReviewers'].getValue().length) {
+          _ps['ctReviewers'].setValue([d.id]);
+          toast(t('该类型需审核,已带入上级为审核人,可调整'), 'info');
+        } else if (d && !d.id) { toast(t('该任务类型需指定审核人'), 'info'); }
+      });
+    });
     var origClose = g.__modalClose;   // 创建模式:关闭即返回列表
     g.__modalClose = function () { origClose(); location.href = '/task/at'; };
   }
+  function needReview(code) { return (g.TASK_REVIEW_CODES || []).indexOf(code) >= 0; }
 
   // 通知深链:#comments→评论卡 / #review→会审卡(仅首次加载滚动一次)
   var _hashConsumed = false;

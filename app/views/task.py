@@ -836,6 +836,20 @@ def at_list_view():
     )
 
 
+@task.route('/api/superior', methods=['GET'])
+@login_required
+def api_superior():
+    """取某用户(默认本人)的直属上级,用于审核任务自动带入审核人。"""
+    from app.models.user import Affiliation
+    uid = request.args.get('user_id', type=int) or current_user.id
+    aff = Affiliation.query.filter_by(owner_id=uid).first()
+    if aff:
+        u = User.query.get(aff.viewer_id)
+        if u and u._is_active and u.id != uid:
+            return jsonify({'success': True, 'id': u.id, 'name': u.real_name or u.username})
+    return jsonify({'success': True, 'id': None})
+
+
 @task.route('/api/generate-title', methods=['POST'])
 @login_required
 def api_generate_title():
@@ -860,10 +874,11 @@ def api_generate_title():
 @login_required
 def at_create_view():
     """AT 风格新建任务(复用详情页表单基础设施,创建模式)。"""
-    from app.helpers.task_types import task_type_groups_for, task_type_labels_for
+    from app.helpers.task_types import task_type_groups_for, task_type_labels_for, TASK_TYPES
     return render_template('task/at_detail.html', task_id='new', task_title=_('新建任务'),
                            task_type_groups=task_type_groups_for(current_user),
-                           task_type_labels=task_type_labels_for(current_user))
+                           task_type_labels=task_type_labels_for(current_user),
+                           task_review_codes=[tt['code'] for tt in TASK_TYPES if tt.get('require_review')])
 
 
 @task.route('/at/<int:id>')
@@ -871,7 +886,7 @@ def at_create_view():
 def at_detail_view(id):
     """AT 风格任务详情(独立页 + 选卡)。数据由 /task/api/<id> 客户端拉取渲染。"""
     from flask import abort
-    from app.helpers.task_types import task_type_groups_for, task_type_labels_for
+    from app.helpers.task_types import task_type_groups_for, task_type_labels_for, TASK_TYPES
     t = Task.query.filter_by(id=id, is_deleted=False).first()
     if not t:
         abort(404)
@@ -879,7 +894,8 @@ def at_detail_view(id):
         abort(403)
     return render_template('task/at_detail.html', task_id=id, task_title=t.title,
                            task_type_groups=task_type_groups_for(current_user),
-                           task_type_labels=task_type_labels_for(current_user))
+                           task_type_labels=task_type_labels_for(current_user),
+                           task_review_codes=[tt['code'] for tt in TASK_TYPES if tt.get('require_review')])
 
 
 @task.route('/api/management/list', methods=['GET'])

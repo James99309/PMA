@@ -142,6 +142,8 @@
   body.at-page .wi-card.wi-view .at-gsi,
   body.at-page .wi-card.wi-view .at-ps-box,
   body.at-page .wi-card.wi-view .wi-inp { background:var(--bg-sunk); }
+  /* 完成(只读)态:描述框仍可滚动/拖拽查看全文(配合 readOnly 防编辑) */
+  body.at-page .wi-card.wi-view #wiDesc { pointer-events:auto; resize:vertical; }
   /* 评论区在查看(只读)态下仍可用 */
   body.at-page .wi-card.wi-view .wi-comment-area input,
   body.at-page .wi-card.wi-view .wi-comment-area textarea,
@@ -328,7 +330,8 @@
 
     <div style="margin-top:12px;">
       <label class="wi-label">{{ _('描述(可选)') }}</label>
-      <textarea id="wiDesc" rows="4" class="wi-inp" style="height:auto;padding:8px 11px;line-height:1.5;resize:vertical;"></textarea>
+      <textarea id="wiDesc" rows="4" class="wi-inp" style="height:auto;min-height:96px;max-height:480px;padding:8px 11px;line-height:1.5;resize:vertical;overflow:auto;"
+                oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,480)+'px';"></textarea>
     </div>
 
     {# 附件 #}

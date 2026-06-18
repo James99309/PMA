@@ -99,6 +99,11 @@ def create_task(actor, data):
     reviewer_ids = data.get('reviewer_ids') or []
     if not reviewer_ids and data.get('reviewer_id'):
         reviewer_ids = [data['reviewer_id']]
+    # 需审核类型(如招聘到岗)必须指定审核人,否则完成后无法计入绩效
+    from app.helpers.task_types import requires_review as _req_rev
+    if _req_rev(task_type) and not reviewer_ids:
+        db.session.rollback()
+        raise ValueError('该任务类型需指定审核人')
     for rid in reviewer_ids:
         db.session.add(TaskReviewer(task_id=t.id, reviewer_id=int(rid)))
 
@@ -436,6 +441,12 @@ def update_task(actor, t, data):
 
     if 'status' in data and data['status'] in ('pending', 'in_progress', 'paused'):
         t.status = data['status']
+
+    # 需审核类型必须有审核人(改类型/清空审核人时拦截)
+    from app.helpers.task_types import requires_review as _req_rev
+    if _req_rev(t.task_type) and not t.task_reviewers:
+        db.session.rollback()
+        raise ValueError('该任务类型需指定审核人')
 
     change_lines = _build_task_change_log(t, before)
     if change_lines:

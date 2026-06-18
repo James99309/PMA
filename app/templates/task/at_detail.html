@@ -22,6 +22,7 @@
 <script>
   window.TASK_TYPE_GROUPS = {{ (task_type_groups or []) | tojson }};
   window.TASK_TYPE_LABELS = {{ (task_type_labels or {}) | tojson }};
+  window.TASK_REVIEW_CODES = {{ (task_review_codes or []) | tojson }};
 </script>
 <style>
   .td-tab-pane { display:none; }
