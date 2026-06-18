@@ -711,19 +711,17 @@ function messagePanel() {
                 this.close();
                 window.location.href = `/wiki?promote=${item.promotion_request_id}`;
             } else if (item.type === 'milestone_confirmation' && item.task_id) {
-                // 里程碑确认 → 跳转任务管理页打开对应子任务
+                // 里程碑确认 → AT 任务详情对应子任务选卡
                 this.close();
-                window.location.href = item.detail_url || `/task/management?task_id=${item.task_id}&subtask_id=${item.subtask_id}`;
+                window.location.href = `/task/at/${item.task_id}#st-${item.subtask_id}`;
             } else if (item.type === 'task_review' && item.task_id) {
-                // 任务审核 → 跳转任务管理页待我审核tab
+                // 任务审核 → AT 任务详情审核浮层
                 this.close();
-                window.location.href = item.detail_url || `/task/management?task_id=${item.task_id}`;
+                window.location.href = `/task/at/${item.task_id}#review`;
             } else if (item.type === 'general_task' && item.task_id) {
-                // 通用任务 → 打开任务详情模态框
+                // 通用任务 → AT 任务详情
                 this.close();
-                window.dispatchEvent(new CustomEvent('open-task-detail-modal', {
-                    detail: { taskId: item.task_id }
-                }));
+                window.location.href = `/task/at/${item.task_id}`;
             } else if (item.detail_url && item.detail_url !== '#') {
                 // 其他类型 → 跳转 URL
                 this.close();

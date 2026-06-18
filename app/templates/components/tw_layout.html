@@ -347,7 +347,7 @@ document.addEventListener('submit', function(e) {
                         </div>
                     </div>
                     <!-- 底部入口 -->
-                    <a href="{{ url_for('task.task_management') }}"
+                    <a href="{{ url_for('task.at_list_view') }}"
                        class="block px-4 py-2.5 text-center text-sm text-primary hover:bg-slate-50 dark:hover:bg-slate-700/50 border-t border-slate-100 dark:border-slate-700 font-medium">
                         {{ _('进入任务管理') }} →
                     </a>
@@ -901,7 +901,7 @@ function meetingInviteBanner() {
                     if (diffDays < 0) dueCls = 'text-red-500 font-medium';
                     else if (diffDays <= 2) dueCls = 'text-amber-500';
                 }
-                return `<a href="/task/management?open=${t.id}" class="block px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group">
+                return `<a href="/task/at/${t.id}" class="block px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group">
                     <div class="flex items-center gap-2 mb-1.5">
                         <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none ${pCls}">${pLbl}</span>
                         <span class="text-sm font-medium text-slate-900 dark:text-white truncate flex-1 group-hover:text-primary transition-colors">${t.title}</span>

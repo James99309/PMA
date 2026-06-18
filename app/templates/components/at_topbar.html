@@ -134,7 +134,7 @@
         <div style="height:1px;background:var(--line);margin:4px 8px;"></div>
 
         {# Secondary 项 #}
-        {{ qc('check', _('创建任务'), url_for('task.task_management')) }}
+        {{ qc('check', _('创建任务'), url_for('task.at_create_view')) }}
         {{ qc('edit',  _('写日志'),   url_for('worklog.at_calendar') ~ '?open_today=1') }}
       </div>
     </div>
@@ -148,8 +148,8 @@
     {# 上传（文件管理 TW 页） #}
     {{ _icon_btn('upload', _('上传 · 文件管理'), href='/files') }}
 
-    {# 任务（任务管理 TW 页） #}
-    {{ _icon_btn('check', _('任务'), href=url_for('task.task_management')) }}
+    {# 任务（AT 任务管理） #}
+    {{ _icon_btn('check', _('任务'), href=url_for('task.at_list_view')) }}
 
     {# 分隔线 #}
     <span style="width:1px;height:22px;background:var(--line);margin:0 4px;"></span>

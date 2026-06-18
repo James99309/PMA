@@ -7,7 +7,7 @@
 import logging
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, jsonify, request, render_template, redirect, url_for
 from flask_login import login_required, current_user
 from flask_babel import gettext as _
 from sqlalchemy.orm import joinedload
@@ -615,7 +615,17 @@ def delete_reply(id, reply_id):
 @task.route('/management')
 @login_required
 def task_management():
-    """任务管理页面"""
+    """[已由 AT 任务替代] 老 TW 任务页 → 重定向到 AT 任务,保留 task_id 深链。"""
+    tid = request.args.get('task_id', type=int) or request.args.get('open', type=int) or request.args.get('task', type=int)
+    if tid:
+        return redirect(url_for('task.at_detail_view', id=tid))
+    return redirect(url_for('task.at_list_view'))
+
+
+@task.route('/management/_legacy')
+@login_required
+def task_management_legacy():
+    """旧 TW 任务页(保留可达,以防排查);正常入口已全部指向 AT。"""
     team_members = []
     can_view_team = False
 
