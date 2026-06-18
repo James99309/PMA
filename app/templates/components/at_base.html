@@ -383,6 +383,17 @@
      {'label':'本月流水', 'value': 56, 'icon':'clock', 'tone':'accent'}
    ], cols=3) }}
    tone: '' (默认中性) | 'accent' | 'success' | 'warn' | 'danger' #}
+{# ─── 列表统计:总额(放 at_list_layout 的 total_extra block) ──────
+   用法:{% block total_extra %}{{ at_total_amount(tab_total_amount) }}{% endblock %}
+   currency 省略时用数据库默认货币(rmb/usd);多币种已在后端折算。 #}
+{% macro at_total_amount(amount, currency='') %}
+  {% set _cur = currency or get_default_currency() %}
+  <span style="color:var(--ink-4);">·</span>
+  <span title="{{ _('多币种按当前汇率折算为%(cur)s合计', cur=_cur) }}">{{ _('总额') }}
+    <span class="at-mono at-tab-num" style="color:var(--accent);font-weight:500;">{{ get_currency_symbol(_cur) }}{{ '{:,.0f}'.format(amount or 0) }}</span></span>
+{% endmacro %}
+
+
 {% macro at_stat_card_row(stats, cols=3) %}
   {% set _tones = {
     'accent':  {'iconBg':'var(--accent-tint)', 'iconFg':'var(--accent)'},

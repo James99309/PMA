@@ -1,5 +1,5 @@
 {% extends 'components/at_list_layout.html' %}
-{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_win_lock_badge %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_win_lock_badge, at_total_amount %}
 {% from 'components/at_project_modal.html' import at_project_form_modal %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
 {% from 'components/quality_badge.html' import quality_badge %}
@@ -42,10 +42,7 @@
 <script src="{{ url_for('static', filename='js/at-project-form.js') }}"></script>
 {% endblock %}
 
-{% block total_extra %}
-<span style="color:var(--ink-4);">·</span>
-<span title="{{ _('多币种按当前汇率折算为%(cur)s合计', cur=get_default_currency()) }}">{{ _('总额') }} <span class="at-mono at-tab-num" style="color:var(--accent);font-weight:500;">{{ get_currency_symbol(get_default_currency()) }}{{ '{:,.0f}'.format(tab_total_amount or 0) }}</span></span>
-{% endblock %}
+{% block total_extra %}{{ at_total_amount(tab_total_amount) }}{% endblock %}
 
 {% block tabs %}
 {% set _tabs = [

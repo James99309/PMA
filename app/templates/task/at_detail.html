@@ -46,6 +46,9 @@
   body.at-page .wc-del { opacity:0; border:0; background:transparent; color:var(--ink-4); cursor:pointer;
                          font-size:13px; line-height:1; padding:0; transition:opacity .12s; }
   .wc-bubble:hover .wc-del { opacity:1; }
+  /* 子任务进展记录:日志型 → 一律左对齐 + 占满整行(不浪费右侧),区别于评论的聊天气泡 */
+  #upList .wc-row, #upList .wc-row.own { flex-direction:row; }
+  #upList .wc-bubble { max-width:100%; flex:1; }
 </style>
 </head>
 <body class="at-page">

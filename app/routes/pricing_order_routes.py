@@ -1526,6 +1526,11 @@ def at_list_view():
             Project.project_name.ilike(like),
         )).outerjoin(Project, Project.id == PricingOrder.project_id)
 
+    # 当前 tab/筛选下的批价总额(按数据库默认货币;沿用各单 currency 直接求和)
+    from sqlalchemy import func as _func
+    tab_total_amount = q.with_entities(
+        _func.coalesce(_func.sum(PricingOrder.pricing_total_amount), 0)).scalar() or 0
+
     pagination = q.order_by(PricingOrder.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
@@ -1542,6 +1547,7 @@ def at_list_view():
                            tab_counts=tab_counts,
                            current_tab=tab,
                            search=search,
+                           tab_total_amount=tab_total_amount,
                            show_filter=show_filter,
                            owner_options=owner_options,
                            owner_values=owner_values,

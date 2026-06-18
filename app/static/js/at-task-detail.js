@@ -84,6 +84,8 @@
   function fdate(iso) { return iso ? iso.slice(0, 10) : '—'; }
   function fdt(iso) { return iso ? iso.slice(0, 16).replace('T', ' ') : '—'; }
   function pctOf(d) { var sc = d.subtask_count || 0, sd = d.subtask_completed || 0; return sc > 0 ? Math.floor(sd * 100 / sc) : (d.status === 'completed' ? 100 : 0); }
+  // 提交完成进入审核 / 已完成 / 已取消 → 锁定任务下全部交互(仅审核浮层操作保留)
+  function isLocked() { return ['pending_review', 'completed', 'cancelled'].indexOf(data && data.status) >= 0; }
 
   // ── 数据切片 ──
   function taskComments() { return (data.replies || []).filter(function (r) { return (!r.reply_type || r.reply_type === 'comment') && !r.subtask_id; }); }
@@ -128,7 +130,9 @@
     // header:标题/状态(左) + 操作(右,图标按钮)
     html += '<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">';
     html += '<div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
-    html += '<span style="font-size:21px;font-weight:600;letter-spacing:-.01em;color:var(--ink);">' + esc(d.title) + '</span>' + statusPill(d.status);
+    html += '<span style="font-size:21px;font-weight:600;letter-spacing:-.01em;color:var(--ink);">' + esc(d.title) + '</span>';
+    // 审核中(pending_review)只显示审核徽章,不再叠加原始状态徽章
+    if (d.status !== 'pending_review') html += statusPill(d.status);
     // 审核徽章(可点开浮层) — 仅审计任务进入审核后出现
     if (d.review_status && (d.reviewers || []).length) {
       var rv = REVIEW[d.review_status] || [d.review_status, 'neutral'];
@@ -154,8 +158,8 @@
       var lbl = (i + 1) + '. ' + s.title + (s.is_milestone ? ' ★' : '');
       tab; html += tabBtn('st-' + s.id, lbl, null, dot, s.status === 'completed');
     });
-    // 子任务可由可访问者(创建/负责/协助等)新建,里程碑确认人除外;后端 _can_access 同步放行
-    if (!d.is_milestone_reviewer_only && d.status !== 'completed' && d.status !== 'cancelled')
+    // 子任务可由可访问者(创建/负责/协助等)新建,里程碑确认人除外;锁定态(审核中/完成/取消)不可加
+    if (!d.is_milestone_reviewer_only && !isLocked())
       html += '<button type="button" onclick="__subFormOpen()" title="' + t('新增子任务') + '" style="padding:11px 16px;background:transparent;border:0;border-bottom:1.5px solid transparent;margin-bottom:-1px;cursor:pointer;color:var(--accent);font-size:15px;">＋</button>';
     html += '</div>';
 
@@ -179,7 +183,7 @@
   }
 
   function actionButtons(d) {
-    var h = '', active = d.status !== 'completed' && d.status !== 'cancelled';
+    var h = '', active = !isLocked();   // 审核中/已完成/已取消 → 锁定,不出操作按钮
     // 主动作:文字主按钮
     if (d.can_complete && active && d.review_status !== 'pending_review') h += btn(t('完成'), '__taskComplete()', 'primary');
     if (d.review_status === 'rejected' && (d.is_creator || d.can_complete)) h += btn(t('重新提交审核'), '__taskResubmit()', 'primary');
@@ -189,7 +193,7 @@
       : iconBtn(t('暂停'), '__taskPause()', 'pause');
     if (d.can_edit && active) h += iconBtn(t('编辑'), '__taskEdit()', 'edit');
     if (d.can_edit && active) h += iconBtn(t('取消任务'), '__taskCancel()', 'ban');
-    if (d.is_creator) h += iconBtn(t('删除'), '__taskDelete()', 'trash', true);
+    if (d.is_creator && active) h += iconBtn(t('删除'), '__taskDelete()', 'trash', true);
     return h;
   }
 
@@ -234,7 +238,7 @@
 
     // 附件卡(项目附件上传样式:任务级)
     var atts = d.attachments || [];
-    var upAction = (d.status !== 'completed' && d.status !== 'cancelled')
+    var upAction = (!isLocked())
       ? '<button type="button" onclick="document.getElementById(\'ovAttInput\').click()" style="border:0;background:transparent;color:var(--accent);font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">' + svg('plus', 13) + t('上传') + '</button>' : null;
     var attBody = '';
     if (!atts.length) attBody = '<div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">' + t('暂无附件') + '</div>';
@@ -245,8 +249,8 @@
     // 评论卡(公用 at-comments 组件:只刷新评论区,不重载整页)
     var cmts = taskComments();
     var cmtBody = '<div id="ovCmtList" style="margin-bottom:12px;"></div>'
-      + '<div style="display:flex;gap:10px;"><textarea id="ovCmtInput" placeholder="' + t('写评论…') + '" style="flex:1;min-height:56px;border:1px solid var(--line-2);background:var(--bg-elev);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink);resize:vertical;box-sizing:border-box;"></textarea>'
-      + '<button type="button" id="ovCmtSend" style="align-self:flex-end;height:36px;padding:0 16px;border:0;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;">' + t('发送') + '</button></div>';
+      + '<div style="display:flex;gap:10px;"><textarea id="ovCmtInput" placeholder="' + t('写评论…') + '" ' + (isLocked() ? 'disabled' : '') + ' style="flex:1;min-height:56px;border:1px solid var(--line-2);background:var(--bg-elev);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink);resize:vertical;box-sizing:border-box;' + (isLocked() ? 'opacity:.5;' : '') + '"></textarea>'
+      + '<button type="button" id="ovCmtSend" ' + (isLocked() ? 'disabled' : '') + ' style="align-self:flex-end;height:36px;padding:0 16px;border:0;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;' + (isLocked() ? 'opacity:.5;' : '') + '">' + t('发送') + '</button></div>';
     var cardCmt = card(t('评论'), cmts.length, null, cmtBody, false, 'card-comments');
 
     // 会审改为标题旁徽章浮层(见 render 头部),概览不再常驻会审卡
@@ -335,8 +339,8 @@
 
   // ── 子任务卡 ──
   function paneSubtask(s) {
-    var d = data, ro = (d.status === 'completed' || d.status === 'cancelled');
-    var h = '<div style="max-width:720px;">';
+    var d = data, ro = isLocked();   // 锁定态(审核中/完成/取消):子任务操作/进展/附件全只读
+    var h = '<div style="max-width:920px;">';
     // 详情头
     h += '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">'
       + '<span style="font-size:16px;font-weight:600;color:var(--ink);">' + esc(s.title) + '</span>' + statusPill(s.status);
@@ -481,6 +485,14 @@
       confirmAsync(t('确认驳回此里程碑?'), { title: t('驳回里程碑'), confirmText: t('驳回'), variant: 'danger', input: { label: t('驳回理由'), placeholder: t('请填写驳回理由'), required: true, multiline: true } })
         .then(function (c) { if (c === null) return; jsend(API + '/subtasks/' + sid + '/milestone', 'POST', { action: 'reject', comment: c }).then(after); });
     } else { jsend(API + '/subtasks/' + sid + '/milestone', 'POST', { action: 'confirm', comment: '' }).then(after); }
+  };
+  g.__review = function (action) {
+    var sel = document.querySelector('#revRating button.on');
+    var rating = sel ? sel.getAttribute('data-r') : 'meet';
+    var comment = (document.getElementById('revComment') || {}).value || '';
+    if (action === 'reject' && !comment.trim()) { toast(t('驳回时必须填写意见'), 'error'); return; }
+    if (action === 'approve' && rating === 'below' && !comment.trim()) { toast(t('低于预期必须填写原因'), 'error'); return; }
+    jsend(API + '/review', 'POST', { action: action, rating: rating, comment: comment }).then(after);
   };
 
   // 评论/进展统一接公用 at-comments 组件(只刷新评论区,不重载整页)
