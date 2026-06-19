@@ -261,9 +261,13 @@ def excel_edit_pricing_order(order_id):
         can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
 
         from app.utils.access_control import get_viewable_data
-        dealers = get_viewable_data(Company, current_user, [Company.company_type.in_(['经销商', 'dealer'])]).all()
-        distributors = get_viewable_data(Company, current_user, [
+        # 经销商栏:经销商 + 分销商都可选(分销商资格客户也能作为批价单位发起批价)
+        dealers = get_viewable_data(Company, current_user, [
             Company.company_type.in_(['经销商', 'dealer', '分销商', 'distributor'])
+        ]).all()
+        # 分销商栏:只列分销商
+        distributors = get_viewable_data(Company, current_user, [
+            Company.company_type.in_(['分销商', 'distributor'])
         ]).all()
 
         from app.services.discount_permission_service import DiscountPermissionService
