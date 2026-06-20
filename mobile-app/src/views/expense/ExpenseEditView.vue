@@ -797,6 +797,7 @@ async function pickFromGallery() {
       const result = await Camera.pickImages({ quality: 90 })
       const photos = result?.photos || []
       if (!photos.length) return
+      store.clearPendingReceipts()  // fresh batch: drop any leftover from a previous unfinished scan
       for (const p of photos) {
         const res = await fetch(p.webPath)
         const blob = await res.blob()
@@ -828,6 +829,7 @@ async function onFileInputChange(e) {
   // 用户已选完文件 → 此时再建草稿(同步翻译延迟不再卡选择器弹出)
   const id = await ensureExpenseExists().catch(() => null)
   if (!id) return
+  store.clearPendingReceipts()  // fresh batch: drop any leftover from a previous unfinished scan
   for (const f of files) {
     const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
     // PDF 不渲染首页缩略 — 让 UI 显示 "📄 PDF" 占位, 点击走 iOS Safari 看

@@ -500,12 +500,12 @@ const mergeable = computed(() => {
   // prefer backend groupKey (same grouping logic as web); fall back to local compare (both sides defaulted, fixes the old asymmetric miss)
   if (cur.groupKey) {
     return store.pendingReceipts
-      .filter((r, i) => i !== idx.value && r.status === 'done' && r.groupKey === cur.groupKey)
+      .filter((r, i) => i !== idx.value && r.status === 'done' && !r.skipped && !r.saved && r.groupKey === cur.groupKey)
   }
   const curCat = form.value.expense_category || 'other'
   const curCcy = form.value.currency
   return store.pendingReceipts
-    .filter((r, i) => i !== idx.value && r.status === 'done' &&
+    .filter((r, i) => i !== idx.value && r.status === 'done' && !r.skipped && !r.saved &&
       (r.fields?.category || 'other') === curCat &&
       (r.fields?.currency || curCcy) === curCcy)
 })

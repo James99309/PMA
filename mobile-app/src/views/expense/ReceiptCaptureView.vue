@@ -30,11 +30,9 @@ function onDone(pages) {
     router.back()
     return
   }
-  // 重置队列(每次拍发票 = 新一批)
-  if (store.currentReceiptExpenseId !== expenseId) {
-    store.clearPendingReceipts()
-    store.currentReceiptExpenseId = expenseId
-  }
+  // each capture session = a fresh batch; always clear leftover from a previous unfinished scan
+  store.clearPendingReceipts()
+  store.currentReceiptExpenseId = expenseId
   for (const p of pages) {
     store.addPendingReceipt({ dataUrl: p.dataUrl, blob: p.blob })
   }

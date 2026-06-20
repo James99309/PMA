@@ -191,7 +191,9 @@ function formatAmount(n) {
 
 onMounted(async () => {
   await store.loadReference()
-  form.value.description = t('receiptScan.mergeDescFmt', { label: categoryLabel.value, n: included.value.length })
+  // prefer the primary receipt's edited description (from single-confirm); else auto summary
+  const primEdited = (primary.value?.edited?.description || '').trim()
+  form.value.description = primEdited || t('receiptScan.mergeDescFmt', { label: categoryLabel.value, n: included.value.length })
   // time range defaults to first receipt date (earliest when multi-day), else today; editable
   const firstDate = included.value.map(r => recDate(r)).filter(Boolean).sort()[0]
   form.value.expense_date = firstDate || new Date().toISOString().slice(0, 10)
