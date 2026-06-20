@@ -59,16 +59,16 @@
             }"
           />
           <div class="flex-1 min-w-0">
-            <div :style="{ fontSize: '13px', fontWeight: 500 }">{{ r.fields?.description || r.fields?.seller || t('receiptScan.mergeUnknownSeller') }}</div>
+            <div :style="{ fontSize: '13px', fontWeight: 500 }">{{ recDesc(r) || r.fields?.seller || t('receiptScan.mergeUnknownSeller') }}</div>
             <div
               :style="{
                 fontSize: '10px', color: 'var(--color-ex-ink4)',
                 marginTop: '2px', fontFamily: 'var(--font-mono)',
               }"
-            >{{ r.fields?.date || '—' }} · #{{ r.fields?.invoice_no || '—' }}</div>
+            >{{ recDate(r) || '—' }} · #{{ r.fields?.invoice_no || '—' }}</div>
           </div>
           <div :style="{ fontSize: '14px', fontFamily: 'var(--font-serif)', fontWeight: 500 }">
-            {{ currencySymbol }}{{ formatAmount(r.fields?.invoice_amount) }}
+            {{ currencySymbol }}{{ formatAmount(recAmount(r)) }}
           </div>
           <div
             :style="{ fontSize: '16px', color: 'var(--color-ex-ink4)', fontWeight: 300 }"
@@ -145,8 +145,8 @@ const primaryIdx = computed(() => parseInt(route.query.primary) || 0)
 const saving = ref(false)
 
 const primary = computed(() => store.pendingReceipts[primaryIdx.value])
-const category = computed(() => primary.value?.fields?.category || 'other')
-const currency = computed(() => primary.value?.fields?.currency || 'CNY')
+const category = computed(() => primary.value?.edited?.expense_category || primary.value?.fields?.category || 'other')
+const currency = computed(() => primary.value?.edited?.currency || primary.value?.fields?.currency || 'CNY')
 
 const included = computed(() => {
   // prefer backend groupKey for same-group (same logic as web); fall back to both-sides-defaulted compare
@@ -163,8 +163,13 @@ const included = computed(() => {
   )
 })
 
+// prefer per-receipt edited values (from single-confirm edits) over OCR originals
+const recAmount = (r) => Number(r.edited?.invoice_amount ?? r.fields?.invoice_amount) || 0
+const recDesc = (r) => r.edited?.description || r.fields?.description || ''
+const recDate = (r) => r.edited?.expense_date || r.fields?.date || ''
+
 const totalAmount = computed(() =>
-  included.value.reduce((s, r) => s + (Number(r.fields?.invoice_amount) || 0), 0))
+  included.value.reduce((s, r) => s + recAmount(r), 0))
 
 const dateRange = computed(() => {
   const dates = included.value.map(r => r.fields?.date).filter(Boolean).sort()
@@ -188,7 +193,7 @@ onMounted(async () => {
   await store.loadReference()
   form.value.description = t('receiptScan.mergeDescFmt', { label: categoryLabel.value, n: included.value.length })
   // time range defaults to first receipt date (earliest when multi-day), else today; editable
-  const firstDate = included.value.map(r => r.fields?.date).filter(Boolean).sort()[0]
+  const firstDate = included.value.map(r => recDate(r)).filter(Boolean).sort()[0]
   form.value.expense_date = firstDate || new Date().toISOString().slice(0, 10)
 })
 

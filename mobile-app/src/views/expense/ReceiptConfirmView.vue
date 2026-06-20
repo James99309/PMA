@@ -21,17 +21,17 @@
             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
         <span class="text-[15px]">
-          {{ t('receiptScan.confirmTitleN', { idx: idx + 1, total }) }}<span v-if="processedCount > 0"
+          {{ t('receiptScan.confirmTitleN', { idx: livePos, total: liveTotal }) }}<span v-if="processedCount > 0"
             class="text-[11px]" style="color: var(--color-ink-3); margin-left: 4px;">{{ t('receiptScan.processedN', { n: processedCount }) }}</span>
         </span>
       </button>
       <div class="flex items-center" style="gap: 4px;">
-        <button v-if="idx > 0"
-          @click="navTo(idx - 1)"
+        <button v-if="prevLive >= 0"
+          @click="navTo(prevLive)"
           class="text-[14px] font-medium active:opacity-60 px-2"
           style="color: var(--color-accent);">{{ t('receiptScan.prev') }}</button>
-        <button v-if="idx < total - 1"
-          @click="navTo(idx + 1)"
+        <button v-if="nextLive >= 0"
+          @click="navTo(nextLive)"
           class="text-[14px] font-medium active:opacity-60 px-2"
           style="color: var(--color-accent);">{{ t('receiptScan.next') }}</button>
       </div>
@@ -342,6 +342,14 @@ const isLastUnprocessed = computed(() =>
   store.pendingReceipts.filter((r, i) => i !== idx.value && !r.saved && !r.skipped).length === 0
 )
 
+// discarded (skipped) receipts are excluded from navigation: prev/next/count use only live ones
+const liveIdxs = computed(() =>
+  store.pendingReceipts.map((r, i) => (r.skipped ? -1 : i)).filter(i => i >= 0))
+const liveTotal = computed(() => liveIdxs.value.length)
+const livePos = computed(() => { const p = liveIdxs.value.indexOf(idx.value); return p >= 0 ? p + 1 : 1 })
+const prevLive = computed(() => { const a = liveIdxs.value.filter(i => i < idx.value); return a.length ? a[a.length - 1] : -1 })
+const nextLive = computed(() => { const n = liveIdxs.value.find(i => i > idx.value); return n === undefined ? -1 : n })
+
 const expenseCurrency = ref('CNY')
 const saving = ref(false)
 const mergeMode = ref('separate')
@@ -544,7 +552,8 @@ async function onSave() {
   saving.value = true
   try {
     if (mergeMode.value === 'merge' && mergeable.value.length > 0) {
-      // 合并模式: 累加金额到 mergeable[0] 对应的 detail
+      // persist current edits before merging, so merge view uses edited values
+      persistForm()
       router.replace(`/expense/${expenseId.value}/merge?primary=${idx.value}`)
       return
     }

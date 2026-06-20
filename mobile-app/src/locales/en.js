@@ -442,7 +442,7 @@ export default {
     mergeMergeDesc: 'Multiple → 1 row · auto sum',
     saveAll: 'Save all',
     saveOneNext: 'Save · next',
-    skip: 'Skip',
+    skip: 'Discard',
     pickCategory: 'Select category',
     tapBlankClose: 'Tap outside to close',
     failParse: 'Failed to parse: {msg}. You can fill manually or skip.',

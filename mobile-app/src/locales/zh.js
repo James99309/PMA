@@ -453,7 +453,7 @@ export default {
     mergeMergeDesc: '多张并 1 行 · 自动累加',
     saveAll: '保存全部',
     saveOneNext: '保存这张 · 下一张',
-    skip: '跳过',
+    skip: '放弃',
     pickCategory: '选择报销科目',
     tapBlankClose: '点击空白区关闭',
     failParse: '这张发票识别失败: {msg}, 你可以手动填写或跳过',
