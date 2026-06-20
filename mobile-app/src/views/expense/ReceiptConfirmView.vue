@@ -250,8 +250,10 @@
     </div>
 
     <ExBottomBar
-      :primary="isLastUnprocessed ? t('receiptScan.saveAll') : t('receiptScan.saveOneNext')"
-      :secondary="t('receiptScan.skip')"
+      :primary="mergeMode === 'merge' && mergeable.length > 0
+        ? t('receiptScan.mergeSave')
+        : (isLastUnprocessed ? t('receiptScan.saveAll') : t('receiptScan.saveOneNext'))"
+      :secondary="mergeMode === 'merge' && mergeable.length > 0 ? '' : t('receiptScan.skip')"
       :disabled="saving"
       @primary="onSave"
       @secondary="onSkip"
