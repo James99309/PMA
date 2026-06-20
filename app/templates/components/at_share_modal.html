@@ -1,0 +1,124 @@
+{#
+  AT "共享设置" 模态 — 客户/项目共用
+  ──────────────────────────────────────────────────
+  对齐 TW tw_user_selector_modal(多选 + 启用 toggle + 搜索),纯 AT 设计语言。
+
+  调用:
+    {% from 'components/at_share_modal.html' import at_share_modal %}
+    {{ at_share_modal('atShareModal') }}
+
+  JS API(in at-share-modal.js):
+    atOpenShareModal({
+      entityType,      // 'customer' | 'project'
+      entityId,
+      saveUrl,         // 后端 JSON 端点
+      shareEnabled,    // 当前启用状态
+      selectedUserIds, // 已选用户 ID 数组
+      usersTree        // 可共享用户树(后端 get_shareable_users_tree 返回)
+    })
+
+  后端:
+    POST /customer/<id>/api/update-sharing
+    POST /project/<id>/api/update-sharing
+    入参 JSON:{ share_enabled, shared_with_users:[id,...] }
+#}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
+{% from 'components/at_base.html' import at_icon %}
+
+{% macro at_share_modal(modal_id='atShareModal') %}
+  {% set _p = modal_id ~ '__' %}
+  {% set footer = '<button onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
+                ~ 'style="padding:8px 16px;border-radius:8px;background:transparent;'
+                ~ 'border:1px solid var(--line-2);color:var(--ink);font-size:13px;cursor:pointer;'
+                ~ 'margin-right:8px;">' ~ _('取消') ~ '</button>'
+                ~ '<button id="' ~ modal_id ~ '_submit" '
+                ~ 'onclick="atSubmitShareForm(\'' ~ modal_id ~ '\')" '
+                ~ 'style="padding:8px 18px;border-radius:8px;background:var(--accent);'
+                ~ 'color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;'
+                ~ 'display:inline-flex;align-items:center;gap:6px;">'
+                ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
+                ~ ' ' ~ _('保存') ~ '</button>' %}
+  {% call at_modal_shell(modal_id, _('共享设置'), icon='users', width=680, footer_html=footer) %}
+    {% set _inp = "width:100%;box-sizing:border-box;height:34px;padding:0 10px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:6px;color:var(--ink);font:inherit;
+                   font-size:13px;outline:none;transition:border-color 120ms;" %}
+
+    {# 启用共享 checkbox(AT 自定义样式,与跟进/联系人 modal 一致) #}
+    <div style="margin-bottom:14px;">
+      <label class="at-cbx" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="{{ _p }}enabled" class="at-cbx-input">
+        <span class="at-cbx-box" aria-hidden="true"></span>
+        <span style="flex:1;">
+          <div style="font-size:13px;color:var(--ink);">{{ _('启用共享') }}</div>
+          <div class="at-dim" style="font-size:11px;color:var(--ink-3);margin-top:2px;">
+            {{ _('勾选后选中的用户可查看此项目/客户;取消则仅归属人和管理者可见') }}
+          </div>
+        </span>
+      </label>
+    </div>
+
+    {# 用户区(启用共享时显示)#}
+    <div id="{{ _p }}usersWrap" style="display:none;">
+
+      {# 搜索框 #}
+      <div style="margin-bottom:10px;">
+        <input type="text" id="{{ _p }}search" placeholder="{{ _('搜索用户姓名 / 用户名…') }}" style="{{ _inp }}">
+      </div>
+
+      {# 已选 chips #}
+      <div style="margin-bottom:10px;">
+        <div class="at-dim" style="font-size:11px;color:var(--ink-3);margin-bottom:6px;">
+          {{ _('已选') }} <span id="{{ _p }}selectedCount" class="at-mono">0</span> {{ _('人') }}
+        </div>
+        <div id="{{ _p }}chips" style="display:flex;flex-wrap:wrap;gap:6px;min-height:24px;"></div>
+      </div>
+
+      {# 用户列表(平铺,部门作为副标题) #}
+      <div id="{{ _p }}list"
+           style="max-height:360px;overflow-y:auto;
+                  border:1px solid var(--line-soft);border-radius:6px;
+                  background:var(--bg-page);">
+        <div style="padding:24px;text-align:center;color:var(--ink-4);font-size:12.5px;">{{ _('加载中…') }}</div>
+      </div>
+    </div>
+
+    {# 自定义 checkbox 样式(对齐项目里其他 modal) #}
+    <style>
+      #{{ modal_id }} .at-cbx-input { position: absolute; opacity: 0; pointer-events: none; }
+      #{{ modal_id }} .at-cbx-box {
+        flex-shrink: 0; margin-top: 2px; width: 16px; height: 16px; border-radius: 4px;
+        border: 1.5px solid var(--line-2); background: var(--bg-page);
+        display: inline-flex; align-items: center; justify-content: center; transition: all 120ms;
+      }
+      #{{ modal_id }} .at-cbx:hover .at-cbx-box { border-color: var(--accent); }
+      #{{ modal_id }} .at-cbx-input:checked + .at-cbx-box {
+        background: var(--accent); border-color: var(--accent);
+      }
+      #{{ modal_id }} .at-cbx-input:checked + .at-cbx-box::after {
+        content: ''; width: 9px; height: 5px;
+        border-left: 1.6px solid #fff; border-bottom: 1.6px solid #fff;
+        transform: rotate(-45deg) translate(1px, -1px);
+      }
+      /* 用户行 */
+      #{{ modal_id }} .at-share-row {
+        display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+        border-bottom: 1px solid var(--line-soft); cursor: pointer;
+        transition: background 100ms;
+      }
+      #{{ modal_id }} .at-share-row:last-child { border-bottom: 0; }
+      #{{ modal_id }} .at-share-row:hover { background: var(--bg-hover); }
+      #{{ modal_id }} .at-share-row.is-selected { background: var(--accent-tint); }
+      /* chip */
+      #{{ modal_id }} .at-share-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 3px 8px; border-radius: 4px;
+        background: var(--accent-tint); color: var(--accent);
+        font-size: 11.5px;
+      }
+      #{{ modal_id }} .at-share-chip button {
+        background: transparent; border: 0; color: var(--accent); cursor: pointer;
+        font-size: 13px; line-height: 1; padding: 0;
+      }
+    </style>
+  {% endcall %}
+{% endmacro %}

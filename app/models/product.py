@@ -20,10 +20,17 @@ class Product(db.Model):
     status = db.Column(db.String(20), default='active')  # 产品状态：'active'(生产中), 'discontinued'(已停产), 'upcoming'(待上市)
     image_path = db.Column(db.String(255))  # 产品图片路径
     pdf_path = db.Column(db.String(255))  # 产品PDF文件路径
+    pdf_original_name = db.Column(db.String(255))  # 上传时的原始文件名
     icon_svg = db.Column(db.Text, comment='产品SVG图标数据')
 
     # 厂商产品标记字段
     is_vendor_product = db.Column(db.Boolean, default=False)  # 是否为厂商产品（用于植入合计统计）
+
+    # 推荐系数（植入品质用，仅 CEO 可设；NULL/0=不计入品质）。复用既有列。
+    citation_coefficient = db.Column(db.Numeric(10, 2), nullable=True, comment='推荐系数(植入品质加权)')
+
+    # SN 管理开关:False 则发货时跳过 SN 输入(如耦合器、功分器等小附件)
+    has_serial_number = db.Column(db.Boolean, default=True, nullable=False, server_default='true')
 
     # MN编码锁定标记字段
     is_mn_locked = db.Column(db.Boolean, default=False)  # MN编码是否锁定（锁定后不可修改MN和分类）

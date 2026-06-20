@@ -1,0 +1,204 @@
+{% extends 'components/at_person_layout.html' %}
+{% set person_active = 'affiliation' %}
+
+{% block person_title %}归属关系 · 个人{% endblock %}
+{% block person_desc %}配置该用户可以查看哪些同事的数据(数据归属授权):点亮的人,其名下客户/项目/报价等数据对该用户可见;保存为整包替换。部门负责人对本部门成员的关系由系统自动维护,部门变更时会自动重建。{% endblock %}
+
+{% block extra_head %}
+<style>
+  .af-group { margin-bottom: 14px; }
+  .af-group-label { font-size:10.5px; letter-spacing:0.08em; color:var(--ink-4); margin-bottom:6px; }
+  .af-chips { display:flex; flex-wrap:wrap; gap:6px 8px; }
+  body.at-page .af-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 11px;
+            border:1px solid var(--line-2); border-radius:999px; background:var(--bg-elev);
+            font:inherit; font-size:12px; color:var(--ink-2); cursor:pointer; transition:all 110ms; }
+  body.at-page .af-chip:hover { border-color:var(--ink-4); color:var(--ink); }
+  body.at-page .af-chip.on { background:var(--accent-tint); border-color:var(--accent);
+            color:var(--accent); font-weight:500; }
+  body.at-page .af-chip:disabled { cursor:default; opacity:0.6; }
+  .af-search { width:240px; height:30px; padding:0 10px; background:var(--bg-page);
+            border:1px solid var(--line-2); border-radius:6px; font:inherit; font-size:12.5px;
+            color:var(--ink); outline:none; }
+  .af-search:focus { border-color:var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    {# 先选公司,再选个人;非 admin 锁定本公司 #}
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
+                 background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
+      <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
+      {% if is_admin and companies|length > 1 %}
+      <select id="afCompany" onchange="afCompanyGuarded(this)"
+              style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
+        {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <span>{{ (companies[0] if companies else user_company) or '未归属公司' }}</span>
+      {% endif %}
+    </span>
+    <div style="position:relative;">
+      <button type="button" id="afPickerBtn" class="cm-role-btn">
+        <span id="afUserName">选择人员</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="afUserMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="afSub" class="at-dim" style="font-size:12px;"></span>
+    <span id="afDirty" style="font-size:12px;color:var(--warn);"></span>
+    <div style="flex:1;"></div>
+    <input id="afSearch" class="af-search" type="text" placeholder="筛选人员 / 部门…" oninput="renderOwners()">
+    <div id="afEditBar"></div>
+  </div>
+
+  <div id="afPanel" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;padding:18px 20px;">
+    <div class="at-dim" style="padding:18px;text-align:center;font-size:12.5px;">请选择人员…</div>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 点亮 = 该同事名下的数据对所选用户可见(基于 Affiliation 数据归属授权);
+    保存为整包替换,未点亮即移除授权;不能授权自己;
+    部门负责人 ↔ 本部门成员的关系在部门/负责人变更时由系统自动重建,手工增删的非部门关系不受影响。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const USERS = {{ users_data | tojson }};          // 人员选择器:配置谁(HRBP 限本部门)
+  const CANDS = {{ cand_users_data | tojson }};     // 候选授权:点亮谁(全公司,不受 HRBP 部门限制)
+  const COMPANIES = {{ companies | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+
+  let _userId = null, guard = null;  // 被配置者(viewer)
+  let _selected = new Set();         // 已点亮的 owner ids
+  let _loaded = new Set();           // 加载时的集合(算 dirty)
+  let _company = COMPANIES[0] || '';
+  const usersOf = () => USERS.filter(u => u.company === _company);
+
+  window.afCompanyChange = function (c) {
+    _company = c;
+    const list = usersOf();
+    if (list.length) afSelect(list[0].id);
+    else {
+      _userId = null;
+      document.getElementById('afUserName').textContent = '选择人员';
+      document.getElementById('afPanel').innerHTML =
+        '<div class="at-dim" style="padding:18px;text-align:center;font-size:12.5px;">该公司暂无在职人员</div>';
+    }
+  };
+
+  // ── 人员下拉:公用组件(搜索+部门分组),替代原内联实现 ──
+  AtPersonPicker.init({
+    button: 'afPickerBtn', menu: 'afUserMenu',
+    getUsers: usersOf, activeId: () => _userId, onSelect: id => afSelect(id),
+    locked: () => (typeof _locked !== 'undefined' && _locked),
+  });
+
+  window.afSelect = function (id) {
+    guard.attempt(function () {
+      _userId = id;
+      document.getElementById('afUserMenu').style.display = 'none';
+      afLoad();
+    });
+  };
+  window.afCompanyGuarded = function (sel) {
+    guard.attempt(function () { afCompanyChange(sel.value); }, function () { sel.value = _company; });
+  };
+
+  // ── owner 候选 chips(全集按 公司·部门 分组;排除 viewer 自己) ──
+  function renderOwners() {
+    if (!_userId) return;
+    const term = (document.getElementById('afSearch').value || '').trim().toLowerCase();
+    const cands = CANDS.filter(u => u.id !== _userId && u.company === _company && (!term ||
+      (u.name + ' ' + u.department + ' ' + u.company).toLowerCase().includes(term)));
+    const groups = {};
+    cands.forEach(u => {
+      const g = (u.company && u.company !== _company ? u.company + ' · ' : '') + u.department;
+      (groups[g] = groups[g] || []).push(u);
+    });
+    let html = '';
+    Object.keys(groups).forEach(g => {
+      html += `<div class="af-group"><div class="af-group-label">${esc(g)}</div><div class="af-chips">`
+        + groups[g].map(u => `
+          <button type="button" class="af-chip${_selected.has(u.id) ? ' on' : ''}" ${CAN_EDIT ? '' : 'disabled'}
+                  onclick="afToggleOwner(${u.id})" title="${esc(u.role_display)}">
+            ${u.is_dept_manager ? '<span class="material-symbols-outlined" style="font-size:13px;">supervisor_account</span>' : ''}
+            ${esc(u.name)}
+          </button>`).join('')
+        + '</div></div>';
+    });
+    document.getElementById('afPanel').innerHTML = html ||
+      '<div class="at-dim" style="padding:18px;text-align:center;font-size:12.5px;">无匹配人员</div>';
+    updateHints();
+  }
+
+  window.afToggleOwner = function (id) {
+    if (_selected.has(id)) _selected.delete(id); else _selected.add(id);
+    if (guard) guard.markDirty();
+    renderOwners();
+  };
+
+  function updateHints() {
+    document.getElementById('afSub').textContent = _userId
+      ? `可查看 ${_selected.size} 人的数据` : '';
+    const diff = [..._selected].filter(x => !_loaded.has(x)).length
+               + [..._loaded].filter(x => !_selected.has(x)).length;
+    document.getElementById('afDirty').textContent = diff ? `${diff} 处改动(未保存)` : '';
+  }
+
+  window.afLoad = async function () {
+    if (!_userId) return;
+    const u = USERS.find(x => x.id === _userId);
+    document.getElementById('afUserName').textContent = u ? u.name : '';
+    try {
+      const d = await (await fetch(`/user/api/get_selected_users/${_userId}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      _selected = new Set((d.data || []).map(x => x.user_id));
+      _loaded = new Set(_selected);
+      renderOwners();
+    } catch (e) {
+      document.getElementById('afPanel').innerHTML =
+        `<div style="padding:18px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
+    }
+  };
+
+  async function afSaveCore() {
+    if (!_userId) return false;
+    try {
+      const d = await (await fetch(`/user/api/save_affiliations/${_userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ owner_ids: [..._selected] }),
+      })).json();
+      if (d.success) { ATToast.success(d.message || '已保存'); afLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  guard = AtEditMode.init({
+    mount: 'afEditBar', lockEl: 'afPanel', canEdit: CAN_EDIT,
+    onSave: afSaveCore,
+    onDiscard: function () { afLoad(); },
+    saveConfirm: { message: '确认保存该人员的归属授权?' },
+  });
+
+  // ?user= 预选(账户详情页跳入):锁定该用户,禁止切换防误操作
+  const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));
+  const _locked = !!_pre;
+  if (_pre) {
+    _company = _pre.company || _company;
+    const cs = document.getElementById('afCompany');
+    if (cs) { cs.value = _company; cs.disabled = true; }
+    const btn = document.querySelector('.cm-role-btn');
+    btn.style.cursor = 'default';
+    btn.title = '从账户详情进入,已锁定到该用户;配置他人请从侧栏进入个人配置';
+    const ic = btn.querySelector('.material-symbols-outlined');
+    if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
+    afSelect(_pre.id);
+  }
+  else if (usersOf().length) afSelect(usersOf()[0].id);
+</script>
+{% endblock %}

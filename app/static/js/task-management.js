@@ -151,7 +151,7 @@ function taskManagement() {
             });
             window.addEventListener('task-updated', () => {
                 this.loadTasks();
-                if (this.selectedTaskId) this.selectTask(this.selectedTaskId);
+                if (this.selectedTaskId) this.selectTask(this.selectedTaskId, true);
             });
         },
 
@@ -192,8 +192,8 @@ function taskManagement() {
             this.loadTasks();
         },
 
-        async selectTask(taskId) {
-            if (this.selectedTaskId === taskId) return;
+        async selectTask(taskId, force = false) {
+            if (!force && this.selectedTaskId === taskId) return;
             this.selectedTaskId = taskId;
             this.detailLoading = true;
             this.subtasks = [];
@@ -353,12 +353,12 @@ function taskManagement() {
             }
         },
 
-        async submitTaskReview(action, comment) {
+        async submitTaskReview(action, comment, rating) {
             try {
                 const res = await fetch('/task/api/' + this.selectedTaskId + '/review', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action, comment: comment || '' }),
+                    body: JSON.stringify({ action, comment: comment || '', rating: rating || '' }),
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -432,6 +432,12 @@ function taskManagement() {
 
         subtaskUpdates(stId) {
             return (this.taskReplies || []).filter(r => r.subtask_id == stId && r.reply_type === 'update')
+                .slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        },
+
+        // 任务级修改记录（subtask_id 为空 + reply_type='update'），系统在 PUT /task/api/<id> 时写入
+        taskChangeLog() {
+            return (this.taskReplies || []).filter(r => !r.subtask_id && r.reply_type === 'update')
                 .slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         },
 
@@ -968,9 +974,8 @@ function taskManagement() {
 
         openEditModal() {
             if (!this.selectedTask) return;
-            // For editing, we dispatch the detail modal or re-open create modal with data
-            // Use the existing task detail modal
-            window.dispatchEvent(new CustomEvent('open-task-detail-modal', {
+            // 复用创建任务弹窗的编辑模式，可改 标题/描述/优先级/开始/截止/指派/审计/项目/报价 等所有字段
+            window.dispatchEvent(new CustomEvent('open-task-create-modal', {
                 detail: { taskId: this.selectedTask.id }
             }));
         },

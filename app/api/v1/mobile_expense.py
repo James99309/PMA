@@ -17,37 +17,14 @@ from app.models.user import User
 from app.models.expense import Expense, ExpenseDetail, EXPENSE_CATEGORIES, EXPENSE_STATUS
 from app.api.v1.utils import get_request_lang as _lang
 
-# 英文映射 (mobile 端国际化) — EXPENSE_CATEGORIES 是 [(key,zh)] 元组保持不变
-_EXPENSE_CATEGORY_EN = {
-    'entertainment':        'Entertainment',
-    'local_transport':      'Local Transport',
-    'travel_accommodation': 'Travel & Lodging',
-    'office_supplies':      'Office Supplies',
-    'communication':        'Communication',
-    'fuel':                 'Fuel',
-    'parking':              'Parking',
-    'meals':                'Meals',
-    'other':                'Other',
-}
-_EXPENSE_STATUS_EN = {
-    'draft':            'Draft',
-    'pending':          'Pending',
-    'approved':         'Approved',
-    'rejected':         'Rejected',
-    'recalled':         'Recalled',
-    'awaiting_payment': 'Awaiting Payment',
-    'paid':             'Paid',
-}
-
+# 科目/状态英文 label 统一收口到 app.helpers.expense_labels(唯一来源),此处不再各写一份
 def _category_label(key):
-    if _lang() == 'en':
-        return _EXPENSE_CATEGORY_EN.get(key, key or '')
-    return next((zh for k, zh in EXPENSE_CATEGORIES if k == key), key or '')
+    from app.helpers.expense_labels import expense_category_label
+    return expense_category_label(key, _lang())
 
 def _status_label_i18n(key):
-    if _lang() == 'en':
-        return _EXPENSE_STATUS_EN.get(key, key or '')
-    return next((zh for k, zh in EXPENSE_STATUS if k == key), key or '')
+    from app.helpers.expense_labels import expense_status_label
+    return expense_status_label(key, _lang())
 from app.utils.access_control import get_viewable_data
 import logging
 
@@ -387,7 +364,8 @@ def mobile_expense_create():
 
     data = request.get_json() or {}
     title = (data.get('title') or '').strip()
-    description = (data.get('description') or '').strip()
+    # A: 手输描述保存即归一区域语言(SG→en), 草稿立刻英文, 无需提交/等待
+    description = _normalize_region_text((data.get('description') or '').strip())
     # 不再同步调 AI 生成 title — 改由前端 fire-and-forget 调 /auto-title 异步生成
     # title 留空也允许; 列表/详情展示时前端用「未命名报销」占位
 
@@ -437,9 +415,14 @@ def mobile_expense_update(expense_id):
         return api_response(success=False, code=400, message='当前状态不可编辑')
 
     data = request.get_json() or {}
-    for k in ('title', 'description'):
-        if k in data:
-            setattr(e, k, (data[k] or '').strip())
+    if 'title' in data:
+        e.title = (data['title'] or '').strip()
+    if 'description' in data:
+        new_desc = (data['description'] or '').strip()
+        # A: 仅当描述非空且真改了才归一(避免每次 PUT 重复调 AI)
+        if new_desc and new_desc != (e.description or ''):
+            new_desc = _normalize_region_text(new_desc)
+        e.description = new_desc
     # 不再同步调 AI; 前端会在保存成功后异步调 /auto-title 生成
     # 报销币种创建后锁定(按用户 settlement_currency), 不允许切换 — 静默忽略 currency 字段
     for k in ('customer_id', 'contact_id', 'project_id'):
@@ -531,7 +514,7 @@ def mobile_expense_add_line(expense_id):
         expense_id=e.id,
         expense_date=expense_date,
         expense_category=data.get('expense_category') or 'other',
-        description=(data.get('description') or '').strip(),
+        description=_normalize_region_text((data.get('description') or '').strip()),
         document_count=int(data.get('document_count') or 1),
         currency=line_currency,
         invoice_amount=invoice_amount,
@@ -556,6 +539,22 @@ def mobile_expense_add_line(expense_id):
     e.calculate_total_amount()
     db.session.commit()
     return api_response(success=True, data=_line_dict(d))
+
+
+@api_v1_bp.route('/mobile/expense/invoices/group', methods=['POST'])
+@jwt_required()
+def mobile_expense_group_invoices():
+    """发票分组合并 — 与 web 同一份逻辑(services/expense_detail_service)。
+    入参/出参同 web /expense/api/invoices/group。前端拿 groups/payloads 渲染,不再自己分组。"""
+    from app.services.expense_detail_service import group_invoices, build_detail_payloads
+    data = request.get_json(silent=True) or {}
+    items = data.get('items') or []
+    default_currency = data.get('default_currency') or 'CNY'
+    decision = data.get('decision') or 'by_group'
+    group_description = data.get('group_description') or {}
+    groups = group_invoices(items, default_currency)
+    payloads = build_detail_payloads(items, decision, default_currency, group_description, _lang())
+    return api_response(success=True, data={'groups': groups, 'payloads': payloads})
 
 
 @api_v1_bp.route('/mobile/expense/<int:expense_id>/lines/<int:line_id>', methods=['PUT'])
@@ -583,9 +582,15 @@ def mobile_expense_update_line(expense_id, line_id):
         parsed = _parse_date(data['expense_date'])
         if parsed:
             d.expense_date = parsed
-    for k in ('expense_category', 'description'):
-        if k in data:
-            setattr(d, k, data[k])
+    if 'expense_category' in data:
+        d.expense_category = data['expense_category']
+    if 'description' in data:
+        s = (data['description'] or '').strip()
+        # A: 仅当明细描述非空且真改了才归一
+        if s and s != (d.description or ''):
+            d.description = _normalize_region_text(s)
+        else:
+            d.description = s
     if 'document_count' in data:
         d.document_count = int(data['document_count'] or 1)
     if 'invoice_amount' in data:
@@ -693,7 +698,76 @@ def mobile_expense_submit(expense_id):
         logger.error(f'mobile expense submit error: {exc}')
         return api_response(success=False, code=500, message='提交失败')
 
+    # 提交时同步归一(SG→en/CN→zh): 多数已在保存时(A)归一, 这里 CJK 闸只兜
+    # 残留中文, 正常情况近 0 调用、不卡提交; 完成后响应即带最终文案
+    _translate_expense_sync(expense_id)
     return api_response(success=True, data=_expense_detail_dict(e, with_flow=True, current_user_id=user_id))
+
+
+def _normalize_region_text(text):
+    """把用户手输自由文本同步归一成区域系统语言(SG→en / CN→zh)。
+
+    保存时(A)调用 → 草稿一保存就是区域语言, detail 立刻显示, 无需提交/等待。
+    空/纯空白原样返回; CN 纯中文走 translate_to 内部短路零成本;
+    失败返回原文(绝不丢用户输入)。
+    """
+    if not text or not str(text).strip():
+        return text
+    try:
+        from app.services.translation_service import (
+            translate_to, normalize_lang_for_region,
+        )
+        return translate_to(str(text).strip(), normalize_lang_for_region())
+    except Exception as e:
+        logger.warning(f'normalize region text 失败: {e}')
+        return text
+
+
+def _translate_expense_sync(expense_id):
+    """把 expense 的 title / description / 各明细描述归一成区域系统语言。
+
+    同步执行(供异步 worker 调用, 也便于单测)。已是目标语言由
+    translate_to 内部原样返回; 任何异常只 log, 绝不影响调用方。
+    """
+    try:
+        from app.services.translation_service import (
+            translate_to, normalize_lang_for_region, has_cjk,
+        )
+        target = normalize_lang_for_region()
+
+        # CJK 闸: en 目标时保存(A)已归一, 仅对"仍含中文"的字段调 AI →
+        # 正常提交近 0 次调用、不卡; zh 目标交给 translate_to 内部短路
+        def _need(txt):
+            return bool(txt) and (target != 'en' or has_cjk(txt))
+
+        ex = Expense.query.get(expense_id)
+        if not ex:
+            return
+        changed = False
+        if _need(ex.title):
+            t = translate_to(ex.title, target)
+            if t and t != ex.title:
+                ex.title = t
+                changed = True
+        if _need(ex.description):
+            d = translate_to(ex.description, target)
+            if d and d != ex.description:
+                ex.description = d
+                changed = True
+        for det in (ex.details or []):
+            if _need(det.description):
+                nd = translate_to(det.description, target)
+                if nd and nd != det.description:
+                    det.description = nd
+                    changed = True
+        if changed:
+            db.session.commit()
+    except Exception as e:
+        logger.warning(f'expense translate hook 失败 (id={expense_id}): {e}')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
 
 @api_v1_bp.route('/mobile/expense/<int:expense_id>/recall', methods=['POST'])
@@ -787,7 +861,7 @@ def mobile_expense_auto_title(expense_id):
 
     try:
         from app.services.expense_title_generator import generate_title
-        new_title = generate_title(e.description, fallback='')
+        new_title = generate_title(e.description, fallback='', lang=_lang())
     except Exception as exc:
         logger.warning(f'auto-title generate failed: {exc}')
         return api_response(success=False, code=500, message='AI 生成失败')
@@ -873,6 +947,19 @@ _EX_CURRENCIES = [
     {'code': 'VND', 'label': '越南盾',          'symbol': '₫',   'fallback_rate': 0.0003},
 ]
 
+# 英文 label 映射 (SG/en 用) — 同 _category_label / _status_label_i18n 模式
+_EXPENSE_CURRENCY_EN = {
+    'CNY': 'Chinese Yuan',
+    'USD': 'US Dollar',
+    'HKD': 'Hong Kong Dollar',
+    'TWD': 'Taiwan Dollar',
+    'SGD': 'Singapore Dollar',
+    'MYR': 'Malaysian Ringgit',
+    'IDR': 'Indonesian Rupiah',
+    'THB': 'Thai Baht',
+    'VND': 'Vietnamese Dong',
+}
+
 
 @api_v1_bp.route('/mobile/expense/currencies', methods=['GET'])
 @jwt_required()
@@ -889,12 +976,13 @@ def mobile_expense_currencies():
     except Exception as e:
         logger.warning(f'mobile expense currencies fetch rates fail: {e}')
 
+    en = (_lang() == 'en')
     items = []
     for c in _EX_CURRENCIES:
         rate = rates_map.get(c['code'], c['fallback_rate'])
         items.append({
             'code': c['code'],
-            'label': c['label'],
+            'label': _EXPENSE_CURRENCY_EN.get(c['code'], c['label']) if en else c['label'],
             'symbol': c['symbol'],
             'rate': round(rate, 6),
         })
@@ -940,11 +1028,12 @@ def mobile_expense_upload_invoice():
 
     from app.services.expense_invoice_ocr import extract_invoice
     from app.api.v1.utils import handle_image_ocr_upload
+    _req_lang = _lang()  # SG→en: description 直接出英文(确认页一开始即英文)
     success, payload, code, message = handle_image_ocr_upload(
         request.files.get('file'),
         owner_id=user_id,
         business_type='expense_invoice',
-        ocr_fn=extract_invoice,
+        ocr_fn=lambda blob: extract_invoice(blob, lang=_req_lang),
         default_filename='invoice.jpg',
     )
     return api_response(success=success, code=code, message=message, data=payload)

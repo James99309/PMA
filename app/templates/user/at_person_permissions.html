@@ -1,0 +1,233 @@
+{% extends 'components/at_person_layout.html' %}
+{% set person_active = 'permissions' %}
+
+{% block person_title %}权限覆盖 · 个人{% endblock %}
+{% block person_desc %}显示有效权限(个人覆盖 > 角色默认);权限按「整模块」覆盖——改动某模块的任意项,该模块整行写入个人覆盖,未动的模块保持继承角色默认;行尾「↺ 继承」删除该模块覆盖。{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-perm-sheet.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    {# 先选公司,再选个人;非 admin 锁定本公司 #}
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
+                 background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
+      <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
+      {% if is_admin and companies|length > 1 %}
+      <select id="ppCompany" onchange="ppCompanyGuarded(this)"
+              style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
+        {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <span>{{ (companies[0] if companies else user_company) or '未归属公司' }}</span>
+      {% endif %}
+    </span>
+    <div style="position:relative;">
+      <button type="button" id="ppPickerBtn" class="cm-role-btn">
+        <span id="ppUserName">选择人员</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="ppUserMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="ppSub" class="at-dim" style="font-size:12px;"></span>
+    <span id="ppDirty" style="font-size:12px;color:var(--warn);"></span>
+    <div style="flex:1;"></div>
+    <button type="button" id="ppClearBtn" onclick="ppClearAll()" style="display:none;
+            height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+            background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">清除全部覆盖</button>
+    <div id="ppEditBar"></div>
+  </div>
+
+  <div id="ppSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择人员…</div>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 覆盖以模块为单位:模块被覆盖后,角色默认对该模块完全失效(包括「全不勾」=显式禁止);
+    「↺ 继承」删除该模块覆盖并立即生效(页面其他未保存修改会一并丢弃);
+    矩阵与「配置管理 · 权限配置」共用同一组件;
+    「功能页签」(模块内部页签可见性)为角色级配置、无个人覆盖,请在 配置管理 → 权限配置 中调整。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const USERS = {{ users_data | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+
+  const COMPANIES = {{ companies | tojson }};
+  let _userId = null, _overridden = {}, guard = null;
+  let _company = COMPANIES[0] || '';
+  const usersOf = () => USERS.filter(u => u.company === _company);
+
+  window.ppCompanyChange = function (c) {
+    _company = c;
+    const list = usersOf();
+    if (list.length) ppSelect(list[0].id);
+    else {
+      _userId = null;
+      document.getElementById('ppUserName').textContent = '选择人员';
+      document.getElementById('ppSub').textContent = '';
+      document.getElementById('ppSheet').innerHTML =
+        '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">该公司暂无在职人员</div>';
+    }
+  };
+
+  // 公用权限矩阵组件(与「配置管理·权限配置」同源;person 模式=行尾继承按钮)
+  const sheet = ATPermSheet({
+    container: 'ppSheet',
+    canEdit: CAN_EDIT,
+    mode: 'person',
+    onChange: () => {
+      const n = new Set([...Object.keys(_overridden), ...sheet.getDirty()]).size;
+      const d = sheet.getDirty().length;
+      document.getElementById('ppDirty').textContent = d ? `${d} 个模块有改动,保存后共 ${n} 个模块为个人覆盖` : '';
+      if (typeof guard !== 'undefined' && guard) guard.markDirty();
+    },
+    onRevert: (mid) => {
+      ATConfirm.show({
+        title: '恢复继承',
+        message: `删除该模块的个人覆盖,恢复为角色默认?(立即生效;页面其他未保存修改将丢弃)`,
+        variant: 'accent', icon: 'history', confirmText: '恢复继承', cancelText: '取消',
+        onConfirm: async () => {
+          try {
+            const d = await (await fetch(`/config-management/api/users/${_userId}/permissions/${mid}/revert`, {
+              method: 'POST', headers: { 'X-CSRFToken': _csrf() } })).json();
+            if (d.success) { ATToast.success(d.message || '已恢复继承'); ppLoad(); }
+            else ATToast.error(d.message || '操作失败');
+          } catch (e) { ATToast.error('操作失败,请重试'); }
+        },
+      });
+    },
+  });
+
+  // ── 人员下拉:公用组件(搜索+部门分组),替代原内联实现 ──
+  window.ppSelect = function (id) { guard.attempt(function () { _userId = id; ppLoad(); }); };
+  window.ppCompanyGuarded = function (sel) {
+    guard.attempt(function () { ppCompanyChange(sel.value); }, function () { sel.value = _company; });
+  };
+  const _picker = AtPersonPicker.init({
+    button: 'ppPickerBtn', menu: 'ppUserMenu',
+    getUsers: usersOf, activeId: () => _userId, onSelect: ppSelect,
+    locked: () => (typeof _locked !== 'undefined' && _locked),
+  });
+
+  // 清除全部覆盖:仅在「编辑态 且 确有个人覆盖」时显示(纯继承角色默认时无可清除)
+  function _updateClearBtn() {
+    const b = document.getElementById('ppClearBtn');
+    if (!b) return;
+    b.style.display = (guard && guard.isEditing() && Object.keys(_overridden).length > 0) ? '' : 'none';
+  }
+
+  window.ppLoad = async function () {
+    if (!_userId) return;
+    const u = USERS.find(x => x.id === _userId);
+    document.getElementById('ppUserName').textContent = u ? u.name : '';
+    document.getElementById('ppDirty').textContent = '';
+    try {
+      if (!u.role) throw new Error('该用户未设置角色,无法计算继承基线');
+      // 角色默认(基线) + 个人覆盖行,并行取
+      const [roleRes, userRes] = await Promise.all([
+        fetch(`/config-management/api/role-permissions/${u.role}`,
+              { headers: { 'X-CSRFToken': _csrf() } }).then(r => r.json()),
+        fetch('/config-management/api/users/permissions/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+          body: JSON.stringify({ user_ids: [_userId] }),
+        }).then(r => r.json()),
+      ]);
+      if (!roleRes.success) throw new Error(roleRes.message || '角色默认加载失败');
+      if (!userRes.success) throw new Error(userRes.message || '个人权限加载失败');
+
+      // 有效视图 = 角色默认打底,个人行整模块替换(单用户无 mixed 状态)
+      const effective = JSON.parse(JSON.stringify(roleRes.data.permissions || {}));
+      _overridden = {};
+      const personal = userRes.data.permissions || {};
+      Object.keys(personal).forEach(mid => {
+        effective[mid] = Object.assign({ module: mid }, personal[mid]);
+        _overridden[mid] = true;
+      });
+
+      sheet.setData({
+        modules: roleRes.data.modules || [],
+        permissions: effective,
+        filterOptions: roleRes.data.content_filter_options || {},
+        overridden: _overridden,
+      });
+      const nOver = Object.keys(_overridden).length;
+      document.getElementById('ppSub').textContent =
+        `${u.role_display} · ${u.department} · ${nOver ? nOver + ' 个模块已覆盖' : '全部继承角色默认'}`;
+      _updateClearBtn();
+    } catch (e) {
+      document.getElementById('ppSheet').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
+    }
+  };
+
+  // 清除该人全部权限覆盖
+  window.ppClearAll = function () {
+    if (!_userId) return;
+    const u = USERS.find(x => x.id === _userId);
+    ATConfirm.show({
+      title: '清除全部覆盖',
+      message: `清除 ${u ? u.name : ''} 的全部个人权限覆盖,所有模块恢复为继承角色默认。`,
+      variant: 'danger', icon: 'trash', confirmText: '清除', cancelText: '取消',
+      onConfirm: async () => {
+        try {
+          const d = await (await fetch(`/config-management/api/users/${_userId}/permissions/reset`, {
+            method: 'POST', headers: { 'X-CSRFToken': _csrf() } })).json();
+          if (d.success) { ATToast.success('已恢复角色默认'); await ppLoad(); if (guard) guard.exit(); }
+          else ATToast.error(d.message || '操作失败');
+        } catch (e) { ATToast.error('操作失败,请重试'); }
+      },
+    });
+  };
+
+  // 保存:提交覆盖集(已有覆盖 ∪ 本次改动);其余模块不进 payload = 继承
+  async function ppSaveCore() {
+    if (!_userId) return false;
+    const dirty = sheet.getDirty();
+    if (!dirty.length) { ATToast.success('没有需要保存的变更'); return true; }
+    const all = sheet.getPermissions();
+    const keys = new Set([...Object.keys(_overridden), ...dirty]);
+    const payload = {};
+    keys.forEach(mid => { if (all[mid]) payload[mid] = all[mid]; });
+    try {
+      const d = await (await fetch(`/config-management/api/users/${_userId}/permissions/overrides`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ permissions: payload }),
+      })).json();
+      if (d.success) { ATToast.success(d.message || '已保存'); ppLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  guard = AtEditMode.init({
+    mount: 'ppEditBar', lockEl: 'ppSheet', canEdit: CAN_EDIT,
+    onSave: ppSaveCore,
+    onDiscard: function () { ppLoad(); },
+    onEnter: function () { _updateClearBtn(); },
+    onExit: function () { const b = document.getElementById('ppClearBtn'); if (b) b.style.display = 'none'; },
+    saveConfirm: { message: '确认保存该人员的权限覆盖?' },
+  });
+
+  // ?user= 预选(账户详情页跳入):锁定该用户,禁止切换防误操作
+  const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));
+  const _locked = !!_pre;
+  if (_pre) {
+    _company = _pre.company || _company;
+    const cs = document.getElementById('ppCompany');
+    if (cs) { cs.value = _company; cs.disabled = true; }
+    const btn = document.querySelector('.cm-role-btn');
+    btn.style.cursor = 'default';
+    btn.title = '从账户详情进入,已锁定到该用户;配置他人请从侧栏进入个人配置';
+    const ic = btn.querySelector('.material-symbols-outlined');
+    if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
+    ppSelect(_pre.id);
+  }
+  else if (usersOf().length) ppSelect(usersOf()[0].id);
+</script>
+{% endblock %}

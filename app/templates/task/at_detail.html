@@ -1,0 +1,92 @@
+{% from 'components/at_base.html' import at_icon %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles %}
+{% from 'components/at_file_preview.html' import at_file_preview_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ task_title }} · {{ _('任务详情') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+{{ at_detail_styles() }}
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-date-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-grouped-select.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-people-select.js') }}"></script>
+<script>
+  window.TASK_TYPE_GROUPS = {{ (task_type_groups or []) | tojson }};
+  window.TASK_TYPE_LABELS = {{ (task_type_labels or {}) | tojson }};
+  window.TASK_REVIEW_CODES = {{ (task_review_codes or []) | tojson }};
+</script>
+<style>
+  .td-tab-pane { display:none; }
+  .td-tab-pane.on { display:block; }
+  .td-tabs > button.on { color:var(--ink); border-bottom-color:var(--ink); font-weight:500; }
+  .tcmt .tcmt-del { opacity:0; transition:opacity .12s; }
+  .tcmt:hover .tcmt-del { opacity:1; }
+  /* 弹窗内日期选择器:与其它表单字段一致(白底/占满宽/同高) */
+  #tmOv .at-dp { display:flex; width:100%; }
+  #tmOv .at-dp-trigger { width:100%; height:36px; background:var(--bg-elev); border-radius:8px; }
+  /* 公用评论组件 at-comments 气泡样式(与工作项/日报一致) */
+  .wc-row { display:flex; gap:8px; align-items:flex-start; margin-bottom:12px; }
+  .wc-row.own { flex-direction:row-reverse; }
+  .wc-av { width:28px; height:28px; border-radius:50%; background:var(--accent); color:#fff;
+           display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex-shrink:0; }
+  .wc-bubble { display:flex; flex-direction:column; gap:3px; max-width:72%; min-width:0; font-size:12.5px;
+               color:var(--ink); background:var(--bg-page); border-radius:10px; padding:7px 11px; }
+  .wc-row.own .wc-bubble { background:var(--accent-tint); }
+  .wc-text { white-space:pre-wrap; word-break:break-word; }
+  .wc-foot { display:flex; align-items:center; gap:6px; align-self:flex-end; }
+  .wc-time { font-size:10px; color:var(--ink-4); }
+  body.at-page .wc-del { opacity:0; border:0; background:transparent; color:var(--ink-4); cursor:pointer;
+                         font-size:13px; line-height:1; padding:0; transition:opacity .12s; }
+  .wc-bubble:hover .wc-del { opacity:1; }
+  /* 子任务进展记录:日志型 → 一律左对齐 + 占满整行(不浪费右侧),区别于评论的聊天气泡 */
+  #upList .wc-row, #upList .wc-row.own { flex-direction:row; }
+  #upList .wc-bubble { max-width:100%; flex:1; }
+</style>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='task') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1100px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="{{ url_for('task.at_list_view') }}" style="font-size:13px;color:var(--ink-3);text-decoration:none;">{{ _('任务管理') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px;">{{ task_title }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);cursor:pointer;
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main style="flex:1;width:100%;box-sizing:border-box;max-width:1100px;margin:0 auto;padding:24px 32px 80px;">
+  <div id="taskDetail" data-task-id="{{ task_id }}" data-uid="{{ current_user.id }}">
+    <div style="padding:80px 0;text-align:center;color:var(--ink-3);">{{ _('加载中…') }}</div>
+  </div>
+</main>
+
+</div>
+</div>
+
+{{ at_file_preview_modal() }}
+<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-comments.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-task-detail.js') }}"></script>
+</body>
+</html>

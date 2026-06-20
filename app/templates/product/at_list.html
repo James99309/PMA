@@ -1,0 +1,734 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
+
+{% block sidebar_active %}product{% endblock %}
+{% block page_title %}{{ _('产品库') }}{% endblock %}
+{% block category_label %}PRODUCT · {{ _('产品中心') }}{% endblock %}
+{% block page_description %}{{ _('产品型号、规格、价格管理 — 报价/批价/采购共享数据源。') }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('产品中心') }}</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('产品库') }}</span>
+{% endblock %}
+
+{% block page_actions %}
+{% if has_permission('product', 'create') %}
+<button onclick="atImport.openCfgModal()"
+        style="height:34px;padding:0 14px;border-radius:6px;border:none;cursor:pointer;
+               display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;
+               background:var(--accent);color:#fff;transition:opacity 120ms;"
+        onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">
+  {{ at_icon('plus', 14) }} {{ _('引入产品') }}
+</button>
+{% endif %}
+{% endblock %}
+
+{% block tabs %}
+{% set _tabs = [
+  {'k':'all',          'l':_('全部'),     'c':tab_counts.all},
+  {'k':'active',       'l':_('在售'),     'c':tab_counts.active},
+  {'k':'upcoming',     'l':_('即将上架'), 'c':tab_counts.upcoming},
+  {'k':'discontinued', 'l':_('已停产'),   'c':tab_counts.discontinued}
+] %}
+{% for t in _tabs %}
+{# 状态 tab 仅在该状态对当前用户可见时显示(content_filters 配置);全部 tab 始终显示 #}
+{% if t.k == 'all' or t.k in (allowed_statuses or ['active']) %}
+{% set active = (current_tab == t.k) %}
+<a href="{{ url_for('product.at_list_view', tab=t.k, search=search) }}"
+   style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
+          position:relative;text-decoration:none;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;white-space:nowrap;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ t.l }}</span>
+  <span class="at-tab-num at-mono"
+        style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
+</a>
+{% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+<form method="get" action="{{ url_for('product.at_list_view') }}"
+      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <input type="hidden" name="tab" value="{{ current_tab }}">
+  {{ at_input(name='search', value=search, placeholder=_('搜索产品 MN / 型号 / 名称…'), icon_l='search', width='360px') }}
+</form>
+{% endblock %}
+
+{% block thead %}
+{% for h, a in [(_('产品 MN'),'left'),(_('型号'),'left'),(_('名称'),'left'),
+                (_('品牌'),'left'),(_('类别'),'left'),
+                (_('单价'),'right'),(_('状态'),'left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% for p in products %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+{% set currency_sym = get_currency_symbol(p.currency or get_default_currency()) %}
+<tr class="at-row" data-href="{{ url_for('product.at_view_product', id=p.id) }}"
+    onclick="location.href=this.dataset.href"
+    style="height:var(--row-h, 52px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
+      {{ p.product_mn or '—' }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
+    {{ p.model or '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:260px;color:var(--ink);font-size:12.5px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    {{ p.product_name or '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-3);font-size:12px;">
+    {{ p.brand or '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-3);font-size:12px;">
+    {{ p.category_obj.name if p.category_obj else (p.category or '—') }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <span class="at-mono at-tab-num"
+          style="color:{{ 'var(--ink)' if p.retail_price else 'var(--ink-4)' }};font-size:13px;">
+      {{ currency_sym }}{{ '{:,.2f}'.format(p.retail_price or 0) }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    {{ at_status_pill(p.status or 'active', scope='product') }}
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    {{ _('没有符合筛选条件的产品') }}
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block pagination %}
+{% if pagination.pages > 1 %}
+<span class="at-mono at-dim" style="font-size:11.5px;">
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
+</span>
+<div style="display:flex;gap:6px;">
+  {% if pagination.has_prev %}
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('product.at_list_view', tab=current_tab, page=pagination.prev_num, search=search)) }}
+  {% endif %}
+  {% if pagination.has_next %}
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('product.at_list_view', tab=current_tab, page=pagination.next_num, search=search)) }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{# ───────────────────────────────── Modals ───────────────────────────────── #}
+{% block modals %}
+
+{# ── Step 1: Config Selector Modal ── #}
+<div id="atCfgModal"
+     style="display:none;position:fixed;inset:0;z-index:9000;
+            align-items:center;justify-content:center;
+            background:rgba(0,0,0,0.4);"
+     onclick="if(event.target===this)atImport.closeCfgModal()">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:640px;max-width:calc(100vw - 32px);max-height:82vh;
+              display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.18);">
+    {# Header #}
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:20px 24px 16px;flex-shrink:0;">
+      <div>
+        <div class="at-mono at-dim" style="font-size:10px;letter-spacing:0.15em;margin-bottom:4px;">
+          PRODUCT · {{ _('引入配置') }}
+        </div>
+        <div style="font-size:16px;font-weight:500;color:var(--ink);">{{ _('选择配置产品') }}</div>
+      </div>
+      <button onclick="atImport.closeCfgModal()"
+              style="width:28px;height:28px;border:none;background:none;cursor:pointer;
+                     color:var(--ink-3);border-radius:4px;display:flex;align-items:center;justify-content:center;"
+              onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background='none'">
+        {{ at_icon('close', 16) }}
+      </button>
+    </div>
+
+    {# Search #}
+    <div style="padding:14px 24px 12px;flex-shrink:0;border-bottom:1px solid var(--line-soft);">
+      <input id="cfgSearch" type="text" placeholder="{{ _('搜索型号或 MN 编码…') }}"
+             oninput="atImport.onCfgSearch(this.value)"
+             style="width:100%;box-sizing:border-box;height:34px;padding:0 12px;
+                    border:1px solid var(--line);border-radius:6px;
+                    background:var(--bg);color:var(--ink);font-size:13px;outline:none;"
+             onfocus="this.style.borderColor='var(--accent)'"
+             onblur="this.style.borderColor='var(--line)'">
+    </div>
+
+    {# Tree area #}
+    <div id="cfgTreeArea"
+         style="flex:1;overflow-y:auto;padding:8px 0;min-height:200px;max-height:340px;">
+      <div id="cfgTreeLoading" style="padding:60px;text-align:center;color:var(--ink-3);font-size:13px;">
+        {{ _('加载中…') }}
+      </div>
+      <div id="cfgTreeContent" style="display:none;"></div>
+      <div id="cfgTreeEmpty" style="display:none;padding:60px;text-align:center;color:var(--ink-4);font-size:13px;">
+        {{ _('暂无可引入的配置产品') }}
+      </div>
+      <div id="cfgTreeError" style="display:none;padding:40px;text-align:center;color:#e53935;font-size:13px;">
+        {{ _('加载失败，') }}<a href="#" onclick="atImport.loadCfgTree();return false;" style="color:var(--accent);">{{ _('重试') }}</a>
+      </div>
+    </div>
+
+    {# Selected preview #}
+    <div id="cfgSelectedPreview"
+         style="display:none;margin:0 24px 12px;padding:12px 16px;
+                background:var(--bg);border:1px solid var(--accent);border-radius:8px;flex-shrink:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);">
+          {{ _('已选择') }}
+        </span>
+        <button onclick="atImport.clearCfgSelection()"
+                style="font-size:11px;color:var(--ink-3);border:none;background:none;cursor:pointer;
+                       padding:2px 6px;border-radius:3px;"
+                onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background='none'">
+          {{ _('取消选择') }}
+        </button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12.5px;">
+        <div>
+          <span style="color:var(--ink-3);">{{ _('型号') }} </span>
+          <span id="cfgPrevModel" class="at-mono" style="color:var(--ink);font-weight:500;"></span>
+        </div>
+        <div>
+          <span style="color:var(--ink-3);">MN  </span>
+          <span id="cfgPrevMN" class="at-mono" style="color:var(--ink);"></span>
+        </div>
+        <div>
+          <span style="color:var(--ink-3);">{{ _('分类') }} </span>
+          <span id="cfgPrevCat" style="color:var(--ink);"></span>
+        </div>
+        <div>
+          <span style="color:var(--ink-3);">{{ _('区域') }} </span>
+          <span id="cfgPrevRegion" style="color:var(--ink);"></span>
+        </div>
+      </div>
+    </div>
+
+    {# Footer #}
+    <div style="display:flex;justify-content:flex-end;gap:8px;
+                padding:16px 24px;flex-shrink:0;">
+      <button onclick="atImport.closeCfgModal()"
+              style="height:34px;padding:0 16px;border-radius:6px;border:1px solid var(--line);
+                     background:var(--bg-elev);color:var(--ink-2);font-size:13px;cursor:pointer;">
+        {{ _('取消') }}
+      </button>
+      <button id="btnCfgNext" onclick="atImport.openProductForm()" disabled
+              style="height:34px;padding:0 16px;border-radius:6px;border:none;
+                     background:var(--accent);color:#fff;font-size:13px;font-weight:500;
+                     cursor:not-allowed;opacity:0.4;transition:opacity 120ms;">
+        {{ _('下一步') }}
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ── Step 2: Product Create Form Modal ── #}
+<div id="atProductFormModal"
+     style="display:none;position:fixed;inset:0;z-index:9100;
+            align-items:center;justify-content:center;
+            background:rgba(0,0,0,0.4);"
+     onclick="if(event.target===this)atImport.closeProductForm()">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:560px;max-width:calc(100vw - 32px);max-height:90vh;
+              display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.18);">
+    {# Header #}
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:20px 24px 16px;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button onclick="atImport.backToCfgModal()"
+                style="height:28px;padding:0 10px;border:1px solid var(--line);border-radius:4px;
+                       background:var(--bg-elev);color:var(--ink-2);font-size:12px;cursor:pointer;
+                       display:flex;align-items:center;gap:4px;"
+                onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background='var(--bg-elev)'">
+          ← {{ _('返回') }}
+        </button>
+        <div>
+          <div class="at-mono at-dim" style="font-size:10px;letter-spacing:0.15em;margin-bottom:2px;">{{ _('从配置引入') }}</div>
+          <div style="font-size:16px;font-weight:500;color:var(--ink);">{{ _('填写产品信息') }}</div>
+        </div>
+      </div>
+      <button onclick="atImport.closeProductForm()"
+              style="width:28px;height:28px;border:none;background:none;cursor:pointer;
+                     color:var(--ink-3);border-radius:4px;display:flex;align-items:center;justify-content:center;"
+              onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background='none'">
+        {{ at_icon('close', 16) }}
+      </button>
+    </div>
+
+    {# Config summary bar #}
+    <div style="padding:10px 24px;background:var(--bg);border-bottom:1px solid var(--line-soft);
+                flex-shrink:0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <span class="at-mono" id="pfBarModel" style="font-size:13px;font-weight:600;color:var(--ink);"></span>
+      <span class="at-mono at-dim" id="pfBarMN" style="font-size:12px;"></span>
+      <span id="pfBarStatus" style="font-size:11px;padding:2px 8px;border-radius:100px;
+                                     background:var(--bg-elev);border:1px solid var(--line);
+                                     color:var(--ink-2);"></span>
+    </div>
+
+    {# Form body #}
+    <div style="flex:1;overflow-y:auto;padding:20px 24px;">
+      {# Readonly info #}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;
+                  padding:12px 16px;background:var(--bg);border-radius:8px;border:1px solid var(--line-soft);">
+        <div>
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:3px;">{{ _('分类') }}</div>
+          <div id="pfCatDisplay" style="font-size:13px;color:var(--ink-2);"></div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:3px;">
+            {{ _('销售区域') }} <span id="pfRegionRequired" style="display:none;color:#e53935;">*</span>
+          </div>
+          <div id="pfRegionDisplay" style="font-size:13px;color:var(--ink-2);"></div>
+          <select id="pfRegionSelect"
+                  style="display:none;width:100%;height:34px;padding:0 8px;
+                         border:1px solid var(--line);border-radius:6px;
+                         background:var(--bg);color:var(--ink);font-size:13px;cursor:pointer;">
+            <option value="">{{ _('— 请选择 —') }}</option>
+            {% for r in regions %}
+            <option value="{{ r.id }}">{{ r.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# Product name (引用自配置，只读) #}
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">
+          {{ _('产品名称') }}
+        </label>
+        <input id="pfName" type="text" readonly
+               style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
+                      border:1px solid var(--line-soft);border-radius:6px;
+                      background:var(--bg);color:var(--ink-2);font-size:13px;outline:none;
+                      cursor:default;">
+      </div>
+
+      {# Brand + Unit #}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('品牌') }}</label>
+          <input id="pfBrand" type="text"
+                 style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
+                        border:1px solid var(--line);border-radius:6px;
+                        background:var(--bg);color:var(--ink);font-size:13px;outline:none;"
+                 onfocus="this.style.borderColor='var(--accent)'"
+                 onblur="this.style.borderColor='var(--line)'">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('单位') }}</label>
+          <input id="pfUnit" type="text"
+                 style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
+                        border:1px solid var(--line);border-radius:6px;
+                        background:var(--bg);color:var(--ink);font-size:13px;outline:none;"
+                 onfocus="this.style.borderColor='var(--accent)'"
+                 onblur="this.style.borderColor='var(--line)'">
+        </div>
+      </div>
+
+      {# Currency + Price #}
+      <div style="display:grid;grid-template-columns:100px 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('货币') }}</label>
+          <input id="pfCurrency" type="text" readonly
+                 value="{{ currency_config.currency }}"
+                 style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
+                        border:1px solid var(--line-soft);border-radius:6px;
+                        background:var(--bg);color:var(--ink-2);font-size:13px;outline:none;
+                        cursor:default;">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('标准价格') }}</label>
+          <input id="pfPrice" type="number" step="0.01" min="0"
+                 style="width:100%;box-sizing:border-box;height:36px;padding:0 12px;
+                        border:1px solid var(--line);border-radius:6px;
+                        background:var(--bg);color:var(--ink);font-size:13px;outline:none;"
+                 onfocus="this.style.borderColor='var(--accent)'"
+                 onblur="this.style.borderColor='var(--line)'">
+        </div>
+      </div>
+
+      {# Status #}
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('状态') }}</label>
+        <select id="pfStatus"
+                style="width:100%;height:36px;padding:0 8px;
+                       border:1px solid var(--line);border-radius:6px;
+                       background:var(--bg);color:var(--ink);font-size:13px;outline:none;cursor:pointer;">
+          <option value="active">{{ _('在售') }}</option>
+          <option value="upcoming">{{ _('即将上架') }}</option>
+          <option value="discontinued">{{ _('已停产') }}</option>
+        </select>
+      </div>
+
+      {# Description #}
+      <div>
+        <label style="font-size:12px;color:var(--ink-2);display:block;margin-bottom:5px;">{{ _('描述') }}</label>
+        <textarea id="pfDesc" rows="3"
+                  style="width:100%;box-sizing:border-box;padding:8px 12px;
+                         border:1px solid var(--line);border-radius:6px;
+                         background:var(--bg);color:var(--ink);font-size:13px;
+                         outline:none;resize:vertical;"
+                  onfocus="this.style.borderColor='var(--accent)'"
+                  onblur="this.style.borderColor='var(--line)'"></textarea>
+      </div>
+    </div>
+
+    {# Error + Footer #}
+    <div id="pfFormError" style="display:none;padding:0 24px 8px;font-size:12px;color:#e53935;"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;
+                padding:16px 24px;flex-shrink:0;">
+      <button onclick="atImport.closeProductForm()"
+              style="height:34px;padding:0 16px;border-radius:6px;border:1px solid var(--line);
+                     background:var(--bg-elev);color:var(--ink-2);font-size:13px;cursor:pointer;">
+        {{ _('取消') }}
+      </button>
+      <button id="btnCreateProduct" onclick="atImport.submitProduct()"
+              style="height:34px;padding:0 20px;border-radius:6px;border:none;
+                     background:var(--accent);color:#fff;font-size:13px;font-weight:500;
+                     cursor:pointer;transition:opacity 120ms;"
+              onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">
+        <span id="btnCreateText">{{ _('创建产品') }}</span>
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  /* AT config tree hover/selected — avoids CSS var() in JS template literals */
+  .cfg-hdr:hover  { background: var(--bg-hover); }
+  .cfg-item:hover { background: var(--bg-hover); }
+  .cfg-item--sel  { background: rgba(99,102,241,0.08); }
+  .cfg-item--sel:hover { background: rgba(99,102,241,0.12); }
+  .cfg-item--dis  { opacity: 0.45; cursor: not-allowed !important; pointer-events: none; }
+</style>
+<script>
+(function () {
+  const IS_OVS    = {{ 'true' if currency_config.is_ovs else 'false' }};
+  const CSRF      = document.querySelector('meta[name="csrf-token"]').content;
+  const CFG_URL   = '{{ url_for("product.get_configurations_tree") }}';
+  const CREATE_URL= '{{ url_for("product.create_product") }}';
+  const DEFAULT_BRAND  = {{ default_brand | tojson }};
+  const CATEGORY_UNITS = {{ category_units | tojson }};   // {category_id: unit}
+
+  let _tree     = [];
+  let _selected = null;
+  let _expanded = new Set();
+  let _search   = '';
+  let _cfgMap   = {};   // key → config object (avoids JSON in onclick)
+
+  function _el(id) { return document.getElementById(id); }
+  function _pname(en, cn) { return IS_OVS ? (en || cn || '') : (cn || en || ''); }
+
+  // ── Modal 1: Config selector ──────────────────────────────────────────────
+
+  function openCfgModal() {
+    _selected = null;
+    _search   = '';
+    _expanded = new Set();
+    _el('cfgSearch').value = '';
+    _syncSelection();
+    _el('atCfgModal').style.display = 'flex';
+    if (_tree.length === 0) loadCfgTree();
+    else _renderTree();
+  }
+
+  function closeCfgModal() { _el('atCfgModal').style.display = 'none'; }
+
+  async function loadCfgTree() {
+    _el('cfgTreeLoading').style.display = 'block';
+    _el('cfgTreeContent').style.display = 'none';
+    _el('cfgTreeEmpty').style.display   = 'none';
+    _el('cfgTreeError').style.display   = 'none';
+    try {
+      const r = await fetch(CFG_URL);
+      const d = await r.json();
+      if (d.success) { _tree = d.data || []; _renderTree(); }
+      else { _el('cfgTreeLoading').style.display='none'; _el('cfgTreeError').style.display='block'; }
+    } catch (e) {
+      _el('cfgTreeLoading').style.display='none'; _el('cfgTreeError').style.display='block';
+    }
+  }
+
+  function onCfgSearch(val) { _search = val.toLowerCase(); _renderTree(); }
+
+  function _filtered() {
+    if (!_search) return _tree;
+    return _tree.map(cat => {
+      const subs = (cat.children||[]).map(sub => {
+        const cfgs = (sub.children||[]).filter(c =>
+          (c.template_model||'').toLowerCase().includes(_search) ||
+          (c.mn_code||'').toLowerCase().includes(_search)
+        );
+        if (cfgs.length) { _expanded.add(cat.id); _expanded.add(sub.id); }
+        return cfgs.length ? Object.assign({}, sub, {children: cfgs}) : null;
+      }).filter(Boolean);
+      return subs.length ? Object.assign({}, cat, {children: subs}) : null;
+    }).filter(Boolean);
+  }
+
+  function _renderTree() {
+    var data = _filtered();
+    _el('cfgTreeLoading').style.display = 'none';
+    _el('cfgTreeError').style.display   = 'none';
+    if (!data.length) {
+      _el('cfgTreeContent').style.display = 'none';
+      _el('cfgTreeEmpty').style.display   = 'block';
+      return;
+    }
+    _el('cfgTreeEmpty').style.display = 'none';
+    _cfgMap = {};
+    var h = '';
+
+    data.forEach(function(cat) {
+      var co  = _expanded.has(cat.id);
+      var cnt = (cat.children||[]).reduce(function(n,s){ return n+(s.children||[]).length; }, 0);
+      h += '<div style="border-bottom:1px solid var(--line-soft);">';
+      h += '<div class="cfg-hdr" onclick="atImport._tog(\'' + cat.id + '\')"'
+         + ' style="display:flex;align-items:center;gap:8px;padding:10px 20px;cursor:pointer;">';
+      h += '<span id="ar_' + cat.id + '" style="font-size:10px;color:var(--ink-3);display:inline-block;'
+         + 'transition:transform 150ms;transform:rotate(' + (co?90:0) + 'deg);">&#9658;</span>';
+      h += '<span style="font-size:13px;font-weight:500;color:var(--ink);">' + _esc(_pname(cat.name_en,cat.name)) + '</span>';
+      h += '<span style="font-size:11px;color:var(--ink-4);">(' + cnt + ')</span>';
+      h += '</div>';
+      h += '<div id="bd_' + cat.id + '" style="display:' + (co?'block':'none') + ';">';
+
+      (cat.children||[]).forEach(function(sub) {
+        var so = _expanded.has(sub.id);
+        h += '<div style="border-top:1px solid var(--line-soft);">';
+        h += '<div class="cfg-hdr" onclick="atImport._tog(\'' + sub.id + '\')"'
+           + ' style="display:flex;align-items:center;gap:8px;padding:9px 20px 9px 36px;cursor:pointer;">';
+        h += '<span id="ar_' + sub.id + '" style="font-size:10px;color:var(--ink-4);display:inline-block;'
+           + 'transition:transform 150ms;transform:rotate(' + (so?90:0) + 'deg);">&#9658;</span>';
+        h += '<span style="font-size:12.5px;color:var(--ink-2);">' + _esc(_pname(sub.name_en,sub.name)) + '</span>';
+        h += '<span style="font-size:11px;color:var(--ink-4);">(' + (sub.children||[]).length + ')</span>';
+        h += '</div>';
+        h += '<div id="bd_' + sub.id + '" style="display:' + (so?'block':'none') + ';">';
+
+        (sub.children||[]).forEach(function(c) {
+          var cfgKey = (c.is_remote ? 'r' : 'l') + '_' + c.id;
+          _cfgMap[cfgKey] = c;
+          var isSel = _selected && String(_selected.id)===String(c.id) && !!_selected.is_remote===!!c.is_remote;
+          var dis   = !!c.already_imported;
+          var prod  = c.status === 'production';
+          var cls   = 'cfg-item' + (dis?' cfg-item--dis':'') + (isSel?' cfg-item--sel':'');
+          var scol  = dis ? '#9e9e9e' : (prod ? '#22a65a' : '#d97706');
+          var label = dis ? '{{ _("已引入") }}' : (c.status_display||'');
+          var clickAttr = dis ? '' : ' onclick="atImport._pick(\'' + cfgKey + '\')"';
+          h += '<div class="' + cls + '"' + clickAttr
+             + ' style="display:flex;align-items:center;justify-content:space-between;'
+             + 'padding:9px 20px 9px 56px;cursor:' + (dis?'not-allowed':'pointer') + ';">';
+          h += '<div style="display:flex;align-items:center;gap:10px;">';
+          h += '<span class="at-mono" style="font-size:13px;font-weight:600;color:var(--ink);">' + _esc(c.template_model||'—') + '</span>';
+          h += '<span class="at-mono" style="font-size:11px;color:var(--ink-3);background:var(--bg);'
+             + 'border:1px solid var(--line-soft);padding:1px 6px;border-radius:3px;">' + _esc(c.mn_code||'') + '</span>';
+          h += '</div>';
+          h += '<span style="font-size:11px;padding:2px 8px;border-radius:100px;color:' + scol + ';'
+             + 'background:' + scol + '18;font-weight:500;">' + _esc(label) + '</span>';
+          h += '</div>';
+        });
+        h += '</div></div>';
+      });
+      h += '</div></div>';
+    });
+
+    _el('cfgTreeContent').innerHTML = h;
+    _el('cfgTreeContent').style.display = 'block';
+  }
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function _tog(id) {
+    if (_expanded.has(id)) {
+      _expanded.delete(id);
+    } else {
+      if (id.indexOf('cat_') === 0) {
+        // 手风琴：展开分类时清空所有已展开节点（分类+子分类全折叠）
+        _expanded = new Set();
+      } else {
+        // 展开子分类时只关闭其他子分类，保留父分类
+        var toClose = [];
+        _expanded.forEach(function(k) {
+          if (k.indexOf('sub_') === 0) toClose.push(k);
+        });
+        toClose.forEach(function(k) { _expanded.delete(k); });
+      }
+      _expanded.add(id);
+    }
+    _renderTree();
+  }
+
+  function _pick(key) {
+    _selected = _cfgMap[key];
+    _syncSelection();
+    _renderTree();
+  }
+
+  function clearCfgSelection() { _selected = null; _syncSelection(); _renderTree(); }
+
+  function _syncSelection() {
+    var has = !!_selected;
+    _el('cfgSelectedPreview').style.display = has ? 'block' : 'none';
+    var btn = _el('btnCfgNext');
+    btn.disabled      = !has;
+    btn.style.opacity = has ? '1' : '0.4';
+    btn.style.cursor  = has ? 'pointer' : 'not-allowed';
+    if (has) {
+      _el('cfgPrevModel').textContent  = _selected.template_model || '—';
+      _el('cfgPrevMN').textContent     = _selected.mn_code || '—';
+      _el('cfgPrevCat').textContent    = _pname(_selected.category_name_en, _selected.category_name)
+                                       + ' › ' + _pname(_selected.subcategory_name_en, _selected.subcategory_name);
+      _el('cfgPrevRegion').textContent = _pname(_selected.region_name_en, _selected.region_name) || '—';
+    }
+  }
+
+  // ── Modal 2: Product form ─────────────────────────────────────────────────
+
+  function openProductForm() {
+    if (!_selected) return;
+    var c = _selected;
+    _el('pfBarModel').textContent      = c.template_model || '';
+    _el('pfBarMN').textContent         = c.mn_code || '';
+    _el('pfBarStatus').textContent     = c.status_display || '';
+    _el('pfCatDisplay').textContent    = _pname(c.category_name_en, c.category_name)
+                                       + ' › ' + _pname(c.subcategory_name_en, c.subcategory_name);
+    if (c.region_id) {
+      _el('pfRegionDisplay').textContent = _pname(c.region_name_en, c.region_name) || '—';
+      _el('pfRegionDisplay').style.display  = '';
+      _el('pfRegionSelect').style.display   = 'none';
+      _el('pfRegionRequired').style.display = 'none';
+    } else {
+      _el('pfRegionDisplay').style.display  = 'none';
+      _el('pfRegionSelect').style.display   = 'block';
+      _el('pfRegionSelect').value           = '';
+      _el('pfRegionRequired').style.display = 'inline';
+    }
+    _el('pfName').value   = c.product_name || '';
+    // 品牌默认本系统厂商名称；单位按分类取该分类常用单位
+    _el('pfBrand').value  = DEFAULT_BRAND || '';
+    _el('pfUnit').value   = (c.category_id != null ? CATEGORY_UNITS[c.category_id] : '') || '';
+    _el('pfPrice').value  = '';
+    _el('pfDesc').value   = '';
+    _el('pfStatus').value = 'upcoming';   // 引入产品默认「即将上市」
+    _el('pfFormError').style.display  = 'none';
+    _el('btnCreateText').textContent  = '{{ _("创建产品") }}';
+    _el('btnCreateProduct').disabled  = false;
+    closeCfgModal();
+    _el('atProductFormModal').style.display = 'flex';
+  }
+
+  function closeProductForm() { _el('atProductFormModal').style.display = 'none'; }
+  function backToCfgModal()   { closeProductForm(); _el('atCfgModal').style.display = 'flex'; }
+
+  async function submitProduct() {
+    if (!_selected) return;
+    var c    = _selected;
+    var name = _el('pfName').value.trim();
+    if (!name) { _showErr('{{ _("请填写产品名称") }}'); _el('pfName').focus(); return; }
+
+    var btn = _el('btnCreateProduct');
+    btn.disabled = true;
+    _el('btnCreateText').textContent = '{{ _("创建中…") }}';
+    _el('pfFormError').style.display = 'none';
+
+    var fd = new FormData();
+    fd.append('type',          'standard');
+    fd.append('redirect_to',   'at');   // 引入成功后回到 AT 详情页
+    fd.append('status',        _el('pfStatus').value);
+    fd.append('product_name',  name);
+    fd.append('brand',         _el('pfBrand').value.trim());
+    fd.append('unit',          _el('pfUnit').value.trim());
+    fd.append('retail_price',  _el('pfPrice').value.trim());
+    fd.append('currency',      _el('pfCurrency').value);
+    fd.append('specification', _el('pfDesc').value.trim());
+
+    if (c.is_remote) {
+      fd.append('source_type',             'from_sp8d');
+      fd.append('source_configuration_id', '');
+      fd.append('category_name',           c.category_name    || '');
+      fd.append('category_name_en',        c.category_name_en || '');
+      fd.append('subcategory_name',        c.subcategory_name    || '');
+      fd.append('subcategory_name_en',     c.subcategory_name_en || '');
+      fd.append('region_code',             c.region || '');
+      fd.append('sp8d_configuration_id',   String(c.id));
+    } else {
+      fd.append('source_type',             'from_config');
+      fd.append('source_configuration_id', String(c.id));
+      if (c.category_id)    fd.append('category_id',    String(c.category_id));
+      if (c.subcategory_id) fd.append('subcategory_id', String(c.subcategory_id));
+      if (c.region_id) {
+        fd.append('region_id', String(c.region_id));
+      } else {
+        var selRegion = _el('pfRegionSelect').value;
+        if (!selRegion) {
+          _showErr('{{ _("请选择销售区域") }}');
+          btn.disabled = false;
+          _el('btnCreateText').textContent = '{{ _("创建产品") }}';
+          return;
+        }
+        fd.append('region_id', selRegion);
+      }
+    }
+
+    if (c.mn_code)        { fd.append('product_mn', c.mn_code); fd.append('spec_mn', c.mn_code); }
+    if (c.template_model)   fd.append('model', c.template_model);
+
+    try {
+      var r = await fetch(CREATE_URL, { method: 'POST', headers: {'X-CSRFToken': CSRF}, body: fd });
+      var d = await r.json();
+      if (d.success) {
+        closeProductForm();
+        window.location.href = d.redirect || ('/product/products/' + d.product.id);
+      } else {
+        _showErr(d.message || '{{ _("创建失败，请重试") }}');
+        btn.disabled = false;
+        _el('btnCreateText').textContent = '{{ _("创建产品") }}';
+      }
+    } catch (e) {
+      _showErr('{{ _("网络错误，请重试") }}');
+      btn.disabled = false;
+      _el('btnCreateText').textContent = '{{ _("创建产品") }}';
+    }
+  }
+
+  function _showErr(msg) {
+    var el = _el('pfFormError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  window.atImport = {
+    openCfgModal: openCfgModal,
+    closeCfgModal: closeCfgModal,
+    loadCfgTree: loadCfgTree,
+    onCfgSearch: onCfgSearch,
+    _tog: _tog,
+    _pick: _pick,
+    clearCfgSelection: clearCfgSelection,
+    openProductForm: openProductForm,
+    closeProductForm: closeProductForm,
+    backToCfgModal: backToCfgModal,
+    submitProduct: submitProduct
+  };
+})();
+</script>
+{% endblock %}

@@ -242,6 +242,592 @@ def index():
         return redirect(url_for('main.index'))
 
 
+# 角色业务排序(2026-06-12 与用户确认):总经理最上,销售类(销售/客户销售/服务/
+# 营销总监/渠道)→ 商务助理 → 解决方案 → 产品 → 工程师 → 项目经理 → 市场 →
+# 财务 → 出纳/采购/供应链 → 人事 → 代理商;系统管理员不显示;未列角色排尾。
+_ROLE_ORDER = ['ceo',
+               'sales_manager', 'customer_sales', 'service_manager',
+               'sales_director', 'channel_manager',
+               'business_admin',
+               'solution_manager', 'product_manager', 'engineer', 'project_manager',
+               'marketing_manager', 'marketingplan',
+               'finace_director', 'finance_director', 'finance_supervisor', 'finance',
+               'treasurer', 'buyer', 'supplychain_manager',
+               'hr_manager', 'hrdp_manager',
+               'dealer', 'user']
+
+
+def _role_sort_key(role):
+    r = (role or '').lower()
+    return _ROLE_ORDER.index(r) if r in _ROLE_ORDER else 900
+
+
+def _at_roles_data():
+    """AT 配置子页通用:在职用户实际存在的角色清单(显示名+人数+是否有岗位方案);
+    按业务排序(_ROLE_ORDER),排除系统管理员"""
+    from app.utils.dictionary_helpers import get_role_display_name
+    from app.services.role_kpi_schemes import get_role_scheme
+    from collections import Counter
+    users = User.query.filter(User._is_active.is_(True)).all()
+    counts = Counter(u.role for u in users if u.role and u.role != 'admin')
+    return [{
+        'role': r,
+        'display': get_role_display_name(r),
+        'count': c,
+        'has_scheme': bool(get_role_scheme(r)),
+    } for r, c in sorted(counts.items(), key=lambda x: _role_sort_key(x[0]))]
+
+
+# 配置管理 tab 顺序(功能开关 → 路由 endpoint);落地路由按此取首个可访问 tab
+_CONFIG_TAB_ORDER = [
+    ('cm_permission', 'config_management.at_permissions'),
+    ('cm_budget', 'config_management.at_expense'),
+    ('cm_performance', 'config_management.at_performance'),
+    ('cm_flow', 'config_management.at_flows'),
+    ('cm_salary', 'config_management.at_salary_structure'),
+    ('cm_salary_run', 'config_management.at_salary_approval'),
+]
+
+
+@config_management_bp.route('/at')
+@login_required
+def at_home():
+    """配置管理落地:重定向到当前用户第一个有权访问的 tab(避免落到无权的权限配置 → 403)。"""
+    if current_user.role != 'admin' and not current_user.has_permission('config_management', 'view'):
+        abort(403)
+    for feat, endpoint in _CONFIG_TAB_ORDER:
+        if current_user.role == 'admin' or current_user.has_feature('config_management', feat):
+            return redirect(url_for(endpoint))
+    abort(403)
+
+
+@config_management_bp.route('/at/permissions')
+@login_required
+def at_permissions():
+    """AT 配置管理 · 权限配置(角色默认权限矩阵)。复用 /api/role-permissions/<role>。"""
+    if not _config_tab_allowed('cm_permission'):
+        abort(403)
+    return render_template('config_management/at_permissions.html',
+                           roles_data=_at_roles_data(),
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+@config_management_bp.route('/at/expense')
+@login_required
+def at_expense():
+    """AT 配置管理 · 部门预算(年度总额 + 动态细分科目,科目限报销 EXPENSE_CATEGORIES)。"""
+    if not _config_tab_allowed('cm_budget'):
+        abort(403)
+    from app.models.expense import Department, EXPENSE_CATEGORIES
+    from app.models.user import User
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+
+    # 企业隔离:非 admin 锁定本公司(只见/只配本公司部门);admin 可在公司间切换
+    is_admin = current_user.role == 'admin'
+    user_company = current_user.company_name or ''
+    q = Department.query.filter(Department.is_active.is_(True))
+    if not is_admin:
+        q = q.filter(Department.company_name == user_company)
+    depts = q.order_by(Department.company_name, Department.id).all()
+
+    member_counts = dict(db.session.query(User.department, db.func.count(User.id))
+                         .filter(User._is_active.is_(True)).group_by(User.department).all())
+    departments_data = [{
+        'id': d.id,
+        'name': d.name,
+        'company': d.company_name or '',
+        'manager': (d.manager.real_name or d.manager.username) if d.manager else '',
+        'count': member_counts.get(d.name, 0),
+    } for d in depts]
+    if is_admin:
+        # admin 可切换的公司全集 = 在职用户的公司 ∪ 已有部门的公司(没部门的切过去提示先建)
+        user_companies = {c for (c,) in db.session.query(User.company_name)
+                          .filter(User._is_active.is_(True), User.company_name.isnot(None),
+                                  User.company_name != '').distinct().all()}
+        companies = sorted(user_companies | {d['company'] for d in departments_data if d['company']})
+        # 排序:访问者公司(厂商)最前 → 有部门的 → 其余;= admin 进入时默认上下文
+        companies.sort(key=lambda c: (c != user_company,
+                                      0 if any(d['company'] == c for d in departments_data) else 1, c))
+    else:
+        companies = sorted({d['company'] for d in departments_data if d['company']})
+
+    currency_code = get_default_currency()   # 与数据库环境一致(sp8d=CNY / ovs=USD)
+    return render_template('config_management/at_expense.html',
+                           departments_data=departments_data,
+                           companies=companies,
+                           user_company=user_company,
+                           is_admin=is_admin,
+                           expense_categories=[{'code': c, 'name': n} for c, n in EXPENSE_CATEGORIES],
+                           currency_code=currency_code,
+                           currency_symbol=get_currency_symbol(currency_code),
+                           current_year=datetime.now().year,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+def _budget_to_item(code, name, annual, pb, unit, locked=False):
+    """预算行 → ATBudgetSheet item 形状(部门/个人预算 API 共用)"""
+    it = {'item_code': code, 'item_name': name, 'unit': unit, 'locked': locked,
+          'annual_target': float(annual or 0),
+          'q1_target': None, 'q2_target': None, 'q3_target': None, 'q4_target': None,
+          'enable_quarterly': False, 'enable_monthly': False, 'monthly_targets': {}}
+    p = (pb or {}).get(code) or {}
+    periods = p.get('periods') or {}
+    if p.get('gran') == 'M':
+        it['enable_monthly'] = True
+        it['monthly_targets'] = {str(m): periods.get(str(m)) for m in range(1, 13)
+                                 if periods.get(str(m)) is not None}
+    elif p.get('gran') == 'Q':
+        it['enable_quarterly'] = True
+        for q in range(1, 5):
+            it[f'q{q}_target'] = periods.get(str(q))
+    return it
+
+
+def _items_to_budget(items, cat_names):
+    """payload items → (total, cats, period_budgets);科目键校验由调用方做"""
+    total, cats, pb = 0.0, {}, {}
+    for it in items:
+        code = it.get('item_code')
+        annual = float(it.get('annual_target') or 0)
+        if code == 'total':
+            total = annual
+        else:
+            cats[code] = annual
+        if it.get('enable_monthly') and it.get('monthly_targets'):
+            pb[code] = {'gran': 'M', 'periods': {str(k): float(v) for k, v in it['monthly_targets'].items()
+                                                 if v is not None and v != ''}}
+        elif it.get('enable_quarterly'):
+            qs = {str(q): float(it.get(f'q{q}_target')) for q in range(1, 5)
+                  if it.get(f'q{q}_target') is not None and it.get(f'q{q}_target') != ''}
+            if qs:
+                pb[code] = {'gran': 'Q', 'periods': qs}
+    return total, cats, pb
+
+
+@config_management_bp.route('/api/department-budgets/<int:dept_id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('config_management', 'view')
+def api_department_budget(dept_id):
+    """部门预算读写。items 形状对齐 ATTargetSheet(item_code='total' 为总额行,其余为报销科目行)。
+
+    保存为整包替换:payload 没有的科目即被移除;科目键必须 ∈ EXPENSE_CATEGORIES。
+    """
+    try:
+        from app.models.expense import Department, EXPENSE_CATEGORIES
+        from app.models.expense_budget import DepartmentExpenseBudget
+
+        dept = Department.query.get(dept_id)
+        if not dept:
+            return jsonify({'success': False, 'message': '部门不存在'}), 404
+        # 企业隔离:非 admin 只能读写本公司部门的预算
+        if current_user.role != 'admin' and (dept.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权操作其他公司的部门预算'}), 403
+        cat_names = dict(EXPENSE_CATEGORIES)
+        from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+        unit = get_currency_symbol(get_default_currency())   # 货币随数据库环境(sp8d=¥ / ovs=$)
+
+        def to_item(code, name, annual, pb, locked=False):
+            return _budget_to_item(code, name, annual, pb, unit, locked)
+
+        if request.method == 'GET':
+            year = request.args.get('year', datetime.now().year, type=int)
+            b = DepartmentExpenseBudget.query.filter_by(department_id=dept_id, year=year).first()
+            cats = (b.category_budgets if b else None) or {}
+            pb = (b.period_budgets if b else None) or {}
+            items = [to_item('total', '年度总额', b.total_budget if b else 0, pb, locked=True)]
+            # 细分行按报销科目定义顺序输出
+            for code, name in EXPENSE_CATEGORIES:
+                if code in cats:
+                    items.append(to_item(code, name, cats[code], pb))
+            return jsonify({'success': True, 'data': {'department_id': dept_id, 'year': year, 'items': items}})
+
+        # POST
+        if not current_user.has_permission('config_management', 'edit'):
+            return jsonify({'success': False, 'message': '没有编辑权限'}), 403
+        data = request.get_json() or {}
+        year = data.get('year', datetime.now().year)
+        items = data.get('items', [])
+
+        for it in items:
+            if it.get('item_code') != 'total' and it.get('item_code') not in cat_names:
+                return jsonify({'success': False, 'message': f"非法科目: {it.get('item_code')}(必须来自报销科目)"}), 400
+        total, cats, pb = _items_to_budget(items, cat_names)
+
+        if sum(cats.values()) > total + 0.01:
+            return jsonify({'success': False,
+                            'message': f'细分合计 {sum(cats.values()):,.2f} 超过年度总额 {total:,.2f}'}), 400
+
+        b = DepartmentExpenseBudget.query.filter_by(department_id=dept_id, year=year).first()
+        if not b:
+            b = DepartmentExpenseBudget(department_id=dept_id, year=year, created_by=current_user.id)
+            db.session.add(b)
+        b.total_budget = total
+        b.category_budgets = cats or None
+        b.period_budgets = pb or None
+        b.updated_by = current_user.id
+        b.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'部门预算已保存({len(cats)} 个细分科目)'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"部门预算操作失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@config_management_bp.route('/api/users/<int:user_id>/expense-budget', methods=['GET', 'POST'])
+@login_required
+def api_user_expense_budget(user_id):
+    """个人费用预算(挂在部门预算之下)。
+
+    约束:个人年度 ≤ 部门总额 - 同部门其他成员已分配;部门已单列的明细个人强制保留,
+    且各明细 ≤ 部门该明细额度 - 其他成员该明细已分配;企业隔离同部门预算。
+    放行:person_config view+pc_budget+数据范围(写需 edit),或旧 config_management 权限。
+    """
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_budget', need_edit=(request.method == 'POST')):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    try:
+        from app.models.expense import Department, EXPENSE_CATEGORIES
+        from app.models.expense_budget import DepartmentExpenseBudget, ExpenseBudget
+        from app.models.user import User
+        from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+
+        target = User.query.get(user_id)
+        if not target:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        # 企业隔离:非 admin 只能配置本公司用户
+        if current_user.role != 'admin' and (target.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权操作其他公司用户的预算'}), 403
+
+        cat_names = dict(EXPENSE_CATEGORIES)
+        unit = get_currency_symbol(get_default_currency())
+        year = (request.args if request.method == 'GET' else (request.get_json() or {})) \
+            .get('year', datetime.now().year)
+        year = int(year)
+
+        # 部门上下文:users.department 文本 + 公司 匹配部门表
+        dept = Department.query.filter_by(name=target.department or '',
+                                          company_name=target.company_name or '',
+                                          is_active=True).first() if target.department else None
+        dept_budget = DepartmentExpenseBudget.query.filter_by(
+            department_id=dept.id, year=year).first() if dept else None
+        dept_cats = (dept_budget.category_budgets if dept_budget else None) or {}
+
+        # 同部门其他成员已分配(总额 + 各科目)
+        used_others_total, used_others_cat = 0.0, {}
+        if dept:
+            mate_ids = [u.id for u in User.query.filter(
+                User._is_active.is_(True), User.id != target.id,
+                User.department == target.department,
+                User.company_name == target.company_name).all()]
+            if mate_ids:
+                for eb in ExpenseBudget.query.filter(ExpenseBudget.user_id.in_(mate_ids),
+                                                     ExpenseBudget.year == year).all():
+                    # 只统计新机制写入的记录(category_budgets 非 NULL);
+                    # 旧个人预算功能的历史记录是独立口径,不占部门盘子
+                    if eb.category_budgets is None:
+                        continue
+                    used_others_total += float(eb.total_budget or 0)
+                    for c, v in (eb.category_budgets or {}).items():
+                        used_others_cat[c] = used_others_cat.get(c, 0.0) + float(v or 0)
+
+        context = {
+            'dept_name': dept.name if dept else (target.department or ''),
+            'no_dept_budget': dept_budget is None,
+            'dept_total': float(dept_budget.total_budget or 0) if dept_budget else None,
+            'dept_used_others': round(used_others_total, 2),
+            'forced': [c for c, _ in EXPENSE_CATEGORIES if c in dept_cats],
+            'cat_caps': {c: {'dept_amount': float(dept_cats[c] or 0),
+                             'used_others': round(used_others_cat.get(c, 0.0), 2)}
+                         for c in dept_cats},
+        }
+
+        if request.method == 'GET':
+            b = ExpenseBudget.query.filter_by(user_id=user_id, year=year).first()
+            cats = (b.category_budgets if b else None) or {}
+            pb = (b.period_budgets if b else None) or {}
+            items = [_budget_to_item('total', '年度总额', b.total_budget if b else 0, pb, unit, locked=True)]
+            for code, name in EXPENSE_CATEGORIES:
+                if code in cats or code in dept_cats:   # 部门单列的明细强制出现
+                    items.append(_budget_to_item(code, name, cats.get(code, 0), pb, unit, locked=True))
+            return jsonify({'success': True, 'data': {'user_id': user_id, 'year': year,
+                                                      'items': items, 'context': context}})
+
+        # POST
+        if not current_user.has_permission('config_management', 'edit'):
+            return jsonify({'success': False, 'message': '没有编辑权限'}), 403
+        # 个人预算必须挂在部门预算之下:部门未配置 → 禁止配置个人
+        if dept_budget is None:
+            return jsonify({'success': False,
+                            'message': f"「{context['dept_name'] or '未知部门'}」{year} 年尚未设置部门预算,"
+                                       f"请先在 配置管理 → 部门预算 中配置"}), 400
+        items = (request.get_json() or {}).get('items', [])
+        for it in items:
+            if it.get('item_code') != 'total' and it.get('item_code') not in cat_names:
+                return jsonify({'success': False, 'message': f"非法科目: {it.get('item_code')}(必须来自报销科目)"}), 400
+        total, cats, pb = _items_to_budget(items, cat_names)
+
+        # 校验1:部门单列的明细强制保留
+        missing = [cat_names[c] for c in context['forced'] if c not in cats]
+        if missing:
+            return jsonify({'success': False,
+                            'message': f"部门预算已单列明细「{'、'.join(missing)}」,个人必须保留配置"}), 400
+        # 校验2:细分合计 ≤ 个人总额
+        if sum(cats.values()) > total + 0.01:
+            return jsonify({'success': False,
+                            'message': f'细分合计 {sum(cats.values()):,.2f} 超过个人年度总额 {total:,.2f}'}), 400
+        # 校验3:个人年度 ≤ 部门可分配(部门总额 - 其他成员已分配)
+        if dept_budget is not None:
+            cap_total = float(dept_budget.total_budget or 0) - used_others_total
+            if total > cap_total + 0.01:
+                return jsonify({'success': False,
+                                'message': f'个人年度 {total:,.2f} 超过部门可分配额度 {cap_total:,.2f}'}), 400
+            # 校验4:各明细 ≤ 部门该明细可用上限
+            for c, v in cats.items():
+                if c in dept_cats:
+                    cap_c = float(dept_cats[c] or 0) - used_others_cat.get(c, 0.0)
+                    if v > cap_c + 0.01:
+                        return jsonify({'success': False,
+                                        'message': f'「{cat_names[c]}」{v:,.2f} 超过部门该明细可用上限 {cap_c:,.2f}'}), 400
+
+        b = ExpenseBudget.query.filter_by(user_id=user_id, year=year).first()
+        if not b:
+            b = ExpenseBudget(user_id=user_id, year=year, created_by=current_user.id)
+            db.session.add(b)
+        b.total_budget = total
+        b.category_budgets = cats   # 恒存 dict(空也存 {}):非 NULL = 新机制记录,计入部门盘子
+        b.period_budgets = pb or None
+        b.updated_by = current_user.id
+        b.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'个人预算已保存({len(cats)} 个细分科目)'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"个人预算操作失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@config_management_bp.route('/at/salary')
+@login_required
+def at_salary():
+    """AT 配置管理 · 薪资配置(职级/基础参数/阶梯规则/公式,系统级)。复用 /api/salary/* 全套。"""
+    if not current_user.has_permission('config_management', 'view'):
+        abort(403)
+    return render_template('config_management/at_salary.html',
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+# ═══════════════════════════════════════════════════════════
+# AT 薪资配置(岗位结构化薪资:基础/绩效/其他项目,套用到个人)
+# 敏感数据:仅 admin / ceo / hr_manager(SALARY_ADMIN_ROLES)可见可配
+# ═══════════════════════════════════════════════════════════
+
+def _salary_guard():
+    from app.models.salary_structure import SALARY_ADMIN_ROLES
+    if current_user.role not in SALARY_ADMIN_ROLES:
+        abort(403)
+
+
+def _config_tab_allowed(feature_id):
+    """配置管理某 tab 访问:admin / config_management view + 对应功能开关。"""
+    if current_user.role == 'admin':
+        return True
+    return (current_user.has_permission('config_management', 'view')
+            and current_user.has_feature('config_management', feature_id))
+
+
+@config_management_bp.route('/at/salary-structure')
+@login_required
+def at_salary_structure():
+    """AT 配置管理 · 薪资配置(全局基础薪资结构:主子层级 + 发放方式,不含金额)。"""
+    if not _config_tab_allowed('cm_salary'):
+        abort(403)
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+    return render_template('config_management/at_salary_structure.html',
+                           currency_symbol=get_currency_symbol(get_default_currency()),
+                           can_edit=True)   # 能进来的三个角色即可编辑
+
+
+@config_management_bp.route('/api/salary-structure')
+@login_required
+def api_get_salary_structure():
+    """全局薪资结构(主项 + 子项;无金额);无配置时种子已含固定两项"""
+    _salary_guard()
+    try:
+        from app.models.salary_structure import SalaryStructureItem, SALARY_LOCKED_ITEMS
+        rows = SalaryStructureItem.query.filter_by(is_active=True)\
+            .order_by(SalaryStructureItem.sort_order, SalaryStructureItem.id).all()
+        items = [r.to_dict() for r in rows]
+        # 兜底:固定项缺失则补(不落库,前端保存时写入)
+        existing = {it['item_code'] for it in items}
+        for i, it in enumerate(SALARY_LOCKED_ITEMS):
+            if it['item_code'] not in existing:
+                items.insert(i, {'item_code': it['item_code'], 'item_name': it['item_name'],
+                                 'parent_code': None, 'pay_cycle': 'monthly',
+                                 'is_locked': True, 'sort_order': i})
+        return jsonify({'success': True, 'data': {'items': items}})
+    except Exception as e:
+        logger.error(f"获取薪资结构失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@config_management_bp.route('/api/salary-structure', methods=['POST'])
+@login_required
+def api_save_salary_structure():
+    """整棵结构保存(upsert + 删除不在载荷中的项;固定主项不可删)。
+    载荷 items:[{item_code, item_name, parent_code, pay_cycle}],按数组顺序定 sort_order。"""
+    _salary_guard()
+    try:
+        from app.models.salary_structure import SalaryStructureItem, SALARY_LOCKED_ITEMS
+        locked = {it['item_code']: it for it in SALARY_LOCKED_ITEMS}
+        items = (request.get_json() or {}).get('items', [])
+        keep = set()
+        for i, it in enumerate(items):
+            code = (it.get('item_code') or '').strip()
+            name = (it.get('item_name') or '').strip()
+            if not code:
+                import uuid
+                code = 'sal_' + uuid.uuid4().hex[:8]
+            if not name and code not in locked:
+                continue
+            keep.add(code)
+            row = SalaryStructureItem.query.filter_by(item_code=code).first()
+            if not row:
+                row = SalaryStructureItem(item_code=code, created_by=current_user.id)
+                db.session.add(row)
+            row.item_name = locked[code]['item_name'] if code in locked else name
+            row.parent_code = (it.get('parent_code') or None) if code not in locked else None
+            row.pay_cycle = it.get('pay_cycle') if it.get('pay_cycle') in ('monthly', 'quarterly', 'yearly') else 'monthly'
+            row.is_locked = code in locked
+            row.is_active = True
+            row.sort_order = i
+            row.updated_by = current_user.id
+        # 删除不在载荷中的项(固定主项始终保留)
+        for row in SalaryStructureItem.query.all():
+            if row.item_code not in keep and row.item_code not in locked:
+                db.session.delete(row)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '薪资结构已保存'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存薪资结构失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@config_management_bp.route('/at/flows')
+@login_required
+def at_flows():
+    """AT 配置管理 · 流程配置(v1 只读):盘点全部审批流程,展示步骤图/参数/启用状态。
+    不区分老的可配置模板与新的代码动态路由 — 统一以「步骤逻辑」展示;编辑能力后置。"""
+    if not _config_tab_allowed('cm_flow'):
+        abort(403)
+
+    from app.models.approval import ApprovalProcessTemplate, ApprovalStep
+
+    OBJ_LABEL = {
+        'project': '项目报备', 'project_hold': '项目失败/搁置', 'dealer_apply': '客户渠道身份',
+        'quotation': '报价单', 'expense': '报销单', 'pricing_order': '批价单',
+        'purchase_order': '采购订单', 'sales_order': '销售订单', 'customer': '客户',
+    }
+    APPROVER_TYPE_LABEL = {
+        'user': '固定审批人', 'submitter_designate': '发起时系统指定',
+        'branch': '分支选择(审批人手选)', 'auto': '自动审批',
+    }
+    # 动态路由流程:审批人由代码按业务规则解析,覆盖模板步骤的描述
+    BUILTIN_SPECS = {
+        'project': {
+            'tag': '动态路由', 'steps': {
+                1: '按业务线分流:渠道(report_source=channel)→渠道经理,缺位由营销总监代理;'
+                   '服务类(负责人属服务部门)→服务经理,缺位直达总经理;其余→营销总监,缺位直达总经理',
+                2: '总经理(role=ceo,优先同公司);终审必经',
+            },
+            'notes': ['整条通过时按项目类型自动生成授权编号:渠道跟进→CPJ / 销售重点→SPJ / 业务机会→APJ',
+                      '第一步人选与发起人或总经理重复时自动跳级',
+                      '旧的 7 个可配置报备模板已全部停用,进行中的旧实例按各自快照走完'],
+        },
+        'project_hold': {
+            'tag': '动态路由', 'steps': {
+                1: '业务线分流(同项目报备):渠道→渠道经理(缺位营销总监代理)/服务→服务经理/其余→营销总监',
+                2: '总经理(role=ceo);终审必经',
+            },
+            'notes': ['发起人与各级审批人均强制填写意见',
+                      '失败审核「同意」时归因认定:步骤1 可勾「个人因素为主」(计入个人失败率);'
+                      '步骤2 可勾「团队管理失责」(计入团队失败率);驳回/召回自动清标',
+                      '整条通过才将项目置为 失败/搁置;恢复无需审批,回到进入时的阶段'],
+        },
+        'dealer_apply': {
+            'tag': '动态路由', 'steps': {
+                1: '商务助理(business_admin,优先同公司);缺位自动跳级',
+                2: '渠道经理(channel_manager);缺位自动跳级',
+                3: '总经理(role=ceo);终审必经',
+            },
+            'notes': ['新建/编辑客户选择 代理商/分销商 时自动发起;目标身份暂存,审批通过才写入客户类型',
+                      '驳回/召回清除暂存身份,客户维持原类型',
+                      '通过后客户计入渠道经理「渠道发展」考核'],
+        },
+    }
+
+    tpls = (ApprovalProcessTemplate.query
+            .order_by(ApprovalProcessTemplate.is_active.desc(), ApprovalProcessTemplate.object_type,
+                      ApprovalProcessTemplate.id).all())
+    flows = []
+    for t in tpls:
+        steps = (ApprovalStep.query.filter_by(process_id=t.id)
+                 .order_by(ApprovalStep.step_order).all())
+        spec = BUILTIN_SPECS.get(t.object_type) if t.is_active else None
+        items = []
+        for st in steps:
+            if spec and st.step_order in spec['steps']:
+                desc = spec['steps'][st.step_order]
+            else:
+                desc = APPROVER_TYPE_LABEL.get(st.approver_type or '', st.approver_type or '未配置')
+                if st.approver_user_id:
+                    u = User.query.get(st.approver_user_id)
+                    if u:
+                        desc = f'固定审批人:{u.real_name or u.username}'
+            items.append({'order': st.step_order, 'name': st.step_name,
+                          'desc': desc, 'email': bool(st.send_email)})
+        flows.append({
+            'id': t.id, 'name': t.name,
+            'object_type': t.object_type,
+            'object_label': OBJ_LABEL.get(t.object_type, t.object_type),
+            'active': bool(t.is_active),
+            'tag': (spec or {}).get('tag', '可配置模板'),
+            'steps': items,
+            'notes': (spec or {}).get('notes', []),
+        })
+    # 不走模板表的内置流程(说明性条目)
+    flows.append({
+        'id': None, 'name': '批价/结算审批(V2)', 'object_type': 'pricing_order_v2',
+        'object_label': '批价单', 'active': True, 'tag': '动态路由',
+        'steps': [{'order': 1, 'name': '动态流程', 'desc': '按批价流程类型(销售重点/渠道等)在创建时生成审批链,详见批价单详情页', 'email': True}],
+        'notes': ['流程快照随单生成,不走通用模板表'],
+    })
+
+    return render_template('config_management/at_flows.html',
+                           flows=flows,
+                           active_count=sum(1 for f in flows if f['active']))
+
+
+@config_management_bp.route('/at/performance')
+@login_required
+def at_performance():
+    """AT 配置管理 · 绩效配置(目标设定)子页 — 新配置管理样板页
+
+    划界:本页只做"给人设目标"(个人级,角色方案锁定考核项);
+    角色/系统级(指标定义、方案权重)后续归 AT 配置管理其它子页。
+    后端全部复用 performance_config 的 JSON API,本路由仅供用户清单。
+    """
+    if not _config_tab_allowed('cm_performance'):
+        abort(403)
+
+    # 角色清单走公共 _at_roles_data(业务排序 + 排除系统管理员)
+    return render_template('config_management/at_performance.html',
+                           roles_data=_at_roles_data(),
+                           current_year=datetime.now().year,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
 # =============================================
 # 权限配置 API
 # =============================================
@@ -559,6 +1145,10 @@ def api_batch_get_user_permissions():
         user_ids = data.get('user_ids', [])
         if not user_ids:
             return jsonify({'success': False, 'message': '请选择至少一个用户'}), 400
+        # HRBP 范围隔离:人事经理只能查看负责部门成员的权限
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if any(hrbp_denies(current_user, uid) for uid in user_ids):
+            return jsonify({'success': False, 'message': '只能查看你负责部门的成员权限'}), 403
 
         # 获取模块列表
         modules = get_ordered_modules()
@@ -705,6 +1295,10 @@ def api_batch_save_user_permissions():
         users = User.query.filter(User.id.in_(user_ids)).all()
         if len(users) != len(user_ids):
             return jsonify({'success': False, 'message': '部分用户不存在'}), 400
+        # HRBP 范围隔离:人事经理只能批量配置负责部门的成员
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if any(hrbp_denies(current_user, uid) for uid in user_ids):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员权限'}), 403
 
         # 获取所有权限模块列表
         all_modules = get_all_modules()
@@ -784,6 +1378,9 @@ def api_reset_user_permissions(user_id):
         user = User.query.get(user_id)
         if not user:
             return jsonify({'success': False, 'message': '用户不存在'}), 404
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员权限'}), 403
 
         # 删除该用户的所有个人权限
         deleted_count = Permission.query.filter_by(user_id=user_id).delete()
@@ -803,6 +1400,93 @@ def api_reset_user_permissions(user_id):
             'success': False,
             'message': f'重置失败: {str(e)}'
         }), 500
+
+
+@config_management_bp.route('/api/users/<int:user_id>/permissions/overrides', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def api_save_user_permission_overrides(user_id):
+    """保存个人权限覆盖集（行级继承语义）。
+
+    与 batch-save 的关键差异: payload 中没有的模块**不写行** = 继承角色默认。
+    (batch-save 会给缺失模块补 permission_level='none' 的显式拒绝行,是整套覆盖语义,
+     供旧版批量配置页使用;本端点专供「个人配置·权限覆盖」页。)
+    空 permissions = 清空全部覆盖,等价 reset。
+    """
+    try:
+        from app.models.user import User, Permission
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        # 企业隔离:非 admin 只能写本公司用户
+        if current_user.role != 'admin' and (user.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权配置其他公司用户的权限'}), 403
+        # HRBP 范围隔离:人事经理只能配置负责部门的成员(只收紧 HRBP,不影响 admin/配置管理矩阵)
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员权限'}), 403
+
+        data = request.get_json() or {}
+        permissions_data = data.get('permissions', {})
+
+        Permission.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+        records = []
+        for module, p in permissions_data.items():
+            records.append({
+                'user_id': user_id,
+                'module': module,
+                'can_view': p.get('can_view', False),
+                'can_create': p.get('can_create', False),
+                'can_edit': p.get('can_edit', False),
+                'can_delete': p.get('can_delete', False),
+                'can_change_owner': p.get('can_change_owner', False),
+                'can_export_email': p.get('can_export_email', False),
+                'permission_level': p.get('permission_level', 'personal'),
+                'pricing_discount_limit': p.get('pricing_discount_limit'),
+                'settlement_discount_limit': p.get('settlement_discount_limit'),
+                'content_filters': p.get('content_filter'),
+            })
+        if records:
+            db.session.bulk_insert_mappings(Permission, records)
+        db.session.commit()
+
+        logger.info(f"用户 {user_id} 个人权限覆盖已保存: {len(records)} 个模块,其余继承角色默认")
+        return jsonify({'success': True,
+                        'message': f'已写入 {len(records)} 个模块的个人覆盖' if records else '已清空全部覆盖'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存个人权限覆盖失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'}), 500
+
+
+@config_management_bp.route('/api/users/<int:user_id>/permissions/<module>/revert', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def api_revert_user_permission_module(user_id, module):
+    """删除单个模块的个人权限行,恢复继承角色默认（行级 ↺ 继承）"""
+    try:
+        from app.models.user import User, Permission
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        # 企业隔离:非 admin 只能操作本公司用户
+        if current_user.role != 'admin' and (user.company_name or '') != (current_user.company_name or ''):
+            return jsonify({'success': False, 'message': '无权操作其他公司用户的权限'}), 403
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员权限'}), 403
+
+        deleted = Permission.query.filter_by(user_id=user_id, module=module).delete()
+        db.session.commit()
+        return jsonify({'success': True,
+                        'message': '已恢复继承角色默认' if deleted else '该模块本就继承角色默认'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"恢复模块继承失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
 
 
 # =============================================
@@ -999,7 +1683,8 @@ def api_role_budget(role_code):
                         'office': 0,
                         'communication': 0,
                         'other': 0
-                    }
+                    },
+                    'period_budgets': (budget.period_budgets if budget else None) or {}
                 }
             })
         else:  # POST
@@ -1025,6 +1710,7 @@ def api_role_budget(role_code):
                 budget.office_budget = budget_data.get('office', 0)
                 budget.communication_budget = budget_data.get('communication', 0)
                 budget.other_budget = budget_data.get('other', 0)
+                budget.period_budgets = data.get('period_budgets') or None   # 季/月分摊
                 budget.updated_at = datetime.utcnow()
                 budget.updated_by = current_user.id
             else:
@@ -1039,6 +1725,7 @@ def api_role_budget(role_code):
                     office_budget=budget_data.get('office', 0),
                     communication_budget=budget_data.get('communication', 0),
                     other_budget=budget_data.get('other', 0),
+                    period_budgets=data.get('period_budgets') or None,
                     created_by=current_user.id
                 )
                 db.session.add(budget)
@@ -1326,12 +2013,13 @@ def get_ordered_modules():
         # 产品管理
         {'id': 'product', 'name': '产品管理', 'icon': 'inventory_2', 'description': '管理产品信息和价格', 'group': '产品管理'},
         {'id': 'product_code', 'name': '产品编码', 'icon': 'category', 'description': '管理产品编码系统', 'group': '产品管理'},
-        # 订单结算
-        {'id': 'order', 'name': '订单管理', 'icon': 'list_alt', 'description': '管理销售订单', 'group': '订单结算'},
-        {'id': 'settlement', 'name': '结算管理', 'icon': 'payments', 'description': '管理财务结算', 'group': '订单结算'},
-        {'id': 'inventory', 'name': '库存管理', 'icon': 'warehouse', 'description': '管理产品库存', 'group': '订单结算'},
-        {'id': 'pricing_order', 'name': '批价单管理', 'icon': 'sell', 'description': '管理批价单', 'group': '订单结算'},
-        {'id': 'settlement_order', 'name': '结算单管理', 'icon': 'credit_card', 'description': '管理结算单', 'group': '订单结算'},
+        # 订单结算(客户订单 → 采购订单 → 批价单 → 结算单 → 库存管理)
+        {'id': 'sales_order', 'name': '客户订单', 'icon': 'shopping_cart', 'description': '管理客户订单', 'group': '订单结算'},
+        {'id': 'order', 'name': '采购订单', 'icon': 'list_alt', 'description': '管理采购订单', 'group': '订单结算'},
+        {'id': 'pricing_order', 'name': '批价单', 'icon': 'sell', 'description': '管理批价单', 'group': '订单结算'},
+        {'id': 'settlement', 'name': '结算单', 'icon': 'payments', 'description': '查看结算单', 'group': '订单结算'},
+        {'id': 'inventory', 'name': '库存管理', 'icon': 'warehouse', 'description': '管理产品库存(含库存结算)', 'group': '订单结算'},
+        # settlement_order(结算单管理)为死模块,已停用,从清单移除
         # 账户管理
         {'id': 'user_management', 'name': '用户管理', 'icon': 'group', 'description': '管理系统用户', 'group': '账户管理'},
         {'id': 'config_management', 'name': '配置管理', 'icon': 'settings', 'description': '管理系统权限和配置', 'group': '账户管理'},
@@ -1401,6 +2089,17 @@ def get_content_filter_options():
             'source': {
                 'label': str(_l('来源')),
                 'options': get_report_source_options()
+            }
+        },
+        # 产品模块筛选选项（按产品状态过滤；替代原写死的"仅 admin/产品经理/解决方案经理看停产/上架"）
+        'product': {
+            'status': {
+                'label': str(_l('产品状态')),
+                'options': [
+                    ('active', str(_l('生产中'))),
+                    ('upcoming', str(_l('即将上架'))),
+                    ('discontinued', str(_l('已停产'))),
+                ]
             }
         },
         # 批价单模块筛选选项
@@ -2400,6 +3099,130 @@ def save_user_ai_config(user_id):
 
 
 # =============================================
+# 发送 App 安装邀请邮件
+# =============================================
+
+# Evertac PMA Mobile - TestFlight 公开邀请链接（已通过 Apple Beta App Review）
+TESTFLIGHT_INVITE_URL = 'https://testflight.apple.com/join/dMe9GxcE'
+
+
+def _build_app_invite_email(recipient_name, lang):
+    """根据用户语言偏好生成 App 安装邀请邮件。返回 (subject, html)."""
+    safe_name = recipient_name or 'there'
+    url = TESTFLIGHT_INVITE_URL
+
+    if lang == 'en':
+        subject = 'Invitation to test Evertac PMA mobile app on TestFlight'
+        greeting = f'Hi {safe_name},'
+        intro = ('You are invited to try the <strong>Evertac PMA</strong> mobile app — '
+                 'now available for iOS via Apple TestFlight.')
+        steps_title = 'How to install (about 2 minutes)'
+        steps = [
+            'On your <strong>iPhone</strong>, install <em>TestFlight</em> from the App Store (free).',
+            f'Open this invite link on your iPhone: <a href="{url}" style="color:#1d4ed8;">{url}</a>',
+            'Tap <strong>Accept</strong>, then <strong>Install</strong> — Evertac PMA will appear on your home screen.',
+            'Open the app and sign in with your PMA account.',
+        ]
+        notes_title = 'Notes'
+        notes = [
+            'Open the link on your iPhone (Safari) — desktop browsers cannot install TestFlight apps.',
+            'You will receive updates automatically. Most feature updates do not require re-installing.',
+            'If you do not have a PMA account yet, please contact your administrator.',
+        ]
+        cta = 'Open Invite Link'
+        footer = 'This is an automated message from PMA. Please do not reply directly.'
+    else:
+        subject = 'Evertac PMA 移动端 App 内测邀请'
+        greeting = f'{safe_name},您好:'
+        intro = ('诚邀您试用 <strong>Evertac PMA</strong> 移动端 App,'
+                 '现已通过 Apple TestFlight 开放 iOS 内测。')
+        steps_title = '安装步骤(约 2 分钟)'
+        steps = [
+            '在 <strong>iPhone</strong> 上从 App Store 免费下载 <em>TestFlight</em>。',
+            f'用 iPhone 打开邀请链接: <a href="{url}" style="color:#1d4ed8;">{url}</a>',
+            '点击 <strong>Accept</strong> → <strong>Install</strong>,Evertac PMA 即会出现在桌面。',
+            '打开 App,使用您的 PMA 账号登录。',
+        ]
+        notes_title = '说明'
+        notes = [
+            '请用 iPhone 的 Safari 打开链接,电脑/Android 浏览器无法安装。',
+            '后续功能更新一般自动推送,无需重新安装。',
+            '如尚未开通 PMA 账号,请联系您的管理员。',
+        ]
+        cta = '打开邀请链接'
+        footer = '此邮件由 PMA 系统自动发送,请勿直接回复。'
+
+    steps_html = ''.join(f'<li style="margin:0 0 8px;line-height:1.65;">{s}</li>' for s in steps)
+    notes_html = ''.join(f'<li style="margin:0 0 6px;line-height:1.6;">{n}</li>' for n in notes)
+
+    html = f"""
+    <!doctype html>
+    <html>
+    <body style="margin:0;padding:24px;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#262626;">
+        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e8e8e8;border-radius:12px;overflow:hidden;">
+            <div style="padding:32px 32px 0;">
+                <p style="font-size:15px;margin:0 0 12px;color:#262626;">{greeting}</p>
+                <p style="font-size:14px;color:#404040;margin:0 0 24px;line-height:1.65;">{intro}</p>
+                <div style="text-align:center;padding:8px 0 24px;">
+                    <a href="{url}" style="display:inline-block;padding:14px 32px;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:500;font-size:14px;border-radius:8px;">{cta}</a>
+                </div>
+            </div>
+            <div style="padding:0 32px 24px;">
+                <h3 style="font-size:14px;color:#262626;margin:0 0 12px;font-weight:600;">{steps_title}</h3>
+                <ol style="font-size:13px;color:#404040;padding-left:20px;margin:0 0 24px;">{steps_html}</ol>
+                <div style="border:1px solid #e8e8e8;border-radius:8px;padding:16px 18px;background:#fafafa;">
+                    <h4 style="font-size:12px;color:#686868;margin:0 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">{notes_title}</h4>
+                    <ul style="font-size:12px;color:#545454;padding-left:18px;margin:0;">{notes_html}</ul>
+                </div>
+            </div>
+            <div style="padding:18px 32px;background:#fafafa;border-top:1px solid #e8e8e8;text-align:center;">
+                <p style="font-size:11px;color:#a0a0a0;margin:0;">{footer}</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return subject, html
+
+
+@config_management_bp.route('/api/user/<int:user_id>/send-app-invite', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def send_app_invite(user_id):
+    """向指定用户发送 Evertac PMA 移动端 App 安装邀请邮件。"""
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        if not user.email or '@' not in user.email:
+            return jsonify({'success': False, 'message': '该用户未配置有效邮箱'}), 400
+
+        recipient_name = user.real_name or user.username
+        lang = (user.language_preference or 'zh').lower()
+        lang_code = 'en' if lang.startswith('en') else 'zh'
+
+        subject, html = _build_app_invite_email(recipient_name, lang_code)
+
+        from app.utils.email import send_email
+        ok = send_email(subject, user.email, None, html=html, async_send=True)
+
+        if not ok:
+            return jsonify({'success': False, 'message': '邮件发送失败(请检查 SMTP 配置)'}), 500
+
+        logger.info(f"App invite email queued: to={user.email} lang={lang_code} by={current_user.id}")
+        return jsonify({
+            'success': True,
+            'message': f'已发送邀请邮件至 {user.email}',
+            'email': user.email,
+            'language': lang_code,
+        })
+    except Exception as e:
+        logger.error(f"发送 App 邀请邮件失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# =============================================
 # 绩效数据手工录入 API
 # =============================================
 
@@ -2408,6 +3231,12 @@ def save_user_ai_config(user_id):
 @permission_required('config_management', 'view')
 def api_get_manual_entries(user_id, year):
     """获取用户某年所有手工录入数据（含附件URL）"""
+    # HRBP 隔离:hr_manager 只能看自己负责部门成员的绩效手工数据
+    from app.helpers.hrbp_helpers import is_hrbp, in_hrbp_scope
+    if is_hrbp(current_user):
+        from app.models.user import User as _U
+        if not in_hrbp_scope(current_user, _U.query.get(user_id)):
+            return jsonify({'success': False, 'message': '只能查看你负责部门成员的绩效'}), 403
     try:
         from app.models.performance_manual_entry import PerformanceManualEntry
         from app.models.performance_config import PerformanceMetricsDefinition, RolePerformanceItem
@@ -2459,12 +3288,22 @@ def api_get_manual_entries(user_id, year):
 @permission_required('config_management', 'edit')
 def api_save_manual_entries(user_id, year):
     """批量保存手工录入数据（UPSERT）"""
+    # 防自评:非 admin 不能录入自己的绩效实际值(录入人须 ≠ 被考核人,由上级录入)
+    if current_user.role != 'admin' and user_id == current_user.id:
+        return jsonify({'success': False, 'message': '不能录入自己的绩效实际值,请由上级录入'}), 403
+    # HRBP 隔离:hr_manager 只能录入自己负责部门成员的绩效
+    from app.helpers.hrbp_helpers import is_hrbp, in_hrbp_scope
+    if is_hrbp(current_user):
+        from app.models.user import User as _U
+        if not in_hrbp_scope(current_user, _U.query.get(user_id)):
+            return jsonify({'success': False, 'message': '只能录入你负责部门成员的绩效'}), 403
     try:
         from app.models.performance_manual_entry import PerformanceManualEntry
         data = request.get_json()
         entries_data = data.get('entries', [])
 
         saved_count = 0
+        saved_entries = []
         for item in entries_data:
             metric_code = item.get('metric_code')
             period_type = item.get('period_type')
@@ -2501,10 +3340,12 @@ def api_save_manual_entries(user_id, year):
                     entered_by=current_user.id,
                 )
                 db.session.add(entry)
+            saved_entries.append(entry)
             saved_count += 1
 
         db.session.commit()
-        return jsonify({'success': True, 'message': f'已保存{saved_count}条数据'})
+        return jsonify({'success': True, 'message': f'已保存{saved_count}条数据',
+                        'data': {'entries': [e.to_dict() for e in saved_entries]}})
     except Exception as e:
         db.session.rollback()
         logger.error(f"保存手工录入数据失败: {e}", exc_info=True)
@@ -2577,6 +3418,30 @@ def api_upload_manual_attachment():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@config_management_bp.route('/api/manual-entries/attachment/<int:attachment_id>/download')
+@login_required
+@permission_required('config_management', 'view')
+def api_download_manual_attachment(attachment_id):
+    """下载/预览手工录入附件(经 smart_storage 代理,NAS 优先)"""
+    from flask import Response, abort
+    from app.models.performance_manual_entry import PerformanceManualAttachment
+    att = PerformanceManualAttachment.query.get(attachment_id)
+    if not att:
+        abort(404)
+    from app.utils.smart_storage_manager import get_smart_storage
+    data = get_smart_storage().download_file(att.storage_path, bucket_type='performance')
+    if not data:
+        abort(404)
+    import mimetypes
+    from urllib.parse import quote
+    mime = mimetypes.guess_type(att.filename)[0] or 'application/octet-stream'
+    # 浏览器可预览的内联展示(新 tab 直接看),其余类型走下载
+    previewable = mime.startswith(('image/', 'text/')) or mime == 'application/pdf'
+    dispo = 'inline' if previewable else 'attachment'
+    return Response(data, mimetype=mime, headers={
+        'Content-Disposition': f"{dispo}; filename*=UTF-8''{quote(att.filename)}"})
+
+
 @config_management_bp.route('/api/manual-entries/attachment/<int:attachment_id>', methods=['DELETE'])
 @login_required
 @permission_required('config_management', 'edit')
@@ -2596,3 +3461,152 @@ def api_delete_manual_attachment(attachment_id):
         db.session.rollback()
         logger.error(f"删除附件失败: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# =============================================
+# 月度薪资审批(独立汇总表;配置管理 · 薪资审批 tab)
+# =============================================
+
+def _salary_run_companies():
+    """当前用户可见公司列表(admin 全部;否则仅本公司);返回 (companies, is_admin)。"""
+    is_admin = current_user.role == 'admin'
+    q = db.session.query(User.company_name).filter(
+        User._is_active.is_(True), User.company_name.isnot(None), User.company_name != '')
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    companies = sorted({c for (c,) in q.distinct().all() if c})
+    return companies, is_admin
+
+
+def _salary_run_company_ok(company):
+    """非 admin 仅能操作本公司。"""
+    return current_user.role == 'admin' or company == (current_user.company_name or '')
+
+
+@config_management_bp.route('/at/salary-approval')
+@login_required
+def at_salary_approval():
+    """AT 配置管理 · 薪资审批:按公司+月生成全员薪资表,提交审批(财务主管→财务总监→总经理),
+    提交即锁定该月个人薪资;可切月份查看各月状态/快照。"""
+    if not _config_tab_allowed('cm_salary_run'):
+        abort(403)
+    from app.utils.dictionary_helpers import get_default_currency
+    from app.models.salary_structure import SALARY_RUN_INITIATOR_ROLES
+    companies, is_admin = _salary_run_companies()
+    my_company = current_user.company_name or ''
+    can_submit = (current_user.role == 'admin'
+                  or current_user.role in SALARY_RUN_INITIATOR_ROLES
+                  or current_user.has_permission('config_management', 'edit'))
+    return render_template('config_management/at_salary_approval.html',
+                           companies=companies, is_admin=is_admin, user_company=my_company,
+                           can_submit=can_submit,
+                           currency_symbol=get_currency_symbol(get_default_currency()),
+                           current_year=datetime.now().year)
+
+
+@config_management_bp.route('/api/salary-runs/<int:year>')
+@login_required
+def api_salary_runs(year):
+    """某公司某年 12 个月的薪资审批状态(已生成的批次)。"""
+    if not _config_tab_allowed('cm_salary_run'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    company = (request.args.get('company') or current_user.company_name or '').strip()
+    if not _salary_run_company_ok(company):
+        return jsonify({'success': False, 'message': '无权访问该公司'}), 403
+    from app.models.salary_structure import SalaryRun
+    runs = SalaryRun.query.filter_by(company_name=company, year=year).all()
+    by_month = {r.month: {'id': r.id, 'status': r.status, 'is_locked': bool(r.is_locked),
+                          'total_amount': float(r.total_amount or 0), 'headcount': r.headcount or 0,
+                          'instance_id': r.approval_instance_id} for r in runs}
+    return jsonify({'success': True, 'data': {'company': company, 'year': year, 'months': by_month}})
+
+
+@config_management_bp.route('/api/salary-run/detail')
+@login_required
+def api_salary_run_detail():
+    """某公司某年某月薪资表明细:已生成→返回快照;未生成→实时预览(可发起)。"""
+    if not _config_tab_allowed('cm_salary_run'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    company = (request.args.get('company') or '').strip()
+    year = int(request.args.get('year') or 0)
+    month = int(request.args.get('month') or 0)
+    if not _salary_run_company_ok(company):
+        return jsonify({'success': False, 'message': '无权访问该公司'}), 403
+    if month not in range(1, 13):
+        return jsonify({'success': False, 'message': '无效月份'}), 400
+    from app.helpers.salary_run_helpers import get_run, build_month_snapshot
+    # 列头:结构叶子项(主项无子项 / 子项),按 sort_order
+    from app.models.salary_structure import SalaryStructureItem
+    struct = SalaryStructureItem.query.filter_by(is_active=True)\
+        .order_by(SalaryStructureItem.sort_order, SalaryStructureItem.id).all()
+    child_codes = {r.parent_code for r in struct if r.parent_code}
+    columns = [{'code': r.item_code, 'name': r.item_name}
+               for r in struct if r.item_code not in child_codes]
+    run = get_run(company, year, month)
+    if run and run.status in ('pending', 'approved'):
+        return jsonify({'success': True, 'data': {
+            'generated': True, 'status': run.status, 'is_locked': bool(run.is_locked),
+            'run_id': run.id, 'instance_id': run.approval_instance_id, 'columns': columns,
+            'rows': run.snapshot or [], 'total': float(run.total_amount or 0),
+            'headcount': run.headcount or 0, 'settled_at': run.settled_at.isoformat() if run.settled_at else None,
+        }})
+    # 未生成 / 草稿 / 已驳回 → 实时预览(可发起)
+    rows, total = build_month_snapshot(company, year, month)
+    return jsonify({'success': True, 'data': {
+        'generated': False, 'status': (run.status if run else None), 'columns': columns,
+        'rows': rows, 'total': total, 'headcount': len(rows),
+    }})
+
+
+@config_management_bp.route('/api/salary-run/submit', methods=['POST'])
+@login_required
+def api_salary_run_submit():
+    """生成并提交当月薪资审批(提交即锁定该公司该月个人薪资)。"""
+    from app.models.salary_structure import SALARY_RUN_INITIATOR_ROLES
+    if not (_config_tab_allowed('cm_salary_run') and (
+            current_user.role == 'admin' or current_user.role in SALARY_RUN_INITIATOR_ROLES
+            or current_user.has_permission('config_management', 'edit'))):
+        return jsonify({'success': False, 'message': '无权发起薪资审批'}), 403
+    data = request.get_json() or {}
+    company = (data.get('company') or '').strip()
+    year = int(data.get('year') or 0)
+    month = int(data.get('month') or 0)
+    if not _salary_run_company_ok(company):
+        return jsonify({'success': False, 'message': '无权访问该公司'}), 403
+    from app.helpers.salary_run_helpers import submit_salary_run
+    run, inst, err = submit_salary_run(company, year, month, current_user.id)
+    if err:
+        return jsonify({'success': False, 'message': err}), 400
+    return jsonify({'success': True, 'message': f'{year}年{month}月薪资已提交审批并锁定',
+                    'data': {'run_id': run.id, 'instance_id': run.approval_instance_id}})
+
+
+@config_management_bp.route('/api/salary-run-approval/<int:run_id>/flow')
+@login_required
+def api_salary_run_flow(run_id):
+    """薪资审批徽章流程数据(at-approval-dropdown 用)。"""
+    from app.helpers.salary_run_helpers import build_salary_run_flow
+    return jsonify(build_salary_run_flow(run_id, current_user.id))
+
+
+@config_management_bp.route('/api/salary-run-approval/<int:run_id>/editable-fields')
+@login_required
+def api_salary_run_editable_fields(run_id):
+    """薪资审批无可编辑字段(审批人只同意/驳回)。"""
+    return jsonify({'success': True, 'can_edit': False, 'editable_fields': []})
+
+
+@config_management_bp.route('/api/salary-run-approval/<int:run_id>/recall', methods=['POST'])
+@login_required
+def api_salary_run_recall(run_id):
+    """发起人(HR)召回月度薪资审批 → 解锁该公司该月个人薪资。"""
+    from app.models.salary_structure import SalaryRun
+    run = SalaryRun.query.get(run_id)
+    if not run:
+        return jsonify({'success': False, 'message': '薪资批次不存在'}), 404
+    if run.initiated_by != current_user.id and current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '仅发起人可召回'}), 403
+    reason = (request.get_json() or {}).get('reason', '')
+    from app.helpers.approval_helpers import recall_approval
+    res = recall_approval('salary_run', run_id, current_user.id, reason)
+    return jsonify(res)

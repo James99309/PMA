@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN" data-pma-page="chat">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PMA · 聊天功能</title>
+<script src="pma-nav.js" defer></script>
+<style>
+  html,body{margin:0;padding:0;background:#E9E7E2;font-family:-apple-system,"PingFang SC",system-ui,sans-serif;color:#1A1A1A}
+  .dc-root{background:#E9E7E2}
+  .hdr{padding:28px 36px 22px;background:#1A1A1A;color:#fff;position:relative;overflow:hidden}
+  .hdr h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-0.3px}
+  .hdr h1 .a{color:#D97757}
+  .hdr p{margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.65);max-width:780px;line-height:1.6}
+  .hdr .meta{display:flex;gap:22px;margin-top:14px;font-size:11.5px;color:rgba(255,255,255,0.5);flex-wrap:wrap}
+  .hdr .meta b{color:rgba(255,255,255,0.85);font-weight:600}
+  .fc{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 14px 22px}
+  .fc .label{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase}
+  .fc .sub{font-size:11px;color:#7A7570;font-style:italic;max-width:340px;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>PMA · <span class="a">聊天</span></h1>
+    <p>会话列表(消息 tab) · 项目群聊天(主场景) · @提及输入态 · 阶段推进时间轴卡片 · 一对一私聊(文件 + 语音) · 聊天设置。统一采用 Anthropic 暖橙黑白方向的衬线混合气泡:对方白卡、自己黑底白字、米白底。</p>
+    <div class="meta">
+      <span><b>6 屏</b> · 衬线混合气泡(Anthropic 暖橙黑白方向)</span>
+      <span><b>402 × 874</b> · iPhone</span>
+      <span><b>主色</b> · 米白 #F7F5F2 · 橙 #D97757</span>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="chat-screens.jsx"></script>
+  <script type="text/babel" src="chat-bridge.jsx"></script>
+  <script type="text/babel" src="ai-chat.jsx"></script>
+  <script type="text/babel" src="chat-input-states.jsx"></script>
+  <script type="text/babel" src="chat-pickers.jsx"></script>
+  <script type="text/babel" src="chat-location.jsx"></script>
+  <script type="text/babel" src="chat-translate.jsx"></script>
+  <script type="text/babel">
+    function Phone({ children }) {
+      return (
+        <div style={{ width: 402, height: 874, borderRadius: 56, overflow: 'hidden', position: 'relative',
+          background: '#000', boxShadow: '0 0 0 12px #1a1a1a, 0 30px 60px rgba(0,0,0,0.18)', WebkitFontSmoothing: 'antialiased' }}>
+          <div style={{ position: 'absolute', top: 13, left: '50%', transform: 'translateX(-50%)', width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 100 }}/>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 54, zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px',
+            color: '#000', fontSize: 16, fontWeight: 600, paddingTop: 18 }}>
+            <span>9:41</span><span style={{ width: 126 }}/>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <svg width="17" height="11" viewBox="0 0 19 12">
+                <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill="currentColor"/>
+                <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill="currentColor"/>
+                <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill="currentColor"/>
+                <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill="currentColor"/>
+              </svg>
+              <svg width="26" height="13" viewBox="0 0 28 13" fill="none">
+                <rect x="0.5" y="0.5" width="23" height="12" rx="3" stroke="currentColor" opacity="0.35"/>
+                <rect x="2" y="2" width="20" height="9" rx="1.5" fill="currentColor"/>
+                <rect x="24.5" y="4" width="2" height="5" rx="0.6" fill="currentColor" opacity="0.5"/>
+              </svg>
+            </span>
+          </div>
+          <div style={{ position: 'absolute', inset: 0 }}>{children}</div>
+          <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', width: 139, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.28)', zIndex: 200 }}/>
+        </div>
+      );
+    }
+    function F({ label, sub, children }) {
+      return <div className="fc"><Phone>{children}</Phone><div className="label">{label}</div>{sub && <div className="sub">{sub}</div>}</div>;
+    }
+    const W = 460, H = 1000;
+    function App() {
+      return (
+        <DesignCanvas>
+          <DCSection id="main" title="① 主流程" subtitle="消息 tab → 项目群 → 阶段推进 → 私聊">
+            <DCArtboard id="list" label="会话列表" width={W} height={H}>
+              <F label="消息 · 会话列表" sub="顶部 tab 入口 · 公司广播置顶 · 项目群带阶段色点 · @我标记"><ConvList/></F>
+            </DCArtboard>
+            <DCArtboard id="proj" label="项目群聊天" width={W} height={H}>
+              <F label="项目群 · 主场景" sub="衬线气泡 · 引用项目卡片嵌入 · 阶段推进时间轴分割条"><ProjectChat variant="C"/></F>
+            </DCArtboard>
+            <DCArtboard id="stage" label="阶段推进卡片" width={W} height={H}>
+              <F label="阶段推进 · 时间轴卡片" sub="嵌入 → 招标中 · 操作人 · 备注 · 跳转项目 / 加入讨论"><StageAdvance/></F>
+            </DCArtboard>
+            <DCArtboard id="dm" label="一对一私聊" width={W} height={H}>
+              <F label="私聊 · 文件 + 语音" sub="PDF 卡片 · 已读回执 · 语音消息波形"><DMChat/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="states" title="② 输入态 + 设置" subtitle="@ 提及切换器 · 群聊设置">
+            <DCArtboard id="mention" label="@ 提及输入" width={W} height={H}>
+              <F label="@ 提及态" sub="底部 popover 实时筛选 · 可切换 @ # $ § 引用人/项目/客户/合同"><MentionState/></F>
+            </DCArtboard>
+            <DCArtboard id="settings" label="聊天设置" width={W} height={H}>
+              <F label="群聊设置" sub="关联项目卡片 · 公告 · 成员 · 免打扰 / 置顶 / 退出"><ChatSettings/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="bridge" title="③ 项目 ↔ 聊天 桥接" subtitle="项目详情中嵌入聊天预览,聊天中嵌入实体卡片 — 形成双向跳转">
+            <DCArtboard id="proj-with-chat" label="项目详情 · 含讨论卡" width={W} height={H}>
+              <F label="项目详情 · 含讨论卡" sub="底部「项目讨论」卡片 · 最近 3 条预览 · 一键加入讨论"><ProjectDetailWithChat/></F>
+            </DCArtboard>
+            <DCArtboard id="entity-cards" label="引用卡片 · 4 种" width={W} height={H}>
+              <F label="引用卡片 · 4 种样态" sub="项目 # · 客户 $ · 合同 § · 联系人 @"><EntityCardsShowcase/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="ai" title="④ AI 聊天「源助手」" subtitle="一对一 AI · 群里 @AI · 私聊 @AI 起草草稿 · 会话列表 AI 入口">
+            <DCArtboard id="ai-list" label="会话列表 · AI 置顶" width={W} height={H}>
+              <F label="会话列表 · AI 置顶" sub="紫蓝渐变 AI 卡置顶 · 群里 AI 徽章 · 私聊 [AI 草稿] 角标"><ConvListWithAI/></F>
+            </DCArtboard>
+            <DCArtboard id="ai-picker" label="新建聊天选择器" width={W} height={H}>
+              <F label="发起聊天" sub="三选一:AI 助手(主推)/ 私聊同事 / 项目群"><NewChatPicker/></F>
+            </DCArtboard>
+            <DCArtboard id="ai-1on1" label="AI 一对一" width={W} height={H}>
+              <F label="AI 一对一" sub="问答 · 引用项目卡 · 思考态 · 建议追问 · 快速指令 chip"><AIOneOnOne/></F>
+            </DCArtboard>
+            <DCArtboard id="ai-group" label="群里 @AI" width={W} height={H}>
+              <F label="群里 @源助手" sub="公开回答 · 项目周报模板 · 多人可追问 · AI 思考态"><GroupAtAI/></F>
+            </DCArtboard>
+            <DCArtboard id="ai-dm-draft" label="私聊 @AI 起草" width={W} height={H}>
+              <F label="私聊 · AI 草稿区" sub="仅你可见 · 引用历史 · 采用/换一版 · 微调追问"><DMAIDraft/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="input" title="⑤ 输入栏 · 多媒体" subtitle="+ 展开 4 项 · 长按录音 · 上滑取消 · 多图预览 · AI 文件分析">
+            <DCArtboard id="plus-panel" label="+ 展开面板" width={W} height={H}>
+              <F label="+ 展开面板" sub="4 项:相册 / 拍照 / 位置 / 分析文件 · + 旋转为 ×"><ChatPlusPanel/></F>
+            </DCArtboard>
+            <DCArtboard id="recording" label="录音中" width={W} height={H}>
+              <F label="录音中" sub="长按麦克风 · 实时波形 · 倒计时 · 上滑可取消"><ChatRecording/></F>
+            </DCArtboard>
+            <DCArtboard id="recording-cancel" label="录音 · 上滑取消" width={W} height={H}>
+              <F label="录音 · 上滑取消态" sub="波形变红 · 提示「松开取消」· 麦克风按钮上抬"><ChatRecordingCancel/></F>
+            </DCArtboard>
+            <DCArtboard id="attach-preview" label="图片预览栏" width={W} height={H}>
+              <F label="图片预览栏" sub="3 张缩略图 · 可删 · 可加文字描述 · 「发送 · 3」按钮"><ChatAttachPreview/></F>
+            </DCArtboard>
+            <DCArtboard id="ai-analyze" label="AI 分析文件" width={W} height={H}>
+              <F label="AI 分析文件" sub="扔 PDF 给 AI · 提取预算/节点/范围/风险/现场 · 后续动作 chip"><ChatAnalyzeFile/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="pickers" title="⑥ + 面板弹出页" subtitle="点 + 后的 4 个二级页面:相册 / 拍照 / 文件 / 位置">
+            <DCArtboard id="album" label="选择图片" width={W} height={H}>
+              <F label="相册 · 多选" sub="系统相册样 4 列栅格 · 右上角勾选 · 底部发送·原图"><PickAlbum/></F>
+            </DCArtboard>
+            <DCArtboard id="camera" label="开启摄像头" width={W} height={H}>
+              <F label="拍照 · 取景器" sub="全屏取景 · 中央对焦框 + 曝光滑块 · 模式切换 · 快门"><PickCamera/></F>
+            </DCArtboard>
+            <DCArtboard id="file" label="选择文件" width={W} height={H}>
+              <F label="选择文件" sub="最近 / 项目文件 / 本机 tabs · PDF/DOC/XLS/DWG · 可连同 AI 分析"><PickFile/></F>
+            </DCArtboard>
+            <DCArtboard id="location" label="共享位置" width={W} height={H}>
+              <F label="共享位置" sub="地图 + 中心 pin · 按距离排序的 POI 列表 · 当前位置高亮"><PickLocation/></F>
+            </DCArtboard>
+            <DCArtboard id="loc-bubble" label="对话中的地图气泡" width={W} height={H}>
+              <F label="对话中的地图气泡" sub="接收态白底 + 发送态黑底 · 内嵌 mini map + 地点名 + 地址"><ChatLocationBubbles/></F>
+            </DCArtboard>
+            <DCArtboard id="loc-detail" label="点开位置·全屏" width={W} height={H}>
+              <F label="位置详情 · 全屏地图" sub="点击气泡后进入 · 底部 sheet · 导航/高德/百度 三选一"><LocationDetail/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="translate" title="⑦ 多语翻译 · 自动无感" subtitle="后端按用户语言偏好自动翻译,聊天界面默认呈现双语气泡 — 用户无需手动介入">
+            <DCArtboard id="group-translate" label="群聊 · 多语自动翻译" width={W} height={H}>
+              <F label="群聊 · 双语气泡" sub="多语种群成员发各自语言 · 我端默认看到中文译文 + 原文小字 · 无开关无设置"><GroupTranslate/></F>
+            </DCArtboard>
+            <DCArtboard id="dm-translate" label="私聊 · 跨语种" width={W} height={H}>
+              <F label="私聊 · 中 ⇄ 英" sub="我发中文 → 对方端自动看到英文 · 收到英文 → 我端自动看到中文 · 全程无感"><DMTranslate/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="cross-region" title="⑧ 跨库切换 · 消息列表" subtitle="本位库:顶部出现「他库 N 条新消息」提示卡 · 他库内:顶部琥珀条常驻 + 反向卡指回主库">
+            <DCArtboard id="conv-cross" label="本位 · 含跨库提示卡" width={W} height={H}>
+              <F label="中国库 · 会话列表" sub="顶部琥珀色提示卡:🇸🇬 新加坡库 · 5 条新消息 · 2 个项目群 · @你 1 次 — 点击切去看"><ConvListWithCrossRegion/></F>
+            </DCArtboard>
+            <DCArtboard id="conv-away" label="他库 · 反向卡" width={W} height={H}>
+              <F label="新加坡库内 · 会话列表" sub="顶部琥珀全局条常驻「正在浏览 · 新加坡库」· 反向卡:🇨🇳 中国库 · 12 条新消息 · @你 2 次"><ConvListAway/></F>
+            </DCArtboard>
+          </DCSection>
+
+        </DesignCanvas>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

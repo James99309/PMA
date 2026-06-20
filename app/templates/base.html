@@ -398,37 +398,23 @@
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
-                                {% if has_permission('order', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.order_list') }}">{{ _('订单管理') }}</a></li>
-                                {% endif %}
-                                {% if has_permission('settlement', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.settlement_order_list') }}">{{ _('结算管理') }}</a></li>
-                                {% endif %}
+                                {# 老菜单"订单管理"/"结算管理"已删除:订单走 purchase_order/sales_order/shipment,结算合到批价单详情页内 #}
                                 {% if has_permission('inventory', 'view') %}
-                                <li><hr class="dropdown-divider my-1"></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.stock_list') }}">{{ _('库存管理') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.at_stock_list') }}">{{ _('库存管理') }}</a></li>
                                 {% endif %}
                             </ul>
                         </details>
                     </li>
                     {% endif %}
-                    {% if has_permission('order', 'view') or has_permission('settlement', 'view') or has_permission('inventory', 'view') %}
+                    {% if has_permission('inventory', 'view') %}
                     <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle text-sm py-2"
                            href="#" id="inventoryDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ _('订单结算') }}
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="inventoryDropdown">
-                            {% if has_permission('order', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('inventory.order_list') }}">{{ _('订单管理') }}</a></li>
-                            {% endif %}
-                            {% if has_permission('settlement', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('inventory.settlement_order_list') }}">{{ _('结算管理') }}</a></li>
-                            {% endif %}
-                            {% if has_permission('inventory', 'view') %}
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('inventory.stock_list') }}">{{ _('库存管理') }}</a></li>
-                            {% endif %}
+                            {# 老菜单"订单管理"/"结算管理"已删除 #}
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.at_stock_list') }}">{{ _('库存管理') }}</a></li>
                         </ul>
                     </li>
                     {% endif %}

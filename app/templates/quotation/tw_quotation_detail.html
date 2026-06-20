@@ -145,7 +145,7 @@
             'onclick': 'confirmDeleteQuotation(' ~ quotation.id ~ ')'
         },
         extra_actions=[
-            {'show': can_show_pricing and active_pricing_order, 'label': _('批价单'), 'onclick': 'openPricingOrderModal(' ~ (active_pricing_order.id if active_pricing_order else 0) ~ ')', 'icon': 'request_quote', 'color': 'primary'},
+            {'show': can_show_pricing and active_pricing_order, 'label': _('批价单'), 'onclick': "window.location.href='/pricing_order/" ~ (active_pricing_order.id if active_pricing_order else 0) ~ "/excel-edit'", 'icon': 'request_quote', 'color': 'primary'},
             {'show': can_show_pricing and not active_pricing_order, 'label': _('生成批价单'), 'onclick': 'createPricingOrder()', 'icon': 'add_circle', 'color': 'success'},
             {'show': true, 'label': _('导出'), 'onclick': 'showExportInfoModal("quotationExportModal")', 'icon': 'download', 'color': 'slate'}
         ],
@@ -1658,16 +1658,37 @@
     <!-- 详情页卡片高度同步工具 -->
     <script src="{{ url_for('static', filename='js/detail-card-sync.js') }}"></script>
     <script>
-    // 初始化卡片高度同步：以右侧列为基准，同步基本信息和变更历史卡片
-    DetailCardSync.init('rightSidebarColumn', ['changeHistoryCard'], {
-        delay: 150,
-        targetSelector: null
-    });
-    // 基本信息需要选择内部的卡片元素
+    // 基本信息：minHeight 同步即可（内容少，不需要限制最大高度）
     DetailCardSync.init('rightSidebarColumn', ['basicInfoColumn'], {
         delay: 150,
         targetSelector: '> div'
     });
+
+    // 变更历史：精确匹配右侧列高度（不只是 minHeight），超出时内部滚动而不撑卡片
+    (function() {
+        const ref = document.getElementById('rightSidebarColumn');
+        const card = document.getElementById('changeHistoryCard');
+        if (!ref || !card) return;
+        function syncHistoryHeight() {
+            const h = ref.offsetHeight;
+            if (h > 0) {
+                card.style.height = h + 'px';
+                card.style.maxHeight = h + 'px';
+            }
+        }
+        // 初始 + 延迟（等右侧列布局稳定）
+        setTimeout(syncHistoryHeight, 200);
+        // 窗口 resize
+        let timer;
+        window.addEventListener('resize', () => {
+            clearTimeout(timer);
+            timer = setTimeout(syncHistoryHeight, 80);
+        });
+        // 监听右侧列内容变化（如关联报价单数量变化）
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(syncHistoryHeight).observe(ref);
+        }
+    })();
     </script>
 </body>
 </html>

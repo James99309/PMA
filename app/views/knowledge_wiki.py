@@ -23,7 +23,7 @@ Blueprint: knowledge_wiki_bp  url_prefix: ''  (前端页面和 /api/wiki/* 混�
 import logging
 import threading
 
-from flask import Blueprint, jsonify, render_template, request, current_app
+from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort
 from flask_login import current_user, login_required
 
 from app import db
@@ -33,7 +33,7 @@ from app.models.message import Message
 from app.models.user import User
 from app.services.file_manager_service import FileManagerService
 from app.services.wiki import compiler, linter, querier, storage
-from app.services.wiki.paths import ensure_wiki_structure
+from app.services.wiki.paths import ensure_wiki_structure, get_wiki_dir, get_wiki_root
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,22 @@ def _require_admin():
     if not _is_admin():
         return jsonify({'success': False, 'message': '仅管理员可执行此操作'}), 403
     return None
+
+
+def _reject_if_unsuitable_for_wiki(raw_path: str):
+    """文件落盘后调用：检查是否适合入 wiki。
+    若不合适：unlink 该文件，返回 (jsonify_response, status_code)；适合则返回 None。
+    """
+    abs_path = get_wiki_root() / raw_path
+    reason = storage.validate_raw_file_for_wiki(abs_path)
+    if not reason:
+        return None
+    try:
+        abs_path.unlink(missing_ok=True)
+    except Exception:
+        logger.warning(f'[Wiki] 拒绝 {raw_path} 后清理文件失败')
+    logger.info(f'[Wiki] 拒绝入库 {raw_path}: {reason}')
+    return jsonify({'success': False, 'message': reason}), 400
 
 
 def _get_allowed_topic_names() -> set[str]:
@@ -75,6 +91,7 @@ def wiki_page():
         'knowledge/tw_wiki.html',
         is_admin=_is_admin(),
         is_dept_manager=getattr(current_user, 'is_department_manager', False),
+        current_user_id=current_user.id,
     )
 
 
@@ -139,6 +156,9 @@ def add_raw_file():
     # 保存到 raw/<topic>/<safe-dated-name>
     safe_name = storage.dated_filename(fl.original_filename)
     raw_path = storage.save_raw_file(topic, safe_name, content)
+    rejected = _reject_if_unsuitable_for_wiki(raw_path)
+    if rejected is not None:
+        return rejected
 
     # scope 参数（默认 personal）
     scope = (data.get('scope') or 'personal').strip()
@@ -215,6 +235,9 @@ def upload_and_add():
 
     safe_name = storage.dated_filename(fl.original_filename)
     raw_path = storage.save_raw_file(topic, safe_name, content)
+    rejected = _reject_if_unsuitable_for_wiki(raw_path)
+    if rejected is not None:
+        return rejected
 
     # scope 参数
     scope = (request.form.get('scope') or 'personal').strip()
@@ -289,6 +312,9 @@ def add_raw_from_file_ref():
 
     safe_name = storage.dated_filename(fl.original_filename)
     raw_path = storage.save_raw_file(topic, safe_name, content)
+    rejected = _reject_if_unsuitable_for_wiki(raw_path)
+    if rejected is not None:
+        return rejected
 
     # scope 参数
     scope = (data.get('scope') or 'personal').strip()
@@ -352,6 +378,103 @@ def trigger_ingest(raw_id):
     return jsonify({'success': True, 'data': result})
 
 
+def _can_access_raw_file(user, raw_id):
+    """raw_file 内容访问权限 = 严格 scope 可见
+
+    设计取舍：
+    - 「查看来源」入口只展示元数据（标题/owner/topic/scope），不放行内容下载
+    - 拿到内容必须直接 scope 可见；否则需线下联系 owner
+    """
+    from app.services.wiki.scope import visible_raw_files_query
+    return visible_raw_files_query(user).filter(KnowledgeRawFile.id == raw_id).first()
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/sources', methods=['GET'])
+@login_required
+def list_article_sources(article_id):
+    """列出文章的所有源文件（按文章可见性鉴权 - 能看到文章就能看到源头）"""
+    from app.services.wiki.scope import visible_articles_query
+
+    art = visible_articles_query(current_user).filter(KnowledgeWikiArticle.id == article_id).first()
+    if not art:
+        return jsonify({'success': False, 'message': '无权访问或文章不存在'}), 403
+
+    source_ids = art.source_raw_ids or []
+    if not source_ids:
+        return jsonify({'success': True, 'data': []})
+
+    raws = KnowledgeRawFile.query.filter(KnowledgeRawFile.id.in_(source_ids)).all()
+    # 保持 source_raw_ids 顺序
+    raws_by_id = {r.id: r for r in raws}
+    ordered = [raws_by_id[i].to_dict() for i in source_ids if i in raws_by_id]
+    return jsonify({'success': True, 'data': ordered})
+
+
+@knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>/preview', methods=['GET'])
+@login_required
+def preview_raw_file(raw_id):
+    """预览 Wiki 原始文件（直接 scope 可见 OR 被某篇可见文章引用 均放行）"""
+    from flask import Response
+    from urllib.parse import quote
+
+    raw = _can_access_raw_file(current_user, raw_id)
+    if not raw:
+        return jsonify({'success': False, 'message': '无权访问或文件不存在'}), 403
+
+    fl = FileLibrary.query.get(raw.file_library_id)
+    if not fl:
+        return jsonify({'success': False, 'message': '原始文件已删除'}), 404
+
+    try:
+        content = FileManagerService.read_file_content_auto_decompress(fl)
+        if content:
+            encoded_name = quote(raw.title or fl.original_filename or 'file')
+            return Response(
+                content,
+                mimetype=fl.mime_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f"inline; filename*=UTF-8''{encoded_name}",
+                }
+            )
+    except Exception as e:
+        logger.error(f'[Wiki] 预览原始文件失败: {e}')
+
+    return jsonify({'success': False, 'message': '读取文件失败'}), 500
+
+
+@knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>/download', methods=['GET'])
+@login_required
+def download_raw_file(raw_id):
+    """下载 Wiki 原始文件（直接 scope 可见 OR 被某篇可见文章引用 均放行）"""
+    from flask import Response
+    from urllib.parse import quote
+
+    raw = _can_access_raw_file(current_user, raw_id)
+    if not raw:
+        return jsonify({'success': False, 'message': '无权访问或文件不存在'}), 403
+
+    fl = FileLibrary.query.get(raw.file_library_id)
+    if not fl:
+        return jsonify({'success': False, 'message': '原始文件已删除'}), 404
+
+    try:
+        content = FileManagerService.read_file_content_auto_decompress(fl)
+        if content:
+            encoded_name = quote(raw.title or fl.original_filename or 'file')
+            return Response(
+                content,
+                mimetype=fl.mime_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_name}",
+                    'Content-Length': str(len(content)),
+                }
+            )
+    except Exception as e:
+        logger.error(f'[Wiki] 下载原始文件失败: {e}')
+
+    return jsonify({'success': False, 'message': '读取文件失败'}), 500
+
+
 @knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>', methods=['DELETE'])
 @login_required
 def delete_raw_file(raw_id):
@@ -398,6 +521,103 @@ def get_article(article_id):
     if not art:
         return jsonify({'success': False, 'message': '文章不存在'}), 404
     return jsonify({'success': True, 'data': art.to_dict(include_content=True)})
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/asset/<path:rel>')
+@login_required
+def serve_article_asset(article_id, rel):
+    """Serve an image from wiki/<topic>/_assets/<slug>/...
+
+    Guards:
+    - login_required (above)
+    - 用户必须对该文章有可见权限（复用 visible_articles_query）
+    - 路径穿越防护：rel 必须以 _assets/<slug>/ 开头，且解析后必须在 wiki/<topic>/ 目录内
+    """
+    from app.services.wiki.scope import visible_articles_query
+
+    art = visible_articles_query(current_user).filter(
+        KnowledgeWikiArticle.id == article_id
+    ).first()
+    if art is None:
+        # 文章不存在或用户无权限 —— 一律 404，避免泄露存在性
+        abort(404)
+
+    expected_prefix = f'_assets/{art.slug}/'
+    if '..' in rel or not rel.startswith(expected_prefix):
+        abort(400)
+
+    base = (get_wiki_dir() / art.topic).resolve()
+    abs_path = (get_wiki_dir() / art.topic / rel).resolve()
+    try:
+        abs_path.relative_to(base)
+    except ValueError:
+        abort(400)
+
+    if not abs_path.is_file():
+        abort(404)
+
+    return send_file(str(abs_path))
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/image/<int:index>/replace', methods=['POST'])
+@login_required
+def replace_article_image_endpoint(article_id, index):
+    """替换文章 image_manifest 中指定 index 的图片。
+
+    旧文件备份到 _assets/<slug>/.history/，更新 manifest 条目，并将
+    article.manually_edited 置为 True。
+    """
+    from datetime import datetime
+
+    art = KnowledgeWikiArticle.query.get_or_404(article_id)
+    # 图片替换权限严格收紧：仅文章作者 + admin/ceo
+    # 不复用 can_manage_article（它放行同部门 department-scope 的部门经理，
+    # 范围太宽——图片替换是不可逆的内容改动，不该让非作者的同部门同事动手）
+    is_admin = current_user.role in ('admin', 'ceo')
+    is_owner = art.owner_id == current_user.id
+    if not (is_admin or is_owner):
+        return jsonify({'success': False, 'message': '无权编辑此文章（仅作者和管理员可替换图片）'}), 403
+
+    f = request.files.get('image')
+    if not f or not (f.mimetype or '').startswith('image/'):
+        return jsonify({'success': False, 'message': '请上传图片文件 (image/*)'}), 400
+
+    manifest = list(art.image_manifest or [])
+    entry = next((m for m in manifest if m.get('index') == index), None)
+    if entry is None:
+        return jsonify({'success': False, 'message': f'图片 index={index} 不在 manifest 中'}), 404
+
+    data = f.read()
+    MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+    if len(data) == 0:
+        return jsonify({'success': False, 'message': '上传文件为空'}), 400
+    if len(data) > MAX_BYTES:
+        return jsonify({'success': False, 'message': f'文件过大 (>{MAX_BYTES // 1024 // 1024}MB)'}), 400
+
+    try:
+        new_rel = storage.replace_article_image(art.topic, art.slug, index, data, f.mimetype)
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+    entry['path'] = new_rel
+    entry['manually_replaced'] = True
+    entry['replaced_at'] = datetime.utcnow().isoformat()
+    entry['sha256'] = storage.sha256_bytes(data)
+    entry['size_bytes'] = len(data)
+    # 用全新 list[dict] 触发 SQLAlchemy JSON 列变更检测（直接 mutate 嵌套 dict
+    # 不会被识别为 dirty）；为安全起见再显式 flag_modified
+    from sqlalchemy.orm.attributes import flag_modified
+    art.image_manifest = [dict(m) for m in manifest]
+    flag_modified(art, 'image_manifest')
+    art.manually_edited = True
+    db.session.commit()
+
+    logger.info(
+        f'[Wiki] user={current_user.id} replaced image article_id={art.id} '
+        f'topic={art.topic} slug={art.slug} index={index} '
+        f'size={len(data)} sha256={entry["sha256"][:8]}'
+    )
+    return jsonify({'success': True, 'image': entry, 'manually_edited': True})
 
 
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>', methods=['DELETE'])
@@ -771,18 +991,22 @@ def _find_promotion_reviewer(to_scope: str, requester) -> int | None:
     """
     if to_scope == 'department' and requester.department:
         # 找本部门经理
+        # 注意：User.is_active 是 @property（admin 永远 True），
+        # 实际列名是 _is_active（见 app/models/user.py:36），SQL 必须用 _is_active
         manager = User.query.filter_by(
             department=requester.department,
             is_department_manager=True,
-            is_active=True,
-        ).filter(User.id != requester.id).first()
+        ).filter(
+            User._is_active == True,
+            User.id != requester.id,
+        ).first()
         if manager:
             return manager.id
 
     # company/system 或找不到部门经理 → 找 admin/ceo
     admin = User.query.filter(
         User.role.in_(['admin', 'ceo']),
-        User.is_active == True,
+        User._is_active == True,
         User.id != requester.id,
     ).first()
     if admin:

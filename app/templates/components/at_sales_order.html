@@ -1,0 +1,147 @@
+{#
+  AT 客户订单专属组件库
+
+  - at_so_create_modal(customers)  新建客户订单模态(基本信息 + 明细)
+
+  与 PO 的主要差异:
+    - 选客户(不是供应商)
+    - 字段:收货联系人 / 电话 / 邮箱 / 交付地址(不同于 PO 的 ship_to 单一字段)
+    - 没有「订单类别 / 验证测试 / 付款条件」
+    - 明细复用 ATItemTable + ATProductPicker(SO 没有客户需求池,因为 SO 本身就是需求源头)
+#}
+{% from 'components/at_base.html' import at_icon %}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
+{% from 'components/at_item_table.html' import at_item_table_section %}
+{% from 'components/at_searchable_select.html' import at_searchable_select %}
+
+
+{% macro at_so_create_modal(customers, currency_options=None, default_currency='CNY', modal_id='atSoCreateModal') %}
+  {% set _curr_opts = currency_options or [('CNY', _('人民币') ~ ' ¥'),('USD', _('美元') ~ ' $')] %}
+  {% set footer = '<button type="button" onclick="document.getElementById(\'' ~ modal_id ~ '\').style.display=\'none\'" '
+                ~ 'style="height:34px;padding:0 14px;background:transparent;color:var(--ink);'
+                ~ 'border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;">' ~ _('取消') ~ '</button>'
+                ~ '<button type="button" id="atSoSubmitBtn" disabled onclick="atSubmitSoCreate()" '
+                ~ 'style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;'
+                ~ 'background:var(--accent);color:#fff;border:1px solid var(--accent);'
+                ~ 'border-radius:6px;font-size:13px;font-weight:500;opacity:0.5;cursor:not-allowed;">'
+                ~ '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'
+                ~ _('创建客户订单') ~ '</button>' %}
+
+  {% call at_modal_shell(modal_id, _('新建客户订单'), icon='cart', width=1080, footer_html=footer) %}
+    {# 基本信息 4 列(minmax(0,1fr) 防止内容 min-width 撑爆) #}
+    <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));column-gap:16px;row-gap:14px;margin-bottom:4px;">
+
+      {# 客户 colSpan=2 — 可搜索下拉 #}
+      <div style="grid-column:span 2;min-width:0;">
+        <label style="display:flex;align-items:baseline;gap:4px;font-size:12.5px;
+                      font-weight:500;color:var(--ink-2);margin-bottom:8px;">
+          <span>{{ _('客户') }}</span><span style="color:var(--danger);">*</span>
+        </label>
+        {% set _customer_items = [] %}
+        {% for c in customers %}
+          {% set _x = _customer_items.append({'value': c.id, 'label': c.company_name}) %}
+        {% endfor %}
+        {{ at_searchable_select(
+             id='atSoCustomer',
+             items=_customer_items,
+             placeholder=_('搜索客户名称…'),
+             required=true,
+             on_change='atUpdateSoSubmitBtn()'
+        ) }}
+      </div>
+
+      {# 期望交付日期 colSpan=1 #}
+      <div style="min-width:0;">
+        <label style="display:flex;align-items:baseline;gap:4px;font-size:12.5px;
+                      font-weight:500;color:var(--ink-2);margin-bottom:8px;">
+          <span>{{ _('期望交付') }}</span><span style="color:var(--danger);">*</span>
+        </label>
+        <input type="date" id="atSoDeliveryDate"
+               style="width:100%;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;background:var(--bg-elev);
+                      border:1px solid var(--line-2);border-radius:6px;font-size:13px;color:var(--ink);
+                      outline:none;font-family:var(--font-mono);">
+      </div>
+
+      {# 货币 — 来自 ProductRegionPrice 已配置 + 系统默认 #}
+      <div style="min-width:0;">
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('货币') }}</label>
+        <div style="display:flex;align-items:center;height:34px;padding:0 10px 0 12px;
+                    background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
+                    font-size:13px;position:relative;width:100%;min-width:0;box-sizing:border-box;">
+          <select id="atSoCurrency"
+                  style="appearance:none;border:0;outline:none;background:transparent;
+                         color:var(--ink);font:inherit;padding-right:22px;width:100%;">
+            {% for code, label in _curr_opts %}
+            <option value="{{ code }}" {% if code == default_currency %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <span style="position:absolute;right:8px;color:var(--ink-3);pointer-events:none;">{{ at_icon('chevd', 14) }}</span>
+        </div>
+      </div>
+
+      {# 第 2 行:贸易术语 / 运输方式 / 运费承担 #}
+      {% for fid, fname, opts in [
+        ('atSoIncoterm', _('贸易术语'), [('', _('请选择')),('EXW','EXW'),('FOB','FOB'),('CIF','CIF'),('DDP','DDP')]),
+        ('atSoShipping', _('运输方式'), [('', _('请选择')),('truck', _('汽运')),('air', _('空运')),('express', _('快递')),('self_pickup', _('自提'))]),
+        ('atSoFreight',  _('运费承担'), [('', _('请选择')),('seller', _('卖方承担')),('buyer', _('买方承担'))]),
+      ] %}
+      <div style="min-width:0;">
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ fname }}</label>
+        <div style="display:flex;align-items:center;height:34px;padding:0 10px 0 12px;
+                    background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
+                    font-size:13px;position:relative;width:100%;min-width:0;box-sizing:border-box;">
+          <select id="{{ fid }}"
+                  style="appearance:none;border:0;outline:none;background:transparent;
+                         color:var(--ink);font:inherit;padding-right:22px;width:100%;">
+            {% for v, l in opts %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+          </select>
+          <span style="position:absolute;right:8px;color:var(--ink-3);pointer-events:none;">{{ at_icon('chevd', 14) }}</span>
+        </div>
+      </div>
+      {% endfor %}
+
+      {# 占位填充第 2 行第 4 列 #}
+      <div></div>
+
+      {# 收货联系人 / 电话 / 邮箱(3 列)+ 占位 #}
+      <div style="min-width:0;">
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('收货联系人') }}</label>
+        <input type="text" id="atSoContact" placeholder="{{ _('联系人姓名') }}"
+               style="width:100%;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;background:var(--bg-elev);
+                      border:1px solid var(--line-2);border-radius:6px;font-size:13px;color:var(--ink);outline:none;">
+      </div>
+      <div style="min-width:0;">
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('收货电话') }}</label>
+        <input type="text" id="atSoPhone" placeholder="{{ _('联系电话') }}"
+               style="width:100%;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;background:var(--bg-elev);
+                      border:1px solid var(--line-2);border-radius:6px;font-size:13px;color:var(--ink);outline:none;font-family:var(--font-mono);">
+      </div>
+      <div style="grid-column:span 2;min-width:0;">
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('收货邮箱') }}</label>
+        <input type="email" id="atSoEmail" placeholder="email@example.com"
+               style="width:100%;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;background:var(--bg-elev);
+                      border:1px solid var(--line-2);border-radius:6px;font-size:13px;color:var(--ink);outline:none;">
+      </div>
+
+      {# 交付地址 colSpan=4 #}
+      <div style="grid-column:span 4;min-width:0;">
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('交付地址') }}</label>
+        <input type="text" id="atSoAddress" placeholder="{{ _('请输入完整收货地址') }}"
+               style="width:100%;min-width:0;box-sizing:border-box;height:34px;padding:0 12px;background:var(--bg-elev);
+                      border:1px solid var(--line-2);border-radius:6px;font-size:13px;color:var(--ink);outline:none;">
+      </div>
+
+      {# 备注 colSpan=4 #}
+      <div style="grid-column:span 4;min-width:0;">
+        <label style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2);margin-bottom:8px;">{{ _('备注') }}</label>
+        <textarea id="atSoNote" placeholder="{{ _('订单备注信息') }}"
+                  style="width:100%;min-width:0;box-sizing:border-box;min-height:56px;padding:9px 12px;
+                         background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
+                         font-size:13px;resize:vertical;outline:none;font-family:inherit;color:var(--ink);"></textarea>
+      </div>
+    </div>
+
+    {# 订单明细 — 完全复用 PO 的 ATItemTable + ATProductPicker(SO 没客户需求池) #}
+    {{ at_item_table_section() }}
+  {% endcall %}
+{% endmacro %}

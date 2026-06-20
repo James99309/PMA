@@ -125,14 +125,20 @@ const primary = computed(() => store.pendingReceipts[primaryIdx.value])
 const category = computed(() => primary.value?.fields?.category || 'other')
 const currency = computed(() => primary.value?.fields?.currency || 'CNY')
 
-const included = computed(() =>
-  store.pendingReceipts.filter(r =>
+const included = computed(() => {
+  // 优先用后端 groupKey 判同组(与 web 同一份分组逻辑);缺失则回退两边兜底比较
+  const pk = primary.value?.groupKey
+  if (pk) {
+    return store.pendingReceipts.filter(r =>
+      r.status === 'done' && r.groupKey === pk && !r.saved && !r.skipped)
+  }
+  return store.pendingReceipts.filter(r =>
     r.status === 'done' &&
-    r.fields?.category === category.value &&
-    r.fields?.currency === currency.value &&
+    (r.fields?.category || 'other') === category.value &&
+    (r.fields?.currency || currency.value) === currency.value &&
     !r.saved && !r.skipped
   )
-)
+})
 
 const totalAmount = computed(() =>
   included.value.reduce((s, r) => s + (Number(r.fields?.invoice_amount) || 0), 0))

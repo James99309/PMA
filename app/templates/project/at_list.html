@@ -1,0 +1,206 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_win_lock_badge, at_total_amount %}
+{% from 'components/at_project_modal.html' import at_project_form_modal %}
+{% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+{% from 'components/quality_badge.html' import quality_badge %}
+
+{% block sidebar_active %}project{% endblock %}
+{% block page_title %}{{ _('项目管理') }}{% endblock %}
+{% block category_label %}PROJECT · {{ _('业务管理') }}{% endblock %}
+{% block page_description %}{{ _('跟踪项目从发现、植入、投标到签约的完整阶段。') }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('项目管理') }}</span>
+{% endblock %}
+
+{% block page_actions %}
+{{ at_btn(_('市场情报库'), variant='ghost', icon_l='search', tag='a', href=url_for('prospect.list_view')) }}
+{% if has_permission('project', 'create') %}
+{{ at_btn(_('新建项目'), variant='primary', icon_l='plus', onclick="atOpenProjectForm('create')") }}
+{% endif %}
+{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ai-form-enrich.js') }}"></script>
+{# Tailwind Play CDN(map_picker_modal 用 Tailwind class 渲染) — 关 preflight 防全局重置覆盖 AT 风格 #}
+<script>
+  // 对齐 AT 主题:AT 用 <html data-theme="dark">,默认 'class' 模式匹配 .dark 不生效
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
+    darkMode: ['selector', '[data-theme="dark"]'],
+    corePlugins: { preflight: false },
+    theme: { extend: { colors: { primary: 'var(--accent)' } } }
+  };
+</script>
+<script src="{{ url_for('static', filename='vendor/tailwind/tailwind.forms.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-project-form.js') }}"></script>
+{% endblock %}
+
+{% block total_extra %}{{ at_total_amount(tab_total_amount) }}{% endblock %}
+
+{% block tabs %}
+{% set _tabs = [
+  {'k':'all',        'l':_('全部'),  'c':tab_counts.all},
+  {'k':'discover',   'l':_('发现'),  'c':tab_counts.discover},
+  {'k':'embed',      'l':_('植入'),  'c':tab_counts.embed},
+  {'k':'pre_tender', 'l':_('标前'),  'c':tab_counts.pre_tender},
+  {'k':'tendering',  'l':_('标中'),  'c':tab_counts.tendering},
+  {'k':'awarded',    'l':_('中标'),  'c':tab_counts.awarded},
+  {'k':'quoted',     'l':_('批价'),  'c':tab_counts.quoted},
+  {'k':'win_locked', 'l':_('锁定成功'), 'c':tab_counts.win_locked},
+  {'k':'signed',     'l':_('签约'),  'c':tab_counts.signed},
+  {'k':'closed',     'l':_('失败/暂停'), 'c':tab_counts.closed}
+] %}
+{% for t in _tabs %}
+{% set active = (current_tab == t.k) %}
+<a href="{{ url_for('project.at_list_view', tab=t.k, **list_qs) }}"
+   style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
+          position:relative;text-decoration:none;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;white-space:nowrap;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ t.l }}</span>
+  <span class="at-tab-num at-mono"
+        style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
+</a>
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+{% from 'components/at_filter_panel.html' import at_filter_panel %}
+<div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <form method="get" action="{{ url_for('project.at_list_view') }}"
+        style="display:flex;gap:10px;align-items:center;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
+    {% for v in ptype_values %}<input type="hidden" name="ptype" value="{{ v }}">{% endfor %}
+    {{ at_input(name='search', value=search, placeholder=_('搜索项目名 / 授权码…'), icon_l='search', width='320px') }}
+  </form>
+  {% if show_filter %}
+  {{ at_filter_panel(
+       action_url=url_for('project.at_list_view'),
+       fields=[
+         {'key':'owner','label':_('负责人'),'type':'user','items':owner_options,'values':owner_values},
+         {'key':'vsm','label':_('厂商销售负责人'),'type':'user','items':vsm_options,'values':vsm_values},
+         {'key':'ptype','label':_('类型'),'type':'select','options':type_options,'values':ptype_values},
+       ],
+       hidden={'tab':current_tab,'search':search},
+       panel_id='projFilterPanel') }}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block thead %}
+{% for h, a in [(_('项目'),'left'),(_('阶段'),'left'),(_('类型'),'left'),
+                (_('报价额'),'right'),(_('所属'),'left'),(_('交期'),'left'),(_('更新'),'left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% set today = now() if now is defined else None %}
+{% for p in projects %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+{% set currency_sym = get_currency_symbol((p.quotation_currency if p.quotation_customer else none) or get_default_currency()) %}
+<tr class="at-row" data-href="{{ url_for('project.at_view_project', project_id=p.id) }}"
+    onclick="location.href=this.dataset.href"
+    style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:300px;">
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
+      <span style="font-size:13px;font-weight:500;color:var(--ink);
+                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.project_name }}</span>
+      {# 未跟进标识(橘色):有授权编号跟在编号后,否则单独占名称下一行 #}
+      {% set _od = overdue_days.get(p.id) if overdue_days else none %}
+      {% if p.authorization_code %}
+      <span class="at-mono" style="font-size:11px;color:var(--ink-4);letter-spacing:0.02em;">{{ p.authorization_code }}{% if _od %} <span style="color:var(--warn);font-weight:500;">· {{ _('%(d)s 天未跟进', d=_od) }}</span>{% endif %}</span>
+      {% elif _od %}
+      <span style="font-size:11px;color:var(--warn);font-weight:500;">{{ _('%(d)s 天未跟进', d=_od) }}</span>
+      {% endif %}
+    </div>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    {{ at_status_pill(p.current_stage or 'discover', scope='project') }}
+    {% if p.win_locked and p.current_stage != 'signed' %}{{ at_win_lock_badge(p.win_lock_reason or '', size='sm') }}
+    {% elif p.id in (win_lock_pending_ids or []) %}{{ at_win_lock_badge('', size='sm', tone='warn') }}{% endif %}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-3);font-size:12px;">
+    {{ (p.project_type | project_type_label) if p.project_type else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;">
+      {{ quality_badge(quality_scores.get(p.id) if quality_scores else none, is_project=true) }}
+      {% set _cf = (quote_confirm_status.get(p.id) if quote_confirm_status else none) %}
+      {% set _amt_color = 'var(--success)' if _cf == 'confirmed' else ('var(--warn)' if _cf == 'reconfirm' else ('var(--ink)' if p.quotation_customer else 'var(--ink-4)')) %}
+      <span class="at-mono at-tab-num"
+            title="{% if _cf == 'confirmed' %}{{ _('报价单已确认') }}{% elif _cf == 'reconfirm' %}{{ _('报价单再次确认') }}{% endif %}"
+            style="color:{{ _amt_color }};font-size:13px;font-weight:{{ '600' if _cf in ['confirmed','reconfirm'] else '400' }};">
+        {{ currency_sym }}{{ '{:,.0f}'.format(p.quotation_customer or 0) }}
+      </span>
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
+    {{ (p.owner.real_name or p.owner.username) if p.owner else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ p.delivery_forecast.strftime('%Y-%m-%d') if p.delivery_forecast else '—' }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ p.updated_at.strftime('%Y-%m-%d') if p.updated_at else '—' }}
+    </span>
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    {{ _('没有符合筛选条件的项目') }}
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block pagination %}
+{% if pagination.pages > 1 %}
+<span class="at-mono at-dim" style="font-size:11.5px;">
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
+</span>
+<div style="display:flex;gap:6px;">
+  {% if pagination.has_prev %}
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('project.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
+  {% endif %}
+  {% if pagination.has_next %}
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('project.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block modals %}
+{{ at_project_form_modal('atCreateProjectModal', mode='create') }}
+{{ render_map_picker_modal() }}
+{# 地图选择器原 z-index=50,AT modal=100,默认会被盖住 → 提到 200 显示在最顶层 #}
+<style>#mapPickerModal { z-index: 200 !important; }</style>
+{% if has_permission('project', 'create') %}
+<script>
+/* 从仪表盘「新建项目」进入时自动弹出新建窗口（?action=create） */
+document.addEventListener('DOMContentLoaded', function () {
+  if (new URLSearchParams(window.location.search).get('action') !== 'create') return;
+  window.history.replaceState({}, '', window.location.pathname);
+  setTimeout(function () { if (window.atOpenProjectForm) atOpenProjectForm('create'); }, 300);
+});
+</script>
+{% endif %}
+{% endblock %}

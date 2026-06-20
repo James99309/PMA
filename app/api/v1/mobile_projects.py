@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 # 实际使用的阶段值（来自 dictionary_helpers.py）
 from app.utils.dictionary_helpers import (
-    PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS, PROJECT_TYPE_LABELS
+    PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS, PROJECT_TYPE_LABELS,
+    INDUSTRY_LABELS, format_money,
 )
 
 def _mobile_project_query(user):
@@ -61,6 +62,13 @@ def _project_type_label(key):
         return ''
     return PROJECT_TYPE_LABELS.get(key, {}).get(_lang(), key)
 
+def _industry_label(key):
+    """行业按 Accept-Language 取 zh/en(复用 PMA 统一 INDUSTRY_LABELS),
+    未知值原样返回。前端不再各自维护中文 map。"""
+    if not key:
+        return ''
+    return INDUSTRY_LABELS.get(key, {}).get(_lang(), key)
+
 _PRODUCT_SITUATION_LABELS = {
     'qualified':    {'zh': '入围',     'en': 'Qualified'},
     'controlled':   {'zh': '受控',     'en': 'Controlled'},
@@ -81,25 +89,79 @@ AUTH_STATUS_LABELS = {
 STAGE_LABELS = {k: v['zh'] for k, v in PROJECT_STAGE_LABELS.items()}
 
 
-def _project_summary(p):
-    amount = p.quotation_customer or 0
+def _latest_quotations_for(project_ids):
+    """Map project_id -> (amount, currency) for the most recently updated quotation per project.
+
+    Project amount on mobile mirrors the quotation row the user most recently
+    edited on web (Q with max updated_at). projects.quotation_customer is a
+    seeded initial value and is not kept in sync with quotation edits, so we
+    bypass it whenever a quotation row exists.
+    """
+    if not project_ids:
+        return {}
+    from app.models.quotation import Quotation
+    rows = (
+        db.session.query(
+            Quotation.project_id, Quotation.amount, Quotation.currency
+        )
+        .filter(Quotation.project_id.in_(list(project_ids)))
+        .order_by(Quotation.project_id, Quotation.updated_at.desc().nullslast())
+        .distinct(Quotation.project_id)
+        .all()
+    )
+    return {r[0]: (r[1] or 0, r[2] or None) for r in rows}
+
+
+def _resolve_project_amount(p, latest_qmap=None):
+    """Return (amount, currency) for a single project.
+
+    Prefers the most recently updated quotation. Falls back to the project's
+    seeded quotation_customer/quotation_currency when no quotation row exists
+    (typical for brand-new projects that haven't had a quotation drafted yet).
+    """
+    info = None
+    if latest_qmap is not None:
+        info = latest_qmap.get(p.id)
+    else:
+        # Single-call path: one extra small query, fine for detail endpoints.
+        from app.models.quotation import Quotation
+        q = (
+            Quotation.query.filter(Quotation.project_id == p.id)
+            .order_by(Quotation.updated_at.desc().nullslast())
+            .first()
+        )
+        if q is not None:
+            info = (q.amount or 0, q.currency or None)
+    if info is not None:
+        amt, curr = info[0] or 0, info[1] or 'CNY'
+        return amt, curr
+    # Fallback to seeded project amount when no quotations exist yet
+    amt = p.quotation_customer or 0
+    curr = getattr(p, 'quotation_currency', 'CNY') or 'CNY'
+    return amt, curr
+
+
+def _project_summary(p, latest_qmap=None):
+    amount, curr = _resolve_project_amount(p, latest_qmap=latest_qmap)
     return {
         'id': p.id,
         'name': p.project_name,
         'current_stage': p.current_stage,
         'stage_label': _stage_label(p.current_stage),
         'status': p.status,
-        'amount': round(amount / 10000, 2) if amount else 0,
-        'currency': getattr(p, 'quotation_currency', 'CNY') or 'CNY',
+        'amount': round(amount / 10000, 2) if amount else 0,  # legacy 万 单位(排序/筛选兼容)
+        'amount_display': format_money(amount, curr) if amount else '',
+        'currency': curr,
         'owner_name': p.owner.real_name or p.owner.username if p.owner else '',
         'city': p.city or '',
-        'industry': p.industry or '',
+        'industry': p.industry or '',  # raw, 筛选用
+        'industry_label': _industry_label(p.industry),  # 显示用(区域语言)
         'updated_at': p.updated_at.isoformat() if p.updated_at else None,
     }
 
 
 def _project_detail(p, current_user_id=None):
-    d = _project_summary(p)
+    d = _project_summary(p)  # latest_qmap=None → per-call quotation lookup
     # 通用审批引擎中是否有进行中实例(走模板9)
     from app.helpers.approval_helpers import get_object_approval_instance
     from app.models.approval import ApprovalStatus
@@ -214,34 +276,55 @@ def _project_detail(p, current_user_id=None):
 
     try:
         assocs = p.customer_associations.all() if hasattr(p, 'customer_associations') else []
+        # association_id required by mobile delete endpoint
+        # DELETE /mobile/projects/{id}/customers/{association_id}.
+        # company.company_type is the source of truth for badge display
+        # (customer_type column is DEPRECATED).
+        # can_remove mirrors project_customer_link_service.remove_link: admin
+        # can unlink anything, others can only unlink what they created.
+        _is_admin = False
+        if current_user_id is not None:
+            _cu = User.query.get(current_user_id)
+            _is_admin = bool(_cu and getattr(_cu, 'role', None) == 'admin')
         d['customers'] = [
             {
                 'id': a.company.id,
+                'association_id': a.id,
                 'name': a.company.company_name,
-                'type': a.customer_type,
+                'company_type': getattr(a.company, 'company_type', None),
+                'can_remove': (
+                    _is_admin
+                    or (current_user_id is not None and a.created_by == current_user_id)
+                ),
             }
             for a in assocs if a.company
         ]
     except Exception:
         d['customers'] = []
 
-    # 报价单（最近5条，Quotation 无 is_deleted 字段）
+    # Quotation list (up to 10, no is_deleted on Quotation table).
+    # Sort by updated_at DESC to mirror the project-level "latest" semantic
+    # used by _resolve_project_amount; amount_display flows through the same
+    # format_money(amount, currency) path so all amounts on the detail page
+    # are formatted from one source of truth.
     try:
         from app.models.quotation import Quotation
         quotations = (
             Quotation.query
             .filter_by(project_id=p.id)
-            .order_by(Quotation.created_at.desc())
-            .limit(5).all()
+            .order_by(Quotation.updated_at.desc().nullslast())
+            .limit(10).all()
         )
         d['quotations'] = [
             {
                 'id': q.id,
                 'number': q.quotation_number,
-                'total': round((q.amount or 0) / 10000, 2),
+                'amount': float(q.amount or 0),  # raw major-unit, for any downstream calc
                 'currency': q.currency or 'CNY',
+                'amount_display': format_money(q.amount or 0, q.currency or 'CNY'),
                 'status': q.approval_status,
                 'created_at': q.created_at.strftime('%Y-%m-%d') if q.created_at else None,
+                'updated_at': q.updated_at.strftime('%Y-%m-%d') if q.updated_at else None,
             }
             for q in quotations
         ]
@@ -344,13 +427,36 @@ def mobile_project_list():
     if amount_max is not None and amount_max > 0:
         query = query.filter(Project.quotation_customer <= amount_max * 10000)
 
-    # 汇总金额必须在 ORDER BY 之前计算，否则 PostgreSQL 报 GroupingError
-    from sqlalchemy import func as sa_func
-    total_amount_raw = query.with_entities(sa_func.sum(Project.quotation_customer)).scalar() or 0
+    # Aggregate totals from the SAME source as displayed per-project amount:
+    # the most-recently-updated quotation per project (fall back to the seeded
+    # project.quotation_customer when a project has no quotations yet).
+    _proj_rows = query.with_entities(
+        Project.id, Project.quotation_customer, Project.quotation_currency
+    ).all()
+    _all_ids = [r[0] for r in _proj_rows]
+    _all_qmap = _latest_quotations_for(_all_ids)
+    sums_by_curr = {}
+    for _pid, _qc, _qcurr in _proj_rows:
+        _info = _all_qmap.get(_pid)
+        if _info is not None:
+            _amt, _curr = _info[0] or 0, _info[1] or 'CNY'
+        else:
+            _amt, _curr = (_qc or 0), (_qcurr or 'CNY')
+        if _amt:
+            sums_by_curr[_curr] = sums_by_curr.get(_curr, 0) + _amt
+    total_amount_raw = sum(sums_by_curr.values())
     total_amount_wan = round(total_amount_raw / 10000, 2)
+    # 同币种(NULL 视作 CNY)才出 display，混币 → None 前端隐藏
+    if len(sums_by_curr) == 1:
+        _only_curr, _only_sum = next(iter(sums_by_curr.items()))
+        total_amount_display = format_money(_only_sum, _only_curr)
+    else:
+        total_amount_display = None
 
     sort = request.args.get('sort', 'updated_at')
     if sort == 'amount':
+        # NOTE: sort keys remain on Project.quotation_customer (seeded) for now;
+        # consistent re-sort by latest-quotation amount would need a join/subquery.
         query = query.order_by(Project.quotation_customer.desc().nullslast())
     elif sort == 'amount_asc':
         query = query.order_by(Project.quotation_customer.asc().nullslast())
@@ -358,11 +464,14 @@ def mobile_project_list():
         query = query.order_by(Project.updated_at.desc())
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    # Reuse the already-fetched qmap for items on this page (no extra query).
+    _page_qmap = {pid: _all_qmap[pid] for pid in (it.id for it in pagination.items) if pid in _all_qmap}
 
     return api_response(success=True, data={
-        'items': [_project_summary(p) for p in pagination.items],
+        'items': [_project_summary(p, latest_qmap=_page_qmap) for p in pagination.items],
         'total': pagination.total,
         'total_amount': total_amount_wan,
+        'total_amount_display': total_amount_display,  # 同币种才出,混币 None 前端隐藏
         'page': page,
         'per_page': per_page,
         'pages': pagination.pages,
@@ -651,6 +760,69 @@ def mobile_project_recall(project_id):
         db.session.rollback()
         logger.exception(f"项目召回失败: {e}")
         return api_response(success=False, code=500, message=f"召回失败: {e}")
+
+
+@api_v1_bp.route('/mobile/projects/<int:project_id>/customers', methods=['POST'])
+@jwt_required()
+def mobile_project_add_customer(project_id):
+    """Link a company to a project (mobile detail page "+ 添加客户").
+
+    Body: {"company_id": int}. Permissions + duplicate handling delegated
+    to project_customer_link_service so the same rules apply across web
+    and mobile.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    data = request.get_json() or {}
+    company_id = data.get('company_id')
+
+    from app.services.project_customer_link_service import add_link, LinkError
+    try:
+        assoc = add_link(user, project_id, company_id)
+        db.session.commit()
+        return api_response(success=True, message='客户已关联', data={
+            'association_id': assoc.id,
+            'company_id': assoc.company_id,
+        })
+    except LinkError as e:
+        return api_response(success=False, code=e.status, message=e.message)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'mobile add customer link error: {e}')
+        return api_response(success=False, code=500, message='关联失败，请重试')
+
+
+@api_v1_bp.route(
+    '/mobile/projects/<int:project_id>/customers/<int:association_id>',
+    methods=['DELETE'],
+)
+@jwt_required()
+def mobile_project_remove_customer(project_id, association_id):
+    """Unlink a company from a project (mobile detail page swipe-delete).
+
+    project_id is only used to make the URL self-describing; the
+    association row alone is enough to identify what to delete. The service
+    enforces the "creator or admin" rule.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    from app.services.project_customer_link_service import remove_link, LinkError
+    try:
+        remove_link(user, association_id)
+        db.session.commit()
+        return api_response(success=True, message='关联已移除')
+    except LinkError as e:
+        return api_response(success=False, code=e.status, message=e.message)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'mobile remove customer link error: {e}')
+        return api_response(success=False, code=500, message='移除失败，请重试')
 
 
 @api_v1_bp.route('/mobile/projects/<int:project_id>/notes', methods=['POST'])

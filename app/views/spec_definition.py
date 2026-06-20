@@ -60,6 +60,42 @@ def list_definitions():
     )
 
 
+@spec_definition_bp.route('/at_list')
+@login_required
+@permission_required('product_code', 'view')
+def at_list_view():
+    """AT 风格规格字典列表 — 分类作为 tabs"""
+    from app.models.spec_template import SpecCategory
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 50
+    search = request.args.get('search', '').strip()
+    category_id = request.args.get('category_id', type=int)
+
+    categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+    if not category_id and categories:
+        category_id = categories[0].id
+
+    q = SpecificationDictionary.query.filter_by(is_active=True)
+    if category_id:
+        q = q.filter_by(category_id=category_id)
+    if search:
+        s = f'%{search}%'
+        q = q.filter(db.or_(
+            SpecificationDictionary.name.ilike(s),
+            SpecificationDictionary.name_en.ilike(s),
+        ))
+
+    pagination = q.order_by(SpecificationDictionary.display_order).paginate(
+        page=page, per_page=per_page, error_out=False,
+    )
+    return render_template('spec_definition/at_list.html',
+                           definitions=pagination.items,
+                           pagination=pagination,
+                           categories=categories,
+                           current_category_id=category_id,
+                           search=search)
+
+
 @spec_definition_bp.route('/api/list')
 @login_required
 @permission_required('product_code', 'view')

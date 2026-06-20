@@ -184,6 +184,32 @@ class Message(db.Model):
         db.session.commit()
 
     @classmethod
+    def create_meeting_invite(cls, sender_id, recipient_id, recording):
+        """会议旁听邀请通知
+
+        Args:
+            sender_id: 发起录音的人
+            recipient_id: 被邀请旁听的人
+            recording: MeetingRecording 对象
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        return cls(
+            message_type='meeting_invite',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 邀请你旁听会议',
+            content=(recording.title or '')[:100],
+            related_object_type='meeting_recording',
+            related_object_id=recording.id,
+            extra_data={
+                'meeting_time': recording.meeting_time.isoformat() if recording.meeting_time else None,
+            }
+        )
+
+    @classmethod
     def create_workitem_shared(cls, sender_id, recipient_id, work_item):
         """创建行程共享通知
 
@@ -376,6 +402,47 @@ class Message(db.Model):
             extra_data={
                 'planned_date': work_item.planned_date.isoformat() if work_item.planned_date else None,
                 'work_type': work_item.work_type
+            }
+        )
+
+    @classmethod
+    def create_workitem_comment(cls, sender_id, recipient_id, work_item, content):
+        """工作项评论通知(发给工作项创建者)。"""
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+        return cls(
+            message_type='workitem_comment',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 评论了你的工作项',
+            content=(content or '')[:100],
+            related_object_type='workitem',
+            related_object_id=work_item.id,
+            extra_data={
+                'planned_date': work_item.planned_date.isoformat() if work_item.planned_date else None,
+                'work_type': work_item.work_type,
+                'title': work_item.title,
+            }
+        )
+
+    @classmethod
+    def create_worklog_comment(cls, sender_id, recipient_id, worklog, content):
+        """日报评论通知(发给日报创建者)。"""
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+        return cls(
+            message_type='worklog_comment',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 评论了你的日报',
+            content=(content or '')[:100],
+            related_object_type='worklog',
+            related_object_id=worklog.id,
+            extra_data={
+                'log_date': worklog.log_date.isoformat() if worklog.log_date else None,
+                'owner_id': worklog.owner_id,
             }
         )
 
@@ -783,4 +850,35 @@ class Message(db.Model):
                 'log_type': worklog.log_type,
                 'owner_id': worklog.owner_id  # 日志所有者ID，用于前端正确显示日志
             }
+        )
+
+    @classmethod
+    def create_task_reply(cls, sender_id, recipient_id, task, comment_content,
+                          subtask=None):
+        """任务/子任务评论通知（站内 Message,推送在 notification_service 里发）。
+
+        subtask 非空 → 子任务评论;为空 → 主任务评论。
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = (sender.real_name or sender.username) if sender else '未知用户'
+        preview = (comment_content or '')[:100] + ('...' if len(comment_content or '') > 100 else '')
+        if subtask is not None:
+            sub_title = (subtask.title or '')[:40]
+            title = f'{sender_name} 评论了子任务「{sub_title}」'
+        else:
+            t_title = (task.title or '')[:40]
+            title = f'{sender_name} 评论了「{t_title}」'
+        return cls(
+            message_type='task_reply',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=title,
+            content=preview,
+            related_object_type='task',
+            related_object_id=task.id,
+            extra_data={
+                'task_id': task.id,
+                'subtask_id': getattr(subtask, 'id', None),
+            },
         )

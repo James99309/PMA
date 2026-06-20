@@ -716,11 +716,6 @@
                     alert('{{ _("不支持的图片格式！请选择 JPG、PNG 或 GIF 文件") }}');
                     return;
                 }
-                if (file.size > 12 * 1024 * 1024) {
-                    alert('{{ _("图片文件太大！最大允许 12MB") }}');
-                    return;
-                }
-
                 checkCategoryFileAndUpload(file, 'image');
             });
         }
@@ -736,11 +731,6 @@
                     alert('{{ _("请选择PDF文件") }}');
                     return;
                 }
-                if (file.size > 12 * 1024 * 1024) {
-                    alert('{{ _("PDF文件太大！最大允许 12MB") }}');
-                    return;
-                }
-
                 checkCategoryFileAndUpload(file, 'pdf');
             });
         }

@@ -3,7 +3,11 @@
 import smtplib
 import logging
 import threading
+import io
+import zipfile
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from email.header import Header
 from flask import current_app, request
 from itsdangerous import URLSafeTimedSerializer
@@ -46,7 +50,105 @@ def _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_
         logger.error(f"后台邮件发送失败: {str(e)}")
         return False
 
-def send_email(subject, recipient, content, html=None, async_send=True):
+def generate_dxt_bytes(token: str, display_name: str = 'PMA', host: str = 'pma-mcp.jamesgpone.win', dxt_name: str = 'pma') -> bytes:
+    """生成用户专属的 .dxt 扩展包（内存中，返回 bytes）
+    使用 Node.js bridge，依赖 Claude Desktop 内置 Node.js，无需用户安装任何环境。
+    host: MCP 服务器域名，CN NAS 用 pma-mcp.jamesgpone.win，SG NAS 用 sg-pma-mcp.jamesgpone.win
+    dxt_name: 扩展包唯一标识，同一 Claude Desktop 安装两个不同 NAS 的 DXT 时不会冲突
+    """
+    manifest = f'''{{
+  "dxt_version": "0.1",
+  "name": "{dxt_name}",
+  "display_name": "{display_name}",
+  "version": "1.1.0",
+  "description": "连接 PMA 业务系统，查询报价单、项目、客户、审批等数据",
+  "author": {{"name": "Evertac"}},
+  "server": {{
+    "type": "node",
+    "entry_point": "server/bridge.js",
+    "mcp_config": {{
+      "command": "node",
+      "args": ["${{__dirname}}/server/bridge.js"]
+    }}
+  }}
+}}'''
+
+    bridge = f"""'use strict';
+// PMA MCP stdio bridge (Node.js)
+const https = require('https');
+const readline = require('readline');
+
+const TOKEN = process.env.PMA_TOKEN || '{token}';
+const HOST  = '{host}';
+const PATH  = '/mcp?token=' + TOKEN;
+
+let sessionId = null;
+
+function httpPost(payload) {{
+  return new Promise((resolve, reject) => {{
+    const body = JSON.stringify(payload);
+    const headers = {{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'mcp-protocol-version': '2024-11-05',
+      'Content-Length': Buffer.byteLength(body),
+    }};
+    if (sessionId) headers['mcp-session-id'] = sessionId;
+
+    const req = https.request({{ hostname: HOST, path: PATH, method: 'POST', headers }}, (res) => {{
+      const sid = res.headers['mcp-session-id'];
+      if (sid) sessionId = sid;
+      const ct = res.headers['content-type'] || '';
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {{
+        if (ct.includes('text/event-stream')) {{
+          for (const line of data.split('\\n')) {{
+            if (line.startsWith('data: ')) {{
+              try {{ resolve(JSON.parse(line.slice(6))); return; }} catch (_) {{}}
+            }}
+          }}
+          resolve(null);
+        }} else {{
+          try {{ resolve(JSON.parse(data)); }} catch (e) {{ reject(e); }}
+        }}
+      }});
+    }});
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  }});
+}}
+
+const rl = readline.createInterface({{ input: process.stdin }});
+rl.on('line', async (line) => {{
+  line = line.trim();
+  if (!line) return;
+  try {{
+    const msg  = JSON.parse(line);
+    const resp = await httpPost(msg);
+    if (resp) process.stdout.write(JSON.stringify(resp) + '\\n');
+  }} catch (e) {{
+    let mid = null;
+    try {{ mid = JSON.parse(line).id; }} catch (_) {{}}
+    if (mid !== null && mid !== undefined) {{
+      process.stdout.write(JSON.stringify({{
+        jsonrpc: '2.0', id: mid,
+        error: {{ code: -32603, message: String(e) }}
+      }}) + '\\n');
+    }}
+  }}
+}});
+"""
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('manifest.json', manifest)
+        zf.writestr('server/bridge.js', bridge)
+    return buf.getvalue()
+
+
+def send_email(subject, recipient, content, html=None, async_send=True, attachments=None):
     """发送邮件的通用函数
 
     Args:
@@ -94,7 +196,15 @@ def send_email(subject, recipient, content, html=None, async_send=True):
         logger.info(f"邮件主题: {subject}")
 
         # 创建邮件
-        if html:
+        if attachments:
+            msg = MIMEMultipart()
+            body = MIMEText(html or content or '', 'html' if html else 'plain', 'utf-8')
+            msg.attach(body)
+            for filename, data in attachments:
+                part = MIMEApplication(data, Name=filename)
+                part['Content-Disposition'] = f'attachment; filename="{filename}"'
+                msg.attach(part)
+        elif html:
             msg = MIMEText(html, 'html', 'utf-8')
             logger.debug("使用HTML格式邮件")
         else:
@@ -408,7 +518,7 @@ def send_password_reset_email(user, reset_token, reset_url):
     except Exception as e:
         logger.error(f"发送密码重置邮件异常: {str(e)}", exc_info=True)
         return False
-def send_claude_ai_token_email(user, token, is_reset=False):
+def send_claude_ai_token_email(user, token, is_reset=False, attach_dxt=True):
     """发送 Claude AI 代理 token 邮件给用户。
 
     参数:
@@ -439,20 +549,62 @@ def send_claude_ai_token_email(user, token, is_reset=False):
         quota_display = f'{int(quota):,}'
 
         real_name = user.real_name or user.username
-        subject_action = '重置' if is_reset else '开通'
-        subject = f'PMA Claude AI 代理已{subject_action} - {real_name}'
-        action_zh = '重置 token' if is_reset else '开通 Claude AI 代理'
         action_en = 'TOKEN RESET' if is_reset else 'CLAUDE AI ENABLED'
 
-        notice_text = (
-            '你之前的 token 已立即失效，请使用以下新 token 替换原有配置。'
-            if is_reset else
-            '你的 PMA 账号已被开通 Claude AI 代理使用权限。请按下方说明配置 Claude Desktop 或其他客户端。'
-        )
+        # 根据数据库类型判断语言（sp8d=CN中文，ovs=SG英文）
+        db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
+        is_cn = (db_type == 'sp8d')
+
+        if is_cn:
+            subject = f'PMA Claude AI 代理已{"重置" if is_reset else "开通"} - {real_name}'
+            notice_text = (
+                '你之前的 Token 已立即失效，请使用以下新 Token 替换原有配置。'
+                if is_reset else
+                '你的 PMA 账号已获得 Claude AI 工作助手的使用权限，请按下方说明完成配置。'
+            )
+            sec_title = '使用规范'
+            sec_body = (
+                'Claude AI 是公司提供的工作效率工具，请仅用于工作相关事务，并遵守公司 AI 工具保密规定，'
+                '勿将客户资料、商业机密等内部信息输入用于非工作目的。'
+                'Token 为个人专属凭证，请勿转让或共享。如怀疑泄漏，请登录 PMA 个人中心自助重置。'
+                '月度配额超限后请求将暂停至下月 1 日自动恢复。'
+            )
+            cred_title = '你的凭证'
+            cfg_title = 'Claude Desktop 配置'
+            field_col = '字段'
+            value_col = '值'
+            quota_label = '月度配额'
+            footer_copy = '&copy; 2026 PMA系统管理团队. All rights reserved.'
+            footer_note = '此邮件由系统自动发送，请勿直接回复'
+            lang = 'zh-CN'
+        else:
+            subject = f'PMA Claude AI Gateway {"Reset" if is_reset else "Enabled"} - {real_name}'
+            notice_text = (
+                f'Your previous token has been invalidated. Please update your configuration with the new token below.'
+                if is_reset else
+                f'Your PMA account has been granted access to the Claude AI Gateway. Please follow the instructions below to configure your client.'
+            )
+            sec_title = 'Usage Policy'
+            sec_body = (
+                'Claude AI is a company-provided productivity tool. Please use it exclusively for work-related purposes '
+                'and comply with the company\'s AI tool confidentiality policy. Do not input confidential client data, '
+                'trade secrets, or internal information for non-work purposes. '
+                'Your token is personal and non-transferable. If you suspect it has been compromised, '
+                'reset it immediately via your PMA profile. '
+                'Monthly quota will be automatically reset on the 1st of each month.'
+            )
+            cred_title = 'Your Credentials'
+            cfg_title = 'Claude Desktop Setup'
+            field_col = 'Field'
+            value_col = 'Value'
+            quota_label = 'Monthly Quota'
+            footer_copy = '&copy; 2026 PMA Team. All rights reserved.'
+            footer_note = 'This email was sent automatically. Please do not reply directly.'
+            lang = 'en'
 
         html_content = f"""
         <!DOCTYPE html>
-        <html lang="zh-CN">
+        <html lang="{lang}">
         <head>
             <meta charset="utf-8"/>
             <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -460,26 +612,26 @@ def send_claude_ai_token_email(user, token, is_reset=False):
         <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
             <div style="max-width: 600px; margin: 0 auto; padding: 48px 24px;">
                 <div style="text-align: center; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #a0a0a0;">
-                    <h1 style="font-size: 28px; font-weight: 300; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">PMA Claude AI 代理</h1>
+                    <h1 style="font-size: 28px; font-weight: 300; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">PMA Claude AI</h1>
                     <p style="font-size: 16px; color: #545454; margin: 0; font-family: 'Roboto Mono', monospace; letter-spacing: -0.025em;">{action_en}</p>
                 </div>
 
                 <div style="text-align: center; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #a0a0a0;">
                     <p style="font-size: 18px; color: #404040; margin: 0; font-weight: 300;">
-                        尊敬的 <strong style="font-weight: 500;">{real_name}</strong>，{notice_text}
+                        <strong style="font-weight: 500;">{real_name}</strong>，{notice_text}
                     </p>
                 </div>
 
                 <div style="margin-bottom: 32px;">
                     <div style="display: flex; align-items: center; margin-bottom: 24px;">
                         <span style="font-size: 24px; font-weight: 300; color: #1a1a1a; margin-right: 12px;">I.</span>
-                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">你的凭证</h2>
+                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">{cred_title}</h2>
                     </div>
                     <div style="border-bottom: 1px solid #e8e8e8; padding-bottom: 24px;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <tr>
                                 <td style="padding: 8px 0;">
-                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">代理地址 (Gateway URL)</span>
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">Gateway URL</span>
                                     <span style="font-size: 14px; color: #2c2c2c; font-family: 'Roboto Mono', monospace;">{public_url}</span>
                                 </td>
                             </tr>
@@ -491,7 +643,7 @@ def send_claude_ai_token_email(user, token, is_reset=False):
                             </tr>
                             <tr>
                                 <td style="padding: 8px 0;">
-                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">月度配额</span>
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">{quota_label}</span>
                                     <span style="font-size: 14px; color: #2c2c2c;">{quota_display} tokens</span>
                                 </td>
                             </tr>
@@ -502,12 +654,12 @@ def send_claude_ai_token_email(user, token, is_reset=False):
                 <div style="margin-bottom: 32px;">
                     <div style="display: flex; align-items: center; margin-bottom: 24px;">
                         <span style="font-size: 24px; font-weight: 300; color: #1a1a1a; margin-right: 12px;">II.</span>
-                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">Claude Desktop 配置</h2>
+                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">{cfg_title}</h2>
                     </div>
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr style="background-color: #e8e8e8;">
-                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">字段</td>
-                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">值</td>
+                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">{field_col}</td>
+                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">{value_col}</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #e8e8e8;">
                             <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">Connection</td>
@@ -529,19 +681,18 @@ def send_claude_ai_token_email(user, token, is_reset=False):
                 </div>
 
                 <div style="border: 1px solid #a0a0a0; padding: 24px; margin-bottom: 32px;">
-                    <h3 style="font-size: 16px; font-weight: 500; color: #2c2c2c; margin: 0 0 12px 0;">安全提醒</h3>
+                    <h3 style="font-size: 16px; font-weight: 500; color: #2c2c2c; margin: 0 0 12px 0;">{sec_title}</h3>
                     <p style="font-size: 14px; color: #545454; margin: 0; line-height: 1.6;">
-                        Token 是你的唯一凭证，请勿外泄给他人或截图分享。如怀疑泄漏，请登录 PMA 在个人中心自助重置。
-                        管理员可随时查看你的使用记录。月度配额超限后请求会被暂停，直到下月 1 日重置。
+                        {sec_body}
                     </p>
                 </div>
 
                 <div style="text-align: center; padding-top: 32px; border-top: 1px solid #a0a0a0;">
                     <p style="font-size: 12px; color: #686868; margin: 0; font-family: 'Roboto Mono', monospace;">
-                        &copy; 2026 PMA系统管理团队. All rights reserved.
+                        {footer_copy}
                     </p>
                     <p style="font-size: 11px; color: #a0a0a0; margin: 8px 0 0 0;">
-                        此邮件由系统自动发送，请勿直接回复
+                        {footer_note}
                     </p>
                 </div>
             </div>
@@ -549,11 +700,158 @@ def send_claude_ai_token_email(user, token, is_reset=False):
         </html>
         """
 
-        logger.info(f'正在向 {user.username} 发送 Claude AI {subject_action} 邮件')
-        # 同步发送：HTTP 请求返回前确保邮件已实际投递（开通操作不频繁，等 1-3 秒可接受）
+        logger.info(f'正在向 {user.username} 发送 Claude AI {"重置" if is_reset else "开通"} 邮件')
         return send_email(subject, user.email, None, html=html_content, async_send=False)
 
     except Exception as e:
         logger.error(f'发送 Claude AI 邮件失败: {e}', exc_info=True)
+        return False
+
+
+def send_dxt_install_email(user) -> bool:
+    """发送 Claude Desktop 扩展安装说明邮件（含 .dxt 附件）"""
+    try:
+        import os
+        if not user or not user.email:
+            logger.warning('send_dxt_install_email: 用户邮箱缺失')
+            return False
+        if not user.claude_ai_token:
+            logger.warning('send_dxt_install_email: 用户未开通 Claude AI')
+            return False
+
+        real_name = user.real_name or user.username
+        safe_name = (user.username or 'user').lower()
+        db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
+        is_cn = (db_type == 'sp8d')
+        external_url = os.environ.get('EXTERNAL_URL', '').rstrip('/')
+        download_url = f'{external_url}/user/api/claude-ai/download-dxt?t={user.claude_ai_token}'
+
+        if is_cn:
+            subject = f'PMA Claude Desktop 扩展安装指南 - {real_name}'
+            html_content = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#fff;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:48px 24px;">
+  <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
+    <h1 style="font-size:28px;font-weight:300;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.05em;color:#1a1a1a;">PMA Claude AI</h1>
+    <p style="font-size:16px;color:#545454;margin:0;font-family:'Roboto Mono',monospace;">DESKTOP EXTENSION</p>
+  </div>
+  <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
+    <p style="font-size:18px;color:#404040;margin:0;font-weight:300;">
+      <strong style="font-weight:500;">{real_name}</strong>，你的 PMA Claude Desktop 扩展已准备好，请按以下步骤完成安装。
+    </p>
+  </div>
+  <div style="margin-bottom:32px;">
+    <h3 style="font-size:16px;font-weight:500;color:#2c2c2c;margin:0 0 16px 0;">安装步骤</h3>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;width:32px;font-size:20px;">1</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>下载扩展文件</strong><br>
+          <span style="color:#545454;">登录 PMA 后点击下方链接下载：</span><br>
+          <a href="{download_url}" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;">下载 pma-{safe_name}.dxt</a>
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;font-size:20px;">2</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>打开 Claude Desktop</strong><br>
+          <span style="color:#545454;">点击左下角头像 → Settings → 左侧 Extensions</span>
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;font-size:20px;">3</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>拖入安装</strong><br>
+          <span style="color:#545454;">将 .dxt 文件拖入 Extensions 页面中的 "Drag .MCPB or .DXT files here to install" 区域</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px;font-size:20px;">4</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>启用扩展</strong><br>
+          <span style="color:#545454;">安装后点击 PMA 扩展的开关将其启用，即可在对话中使用 PMA 数据查询</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+  <div style="border:1px solid #e8e8e8;border-radius:6px;padding:16px;margin-bottom:32px;background:#f9f9f9;">
+    <p style="font-size:13px;color:#545454;margin:0;">
+      安装完成后，你可以在 Claude Desktop 对话框中直接提问，例如：<br>
+      <em>"帮我查一下本月的报价单"</em>&nbsp;&nbsp;
+      <em>"最近有哪些待审批项目？"</em>
+    </p>
+  </div>
+  <div style="text-align:center;padding-top:32px;border-top:1px solid #a0a0a0;">
+    <p style="font-size:12px;color:#686868;margin:0;font-family:'Roboto Mono',monospace;">&copy; 2026 PMA系统管理团队. All rights reserved.</p>
+    <p style="font-size:11px;color:#a0a0a0;margin:8px 0 0 0;">此邮件由系统自动发送，请勿直接回复</p>
+  </div>
+</div>
+</body>
+</html>"""
+        else:
+            subject = f'PMA Claude Desktop Extension - Installation Guide - {real_name}'
+            html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#fff;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:48px 24px;">
+  <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
+    <h1 style="font-size:28px;font-weight:300;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.05em;color:#1a1a1a;">PMA Claude AI</h1>
+    <p style="font-size:16px;color:#545454;margin:0;font-family:'Roboto Mono',monospace;">DESKTOP EXTENSION</p>
+  </div>
+  <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
+    <p style="font-size:18px;color:#404040;margin:0;font-weight:300;">
+      Hi <strong style="font-weight:500;">{real_name}</strong>, your PMA Claude Desktop extension is ready to install.
+    </p>
+  </div>
+  <div style="margin-bottom:32px;">
+    <h3 style="font-size:16px;font-weight:500;color:#2c2c2c;margin:0 0 16px 0;">Installation Steps</h3>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;width:32px;font-size:20px;">1</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>Download the extension</strong><br>
+          <span style="color:#545454;">Log in to PMA and click the link below to download:</span><br>
+          <a href="{download_url}" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;">Download pma-{safe_name}.dxt</a>
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;font-size:20px;">2</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>Open Claude Desktop</strong><br>
+          <span style="color:#545454;">Click the avatar icon (bottom-left) → Settings → Extensions</span>
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;font-size:20px;">3</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>Drag to install</strong><br>
+          <span style="color:#545454;">Drag the .dxt file into the "Drag .MCPB or .DXT files here to install" area on the Extensions page</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px;font-size:20px;">4</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>Enable the extension</strong><br>
+          <span style="color:#545454;">Toggle the PMA extension on — you can now query PMA data directly in Claude conversations</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+  <div style="text-align:center;padding-top:32px;border-top:1px solid #a0a0a0;">
+    <p style="font-size:12px;color:#686868;margin:0;font-family:'Roboto Mono',monospace;">&copy; 2026 PMA Team. All rights reserved.</p>
+    <p style="font-size:11px;color:#a0a0a0;margin:8px 0 0 0;">This email was sent automatically. Please do not reply.</p>
+  </div>
+</div>
+</body>
+</html>"""
+
+        logger.info(f'发送 DXT 安装邮件给 {user.username} ({user.email})')
+        return send_email(subject, user.email, None, html=html_content, async_send=False)
+
+    except Exception as e:
+        logger.error(f'发送 DXT 安装邮件失败: {e}', exc_info=True)
         return False
 

@@ -1,5 +1,43 @@
 # 翻译与国际化规范
 
+> 本文件上半部分是 **Web(Flask/Babel)** i18n 规范。
+> **移动端(mobile-app / Capacitor + Vue)** 走另一套机制,纪律见下方
+> 「📱 移动端 i18n 开发纪律」—— 所有开发(含 AI)写移动端代码必须遵守。
+
+---
+
+## 📱 移动端 i18n 开发纪律(强制 · 所有开发遵守)
+
+**背景**:SG 区强制英文。历史上大量中文是"写代码时图快硬编码、等 SG 测试才发现",
+返工巨大。以下纪律从源头杜绝,**写代码当下就做,不留到最后翻**。
+
+### 三类内容,三种归属(写之前先分类)
+
+| 内容 | 谁负责 | 何时出英文 |
+|---|---|---|
+| **界面静态文案**(按钮/字段名/提示/空状态/sheet 标题) | 前端 `t('ns.key')` | 写 zh 的**同一个 commit** 必须同时在 `en.js` + `zh.js` 补齐该 key。不是最后翻。 |
+| **后端数据值**(状态/阶段/行业/科目/货币名等枚举/字典) | **后端**按 `Accept-Language`(`get_request_lang`)返回 `xxx_label` | 后端枚举/字典字段**从第一天**就返回本地化 `*_label`;前端**禁止**自建中文 map(参考 `mobile_projects._stage_label/_industry_label`、`mobile_customers._status_label`) |
+| **AI 生成 / 用户手输**(OCR 描述、标题、自由文本) | 区域语言归一 | 生成/保存那一刻定语言:region-aware prompt 或 `translation_service`(参考 `expense_invoice_ocr`/`expense_title_generator` 的 `lang=` 参、`mobile_expense._normalize_region_text`) |
+
+### 铁律
+
+1. **禁止在 `.vue/.js/.ts` 写中文字面量**(注释除外,但注释中文也尽量少)。用户可见文字一律 `t()`。
+2. **新增 key 必须 `en.js` 和 `zh.js` 同提交补齐**,缺一不许进 commit。
+3. **后端新增枚举/字典字段**:必须提供 `_lang()` 版 `*_label`,移动端只消费 label,不自己映射。
+4. **数据值历史不一致**(库里有的存中文有的存英文 key):后端 label 映射要带中文别名兜底(见 `mobile_customers._STATUS_LABEL` 别名写法)。
+
+### 护栏(自动拦截,非靠自觉)
+
+`mobile-app/scripts/i18n-guard.mjs` —— 棘轮式:`scripts/i18n-baseline.txt`
+锚定现有中文债,**只拦新增**硬编码中文。已接入:
+
+- `npm run lint:i18n` — 检查(`release-ota.sh` 发版前自动跑,`set -e` 拦截,新增中文直接中止发版)
+- `npm run lint:i18n:update` — 修完一批债后收紧 baseline(债只减不增)
+
+提交 / 发版前若被拦:按上表把该字符串改成 `t()` 或后端 `*_label`,而不是 `--update` 绕过(绕过仅用于确属误报或已合规)。
+
+---
+
 ## 🌍 翻译范围定义
 
 ### **✅ 需要翻译的内容**

@@ -1,0 +1,617 @@
+{#
+  AT 详情页 mini-table 宏 — 业务实体的关联表格(列定义跨页一致)
+  ─────────────────────────────────────────────────────────────
+  每种数据类型一个宏,改一次所有 detail 页同步:
+    - render_project_minitable(items)
+    - render_quotation_minitable(items)
+    - render_pricing_order_minitable(items)
+    - render_sales_order_minitable(items)
+    - render_purchase_order_minitable(items)
+    - render_expense_minitable(items)
+
+  用法:配合 at_detail_section 用
+    {% from 'components/at_detail.html' import at_detail_section %}
+    {% from 'components/at_minitables.html' import render_project_minitable %}
+
+    {% call at_detail_section('关联项目', count=5) %}
+      {{ render_project_minitable(items) }}
+    {% endcall %}
+
+  注:依赖全局 status_meta 字典(at_status_pill 宏)+ get_status_meta jinja global
+#}
+{% from 'components/at_base.html' import at_pill, at_status_pill %}
+
+
+{# ─── 项目 ─── #}
+{% macro render_project_minitable(items) %}
+<table class="at-mini-table">
+  <thead><tr>
+    <th>{{ _('名称') }}</th><th>{{ _('阶段') }}</th><th>{{ _('所属') }}</th><th style="text-align:right;">{{ _('报价额') }}</th>
+  </tr></thead>
+  <tbody>
+    {% for p in items %}
+    <tr onclick="location.href='{{ url_for('project.at_view_project', project_id=p.id) }}'">
+      <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink);">{{ p.project_name }}</td>
+      <td>{{ at_status_pill(p.current_stage or 'discover', scope='project') }}</td>
+      <td style="color:var(--ink-3);">{{ (p.owner.real_name or p.owner.username) if p.owner else '—' }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.0f}'.format(p.quotation_customer or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{# ─── 报价 ─── #}
+{% macro render_quotation_minitable(items, show_project=true) %}
+<table class="at-mini-table">
+  <thead><tr>
+    <th>{{ _('单号') }}</th>
+    {% if show_project %}<th>{{ _('项目') }}</th>{% endif %}
+    <th>{{ _('状态') }}</th>
+    <th style="text-align:right;">{{ _('金额') }}</th>
+  </tr></thead>
+  <tbody>
+    {% for q in items %}
+    <tr onclick="location.href='{{ url_for('quotation.at_view_quotation', id=q.id) }}'">
+      <td class="at-mono" style="font-weight:500;color:var(--ink);">{{ q.quotation_number }}</td>
+      {% if show_project %}
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-3);">
+        {{ q.project.project_name if q.project else '—' }}
+      </td>
+      {% endif %}
+      <td>{{ at_status_pill(q.confirmation_badge_status or 'none', scope='quotation') }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.0f}'.format(q.amount or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{# ─── 批价单 ─── #}
+{% macro render_pricing_order_minitable(items, show_project=true) %}
+<table class="at-mini-table">
+  <thead><tr>
+    <th>{{ _('单号') }}</th>
+    {% if show_project %}<th>{{ _('项目') }}</th>{% endif %}
+    <th>{{ _('状态') }}</th>
+    <th style="text-align:right;">{{ _('总额') }}</th>
+  </tr></thead>
+  <tbody>
+    {% for o in items %}
+    <tr onclick="location.href='{{ url_for('pricing_order.edit_pricing_order', order_id=o.id) }}'">
+      <td class="at-mono" style="font-weight:500;color:var(--ink);">{{ o.order_number }}</td>
+      {% if show_project %}
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-3);">
+        {{ o.project.project_name if o.project else '—' }}
+      </td>
+      {% endif %}
+      <td>{{ at_status_pill(o.status, scope='pricing_order') }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.2f}'.format(o.pricing_total_amount or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{# ─── 客户订单(销售订单)─── #}
+{% macro render_sales_order_minitable(items) %}
+<table class="at-mini-table">
+  <thead><tr>
+    <th>{{ _('单号') }}</th><th>{{ _('状态') }}</th><th>{{ _('所属') }}</th><th style="text-align:right;">{{ _('金额') }}</th>
+  </tr></thead>
+  <tbody>
+    {% for o in items %}
+    <tr onclick="location.href='{{ url_for('sales_order.detail_view', order_id=o.id) }}'">
+      <td class="at-mono" style="font-weight:500;color:var(--ink);">{{ o.order_number }}</td>
+      <td>{{ at_status_pill(o.status or 'draft', scope='sales_order') }}</td>
+      <td style="color:var(--ink-3);">{{ (o.owner.real_name or o.owner.username) if o.owner else '—' }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.0f}'.format(o.total_amount or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{# ─── 采购订单 ─── #}
+{% macro render_purchase_order_minitable(items) %}
+<table class="at-mini-table">
+  <thead><tr>
+    <th>{{ _('单号') }}</th><th>{{ _('状态') }}</th><th>{{ _('交期') }}</th><th style="text-align:right;">{{ _('金额') }}</th>
+  </tr></thead>
+  <tbody>
+    {% for o in items %}
+    <tr onclick="location.href='{{ url_for('purchase_order.at_detail_view', order_id=o.id) }}'">
+      <td class="at-mono" style="font-weight:500;color:var(--ink);">{{ o.order_number }}</td>
+      <td>{{ at_status_pill(o.status, scope='purchase_order') }}</td>
+      <td class="at-mono" style="color:var(--ink-3);">{{ o.required_date.strftime('%m-%d') if o.required_date else '—' }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.0f}'.format(o.total_amount or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{# ─── 报销 ─── #}
+{% macro render_expense_minitable(items) %}
+<table class="at-mini-table">
+  <thead><tr>
+    <th>{{ _('编号') }}</th><th>{{ _('主题') }}</th><th>{{ _('状态') }}</th><th style="text-align:right;">{{ _('金额') }}</th>
+  </tr></thead>
+  <tbody>
+    {% for e in items %}
+    <tr onclick="location.href='{{ url_for('expense.expense_detail', id=e.id) }}'">
+      <td class="at-mono" style="font-weight:500;color:var(--ink);">{{ e.expense_number }}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-3);">{{ e.title }}</td>
+      <td>{{ at_status_pill(e.status, scope='expense') }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.2f}'.format(e.total_amount or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{# ─── 报价产品明细(11+2 列 · 主产品 + 子配件 · 底部小计/税/总计)───
+   details:        QuotationDetail 列表(含主产品 + 子配置)
+   currency_symbol: 货币符号
+   total_amount:    底部"报价合计"金额(None 则不显示合计行)
+   implant_total:   底部"植入合计"金额(可选)
+   tax_rate:        税率(%,默认 0 不显示税额行)
+   table_id:        DOM id(供 JS 控制列显隐),默认 'quotationDetailTable'
+
+   "市场价"和"折扣"列默认 hidden,通过 JS 加 .show-discount-col 显示;
+   表头操作区由调用方在 at_detail_section 外面渲染。
+#}
+{% macro render_quotation_details_table(details, currency_symbol='¥',
+                                         total_amount=none, implant_total=none,
+                                         tax_rate=0, table_id='quotationDetailTable',
+                                         grouped=none) %}
+<table id="{{ table_id }}" class="at-mini-table" style="min-width:1480px;table-layout:fixed;">
+  <colgroup>
+    <col style="width:48px;">     {# 序号 #}
+    <col style="width:180px;">    {# 产品名称 #}
+    <col style="width:120px;">    {# 型号 #}
+    <col style="width:300px;">    {# 规格 #}
+    <col style="width:80px;">     {# 品牌 #}
+    <col style="width:100px;">    {# 数量(至少 5 位数 + spinner)#}
+    <col style="width:60px;">     {# 单位 #}
+    <col class="col-market-price" style="width:120px;display:none;">  {# 市场价 #}
+    <col class="col-discount" style="width:100px;display:none;">      {# 折扣(同全局折扣 72px input + padding)#}
+    <col style="width:140px;">    {# 单价(至少 9 位数 + spinner)#}
+    <col style="width:170px;">    {# 总价(加宽,跟编码留间距)#}
+    <col style="width:140px;">    {# 产品编码 #}
+    <col style="width:140px;">    {# 备注 #}
+    <col class="col-row-actions" style="width:60px;display:none;">  {# 行操作(edit-only)#}
+  </colgroup>
+  <thead><tr>
+    <th style="text-align:center;">{{ _('序号') }}</th>
+    <th>{{ _('产品名称') }}</th>
+    <th>{{ _('型号') }}</th>
+    <th>{{ _('规格') }}</th>
+    <th>{{ _('品牌') }}</th>
+    <th style="text-align:right;">{{ _('数量') }}</th>
+    <th>{{ _('单位') }}</th>
+    <th class="th-market-price" style="text-align:right;display:none;">{{ _('市场价') }}</th>
+    <th class="th-discount" style="text-align:right;display:none;">{{ _('折扣') }}</th>
+    <th style="text-align:right;">{{ _('单价') }}</th>
+    <th style="text-align:right;">{{ _('总价') }}</th>
+    <th>{{ _('产品编码') }}</th>
+    <th>{{ _('备注') }}</th>
+    <th class="th-row-actions" style="text-align:center;display:none;">{{ _('操作') }}</th>
+  </tr></thead>
+  <tbody>
+    {% set idx = namespace(value=0) %}
+    {# 分组 OR 平铺:有 grouped 走分组路径,否则用 details 平铺 #}
+    {% if grouped %}
+    {% for g in grouped %}
+    {# 分组头部行 — 显式 14 td 严格对齐 colgroup(避开 colspan + hidden col 浏览器兼容坑)#}
+    {% set _bd_top = '0' if loop.first else '1px solid var(--line)' %}
+    {% set _bd_btm = '1px solid var(--line)' %}
+    <tr class="qgroup-header" {% if g.label == '自定义产品' %}data-group="custom"{% endif %} style="background:var(--bg-sunk);">
+      {# col 1-9:序号→产品名→型号→规格→品牌→数量→单位→市场价→折扣 → 全合并放分类名 + 计数 #}
+      <td colspan="7" style="padding:10px 14px;border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12.5px;font-weight:500;color:var(--ink);">{{ g.label }}</span>
+          <span class="at-dim at-mono qgroup-count" style="font-size:10.5px;">{{ g.count }} {{ _('项') }}</span>
+        </div>
+      </td>
+      <td class="td-market-price" style="display:none;border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};"></td>
+      <td class="td-discount"     style="display:none;border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};"></td>
+      {# col 10 单价 · col 11 总价 → 右端放 "小计" 标签 #}
+      <td style="border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};"></td>
+      <td style="text-align:right;padding:10px 12px;border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};
+                 font-size:11px;color:var(--ink-3);">{{ _('小计') }}</td>
+      {# col 12 编码 → 小计金额(左对齐,跟产品编码列文本一致)#}
+      <td class="at-mono at-tab-num qgroup-subtotal" style="text-align:left;padding:10px 12px;
+                                            border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};
+                                            font-size:12.5px;color:var(--ink);font-weight:500;">
+        {{ currency_symbol }}{{ '{:,.2f}'.format(g.subtotal or 0) }}
+      </td>
+      {# col 13 备注 · col 14 操作 — 操作列显式 background 兜底,与 qgroup-header 米色一致 #}
+      <td style="border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};"></td>
+      <td class="td-row-actions" style="display:none;background:var(--bg-sunk);border-top:{{ _bd_top }};border-bottom:{{ _bd_btm }};"></td>
+    </tr>
+    {% for d in g['items'] %}
+      {% set idx.value = idx.value + 1 %}
+      {# 主产品行 — 字体严格按设计稿(name 13/500、model 11.5 mono、spec 11.5/lh1.5、brand 12 等)#}
+      <tr data-detail-id="{{ d.id }}"
+          data-market-price="{{ d.market_price or 0 }}"
+          data-unit-price="{{ d.unit_price or 0 }}"
+          data-quantity="{{ d.quantity or 0 }}"
+          data-discount-rate="{{ '{:.2f}'.format((d.discount or 1) * 100) }}"
+          {% if (d.product_mn or '').startswith('TEMP_') or not d.market_price %}data-is-temp="1"{% endif %}
+          style="cursor:default;">
+        <td class="at-mono at-tab-num" style="text-align:center;color:var(--ink-4);font-size:11px;">
+          {{ '{:02d}'.format(idx.value) }}
+        </td>
+        <td title="{{ d.product_name or '' }}">
+          <div style="font-weight:500;font-size:13px;color:var(--ink);line-height:1.4;
+                      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">
+            {{ d.product_name or '—' }}
+          </div>
+        </td>
+        <td class="at-mono" title="{{ d.product_model or '' }}">
+          <div style="font-size:11.5px;color:var(--ink-2);
+                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ d.product_model or '—' }}
+          </div>
+        </td>
+        <td title="{{ d.product_desc or '' }}">
+          <div style="font-size:11.5px;color:var(--ink-3);line-height:1.5;
+                      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">
+            {{ d.product_desc or '—' }}
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--ink-2);">{{ d.brand or '—' }}</td>
+        <td class="editable-cell at-mono at-tab-num" data-field="quantity" data-type="int"
+            style="text-align:right;color:var(--ink);font-size:12.5px;">{{ d.quantity or 0 }}</td>
+        <td style="font-size:12px;color:var(--ink-3);">{{ d.unit or '—' }}</td>
+        <td class="td-market-price at-mono at-tab-num at-dim" style="text-align:right;display:none;font-size:12px;">
+          {%- if d.market_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(d.market_price) }}{%- else -%}—{%- endif -%}
+        </td>
+        <td class="td-discount editable-cell at-mono at-tab-num" data-field="discount" data-type="float"
+            style="text-align:right;color:var(--accent);font-weight:500;font-size:12px;display:none;">
+          {%- if d.discount is not none -%}{{ "{:.2f}".format((d.discount or 1) * 100) }}%{%- else -%}—{%- endif -%}
+        </td>
+        <td class="editable-cell at-mono at-tab-num" data-field="unit_price" data-type="float"
+            style="text-align:right;color:var(--ink);font-weight:500;font-size:12.5px;">
+          {%- if d.unit_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(d.unit_price) }}{%- else -%}—{%- endif -%}
+        </td>
+        <td class="td-total at-mono at-tab-num" style="text-align:right;font-weight:500;color:var(--ink);font-size:12.5px;">
+          {%- if d.total_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(d.total_price) }}{%- else -%}—{%- endif -%}
+        </td>
+        <td class="at-mono" style="color:var(--ink-4);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ d.product_mn or '—' }}</td>
+        <td class="td-note editable-note" data-field="item_note" data-note="{{ d.item_note or '' }}"
+            style="color:var(--ink-4);font-size:11px;max-width:160px;vertical-align:middle;"
+            title="{{ d.item_note or '' }}">
+          {%- if d.item_note -%}
+          <div style="line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+                      overflow:hidden;word-break:break-word;white-space:pre-wrap;">{{ d.item_note }}</div>
+          {%- endif -%}
+        </td>
+        <td class="td-row-actions" style="text-align:center;display:none;padding:8px;">
+          {# 只保留删除按键:通过删除 + picker 添加来调整明细 #}
+          <div class="row-actions" style="display:inline-flex;align-items:center;gap:2px;opacity:0.45;transition:opacity 120ms;">
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowAsk(this)" title="{{ _('删除明细') }}"
+                    style="width:26px;height:26px;border-radius:5px;border:0;background:transparent;color:var(--ink-3);
+                           cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all 100ms;"
+                    onmouseenter="this.style.background='var(--danger-soft)';this.style.color='var(--danger)';"
+                    onmouseleave="this.style.background='transparent';this.style.color='var(--ink-3)';">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M5 6l1 14a2 2 0 002 2h8a2 2 0 002-2l1-14M10 11v6M14 11v6"/></svg>
+            </button>
+          </div>
+          <div class="row-actions-confirm" style="display:none;align-items:center;gap:4px;padding:2px 4px;border-radius:6px;background:var(--danger-soft);">
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowCancel(this)" title="{{ _('取消') }}"
+                    style="width:24px;height:24px;border-radius:4px;border:0;background:transparent;color:var(--ink-3);cursor:pointer;
+                           display:inline-flex;align-items:center;justify-content:center;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+            <button type="button" onclick="event.stopPropagation();atQuoteDeleteRowConfirm(this)" title="{{ _('确认删除') }}"
+                    style="width:24px;height:24px;border-radius:4px;border:0;background:var(--danger);color:#fff;cursor:pointer;
+                           display:inline-flex;align-items:center;justify-content:center;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 13l4 4L19 7"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+      {# 子配置行(独立计价,计入合计 — data-config-row 供 _recomputeFooter 累计)#}
+      {% if d.configurations %}
+        {% for c in d.configurations %}
+        <tr data-config-row data-quantity="{{ c.quantity or 0 }}" data-unit-price="{{ c.unit_price or 0 }}"
+            data-market-price="{{ c.market_price or 0 }}"
+            style="background:var(--bg-page);cursor:default;">
+          <td class="at-mono at-tab-num" style="text-align:center;color:var(--ink-4);font-size:11px;">{{ idx.value }}.{{ loop.index }}</td>
+          <td title="{{ c.product_name or '' }}">
+            <div style="font-size:12.5px;color:var(--ink-2);line-height:1.4;
+                        display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">
+              <span style="color:var(--ink-4);margin-right:4px;">↳</span>{{ c.product_name or '—' }}
+            </div>
+          </td>
+          <td class="at-mono" title="{{ c.product_model or '' }}">
+            <div style="font-size:11.5px;color:var(--ink-3);
+                        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {{ c.product_model or '—' }}
+            </div>
+          </td>
+          <td title="{{ c.product_desc or '' }}">
+            <div style="font-size:11.5px;color:var(--ink-3);line-height:1.5;
+                        display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">
+              {{ c.product_desc or '—' }}
+            </div>
+          </td>
+          <td style="font-size:12px;color:var(--ink-3);">{{ c.brand or '—' }}</td>
+          <td class="at-mono at-tab-num" style="text-align:right;color:var(--ink-2);font-size:12.5px;">{{ c.quantity or 0 }}</td>
+          <td style="font-size:12px;color:var(--ink-3);">{{ c.unit or '—' }}</td>
+          <td class="td-market-price at-mono at-tab-num at-dim" style="text-align:right;display:none;font-size:12px;">
+            {%- if c.market_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(c.market_price) }}{%- else -%}—{%- endif -%}
+          </td>
+          <td class="td-discount at-mono at-tab-num" style="text-align:right;color:var(--accent);font-weight:500;font-size:12px;display:none;">
+            {%- if c.discount is not none -%}{{ "{:.2f}%".format((c.discount or 1) * 100) }}{%- else -%}—{%- endif -%}
+          </td>
+          <td class="at-mono at-tab-num" style="text-align:right;color:var(--ink-2);font-size:12.5px;">
+            {%- if c.unit_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(c.unit_price) }}{%- else -%}—{%- endif -%}
+          </td>
+          <td class="at-mono at-tab-num" style="text-align:right;color:var(--ink-2);font-size:12.5px;">
+            {%- if c.total_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(c.total_price) }}{%- else -%}—{%- endif -%}
+          </td>
+          <td class="at-mono" style="color:var(--ink-4);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.product_mn or '—' }}</td>
+          <td></td>
+          <td class="td-row-actions" style="display:none;"></td>
+        </tr>
+        {% endfor %}
+      {% endif %}
+    {% endfor %}{# /g.items #}
+    {% else %}
+    <tr class="qempty-row"><td colspan="14" style="text-align:center;padding:40px;color:var(--ink-4);">{{ _('暂无产品明细') }}</td></tr>
+    {% endfor %}{# /grouped or empty #}
+    {% else %}
+    {# 平铺模式 #}
+    {% set rows = details | rejectattr('parent_item_id') | list %}
+    {% for d in rows %}
+      {% set idx.value = idx.value + 1 %}
+      <tr data-detail-id="{{ d.id }}"
+          data-market-price="{{ d.market_price or 0 }}"
+          data-unit-price="{{ d.unit_price or 0 }}"
+          data-quantity="{{ d.quantity or 0 }}"
+          data-discount-rate="{{ '{:.2f}'.format((d.discount or 1) * 100) }}"
+          style="cursor:default;">
+        <td style="text-align:center;font-weight:600;color:var(--ink);">{{ idx.value }}</td>
+        <td title="{{ d.product_name or '' }}"><div style="font-weight:500;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">{{ d.product_name or '—' }}</div></td>
+        <td title="{{ d.product_model or '' }}"><div style="color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">{{ d.product_model or '—' }}</div></td>
+        <td title="{{ d.product_desc or '' }}"><div style="color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">{{ d.product_desc or '—' }}</div></td>
+        <td style="color:var(--ink-3);">{{ d.brand or '—' }}</td>
+        <td class="editable-cell" data-field="quantity" data-type="int"
+            style="text-align:center;color:var(--ink-2);">{{ d.quantity or 0 }}</td>
+        <td style="text-align:center;color:var(--ink-3);">{{ d.unit or '—' }}</td>
+        <td class="td-market-price at-mono" style="text-align:right;color:var(--ink-3);display:none;">
+          {%- if d.market_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(d.market_price) }}{%- else -%}—{%- endif -%}
+        </td>
+        <td class="td-discount at-mono" style="text-align:right;color:var(--ink-3);display:none;">
+          {%- if d.discount is not none -%}{{ "{:.0f}%".format((d.discount or 1) * 100) }}{%- else -%}—{%- endif -%}
+        </td>
+        <td class="editable-cell at-mono" data-field="unit_price" data-type="float"
+            style="text-align:right;color:var(--ink-2);">
+          {%- if d.unit_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(d.unit_price) }}{%- else -%}—{%- endif -%}
+        </td>
+        <td class="td-total at-mono" style="text-align:right;font-weight:600;color:var(--ink);">
+          {%- if d.total_price -%}{{ currency_symbol }}{{ "{:,.2f}".format(d.total_price) }}{%- else -%}—{%- endif -%}
+        </td>
+        <td class="at-mono" style="color:var(--ink-3);font-size:11.5px;">{{ d.product_mn or '—' }}</td>
+        <td style="color:var(--ink-3);font-size:11.5px;white-space:pre-wrap;max-width:160px;"
+            title="{{ d.item_note or '' }}">{{ d.item_note or '' }}</td>
+        <td class="td-row-actions" style="text-align:center;display:none;">
+          <button type="button" onclick="atQuoteDeleteRow(this)" title="{{ _('删除') }}"
+                  style="width:24px;height:24px;border-radius:4px;border:0;
+                         background:transparent;color:var(--danger);cursor:pointer;
+                         display:inline-flex;align-items:center;justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4l1 9a1 1 0 001 1h2a1 1 0 001-1l1-9"/>
+            </svg>
+          </button>
+        </td>
+      </tr>
+    {% else %}
+    <tr class="qempty-row"><td colspan="14" style="text-align:center;padding:40px;color:var(--ink-4);">{{ _('暂无产品明细') }}</td></tr>
+    {% endfor %}
+    {% endif %}
+  </tbody>
+  {% if total_amount is not none %}
+  {% set _subtotal = total_amount %}
+  {% set _tax = (_subtotal * tax_rate / 100) if tax_rate else 0 %}
+  {% set _grand = _subtotal + _tax %}
+  {# 数量合计含子产品行(子行独立计价计量)#}
+  {% set _qty_total = (details | map(attribute='quantity') | sum) if details else 0 %}
+  {# 14 列对齐设计稿:序号/产品名/型号/规格/品牌 = 5(colspan)· 数量 · 单位 · 市场价 · 折扣 · 单价 · 总价 · 编码 · 备注 · 操作 #}
+  <tfoot>
+    {# ─ 添加明细 action 行(edit-only)— 严格按设计稿 L688-707 #}
+    <tr class="qfoot-add-row edit-only" style="display:none;">
+      <td colspan="14" style="padding:14px 14px;border-top:1px solid var(--line);background:var(--bg-page);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button type="button" onclick="atQuoteAddProduct()"
+                  style="height:30px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                         background:var(--bg-elev);color:var(--ink-2);font-size:12px;cursor:pointer;
+                         display:inline-flex;align-items:center;gap:5px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M8 3v10M3 8h10"/></svg>
+            {{ _('从产品库添加') }}
+          </button>
+          <button type="button" onclick="atQuoteAddCustom()"
+                  style="height:30px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                         background:var(--bg-elev);color:var(--ink-2);font-size:12px;cursor:pointer;
+                         display:inline-flex;align-items:center;gap:5px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M11.5 2L14 4.5l-9 9-3.5.5.5-3.5 9-9z"/></svg>
+            {{ _('手动添加自定义产品') }}
+          </button>
+          <span class="at-dim" style="font-size:11.5px;margin-left:4px;">
+            {{ _('或拖动行的 ⋮⋮ 图标在分类内重新排序') }}
+          </span>
+        </div>
+      </td>
+    </tr>
+    {# ─ 小计行 ─ 数字落在「总价」列 #}
+    <tr class="qfoot-row" style="background:var(--bg-sunk);">
+      <td colspan="5" style="padding:12px 14px;border-top:1px solid var(--line);
+                              font-size:12px;color:var(--ink-3);letter-spacing:0.06em;">{{ _('小计 (不含税)') }}</td>
+      <td class="qfoot-qty" style="border-top:1px solid var(--line);"></td>
+      <td style="border-top:1px solid var(--line);"></td>
+      <td class="td-market-price" style="border-top:1px solid var(--line);display:none;"></td>
+      <td class="td-discount at-mono at-tab-num" style="text-align:right;padding:12px 12px;border-top:1px solid var(--line);display:none;">
+        <span id="qfootDiscountPct" style="font-size:11.5px;color:var(--accent);font-weight:500;">—</span>
+      </td>
+      <td style="border-top:1px solid var(--line);"></td>
+      <td class="at-mono at-tab-num qfoot-subtotal" style="text-align:right;padding:12px 12px;border-top:1px solid var(--line);
+                                                            font-size:13px;color:var(--ink-2);">
+        {{ currency_symbol }}{{ '{:,.2f}'.format(_subtotal) }}
+      </td>
+      <td colspan="2" style="border-top:1px solid var(--line);"></td>
+      <td class="td-row-actions" style="border-top:1px solid var(--line);display:none;"></td>
+    </tr>
+    {# ─ 税金行 ─ 左侧 "税金 [税率% input] (应用于小计)" · 数字落在「总价」列 #}
+    <tr class="qfoot-row qfoot-tax-row" style="background:var(--bg-sunk);">
+      <td colspan="5" style="padding:10px 14px;font-size:12px;color:var(--ink-3);letter-spacing:0.06em;">
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          {{ _('税金') }}
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:4px;
+                       background:var(--bg-elev);border:1px solid var(--line-2);">
+            <input id="qTaxRate" type="number" min="0" max="100" step="0.5" value="{{ tax_rate }}"
+                   onchange="atQuoteRecomputeFooter && atQuoteRecomputeFooter()"
+                   style="width:44px;height:18px;border:0;background:transparent;text-align:right;
+                          font-family:var(--font-mono);font-weight:600;color:var(--accent);font-size:12px;">
+            <span style="color:var(--accent);font-size:11px;">%</span>
+          </span>
+          <span class="at-dim" style="font-size:11px;">{{ _('(应用于小计)') }}</span>
+        </span>
+      </td>
+      {# 数量/单位/市场价/折扣/单价 5 列空(showDiscount 时 +2,但 hidden 列不参与 colspan)#}
+      <td></td><td></td>
+      <td class="td-market-price" style="display:none;"></td>
+      <td class="td-discount" style="display:none;"></td>
+      <td></td>
+      <td class="at-mono at-tab-num qfoot-tax" style="text-align:right;padding:10px 12px;font-size:12.5px;color:var(--ink-2);">
+        +{{ currency_symbol }}{{ '{:,.2f}'.format(_tax) }}
+      </td>
+      <td colspan="2"></td>
+      <td class="td-row-actions" style="display:none;"></td>
+    </tr>
+    {# ─ {{ _('合计 (含税)') }} ─ accent 高亮行 · 大字 serif 数字 · 数字落在「总价」列 #}
+    <tr class="qfoot-row" style="background:var(--accent-tint);">
+      <td colspan="5" style="padding:16px 14px;border-top:1px solid var(--accent-soft);
+                              font-size:13px;color:var(--accent);font-weight:500;letter-spacing:0.04em;">
+        {{ _('合计 (含税)') }}
+      </td>
+      <td style="border-top:1px solid var(--accent-soft);"></td>
+      <td style="border-top:1px solid var(--accent-soft);"></td>
+      <td class="td-market-price" style="border-top:1px solid var(--accent-soft);display:none;"></td>
+      <td class="td-discount" style="border-top:1px solid var(--accent-soft);display:none;"></td>
+      <td style="border-top:1px solid var(--accent-soft);"></td>
+      <td style="border-top:1px solid var(--accent-soft);padding:16px 12px;text-align:right;">
+        <div class="at-mono at-tab-num at-serif qfoot-grand" style="font-size:19px;font-weight:600;color:var(--accent);
+                                                                    font-family:var(--font-serif);">
+          {{ currency_symbol }}{{ '{:,.2f}'.format(_grand) }}
+        </div>
+        <div class="at-mono at-dim" style="font-size:10px;margin-top:2px;">
+          {{ (details[0].currency if details and details[0].currency else 'CNY') if details else 'CNY' }}
+        </div>
+      </td>
+      <td colspan="2" style="border-top:1px solid var(--accent-soft);"></td>
+      <td class="td-row-actions" style="border-top:1px solid var(--accent-soft);display:none;"></td>
+    </tr>
+  </tfoot>
+  {% endif %}
+</table>
+<div style="height:14px;background:var(--bg-page);"></div>
+{% endmacro %}
+
+
+{# ─── 报销明细(费用项 · 6 列 · 底部合计可选)─── #}
+{% macro render_expense_details_table(items, currency_symbol='¥', total_amount=none) %}
+<table class="at-mini-table" style="min-width:900px;table-layout:fixed;">
+  <colgroup>
+    <col style="width:48px;">     {# 序号 #}
+    <col style="width:110px;">    {# 日期 #}
+    <col style="width:120px;">    {# 类别 #}
+    <col style="width:360px;">    {# 描述 #}
+    <col style="width:70px;">     {# 单据数 #}
+    <col style="width:120px;">    {# 发票金额(原币)#}
+    <col style="width:130px;">    {# 报销金额 #}
+    <col style="width:80px;">     {# 发票 #}
+  </colgroup>
+  <thead><tr>
+    <th style="text-align:center;">{{ _('序号') }}</th>
+    <th>{{ _('日期') }}</th>
+    <th>{{ _('类别') }}</th>
+    <th>{{ _('描述') }}</th>
+    <th style="text-align:center;">{{ _('单据') }}</th>
+    <th style="text-align:right;">{{ _('发票金额') }}</th>
+    <th style="text-align:right;">{{ _('报销金额') }}</th>
+    <th style="text-align:center;">{{ _('发票') }}</th>
+  </tr></thead>
+  <tbody>
+    {% for d in items %}
+    <tr style="cursor:default;">
+      <td style="text-align:center;color:var(--ink-3);">{{ loop.index }}</td>
+      <td class="at-mono" style="color:var(--ink-2);">{{ d.expense_date.strftime('%Y-%m-%d') if d.expense_date else '—' }}</td>
+      <td style="color:var(--ink-2);">{{ (d.expense_category | expense_category_label) if d.expense_category else '—' }}</td>
+      <td title="{{ d.description or '' }}"><div style="color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">{{ d.description or '—' }}</div></td>
+      <td style="text-align:center;color:var(--ink-3);">{{ d.document_count or 1 }}</td>
+      <td class="at-mono" style="text-align:right;color:var(--ink-3);">
+        {%- set _cs = get_currency_symbol(d.currency or get_default_currency()) -%}
+        {%- if d.invoice_amount -%}{{ _cs }}{{ '{:,.2f}'.format(d.invoice_amount) }}{%- else -%}—{%- endif -%}
+      </td>
+      <td class="at-mono" style="text-align:right;font-weight:500;color:var(--ink);">
+        {%- if d.amount -%}{{ currency_symbol }}{{ '{:,.2f}'.format(d.amount) }}{%- else -%}—{%- endif -%}
+      </td>
+      <td style="text-align:center;">
+        {%- set _imgs = d.invoice_images -%}
+        {%- if _imgs and _imgs != '[]' -%}
+        <button type="button" class="at-invoice-btn"
+                data-files="{{ _imgs }}" data-label="{{ _('发票') }} #{{ loop.index }}"
+                style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+                       background:var(--success-soft);color:var(--success);border:0;border-radius:4px;
+                       font-size:11px;font-weight:500;cursor:pointer;">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--success);"></span>{{ _('查看发票') }}
+        </button>
+        {%- else -%}
+        <span style="color:var(--ink-4);font-size:11px;">{{ _('未上传') }}</span>
+        {%- endif -%}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--ink-4);">{{ _('暂无报销明细') }}</td></tr>
+    {% endfor %}
+  </tbody>
+  {% if total_amount is not none %}
+  <tfoot>
+    <tr style="background:var(--bg-page);border-top:2px solid var(--line);">
+      <td colspan="6" style="text-align:right;padding:14px 12px;font-size:13px;font-weight:600;color:var(--ink);">{{ _('报销合计') }}</td>
+      <td class="at-mono" style="text-align:right;padding:14px 12px;font-size:15px;font-weight:600;color:var(--ink);">
+        {{ currency_symbol }}{{ '{:,.2f}'.format(total_amount) }}
+      </td>
+      <td></td>
+    </tr>
+  </tfoot>
+  {% endif %}
+</table>
+<div style="height:14px;background:var(--bg-page);"></div>
+{% endmacro %}
+
+
+{# ─── 调度器:按 module_key 自动调用对应宏 ─── #}
+{% macro render_minitable(key, items) %}
+  {%- if key == 'project' -%}              {{ render_project_minitable(items) }}
+  {%- elif key == 'quotation' -%}          {{ render_quotation_minitable(items) }}
+  {%- elif key == 'pricing_order' -%}      {{ render_pricing_order_minitable(items) }}
+  {%- elif key == 'sales_order' -%}        {{ render_sales_order_minitable(items) }}
+  {%- elif key == 'purchase_order' -%}     {{ render_purchase_order_minitable(items) }}
+  {%- elif key == 'expense' -%}            {{ render_expense_minitable(items) }}
+  {%- endif -%}
+{% endmacro %}

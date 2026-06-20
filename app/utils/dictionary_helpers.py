@@ -127,7 +127,7 @@ AUTHORIZATION_STATUS_LABELS = {
 
 # 企业类型颜色映射（颜色不需要国际化，保留硬编码）
 COMPANY_TYPE_COLORS = {
-    # 主键（8个）- 用于新数据
+    # 主键（9个）- 用于新数据
     'user': '#0B6EFD',
     'dealer': '#28a745',
     'distributor': '#28a745',
@@ -135,6 +135,7 @@ COMPANY_TYPE_COLORS = {
     'designer': '#6f42c1',
     'contractor': '#dc3545',
     'partner': '#20c997',
+    'supplier': '#17a2b8',
     'other': '#6c757d',
 
     # 向后兼容别名（4个）- 仅用于历史数据显示
@@ -146,15 +147,15 @@ COMPANY_TYPE_COLORS = {
 
 # 货币类型映射（中文显示名称，英文显示代码）
 CURRENCY_TYPE_LABELS = {
-    'CNY': {'zh': '人民币', 'en': 'CNY'},
-    'USD': {'zh': '美元', 'en': 'USD'},
-    'HKD': {'zh': '港币', 'en': 'HKD'},
-    'TWD': {'zh': '台币', 'en': 'TWD'},
-    'SGD': {'zh': '新加坡元', 'en': 'SGD'},
-    'MYR': {'zh': '马来西亚林吉特', 'en': 'MYR'},
-    'IDR': {'zh': '印尼盾', 'en': 'IDR'},
-    'THB': {'zh': '泰铢', 'en': 'THB'},
-    'VND': {'zh': '越南盾', 'en': 'VND'}
+    'CNY': {'zh': '人民币', 'en': 'RMB'},
+    'USD': {'zh': '美元', 'en': 'US Dollar'},
+    'HKD': {'zh': '港币', 'en': 'HK Dollar'},
+    'TWD': {'zh': '台币', 'en': 'TW Dollar'},
+    'SGD': {'zh': '新加坡元', 'en': 'SG Dollar'},
+    'MYR': {'zh': '马来西亚林吉特', 'en': 'Ringgit'},
+    'IDR': {'zh': '印尼盾', 'en': 'Rupiah'},
+    'THB': {'zh': '泰铢', 'en': 'Baht'},
+    'VND': {'zh': '越南盾', 'en': 'Dong'}
 }
 
 PRODUCT_SITUATION_LABELS = {
@@ -187,8 +188,14 @@ def get_product_situation_options():
         logging.warning(f"get_product_situation_options 获取语言失败: {e}")
         return [(k, v['zh']) for k, v in PRODUCT_SITUATION_LABELS.items()]
 
-def currency_type_label(key, lang='zh'):
-    """获取货币类型标签"""
+def currency_type_label(key, lang=None):
+    """获取货币类型标签(默认随当前语言环境;显式传 lang 时优先)"""
+    if lang is None:
+        try:
+            from app.utils.i18n import get_current_language
+            lang = get_current_language()
+        except Exception:
+            lang = 'zh'
     return CURRENCY_TYPE_LABELS.get(key, {}).get(lang, key)
 
 def get_currency_symbol(currency_code='CNY'):
@@ -207,18 +214,14 @@ def get_currency_symbol(currency_code='CNY'):
     return currency_symbols.get(currency_code, '¥')  # 默认返回人民币符号
 
 def get_default_currency():
-    """获取系统默认货币"""
-    try:
-        # 尝试从Product表获取默认货币（如报价单模块的逻辑）
-        from app.models.product import Product
-        reference_product = Product.query.filter_by(id=1).first()
-        if reference_product and hasattr(reference_product, 'currency') and reference_product.currency:
-            return reference_product.currency
-    except Exception:
-        pass
-    
-    # 如果没有找到，返回默认的人民币
-    return 'CNY'
+    """获取系统默认货币(随数据库环境: ovs=USD / sp8d=CNY)。
+
+    与 get_amount_unit_config / Config.DEFAULT_CURRENCY 单一口径一致。
+    历史实现曾查 Product id=1 的 currency 再回退 CNY,导致 OVS(SG) 被强制 CNY —— 已废弃。
+    """
+    import os
+    db_type = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+    return 'USD' if db_type == 'ovs' else 'CNY'
 
 def get_amount_unit_config(language=None):
     """获取基于语言环境的金额单位配置（用于统计卡片language_aware模式）"""
@@ -274,6 +277,49 @@ def format_amount_with_unit(amount, currency_symbol, language=None):
             'full_display': f"{currency_symbol}{amount:.2f}万元",
             'format_type': 'wan'
         }
+
+
+def format_money(amount_yuan, currency_code='CNY'):
+    """币种驱动的金额显示(单一来源,复用 get_currency_symbol)。
+
+    输入: amount_yuan = 主币种单位的金额(元/USD/MYR/...),currency_code = 货币代码。
+    输出: 已格式化的显示字符串。
+      - CNY: ≥10000 元 → '¥{n}万' (一位~两位小数,去尾零); 否则 '¥X,XXX.XX' 千位分隔
+      - USD/SGD/HKD/TWD/EUR/MYR/IDR/THB/VND 等: ≥1,000,000 → '{sym}{n}M';
+        ≥1,000 → '{sym}{n}K'; 否则 '{sym}X,XXX.XX' 千位分隔
+    任何输入异常 → 兜底 '{sym}{原值}' 不抛错(绝不丢/盖输入)。
+
+    用途: mobile_projects 等多模块「直接消费 display 字符串」的单一来源;
+    web 后续如需统一币种驱动展示也可调本函数。
+    """
+    try:
+        if amount_yuan in (None, '') :
+            return ''
+        v = float(amount_yuan)
+        sym = get_currency_symbol(currency_code or 'CNY')
+        if v == 0:
+            return f'{sym}0'
+        if (currency_code or 'CNY').upper() == 'CNY':
+            if abs(v) >= 10000:
+                w = v / 10000.0
+                # 万: 2 位小数, 去掉无意义尾零
+                s = f'{w:.2f}'.rstrip('0').rstrip('.')
+                return f'{sym}{s}万'
+            return f'{sym}{v:,.2f}'
+        # 非 CNY: K/M 紧凑(西式)
+        if abs(v) >= 1_000_000:
+            s = f'{v / 1_000_000:.2f}'.rstrip('0').rstrip('.')
+            return f'{sym}{s}M'
+        if abs(v) >= 1_000:
+            s = f'{v / 1_000:.2f}'.rstrip('0').rstrip('.')
+            return f'{sym}{s}K'
+        return f'{sym}{v:,.2f}'
+    except Exception:
+        try:
+            return f"{get_currency_symbol(currency_code or 'CNY')}{amount_yuan}"
+        except Exception:
+            return str(amount_yuan if amount_yuan is not None else '')
+
 
 def prepare_stats_card_amount(amount_yuan, language=None):
     """
@@ -420,6 +466,56 @@ def get_available_quotation_currencies():
         import logging
         logging.warning(f"get_available_quotation_currencies 失败: {e}")
         # 异常时返回所有货币，不影响系统正常使用
+        return get_currency_type_options()
+
+
+def get_available_product_currencies():
+    """获取「产品库中实际拥有价格的所有货币」
+
+    合并两个来源:
+    1. Product.currency(产品主货币,即 retail_price 用的币种)
+    2. ProductRegionPrice.currency(区域面价货币 — 一个产品可在多个区域有不同价)
+    + 兜底:系统默认货币(避免产品库为空时下拉是空)
+
+    Returns:
+        list of (code, name) tuples,按 CURRENCY_TYPE_LABELS 的顺序排列
+    """
+    try:
+        from app.utils.i18n import get_current_language
+        from app.models.product import Product, ProductRegionPrice
+        from config import Config
+        from app import db
+
+        lang_code = get_current_language()
+        available_codes = {Config.DEFAULT_CURRENCY}
+
+        # 1) Product 主货币
+        try:
+            rows = db.session.query(Product.currency).distinct().filter(
+                Product.is_deleted == False
+            ).all()
+            for (cur,) in rows:
+                if cur:
+                    available_codes.add(cur.upper())
+        except Exception:
+            pass
+
+        # 2) ProductRegionPrice 区域价货币
+        try:
+            rows = db.session.query(ProductRegionPrice.currency).distinct().all()
+            for (cur,) in rows:
+                if cur:
+                    available_codes.add(cur.upper())
+        except Exception:
+            pass
+
+        return [
+            (k, v[lang_code]) for k, v in CURRENCY_TYPE_LABELS.items()
+            if k in available_codes
+        ]
+    except Exception as e:
+        import logging
+        logging.warning(f"get_available_product_currencies 失败: {e}")
         return get_currency_type_options()
 
 # 向后兼容性选项 - 使用 property 类实现懒加载，避免启动时查询数据库
@@ -725,6 +821,56 @@ def get_country_options():
         import logging
         logging.warning(f"get_country_options 获取语言失败: {e}")
         return [(k, v['zh']) for k, v in COUNTRY_LABELS.items()]
+
+
+def country_label(value, lang='zh'):
+    """国家 code/原值 → 中文/英文 label。
+    优先用 country_names(33 国 ISO 表),fallback COUNTRY_LABELS(8 国),再 fallback 原值。
+    兼容 code('CN')和原值('中国')两种存储。
+    用法(模板):{{ c.country | country_label }}
+    """
+    if not value:
+        return ''
+    # 1) 全 ISO 表(country_names.py — 业务上 customer/project 都用这套)
+    try:
+        from app.utils.country_names import get_country_names
+        names = get_country_names(lang)
+        if value in names:
+            return names[value]
+    except Exception:
+        pass
+    # 2) 本地化常用表(dictionary_helpers.COUNTRY_LABELS)
+    meta = COUNTRY_LABELS.get(value)
+    if meta:
+        return meta.get(lang, meta.get('zh', value))
+    # 3) 已是中文/未知值,原样返回
+    return value
+
+def get_all_active_roles():
+    """返回系统所有活跃角色字典项,用于审批配置「限定角色」等动态下拉。
+
+    Returns:
+        list[dict]: [{'key': 'sm', 'label': '销售经理'}, ...]  按 sort_order 排序
+    """
+    rows = db.session.query(Dictionary).filter_by(type=ROLE_TYPE, is_active=True).order_by(
+        getattr(Dictionary, 'sort_order', Dictionary.id).asc()
+    ).all()
+    return [{'key': r.key, 'label': r.value} for r in rows]
+
+
+def get_all_user_companies():
+    """返回系统中所有用户的企业(distinct company_name)列表,用于审批配置「限定企业」下拉。
+
+    Returns:
+        list[str]: ['EVERTAC', 'Evertac Solutions', ...]
+    """
+    from app.models.user import User
+    rows = db.session.query(User.company_name).filter(
+        User.company_name.isnot(None),
+        User.company_name != ''
+    ).distinct().order_by(User.company_name.asc()).all()
+    return [r[0] for r in rows if r[0]]
+
 
 def get_role_display_name(role_key):
     """

@@ -1,0 +1,23 @@
+{#
+  AT 人员多选组件:已选 chips(头像+姓名+×) + 可搜索分组下拉(多选)。可复用。
+  ───────────────────────────────────────────────────────────────
+  用法:
+    {% from 'components/at_people_select.html' import at_people_select %}
+    {{ at_people_select('wiParticipants', placeholder=_('添加关联人员')) }}
+
+  配套 JS:static/js/at-people-select.js
+    var ctl = AtPeopleSelect.init('wiParticipants', {
+      usersUrl: '/expense/api/users/same-company',   // 可选;默认即此
+      excludeSelf: true,
+    });
+    ctl.getValue() → [id,...] ; setValue([id,...]) ; clear() ; onChange(fn)
+#}
+{% macro at_people_select(field_id, placeholder='', users_url='/expense/api/users/same-company') %}
+<div class="at-ps" id="{{ field_id }}" data-at-people-select data-users-url="{{ users_url }}" style="flex:1;min-width:0;">
+  <div class="at-ps-box" data-ps-box>
+    <span data-ps-chips style="display:contents;"></span>
+    <input type="text" class="at-ps-input" data-ps-input autocomplete="off" placeholder="{{ placeholder or _('添加关联人员') }}">
+  </div>
+  <div class="at-ps-menu" data-ps-menu hidden></div>
+</div>
+{% endmacro %}

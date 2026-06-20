@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en" data-pma-page="calendar-en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PMA · Work Calendar (EN)</title>
+<script src="pma-nav.js" defer></script>
+<style>
+  html,body{margin:0;padding:0;background:#E9E7E2;font-family:-apple-system,"SF Pro Text",sans-serif;color:#1A1A1A}
+  .dc-root{background:#E9E7E2}
+  .hdr{padding:28px 36px 22px;background:#1A1A1A;color:#fff}
+  .hdr h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-0.3px}
+  .hdr h1 .a{color:#D97757}
+  .hdr p{margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.65);max-width:840px;line-height:1.6}
+  .hdr .meta{display:flex;gap:22px;margin-top:14px;font-size:11.5px;color:rgba(255,255,255,0.5);flex-wrap:wrap}
+  .hdr .meta b{color:rgba(255,255,255,0.85);font-weight:600}
+  .fc{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 14px 22px}
+  .fc .label{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase}
+  .fc .sub{font-size:11px;color:#7A7570;font-style:italic;max-width:380px;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>PMA · <span class="a">Work Calendar</span> · English</h1>
+    <p>English version of the Work Calendar, 1:1 to the Chinese design. Localised for SG users — dates render as "Month DD" (May 14 instead of 5/14), the Sunday holiday chip shows Vesak (not Dragon Boat), and labels are short English (Daily Log / In Progress / Mark Complete). The heavy web FullCalendar month grid, drag-to-reschedule and Lark sync admin are all trimmed down on mobile. All 10 screens are mirrored.</p>
+    <div class="meta">
+      <span><b>10 screens</b> · Agenda 2 + Month + Switch Calendar + Create 2 + Type Picker + Daily Log + Item Detail 2</span>
+      <span><b>402 × 874</b> · iPhone</span>
+      <span><b>31 types</b> · 6 groups · colour dictionary</span>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="calendar-base-en.jsx"></script>
+  <script type="text/babel" src="calendar-screens-en.jsx"></script>
+  <script type="text/babel" src="calendar-forms-en.jsx"></script>
+  <script type="text/babel">
+    function Phone({ children }) {
+      return (
+        <div style={{ width: 402, height: 874, borderRadius: 56, overflow: 'hidden', position: 'relative',
+          background: '#000', boxShadow: '0 0 0 12px #1a1a1a, 0 30px 60px rgba(0,0,0,0.18)' }}>
+          <div style={{ position: 'absolute', top: 13, left: '50%', transform: 'translateX(-50%)', width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 100 }}/>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 54, zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px',
+            color: '#000', fontSize: 16, fontWeight: 600, paddingTop: 18, mixBlendMode: 'difference' }}>
+            <span style={{ color: '#fff' }}>9:41</span><span style={{ width: 126 }}/>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#fff' }}>
+              <svg width="17" height="11" viewBox="0 0 19 12">
+                <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill="currentColor"/>
+                <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill="currentColor"/>
+                <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill="currentColor"/>
+                <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill="currentColor"/>
+              </svg>
+              <svg width="26" height="13" viewBox="0 0 28 13" fill="none">
+                <rect x="0.5" y="0.5" width="23" height="12" rx="3" stroke="currentColor" opacity="0.35"/>
+                <rect x="2" y="2" width="20" height="9" rx="1.5" fill="currentColor"/>
+                <rect x="24.5" y="4" width="2" height="5" rx="0.6" fill="currentColor" opacity="0.5"/>
+              </svg>
+            </span>
+          </div>
+          <div style={{ position: 'absolute', inset: 0 }}>{children}</div>
+          <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', width: 139, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.28)', zIndex: 200 }}/>
+        </div>
+      );
+    }
+    function F({ label, sub, children }) {
+      return <div className="fc"><Phone>{children}</Phone><div className="label">{label}</div>{sub && <div className="sub">{sub}</div>}</div>;
+    }
+    const W = 460, H = 1000;
+
+    function App() {
+      const {
+        CalendarAgendaEN, CalendarAgendaSubmittedEN, CalendarMonthSheetEN, CalendarScopeSheetEN,
+        CalendarItemCreateEN, CalendarItemCreateFilledEN, CalendarTypePickerSheetEN,
+        DailyLogSubmitEN, WorkItemDetailSheetEN, WorkItemDetailSheetCompletedEN,
+      } = window;
+      return (
+        <DesignCanvas>
+          <DCSection id="agenda" title="① Calendar Agenda" subtitle="Hero · week date strip · Month/Week/Day toggle · today's work items · daily log card">
+            <DCArtboard id="agenda-draft" label="Agenda · log draft" width={W} height={H + 240}>
+              <F label="Agenda · Log Draft" sub="Thu, May 14 selected · 5 items · 7.5h total · daily log in draft (Write & Submit button)"><CalendarAgendaEN/></F>
+            </DCArtboard>
+            <DCArtboard id="agenda-submitted" label="Agenda · log submitted" width={W} height={H + 280}>
+              <F label="Agenda · Log Submitted" sub="Quality 87 / Good · read-only improvement suggestions"><CalendarAgendaSubmittedEN/></F>
+            </DCArtboard>
+            <DCArtboard id="month" label="Month sheet" width={W} height={H}>
+              <F label="Month View · half-sheet" sub="Tap the top Month/Week toggle to open · colour dots = type · today on dark fill · legend bar"><CalendarMonthSheetEN/></F>
+            </DCArtboard>
+            <DCArtboard id="scope" label="Switch calendar sheet" width={W} height={H}>
+              <F label="Switch Calendar · pick person" sub="You + colleagues (6 people · 44 items) · per-person items this week"><CalendarScopeSheetEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="create" title="② Create Work Item" subtitle="Title + type · start/end · all-day / business trip · hours · links · activity log · attachments · share with">
+            <DCArtboard id="create-empty" label="Create · empty form" width={W} height={H}>
+              <F label="New Work Item · empty" sub="Type dropdown defaults to Other · all-day / trip toggles · links optional"><CalendarItemCreateEN/></F>
+            </DCArtboard>
+            <DCArtboard id="create-filled" label="Create · filled (meeting)" width={W} height={H}>
+              <F label="New Work Item · filled" sub="Meeting type chip · 09:00–10:00 · linked project SG MCP · activity log · shared with Zhang He"><CalendarItemCreateFilledEN/></F>
+            </DCArtboard>
+            <DCArtboard id="type-picker" label="Type picker sheet" width={W} height={H}>
+              <F label="Select Work Type · 6 groups" sub="Top group chips · current group expanded grid (Sales · 4 types) · other groups collapsed preview"><CalendarTypePickerSheetEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="log" title="③ Submit Daily Log" subtitle="Auto summary + notes + @people / # projects · quality score shown after submit">
+            <DCArtboard id="log-submit" label="Write daily log" width={W} height={H}>
+              <F label="Write Daily Log" sub="3 stat cards · auto summary (blue) · notes input state · @/# chips · how-score-works hint"><DailyLogSubmitEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="detail" title="④ Work Item Detail sheet" subtitle="Opens from an Agenda row · 4-cell meta · links · activity log · Edit + Mark Complete">
+            <DCArtboard id="detail" label="Detail · in progress" width={W} height={H}>
+              <F label="Work Item Detail" sub="Type + status chip · 4-cell meta · linked project/customer · activity log · Mark Complete CTA"><WorkItemDetailSheetEN/></F>
+            </DCArtboard>
+            <DCArtboard id="detail-completed" label="Detail · completed" width={W} height={H}>
+              <F label="Detail · Completed state" sub="Status chip turns green · duration card turns green · Mark Complete → Reopen"><WorkItemDetailSheetCompletedEN/></F>
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

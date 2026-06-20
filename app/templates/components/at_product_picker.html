@@ -1,0 +1,90 @@
+{#
+  AT 产品挑选器 · 可复用组件(4 列级联)
+
+  类目 → 子分类 → 产品族 → 具体产品(型号+规格)
+  数据走既有 product 蓝图的 API:
+    GET /api/products/categories
+    GET /api/products/subcategories?category=
+    GET /api/products/by-subcategory?category=&subcategory=
+
+  使用:
+    1. 模板顶部 import:
+       {% from 'components/at_product_picker.html' import at_product_picker_modal %}
+
+    2. 页面任意位置渲染一次外壳:
+       {{ at_product_picker_modal() }}
+
+    3. 引入控制器 JS:
+       <script src="{{ url_for('static', filename='js/at-product-picker.js') }}"></script>
+
+    4. 调用方:
+       ATProductPicker.open({
+         replaceMode: false,             // true 时第 4 栏标题变「替换为」
+         onPick: function (product) {    // 选中回调,product = {id, name, model, code, spec, price, unit}
+           // ... 业务方处理 ...
+         }
+       });
+       ATProductPicker.close();          // 主动关闭
+#}
+
+{% from 'components/at_base.html' import at_icon %}
+
+
+{% macro at_product_picker_modal(modal_id='atProductPickerModal') %}
+  <div id="{{ modal_id }}"
+       onclick="if (event.target === this) window.ATProductPicker && ATProductPicker.close()"
+       style="position:fixed;inset:0;z-index:110;display:none;
+              background:rgba(31,30,27,0.18);
+              align-items:center;justify-content:center;
+              animation:at-fade-in 140ms ease;">
+    <div style="width:min(1080px, 94vw);height:min(520px, 76vh);
+                background:var(--bg-elev);border:1px solid var(--line);
+                border-radius:10px;overflow:hidden;
+                box-shadow:0 20px 60px rgba(0,0,0,0.15);
+                display:grid;grid-template-columns:160px 200px 200px minmax(0,1fr);
+                animation:at-scale-in 200ms cubic-bezier(.2,.7,.2,1);">
+
+      {# Col 1 · 类目 #}
+      <div style="background:var(--bg-page);border-right:1px solid var(--line);
+                  padding:10px;overflow-y:auto;">
+        <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;padding:6px 8px 8px;">{{ _('类目') }}</div>
+        <div id="atPpCategoryList">
+          <div class="at-dim" style="padding:16px 10px;font-size:12px;">{{ _('加载中…') }}</div>
+        </div>
+      </div>
+
+      {# Col 2 · 子分类 #}
+      <div style="background:var(--bg-elev);border-right:1px solid var(--line);
+                  padding:10px;overflow-y:auto;">
+        <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;padding:6px 8px 8px;">{{ _('子分类') }}</div>
+        <div id="atPpSubcatList">
+          <div class="at-dim" style="padding:16px 10px;font-size:12px;">{{ _('请先选择类目') }}</div>
+        </div>
+      </div>
+
+      {# Col 3 · 产品族 #}
+      <div style="background:var(--bg-page);border-right:1px solid var(--line);
+                  padding:10px;overflow-y:auto;">
+        <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;padding:6px 8px 8px;">{{ _('产品族') }}</div>
+        <div id="atPpNameList">
+          <div class="at-dim" style="padding:16px 10px;font-size:12px;">{{ _('请先选择子分类') }}</div>
+        </div>
+      </div>
+
+      {# Col 4 · 具体产品 #}
+      <div style="padding:10px;overflow-y:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 4px 8px;">
+          <div class="at-mono at-dim" style="font-size:10.5px;letter-spacing:0.1em;" id="atPpCol4Title">{{ _('具体产品') }}</div>
+          <button type="button" onclick="window.ATProductPicker && ATProductPicker.close()"
+                  style="color:var(--ink-3);padding:4px;border-radius:4px;background:transparent;border:0;cursor:pointer;"
+                  title="{{ _('关闭') }}">
+            {{ at_icon('close', 14) }}
+          </button>
+        </div>
+        <div id="atPpSpecList">
+          <div class="at-dim" style="padding:16px 10px;font-size:12px;">{{ _('请先选择产品族') }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endmacro %}

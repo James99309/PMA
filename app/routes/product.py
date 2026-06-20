@@ -65,6 +65,37 @@ logger = logging.getLogger(__name__)
 bp = Blueprint('product', __name__)
 
 
+def _apply_product_status_filter(query, user):
+    """按 content_filters(产品模块 status 维度)过滤产品状态可见性。
+    替代原写死的"仅 admin/产品经理/解决方案经理可见停产/上架"——改为权限配置页可按角色/个人勾选。"""
+    from app.utils.access_control import apply_content_filters
+    return apply_content_filters(query, Product, 'product', user)
+
+
+def _product_status_visible(product, user):
+    """单个产品的状态对该用户是否可见(供详情守卫用,复用 content_filters 逻辑)。"""
+    return _apply_product_status_filter(
+        Product.query.filter(Product.id == product.id), user
+    ).first() is not None
+
+
+def _allowed_product_statuses(user):
+    """该用户可见的产品状态列表(从 content_filters 读),用于决定列表页 tab 显隐。"""
+    try:
+        role_perm, user_perm = user._get_cached_permissions('product')
+        cf = None
+        if user_perm and user_perm.content_filters:
+            cf = user_perm.content_filters
+        elif role_perm and role_perm.content_filters:
+            cf = role_perm.content_filters
+        if isinstance(cf, dict) and isinstance(cf.get('status'), list) and cf['status']:
+            return list(cf['status'])
+    except Exception:
+        pass
+    return ['active']  # 兜底:至少可见生产中
+
+
+
 # ============================================================================
 # MN编号重复检查函数 (从已废弃的product_management.py迁移 2025-12-26)
 # ============================================================================
@@ -183,6 +214,28 @@ def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None, exclude_produc
     except Exception as e:
         logger.error(f"检查MN编号重复时出错: {str(e)}")
         return {'is_duplicate': False, 'dev_products': [], 'standard_products': [], 'config_versions': [], 'error': str(e)}
+
+
+def _compose_import_description(base_text, specs):
+    """组合引入产品时的描述：模板产品描述文本在前，勾选规格在后。
+
+    Args:
+        base_text: 模板的产品描述文本（SpecTemplate.description）
+        specs: ProductSpec 列表（已写入 include_in_description / field_value / unit）
+
+    Returns:
+        str: "产品描述文本\n规格名: 值 单位, 规格名: 值 单位"
+    """
+    base = (base_text or '').strip()
+    parts = []
+    for spec in specs:
+        if getattr(spec, 'include_in_description', False) and spec.field_value:
+            unit_str = f" {spec.unit}" if getattr(spec, 'unit', None) else ""
+            parts.append(f"{spec.field_name}: {spec.field_value}{unit_str}")
+    specs_str = ", ".join(parts)
+    if base and specs_str:
+        return f"{base}\n{specs_str}"
+    return base or specs_str
 
 
 # ============================================================================
@@ -331,9 +384,8 @@ def product_list():
         joinedload(Product.region_obj)
     )
 
-    # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
-    if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-        query = query.filter(Product.status == 'active')
+    # 产品状态可见性：由 content_filters(产品模块 status 维度)按角色/个人配置过滤
+    query = _apply_product_status_filter(query, current_user)
 
     # ============================================================
     # 3. 应用筛选（使用通用工具 + 手动处理特殊情况）
@@ -397,34 +449,8 @@ def product_list():
         order_attr = getattr(Product, sort_field)
         query = query.order_by(order_attr.desc() if sort_order == 'desc' else order_attr.asc())
     else:
-        # 默认排序：使用 product_display_order 表（跨 CN/SG 可移植）
-        from app.models.product_display_order import ProductDisplayOrder
-
-        # 从 code_definition_snapshot JSON 提取 category/subcategory code_letter
-        # 使用 PostgreSQL json_extract_path_text 函数（兼容 JSON 和 JSONB 类型）
-        snapshot_cat_code = func.json_extract_path_text(
-            Product.code_definition_snapshot, 'category', 'code_letter'
-        )
-        snapshot_sub_code = func.json_extract_path_text(
-            Product.code_definition_snapshot, 'subcategory', 'code_letter'
-        )
-        effective_model = func.coalesce(Product.model, Product.product_name, '未指定型号')
-
-        query = query.outerjoin(
-            ProductDisplayOrder,
-            and_(
-                snapshot_cat_code == ProductDisplayOrder.category_code,
-                snapshot_sub_code == ProductDisplayOrder.subcategory_code,
-                effective_model == ProductDisplayOrder.model
-            )
-        )
-        query = query.order_by(
-            func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
-            func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
-            func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
-            Product.product_name.asc(),  # 同型号组内 tiebreaker
-            Product.id.asc()
-        )
+        from app.utils.product_sort import apply_product_display_sort
+        query = apply_product_display_sort(query)
 
     # 分页
     products = query.offset(offset).limit(limit).all()
@@ -668,6 +694,7 @@ def create():
         currency = request.form.get('currency', Config.DEFAULT_CURRENCY)
         description = request.form.get('description')
         is_vendor_product = request.form.get('is_vendor_product') == 'on'
+        has_serial_number = request.form.get('has_serial_number') == 'on'
 
         # 验证必填字段
         if not all([category_id, subcategory_id, region_id, product_model, product_mn]):
@@ -714,7 +741,8 @@ def create():
             specification=description,  # 使用旧字段存储描述
             source_type='manual',  # 手动创建
             owner_id=current_user.id,
-            is_vendor_product=is_vendor_product
+            is_vendor_product=is_vendor_product,
+            has_serial_number=has_serial_number
         )
 
         # 保存产品以获取ID
@@ -886,6 +914,89 @@ def edit_product_page(id):
                          **form_data)
 
 # API路由
+@bp.route('/products/at_list', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def at_list_view():
+    """AT 风格产品库列表"""
+    from sqlalchemy import or_
+    from app.models.product import Product
+
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 30
+    tab = request.args.get('tab', 'all')
+    search = request.args.get('search', '').strip()
+
+    # 产品状态可见性：由 content_filters 按角色/个人配置过滤(tab 计数与列表都受限)
+    base = _apply_product_status_filter(Product.query, current_user)
+
+    TAB_STATUS_MAP = {
+        'active':       'active',
+        'upcoming':     'upcoming',
+        'discontinued': 'discontinued',
+    }
+    tab_counts = {'all': base.count()}
+    for k, v in TAB_STATUS_MAP.items():
+        tab_counts[k] = base.filter(Product.status == v).count()
+
+    q = base
+    if tab in TAB_STATUS_MAP:
+        q = q.filter(Product.status == TAB_STATUS_MAP[tab])
+
+    if search:
+        like = f'%{search}%'
+        q = q.filter(or_(
+            Product.product_mn.ilike(like),
+            Product.product_name.ilike(like),
+            Product.model.ilike(like),
+        ))
+
+    from app.utils.product_sort import apply_product_display_sort
+    pagination = apply_product_display_sort(q).paginate(
+        page=page, per_page=per_page, error_out=False,
+    )
+
+    form_data = _get_product_form_data()
+
+    # 引入产品默认值：品牌取产品库最常用品牌（即本系统厂商名称），
+    # 单位按分类取该分类下最常用的单位
+    from sqlalchemy import func
+    default_brand = ''
+    brand_row = db.session.query(Product.brand)\
+        .filter(Product.brand.isnot(None), Product.brand != '',
+                Product.is_deleted == False)\
+        .group_by(Product.brand)\
+        .order_by(func.count(Product.id).desc())\
+        .first()
+    if brand_row:
+        default_brand = brand_row[0]
+
+    # 各分类最常用单位 {category_id: unit}
+    category_units = {}
+    unit_rows = db.session.query(Product.category_id, Product.unit,
+                                 func.count(Product.id).label('cnt'))\
+        .filter(Product.category_id.isnot(None),
+                Product.unit.isnot(None), Product.unit != '',
+                Product.is_deleted == False)\
+        .group_by(Product.category_id, Product.unit)\
+        .order_by(Product.category_id, func.count(Product.id).desc())\
+        .all()
+    for cat_id, unit, _cnt in unit_rows:
+        if cat_id not in category_units:   # 已按 cnt desc 排序，首个即最常用
+            category_units[cat_id] = unit
+
+    return render_template('product/at_list.html',
+                           products=pagination.items,
+                           pagination=pagination,
+                           tab_counts=tab_counts,
+                           current_tab=tab,
+                           search=search,
+                           default_brand=default_brand,
+                           category_units=category_units,
+                           allowed_statuses=_allowed_product_statuses(current_user),
+                           regions=form_data['regions'])
+
+
 @bp.route('/products/ajax', methods=['GET'])
 @login_required
 @permission_required('product', 'view')
@@ -920,9 +1031,8 @@ def product_list_ajax():
             joinedload(Product.subcategory_obj)
         ).filter(Product.is_deleted == False)
 
-        # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            query = query.filter(Product.status == 'active')
+        # 产品状态可见性：由 content_filters 按角色/个人配置过滤
+        query = _apply_product_status_filter(query, current_user)
 
         # ============================================================
         # 4. 应用筛选条件
@@ -967,32 +1077,8 @@ def product_list_ajax():
             field = getattr(Product, sort_field)
             query = query.order_by(field.desc() if sort_order == 'desc' else field.asc())
         else:
-            # 默认排序：使用 product_display_order 表（跨 CN/SG 可移植）
-            from app.models.product_display_order import ProductDisplayOrder
-
-            snapshot_cat_code = func.json_extract_path_text(
-                Product.code_definition_snapshot, 'category', 'code_letter'
-            )
-            snapshot_sub_code = func.json_extract_path_text(
-                Product.code_definition_snapshot, 'subcategory', 'code_letter'
-            )
-            effective_model = func.coalesce(Product.model, Product.product_name, '未指定型号')
-
-            query = query.outerjoin(
-                ProductDisplayOrder,
-                and_(
-                    snapshot_cat_code == ProductDisplayOrder.category_code,
-                    snapshot_sub_code == ProductDisplayOrder.subcategory_code,
-                    effective_model == ProductDisplayOrder.model
-                )
-            )
-            query = query.order_by(
-                func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
-                func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
-                func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
-                Product.product_name.asc(),
-                Product.id.asc()
-            )
+            from app.utils.product_sort import apply_product_display_sort
+            query = apply_product_display_sort(query)
 
         # ============================================================
         # 6. 获取总数和分页数据
@@ -1057,10 +1143,8 @@ def get_products():
         # 去除数据所有权过滤
         # 如果用户通过了permission_required('product', 'view')装饰器，就应该能查看所有产品
         
-        # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            # 其他角色只能看到生产中的产品（status = 'active'）
-            query = query.filter(Product.status == 'active')
+        # 产品状态可见性：由 content_filters 按角色/个人配置过滤
+        query = _apply_product_status_filter(query, current_user)
         
         # 应用搜索条件
         if search_term:
@@ -1309,10 +1393,12 @@ def get_product_models():
         if not category or not product_name:
             return jsonify([])
         
-        # 查询指定类别和产品名称的产品（包括停产产品）
+        # 开单选择器第二级：仅显示上市(生产中)型号，停产/即将上架不可选
+        # （报价单、采购订单共用此接口；批价单/客户订单由报价单生成，自动一致）
         products = Product.query.filter_by(
             category=category,
-            product_name=product_name
+            product_name=product_name,
+            status='active'
         ).order_by(Product.id).all()
         
         logger.debug(f'找到 {len(products)} 个产品')
@@ -1364,52 +1450,40 @@ def get_product_models():
 @login_required
 @permission_required('product', 'edit')
 def upload_product_image(product_id):
-    """上传产品图片（支持分类共享）
-
-    参数:
-        update_category: true=覆盖分类文件, false=仅用于此产品, 不传=检查是否需要确认
-    """
+    """上传产品图片（每个产品独立存储，不共享分类文件）"""
     file_service = get_product_file_service()
     image_file = request.files.get('image')
 
     if not image_file or not image_file.filename:
         return jsonify({'success': False, 'error': '请选择要上传的图片文件'}), 400
 
-    # 获取 update_category 参数
-    update_category_str = request.form.get('update_category')
-    if update_category_str is None:
-        update_category = None  # 需要检查是否需要确认
-    else:
-        update_category = update_category_str.lower() == 'true'
-
-    result = file_service.upload_file_with_category(product_id, image_file, 'image', update_category)
-    status_code = 200 if result.get('success') or result.get('need_confirm') else 400
+    result = file_service.upload_image(product_id, image_file)
+    status_code = 200 if result.get('success') else 400
     return jsonify(result), status_code
 
 @bp.route('/api/products/<int:product_id>/upload-pdf', methods=['POST'])
 @login_required
 @permission_required('product', 'edit')
 def upload_product_pdf(product_id):
-    """上传产品PDF文档（支持分类共享）
+    """上传产品PDF文档（每个产品独立存储，不共享分类文件）"""
+    from werkzeug.utils import secure_filename as wz_secure
 
-    参数:
-        update_category: true=覆盖分类文件, false=仅用于此产品, 不传=检查是否需要确认
-    """
     file_service = get_product_file_service()
     pdf_file = request.files.get('pdf')
 
     if not pdf_file or not pdf_file.filename:
         return jsonify({'success': False, 'error': '请选择要上传的PDF文件'}), 400
 
-    # 获取 update_category 参数
-    update_category_str = request.form.get('update_category')
-    if update_category_str is None:
-        update_category = None  # 需要检查是否需要确认
-    else:
-        update_category = update_category_str.lower() == 'true'
+    original_name = wz_secure(pdf_file.filename) or pdf_file.filename
 
-    result = file_service.upload_file_with_category(product_id, pdf_file, 'pdf', update_category)
-    status_code = 200 if result.get('success') or result.get('need_confirm') else 400
+    result = file_service.upload_pdf(product_id, pdf_file)
+    if result.get('success'):
+        product = Product.query.get(product_id)
+        if product:
+            product.pdf_original_name = original_name
+            db.session.commit()
+
+    status_code = 200 if result.get('success') else 400
     return jsonify(result), status_code
 
 
@@ -1590,9 +1664,8 @@ def get_dashboard_data():
         # 基础查询，根据用户角色筛选可见产品
         base_query = Product.query
         
-        # 如果不是管理员、产品经理或解决方案经理，只显示生产中的产品
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            base_query = base_query.filter(Product.status == 'active')
+        # 产品状态可见性：由 content_filters 按角色/个人配置过滤
+        base_query = _apply_product_status_filter(base_query, current_user)
         
         # 按分类统计产品数量
         from app.models.product_code import ProductCategory
@@ -1604,9 +1677,8 @@ def get_dashboard_data():
             Product, Product.category_id == ProductCategory.id
         )
 
-        # 应用产品可见性筛选到类别统计
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            category_stats = category_stats.filter(Product.status == 'active')
+        # 应用产品可见性筛选到类别统计(content_filters)
+        category_stats = _apply_product_status_filter(category_stats, current_user)
 
         # 完成分组查询，按ProductCategory.id分组保持业务顺序
         category_stats = category_stats.group_by(
@@ -1643,10 +1715,8 @@ def get_dashboard_data():
             Product.type.isnot(None)
         )
         
-        # 应用产品可见性筛选
-        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            # 对于其他用户，只统计生产中的产品
-            type_stats_query = type_stats_query.filter(Product.status == 'active')
+        # 应用产品可见性筛选(content_filters)
+        type_stats_query = _apply_product_status_filter(type_stats_query, current_user)
         
         # 完成分组查询
         type_stats = type_stats_query.group_by(
@@ -1946,6 +2016,7 @@ def create_product():
         
         # 获取厂商产品标记
         is_vendor_product = request.form.get('is_vendor_product') == 'on'
+        has_serial_number = request.form.get('has_serial_number') == 'on'
 
         # 获取配置来源信息（从配置引入产品时设置）
         source_configuration_id = request.form.get('source_configuration_id')
@@ -2104,6 +2175,7 @@ def create_product():
             currency=product_data['currency'],
             status=product_data['status'],
             is_vendor_product=is_vendor_product,
+            has_serial_number=has_serial_number,
             owner_id=current_user.id,
             # 分类体系字段
             category_id=category_id,
@@ -2201,7 +2273,10 @@ def create_product():
 
         # 从配置引入时，重定向到产品详情页并自动打开规格引入模态框
         if source_type in ('from_config', 'from_sp8d'):
-            redirect_url = url_for('product.view_product_detail', id=new_product.id) + '?import_specs=1'
+            # AT 列表引入时回到 AT 详情页（前端传 redirect_to=at），否则用 TW 详情页
+            detail_endpoint = 'product.at_view_product' \
+                if request.form.get('redirect_to') == 'at' else 'product.view_product_detail'
+            redirect_url = url_for(detail_endpoint, id=new_product.id) + '?import_specs=1'
             if source_type == 'from_sp8d':
                 sp8d_config_id = request.form.get('sp8d_configuration_id')
                 if sp8d_config_id:
@@ -2278,6 +2353,13 @@ def update_product(id):
         if product.is_vendor_product != is_vendor_product:
             product.is_vendor_product = is_vendor_product
             logger.debug(f'厂商产品标记从 {product.is_vendor_product} 更新为 {is_vendor_product}')
+
+        # 更新 SN 管理标记(只在表单包含该字段时更新)
+        if 'has_serial_number' in request.form or request.method == 'POST':
+            has_serial_number = request.form.get('has_serial_number') == 'on'
+            if product.has_serial_number != has_serial_number:
+                product.has_serial_number = has_serial_number
+                logger.debug(f'SN 管理标记从 {not has_serial_number} 更新为 {has_serial_number}')
 
         # 更新分类字段（允许补充空值，管理员可以修改已有值）
         # 记录旧的分类ID，用于检测分类是否改变
@@ -3275,6 +3357,21 @@ def get_product_brands():
             'message': str(e)
         }), 500
 
+def _get_template_item_order(product):
+    """从产品的来源规格模版获取 {field_name: display_order}，用于规格展示排序。
+    若产品无来源模版则返回空字典，调用方应退回到 SpecificationDictionary.display_order。"""
+    if not product.source_configuration_id:
+        return {}
+    config = product.source_configuration
+    if not config or not config.template:
+        return {}
+    return {
+        item.spec_dict.name: item.display_order
+        for item in config.template.items
+        if item.spec_dict
+    }
+
+
 @bp.route('/products/<int:id>/detail', methods=['GET'])
 @login_required
 @permission_required('product', 'view')  # 添加产品查看权限装饰器
@@ -3286,10 +3383,10 @@ def view_product_detail(id):
         # 获取产品详情
         product = Product.query.get_or_404(id)
 
-        # 检查产品停产状态的权限：只有产品经理、解决方案经理和管理员可以查看停产产品
-        if product.status == 'discontinued' and current_user.role not in ['admin', 'product_manager', 'solution_manager']:
-            logger.warning(f"用户 {current_user.username} 尝试查看停产产品详情: {id}")
-            flash(_('您没有权限查看已停产的产品'), 'danger')
+        # 产品状态可见性：由 content_filters 配置(不可见则拦截)
+        if not _product_status_visible(product, current_user):
+            logger.warning(f"用户 {current_user.username} 尝试查看不可见状态的产品详情: {id}")
+            flash(_('您没有权限查看该状态的产品'), 'danger')
             return redirect(url_for('product.product_list'))
 
         # 获取产品规格数据（包含缺失的编码规格）
@@ -3310,16 +3407,17 @@ def view_product_detail(id):
         all_categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
         category_map = {cat.id: cat for cat in all_categories}
 
-        # 通过 field_name 匹配 SpecificationDictionary 获取分类信息、英文名称和排序
+        # 通过 field_name 匹配 SpecificationDictionary 获取分类信息和英文名称
         spec_names = [s['field_name'] for s in product_specs]
         definitions = SpecificationDictionary.query.filter(SpecificationDictionary.name.in_(spec_names)).all()
         name_to_category = {d.name: d.category_id for d in definitions}
         name_to_name_en = {d.name: d.name_en for d in definitions}
-        name_to_display_order = {d.name: d.display_order for d in definitions}
-        # 未分类的规格放入 category_id=0
+        # 排序：优先用来源模版的 display_order，回退到 SpecificationDictionary.display_order
+        name_to_dict_order = {d.name: d.display_order for d in definitions}
+        name_to_display_order = _get_template_item_order(product) or name_to_dict_order
+
         uncategorized_specs = []
         for spec in product_specs:
-            # 添加英文名称：优先使用存储的英文名称，回退到 SpecificationDictionary
             if not spec.get('field_name_en'):
                 spec['field_name_en'] = name_to_name_en.get(spec['field_name'], '')
             cat_id = name_to_category.get(spec['field_name'])
@@ -3330,12 +3428,12 @@ def view_product_detail(id):
             else:
                 uncategorized_specs.append(spec)
 
-        # 构建按 display_order 排序的分类列表
+        # 按模版排序构建分类列表
         for cat in all_categories:
             if cat.id in specs_by_category:
                 sorted_specs = sorted(
                     specs_by_category[cat.id],
-                    key=lambda s: s.get('display_order', name_to_display_order.get(s.get('field_name', ''), 9999))
+                    key=lambda s: name_to_display_order.get(s.get('field_name', ''), 9999)
                 )
                 spec_categories.append({
                     'id': cat.id,
@@ -3344,7 +3442,6 @@ def view_product_detail(id):
                     'specs': sorted_specs
                 })
 
-        # 未分类的规格放在最后
         if uncategorized_specs:
             spec_categories.append({
                 'id': 0,
@@ -3452,6 +3549,146 @@ def view_product_detail(id):
         logger.error(f'查看产品详情页面时出错: {str(e)}', exc_info=True)
         flash(_('查看产品详情失败: %s') % str(e), 'danger')
         return redirect(url_for('product.product_list')) 
+
+@bp.route('/product/<int:id>/at_view', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def at_view_product(id):
+    """AT 风格产品详情页"""
+    from flask_login import current_user
+    from app.services.spec_service import SpecService
+    from app.models.product_code import SpecificationDictionary
+    from app.models.spec_template import SpecCategory
+
+    product = Product.query.get_or_404(id)
+    if product.status == 'discontinued' and current_user.role not in ('admin', 'product_manager', 'solution_manager'):
+        flash(_('您没有权限查看已停产的产品'), 'danger')
+        return redirect(url_for('product.at_list_view'))
+
+    # 规格分类数据（与 view_product_detail 逻辑一致）
+    product_specs = SpecService.get_specs_with_coded_fields(
+        SpecService.TYPE_PRODUCT, id, product.subcategory_id
+    )
+    all_categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+    category_map = {cat.id: cat for cat in all_categories}
+    spec_names = [s['field_name'] for s in product_specs]
+    definitions = SpecificationDictionary.query.filter(
+        SpecificationDictionary.name.in_(spec_names)
+    ).all() if spec_names else []
+    name_to_category = {d.name: d.category_id for d in definitions}
+    name_to_name_en = {d.name: d.name_en for d in definitions}
+    name_to_dict_order = {d.name: d.display_order for d in definitions}
+    name_to_display_order = _get_template_item_order(product) or name_to_dict_order
+    specs_by_category = {}
+    uncategorized_specs = []
+    for spec in product_specs:
+        if not spec.get('field_name_en'):
+            spec['field_name_en'] = name_to_name_en.get(spec['field_name'], '')
+        cat_id = name_to_category.get(spec['field_name'])
+        if cat_id and cat_id in category_map:
+            specs_by_category.setdefault(cat_id, []).append(spec)
+        else:
+            uncategorized_specs.append(spec)
+    spec_categories = []
+    for cat in all_categories:
+        if cat.id in specs_by_category:
+            sorted_specs = sorted(
+                specs_by_category[cat.id],
+                key=lambda s: name_to_display_order.get(s.get('field_name', ''), 9999)
+            )
+            spec_categories.append({'id': cat.id, 'name': cat.name, 'name_en': cat.name_en, 'specs': sorted_specs})
+    if uncategorized_specs:
+        spec_categories.append({'id': 0, 'name': '其他规格', 'name_en': 'Other Specs', 'specs': uncategorized_specs})
+
+    from app.utils.product_helpers import get_effective_image
+    effective_image = get_effective_image(product)
+
+    can_edit = bool(current_user.has_permission('product', 'edit')) \
+        if hasattr(current_user, 'has_permission') else False
+
+    can_delete = (
+        current_user.role in ('admin', 'product_manager', 'product') or
+        (hasattr(current_user, 'has_permission') and current_user.has_permission('product', 'delete')) or
+        product.owner_id == current_user.id
+    )
+
+    # 上下翻产品（按列表页排序）
+    nav_result = db.session.execute(text("""
+        WITH ordered AS (
+            SELECT p.id,
+                   LAG(p.id)  OVER w AS prev_id,
+                   LEAD(p.id) OVER w AS next_id
+            FROM products p
+            LEFT JOIN product_subcategories ps ON p.subcategory_id = ps.id
+            LEFT JOIN product_categories    pc ON ps.category_id = pc.id
+            WINDOW w AS (ORDER BY pc.display_order, pc.id, ps.display_order, ps.name, p.model, p.id)
+        )
+        SELECT prev_id, next_id FROM ordered WHERE id = :pid
+    """), {'pid': id}).fetchone()
+    prev_product_id = nav_result.prev_id if nav_result else None
+    next_product_id = nav_result.next_id if nav_result else None
+
+    # 报价引用数量
+    design_quantity = 0
+    order_quantity  = 0
+    if product.product_mn:
+        from app.models.quotation import QuotationDetail, Quotation
+        stats = db.session.query(
+            func.coalesce(func.sum(QuotationDetail.quantity), 0),
+            func.coalesce(func.sum(case(
+                (Quotation.project_stage.in_(['awarded', 'signed']), QuotationDetail.quantity),
+                else_=0
+            )), 0)
+        ).outerjoin(Quotation, QuotationDetail.quotation_id == Quotation.id)\
+         .filter(QuotationDetail.product_mn == product.product_mn)\
+         .first()
+        design_quantity, order_quantity = int(stats[0]), int(stats[1])
+
+    # 推荐系数(植入品质用):仅 CEO/admin 可设,其余只读
+    can_set_citation = getattr(current_user, 'role', None) in ('admin', 'ceo')
+
+    return render_template('product/at_view.html',
+                           product=product,
+                           spec_categories=spec_categories,
+                           effective_image=effective_image,
+                           can_edit=can_edit,
+                           can_delete=can_delete,
+                           can_set_citation=can_set_citation,
+                           prev_product_id=prev_product_id,
+                           next_product_id=next_product_id,
+                           design_quantity=design_quantity,
+                           order_quantity=order_quantity)
+
+
+@bp.route('/products/<int:product_id>/citation-coefficient', methods=['POST'])
+@login_required
+def api_set_citation_coefficient(product_id):
+    """设置产品推荐系数(citation_coefficient,植入品质用)。仅 CEO/admin 可设。"""
+    if getattr(current_user, 'role', None) not in ('admin', 'ceo'):
+        return jsonify({'success': False, 'message': '仅总经理可设置推荐系数'}), 403
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({'success': False, 'message': '产品不存在'}), 404
+    try:
+        data = request.get_json() or {}
+        v = data.get('citation_coefficient')
+        if v in (None, ''):
+            product.citation_coefficient = None
+        else:
+            v = float(v)
+            if v < 0:
+                return jsonify({'success': False, 'message': '推荐系数不能为负'}), 400
+            product.citation_coefficient = v
+        from datetime import datetime as _dt
+        product.updated_at = _dt.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'citation_coefficient': product.citation_coefficient})
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': '推荐系数必须是数字'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 @bp.route('/api/products/<int:id>/update-status', methods=['POST'])
 @login_required
@@ -3646,6 +3883,63 @@ def get_subcategories_api():
         }), 500
 
 
+@bp.route('/api/products/prices-batch', methods=['GET'])
+@login_required
+def get_products_prices_batch_api():
+    """批量查询多个产品在指定货币下的价格(订单/报价单切换货币时刷新明细价)。
+
+    Query:
+      ids       : 逗号分隔的 product_id 列表
+      currency  : 目标货币代码(CNY/USD/MYR ...)
+
+    Returns:
+      { success: true, currency: 'MYR', prices: { '<pid>': {price: 100.0|null, source: 'native'|'region'|'none'} } }
+    """
+    try:
+        ids_raw = (request.args.get('ids') or '').strip()
+        target_currency = (request.args.get('currency') or '').upper().strip()
+        if not ids_raw or not target_currency:
+            return jsonify({'success': False, 'message': '缺少 ids 或 currency'}), 400
+
+        try:
+            ids = [int(x) for x in ids_raw.split(',') if x.strip()]
+        except ValueError:
+            return jsonify({'success': False, 'message': 'ids 格式错误'}), 400
+        if not ids:
+            return jsonify({'success': True, 'currency': target_currency, 'prices': {}})
+
+        products = Product.query.filter(Product.id.in_(ids)).all()
+
+        # 一次查所有的目标货币区域价
+        from app.models.product import ProductRegionPrice
+        rp_rows = db.session.query(
+            ProductRegionPrice.product_id, ProductRegionPrice.market_price
+        ).filter(
+            ProductRegionPrice.product_id.in_(ids),
+            ProductRegionPrice.currency == target_currency
+        ).all()
+        rp_map = {pid: float(mp) if mp is not None else None for pid, mp in rp_rows}
+
+        out = {}
+        for p in products:
+            native_ok = p.currency and p.currency.upper() == target_currency
+            if native_ok:
+                out[str(p.id)] = {
+                    'price': float(p.retail_price) if p.retail_price else None,
+                    'source': 'native',
+                }
+            elif p.id in rp_map:
+                out[str(p.id)] = {'price': rp_map[p.id], 'source': 'region'}
+            else:
+                out[str(p.id)] = {'price': None, 'source': 'none'}
+
+        return jsonify({'success': True, 'currency': target_currency, 'prices': out})
+
+    except Exception as e:
+        logger.error(f"批量价格查询失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'查询失败: {e}'}), 500
+
+
 @bp.route('/api/products/by-subcategory', methods=['GET'])
 @login_required
 def get_products_by_subcategory_api():
@@ -3658,6 +3952,8 @@ def get_products_by_subcategory_api():
     try:
         category = request.args.get('category')
         subcategory = request.args.get('subcategory')
+        # currency: 可选,指定目标货币 → 返回 price_for_currency(对应货币的价格,无则 None)
+        target_currency = (request.args.get('currency') or '').upper().strip() or None
 
         if not category or not subcategory:
             return jsonify({
@@ -3747,6 +4043,33 @@ def get_products_by_subcategory_api():
         if subcategory_obj and hasattr(subcategory_obj, 'image_path'):
             subcategory_image = subcategory_obj.image_path
 
+        # 批量查目标货币的区域价(若 target_currency 指定)
+        # → 一次查所有 product_id 的对应货币 ProductRegionPrice
+        region_price_map = {}  # product_id → market_price(Decimal)
+        if target_currency and product_ids:
+            from app.models.product import ProductRegionPrice
+            rp_rows = db.session.query(
+                ProductRegionPrice.product_id, ProductRegionPrice.market_price
+            ).filter(
+                ProductRegionPrice.product_id.in_(product_ids),
+                ProductRegionPrice.currency == target_currency
+            ).all()
+            for pid, mp in rp_rows:
+                region_price_map[pid] = mp
+
+        def _price_for_currency(p):
+            """返回 (price_value | None, source: 'native'|'region'|'none')
+            - 不指定 target_currency: 返回 retail_price + 'native'
+            - target_currency == product.currency: 返回 retail_price + 'native'
+            - 否则:查 ProductRegionPrice → 有则返回 'region',无则 (None, 'none')
+            """
+            if not target_currency or (p.currency and p.currency.upper() == target_currency):
+                return (float(p.retail_price) if p.retail_price else None), 'native'
+            rp = region_price_map.get(p.id)
+            if rp is not None:
+                return float(rp), 'region'
+            return None, 'none'
+
         # 构建产品数据 + 按型号(model)分组
         model_groups_dict = {}
         for product in products:
@@ -3755,6 +4078,7 @@ def get_products_by_subcategory_api():
                 model_groups_dict[model_key] = []
 
             config_count = config_counts.get(product.id, 0)
+            price_for_cur, price_source = _price_for_currency(product)
 
             # 内联 effective_image 逻辑，避免逐个查询
             effective_image = product.image_path
@@ -3774,6 +4098,10 @@ def get_products_by_subcategory_api():
                 'unit': product.unit,
                 'retail_price': float(product.retail_price) if product.retail_price else None,
                 'currency': product.currency,
+                # 目标货币下的实际可用价(无则 None,前端用此判定是否禁选)
+                'price_for_currency': price_for_cur,
+                'price_source': price_source,  # native / region / none
+                'target_currency': target_currency,
                 'status': product.status,
                 'code_definition_snapshot': product.code_definition_snapshot,
                 'image_path': product.image_path,
@@ -4018,30 +4346,8 @@ def export_products():
             return product.specification or ''
 
         # 查询所有产品（使用 product_display_order 表排序，与产品列表页一致）
-        from app.models.product_display_order import ProductDisplayOrder
-        _snap_cat = func.json_extract_path_text(
-            Product.code_definition_snapshot, 'category', 'code_letter'
-        )
-        _snap_sub = func.json_extract_path_text(
-            Product.code_definition_snapshot, 'subcategory', 'code_letter'
-        )
-        _eff_model = func.coalesce(Product.model, Product.product_name, '未指定型号')
-        products = Product.query\
-            .outerjoin(
-                ProductDisplayOrder,
-                and_(
-                    _snap_cat == ProductDisplayOrder.category_code,
-                    _snap_sub == ProductDisplayOrder.subcategory_code,
-                    _eff_model == ProductDisplayOrder.model
-                )
-            )\
-            .order_by(
-                func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
-                func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
-                func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
-                Product.product_name.asc(),
-                Product.id.asc()
-            ).all()
+        from app.utils.product_sort import apply_product_display_sort
+        products = apply_product_display_sort(Product.query).all()
 
         # 创建工作簿
         wb = Workbook()
@@ -4883,7 +5189,8 @@ def import_configuration_specs(product_id):
                 field_code=code_char,
                 use_in_code=bool(item.use_in_code),
                 unit=item.spec_dict.unit or None,
-                include_in_description=True,
+                # 按模板规格项的"加入描述"勾选决定（与参与编码解耦）
+                include_in_description=bool(item.include_in_description),
                 display_order=display_order
             )
             db.session.add(spec)
@@ -4892,13 +5199,8 @@ def import_configuration_specs(product_id):
 
         db.session.flush()
 
-        # 重新生成产品描述（包含单位）
-        description_parts = []
-        for spec in new_specs:
-            if spec.include_in_description and spec.field_value:
-                unit_str = f" {spec.unit}" if spec.unit else ""
-                description_parts.append(f"{spec.field_name}: {spec.field_value}{unit_str}")
-        product.specification = ", ".join(description_parts) if description_parts else ""
+        # 产品描述：按引入配置自己勾选了"加入描述"的规格拼接（值取本配置实际值）
+        product.specification = _compose_import_description(None, new_specs)
 
         # 直接使用配置版本的 mn_code 作为 spec_mn（不重新计算，避免 ProductCodeField 配置不一致问题）
         if config.mn_code:

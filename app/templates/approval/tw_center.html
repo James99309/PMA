@@ -6,7 +6,7 @@ render_tw_data_table_script, render_empty_row with context %}
 {% from 'components/tw_tabs.html' import render_tw_tabs, render_tw_tabs_script with context %}
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_approval_status_badge,
 render_tw_business_type_badge, render_tw_approver_badge with context %}
-{% from 'components/tw_pricing_order_modal.html' import tw_pricing_order_modal, tw_pricing_order_modal_script with context %}
+{# tw_pricing_order_modal 组件文件不存在(从未实现) — 暂时禁用查看批价单 popup #}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -127,8 +127,8 @@ render_tw_business_type_badge, render_tw_approver_badge with context %}
     {% endif %}
     {% endcall %}
 
-    <!-- 批价单模态框（用于审批中心点击查看批价单） -->
-    {{ tw_pricing_order_modal() }}
+    <!-- 批价单模态框 — 组件未实现,暂禁用 -->
+    {# {{ tw_pricing_order_modal() }} #}
 
     <!-- 布局脚本（搜索、语言、主题切换） -->
     {{ render_tw_layout_script() }}
@@ -201,8 +201,8 @@ render_tw_business_type_badge, render_tw_approver_badge with context %}
         })();
     </script>
 
-    <!-- 批价单模态框脚本（审批中心使用，仅用于查看已存在的批价单） -->
-    {{ tw_pricing_order_modal_script(0, 0, can_view_settlement=can_view_settlement) }}
+    <!-- 批价单模态框脚本 — 组件未实现,暂禁用 -->
+    {# {{ tw_pricing_order_modal_script(0, 0, can_view_settlement=can_view_settlement) }} #}
 </body>
 
 </html>

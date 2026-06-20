@@ -19,27 +19,9 @@ class ShipmentService:
 
     @staticmethod
     def generate_shipment_number():
-        """
-        生成发货单号
-        格式: SHP202501-001
-        """
-        today = datetime.now()
-        prefix = f"SHP{today.strftime('%Y%m')}"
-
-        latest = Shipment.query.filter(
-            Shipment.shipment_number.like(f"{prefix}%")
-        ).order_by(Shipment.shipment_number.desc()).first()
-
-        if latest:
-            try:
-                latest_num = int(latest.shipment_number.split('-')[-1])
-                new_num = latest_num + 1
-            except (ValueError, IndexError):
-                new_num = 1
-        else:
-            new_num = 1
-
-        return f"{prefix}-{new_num:03d}"
+        """生成发货单号 SHP<YYYYMM>-NNN — 走统一生成器"""
+        from app.utils.doc_number import generate_doc_number
+        return generate_doc_number('SHP', Shipment, number_field='shipment_number')
 
     @staticmethod
     def create_shipment(sales_order_id, shipment_data, details, current_user_id):
@@ -191,9 +173,9 @@ class ShipmentService:
             # 更新客户订单明细的发货数量
             ShipmentService._update_order_shipped_quantity(shipment)
 
-            # 更新客户订单状态
+            # 更新客户订单状态（仅当关联了客户订单时）
             sales_order = shipment.sales_order
-            if sales_order.status in ['confirmed', 'preparing']:
+            if sales_order and sales_order.status in ['confirmed', 'preparing']:
                 # 检查是否全部发货
                 if sales_order.shipped_quantity >= sales_order.total_quantity:
                     sales_order.status = 'shipped'
@@ -246,8 +228,14 @@ class ShipmentService:
             if not shipment:
                 return False, '发货单不存在'
 
-            if shipment.status not in ['shipped', 'in_transit', 'delivered']:
+            # 允许从 pending/shipped/in_transit/delivered 直接签收
+            # 业务上发货单创建后可分批多次发,每个发货单独立签收;不强制走"确认发货"中间步骤
+            if shipment.status not in ['pending', 'shipped', 'in_transit', 'delivered']:
                 return False, f'当前状态 {shipment.status} 不允许签收'
+
+            # 关键修复:若发货单是 pending(从未走 confirm_shipment),签收前补做发货数量累加
+            # — 否则 SO detail 的 shipped_quantity 不会更新,导致 remaining_to_ship 错误高估
+            was_pending = (shipment.status == 'pending')
 
             # 更新签收信息
             shipment.status = 'received'
@@ -268,15 +256,59 @@ class ShipmentService:
                 detail.received_quantity = detail.quantity
                 detail.status = 'received'
 
+            # 更新关联的序列号状态为 delivered
+            try:
+                if shipment.id:
+                    from app.models.product_serial_number import ProductSerialNumber
+                    sn_records = ProductSerialNumber.query.filter_by(shipment_id=shipment.id).all()
+                    for sn in sn_records:
+                        sn.status = 'delivered'
+                    # 也检查明细中记录的序列号
+                    for detail in shipment.details:
+                        if detail.serial_numbers:
+                            import json as _json
+                            try:
+                                sn_list = _json.loads(detail.serial_numbers)
+                                for sn_str in sn_list:
+                                    sn_record = ProductSerialNumber.query.filter_by(serial_number=sn_str).first()
+                                    if sn_record and sn_record.status != 'delivered':
+                                        sn_record.status = 'delivered'
+                            except (ValueError, TypeError):
+                                pass
+            except Exception as sn_err:
+                logger.warning(f"更新序列号签收状态失败（非致命）: {sn_err}")
+
+            # 若发货单从 pending 直接签收(跳过 confirm_shipment),补做 shipped_quantity 累加
+            if was_pending:
+                ShipmentService._update_order_shipped_quantity(shipment)
+
             # 更新客户订单明细的签收数量
             ShipmentService._update_order_received_quantity(shipment)
 
             # 更新客户订单状态
             sales_order = shipment.sales_order
-            if sales_order.received_quantity >= sales_order.total_quantity:
-                sales_order.status = 'delivered'
-                sales_order.received_by = shipment.received_by
-                sales_order.received_date = shipment.received_date
+            if sales_order:
+                if sales_order.received_quantity >= sales_order.total_quantity:
+                    sales_order.status = 'delivered'
+                    sales_order.received_by = shipment.received_by
+                    sales_order.received_date = shipment.received_date
+
+                # 代理商签收后，自动增加代理商仓库库存
+                if sales_order.customer_id:
+                    from app.utils.inventory_helpers import update_inventory
+                    from flask_babel import gettext as _gt
+                    for detail in shipment.details:
+                        if detail.received_quantity and detail.received_quantity > 0:
+                            update_inventory(
+                                company_id=sales_order.customer_id,
+                                product_id=detail.product_id,
+                                quantity_change=detail.received_quantity,
+                                transaction_type='in',
+                                reference_type='shipment',
+                                reference_id=shipment.id,
+                                description=_gt('发货单 %(no)s 签收入库') % {'no': shipment.shipment_number},
+                                user_id=current_user_id
+                            )
 
             db.session.commit()
             logger.info(f"发货单 {shipment.shipment_number} 已签收")

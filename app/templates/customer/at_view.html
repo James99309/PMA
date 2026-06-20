@@ -1,0 +1,481 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles, at_detail_section,
+    at_info_panel, at_contact_list, at_action_timeline, at_ai_research_card %}
+{% from 'components/at_minitables.html' import render_minitable %}
+{% from 'components/at_action_modal.html' import at_action_modal %}
+{% from 'components/at_customer_modal.html' import at_customer_form_modal %}
+{% from 'components/at_contact_modal.html' import at_contact_form_modal %}
+{% from 'components/at_project_modal.html' import at_project_form_modal %}
+{% from 'components/at_share_modal.html' import at_share_modal %}
+{% from 'components/at_search_picker.html' import at_search_picker %}
+{% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{# 地图 SDK meta(编辑客户用到地图定位)#}
+<meta name="map-provider" content="{{ config.MAP_PROVIDER or 'google' }}">
+<meta name="google-maps-api-key" content="{{ config.GOOGLE_MAPS_API_KEY or '' }}">
+<meta name="amap-js-key" content="{{ config.AMAP_JS_KEY or '' }}">
+<meta name="amap-security-key" content="{{ config.AMAP_SECURITY_KEY or '' }}">
+<title>{{ company.company_name }} · {{ _('客户详情') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-search-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-action-modal.js') }}"></script>
+{# 编辑客户 modal 依赖 #}
+<script>
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
+    darkMode: ['selector', '[data-theme="dark"]'],
+    corePlugins: { preflight: false },
+    theme: { extend: { colors: { primary: 'var(--accent)' } } }
+  };
+</script>
+<script src="{{ url_for('static', filename='vendor/tailwind/tailwind.forms.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-customer-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-contact-form.js') }}"></script>
+{# 客户详情里"新建项目"复用 AT 项目模态 #}
+<script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ai-form-enrich.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-project-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-share-modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-ai-research.js') }}"></script>
+{{ at_detail_styles() }}
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='customer') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- 顶栏面包屑 -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('customer.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('客户管理') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);
+                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;">{{ company.company_name }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 80px;">
+
+  {# ── 页头 ── #}
+  {% set type_meta = {
+    'user':        {'tone':'accent',  'label': _('终端用户')},
+    'integrator':  {'tone':'info',    'label': _('集成商')},
+    'designer':    {'tone':'success', 'label': _('设计院')},
+    'dealer':      {'tone':'warn',    'label': _('经销商')},
+    'distributor': {'tone':'warn',    'label': _('代理商')},
+    'partner':     {'tone':'warn',    'label': _('合作伙伴')},
+    'contractor':  {'tone':'neutral', 'label': _('总包')},
+    'supplier':    {'tone':'info',    'label': _('供应商')},
+    'other':       {'tone':'neutral', 'label': _('其他')},
+  } %}
+  {% set tm = type_meta.get(company.company_type, {'tone':'neutral','label': company.company_type or '—'}) %}
+
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;
+              margin-bottom:24px;flex-wrap:wrap;gap:16px;">
+    <div style="flex:1;min-width:0;">
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        CUSTOMER · {{ company.company_code or '—' }}
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <h1 class="at-serif"
+            style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.15;">
+          {{ company.company_name }}
+        </h1>
+        {{ at_pill(tm.label, tone=tm.tone) }}
+        {# 渠道身份审批中:目标身份待 商务助理→渠道经理→总经理 审批通过后生效 #}
+        {% if company.pending_company_type %}
+        <span title="{{ _('渠道身份审批中(商务助理→渠道经理→总经理),通过后生效;可在审批中心查看进度') }}">
+          {{ at_pill((_('代理商') if company.pending_company_type == 'dealer' else _('分销商')) ~ ' · ' ~ _('审批中'), tone='warn', dot=true) }}
+        </span>
+        {% endif %}
+      </div>
+      <div style="margin-top:8px;color:var(--ink-3);font-size:13px;
+                  display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        {% if company.country %}
+        <span style="display:inline-flex;align-items:center;gap:4px;">{{ at_icon('pin', 12) }}{{ company.country | country_label }}{% if company.city %} · {{ company.city }}{% endif %}</span>
+        {% endif %}
+        {% if company.industry %}
+        <span style="color:var(--ink-4);">·</span>
+        <span>{{ company.industry | industry_label }}</span>
+        {% endif %}
+        {% if company.owner %}
+        <span style="color:var(--ink-4);">·</span>
+        <span>{{ _('负责人') }} <span style="color:var(--ink-2);">{{ company.owner.real_name or company.owner.username }}</span></span>
+        {% endif %}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if perms.can_edit %}
+        {{ at_btn(_('编辑'), variant='ghost', size='sm', icon_l='pen',
+                  onclick='atOpenCustomerForm("edit", ' ~ company.id ~ ')') }}
+      {% endif %}
+      {# 共享设置入口已移到右栏卡片"+ 管理共享" #}
+      {% if perms.can_delete %}
+        <button type="button" onclick='atConfirmDeleteCompany({{ company.id }}, {{ company.company_name|tojson }})'
+                style="height:32px;padding:0 12px;border-radius:6px;
+                       border:1px solid var(--danger-soft, #f1d4cf);background:var(--bg-elev);
+                       color:var(--danger);font-size:12px;font-weight:500;cursor:pointer;
+                       display:inline-flex;align-items:center;gap:5px;">
+          {{ at_icon('trash', 12) }}{{ _('删除') }}
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── 主体 3 栏(1:2:1 — 档案/联系人/元数据 · 关联模块/调研 · 跟进记录) ── #}
+  <div style="display:grid;grid-template-columns:minmax(260px, 1fr) minmax(0, 2fr) minmax(280px, 1fr);gap:20px;align-items:start;">
+
+    {# ═══ 左栏:客户档案 + 联系人 + 元数据(窄,sticky) ═══ #}
+    <div style="position:sticky;top:80px;display:flex;flex-direction:column;gap:18px;">
+
+      {# 归属人 行内「笔」编辑按钮(仅有改归属人权限时);复用 ATSearchPicker 选在职人员 #}
+      {% set _pen_owner %}{% if perms.can_change_owner %}<button type="button" onclick="atOpenOwnerEdit()" title="{{ _('更换归属人') }}" style="border:0;background:transparent;color:var(--ink-4);cursor:pointer;padding:2px;display:inline-flex;flex-shrink:0;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('pen', 13) }}</button>{% endif %}{% endset %}
+
+      {{ at_info_panel(_('客户档案'), [
+        (_('编号'), company.company_code, 'at-mono'),
+        (_('企业类型'), tm.label),
+        (_('行业'), (company.industry | industry_label) if company.industry else None),
+        (_('来源'), (company.source | report_source_label) if company.source else None),
+        (_('国家/地区'), (company.country | country_label) if company.country else None),
+        (_('省/州'), company.region),
+        (_('城市'), company.city),
+        (_('详细地址'), company.address),
+        (_('归属人'), (company.owner.real_name or company.owner.username) if company.owner else None, '', _pen_owner|trim),
+      ]) }}
+
+      {{ at_contact_list(
+            contacts,
+            add_url=('javascript:atOpenCreateContact()')
+                    if perms.can_create_contact else none) }}
+
+      {# 元数据卡(创建/更新时间)#}
+      {{ at_info_panel(_('档案信息'), [
+        ('ID', '#' ~ company.id, 'at-mono'),
+        (_('创建时间'), company.created_at.strftime('%Y-%m-%d %H:%M') if company.created_at else None, 'at-mono'),
+        (_('更新时间'), company.updated_at.strftime('%Y-%m-%d %H:%M') if company.updated_at else None, 'at-mono'),
+      ]) }}
+
+    </div>
+
+    {# ═══ 中栏:关联模块 + AI 调研(主区) ═══ #}
+    <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
+
+      {# 常驻显示模块(无数据也显示空态):
+         - 供应商 → 采购订单 + 报销
+         - 普通客户 → 项目 + 报价 + 报销 #}
+      {% set _always_show = ['purchase_order', 'expense'] if company.company_type == 'supplier' else ['project', 'quotation', 'expense'] %}
+      {% set _module_meta = {
+        'project':        {'label': _('关联项目'),     'create_url': 'javascript:atOpenCustomerNewProject()' },
+        'quotation':      {'label': _('关联报价'),     'create_url': url_for('quotation.at_new_quotation') ~ '?customer_id=' ~ company.id },
+        'pricing_order':  {'label': _('关联批价单'),   'create_url': none },
+        'sales_order':    {'label': _('关联客户订单'), 'create_url': none },
+        'purchase_order': {'label': _('关联采购订单'), 'create_url': none },
+        'expense':        {'label': _('关联报销'),     'create_url': url_for('expense.at_new_expense') ~ '?customer_id=' ~ company.id },
+      } %}
+
+      {% for key, data in related.items() %}
+      {% if data['items'] or key in _always_show %}
+      {% set meta = _module_meta.get(key, {'label': key, 'create_url': none}) %}
+      {% call at_detail_section(
+            meta.label,
+            count=data['items']|length,
+            has_more=data.has_more,
+            create_url=meta.create_url if data.can_create else none) %}
+        {% if data['items'] %}
+          {{ render_minitable(key, data['items']) }}
+        {% else %}
+          <div style="text-align:center;padding:32px;color:var(--ink-4);font-size:12.5px;">{{ _('暂无') }}{{ meta.label[2:] }}</div>
+        {% endif %}
+      {% endcall %}
+      {% endif %}
+      {% endfor %}
+
+      {{ at_ai_research_card(
+            company.ai_research_status,
+            entity_type='customer',
+            entity_id=company.id,
+            description=_('自动从公开来源收集公司概况、关键人物、在建项目、风险预警等信息。'),
+            view_url=url_for('customer.view_company', company_id=company.id) ~ '#ai-research',
+            updated_at=company.ai_research_updated_at) }}
+
+    </div>
+
+    {# ═══ 右栏:跟进记录 + 共享设置(sticky) ═══ #}
+    <div style="position:sticky;top:80px;min-width:0;display:flex;flex-direction:column;gap:18px;">
+      {{ at_action_timeline(
+            actions,
+            add_url=('javascript:atOpenCustomerAddAction()')
+                    if perms.can_create_action else none,
+            max_height='540px') }}
+
+      {# 共享设置卡 #}
+      {% call at_detail_section(
+            _('共享设置'),
+            count=(shared_users|length) if shared_users else 0,
+            create_url='javascript:atOpenCustomerShare()' if perms.can_share else none,
+            create_label=_('+ 管理共享')) %}
+        {% if company.share_enabled and shared_users %}
+        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+          {% for u in shared_users %}
+          <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+                         width:22px;height:22px;border-radius:50%;background:var(--accent-tint);
+                         color:var(--accent);font-size:11px;font-weight:600;">
+              {{ (u.real_name or u.username)[:1] | upper }}
+            </span>
+            <span style="color:var(--ink);flex:1;">{{ u.real_name or u.username }}</span>
+            <span class="at-dim" style="font-size:10.5px;">{{ get_role_display_name(u.role) if u.role else '' }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">
+          {{ _('未启用共享 — 仅归属人及管理者可见') }}
+        </div>
+        {% endif %}
+      {% endcall %}
+    </div>
+
+  </div>
+
+</main>
+
+</div>
+</div>
+{# 编辑客户 modal + 地图选择器(perms.can_edit 时才渲染) #}
+{% if perms.can_edit %}
+{{ at_customer_form_modal('atEditCustomerModal', mode='edit') }}
+{{ render_map_picker_modal() }}
+<style>#mapPickerModal { z-index: 200 !important; }</style>
+{% endif %}
+
+{# 共享设置 modal #}
+{% if perms.can_share %}
+{{ at_share_modal('atShareModal') }}
+<script>
+window.atOpenCustomerShare = function () {
+  atOpenShareModal({
+    entityType: 'customer',
+    entityId:   {{ company.id }},
+    saveUrl:    '/customer/{{ company.id }}/api/update-sharing',
+    shareEnabled:    {{ (company.share_enabled or false) | tojson }},
+    selectedUserIds: {{ (company.shared_with_users or []) | tojson }},
+    usersTree:  {{ (shareable_users_tree or []) | tojson }}
+  });
+};
+</script>
+{% endif %}
+
+{# 新建项目 modal(从客户详情触发,创建后自动关联到该客户)#}
+{{ at_project_form_modal('atCreateProjectModal', mode='create') }}
+<script>
+window.atOpenCustomerNewProject = function () {
+  atOpenProjectForm('create', null, { preAssociateCompanyId: {{ company.id }} });
+};
+</script>
+
+{# 新建联系人 modal(复用 at_contact_form_modal 的 create 模式) #}
+{% if perms.can_create_contact %}
+{{ at_contact_form_modal('atCreateContactModal', mode='create') }}
+<script>
+window.atOpenCreateContact = function () {
+  atOpenContactForm('create', { companyId: {{ company.id }} });
+};
+</script>
+{% endif %}
+
+{# 删除客户(对齐 customer/delete-confirm + customer/delete 流程) #}
+{% if perms.can_delete %}
+<script>
+window.atConfirmDeleteCompany = async function (companyId, companyName) {
+  // 关联类型 → 中文标签
+  const LABELS = {
+    contacts: '{{ _("联系人") }}', projects: '{{ _("关联项目") }}', actions: '{{ _("跟进记录") }}',
+    inventories: '{{ _("库存") }}', settlements: '{{ _("结算单") }}', pricing_orders: '{{ _("批价单") }}',
+    settlement_orders: '{{ _("结算订单") }}', purchase_orders: '{{ _("采购订单") }}',
+  };
+  let depMsg = '';
+  try {
+    const res = await fetch(`/customer/api/delete-confirm/${companyId}`).then(r => r.json());
+    if (res.error) { ATToast.error(res.error); return; }
+    const imp = res.impact_data || {};
+
+    // 列出所有非空关联(后端字段值都是数组)
+    const lines = [];
+    Object.entries(imp).forEach(([k, v]) => {
+      if (k === 'total_affected') return;
+      if (Array.isArray(v) && v.length) {
+        lines.push(`• ${LABELS[k] || k}: ${v.length} {{ _("条") }}`);
+      }
+    });
+    if (lines.length === 0) {
+      depMsg = `{{ _("确定要删除客户「") }}${companyName}{{ _("」吗?\n此操作无法撤销。") }}`;
+    } else {
+      depMsg = `{{ _("删除客户「") }}${companyName}{{ _("」将同时影响以下关联数据:") }}\n\n${lines.join('\n')}\n\n{{ _("⚠ 此操作无法撤销。") }}`;
+    }
+  } catch (e) {
+    ATToast.error('{{ _("检查关联数据失败,请重试") }}');
+    return;
+  }
+
+  ATConfirm.show({
+    title: '{{ _("确认删除客户") }}',
+    message: depMsg,
+    variant: 'danger', icon: 'trash',
+    confirmText: '{{ _("确认删除") }}', cancelText: '{{ _("取消") }}',
+    onConfirm: async () => {
+      try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch(`/customer/delete/${companyId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        });
+        const data = await resp.json();
+        if (data.success) {
+          ATToast.success('{{ _("客户已删除") }}', '{{ _("跳转中…") }}');
+          setTimeout(() => location.href = `{{ url_for('customer.at_list_view') }}`, 400);
+        } else {
+          ATToast.error(data.message || '{{ _("删除失败") }}');
+        }
+      } catch (e) {
+        ATToast.error('{{ _("网络错误,请重试") }}');
+      }
+    },
+  });
+};
+</script>
+{% endif %}
+
+{# 添加跟进记录 modal(客户场景) #}
+{% if perms.can_create_action %}
+{{ at_action_modal('atActionModal', scope='customer') }}
+<script>
+  window.atOpenCustomerAddAction = function () {
+    atOpenActionModal({
+      modalId:     'atActionModal',
+      scope:       'customer',
+      contextId:   {{ company.id }},
+      contextName: {{ company.company_name|tojson }},
+      apiEndpoint: '/customer/api/{{ company.id }}/add_action',
+      projects: [
+        {% set _projs = related.get('project', {}).get('items', []) if related else [] %}
+        {% for prj in _projs %}{ id: {{ prj.id }}, name: {{ (prj.project_name or prj.name or '')|tojson }} }{% if not loop.last %},{% endif %}{% endfor %}
+      ],
+      contacts: [
+        {% for ct in contacts %}{ id: {{ ct.id }}, name: {{ ct.name|tojson }}, position: {{ (ct.position or '')|tojson }} }{% if not loop.last %},{% endif %}{% endfor %}
+      ],
+      sidebarInfo: {
+        title: '{{ _("客户信息") }}',
+        items: [
+          { label: '{{ _("客户名称") }}', value: {{ company.company_name|tojson }} },
+          { label: '{{ _("客户编码") }}', value: {{ (company.company_code or '-')|tojson }} },
+          { label: '{{ _("类型") }}',     value: {{ ((company.company_type | company_type_label) if company.company_type else '-') | tojson }} },
+          { label: '{{ _("行业") }}',     value: {{ ((company.industry | industry_label) if company.industry else '-') | tojson }} }
+        ]
+      }
+    });
+  };
+</script>
+{% endif %}
+
+{# 更换归属人 — 复用 ATSearchPicker 选在职人员;提交走现有 change_company_owner 端点 #}
+{% if perms.can_change_owner %}
+<form id="atChangeOwnerForm" method="post" action="{{ url_for('customer.change_company_owner', company_id=company.id) }}" style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="new_owner_id" id="coNewOwnerId" value="{{ company.owner_id or '' }}">
+</form>
+<div id="atOwnerModal" onclick="if(event.target===this)atCloseOwnerModal()"
+     style="display:none;position:fixed;inset:0;z-index:210;background:rgba(0,0,0,0.4);
+            align-items:center;justify-content:center;">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:min(420px,92vw);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;">{{ _('更换归属人') }}</div>
+    <div style="font-size:12px;color:var(--ink-3);line-height:1.6;margin-bottom:16px;">
+      {{ _('从在职人员中选择新的归属人;该客户下所有联系人的归属人将一并变更。') }}
+    </div>
+    {{ at_search_picker('ownerPicker', placeholder=_('搜索在职人员…')) }}
+    <div id="atOwnerErr" style="display:none;margin-top:8px;font-size:12px;color:var(--danger);"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="atCloseOwnerModal()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+      <button type="button" id="atOwnerSubmit" onclick="atSubmitOwner()"
+              style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('确定') }}</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var _pickedId = null;
+    function _filterByInput(list) {
+      var term = (document.getElementById('ownerPicker').value || '').trim().toLowerCase();
+      var arr = (list || []).map(function (u) {
+        return { id: u.id, name: u.real_name || u.username, role: u.role_display || u.role || '', company: u.company_name || '' };
+      });
+      if (term) arr = arr.filter(function (u) {
+        return (u.name + ' ' + u.role + ' ' + u.company).toLowerCase().indexOf(term) >= 0;
+      });
+      arr.sort(function (a, b) { return (a.name || '').localeCompare((b.name || ''), 'zh-Hans-CN-u-co-pinyin'); });
+      return arr.slice(0, 50);
+    }
+    window.atOpenOwnerEdit = function () {
+      _pickedId = null;
+      document.getElementById('atOwnerErr').style.display = 'none';
+      ATSearchPicker({
+        inputId: 'ownerPicker', hiddenIdId: 'ownerPickerId',
+        clearId: 'ownerPickerClear', dropdownId: 'ownerPickerDropdown',
+        searchUrl: function () { return '/user/api/users/active'; },
+        suggestUrl: function () { return '/user/api/users/active'; },
+        itemsFromResp: function (resp) { return _filterByInput(resp.data || resp.users || []); },
+        renderItem: function (it) { return { primary: it.name, secondary: (it.role || '') + (it.company ? ' · ' + it.company : '') }; },
+        itemName: function (it) { return it.name; },
+        onPick: function (it) { _pickedId = it.id; },
+        onClear: function () { _pickedId = null; },
+        label: '{{ _("人员") }}'
+      });
+      document.getElementById('ownerPicker').value = '';
+      document.getElementById('atOwnerModal').style.display = 'flex';
+    };
+    window.atCloseOwnerModal = function () { document.getElementById('atOwnerModal').style.display = 'none'; };
+    window.atSubmitOwner = function () {
+      var err = document.getElementById('atOwnerErr');
+      if (!_pickedId) { err.textContent = '{{ _("请从下拉中选择一位人员") }}'; err.style.display = 'block'; return; }
+      document.getElementById('coNewOwnerId').value = _pickedId;
+      document.getElementById('atChangeOwnerForm').submit();
+    };
+  })();
+</script>
+{% endif %}
+
+</body>
+</html>

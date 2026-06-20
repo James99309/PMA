@@ -1,0 +1,251 @@
+{#
+  AT 产品详情右栏组件
+  ──────────────────────────────────────────────────────
+    at_product_sidebar_styles()   → <head> 内调用一次
+    at_product_region_prices(product, can_edit=false)
+      → 地区面价列表（懒加载，支持增删改）
+    at_product_qrcode(product)
+      → 产品二维码图片 + MN 标注
+    at_product_sidebar_script(product, can_edit=false)
+      → 地区面价 CRUD 脚本（放在 </body> 前）
+#}
+
+{% macro at_product_sidebar_styles() %}
+<style>
+/* ── 地区面价 ── */
+.at-rp-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+}
+.at-rp-row:last-child { border-bottom: none; }
+.at-rp-currency { font-size: 11px; color: var(--ink-4); flex-shrink: 0; min-width: 36px; }
+.at-rp-price { font-size: 17px; font-weight: 600; color: var(--ink); margin-left: 6px; flex: 1; }
+.at-rp-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.at-rp-btn {
+  padding: 3px 7px; font-size: 11px; border-radius: 3px; border: 0;
+  cursor: pointer; background: transparent; color: var(--ink-3);
+  transition: color 100ms, background 100ms;
+}
+.at-rp-btn:hover { color: var(--ink); background: var(--bg-hover, rgba(0,0,0,.05)); }
+.at-rp-btn.del:hover { color: var(--danger, #dc2626); }
+.at-rp-form {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 0; border-top: 1px solid var(--line); margin-top: 4px;
+}
+.at-rp-input {
+  flex: 1; padding: 5px 8px; font-size: 12px;
+  border: 1px solid var(--line); border-radius: 4px;
+  background: var(--bg-elev); color: var(--ink);
+  min-width: 0;
+}
+.at-rp-input:focus { outline: none; border-color: var(--accent); }
+.at-rp-save {
+  padding: 5px 10px; font-size: 12px; border-radius: 4px; border: 0;
+  background: var(--accent); color: #fff; cursor: pointer; flex-shrink: 0;
+}
+.at-rp-cancel {
+  padding: 5px 8px; font-size: 12px; border-radius: 4px; border: 0;
+  background: transparent; color: var(--ink-3); cursor: pointer; flex-shrink: 0;
+}
+.at-rp-add-wrap { padding-top: 10px; }
+.at-rp-add-btn {
+  font-size: 12px; color: var(--accent); background: 0; border: 0;
+  cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 3px;
+}
+.at-rp-add-btn:hover { opacity: .8; }
+.at-rp-empty { font-size: 12.5px; color: var(--ink-4); padding: 4px 0; }
+
+/* ── 二维码 ── */
+.at-qr-wrap { text-align: center; padding: 8px 0; }
+.at-qr-frame {
+  display: inline-block; padding: 10px; background: #fff;
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.at-qr-img { width: 128px; height: 128px; display: block; }
+.at-qr-mn { font-family: var(--font-mono, monospace); font-size: 11px; color: var(--ink-3); margin-top: 8px; }
+.at-qr-hint { font-size: 11px; color: var(--ink-4); margin-top: 4px; }
+</style>
+{% endmacro %}
+
+
+{# ── 地区面价 ── #}
+{% macro at_product_region_prices(product, can_edit=false) %}
+{% set _sym_map  = {'CNY':'¥','USD':'$','SGD':'S$','MYR':'RM','HKD':'HK$','IDR':'Rp','THB':'฿'} %}
+{% set _name_map = {'CNY':_('人民币'),'USD':_('美元'),'SGD':_('新加坡元'),'MYR':_('马来西亚林吉特'),'HKD':_('港币'),'IDR':_('印尼盾'),'THB':_('泰铢')} %}
+{% set _cur = product.currency or 'CNY' %}
+{% set _sym = _sym_map.get(_cur, '') %}
+<div id="atRpWrap" data-product-id="{{ product.id }}" data-can-edit="{{ 'true' if can_edit else 'false' }}">
+
+  {# 产品主价格（retail_price 字段）#}
+  {% if product.retail_price %}
+  <div class="at-rp-row" style="border-bottom:1px solid var(--line);">
+    <span class="at-rp-currency">{{ _name_map.get(_cur, _cur) }}</span>
+    <span class="at-rp-price">{{ _sym }}{{ '{:,.2f}'.format(product.retail_price) }}</span>
+    <span style="font-size:10.5px;color:var(--ink-4);flex-shrink:0;">{{ _('主价格') }}</span>
+  </div>
+  {% endif %}
+
+  {# 地区面价列表（动态加载）#}
+  <div id="atRpContent" style="{{ 'margin-top:4px;' if product.retail_price else '' }}">
+    <span class="at-rp-empty">{{ _('加载中…') }}</span>
+  </div>
+
+  {% if can_edit %}
+  <div class="at-rp-add-wrap" id="atRpAddWrap">
+    <button type="button" class="at-rp-add-btn" onclick="atRpShowAdd()">+ {{ _('添加地区面价') }}</button>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{# ── 产品二维码 ── #}
+{% macro at_product_qrcode(product) %}
+<div class="at-qr-wrap">
+  <div class="at-qr-frame">
+    <img src="{{ url_for('product.generate_product_qrcode', id=product.id) }}"
+         alt="{{ _('产品二维码') }}" class="at-qr-img"
+         onerror="this.parentNode.innerHTML='<span style=\'font-size:12px;color:var(--ink-4)\'>{{ _('二维码生成失败') }}</span>'">
+  </div>
+  {% if product.product_mn %}
+  <div class="at-qr-mn">{{ product.product_mn }}</div>
+  {% endif %}
+  <div class="at-qr-hint">{{ _('扫码查看产品详情') }}</div>
+</div>
+{% endmacro %}
+
+
+{# ── 地区面价 JS（放在 </body> 前调用一次）── #}
+{% macro at_product_sidebar_script(product, can_edit=false) %}
+<script>
+(function () {
+  var pid    = {{ product.id }};
+  var csrf   = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var canEdit = {{ 'true' if can_edit else 'false' }};
+  var baseCurrency = '{{ (product.currency or "CNY")|upper }}';
+
+  var CH = window.CurrencyHelpers;
+  function SYM(code) { return CH ? CH.getSymbol(code) : (({CNY:'¥',USD:'$',SGD:'S$',MYR:'RM',HKD:'HK$',IDR:'Rp',THB:'฿'})[code] || ''); }
+  var CURRENCIES = CH ? CH.getCurrencyList() : [
+    {code:'CNY',label:'CNY ' + '{{ _("人民币") }}'},{code:'USD',label:'USD ' + '{{ _("美元") }}'},
+    {code:'SGD',label:'SGD ' + '{{ _("新加坡元") }}'},{code:'MYR',label:'MYR ' + '{{ _("马来西亚林吉特") }}'},
+    {code:'HKD',label:'HKD ' + '{{ _("港币") }}'},{code:'IDR',label:'IDR ' + '{{ _("印尼盾") }}'},{code:'THB',label:'THB ' + '{{ _("泰铢") }}'},
+  ];
+
+  function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmt(n) { return parseFloat(n).toLocaleString('en-US', {minimumFractionDigits: 2}); }
+
+  function render(prices) {
+    var el = document.getElementById('atRpContent');
+    if (!el) return;
+    if (!prices.length) {
+      el.innerHTML = '<span class="at-rp-empty">' + (canEdit ? '{{ _("暂无，点击下方添加") }}' : '{{ _("暂无地区面价") }}') + '</span>';
+      return;
+    }
+    el.innerHTML = prices.map(function (p) {
+      var sym = SYM(p.currency);
+      var acts = canEdit
+        ? '<div class="at-rp-actions">'
+          + '<button type="button" class="at-rp-btn" onclick="atRpEdit(' + p.id + ',\'' + p.currency + '\',' + p.market_price + ')">{{ _("编辑") }}</button>'
+          + '<button type="button" class="at-rp-btn del" onclick="atRpDelete(' + p.id + ')">{{ _("删除") }}</button>'
+          + '</div>'
+        : '';
+      return '<div class="at-rp-row" id="atrp-' + p.id + '">'
+        + '<span class="at-rp-currency">' + esc(CH ? CH.getName(p.currency) : p.currency) + '</span>'
+        + '<span class="at-rp-price">' + sym + fmt(p.market_price) + '</span>'
+        + acts
+        + '</div>';
+    }).join('');
+  }
+
+  function load() {
+    fetch('/api/products/' + pid + '/region-prices')
+      .then(function (r) { return r.json(); })
+      .then(render)
+      .catch(function () {
+        var el = document.getElementById('atRpContent');
+        if (el) el.innerHTML = '<span style="color:var(--danger,#dc2626);font-size:12px;">{{ _("加载失败") }}</span>';
+      });
+  }
+  window.atRpLoad = load; // 供 edit 行的取消按钮调用
+
+  function savePrice(currency, price, formEl) {
+    fetch('/api/products/' + pid + '/region-prices', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+      body: JSON.stringify({currency: currency, market_price: parseFloat(price)})
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.success) { if (formEl) formEl.remove(); load(); }
+      else alert(d.message || '{{ _("保存失败") }}');
+    })
+    .catch(function () { alert('{{ _("保存失败") }}'); });
+  }
+
+  window.atRpShowAdd = function () {
+    var existing = document.querySelector('.atrp-add-form');
+    if (existing) { existing.remove(); return; }
+
+    fetch('/api/products/' + pid + '/region-prices')
+      .then(function (r) { return r.json(); })
+      .then(function (prices) {
+        var used = new Set(prices.map(function (p) { return p.currency; }));
+        used.add(baseCurrency); // 基础货币已作为"主价格"显示，不允许重复添加
+        var opts = CURRENCIES.filter(function (c) { return !used.has(c.code); })
+          .map(function (c) { return '<option value="' + c.code + '">' + esc(c.label) + '</option>'; })
+          .join('');
+        if (!opts) { alert('{{ _("所有货币的面价都已配置") }}'); return; }
+
+        var form = document.createElement('div');
+        form.className = 'atrp-add-form at-rp-form';
+        form.innerHTML = '<select data-rp-cur class="at-rp-input" style="max-width:130px;">' + opts + '</select>'
+          + '<input type="number" data-rp-price step="0.01" min="0" placeholder="0.00" class="at-rp-input">'
+          + '<button type="button" class="at-rp-save" onclick="atRpSubmitForm(this.parentNode)">{{ _("保存") }}</button>'
+          + '<button type="button" class="at-rp-cancel" onclick="this.parentNode.remove()">{{ _("取消") }}</button>';
+
+        var wrap = document.getElementById('atRpAddWrap');
+        if (wrap) wrap.parentNode.insertBefore(form, wrap);
+      });
+  };
+
+  window.atRpSubmitForm = function (formEl) {
+    var cur   = formEl.querySelector('[data-rp-cur]').value;
+    var price = formEl.querySelector('[data-rp-price]').value;
+    if (!cur || !price) return;
+    savePrice(cur, price, formEl);
+  };
+
+  window.atRpEdit = function (id, currency, price) {
+    var row = document.getElementById('atrp-' + id);
+    if (!row) return;
+    var sym = SYM(currency);
+    row.innerHTML = '<span class="at-rp-currency" style="flex-shrink:0;">' + esc(currency) + ' ' + sym + '</span>'
+      + '<input type="hidden" data-rp-cur value="' + esc(currency) + '">'
+      + '<input type="number" data-rp-price step="0.01" min="0" value="' + price + '" class="at-rp-input">'
+      + '<button type="button" class="at-rp-save" style="padding:4px 9px;" onclick="atRpSubmitForm(this.parentNode)">✓</button>'
+      + '<button type="button" class="at-rp-cancel" onclick="atRpLoad()">✕</button>';
+  };
+
+  window.atRpDelete = function (id) {
+    ATConfirm.show({
+      title: '{{ _("删除地区面价") }}',
+      message: '{{ _("确认删除此地区面价？") }}',
+      variant: 'danger',
+      confirmText: '{{ _("删除") }}',
+      onConfirm: function() {
+        fetch('/api/products/' + pid + '/region-prices/' + id, {
+          method: 'DELETE',
+          headers: {'X-CSRFToken': csrf}
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d.success) load(); else alert(d.message || '{{ _("删除失败") }}'); })
+        .catch(function () { alert('{{ _("删除失败") }}'); });
+      }
+    });
+  };
+
+  document.addEventListener('DOMContentLoaded', load);
+})();
+</script>
+{% endmacro %}

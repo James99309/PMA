@@ -505,8 +505,8 @@ function messagePanel() {
                 return item.detail_url || '#';
             }
             if (item.related_object_type === 'workitem') {
-                // 行程类消息，跳转到日历页面查看行程
-                let url = '/worklog/calendar';
+                // 行程类消息，跳转到 AT 日历查看行程
+                let url = '/worklog/at-calendar';
                 const params = [];
                 if (item.metadata && item.metadata.planned_date) {
                     params.push(`date=${item.metadata.planned_date}`);
@@ -516,11 +516,16 @@ function messagePanel() {
                 }
                 return params.length ? `${url}?${params.join('&')}` : url;
             } else if (item.related_object_type === 'worklog') {
-                // 日志@消息，跳转到发送者的日历
-                if (item.metadata && item.metadata.log_date) {
-                    return `/worklog/calendar?date=${item.metadata.log_date}&owner_id=${item.sender_id}`;
+                // 日报评论:收件人即日报创建者 → 打开自己的日报(不带 owner_id)
+                if (item.message_type === 'worklog_comment') {
+                    const d = item.metadata && item.metadata.log_date;
+                    return d ? `/worklog/at-calendar?date=${d}&open_log=1` : '/worklog/at-calendar';
                 }
-                return `/worklog/calendar?owner_id=${item.sender_id}`;
+                // 日志@消息，跳转到发送者的 AT 日历并打开当天日报
+                if (item.metadata && item.metadata.log_date) {
+                    return `/worklog/at-calendar?date=${item.metadata.log_date}&owner_id=${item.sender_id}&open_log=1`;
+                }
+                return `/worklog/at-calendar?owner_id=${item.sender_id}`;
             } else if (item.related_object_type === 'quotation') {
                 // 报价单消息，跳转到报价单详情页
                 return `/quotation/${item.related_object_id}/detail`;
@@ -540,6 +545,9 @@ function messagePanel() {
                 'worklog_mention': 'alternate_email',
                 'worklog_submitted': 'task_alt',
                 'workitem_shared': 'event',
+                'workitem_comment': 'chat_bubble',
+                'worklog_comment': 'chat_bubble',
+                'meeting_invite': 'record_voice_over',
                 'workitem_cancelled': 'event_busy',
                 'workitem_completed': 'event_available',
                 'workitem_time_changed': 'schedule',
@@ -703,19 +711,17 @@ function messagePanel() {
                 this.close();
                 window.location.href = `/wiki?promote=${item.promotion_request_id}`;
             } else if (item.type === 'milestone_confirmation' && item.task_id) {
-                // 里程碑确认 → 跳转任务管理页打开对应子任务
+                // 里程碑确认 → AT 任务详情对应子任务选卡
                 this.close();
-                window.location.href = item.detail_url || `/task/management?task_id=${item.task_id}&subtask_id=${item.subtask_id}`;
+                window.location.href = `/task/at/${item.task_id}#st-${item.subtask_id}`;
             } else if (item.type === 'task_review' && item.task_id) {
-                // 任务审核 → 跳转任务管理页待我审核tab
+                // 任务审核 → AT 任务详情审核浮层
                 this.close();
-                window.location.href = item.detail_url || `/task/management?task_id=${item.task_id}`;
+                window.location.href = `/task/at/${item.task_id}#review`;
             } else if (item.type === 'general_task' && item.task_id) {
-                // 通用任务 → 打开任务详情模态框
+                // 通用任务 → AT 任务详情
                 this.close();
-                window.dispatchEvent(new CustomEvent('open-task-detail-modal', {
-                    detail: { taskId: item.task_id }
-                }));
+                window.location.href = `/task/at/${item.task_id}`;
             } else if (item.detail_url && item.detail_url !== '#') {
                 // 其他类型 → 跳转 URL
                 this.close();
@@ -759,6 +765,22 @@ function messagePanel() {
             // 流失项目申请参与 → 打开项目详情页（项目负责人在那里处理）
             if (item.message_type === 'prospect_claim_request' && item.related_object_id) {
                 window.location.href = `/project/view/${item.related_object_id}`;
+                return;
+            }
+
+            // 会议旁听邀请 → 启动 guest 模式浮窗，实时同步发起人的转录翻译
+            if (item.message_type === 'meeting_invite' && item.related_object_id) {
+                if (window.Alpine && Alpine.store('meeting')) {
+                    Alpine.store('meeting').openAsGuest({
+                        recordingId: item.related_object_id,
+                        title: item.content || item.title || '会议旁听',
+                    });
+                    // 关闭消息面板
+                    this.close && this.close();
+                } else {
+                    // 兜底跳详情页
+                    window.location.href = `/meeting/minutes/${item.related_object_id}`;
+                }
                 return;
             }
 

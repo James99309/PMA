@@ -1,0 +1,446 @@
+{# AT 规格模板新建页 — 只填写基本信息，保存后自动导入子分类规格项 #}
+{% from 'components/at_base.html' import at_icon %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>新建规格模板 · 产品中心</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+{{ at_detail_styles() }}
+<style>
+.at-create-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 28px 32px;
+  max-width: 820px;
+}
+.at-create-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px 24px;
+}
+.at-create-field { display: flex; flex-direction: column; gap: 5px; }
+.at-create-label {
+  font-size: 11px; font-weight: 600; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.at-create-input,
+.at-create-select,
+.at-create-textarea {
+  height: 36px; padding: 0 10px;
+  border: 1px solid var(--line-2); border-radius: 6px;
+  background: var(--bg); color: var(--ink); font-size: 13px;
+  outline: none; transition: border-color 120ms;
+  width: 100%; box-sizing: border-box;
+}
+.at-create-input:focus,
+.at-create-select:focus,
+.at-create-textarea:focus { border-color: var(--accent); }
+.at-create-textarea { height: auto; min-height: 72px; padding: 8px 10px; resize: vertical; }
+.at-create-req { color: var(--accent); margin-left: 2px; }
+
+/* ── 型号 Combobox ── */
+.cr-combo-wrap { position: relative; }
+.cr-combo-input {
+  height: 36px; padding: 0 32px 0 10px;
+  border: 1px solid var(--line-2); border-radius: 6px;
+  background: var(--bg); color: var(--ink); font-size: 13px;
+  outline: none; transition: border-color 120ms;
+  width: 100%; box-sizing: border-box;
+}
+.cr-combo-input:focus { border-color: var(--accent); }
+.cr-combo-arrow {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  pointer-events: none; color: var(--ink-4);
+  transition: transform .15s;
+}
+.cr-combo-wrap.open .cr-combo-arrow { transform: translateY(-50%) rotate(180deg); }
+.cr-combo-drop {
+  display: none;
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+  background: var(--bg-elev); border: 1px solid var(--line);
+  border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  z-index: 200; max-height: 260px; overflow-y: auto;
+}
+.cr-combo-wrap.open .cr-combo-drop { display: block; }
+.cr-combo-item {
+  padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--line-soft);
+  transition: background .1s;
+}
+.cr-combo-item:last-child { border-bottom: 0; }
+.cr-combo-item:hover, .cr-combo-item.active { background: var(--bg-elev-2); }
+.cr-combo-item-model {
+  font-size: 13px; font-weight: 500; color: var(--ink);
+  font-family: var(--font-mono, monospace);
+}
+.cr-combo-item-name { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.cr-combo-empty { padding: 10px 12px; font-size: 12.5px; color: var(--ink-4); }
+
+.at-import-hint {
+  display: none;
+  margin-top: 16px; padding: 10px 14px;
+  border-radius: 6px; background: var(--bg-elev-2); border: 1px solid var(--line-soft);
+  font-size: 12.5px; color: var(--ink-3);
+  align-items: center; gap: 8px;
+}
+.at-import-hint.visible { display: flex; }
+</style>
+</head>
+<body class="at-page">
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='spec_template') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+{# ── 顶栏 ── #}
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="#" style="font-size:13px;color:var(--ink-3);">产品中心</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('spec_template.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">规格模板</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);">新建模板</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} 暗色
+    </button>
+  </div>
+</header>
+
+<main style="max-width:1400px;margin:0 auto;padding:36px 40px 80px;width:100%;box-sizing:border-box;">
+
+  {# ── 页头 ── #}
+  <div style="margin-bottom:28px;">
+    <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+      SPEC TEMPLATE · 产品中心
+    </div>
+    <h1 style="font-size:26px;font-weight:600;color:var(--ink);margin:0 0 6px;line-height:1.2;">
+      新建规格模板
+    </h1>
+    <p style="font-size:13px;color:var(--ink-3);margin:0;">
+      填写基本信息后点击创建。选择产品子分类后，系统将自动导入该子分类的规格项及编码顺序。
+    </p>
+  </div>
+
+  {# ── 表单卡片 ── #}
+  <div class="at-create-card">
+    <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;
+                letter-spacing:.08em;margin-bottom:20px;">基本信息</div>
+
+    <div class="at-create-grid">
+
+      {# 产品分类 — 放前面，控制后续字段 #}
+      <div class="at-create-field">
+        <label class="at-create-label">产品分类<span class="at-create-req">*</span></label>
+        <select id="cr-category" class="at-create-select" onchange="crOnCategoryChange()">
+          <option value="">— 选择 —</option>
+          {% for cat in product_categories %}
+          <option value="{{ cat.id }}">{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="at-create-field">
+        <label class="at-create-label">产品子分类<span class="at-create-req">*</span></label>
+        <select id="cr-subcategory" class="at-create-select" onchange="crOnSubcategoryChange()">
+          <option value="">— 先选分类 —</option>
+        </select>
+      </div>
+
+      {# 型号 Combobox — 选子分类后激活 #}
+      <div class="at-create-field" style="grid-column:1/-1;">
+        <label class="at-create-label">型号<span class="at-create-req">*</span></label>
+        <div class="cr-combo-wrap" id="cr-combo-wrap">
+          <input id="cr-model" class="cr-combo-input" type="text"
+                 placeholder="先选择产品子分类" autocomplete="off"
+                 oninput="crComboInput()" onfocus="crComboFocus()"
+                 onkeydown="crComboKey(event)" disabled>
+          <svg class="cr-combo-arrow" width="12" height="12" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+          <div class="cr-combo-drop" id="cr-combo-drop">
+            <div class="cr-combo-empty">请先选择子分类</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="at-create-field">
+        <label class="at-create-label">产品名称</label>
+        <input id="cr-name" class="at-create-input" type="text" placeholder="可选，选型号后自动填入">
+      </div>
+      <div class="at-create-field">
+        <label class="at-create-label">英文名称</label>
+        <input id="cr-name-en" class="at-create-input" type="text" placeholder="可选，选型号后自动填入">
+      </div>
+      <div class="at-create-field">
+        <label class="at-create-label">版本</label>
+        <input id="cr-version" class="at-create-input" type="text" value="V1.0">
+      </div>
+      <div class="at-create-field">
+        <label class="at-create-label">计量单位</label>
+        <select id="cr-unit" class="at-create-select">
+          <option value="">—</option>
+          {% for u in ['套','个','台','米','根','批','次','个/年'] %}
+          <option value="{{ u }}">{{ u }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="at-create-field" style="grid-column:1/-1;">
+        <label class="at-create-label">模版描述</label>
+        <textarea id="cr-desc" class="at-create-textarea" placeholder="模板级说明（可选）"></textarea>
+      </div>
+    </div>
+
+    {# 自动导入提示 #}
+    <div id="cr-import-hint" class="at-import-hint">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           style="color:var(--accent);flex-shrink:0;">
+        <polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/>
+      </svg>
+      <span id="cr-import-hint-text">创建后将自动从所选子分类导入规格项（包含必填标记与编码顺序）</span>
+    </div>
+
+    {# 操作按钮 #}
+    <div style="display:flex;align-items:center;gap:10px;margin-top:24px;padding-top:20px;
+                border-top:1px solid var(--line-soft);">
+      <button id="cr-submit" onclick="crSubmit()"
+              style="height:36px;padding:0 22px;border-radius:6px;border:0;
+                     background:var(--accent);color:#fff;font-size:13px;
+                     font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+        {{ at_icon('plus', 14) }}<span>创建模板</span>
+      </button>
+      <a href="{{ url_for('spec_template.at_list_view') }}"
+         style="height:36px;padding:0 18px;border-radius:6px;
+                border:1px solid var(--line-2);background:var(--bg-elev);
+                color:var(--ink-3);font-size:13px;
+                display:inline-flex;align-items:center;text-decoration:none;">
+        取消
+      </a>
+      <span id="cr-err" style="font-size:12.5px;color:var(--danger,#dc2626);display:none;"></span>
+    </div>
+  </div>
+
+</main>
+</div>
+</div>
+
+<script>
+var CSRF = document.querySelector('meta[name="csrf-token"]').content;
+var CREATE_API = '{{ url_for("spec_template.api_create_template") }}';
+var AT_VIEW_TPL = '{{ url_for("spec_template.at_view_template", template_id=0) }}';
+var SUBCATEGORIES_BY_CATEGORY = {{ subcategories_by_category | tojson }};
+var MODELS_BY_SUBCATEGORY = {{ models_by_subcategory | tojson }};
+
+// 当前子分类下的型号列表（{model, name, name_en}[]）
+var _crModels = [];
+var _crActiveIdx = -1;
+
+/* ── 分类 / 子分类级联 ── */
+function crOnCategoryChange() {
+  var catId = document.getElementById('cr-category').value;
+  var sub = document.getElementById('cr-subcategory');
+  sub.innerHTML = '<option value="">— 选择 —</option>';
+  (SUBCATEGORIES_BY_CATEGORY[catId] || []).forEach(function(s) {
+    var o = document.createElement('option');
+    o.value = s.id;
+    o.textContent = s.name + (s.code_letter ? ' (' + s.code_letter + ')' : '');
+    sub.appendChild(o);
+  });
+  crResetCombo();
+  document.getElementById('cr-import-hint').classList.remove('visible');
+}
+
+function crOnSubcategoryChange() {
+  var subId = document.getElementById('cr-subcategory').value;
+  var hint = document.getElementById('cr-import-hint');
+  if (!subId) { crResetCombo(); hint.classList.remove('visible'); return; }
+
+  // 激活型号输入框
+  var modelInput = document.getElementById('cr-model');
+  modelInput.disabled = false;
+  modelInput.placeholder = '选择已有型号或输入新型号';
+
+  // 加载该子分类的型号数据
+  _crModels = MODELS_BY_SUBCATEGORY[String(subId)] || [];
+  crRenderDrop('');
+
+  hint.classList.add('visible');
+  var txt = _crModels.length > 0
+    ? '将自动从该子分类导入规格项（包含必填标记与编码顺序）；已有 ' + _crModels.length + ' 个型号可供选择'
+    : '将自动从该子分类导入规格项（包含必填标记与编码顺序）';
+  document.getElementById('cr-import-hint-text').textContent = txt;
+}
+
+function crResetCombo() {
+  _crModels = [];
+  _crActiveIdx = -1;
+  var modelInput = document.getElementById('cr-model');
+  modelInput.disabled = true;
+  modelInput.value = '';
+  modelInput.placeholder = '先选择产品子分类';
+  crCloseCombo();
+}
+
+/* ── Combobox 交互 ── */
+function crComboFocus() {
+  if (_crModels.length > 0) {
+    crRenderDrop(document.getElementById('cr-model').value);
+    crOpenCombo();
+  }
+}
+
+function crComboInput() {
+  var q = document.getElementById('cr-model').value;
+  crRenderDrop(q);
+  if (_crModels.length > 0) crOpenCombo();
+}
+
+function crComboKey(e) {
+  var drop = document.getElementById('cr-combo-drop');
+  var items = drop.querySelectorAll('.cr-combo-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _crActiveIdx = Math.min(_crActiveIdx + 1, items.length - 1);
+    crHighlight(items);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _crActiveIdx = Math.max(_crActiveIdx - 1, 0);
+    crHighlight(items);
+  } else if (e.key === 'Enter') {
+    if (_crActiveIdx >= 0 && items[_crActiveIdx]) {
+      items[_crActiveIdx].click();
+    }
+    e.preventDefault();
+  } else if (e.key === 'Escape') {
+    crCloseCombo();
+  }
+}
+
+function crHighlight(items) {
+  items.forEach(function(it, i) {
+    it.classList.toggle('active', i === _crActiveIdx);
+    if (i === _crActiveIdx) it.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function crRenderDrop(q) {
+  var drop = document.getElementById('cr-combo-drop');
+  drop.innerHTML = '';
+  var filtered = q
+    ? _crModels.filter(function(m) {
+        var lq = q.toLowerCase();
+        return m.model.toLowerCase().includes(lq) || (m.name && m.name.toLowerCase().includes(lq));
+      })
+    : _crModels;
+
+  if (filtered.length === 0) {
+    drop.innerHTML = '<div class="cr-combo-empty">无匹配型号，将创建新型号</div>';
+    return;
+  }
+  filtered.forEach(function(m, i) {
+    var div = document.createElement('div');
+    div.className = 'cr-combo-item';
+    div.innerHTML =
+      '<div class="cr-combo-item-model">' + escHtml(m.model) + '</div>' +
+      (m.name ? '<div class="cr-combo-item-name">' + escHtml(m.name) + (m.name_en ? ' · ' + escHtml(m.name_en) : '') + '</div>' : '');
+    div.addEventListener('mousedown', function(e) {
+      e.preventDefault(); // 阻止 input blur 在 click 前触发
+      crSelectModel(m);
+    });
+    drop.appendChild(div);
+  });
+  _crActiveIdx = -1;
+}
+
+function crSelectModel(m) {
+  document.getElementById('cr-model').value = m.model;
+  if (m.name)    document.getElementById('cr-name').value    = m.name;
+  if (m.name_en) document.getElementById('cr-name-en').value = m.name_en;
+  crCloseCombo();
+}
+
+function crOpenCombo() {
+  document.getElementById('cr-combo-wrap').classList.add('open');
+}
+function crCloseCombo() {
+  document.getElementById('cr-combo-wrap').classList.remove('open');
+  _crActiveIdx = -1;
+}
+
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// 点击外部关闭
+document.addEventListener('click', function(e) {
+  if (!document.getElementById('cr-combo-wrap').contains(e.target)) {
+    crCloseCombo();
+  }
+});
+
+/* ── 提交 ── */
+async function crSubmit() {
+  var btn = document.getElementById('cr-submit');
+  var errEl = document.getElementById('cr-err');
+  errEl.style.display = 'none';
+  crCloseCombo();
+
+  var model = document.getElementById('cr-model').value.trim();
+  var catId = document.getElementById('cr-category').value;
+  var subId = document.getElementById('cr-subcategory').value;
+
+  if (!catId)  { showErr('请选择产品分类'); return; }
+  if (!subId)  { showErr('请选择产品子分类'); return; }
+  if (!model)  { showErr('型号不能为空'); document.getElementById('cr-model').focus(); return; }
+
+  btn.disabled = true;
+  btn.querySelector('span').textContent = '创建中…';
+
+  var payload = {
+    model:          model,
+    name:           document.getElementById('cr-name').value.trim() || null,
+    name_en:        document.getElementById('cr-name-en').value.trim() || null,
+    description:    document.getElementById('cr-desc').value.trim() || null,
+    unit:           document.getElementById('cr-unit').value || null,
+    version:        document.getElementById('cr-version').value.trim() || 'V1.0',
+    category_id:    parseInt(catId),
+    subcategory_id: parseInt(subId)
+  };
+
+  try {
+    var res = await fetch(CREATE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(payload)
+    });
+    var rd = await res.json();
+    if (!rd.success) throw new Error(rd.message || '创建失败');
+    window.location.href = AT_VIEW_TPL.replace('/0/at', '/' + rd.data.id + '/at');
+  } catch(e) {
+    showErr(e.message || '创建失败');
+    btn.disabled = false;
+    btn.querySelector('span').textContent = '创建模板';
+  }
+
+  function showErr(msg) {
+    errEl.textContent = msg;
+    errEl.style.display = 'inline';
+  }
+}
+</script>
+</body>
+</html>

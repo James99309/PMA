@@ -1,0 +1,26 @@
+{#
+  AT 详情页标题旁徽章组 — wrapper 容器
+  ──────────────────────────────────────────────────
+  统一 gap / 对齐 / wrap 行为,各模块在 {% call %} 块内自由组合 chip。
+
+  使用:
+    {% from 'components/at_header_badges.html' import at_header_chip_group %}
+
+    {% call at_header_chip_group() %}
+      {{ at_status_pill(order.status, scope='purchase_order') }}
+      {{ at_approval_dropdown(object_type='purchase_order', ...) }}
+      {% if order.is_locked %}{{ at_pill('已锁定', tone='warn') }}{% endif %}
+    {% endcall %}
+
+  规范:
+    - chip size 统一用 md(默认),不传 size 参数
+    - 标题用 baseline 对齐;chip 用 center 对齐 → gap 始终一致
+    - flex-wrap:wrap → 窄屏自动换行
+    - gap:10px → chip 间距统一
+#}
+
+{% macro at_header_chip_group(extra_style='') %}
+<span style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;{{ extra_style }}">
+  {{ caller() }}
+</span>
+{% endmacro %}

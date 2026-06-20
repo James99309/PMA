@@ -27,7 +27,7 @@ class SupabaseStorageClient:
     """Supabase 存储客户端工具类"""
     
     # 配置常量
-    MAX_FILE_SIZE = 12 * 1024 * 1024  # 12MB
+    MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB（无实际限制）
     MAX_IMAGE_WIDTH = 1200  # 最大图片宽度
     MAX_IMAGE_HEIGHT = 1200  # 最大图片高度
     IMAGE_QUALITY = 85  # JPEG压缩质量

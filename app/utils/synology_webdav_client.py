@@ -261,11 +261,14 @@ class SynologyWebDAVClient:
 
             url = self._build_url(remote_path)
 
+            # 按文件大小动态计算 timeout：基础30s + 每MB 2秒，最少60s
+            file_mb = len(file_content) / (1024 * 1024)
+            upload_timeout = max(60, int(30 + file_mb * 2))
             response = self.session.put(
                 url,
                 data=file_content,
                 headers={'Content-Type': content_type},
-                timeout=self.timeout
+                timeout=upload_timeout
             )
 
             if response.status_code in (200, 201, 204):

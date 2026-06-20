@@ -53,7 +53,7 @@
       margin: 24px auto;
       width: 1200px;
       max-width: calc(100vw - 32px);
-      padding: 36px 50px 50px 50px;
+      padding: 72px 50px 50px 50px;
       box-sizing: border-box;
     }
     table.q-grid { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
@@ -275,7 +275,7 @@
     .field-actions .reset-btn:hover { background: #f1f5f9; color: #ef4444; border-color: #ef4444; }
     .editable-field.is-dirty input { background: #fffbea !important; }
 
-    @page { size: A4 landscape; margin: 12mm 13mm 13mm 13mm; } /* 顶 12 / 左右下 13，对齐编辑器内 paper padding */
+    @page { size: A4 landscape; margin: 24mm 13mm 13mm 13mm; } /* 顶 24（加大避开 LOGO 贴顶）/ 左右下 13 */
     @media print {
       body { background: white !important; }
       /* 隐藏：顶部工具栏 / 字段保存按钮 / 列拖动手柄 / Beta 标签 */
@@ -294,24 +294,50 @@
       tr.config-row td.product-name-cell::before,
       td.config-sn::before { content: "" !important; margin: 0 !important; }
       .config-detach-btn { display: none !important; }
-      /* 全局打印强制：边框黑色 + 文字黑色（覆盖 readonly 灰色和子元素 Tailwind text-slate-* 颜色） */
+      /* 全局打印：文字黑色（包括 td 子元素，覆盖 readonly 灰色 + Tailwind text-slate-* 灰色） */
       table.q-grid td, table.q-grid td * {
         color: #000 !important;
-        border-color: #000 !important;
       }
-      table.q-grid td { border: 1px solid #000 !important; }
+      /* 表格框线黑色 — 仅作用于"原本就有边框"的 td（不强制 .no-border / 透明 cell 也加黑边） */
+      table.q-grid td.label,
+      table.q-grid td.editable,
+      table.q-grid td.readonly,
+      table.q-grid td.product-th,
+      table.q-grid td.total-label,
+      table.q-grid td.total-value,
+      table.q-grid td.section-label-cell {
+        border: 1px solid #000 !important;
+      }
+      /* 明确无边框 cell：.no-border / drag-handle / delete-cell / sign-blank / 内联 border:none */
+      table.q-grid td.no-border,
+      table.q-grid td.drag-handle,
+      table.q-grid td.delete-cell,
+      table.q-grid td.sign-blank,
+      table.q-grid td[style*="border:none"] {
+        border: none !important; background: transparent !important;
+      }
       tr.config-row td { background: #fff !important; }
-      td.drag-handle, td.delete-cell,
-      tr.config-row td.drag-handle, tr.config-row td.delete-cell,
-      td.no-border, td.sign-blank, td[style*="border:none"] {
-        border: none !important; background: #fff !important;
-      }
       /* 选择框打印时去掉箭头（select native dropdown 图标 + 自定义 SVG） */
       td.editable select {
         background-image: none !important;
         padding-right: 0 !important;
         appearance: none !important;
       }
+      /* drag-handle ⠿ / delete-cell 删除图标完全不显示（color:transparent 不够，font-size:0 双保险） */
+      td.drag-handle, td.delete-cell { font-size: 0 !important; }
+      /* LOGO 上传区的虚线 dashed 边框打印时去掉 */
+      .logo-uploader { border: none !important; }
+      /* date input 的 native 日历图标按钮 */
+      input[type="date"]::-webkit-calendar-picker-indicator,
+      input[type="date"]::-webkit-inner-spin-button,
+      input[type="date"]::-webkit-clear-button { display: none !important; -webkit-appearance: none !important; }
+      input[type="date"] { -webkit-appearance: none !important; appearance: none !important; }
+      /* 型号规格列的"切换产品" expand_more 箭头 / "选择产品" 按钮图标 / 任何 material icons */
+      td.editable .material-symbols-outlined,
+      td.product-selector-trigger .material-symbols-outlined,
+      td.editable button { display: none !important; }
+      /* 子行整体强制白色（含所有子元素背景） */
+      tr.config-row, tr.config-row td, tr.config-row td * { background: #fff !important; }
       span[class*="amber"] { display: none !important; }
       /* 纸张 */
       .quotation-paper {
@@ -867,6 +893,37 @@ window.QuotationEditor = (function() {
           rows.splice(rowIdx + 1, 0, ...accessoryRows);
         }
         renderProductRows();
+
+        // 若当前货币与产品库默认货币不同，立刻用地区面价覆盖刚刚填入的默认价
+        const curCurrency = document.getElementById('currencySelect')?.value;
+        if (curCurrency && data.product_id && !data.is_temp) {
+          const idsToFetch = [...new Set(
+            [data.product_id, ...accessoryRows.filter(r => r.data.product_id).map(r => r.data.product_id)]
+          )];
+          fetch('/api/products/region-prices/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ product_ids: idsToFetch, currency: curCurrency }),
+          }).then(r => r.json()).then(priceData => {
+            const prices = priceData.prices || {};
+            // 更新主产品行
+            const mp = prices[data.product_id];
+            if (mp !== undefined && mp !== null) {
+              data.market_price = parseFloat(mp) || 0;
+              data.unit_price = data.market_price * (parseFloat(data.discount_rate) || 100) / 100;
+            }
+            // 更新配件行（accessoryRows 与 rows 内是同一对象引用）
+            accessoryRows.forEach(ar => {
+              if (!ar.data.product_id) return;
+              const amp = prices[ar.data.product_id];
+              if (amp !== undefined && amp !== null) {
+                ar.data.market_price = parseFloat(amp) || 0;
+                ar.data.unit_price = ar.data.market_price * (parseFloat(ar.data.discount_rate) || 100) / 100;
+              }
+            });
+            renderProductRows();
+          }).catch(err => console.error('获取地区面价失败', err));
+        }
       },
     });
     return _productSelector;
@@ -1473,9 +1530,9 @@ window.QuotationEditor = (function() {
       const inp = document.querySelector(`.company-${n===1?'name':'info'} input[data-field="letterhead.line${n}"]`);
       if (inp) { inp.value = e[lineMap[n]] || ''; inp.dataset.default = e[lineMap[n]] || ''; inp.closest('.editable-field')?.classList.remove('is-dirty'); }
     });
-    // 货币
-    const cur = document.getElementById('currencySelect');
-    if (cur && e.currency_code) cur.value = e.currency_code;
+    // 货币：与主体解耦，新建走数据库默认货币(Config.DEFAULT_CURRENCY)，
+    // 编辑沿用已有 quotation.currency；主体切换不再改写货币
+
     // 标题（QUOTATION / 报价单）
     document.querySelector('.title-cell').textContent = t('title');
     // 合计区显示形态：价内只显示一行；价外保持三行

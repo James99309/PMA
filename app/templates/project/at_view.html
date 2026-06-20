@@ -1,0 +1,1231 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn %}
+{% from 'components/at_approval_dropdown.html' import at_approval_dropdown %}
+{% from 'components/at_header_badges.html' import at_header_chip_group %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles, at_detail_section,
+    at_info_panel, at_action_timeline, at_ai_research_card %}
+{% from 'components/at_minitables.html' import render_minitable %}
+{% from 'components/at_purchase_order.html' import at_stage_strip %}
+{# at_approval_flow 旧组件已弃用,审批流程统一走 at_approval_dropdown chip 浮层 #}
+{% from 'components/at_share_modal.html' import at_share_modal %}
+{% from 'components/at_project_modal.html' import at_project_form_modal %}
+{% from 'components/at_add_customer_modal.html' import at_add_customer_modal %}
+{% from 'components/at_action_modal.html' import at_action_modal %}
+{% from 'components/at_search_picker.html' import at_search_picker %}
+{% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{# 地图 SDK meta(给 at_project_form_modal 编辑态用) #}
+<meta name="map-provider" content="{{ config.MAP_PROVIDER or 'google' }}">
+<meta name="google-maps-api-key" content="{{ config.GOOGLE_MAPS_API_KEY or '' }}">
+<meta name="amap-js-key" content="{{ config.AMAP_JS_KEY or '' }}">
+<meta name="amap-security-key" content="{{ config.AMAP_SECURITY_KEY or '' }}">
+<title>{{ project.project_name }} · {{ _('项目详情') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+{# Material Symbols 字体(供阶段进度条图标);非阻塞加载 #}
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"></noscript>
+<style>
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+</style>
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-search-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+{# 编辑项目 modal 依赖 #}
+<script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
+<script>
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
+    darkMode: ['selector', '[data-theme="dark"]'],
+    corePlugins: { preflight: false },
+    theme: { extend: { colors: { primary: 'var(--accent)' } } }
+  };
+</script>
+<script src="{{ url_for('static', filename='vendor/tailwind/tailwind.forms.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-project-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-share-modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-ai-research.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-add-customer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-action-modal.js') }}"></script>
+{{ at_detail_styles() }}
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='project') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- 顶栏面包屑 -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('project.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('项目管理') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);
+                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;">{{ project.project_name }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 80px;">
+
+  {# ── 页头 ── #}
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;
+              margin-bottom:24px;flex-wrap:wrap;gap:16px;">
+    <div style="flex:1;min-width:0;">
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        PROJECT · {{ project.authorization_code or '—' }}
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <h1 class="at-serif"
+            style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.2;
+                   flex:0 1 auto;min-width:0;max-width:min(100%, 720px);
+                   overflow-wrap:anywhere;word-break:break-word;">
+          {{ project.project_name }}
+        </h1>
+        {% call at_header_chip_group() %}
+          {{ at_status_pill(project.current_stage or 'discover', scope='project') }}
+          {# 报备审批 chip dropdown — 点击查看审批流程 / 操作 #}
+          {{ at_approval_dropdown(
+                object_type='project', object_id=project.id,
+                status=(project.authorization_status or 'draft'),
+                status_scope='approval',
+                api_base='/project/api/approval',
+                meta={
+                  'currency_sym': '',
+                  'total_amount': project.quotation_customer or 0,
+                  'customer_name': (companies[0].company_name if companies else ''),
+                  'project_name':  project.project_name or '',
+                  'line_count':    0,
+                  'title':         project.project_name or ''
+                }
+              ) }}
+          {% if project.is_locked %}
+            {% set _lock_title = (project.locked_reason or '') ~
+                                 ( ' · ' ~ _('锁定人') ~ ' ' ~ (project.locked_by_user.real_name or project.locked_by_user.username) if project.locked_by_user else '' ) ~
+                                 ( ' · ' ~ project.locked_at.strftime('%Y-%m-%d %H:%M') if project.locked_at else '' ) %}
+            <span title="{{ _lock_title }}">{{ at_pill(_('已锁定'), tone='warn') }}</span>
+          {% endif %}
+          {# 成功锁定徽章:点击展开理由 / 锁定人 / 解除(签约即自动解除,防御性不渲染)#}
+          {% if project.win_locked and project.current_stage != 'signed' %}
+          <span style="position:relative;display:inline-flex;">
+            <button type="button" onclick="wlToggle(event)" title="{{ _('锁定成功:点击查看锁定理由') }}"
+                    style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+                           padding:2px;border:0;background:transparent;cursor:pointer;color:var(--success);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+                <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></button>
+            <div id="wlPop" hidden
+                 style="position:absolute;top:calc(100% + 8px);left:0;z-index:900;width:300px;
+                        background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;
+                        box-shadow:0 12px 32px rgba(31,30,27,0.16);padding:14px 16px;text-align:left;">
+              <div style="font-size:11px;color:var(--ink-3);margin-bottom:5px;letter-spacing:0.05em;">{{ _('锁定理由') }}</div>
+              <div style="font-size:12.5px;color:var(--ink);line-height:1.6;white-space:pre-wrap;word-break:break-word;">{{ project.win_lock_reason or '—' }}</div>
+              {% if locked_quotation or project.win_locked_amount %}
+              <div style="margin-top:9px;padding:8px 10px;background:var(--bg-page);border-radius:7px;
+                          display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <span class="at-mono" style="font-size:11px;color:var(--ink-3);">{{ locked_quotation.number if locked_quotation else _('报价单已删除') }}</span>
+                <span class="at-mono at-tab-num" style="font-size:12.5px;font-weight:600;color:var(--warn);">
+                  {{ ('$' if (locked_quotation and locked_quotation.currency == 'USD') else '¥') }}{{ '{:,.2f}'.format(project.win_locked_amount or (locked_quotation.amount if locked_quotation else 0)) }}</span>
+              </div>
+              {% endif %}
+              <div class="at-dim" style="font-size:11px;margin-top:9px;">
+                {{ win_locker_name or '—' }} · {{ project.win_locked_at.strftime('%Y-%m-%d %H:%M') if project.win_locked_at else '' }}
+                · {{ _('签约后自动解除') }}
+              </div>
+              {% if can_win_lock %}
+              <button type="button" onclick="wlUnlock()"
+                      style="margin-top:11px;width:100%;height:30px;border-radius:6px;font:inherit;font-size:12px;
+                             border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);cursor:pointer;">
+                {{ _('解除锁定') }}</button>
+              {% endif %}
+            </div>
+          </span>
+          {% endif %}
+          {# 失败/搁置审核 chip — 仅审核中显示;点击查看审批流程(部门经理→总经理)+理由 #}
+          {% if hold_pending %}
+          {{ at_approval_dropdown(
+                object_type='project_hold', object_id=project.id,
+                status=hold_target, status_scope='project_hold',
+                api_base='/project/api/hold',
+                meta={'project_name': project.project_name or '', 'title': project.project_name or ''}
+              ) }}
+          {% endif %}
+          {# 成功锁定审核中 — 徽章右侧橙色奖杯+箭头,点击就地展开审批流程时间线+内联同意/驳回 #}
+          {% if win_lock_pending and not project.win_locked %}
+          {{ at_approval_dropdown(
+                object_type='project_win_lock', object_id=project.id,
+                status='pending', status_scope='project_win_lock',
+                api_base='/project/api/win-lock',
+                chip_variant='trophy',
+                chip_title=_('成功锁定审核中:点击查看审批流程'),
+                meta={'project_name': project.project_name or '', 'title': project.project_name or ''}
+              ) }}
+          {% endif %}
+        {% endcall %}
+      </div>
+      <div style="margin-top:8px;color:var(--ink-3);font-size:13px;
+                  display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        {% if project.project_type %}
+        <span>{{ project.project_type | project_type_label }}</span>
+        {% endif %}
+        {% if project.owner %}
+        <span style="color:var(--ink-4);">·</span>
+        <span>{{ _('负责人') }} <span style="color:var(--ink-2);">{{ project.owner.real_name or project.owner.username }}</span></span>
+        {% endif %}
+        {% if project.delivery_forecast %}
+        <span style="color:var(--ink-4);">·</span>
+        <span>{{ _('交期') }} <span class="at-mono">{{ project.delivery_forecast.strftime('%Y-%m-%d') }}</span></span>
+        {% endif %}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% if can_win_lock and not project.win_locked and not win_lock_pending
+            and project.current_stage not in ('signed', 'lost') and lock_quotations %}
+        {{ at_btn(_('锁定成功'), variant='ghost', size='sm', icon_l='lock', onclick='wlLock()') }}
+      {% endif %}
+      {% if perms.can_edit %}
+        {{ at_btn(_('编辑'), variant='ghost', size='sm', icon_l='pen',
+                  onclick='atOpenProjectForm("edit", ' ~ project.id ~ ')') }}
+      {% endif %}
+      {% if perms.can_delete %}
+        <button type="button" onclick='atConfirmDeleteProject({{ project.id }}, {{ project.project_name|tojson }})'
+                style="height:32px;padding:0 12px;border-radius:6px;
+                       border:1px solid var(--danger-soft, #f1d4cf);background:var(--bg-elev);
+                       color:var(--danger);font-size:12px;font-weight:500;cursor:pointer;
+                       display:inline-flex;align-items:center;gap:5px;">
+          {{ at_icon('trash', 12) }}{{ _('删除') }}
+        </button>
+      {% endif %}
+      {% if perms.can_edit and project.current_stage in ('lost','paused') %}
+        <button type="button" onclick="atProjRecover()"
+                style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--success);
+                       background:var(--success);color:#fff;font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('check', 12) }}{{ _('恢复正常') }}
+        </button>
+      {% endif %}
+      {# 申请搁置/失败 — owner/admin、正常阶段、无进行中审核时显示;单入口,弹窗内选类型+填理由,走审批 #}
+      {% if can_request_hold %}
+        <button type="button" onclick="atOpenHoldModal()"
+                style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                       background:var(--bg-elev);color:var(--ink-2);font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('clock', 12) }}{{ _('申请搁置/失败') }}
+        </button>
+      {% endif %}
+
+      {# 提交报备 / 重新提交 — admin/owner/vendor_sales_manager + 项目状态为 draft / rejected / recalled #}
+      {% set _proj_status = project.status or 'draft' %}
+      {% if can_submit_approval and _proj_status in ('draft', 'rejected', 'recalled') and not project.is_locked %}
+      {% set _submit_action = 'resubmit' if _proj_status in ('rejected', 'recalled') else 'submit' %}
+      {% set _submit_label = _('重新提交') if _submit_action == 'resubmit' else _('提交报备') %}
+      <button type="button"
+              data-at-approval-quick="{{ _submit_action }}"
+              data-api-base="/project/api/approval"
+              data-object-id="{{ project.id }}"
+              data-meta='{{ {
+                "currency_sym": "",
+                "total_amount": project.quotation_customer or 0,
+                "customer_name": (companies[0].company_name if companies else ""),
+                "project_name":  project.project_name or "",
+                "line_count":    0,
+                "title":         project.project_name or ""
+              } | tojson }}'
+              style="height:32px;padding:0 14px;border-radius:6px;border:0;
+                     background:var(--accent);color:#fff;font-size:12px;font-weight:500;
+                     display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>
+        </svg>
+        {{ _submit_label }}
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 旧的全宽审批流时间轴已移除;审批流程 + 操作集中在标题旁 chip dropdown 浮层内 #}
+
+  {# ── 阶段进度条(横向 7 节点 + 异常态横幅) ─────────────── #}
+  {% if abnormal_status %}
+  <div style="margin-bottom:14px;padding:12px 18px;border-radius:10px;
+              background:{% if abnormal_status == 'lost' %}var(--danger-soft){% else %}var(--warn-soft){% endif %};
+              border:1px solid {% if abnormal_status == 'lost' %}var(--danger-soft){% else %}var(--warn-soft){% endif %};
+              display:flex;align-items:center;gap:12px;">
+    <div style="width:32px;height:32px;border-radius:8px;
+                background:{% if abnormal_status == 'lost' %}var(--danger){% else %}var(--warn){% endif %};
+                color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      {{ at_icon('warn' if abnormal_status == 'lost' else 'clock', 16) }}
+    </div>
+    <div style="flex:1;">
+      <div style="font-size:13.5px;font-weight:500;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span>{{ _('当前项目状态:') }}{{ abnormal_label }}</span>
+        {# 失败责任认定徽章(失败审批时由审批人勾选)#}
+        {% if abnormal_status == 'lost' and project.fail_owner_fault %}{{ at_pill(_('个人因素为主'), tone='danger') }}{% endif %}
+        {% if abnormal_status == 'lost' and project.fail_mgmt_fault %}{{ at_pill(_('团队管理失责'), tone='warn') }}{% endif %}
+        {% if abnormal_status == 'lost' and not project.fail_owner_fault and not project.fail_mgmt_fault %}
+          {% if current_user.role == 'ceo' %}
+          <button type="button" onclick="faOpen(event)" title="{{ _('点击补录责任认定') }}"
+                  style="border:1px dashed var(--line-2);background:transparent;cursor:pointer;border-radius:999px;
+                         padding:2px 9px;font-size:11px;color:var(--ink-3);display:inline-flex;align-items:center;gap:4px;">
+            {{ _('未认定责任') }}
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          {% else %}{{ at_pill(_('未认定责任'), tone='neutral') }}{% endif %}
+        {% endif %}
+      </div>
+      <div class="at-dim" style="font-size:11.5px;margin-top:2px;">
+        {{ _('进度条下方显示恢复前的最后正常阶段;点击节点可恢复') }}
+      </div>
+      {# 失败审批详情(理由 + 审批人意见 + CEO 责任认定评语)— 审批通过后 chip 已消失,这里补全可追溯 #}
+      {% if abnormal_status == 'lost' and ((fail_approval and (fail_approval.reason or fail_approval.records)) or fail_attribution) %}
+      <button type="button" onclick="failDetailToggle(event)"
+              style="margin-top:8px;border:0;background:transparent;padding:0;cursor:pointer;
+                     color:var(--danger);font-size:12px;display:inline-flex;align-items:center;gap:3px;">
+        {{ _('查看失败审批详情') }}
+        <svg id="failDetailChev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="failDetailPanel" hidden style="margin-top:8px;padding:10px 12px;background:var(--bg-elev);
+           border:1px solid var(--line);border-radius:8px;font-size:12px;">
+        {% if fail_attribution %}
+        <div style="margin-bottom:8px;padding-bottom:8px;{% if fail_approval and (fail_approval.reason or fail_approval.records) %}border-bottom:1px solid var(--line-soft);{% endif %}">
+          <span class="at-dim">{{ _('责任认定') }}{% if fail_attribution.by %} · {{ fail_attribution.by }}{% endif %}{% if fail_attribution.at %} · {{ fail_attribution.at }}{% endif %}：</span>
+          <span style="color:var(--ink);white-space:pre-wrap;word-break:break-word;">{{ fail_attribution.note }}</span>
+        </div>
+        {% endif %}
+        {% if fail_approval and fail_approval.reason %}
+        <div style="margin-bottom:8px;">
+          <span class="at-dim">{{ _('申请理由') }}{% if fail_approval.initiator %} · {{ fail_approval.initiator }}{% endif %}：</span>
+          <span style="color:var(--ink);white-space:pre-wrap;word-break:break-word;">{{ fail_approval.reason }}</span>
+        </div>
+        {% endif %}
+        {% for r in (fail_approval.records if fail_approval else []) %}
+        <div style="display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--line-soft);">
+          <span style="flex-shrink:0;color:{{ 'var(--success)' if r.action == 'approve' else 'var(--danger)' }};">
+            {{ '✓' if r.action == 'approve' else '✕' }}</span>
+          <div style="flex:1;min-width:0;">
+            <span style="color:var(--ink);font-weight:500;">{{ r.name }}</span>
+            <span class="at-dim">· {{ _('同意') if r.action == 'approve' else _('驳回') }} · {{ r.time }}</span>
+            {% if r.comment %}<div style="color:var(--ink-2);margin-top:2px;white-space:pre-wrap;word-break:break-word;">{{ r.comment }}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  <div style="margin-bottom:20px;{% if abnormal_status %}filter:grayscale(1);opacity:0.55;pointer-events:none;{% endif %}">
+    {{ at_stage_strip(stages, sticky=false, icon_set='material') }}
+  </div>
+
+  {# ── 主体 3 栏(1:2:1 — 对齐客户详情布局) ── #}
+  <div style="display:grid;grid-template-columns:minmax(260px, 1fr) minmax(0, 2fr) minmax(280px, 1fr);gap:20px;align-items:start;">
+
+    {# ═══ 左栏:基本信息 + 关联客户 + 档案信息(sticky) ═══ #}
+    <div style="position:sticky;top:80px;display:flex;flex-direction:column;gap:18px;">
+
+      {# 负责人/厂商负责人 行内「笔」编辑按钮(仅有改负责人权限时);复用 ATSearchPicker 选在职人员 #}
+      {% set _pen_style = 'border:0;background:transparent;color:var(--ink-4);cursor:pointer;padding:2px;display:inline-flex;flex-shrink:0;' %}
+      {% set _pen_owner %}{% if perms.can_change_owner %}<button type="button" onclick="atOpenPersonnelEdit('owner')" title="{{ _('更换项目负责人') }}" style="{{ _pen_style }}" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('pen', 13) }}</button>{% endif %}{% endset %}
+      {% set _pen_vendor %}{% if perms.can_change_owner %}<button type="button" onclick="atOpenPersonnelEdit('vendor')" title="{{ _('更换厂商销售负责人') }}" style="{{ _pen_style }}" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('pen', 13) }}</button>{% endif %}{% endset %}
+
+      {{ at_info_panel(_('基本信息'), [
+        (_('授权编号'), project.authorization_code, 'at-mono'),
+        (_('项目类型'), (project.project_type | project_type_label) if project.project_type else None),
+        (_('当前阶段'), (project.current_stage | project_stage_label) if project.current_stage else None),
+        (_('项目负责人'), (project.owner.real_name or project.owner.username) if project.owner else None, '', _pen_owner|trim),
+        (_('厂商销售负责人'), (project.vendor_sales_manager.real_name or project.vendor_sales_manager.username) if project.vendor_sales_manager else None, '', _pen_vendor|trim),
+        (_('行业'), (project.industry | industry_label) if project.industry else None),
+        (_('交期'), project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else None, 'at-mono'),
+        (_('上报时间'), project.report_time.strftime('%Y-%m-%d') if project.report_time else None, 'at-mono'),
+        (_('报价额'), (get_currency_symbol(project.quotation_currency or get_default_currency()) ~ '{:,.0f}'.format(project.quotation_customer or 0)) if project.quotation_customer else None, 'at-mono'),
+      ], columns=2) }}
+
+      {# 关联客户(项目专属 — 反向多对多)#}
+      {% call at_detail_section(
+            _('关联客户'),
+            count=companies|length,
+            create_url=('javascript:atOpenAddCustomer(' ~ project.id ~ ')') if perms.can_edit else none,
+            create_label=_('+ 添加客户')) %}
+        {% if companies %}
+          <div style="padding:0;">
+            {% for c in companies %}
+            <div class="at-assoc-row"
+                 style="display:flex;align-items:center;gap:8px;padding:10px 18px;
+                        border-bottom:{{ '0' if loop.last else '1px solid var(--line-soft)' }};
+                        transition:background 100ms;position:relative;"
+                 onmouseover="this.style.background='var(--bg-hover)';this.querySelector('.at-assoc-remove').style.opacity='1'"
+                 onmouseout="this.style.background='transparent';this.querySelector('.at-assoc-remove').style.opacity='0'">
+              <a href="{{ url_for('customer.at_view_company', company_id=c.id) }}"
+                 style="flex:1;min-width:0;text-decoration:none;color:inherit;">
+                <div style="font-size:13px;font-weight:500;color:var(--ink);
+                            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.company_name }}</div>
+              </a>
+              {% if perms.can_edit %}
+              <button type="button" class="at-assoc-remove"
+                      onclick='event.stopPropagation(); atRemoveCustomerAssoc({{ c._assoc_id }}, {{ c.company_name|tojson }})'
+                      title="{{ _('移除关联') }}"
+                      style="flex-shrink:0;width:24px;height:24px;border-radius:4px;
+                             border:0;background:transparent;color:var(--danger);
+                             cursor:pointer;opacity:0;transition:opacity 100ms,background 100ms;
+                             display:inline-flex;align-items:center;justify-content:center;"
+                      onmouseover="this.style.background='var(--danger-soft, #fde2dd)'"
+                      onmouseout="this.style.background='transparent'">
+                {{ at_icon('cancel', 13) }}
+              </button>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="text-align:center;padding:16px 0;color:var(--ink-4);font-size:12px;">{{ _('暂无关联客户') }}</div>
+        {% endif %}
+      {% endcall %}
+
+      {# 档案信息(创建/更新时间)#}
+      {{ at_info_panel(_('档案信息'), [
+        ('ID', '#' ~ project.id, 'at-mono'),
+        (_('创建人'), (project.creator.real_name or project.creator.username) if project.creator else None),
+        (_('创建时间'), project.created_at.strftime('%Y-%m-%d %H:%M') if project.created_at else None, 'at-mono'),
+        (_('更新时间'), project.updated_at.strftime('%Y-%m-%d %H:%M') if project.updated_at else None, 'at-mono'),
+      ]) }}
+
+    </div>
+
+    {# ═══ 中栏:关联模块 + AI 调研(主区) ═══ #}
+    <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
+
+      {% set _always_show = ['quotation', 'expense'] %}
+      {% set _module_meta = {
+        'quotation':      {'label': _('关联报价'),     'empty': _('暂无关联报价'),     'create_url': url_for('quotation.at_new_quotation') ~ '?project_id=' ~ project.id },
+        'pricing_order':  {'label': _('关联批价单'),   'empty': _('暂无关联批价单'),   'create_url': none },
+        'sales_order':    {'label': _('关联客户订单'), 'empty': _('暂无关联客户订单'), 'create_url': none },
+        'expense':        {'label': _('关联报销'),     'empty': _('暂无关联报销'),     'create_url': url_for('expense.at_new_expense') ~ '?project_id=' ~ project.id },
+      } %}
+
+      {% for key, data in related.items() %}
+      {% if data['items'] or key in _always_show %}
+      {% set meta = _module_meta.get(key, {'label': key, 'empty': _('暂无数据'), 'create_url': none}) %}
+      {% call at_detail_section(
+            meta.label,
+            count=data['items']|length,
+            has_more=data.has_more,
+            create_url=meta.create_url if data.can_create else none) %}
+        {% if data['items'] %}
+          {{ render_minitable(key, data['items']) }}
+        {% else %}
+          <div style="text-align:center;padding:32px;color:var(--ink-4);font-size:12.5px;">{{ meta.get('empty', _('暂无数据')) }}</div>
+        {% endif %}
+      {% endcall %}
+      {% endif %}
+      {% endfor %}
+
+      {{ at_ai_research_card(
+            project.ai_research_status if project.ai_research_status is defined else 'none',
+            entity_type='project',
+            entity_id=project.id,
+            description=_('自动从公开来源收集项目背景、参与方、招标动态等信息。'),
+            view_url=url_for('project.view_project', project_id=project.id) ~ '#ai-research',
+            updated_at=project.ai_research_updated_at if project.ai_research_updated_at is defined else none) }}
+
+    </div>
+
+    {# ═══ 右栏:跟进记录 + 共享设置(sticky) ═══ #}
+    <div style="position:sticky;top:80px;min-width:0;display:flex;flex-direction:column;gap:18px;">
+      {{ at_action_timeline(
+            actions,
+            add_url=('javascript:atOpenProjectAddAction()')
+                    if perms.can_create_action else none,
+            max_height='400px') }}
+
+      {# 系统设计卡 — 项目级系统图(复用 system_diagram 模块;新建→选模板,编辑器「返回项目」回本页) #}
+      {% call at_detail_section(
+            _('系统设计'),
+            count=project_diagrams|length,
+            create_url=(url_for('system_diagram.template_gallery', project_id=project.id)) if (perms.can_edit and project_diagrams) else none,
+            create_label=_('+ 新建')) %}
+        {% if project_diagrams %}
+        <div style="padding:0;">
+          {% for d in project_diagrams %}
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 18px;
+                      border-bottom:{{ '0' if loop.last else '1px solid var(--line-soft)' }};">
+            <span style="color:var(--ink-3);flex-shrink:0;">{{ at_icon('grid', 14) }}</span>
+            <a href="{{ url_for('system_diagram.edit_editor', diagram_id=d.id) }}"
+               style="flex:1;min-width:0;text-decoration:none;">
+              <div style="font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;
+                          white-space:nowrap;" title="{{ d.name }}">{{ d.name }}</div>
+              <div class="at-dim" style="font-size:10.5px;">{{ d.updated_at.strftime('%Y-%m-%d %H:%M') if d.updated_at else '' }}</div>
+            </a>
+            {% if perms.can_edit %}
+            <button type="button" onclick='atProjDeleteDiagram({{ d.id }}, {{ d.name|tojson }})'
+                    title="{{ _('删除') }}" style="border:0;background:transparent;color:var(--ink-4);cursor:pointer;
+                    padding:2px;display:inline-flex;flex-shrink:0;"
+                    onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('trash', 14) }}</button>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:24px 18px;color:var(--ink-4);">
+          <div style="margin-bottom:8px;display:flex;justify-content:center;">{{ at_icon('grid', 22) }}</div>
+          <div style="font-size:12px;margin-bottom:12px;">{{ _('暂无系统图') }}</div>
+          {% if perms.can_edit %}
+          <a href="{{ url_for('system_diagram.template_gallery', project_id=project.id) }}"
+             style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 14px;border-radius:6px;
+                    border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);
+                    font-size:12px;font-weight:500;text-decoration:none;cursor:pointer;">
+            {{ at_icon('plus', 12) }}{{ _('创建系统图') }}
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      {% endcall %}
+
+      {# 项目附件卡 — 复用通用附件后端 /api/attachments/project/<id> #}
+      {% call at_detail_section(
+            _('项目附件'),
+            count=(project_attachments|length),
+            create_url=('javascript:atProjUploadPick()') if perms.can_edit else none,
+            create_label=_('+ 上传')) %}
+        {% if project_attachments %}
+        <div style="padding:0;">
+          {% for f in project_attachments %}
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 18px;
+                      border-bottom:{{ '0' if loop.last else '1px solid var(--line-soft)' }};">
+            <span style="color:var(--ink-3);flex-shrink:0;">{{ at_icon('file', 14) }}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;
+                          white-space:nowrap;" title="{{ f.filename }}">{{ f.filename }}</div>
+              <div class="at-dim" style="font-size:10.5px;">{{ (f.uploaded_at[:16] | replace('T', ' ')) if f.uploaded_at else '' }}{% if f.uploader %} · {{ f.uploader }}{% endif %}</div>
+            </div>
+            <a href="{{ f.url }}" target="_blank" rel="noopener" download="{{ f.filename }}" title="{{ _('下载') }}"
+               style="color:var(--ink-4);padding:2px;display:inline-flex;flex-shrink:0;"
+               onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('download', 14) }}</a>
+            {% if perms.can_edit %}
+            <button type="button" onclick='atProjDeleteAttachment({{ loop.index0 }}, {{ f.filename|tojson }})'
+                    title="{{ _('删除') }}" style="border:0;background:transparent;color:var(--ink-4);cursor:pointer;
+                    padding:2px;display:inline-flex;flex-shrink:0;"
+                    onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('trash', 14) }}</button>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">{{ _('暂无附件') }}</div>
+        {% endif %}
+      {% endcall %}
+      {% if perms.can_edit %}
+      <input type="file" id="atProjFileInput" style="display:none;" onchange="atProjUploadDo(this)">
+      {% endif %}
+
+      {# 共享设置卡(置于最下) #}
+      {% call at_detail_section(
+            _('共享设置'),
+            count=(shared_users|length) if shared_users else 0,
+            create_url='javascript:atOpenProjectShare()' if perms.can_edit else none,
+            create_label=_('+ 管理共享')) %}
+        {% if project.share_enabled and shared_users %}
+        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+          {% for u in shared_users %}
+          <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+                         width:22px;height:22px;border-radius:50%;background:var(--accent-tint);
+                         color:var(--accent);font-size:11px;font-weight:600;">
+              {{ (u.real_name or u.username)[:1] | upper }}
+            </span>
+            <span style="color:var(--ink);flex:1;">{{ u.real_name or u.username }}</span>
+            <span class="at-dim" style="font-size:10.5px;">{{ get_role_display_name(u.role) if u.role else '' }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">
+          {{ _('未启用共享 — 仅项目负责人可见') }}
+        </div>
+        {% endif %}
+      {% endcall %}
+    </div>
+
+  </div>
+
+  <script>
+    const PROJECT_ID = {{ project.id }};
+    const _CAN_EDIT  = {{ perms.can_edit | tojson }};
+    const _CUR_STAGE = {{ (project.current_stage or 'discover') | tojson }};
+    const _HOLD_PENDING = {{ hold_pending | default(false) | tojson }};
+    const _RECOVER_STAGE = {{ recover_stage | default(none) | tojson }};  // 进入搁置/失败前的最后正常阶段
+    const _STAGE_LABELS = {discover:'{{ _("发现") }}',embed:'{{ _("植入") }}',pre_tender:'{{ _("标前") }}',tendering:'{{ _("标中") }}',awarded:'{{ _("中标") }}',quoted:'{{ _("批价") }}',signed:'{{ _("签约") }}',lost:'{{ _("失败") }}',paused:'{{ _("搁置") }}'};
+    const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+
+    // ── 项目附件:上传/删除(复用通用 /api/attachments/project/<id> 端点) ──
+    window.atProjUploadPick = function () {
+      var el = document.getElementById('atProjFileInput'); if (el) el.click();
+    };
+    window.atProjUploadDo = function (input) {
+      var file = input.files && input.files[0]; if (!file) return;
+      var fd = new FormData(); fd.append('file', file);
+      if (window.ATToast) ATToast.info && ATToast.info('{{ _("上传中…") }}');
+      fetch(`/api/attachments/project/${PROJECT_ID}/upload`, { method: 'POST', body: fd })
+        .then(r => r.json()).then(d => {
+          if (d.success) { ATToast.success('{{ _("已上传") }}'); setTimeout(() => location.reload(), 500); }
+          else ATToast.error(d.message || '{{ _("上传失败") }}');
+        }).catch(() => ATToast.error('{{ _("上传失败,请重试") }}')).finally(() => { input.value = ''; });
+    };
+    window.atProjDeleteAttachment = function (index, name) {
+      ATConfirm.show({
+        title: '{{ _("删除附件") }}', message: `{{ _("确认删除「%(name)s」?此操作不可恢复。", name="${name}") }}`,
+        variant: 'danger', icon: 'trash', confirmText: '{{ _("删除") }}', cancelText: '{{ _("取消") }}',
+        onConfirm: () => {
+          fetch(`/api/attachments/project/${PROJECT_ID}/delete/${index}`, { method: 'POST' })
+            .then(r => r.json()).then(d => {
+              if (d.success) { ATToast.success('{{ _("已删除") }}'); setTimeout(() => location.reload(), 400); }
+              else ATToast.error(d.message || '{{ _("删除失败") }}');
+            }).catch(() => ATToast.error('{{ _("删除失败,请重试") }}'));
+        },
+      });
+    };
+
+    // ── 系统设计:删除项目系统图(复用 system_diagram 模块端点) ──
+    window.atProjDeleteDiagram = function (id, name) {
+      ATConfirm.show({
+        title: '{{ _("删除系统图") }}', message: `{{ _("确认删除「%(name)s」?此操作不可恢复。", name="${name}") }}`,
+        variant: 'danger', icon: 'trash', confirmText: '{{ _("删除") }}', cancelText: '{{ _("取消") }}',
+        onConfirm: () => {
+          fetch(`/system-diagram/api/${id}`, { method: 'DELETE', headers: { 'X-CSRFToken': _csrf() } })
+            .then(r => r.json()).then(d => {
+              if (d.success) { ATToast.success('{{ _("已删除") }}'); setTimeout(() => location.reload(), 400); }
+              else ATToast.error(d.message || '{{ _("删除失败") }}');
+            }).catch(() => ATToast.error('{{ _("删除失败,请重试") }}'));
+        },
+      });
+    };
+
+    function _atProjUpdateStage(newStage, remarks, onSuccess) {
+      fetch('/project/api/update_stage', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'X-CSRFToken': _csrf()},
+        body: JSON.stringify({ project_id: PROJECT_ID, current_stage: newStage, remarks: remarks || '' }),
+      }).then(r => r.json()).then(d => {
+        if (d.success) {
+          ATToast.success('{{ _("阶段已更新") }}');
+          setTimeout(() => location.reload(), 500);
+          if (onSuccess) onSuccess();
+        } else ATToast.error(d.message || '{{ _("更新失败") }}');
+      }).catch(e => ATToast.error('{{ _("请求失败") }}', e.message));
+    }
+    // 阶段节点点击 → ATConfirm 弹窗(填备注)→ POST
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!_CAN_EDIT) return;
+      document.querySelectorAll('.at-stage-node').forEach(node => {
+        node.addEventListener('click', () => {
+          const key    = node.dataset.stageKey;
+          const status = node.dataset.stageStatus;
+          if (key === _CUR_STAGE) return;  // 点当前阶段无操作
+          if (_HOLD_PENDING) { ATToast.error('{{ _("失败/搁置审核进行中，阶段推进已锁定") }}'); return; }
+          const label  = _STAGE_LABELS[key] || key;
+          const action = status === 'done' ? '{{ _("回退到") }}' : '{{ _("推进到") }}';
+          ATConfirm.show({
+            title: `{{ _("%(action)s %(label)s 阶段", action="${action}", label="${label}") }}`,
+            message: `{{ _("当前阶段 [%(cur)s] 将切换为 [%(label)s]。可填写备注。", cur="${_STAGE_LABELS[_CUR_STAGE]}", label="${label}") }}`,
+            variant: status === 'done' ? 'warn' : 'accent',
+            icon:    status === 'done' ? 'warn' : 'check',
+            confirmText: '{{ _("确认切换") }}',
+            cancelText:  '{{ _("取消") }}',
+            input: { label: '{{ _("备注(可选)") }}', placeholder: '{{ _("阶段切换原因…") }}', multiline: true, rows: 3, maxLength: 500 },
+            onConfirm: (remarks) => _atProjUpdateStage(key, remarks),
+          });
+        });
+      });
+    });
+    // 从 lost/paused 恢复
+    window.atProjRecover = function() {
+      // 恢复到进入搁置/失败前的最后正常阶段(后端 last_normal);兜底 discover
+      const _target = _RECOVER_STAGE || 'discover';
+      ATConfirm.show({
+        title: '{{ _("恢复项目") }}',
+        message: `{{ _("项目当前为 [%(cur)s] 状态,将恢复到搁置/失败前的阶段 [%(target)s]。可填写备注。", cur="${_STAGE_LABELS[_CUR_STAGE]}", target="${_STAGE_LABELS[_target] || _target}") }}`,
+        variant: 'accent', icon: 'check',
+        confirmText: `{{ _("恢复到 %(target)s 阶段", target="${_STAGE_LABELS[_target] || _target}") }}`,
+        cancelText:  '{{ _("取消") }}',
+        input: { label: '{{ _("备注(可选)") }}', placeholder: '{{ _("恢复原因…") }}', multiline: true, rows: 3, maxLength: 500 },
+        onConfirm: (remarks) => {
+          _atProjUpdateStage(_target, remarks || '{{ _("从异常态恢复") }}');
+        },
+      });
+    };
+
+    // ─── 删除项目(对齐 TW 流程:先查依赖 → 列出关联 → 二次确认 → 跳列表) ───
+    // ── 成功锁定(锁单预判)──
+    window.wlToggle = function (e) {
+      e.stopPropagation();
+      const pop = document.getElementById('wlPop');
+      if (pop) pop.hidden = !pop.hidden;
+    };
+    document.addEventListener('click', () => {
+      const pop = document.getElementById('wlPop');
+      if (pop && !pop.hidden) pop.hidden = true;
+    });
+    window.failDetailToggle = function (e) {
+      e.stopPropagation();
+      const panel = document.getElementById('failDetailPanel');
+      const chev = document.getElementById('failDetailChev');
+      if (!panel) return;
+      panel.hidden = !panel.hidden;
+      if (chev) chev.style.transform = panel.hidden ? '' : 'rotate(180deg)';
+    };
+    window.wlLock = function () {
+      document.getElementById('wlModal').classList.add('open');
+      setTimeout(() => document.getElementById('wlReason').focus(), 50);
+    };
+    window.wlModalClose = function () {
+      document.getElementById('wlModal').classList.remove('open');
+    };
+    window.wlAmountSync = function () {
+      const sel = document.getElementById('wlQuotation');
+      if (!sel || sel.tagName !== 'SELECT') return;
+      const opt = sel.options[sel.selectedIndex];
+      const amt = parseFloat(opt.dataset.amount) || 0;
+      const sym = opt.dataset.cur === 'USD' ? '$' : '¥';
+      document.getElementById('wlAmount').textContent =
+        sym + amt.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    };
+    window.wlSubmit = async function () {
+      const reason = (document.getElementById('wlReason').value || '').trim();
+      const delivery = document.getElementById('wlDelivery').value;
+      const qel = document.getElementById('wlQuotation');
+      const quotationId = qel ? parseInt(qel.value) : null;
+      const apEl = document.getElementById('wlApprover');
+      const approverId = apEl ? parseInt(apEl.value) : null;
+      if (!reason) { ATToast.error('{{ _("请填写锁定理由") }}'); return; }
+      if (!approverId) { ATToast.error('{{ _("请选择审核人") }}'); return; }
+      if (!quotationId) { ATToast.error('{{ _("请选择锁定的报价单") }}'); return; }
+      if (!delivery) { ATToast.error('{{ _("请填写预计交付日期") }}'); return; }
+      const btn = document.getElementById('wlSubmitBtn');
+      btn.disabled = true; btn.textContent = '{{ _("提交中…") }}';
+      try {
+        const d = await (await fetch('/project/at-api/{{ project.id }}/win-lock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+          body: JSON.stringify({ reason: reason, delivery_forecast: delivery, quotation_id: quotationId, approver_id: approverId }),
+        })).json();
+        if (d.success) { ATToast.success(d.message); setTimeout(() => location.reload(), 500); }
+        else { ATToast.error(d.message || '{{ _("操作失败") }}'); btn.disabled = false; btn.textContent = '{{ _("提交审核") }}'; }
+      } catch (_) { ATToast.error('{{ _("操作失败,请重试") }}'); btn.disabled = false; btn.textContent = '{{ _("提交审核") }}'; }
+    };
+    window.wlUnlock = function () {
+      ATConfirm.show({
+        title: '{{ _("解除锁定") }}', message: '{{ _("解除「锁定成功」标记?") }}',
+        variant: 'danger', confirmText: '{{ _("解除") }}', cancelText: '{{ _("取消") }}',
+        onConfirm: async () => {
+          try {
+            const d = await (await fetch('/project/at-api/{{ project.id }}/win-unlock', {
+              method: 'POST', headers: { 'X-CSRFToken': _csrf() } })).json();
+            if (d.success) { ATToast.success(d.message); setTimeout(() => location.reload(), 500); }
+            else ATToast.error(d.message || '{{ _("操作失败") }}');
+          } catch (_) { ATToast.error('{{ _("操作失败,请重试") }}'); }
+        },
+      });
+    };
+
+    window.atConfirmDeleteProject = async function(projectId, projectName) {
+      // 先查关联依赖(批价单 / 报价单 / 跟进 / 审批)
+      let depMsg = '{{ _("正在检查关联数据…") }}';
+      let canDelete = true;
+      try {
+        const res = await fetch(`/project/api/check_delete_dependencies/${projectId}`).then(r => r.json());
+        if (!res.success) {
+          ATToast.error(res.message || '{{ _("检查关联数据失败") }}');
+          return;
+        }
+        canDelete = !!res.can_delete;
+        const deps = res.dependencies || {};
+        const lines = [];
+        (deps.pricing_orders || []).forEach(it => lines.push(`{{ _("✕ 批价单: %(name)s(不可删)", name="${it.name}") }}`));
+        (deps.quotations    || []).forEach(it => lines.push(`{{ _("✓ 报价单: %(name)s", name="${it.name}") }}`));
+        if ((deps.actions   || []).length) lines.push(`{{ _("✓ 跟进记录: %(n)s 条", n="${deps.actions.length}") }}`);
+        if ((deps.approvals || []).length) lines.push(`{{ _("✓ 审批记录: %(n)s 条", n="${deps.approvals.length}") }}`);
+        if (lines.length === 0) {
+          depMsg = `{{ _("确定要删除项目「%(name)s」吗?\n此操作无法撤销。", name="${projectName}") }}`;
+        } else {
+          depMsg = `{{ _("删除项目「%(name)s」将同时删除以下关联数据:", name="${projectName}") }}\n\n${lines.join('\n')}`;
+          if (!canDelete && res.block_reason) {
+            depMsg += `\n\n⚠ ${res.block_reason}`;
+          }
+        }
+      } catch (e) {
+        ATToast.error('{{ _("检查关联数据失败,请重试") }}');
+        return;
+      }
+
+      if (!canDelete) {
+        ATConfirm.show({
+          title: '{{ _("无法删除") }}',
+          message: depMsg,
+          variant: 'warn', icon: 'warn',
+          confirmText: '{{ _("我知道了") }}',
+          cancelText: '',
+          onConfirm: () => {},
+        });
+        return;
+      }
+
+      ATConfirm.show({
+        title: '{{ _("确认删除项目") }}',
+        message: depMsg,
+        variant: 'danger', icon: 'trash',
+        confirmText: '{{ _("确认删除") }}',
+        cancelText: '{{ _("取消") }}',
+        onConfirm: async () => {
+          try {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const resp = await fetch(`/project/delete/${projectId}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrf,
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+            });
+            const data = await resp.json();
+            if (data.success) {
+              ATToast.success('{{ _("项目已删除") }}', '{{ _("跳转中…") }}');
+              setTimeout(() => location.href = `{{ url_for('project.at_list_view') }}`, 400);
+            } else {
+              ATToast.error(data.message || '{{ _("删除失败") }}');
+            }
+          } catch (e) {
+            ATToast.error('{{ _("网络错误,请重试") }}');
+          }
+        },
+      });
+    };
+    // 申请搁置/失败 — 单弹窗:选类型(搁置/失败)+ 强制理由 → 走审批(部门经理→总经理),通过后阶段才置灰
+    let _holdType = null;
+    function _holdResetPick() {
+      document.querySelectorAll('#atHoldModal [data-hold-type]').forEach(b => {
+        b.style.borderColor = 'var(--line-2)'; b.style.background = 'var(--bg-page)'; b.style.color = 'var(--ink)';
+      });
+    }
+    window.atHoldPick = function(t) {
+      _holdType = t; _holdResetPick();
+      const b = document.querySelector(`#atHoldModal [data-hold-type="${t}"]`);
+      const c = (t === 'lost') ? 'var(--danger)' : 'var(--warn)';
+      b.style.borderColor = c; b.style.color = c;
+      b.style.background = (t === 'lost') ? 'var(--danger-soft)' : 'var(--warn-soft)';
+    };
+    window.atOpenHoldModal = function() {
+      _holdType = null; _holdResetPick();
+      const r = document.getElementById('atHoldReason'); if (r) r.value = '';
+      const e = document.getElementById('atHoldErr'); if (e) e.style.display = 'none';
+      document.getElementById('atHoldModal').style.display = 'flex';
+    };
+    window.atCloseHoldModal = function() {
+      document.getElementById('atHoldModal').style.display = 'none';
+    };
+    window.atSubmitHold = function() {
+      const err = document.getElementById('atHoldErr');
+      const reason = (document.getElementById('atHoldReason').value || '').trim();
+      if (!_holdType) { err.textContent = '{{ _("请选择「搁置」或「失败」") }}'; err.style.display = 'block'; return; }
+      if (!reason)    { err.textContent = '{{ _("请填写理由") }}'; err.style.display = 'block'; return; }
+      const btn = document.getElementById('atHoldSubmitBtn'); btn.disabled = true; btn.textContent = '{{ _("提交中…") }}';
+      fetch(`/project/api/hold/${PROJECT_ID}/request`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'X-CSRFToken': _csrf()},
+        body: JSON.stringify({ target: _holdType, reason: reason }),
+      }).then(r => r.json()).then(d => {
+        if (d.success) {
+          ATToast.success(d.message || '{{ _("已提交审核") }}');
+          setTimeout(() => location.reload(), 600);
+        } else {
+          err.textContent = d.message || '{{ _("提交失败") }}'; err.style.display = 'block';
+          btn.disabled = false; btn.textContent = '{{ _("提交审核") }}';
+        }
+      }).catch(e => {
+        err.textContent = '{{ _("请求失败，请重试") }}'; err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '{{ _("提交审核") }}';
+      });
+    };
+  </script>
+
+</main>
+
+</div>
+</div>
+
+{# 编辑项目 + 添加客户 modal + 地图选择器(perms.can_edit 时才渲染) #}
+{% if perms.can_edit %}
+{{ at_project_form_modal('atEditProjectModal', mode='edit') }}
+{{ at_add_customer_modal('atAddCustomerModal') }}
+{{ render_map_picker_modal() }}
+<style>#mapPickerModal { z-index: 200 !important; }</style>
+{% endif %}
+
+{# 添加跟进记录 modal #}
+{% if perms.can_create_action %}
+{{ at_action_modal('atActionModal', scope='project') }}
+<script>
+  // 项目场景跳板:把上下文塞给通用 atOpenActionModal
+  window.atOpenProjectAddAction = function () {
+    atOpenActionModal({
+      modalId:     'atActionModal',
+      scope:       'project',
+      contextId:   {{ project.id }},
+      contextName: {{ project.project_name|tojson }},
+      apiEndpoint: '/project/api/{{ project.id }}/add_action',
+      contactsApi: '/project/api/get_company_contacts',
+      companies: [
+        {% for c in companies %}{ id: {{ c.id }}, name: {{ c.company_name|tojson }} }{% if not loop.last %},{% endif %}{% endfor %}
+      ],
+      sidebarInfo: {
+        title: '{{ _("项目信息") }}',
+        items: [
+          { label: '{{ _("项目名称") }}', value: {{ project.project_name|tojson }} },
+          { label: '{{ _("当前阶段") }}', value: {{ ((project.current_stage or '') | project_stage_label) | tojson }} },
+          { label: '{{ _("项目负责人") }}', value: {{ ((project.owner.real_name or project.owner.username) if project.owner else '-') | tojson }} }
+        ],
+        list_title: '{{ _("关联客户") }}',
+        list_items: [
+          {% for c in companies %}{{ c.company_name|tojson }}{% if not loop.last %},{% endif %}{% endfor %}
+        ]
+      }
+    });
+  };
+</script>
+{% endif %}
+
+{# 共享设置 modal #}
+{% if perms.can_edit %}
+{{ at_share_modal('atShareModal') }}
+<script>
+window.atOpenProjectShare = function () {
+  atOpenShareModal({
+    entityType: 'project',
+    entityId:   {{ project.id }},
+    saveUrl:    '/project/{{ project.id }}/api/update-sharing',
+    shareEnabled:    {{ (project.share_enabled or false) | tojson }},
+    selectedUserIds: {{ (project.shared_with_users or []) | tojson }},
+    usersTree:  {{ (shareable_users_tree or []) | tojson }}
+  });
+};
+</script>
+{% endif %}
+
+{# 申请搁置/失败 弹窗 — 单框内选类型 + 填理由 #}
+{% if can_request_hold %}
+<div id="atHoldModal" onclick="if(event.target===this)atCloseHoldModal()"
+     style="display:none;position:fixed;inset:0;z-index:210;background:rgba(0,0,0,0.4);
+            align-items:center;justify-content:center;">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:min(440px,92vw);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;">{{ _('申请搁置 / 失败') }}</div>
+    <div style="font-size:12px;color:var(--ink-3);line-height:1.6;margin-bottom:16px;">
+      {{ _('提交后发起审核：') }}<b>{{ _('部门经理 → 总经理') }}</b>{{ _('。审批通过后项目阶段才会置灰标记，期间阶段不变、可恢复。') }}
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px;">
+      <button type="button" data-hold-type="paused" onclick="atHoldPick('paused')"
+              style="flex:1;height:42px;border-radius:8px;border:1.5px solid var(--line-2);
+                     background:var(--bg-page);color:var(--ink);font:inherit;font-size:13px;font-weight:500;
+                     cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+        {{ at_icon('clock', 14) }}{{ _('搁置') }}
+      </button>
+      <button type="button" data-hold-type="lost" onclick="atHoldPick('lost')"
+              style="flex:1;height:42px;border-radius:8px;border:1.5px solid var(--line-2);
+                     background:var(--bg-page);color:var(--ink);font:inherit;font-size:13px;font-weight:500;
+                     cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+        {{ at_icon('warn', 14) }}{{ _('失败') }}
+      </button>
+    </div>
+    <label style="display:block;font-size:12px;color:var(--ink-3);font-weight:500;margin-bottom:6px;">
+      {{ _('理由') }} <span style="color:var(--danger);">*</span>
+    </label>
+    <textarea id="atHoldReason" rows="3" maxlength="500" placeholder="{{ _('说明搁置 / 失败的原因…') }}"
+              style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line-2);
+                     border-radius:8px;background:var(--bg-page);color:var(--ink);font:inherit;font-size:13px;
+                     outline:none;resize:vertical;"></textarea>
+    <div id="atHoldErr" style="display:none;margin-top:6px;font-size:12px;color:var(--danger);"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="atCloseHoldModal()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+      <button type="button" id="atHoldSubmitBtn" onclick="atSubmitHold()"
+              style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('提交审核') }}</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# 更换项目负责人 / 厂商负责人 — 复用 ATSearchPicker 选在职人员;提交走现有 change_owner 端点 #}
+{% if perms.can_change_owner %}
+<form id="atChangeOwnerForm" method="post" action="{{ url_for('project.change_project_owner', project_id=project.id) }}" style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="new_owner_id" id="coNewOwnerId" value="{{ project.owner_id or '' }}">
+  <input type="hidden" name="vendor_sales_manager_id" id="coVendorId" value="">
+</form>
+<div id="atPersonnelModal" onclick="if(event.target===this)atClosePersonnelModal()"
+     style="display:none;position:fixed;inset:0;z-index:210;background:rgba(0,0,0,0.4);
+            align-items:center;justify-content:center;">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:min(420px,92vw);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div id="atPersonnelTitle" style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;">{{ _('更换人员') }}</div>
+    <div id="atPersonnelHint" style="font-size:12px;color:var(--ink-3);line-height:1.6;margin-bottom:16px;"></div>
+    {{ at_search_picker('personnelPicker', placeholder=_('搜索在职人员…')) }}
+    <div id="atPersonnelErr" style="display:none;margin-top:8px;font-size:12px;color:var(--danger);"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="atClosePersonnelModal()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+      <button type="button" id="atPersonnelSubmit" onclick="atSubmitPersonnel()"
+              style="height:34px;padding:0 18px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('确定') }}</button>
+    </div>
+  </div>
+</div>
+<script>
+  // 更换 项目负责人 / 厂商销售负责人 —— 复用 ATSearchPicker + 现有 change_owner 端点
+  (function () {
+    var _kind = null, _pickedId = null, _picker = null;
+    var _OWNER_ID = {{ project.owner_id or 'null' }};
+    function _filterByInput(list) {
+      var term = (document.getElementById('personnelPicker').value || '').trim().toLowerCase();
+      var arr = (list || []).map(function (u) {
+        return { id: u.id, name: u.real_name || u.username, role: u.role_display || u.role || '', company: u.company_name || '' };
+      });
+      if (term) arr = arr.filter(function (u) {
+        return (u.name + ' ' + u.role + ' ' + u.company).toLowerCase().indexOf(term) >= 0;
+      });
+      // 按拼音排序(中文姓名按拼音,英文/数字随 locale 归并)
+      arr.sort(function (a, b) { return (a.name || '').localeCompare((b.name || ''), 'zh-Hans-CN-u-co-pinyin'); });
+      return arr.slice(0, 50);
+    }
+    window.atOpenPersonnelEdit = function (kind) {
+      _kind = kind; _pickedId = null;
+      var isOwner = kind === 'owner';
+      document.getElementById('atPersonnelTitle').textContent = isOwner ? '{{ _("更换项目负责人") }}' : '{{ _("更换厂商销售负责人") }}';
+      document.getElementById('atPersonnelHint').textContent = isOwner
+        ? '{{ _("从在职人员中选择新的项目负责人。") }}'
+        : '{{ _("从厂商在职人员中选择新的厂商销售负责人。") }}';
+      document.getElementById('atPersonnelErr').style.display = 'none';
+      // 数据源:负责人=在职用户;厂商=厂商用户
+      var url = isOwner ? '/user/api/users/active' : '/project/api/users?type=vendor';
+      _picker = ATSearchPicker({
+        inputId: 'personnelPicker', hiddenIdId: 'personnelPickerId',
+        clearId: 'personnelPickerClear', dropdownId: 'personnelPickerDropdown',
+        searchUrl: function () { return url; },     // 端点返回全量,客户端按输入过滤
+        suggestUrl: function () { return url; },
+        itemsFromResp: function (resp) { return _filterByInput(resp.data || resp.users || []); },
+        renderItem: function (it) { return { primary: it.name, secondary: (it.role || '') + (it.company ? ' · ' + it.company : '') }; },
+        itemName: function (it) { return it.name; },
+        onPick: function (it) { _pickedId = it.id; },
+        onClear: function () { _pickedId = null; },
+        label: '{{ _("人员") }}'
+      });
+      document.getElementById('personnelPicker').value = '';
+      document.getElementById('atPersonnelModal').style.display = 'flex';
+    };
+    window.atClosePersonnelModal = function () {
+      document.getElementById('atPersonnelModal').style.display = 'none';
+    };
+    window.atSubmitPersonnel = function () {
+      var err = document.getElementById('atPersonnelErr');
+      if (!_pickedId) { err.textContent = '{{ _("请从下拉中选择一位人员") }}'; err.style.display = 'block'; return; }
+      if (_kind === 'owner') {
+        document.getElementById('coNewOwnerId').value = _pickedId;   // 改负责人
+        document.getElementById('coVendorId').value = '';            // 厂商保持原值
+      } else {
+        document.getElementById('coNewOwnerId').value = _OWNER_ID || _pickedId;  // 负责人不变
+        document.getElementById('coVendorId').value = _pickedId;     // 改厂商负责人
+      }
+      document.getElementById('atChangeOwnerForm').submit();
+    };
+  })();
+</script>
+{% endif %}
+
+{# ── 成功锁定弹窗(理由 + 预计交付日期)── #}
+{% if can_win_lock and not project.win_locked %}
+<style>
+  .wl-overlay { position:fixed; inset:0; z-index:1000; background:rgba(31,30,27,0.4);
+                display:none; align-items:flex-start; justify-content:center; padding:14vh 16px; }
+  .wl-overlay.open { display:flex; }
+</style>
+<div id="wlModal" class="wl-overlay" onclick="if(event.target===this)wlModalClose()">
+  <div style="width:440px;max-width:100%;background:var(--bg-elev);border:1px solid var(--line);
+              border-radius:14px;box-shadow:0 24px 64px rgba(31,30,27,0.25);padding:20px 22px;">
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;">
+      {{ at_icon('lock', 15) }} {{ _('锁定成功') }}</h3>
+    <div class="at-dim" style="font-size:12px;line-height:1.6;margin-bottom:14px;">
+      {{ _('预判该项目必赢并锁定;所有项目展示处将带「锁定成功」徽章,签约时自动解除,也可人为解除。') }}
+    </div>
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin-bottom:5px;">{{ _('锁定理由') }} <span style="color:var(--danger);">*</span></label>
+    <textarea id="wlReason" rows="3" placeholder="{{ _('为何判断该项目已锁定成功…') }}"
+              style="width:100%;box-sizing:border-box;padding:9px 11px;background:var(--bg-page);
+                     border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                     color:var(--ink);outline:none;resize:vertical;"></textarea>
+    {% if (win_lock_candidates or []) | length == 1 %}
+    {# 唯一在职审核人 → 自动指定,无需手选 #}
+    {% set _wlap = win_lock_candidates[0] %}
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('审核人') }}
+      <span class="at-dim" style="font-weight:400;">{{ _('(按业务线自动指定;通过后才生效)') }}</span></label>
+    <input type="hidden" id="wlApprover" value="{{ _wlap.id }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;height:36px;padding:0 11px;
+                background:var(--bg-sunk);border:1px solid var(--line-2);border-radius:7px;font-size:13px;color:var(--ink-2);">
+      <span>{{ _wlap.name }}</span>
+      <span class="at-mono" style="font-size:11px;color:var(--ink-4);">{{ _wlap.role_label }}</span>
+    </div>
+    {% else %}
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('审核人') }} <span style="color:var(--danger);">*</span>
+      <span class="at-dim" style="font-weight:400;">{{ _('(按业务线;通过后才生效)') }}</span></label>
+    <select id="wlApprover"
+            style="width:100%;box-sizing:border-box;height:36px;padding:0 11px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                   color:var(--ink);outline:none;">
+      <option value="">{{ _('请选择审核人') }}</option>
+      {% for c in (win_lock_candidates or []) %}
+      <option value="{{ c.id }}">{{ c.name }}（{{ c.role_label }}）</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('锁定报价单') }} <span style="color:var(--danger);">*</span></label>
+    {% if lock_quotations | length == 1 %}
+    {% set _q0 = lock_quotations[0] %}
+    <input type="hidden" id="wlQuotation" value="{{ _q0.id }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;height:36px;
+                padding:0 11px;background:var(--bg-sunk);border:1px solid var(--line-2);border-radius:7px;">
+      <span class="at-mono" style="font-size:12.5px;color:var(--ink-2);">{{ _q0.number }}</span>
+      <span class="at-mono at-tab-num" style="font-size:12.5px;font-weight:600;color:var(--ink);"
+            data-amount>{{ get_currency_symbol(_q0.currency or get_default_currency()) }}{{ '{:,.2f}'.format(_q0.amount) }}</span>
+    </div>
+    {% else %}
+    <select id="wlQuotation" class="at-mono" onchange="wlAmountSync()"
+            style="width:100%;box-sizing:border-box;height:36px;padding:0 11px;background:var(--bg-page);
+                   border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                   color:var(--ink);outline:none;">
+      {% for q in lock_quotations %}
+      <option value="{{ q.id }}" data-amount="{{ q.amount }}" data-cur="{{ q.currency }}">
+        {{ q.number }} · {{ get_currency_symbol(q.currency or get_default_currency()) }}{{ '{:,.2f}'.format(q.amount) }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;
+                padding:9px 12px;background:var(--warn-soft);border-radius:7px;">
+      <span style="font-size:11.5px;color:var(--ink-3);">{{ _('锁定金额') }}</span>
+      <span id="wlAmount" class="at-mono at-tab-num" style="font-size:15px;font-weight:600;color:var(--warn);">
+        {% set _qa = lock_quotations[0] if lock_quotations else none %}
+        {{ (get_currency_symbol(_qa.currency or get_default_currency()) ~ '{:,.2f}'.format(_qa.amount)) if _qa else '—' }}</span>
+    </div>
+    <div class="at-dim" style="font-size:11px;margin-top:8px;">
+      {{ _('操作人:') }}{{ current_user.real_name or current_user.username }}{{ _('(锁定后记录,徽章点击可见)') }}
+    </div>
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('预计交付日期') }} <span style="color:var(--danger);">*</span>
+      <span class="at-dim" style="font-weight:400;">{{ _('(确认后更新到项目交期)') }}</span></label>
+    <input id="wlDelivery" type="date" value="{{ project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else '' }}"
+           style="width:100%;box-sizing:border-box;height:36px;padding:0 11px;background:var(--bg-page);
+                  border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                  color:var(--ink);outline:none;">
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="wlModalClose()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+      <button type="button" id="wlSubmitBtn" onclick="wlSubmit()"
+              style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('提交审核') }}</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── 失败责任补录弹窗(仅 CEO;已失败且未认定时)── #}
+{% if abnormal_status == 'lost' and current_user.role == 'ceo'
+      and not project.fail_owner_fault and not project.fail_mgmt_fault %}
+<style>
+  .fa-overlay { position:fixed; inset:0; z-index:1000; background:rgba(31,30,27,0.4);
+                display:none; align-items:flex-start; justify-content:center; padding:14vh 16px; }
+  .fa-overlay.open { display:flex; }
+  .fa-opt { display:flex; align-items:flex-start; gap:9px; padding:10px 12px; border:1px solid var(--line-2);
+            border-radius:8px; cursor:pointer; margin-bottom:8px; font-size:13px; color:var(--ink); }
+  .fa-opt input { margin-top:2px; }
+</style>
+<div id="faModal" class="fa-overlay" onclick="if(event.target===this)faClose()">
+  <div style="width:440px;max-width:100%;background:var(--bg-elev);border:1px solid var(--line);
+              border-radius:14px;box-shadow:0 24px 64px rgba(31,30,27,0.25);padding:20px 22px;">
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:600;color:var(--ink);">{{ _('补录失败责任认定') }}</h3>
+    <div class="at-dim" style="font-size:12px;line-height:1.6;margin-bottom:14px;">
+      {{ _('对已失败项目补录责任归因(仅总经理可操作);评语将作为本次认定意见记录。') }}
+    </div>
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin-bottom:6px;">{{ _('责任类型') }} <span style="color:var(--danger);">*</span>
+      <span class="at-dim" style="font-weight:400;">{{ _('(可多选,二者可同时成立)') }}</span></label>
+    <label class="fa-opt">
+      <input type="checkbox" name="faAttr" value="owner_fault">
+      <span><b>{{ _('个人因素为主') }}</b><br><span class="at-dim" style="font-size:11px;">{{ _('计入项目负责人的个人失败率') }}</span></span>
+    </label>
+    <label class="fa-opt">
+      <input type="checkbox" name="faAttr" value="mgmt_fault">
+      <span><b>{{ _('团队管理失责') }}</b><br><span class="at-dim" style="font-size:11px;">{{ _('计入部门的团队失败率') }}</span></span>
+    </label>
+    <label style="display:block;font-size:11.5px;color:var(--ink-3);margin:12px 0 5px;">{{ _('认定评语') }} <span style="color:var(--danger);">*</span></label>
+    <textarea id="faComment" rows="3" placeholder="{{ _('请说明责任认定理由…') }}"
+              style="width:100%;box-sizing:border-box;padding:9px 11px;background:var(--bg-page);
+                     border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
+                     color:var(--ink);outline:none;resize:vertical;"></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button type="button" onclick="faClose()"
+              style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);
+                     background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+      <button type="button" id="faSubmitBtn" onclick="faSubmit()"
+              style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);
+                     color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('提交认定') }}</button>
+    </div>
+  </div>
+</div>
+<script>
+  window.faOpen = function (e) { if (e) e.stopPropagation(); document.getElementById('faModal').classList.add('open'); };
+  window.faClose = function () { document.getElementById('faModal').classList.remove('open'); };
+  window.faSubmit = async function () {
+    const sels = Array.from(document.querySelectorAll('input[name="faAttr"]:checked')).map(x => x.value);
+    const comment = (document.getElementById('faComment').value || '').trim();
+    if (!sels.length) { (window.ATToast ? ATToast.error('{{ _("请至少选择一种责任类型") }}') : alert('{{ _("请至少选择一种责任类型") }}')); return; }
+    if (!comment) { (window.ATToast ? ATToast.error('{{ _("请填写认定评语") }}') : alert('{{ _("请填写认定评语") }}')); return; }
+    const btn = document.getElementById('faSubmitBtn');
+    btn.disabled = true;
+    try {
+      const csrf = document.querySelector('meta[name="csrf-token"]').content;
+      const d = await (await fetch('/project/at-api/{{ project.id }}/fail-attribution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({ attributions: sels, comment: comment })
+      })).json();
+      if (d.success) { if (window.ATToast) ATToast.success(d.message || '{{ _("已补录") }}'); setTimeout(() => location.reload(), 500); }
+      else { btn.disabled = false; (window.ATToast ? ATToast.error(d.message) : alert(d.message)); }
+    } catch (err) { btn.disabled = false; (window.ATToast ? ATToast.error('{{ _("提交失败,请重试") }}') : alert('error')); }
+  };
+</script>
+{% endif %}
+</body>
+</html>

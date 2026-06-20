@@ -1,0 +1,210 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
+{% from 'components/quality_badge.html' import quality_badge %}
+
+{% block sidebar_active %}quotation{% endblock %}
+{% block extra_head %}
+<style>
+  /* 复选框列默认隐藏,进入选择模式(body.q-selmode)才显示 */
+  .q-selcol { display:none; }
+  body.q-selmode .q-selcol { display:table-cell; }
+  body.q-selmode .at-row { cursor:default; }
+</style>
+{% endblock %}
+{% block page_title %}{{ _('报价管理') }}{% endblock %}
+{% block category_label %}QUOTATION · {{ _('业务管理') }}{% endblock %}
+{% block page_description %}{{ _('管理报价单的提交、SM 确认、成交闭环。') }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('报价管理') }}</span>
+{% endblock %}
+
+{% block page_actions %}
+{# 默认只显示「批量导出」(进入选择模式);进入后显示 导出(N)+取消 #}
+<button type="button" id="qSelStart" onclick="qBS.enter()"
+        style="height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
+               background:var(--bg-elev);color:var(--ink);font-size:13px;font-weight:500;
+               display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+  {{ at_icon('download', 14) }}{{ _('批量导出') }}
+</button>
+<button type="button" id="qExportGo" onclick="qBatchExport()" disabled
+        style="display:none;height:34px;padding:0 14px;border-radius:6px;border:0;
+               background:var(--accent);color:#fff;font-size:13px;font-weight:500;
+               align-items:center;gap:6px;cursor:pointer;opacity:.5;">
+  {{ at_icon('download', 14) }}<span id="qExportGoLabel">{{ _('导出') }}</span>
+</button>
+<button type="button" id="qSelCancel" onclick="qBS.exit()"
+        style="display:none;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
+               background:var(--bg-elev);color:var(--ink-2);font-size:13px;font-weight:500;
+               align-items:center;gap:6px;cursor:pointer;">{{ _('取消') }}</button>
+{{ at_btn(_('新建报价'), variant='primary', icon_l='plus', tag='a',
+          href=url_for('quotation.at_new_quotation')) }}
+{% endblock %}
+
+{% block tabs %}
+{% set _tabs = [
+  {'k':'all',       'l':_('全部'),     'c':tab_counts.all},
+  {'k':'none',      'l':_('草稿'),     'c':tab_counts.none},
+  {'k':'pending',   'l':_('待确认'),   'c':tab_counts.pending},
+  {'k':'confirmed', 'l':_('已确认'),   'c':tab_counts.confirmed}
+] %}
+{% for t in _tabs %}
+{% set active = (current_tab == t.k) %}
+<a href="{{ url_for('quotation.at_list_view', tab=t.k, **list_qs) }}"
+   style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
+          position:relative;text-decoration:none;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;white-space:nowrap;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ t.l }}</span>
+  <span class="at-tab-num at-mono"
+        style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
+</a>
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+{% from 'components/at_filter_panel.html' import at_filter_panel %}
+<div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <form method="get" action="{{ url_for('quotation.at_list_view') }}"
+        style="display:flex;gap:10px;align-items:center;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
+    {{ at_input(name='search', value=search, placeholder=_('搜索报价单号…'), icon_l='search', width='320px') }}
+  </form>
+  {% if show_filter %}
+  {{ at_filter_panel(
+       action_url=url_for('quotation.at_list_view'),
+       fields=[
+         {'key':'owner','label':_('负责人'),'type':'user','items':owner_options,'values':owner_values},
+       ],
+       hidden={'tab':current_tab,'search':search},
+       panel_id='quotFilterPanel') }}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block thead %}
+<th class="q-selcol" style="width:38px;padding:14px 0 14px 16px;position:sticky;top:0;z-index:2;background:var(--bg-elev);border-bottom:1px solid var(--line);">
+  <input type="checkbox" id="qSelAll" onclick="qBS.toggleAll(this)" title="{{ _('全选本页') }}" style="cursor:pointer;">
+</th>
+{% for h, a in [(_('报价单号'),'left'),(_('客户'),'left'),(_('项目'),'left'),
+                (_('报价金额'),'right'),(_('植入额'),'right'),(_('状态'),'left'),
+                (_('所属'),'left'),(_('更新'),'left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% for q in quotations %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+{% set currency_sym = get_currency_symbol(q.currency or get_default_currency()) %}
+<tr class="at-row" data-href="{{ url_for('quotation.at_view_quotation', id=q.id) }}"
+    onclick="qBS.rowClick(this)"
+    style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
+  <td class="q-selcol" style="padding:0 0 0 16px;border-bottom:{{ cell_bd }};" onclick="event.stopPropagation()">
+    <input type="checkbox" class="q-sel" data-id="{{ q.id }}" onclick="qBS.toggle(this)" style="cursor:pointer;">
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
+      {{ q.quotation_number }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:220px;color:var(--ink-2);font-size:12.5px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    {{ q.customer.company_name if q.customer else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:200px;color:var(--ink-3);font-size:12px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    {{ q.project.project_name if q.project else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;">
+      {{ quality_badge(quality_scores.get(q.id) if quality_scores else none) }}
+      <span class="at-mono at-tab-num"
+            style="color:{{ 'var(--ink)' if q.amount else 'var(--ink-4)' }};font-size:13px;">
+        {{ currency_sym }}{{ '{:,.0f}'.format(q.amount or 0) }}
+      </span>
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <span class="at-mono at-tab-num"
+          style="color:{{ 'var(--ink-2)' if q.implant_total_amount else 'var(--ink-4)' }};font-size:12.5px;">
+      {{ currency_sym }}{{ '{:,.0f}'.format(q.implant_total_amount or 0) }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    {{ at_status_pill(q.confirmation_badge_status or 'none', scope='quotation') }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
+    {{ (q.owner.real_name or q.owner.username) if q.owner else '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ q.updated_at.strftime('%Y-%m-%d') if q.updated_at else '—' }}
+    </span>
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="9" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    {{ _('没有符合筛选条件的报价') }}
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/at-batch-select.js') }}"></script>
+<script>
+(function () {
+  'use strict';
+  var qSelStart  = document.getElementById('qSelStart');
+  var qExportGo  = document.getElementById('qExportGo');
+  var qSelCancel = document.getElementById('qSelCancel');
+  var qExportLbl = document.getElementById('qExportGoLabel');
+
+  window.qBS = AtBatchSelect.init({
+    key: 'quot', bodyClass: 'q-selmode', cbSel: '.q-sel', selectAllSel: '#qSelAll',
+    onModeChange: function (on) {
+      qSelStart.style.display  = on ? 'none' : 'inline-flex';
+      qExportGo.style.display  = on ? 'inline-flex' : 'none';
+      qSelCancel.style.display = on ? 'inline-flex' : 'none';
+    },
+    onCount: function (n) {
+      if (n > 0) { qExportGo.disabled = false; qExportGo.style.opacity = '1'; qExportLbl.textContent = '{{ _("导出") }} (' + n + ')'; }
+      else { qExportGo.disabled = true; qExportGo.style.opacity = '.5'; qExportLbl.textContent = '{{ _("导出") }}'; }
+    }
+  });
+
+  window.qBatchExport = function () {
+    var ids = qBS.getSelected(); if (!ids.length) return;
+    // 不退出选择模式、不清空选择:导出仅触发文件下载,页面留在原状,可继续再导出。需手动「取消」才退出。
+    window.location.href = '{{ url_for("quotation.export_batch") }}?ids=' + ids.join(',');
+  };
+})();
+</script>
+{% endblock %}
+
+{% block pagination %}
+{% if pagination.pages > 1 %}
+<span class="at-mono at-dim" style="font-size:11.5px;">
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
+</span>
+<div style="display:flex;gap:6px;">
+  {% if pagination.has_prev %}
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('quotation.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
+  {% endif %}
+  {% if pagination.has_next %}
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('quotation.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

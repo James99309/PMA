@@ -10,7 +10,7 @@ from app import db
 from app.models.product_serial_number import ProductSerialNumber, SerialNumberHistory
 from app.models.product import Product
 from app.services.product_sn_service import ProductSNService
-from app.decorators import permission_required
+from app.decorators import admin_required
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,73 +22,103 @@ product_sn_bp = Blueprint('product_sn', __name__, url_prefix='/product-sn')
 
 @product_sn_bp.route('/')
 @login_required
-@permission_required('inventory', 'view')
+@admin_required
 def list_view():
-    """序列号列表页"""
-    # 获取筛选参数
-    status = request.args.get('status', '')
-    product_id = request.args.get('product_id', '', type=int)
-    search = request.args.get('search', '').strip()
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    """序列号查询页(AT 设计 · 搜索为中心,无列表/分页/筛选)"""
+    total = ProductSerialNumber.query.count()
+    return render_template('product_sn/at_list.html', total_sn=total)
 
-    # 基础查询
-    query = ProductSerialNumber.query
 
-    # 状态筛选
-    if status:
-        query = query.filter(ProductSerialNumber.status == status)
+def _sn_to_dict(sn, brief=False):
+    """SN ORM → JSON dict。brief=True 时只返回搜索摘要字段。
 
-    # 产品筛选
-    if product_id:
-        query = query.filter(ProductSerialNumber.product_id == product_id)
+    供应商 / 入库公司 fallback:
+      - supplier_id 为空 → 从 purchase_order.company 推断(PO 的 company_id 就是供应商)
+      - inventory.company 为空 → 不再尝试推断(避免误导)
+    """
+    # 供应商:优先 SN.supplier,否则用 PO.company
+    supplier_name = ''
+    if sn.supplier:
+        supplier_name = sn.supplier.company_name
+    elif sn.purchase_order and sn.purchase_order.company:
+        supplier_name = sn.purchase_order.company.company_name + '(自 PO)'
 
-    # 搜索
-    if search:
-        query = query.filter(
-            db.or_(
-                ProductSerialNumber.serial_number.ilike(f'%{search}%'),
-                ProductSerialNumber.batch_number.ilike(f'%{search}%')
-            )
-        )
+    base = {
+        'id': sn.id,
+        'serial_number': sn.serial_number,
+        'status': sn.status,
+        'status_label': sn.status_label,
+        'product_name': sn.product.product_name if sn.product else '',
+        'product_model': sn.product.model if sn.product else '',
+        'shipment_number': sn.shipment.shipment_number if sn.shipment else '',
+    }
+    if brief:
+        return base
+    base.update({
+        'supplier_name': supplier_name,
+        'warehouse_location': sn.warehouse_location or '',
+        'warehouse_in_date': sn.warehouse_in_date.strftime('%Y-%m-%d') if sn.warehouse_in_date else '',
+        'purchase_order_number': sn.purchase_order.order_number if sn.purchase_order else '',
+        'sales_order_number': sn.sales_order.order_number if sn.sales_order else '',
+        'customer_name': sn.customer.company_name if sn.customer else '',
+        'inventory_company': (sn.inventory.company.company_name
+                              if sn.inventory and getattr(sn.inventory, 'company', None) else ''),
+        'is_in_stock': bool(sn.inventory_id),
+    })
+    return base
 
-    # 排序和分页
-    query = query.order_by(ProductSerialNumber.created_at.desc())
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    serial_numbers = pagination.items
 
-    # 获取统计数据
-    stats = ProductSNService.get_statistics()
+@product_sn_bp.route('/api/search')
+@login_required
+@admin_required
+def api_search():
+    """SN 搜索：精确匹配返完整详情；模糊匹配返简略列表（最多 20 条）。"""
+    q = request.args.get('q', '').strip()
+    if not q:
+        return jsonify({'success': True, 'mode': 'empty', 'total': 0, 'results': []})
 
-    # 获取产品列表（用于筛选）- Product 模型使用 status 字段，排序用 product_name 列
-    products = Product.query.filter(Product.status == 'active').order_by(Product.product_name).all()
+    # 精确
+    exact = ProductSerialNumber.query.filter_by(serial_number=q).first()
+    if exact:
+        return jsonify({'success': True, 'mode': 'exact', 'total': 1,
+                        'results': [_sn_to_dict(exact, brief=False)]})
 
-    return render_template(
-        'product_sn/tw_list.html',
-        serial_numbers=serial_numbers,
-        pagination=pagination,
-        stats=stats,
-        products=products,
-        current_status=status,
-        current_product_id=product_id,
-        search=search
+    # 模糊
+    base_q = ProductSerialNumber.query.filter(
+        ProductSerialNumber.serial_number.ilike(f'%{q}%')
     )
+    total = base_q.count()
+    rows = base_q.order_by(ProductSerialNumber.serial_number.asc()).limit(20).all()
+    return jsonify({'success': True, 'mode': 'fuzzy', 'total': total,
+                    'results': [_sn_to_dict(sn, brief=True) for sn in rows]})
+
+
+@product_sn_bp.route('/api/<int:sn_id>')
+@login_required
+@admin_required
+def api_get_sn(sn_id):
+    """SN 详情(就地展开用)"""
+    sn = ProductSerialNumber.query.get_or_404(sn_id)
+    return jsonify({'success': True, 'sn': _sn_to_dict(sn, brief=False)})
 
 
 @product_sn_bp.route('/<int:sn_id>')
 @login_required
-@permission_required('inventory', 'view')
+@admin_required
 def detail_view(sn_id):
-    """序列号详情页"""
+    """序列号详情页(AT 设计)"""
+    from app.helpers.at_product_sn_helpers import (
+        build_sn_stages_data, normalize_sn_timeline, sn_status_meta,
+    )
     sn = ProductSerialNumber.query.get_or_404(sn_id)
-
-    # 获取生命周期时间线
-    timeline = ProductSNService.get_timeline(sn_id)
+    timeline_raw = ProductSNService.get_timeline(sn_id)
 
     return render_template(
-        'product_sn/tw_detail.html',
+        'product_sn/at_detail.html',
         sn=sn,
-        timeline=timeline
+        stages=build_sn_stages_data(sn),
+        timeline=normalize_sn_timeline(timeline_raw),
+        status_meta=sn_status_meta(sn.status),
     )
 
 
@@ -96,7 +126,7 @@ def detail_view(sn_id):
 
 @product_sn_bp.route('/api/create', methods=['POST'])
 @login_required
-@permission_required('inventory', 'create')
+@admin_required
 def api_create():
     """创建单个序列号"""
     try:
@@ -137,7 +167,7 @@ def api_create():
 
 @product_sn_bp.route('/api/batch-create', methods=['POST'])
 @login_required
-@permission_required('inventory', 'create')
+@admin_required
 def api_batch_create():
     """批量创建序列号"""
     try:
@@ -166,7 +196,7 @@ def api_batch_create():
 
 @product_sn_bp.route('/api/validate-import', methods=['POST'])
 @login_required
-@permission_required('inventory', 'create')
+@admin_required
 def api_validate_import():
     """验证导入数据"""
     try:
@@ -192,40 +222,9 @@ def api_validate_import():
         return jsonify({'success': False, 'message': f'验证失败: {str(e)}'})
 
 
-@product_sn_bp.route('/api/<int:sn_id>', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def api_get_detail(sn_id):
-    """获取序列号详情"""
-    sn = ProductSerialNumber.query.get(sn_id)
-
-    if not sn:
-        return jsonify({'success': False, 'message': '序列号不存在'})
-
-    return jsonify({
-        'success': True,
-        'serial_number': {
-            'id': sn.id,
-            'serial_number': sn.serial_number,
-            'product_name': sn.product.name if sn.product else '',
-            'product_model': sn.product.model if sn.product else '',
-            'batch_number': sn.batch_number,
-            'status': sn.status,
-            'status_label': sn.status_label,
-            'warehouse_location': sn.warehouse_location,
-            'warehouse_in_date': sn.formatted_warehouse_in_date,
-            'ship_out_date': sn.formatted_ship_out_date,
-            'purchase_order_number': sn.purchase_order.order_number if sn.purchase_order else '',
-            'sales_order_number': sn.sales_order.order_number if sn.sales_order else '',
-            'customer_name': sn.customer.company_name if sn.customer else '',
-            'notes': sn.notes
-        }
-    })
-
-
 @product_sn_bp.route('/api/<int:sn_id>/stock-in', methods=['POST'])
 @login_required
-@permission_required('inventory', 'edit')
+@admin_required
 def api_stock_in(sn_id):
     """序列号入库"""
     try:
@@ -252,7 +251,7 @@ def api_stock_in(sn_id):
 
 @product_sn_bp.route('/api/<int:sn_id>/reserve', methods=['POST'])
 @login_required
-@permission_required('inventory', 'edit')
+@admin_required
 def api_reserve(sn_id):
     """预留序列号"""
     try:
@@ -277,7 +276,7 @@ def api_reserve(sn_id):
 
 @product_sn_bp.route('/api/<int:sn_id>/ship', methods=['POST'])
 @login_required
-@permission_required('inventory', 'edit')
+@admin_required
 def api_ship(sn_id):
     """序列号发货"""
     try:
@@ -304,7 +303,7 @@ def api_ship(sn_id):
 
 @product_sn_bp.route('/api/<int:sn_id>/deliver', methods=['POST'])
 @login_required
-@permission_required('inventory', 'edit')
+@admin_required
 def api_deliver(sn_id):
     """确认序列号交付"""
     try:
@@ -328,20 +327,11 @@ def api_deliver(sn_id):
         return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
 
 
-@product_sn_bp.route('/api/<int:sn_id>/timeline', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def api_get_timeline(sn_id):
-    """获取序列号时间线"""
-    timeline = ProductSNService.get_timeline(sn_id)
-    return jsonify({'success': True, 'timeline': timeline})
-
-
 @product_sn_bp.route('/api/available', methods=['GET'])
 @login_required
-@permission_required('inventory', 'view')
+@admin_required
 def api_get_available():
-    """获取可用序列号列表（用于发货选择）"""
+    """获取可用序列号列表(用于发货选择)— 由 shipment 流程调用"""
     product_id = request.args.get('product_id', type=int)
     status = request.args.get('status', 'in_stock')
     limit = request.args.get('limit', 100, type=int)
@@ -356,89 +346,3 @@ def api_get_available():
     )
 
     return jsonify({'success': True, 'serial_numbers': serial_numbers})
-
-
-@product_sn_bp.route('/api/search', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def api_search():
-    """搜索序列号"""
-    query = request.args.get('q', '').strip()
-
-    if not query:
-        return jsonify({'success': False, 'message': '请输入搜索关键词'})
-
-    sn = ProductSNService.search_serial_number(query)
-
-    if not sn:
-        return jsonify({'success': False, 'message': '未找到序列号'})
-
-    return jsonify({
-        'success': True,
-        'serial_number': {
-            'id': sn.id,
-            'serial_number': sn.serial_number,
-            'product_name': sn.product.name if sn.product else '',
-            'status': sn.status,
-            'status_label': sn.status_label
-        }
-    })
-
-
-@product_sn_bp.route('/api/list', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def api_list():
-    """获取序列号列表数据（用于AJAX刷新）"""
-    status = request.args.get('status', '')
-    product_id = request.args.get('product_id', '', type=int)
-    search = request.args.get('search', '').strip()
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
-
-    query = ProductSerialNumber.query
-
-    if status:
-        query = query.filter(ProductSerialNumber.status == status)
-    if product_id:
-        query = query.filter(ProductSerialNumber.product_id == product_id)
-    if search:
-        query = query.filter(
-            db.or_(
-                ProductSerialNumber.serial_number.ilike(f'%{search}%'),
-                ProductSerialNumber.batch_number.ilike(f'%{search}%')
-            )
-        )
-
-    query = query.order_by(ProductSerialNumber.created_at.desc())
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-
-    data = [{
-        'id': sn.id,
-        'serial_number': sn.serial_number,
-        'product_name': sn.product.name if sn.product else '',
-        'product_model': sn.product.model if sn.product else '',
-        'batch_number': sn.batch_number,
-        'status': sn.status,
-        'status_label': sn.status_label,
-        'warehouse_location': sn.warehouse_location,
-        'warehouse_in_date': sn.formatted_warehouse_in_date,
-        'created_at': sn.created_at.strftime('%Y-%m-%d') if sn.created_at else ''
-    } for sn in pagination.items]
-
-    return jsonify({
-        'success': True,
-        'serial_numbers': data,
-        'total': pagination.total,
-        'pages': pagination.pages,
-        'current_page': pagination.page
-    })
-
-
-@product_sn_bp.route('/api/stats', methods=['GET'])
-@login_required
-@permission_required('inventory', 'view')
-def api_stats():
-    """获取序列号统计数据"""
-    stats = ProductSNService.get_statistics()
-    return jsonify({'success': True, 'stats': stats})

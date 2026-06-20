@@ -137,7 +137,7 @@
                         {{ render_tw_owner_badge(po.creator) }}
                     </td>
                     <td class="p-3 whitespace-nowrap" style="min-width: 160px; width: 180px;">
-                        <a href="javascript:void(0)" onclick="openPricingOrderModal({{ po.id }})"
+                        <a href="{{ url_for('pricing_order.excel_edit_pricing_order', order_id=po.id) }}"
                            class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer">
                             {{ po.order_number }}
                         </a>
@@ -288,11 +288,10 @@
             listManager.sortBy(field);
         };
 
-        // 从通知面板跳转时，自动打开指定批价单模态框
+        // 从通知面板跳转时，直接进入 Excel 编辑器
         const openOrderId = new URLSearchParams(window.location.search).get('open');
         if (openOrderId) {
-            // 延迟确保 Alpine.js 模态框组件已初始化
-            setTimeout(() => openPricingOrderModal(parseInt(openOrderId)), 300);
+            window.location.href = `/pricing_order/${openOrderId}/excel-edit`;
         }
     })();
     </script>

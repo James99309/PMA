@@ -1,0 +1,262 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_progress %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_sales_order.html' import at_so_create_modal %}
+{% from 'components/at_product_picker.html' import at_product_picker_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ _('客户订单') }} · PMA</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-searchable-select.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-product-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-item-table.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-currency-bridge.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-so-form.js') }}"></script>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='sales_order') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- Topbar -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <span style="font-size:13px;color:var(--ink-3);">{{ _('订单中心') }}</span>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);">{{ _('客户订单') }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 24px;
+             display:flex;flex-direction:column;gap:0;flex:1;min-height:0;">
+
+  <!-- 页眉 -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;
+              margin-bottom:24px;flex-wrap:wrap;gap:16px;">
+    <div>
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        SALES ORDER · {{ _('订单中心') }}
+      </div>
+      <h1 class="at-serif"
+          style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
+        {{ _('客户订单') }}
+      </h1>
+      <p class="at-dim" style="margin:8px 0 0;font-size:13px;max-width:560px;">
+        {{ _('管理客户下达的订单,追踪生产到签收的完整生命周期。') }}
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      {{ at_btn(_('导出'), variant='ghost', icon_l='download') }}
+      {% if has_permission('sales_order', 'create') %}
+      {{ at_btn(_('新建客户订单'), variant='primary', icon_l='plus', onclick='atOpenSoCreate()') }}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;align-items:center;gap:0;border-bottom:1px solid var(--line);
+              margin-bottom:18px;flex-shrink:0;">
+    {% for t in [
+      {'k':'all',       'l':_('全部'),   'c': tab_counts.all},
+      {'k':'draft',     'l':_('草稿'),   'c': tab_counts.draft},
+      {'k':'confirmed', 'l':_('已确认'), 'c': tab_counts.confirmed},
+      {'k':'shipped',   'l':_('已发货'), 'c': tab_counts.shipped},
+      {'k':'completed', 'l':_('已完成'), 'c': tab_counts.completed},
+      {'k':'cancelled', 'l':_('已取消'), 'c': tab_counts.cancelled}
+    ] %}
+    {% set is_active = (current_tab == t.k) %}
+    <a href="{{ url_for('sales_order.list_view', tab=t.k, search=search) }}"
+       style="padding:11px 18px;font-size:13px;font-weight:{{ '500' if is_active else '400' }};
+              text-decoration:none;cursor:pointer;
+              color:{{ 'var(--accent)' if is_active else 'var(--ink-3)' }};
+              border-bottom:2px solid {{ 'var(--accent)' if is_active else 'transparent' }};
+              margin-bottom:-1px;
+              display:inline-flex;align-items:center;gap:6px;">
+      <span>{{ t.l }}</span>
+      <span class="at-mono at-tab-num"
+            style="font-size:11px;color:{{ 'var(--accent)' if is_active else 'var(--ink-4)' }};
+                   background:{{ 'var(--accent-tint)' if is_active else 'transparent' }};
+                   padding:0 6px;border-radius:99px;line-height:18px;">{{ t.c }}</span>
+    </a>
+    {% endfor %}
+    <div style="flex:1;"></div>
+    <div class="at-dim" style="font-size:12px;padding-right:4px;">
+      {{ _('共') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ pagination.total }}</span> {{ _('条') }}
+    </div>
+  </div>
+
+  <!-- Filter row -->
+  <form method="get" action="{{ url_for('sales_order.list_view') }}"
+        style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {{ at_input(name='search', value=search, placeholder=_('搜索订单号 / 备注…'), icon_l='search', width='320px') }}
+    {% set customer_options = [{'value':'', 'label':_('全部客户')}] %}
+    {% for c in customers %}
+      {% set _x = customer_options.append({'value': c.id|string, 'label': c.company_name}) %}
+    {% endfor %}
+    {{ at_select(name='customer_id', value=current_customer_id, options=customer_options, width='220px',
+                 extra_attrs='onchange="this.form.submit()"') }}
+  </form>
+
+  <!-- Table -->
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;
+              overflow:auto;flex:1;min-height:0;">
+    <table style="width:100%;table-layout:fixed;min-width:980px;font-size:13px;border-collapse:separate;border-spacing:0;">
+      <colgroup>
+        <col style="width:170px;"><!-- 订单号 -->
+        <col><!-- 客户(弹性) -->
+        <col style="width:130px;"><!-- 金额 -->
+        <col style="width:160px;"><!-- 进度 -->
+        <col style="width:100px;"><!-- 状态 -->
+        <col style="width:100px;"><!-- 创建日期 -->
+      </colgroup>
+      <thead>
+        <tr style="background:var(--bg-elev);">
+          {% for h, a in [(_('订单号'),'left'),(_('客户'),'left'),(_('金额'),'right'),(_('进度'),'left'),(_('状态'),'left'),(_('创建'),'left')] %}
+          <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+                     color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+                     white-space:nowrap;position:sticky;top:0;z-index:2;
+                     background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        {% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+        {% set currency_sym = '$' if o.currency == 'USD' else '¥' %}
+        {# 综合进度:采购10% + 发货60% + 签收30% #}
+        {% set total = o.total_quantity or 0 %}
+        {% set proc_ratio = (o.procured_quantity / total) if total > 0 else 0 %}
+        {% set ship_ratio = (o.shipped_quantity / total) if total > 0 else 0 %}
+        {% set recv_ratio = (o.received_quantity / total) if total > 0 else 0 %}
+        {% set overall = (proc_ratio * 10 + ship_ratio * 60 + recv_ratio * 30) | round(0) | int %}
+        {% set overall = [overall, 100] | min %}
+        <tr class="at-row" data-href="{{ url_for('sales_order.detail_view', order_id=o.id) }}"
+            onclick="location.href=this.dataset.href"
+            style="height:var(--row-h, 52px);cursor:pointer;transition:background 100ms;"
+            onmouseenter="this.style.background='var(--bg-hover)'"
+            onmouseleave="this.style.background='transparent'">
+          <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;overflow:hidden;">
+            <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
+              {{ o.order_number }}
+            </span>
+          </td>
+          <td style="padding:0 16px;border-bottom:{{ cell_bd }};overflow:hidden;">
+            <div title="{{ o.customer.company_name if o.customer else '-' }}"
+                 style="color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {{ o.customer.company_name if o.customer else '-' }}
+            </div>
+          </td>
+          <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+            <span class="at-mono at-tab-num"
+                  style="color:{{ 'var(--ink)' if o.total_amount else 'var(--ink-4)' }};font-size:13px;font-weight:500;">
+              {{ currency_sym }}{{ "{:,.2f}".format(o.total_amount or 0) }}
+            </span>
+          </td>
+          <td style="padding:0 16px;border-bottom:{{ cell_bd }};">
+            {{ at_progress(value=overall, width=110) }}
+          </td>
+          <td style="padding:0 16px;border-bottom:{{ cell_bd }};">
+            {{ at_status_pill(o.status, scope='sales_order') }}
+          </td>
+          <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+            <span class="at-mono at-tab-num at-dim" style="font-size:12px;">
+              {{ o.created_at.strftime('%m-%d') if o.created_at else '—' }}
+            </span>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+            {{ _('没有符合筛选条件的订单') }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if pagination.pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              padding:14px 4px;flex-shrink:0;">
+    <div class="at-dim" style="font-size:12px;">
+      {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
+    </div>
+    <div style="display:flex;gap:6px;">
+      {% if pagination.has_prev %}
+      {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
+                href=url_for('sales_order.list_view', tab=current_tab, search=search, customer_id=current_customer_id, page=pagination.prev_num)) }}
+      {% endif %}
+      {% if pagination.has_next %}
+      {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
+                href=url_for('sales_order.list_view', tab=current_tab, search=search, customer_id=current_customer_id, page=pagination.next_num)) }}
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</main>
+
+<!-- 创建客户订单模态 -->
+{{ at_so_create_modal(customers, currency_options=currency_options, default_currency=default_currency) }}
+{{ at_product_picker_modal() }}
+
+<script>
+  // ATItemTable 初始化:SO 启用「市场价 + 折扣率」两列(报价单同理)
+  ATItemTable.init({
+    showMarketDiscount: true,
+    onAddProduct: (replaceKey) => {
+      ATProductPicker.open({
+        replaceMode: !!replaceKey,
+        currency: ATCurrencyBridge.getCurrency(),
+        onPick: (result) => {
+          if (replaceKey) {
+            const first = (result.items || [])[0];
+            if (first) ATItemTable.replaceItem(replaceKey, first.product);
+            return;
+          }
+          (result.items || []).forEach(it => {
+            ATItemTable.addItem({ ...it.product, quantity: it.product.quantity || 1 });
+            (it.configurations || []).forEach(cfg =>
+              ATItemTable.addItem({ ...cfg, quantity: cfg.quantity || 1 }));
+          });
+        },
+      });
+    },
+    onChange: () => atUpdateSoSubmitBtn()
+  });
+
+  // 隐藏"从客户需求导入"按钮(SO 自身就是需求,无需池子)
+  const _imp = document.getElementById('atItImportBtn');
+  if (_imp) _imp.style.display = 'none';
+
+  // 货币桥:外部 atSoCurrency ↔ ATItemTable/ATProductPicker 联动
+  // (隐藏内置货币 select / 初始同步 / 切换时批量刷价 / toast 无价提示)
+  ATCurrencyBridge.bind({
+    selectId: 'atSoCurrency',
+    onChange: () => atUpdateSoSubmitBtn(),
+  });
+</script>
+
+</div>{# /main col #}
+</div>{# /flex wrap #}
+</body>
+</html>

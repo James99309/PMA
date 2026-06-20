@@ -99,10 +99,10 @@ class PricingOrderService:
         if pricing_order.is_direct_contract and not current_user.is_vendor_user():
             warnings.append("非厂家账户无法使用厂商直签功能，该选项将被忽略")
 
-        # 6. 检查是否能找到必要的审批人角色
-        admin_id = PricingOrderService.get_role_user_id_v2('admin')
-        if not admin_id:
-            errors.append("系统缺少管理员角色，无法发起审批流程")
+        # 6. 检查是否能找到必要的审批人角色(终审为总经理,admin 不参与审批)
+        ceo_id = PricingOrderService.get_role_user_id_v2('ceo')
+        if not ceo_id:
+            errors.append("系统缺少总经理(ceo)角色，无法发起审批流程")
             return False, errors, warnings
 
         # 7. 检查部门负责人（非致命错误，但需要警告）
@@ -267,19 +267,19 @@ class PricingOrderService:
             else:
                 logger.warning(f"提交人 {submitter_id} 部门负责人缺失，跳过部门负责人审批")
         
-        # 最后一步：管理员审批
-        admin_id = PricingOrderService.get_role_user_id_v2('admin')
-        if admin_id:
+        # 最后一步：总经理二审(admin 不参与审批流程)
+        ceo_id = PricingOrderService.get_role_user_id_v2('ceo')
+        if ceo_id:
             steps.append({
                 'step_order': step_order,
-                'step_name': '管理员审批',
-                'approver_role': '管理员',
-                'approver_id': admin_id
+                'step_name': '二审',
+                'approver_role': '总经理',
+                'approver_id': ceo_id
             })
         else:
-            logger.error("管理员角色缺失，无法完成审批流程")
-            return []  # 无管理员则无法审批
-        
+            logger.error("总经理(ceo)角色缺失，无法完成审批流程")
+            return []  # 无总经理则无法审批
+
         return steps
     
     @staticmethod
@@ -434,19 +434,19 @@ class PricingOrderService:
         # 获取对应的数据库角色字段
         db_role = role_field_mapping.get(role_name)
         if not db_role:
-            # 如果没有找到对应角色，记录警告并返回管理员
-            logger.warning(f"未找到角色 {role_name} 的映射，使用管理员作为默认审批人")
-            admin_user = User.query.filter_by(role='admin').first()
-            return admin_user.id if admin_user else 1
-        
+            # 未找到角色映射 → 回退到总经理(admin 不参与审批流程)
+            logger.warning(f"未找到角色 {role_name} 的映射，使用总经理作为默认审批人")
+            ceo_user = User.query.filter_by(role='ceo').first()
+            return ceo_user.id if ceo_user else None
+
         # 直接从数据库查找具有该角色的用户
         users = User.query.filter_by(role=db_role).all()
-        
+
         if not users:
-            # 如果没有找到对应角色的用户，记录警告并回退到管理员
-            logger.warning(f"没有找到角色为 {db_role} 的用户，使用管理员作为默认审批人")
-            admin_user = User.query.filter_by(role='admin').first()
-            return admin_user.id if admin_user else 1
+            # 没有该角色用户 → 回退到总经理(admin 不参与审批流程)
+            logger.warning(f"没有找到角色为 {db_role} 的用户，使用总经理作为默认审批人")
+            ceo_user = User.query.filter_by(role='ceo').first()
+            return ceo_user.id if ceo_user else None
         elif len(users) == 1:
             # 只有一个用户具有该角色，直接返回
             logger.info(f"找到角色 {role_name}({db_role}) 的审批人: {users[0].real_name or users[0].username}")
@@ -732,7 +732,7 @@ class PricingOrderService:
             return False, f"更新失败: {str(e)}"
     
     @staticmethod
-    def update_settlement_detail(pricing_order_id, detail_id, discount_rate=None, unit_price=None):
+    def update_settlement_detail(pricing_order_id, detail_id, discount_rate=None, unit_price=None, item_note=None):
         """更新结算单明细 - 只影响结算单，不影响批价单"""
         try:
             settlement_detail = SettlementOrderDetail.query.filter_by(
@@ -749,7 +749,9 @@ class PricingOrderService:
                 # 反算折扣率
                 if settlement_detail.market_price and settlement_detail.market_price > 0:
                     settlement_detail.discount_rate = unit_price / settlement_detail.market_price
-            
+            if item_note is not None:
+                settlement_detail.item_note = item_note
+
             settlement_detail.calculate_prices()
             
             # 🔥 关键修复：只重新计算结算单总额，不影响批价单
@@ -1532,14 +1534,14 @@ class PricingOrderService:
         from app.permissions import is_admin_or_ceo
         if is_admin_or_ceo():
             return True
-            
-        # 检查基础结算单查看权限（使用正确的权限标识符）
-        # 注：渠道经理、营销总监等角色通过权限配置系统授予 settlement_view 权限
-        from app.permissions import check_permission
-        if check_permission('settlement_view'):
-            return True
 
-        return False
+        # 结算单 view 权限(settlement 模块)。
+        # 用 User.has_permission(个人权限完全覆盖角色),而非 check_permission/全局 has_permission——
+        # 后者只看角色、忽略个人权限覆盖,会导致"个人去掉结算权限后仍能看到分页"。
+        return bool(
+            current_user and getattr(current_user, 'is_authenticated', False)
+            and current_user.has_permission('settlement', 'view')
+        )
     
     @staticmethod
     def can_view_pricing_order(pricing_order, current_user):

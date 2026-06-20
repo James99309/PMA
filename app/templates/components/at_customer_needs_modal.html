@@ -1,0 +1,108 @@
+{#
+  AT 客户需求池 · 可复用组件
+
+  展示 SO 中 remaining_to_procure > 0 的明细,多选 → 导入到调用方的明细表
+  数据走既有 API:GET /purchase-order/api/procurement-demands?search=
+
+  使用:
+    1. 模板顶部 import:
+       {% from 'components/at_customer_needs_modal.html' import at_customer_needs_modal %}
+
+    2. 渲染一次外壳:
+       {{ at_customer_needs_modal() }}
+
+    3. 加载控制器 JS:
+       <script src="{{ url_for('static', filename='js/at-customer-needs.js') }}"></script>
+
+    4. 调用:
+       ATCustomerNeeds.open({
+         onImport: function (demands) {
+           // demands = [{sales_order_detail_id, product_id, product_name, product_model,
+           //             product_desc, remaining_to_procure, unit, order_number, customer_name}, ...]
+         }
+       });
+       ATCustomerNeeds.close();
+#}
+
+{% from 'components/at_base.html' import at_icon %}
+
+
+{% macro at_customer_needs_modal(modal_id='atCustomerNeedsModal') %}
+  <div id="{{ modal_id }}"
+       onclick="if (event.target === this) window.ATCustomerNeeds && ATCustomerNeeds.close()"
+       style="position:fixed;inset:0;z-index:100;display:none;
+              background:rgba(31,30,27,0.32);backdrop-filter:blur(2px);
+              align-items:center;justify-content:center;padding:20px;
+              animation:at-fade-in 180ms ease;">
+    <div style="width:100%;max-width:720px;max-height:80vh;
+                display:flex;flex-direction:column;
+                background:var(--bg-elev);border-radius:12px;
+                box-shadow:0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px var(--line);
+                animation:at-scale-in 200ms cubic-bezier(.2,.7,.2,1);
+                overflow:hidden;">
+      <header style="padding:18px 22px 12px;display:flex;align-items:center;gap:10px;">
+        <span style="width:30px;height:30px;border-radius:7px;
+                     background:var(--accent-tint);color:var(--accent);
+                     display:inline-flex;align-items:center;justify-content:center;">
+          {{ at_icon('cart', 16) }}
+        </span>
+        <h3 class="at-serif" style="margin:0;font-size:18px;font-weight:500;letter-spacing:0.01em;flex:1;">{{ _('客户需求池') }}</h3>
+        <button type="button" onclick="window.ATCustomerNeeds && ATCustomerNeeds.close()"
+                style="color:var(--ink-3);padding:4px;border-radius:6px;background:transparent;border:0;cursor:pointer;">
+          {{ at_icon('close', 18) }}
+        </button>
+      </header>
+      <div style="padding:8px 22px 4px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;
+                    background:var(--bg-elev);border:1px solid var(--line-2);border-radius:6px;
+                    font-size:13px;box-sizing:border-box;">
+          <span style="color:var(--ink-3);">{{ at_icon('search', 14) }}</span>
+          <input type="text" id="atCnSearchInput" placeholder="{{ _('搜索产品名称 / 订单号…') }}"
+                 style="flex:1;height:100%;background:transparent;border:0;outline:none;color:var(--ink);font-size:13px;">
+        </div>
+      </div>
+      <div style="padding:14px 22px 16px;overflow-y:auto;flex:1;min-height:0;">
+        <div style="border:1px solid var(--line);border-radius:8px;background:var(--bg-elev);overflow:hidden;">
+          <table style="width:100%;table-layout:fixed;font-size:13px;border-collapse:separate;border-spacing:0;">
+            <colgroup>
+              <col style="width:36px;">
+              <col style="width:130px;">{# 订单号 #}
+              <col>{# 客户 - 弹性 #}
+              <col>{# 产品 - 弹性 #}
+              <col style="width:140px;">{# 型号 #}
+              <col style="width:80px;">{# 待采购 #}
+            </colgroup>
+            <thead>
+              <tr>
+                {% for h, a in [('','left'), (_('订单号'),'left'), (_('客户'),'left'),
+                                (_('产品'),'left'), (_('型号'),'left'), (_('待采购'),'right')] %}
+                <th style="text-align:{{ a }};padding:10px 14px 12px;font-size:10.5px;font-weight:500;
+                           color:var(--ink-4);letter-spacing:0.08em;text-transform:uppercase;
+                           white-space:nowrap;">{{ h }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody id="atCnBody">
+              <tr><td colspan="6" style="padding:44px 12px;text-align:center;color:var(--ink-3);font-size:12.5px;border-top:1px solid var(--line-soft);">
+                {{ _('加载中…') }}
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <footer style="padding:10px 22px 18px;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;">
+        <button type="button" onclick="window.ATCustomerNeeds && ATCustomerNeeds.close()"
+                style="height:34px;padding:0 14px;background:transparent;color:var(--ink);
+                       border:1px solid var(--line-2);border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">
+          {{ _('取消') }}
+        </button>
+        <button type="button" id="atCnImportBtn" disabled
+                style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;
+                       background:var(--accent);color:#fff;border:1px solid var(--accent);
+                       border-radius:6px;font-size:13px;font-weight:500;opacity:0.5;cursor:not-allowed;">
+          {{ at_icon('check', 14) }} {{ _('导入选中') }}<span id="atCnImportCount" style="opacity:0.85;"></span>
+        </button>
+      </footer>
+    </div>
+  </div>
+{% endmacro %}

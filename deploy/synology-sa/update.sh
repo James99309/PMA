@@ -13,6 +13,13 @@ fi
 
 set -e
 
+# Force umask 022: ensures dirs newly created by `git reset --hard` are 755,
+# not inheriting a restrictive umask (e.g. 077 -> 700).
+# Context: 2026-05-15 mobile-api merge added components/user/; git created it
+# with umask 077 as 700, container pma(1000) couldn't traverse it ->
+# Jinja2 TemplateNotFound -> account management page 500.
+umask 022
+
 # Synology package paths (Git, Docker, etc.)
 export PATH="/volume1/@appstore/Git/bin:/usr/local/bin:$PATH"
 
@@ -82,6 +89,10 @@ else
     git reset --hard origin/main
     # Fix file permissions: git runs as root, but container runs as pma(1000)
     chown -R 1000:1000 "$PROJECT_DIR"
+    # Fallback: normalize directory perms so even git-leftover restricted dirs
+    # (e.g. 700) become 755, ensuring container pma user can traverse all
+    # template/static dirs (prevents TemplateNotFound 500).
+    find "$PROJECT_DIR/app" -type d ! -perm -005 -exec chmod 755 {} + 2>/dev/null || true
 fi
 
 # Check if requirements.txt and docker-compose.yml changed

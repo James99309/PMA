@@ -1,0 +1,319 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_section, at_info_grid, at_empty %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_purchase_order.html' import at_stage_strip, at_current_action_card, at_shipment_list %}
+{% from 'components/at_file_preview.html' import at_file_preview_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ order.order_number }} · {{ _('客户订单') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='sales_order') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- Topbar -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="{{ url_for('sales_order.list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('订单中心') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('sales_order.list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('客户订单') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span class="at-mono" style="font-size:13px;color:var(--ink);">{{ order.order_number }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 80px;">
+
+  <!-- 页眉 -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;
+              margin-bottom:28px;flex-wrap:wrap;gap:16px;">
+    <div>
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        SALES ORDER · {{ _('客户订单') }}
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;">
+        <h1 class="at-serif at-mono"
+            style="margin:0;font-size:40px;font-weight:500;letter-spacing:-0.005em;
+                   line-height:1.1;font-family:var(--font-mono);font-variant-numeric:tabular-nums;">
+          {{ order.order_number }}
+        </h1>
+        {% set status_map = {
+          'draft':     {'tone':'neutral','label':_('草稿')},
+          'confirmed': {'tone':'info','label':_('已确认')},
+          'preparing': {'tone':'accent','label':_('备货中')},
+          'shipped':   {'tone':'info','label':_('已发货')},
+          'delivered': {'tone':'success','label':_('已送达')},
+          'completed': {'tone':'success','label':_('已完成')},
+          'cancelled': {'tone':'danger','label':_('已取消')}
+        } %}
+        {% set sm = status_map.get(order.status, {'tone':'neutral','label':order.status}) %}
+        {{ at_pill(sm.label, tone=sm.tone, dot=true) }}
+      </div>
+      <div class="at-muted" style="margin-top:10px;font-size:13px;
+                                    display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
+        <span>{{ _('客户') }} · <span style="color:var(--ink-2);">{{ order.customer.company_name if order.customer else '—' }}</span></span>
+        <span style="color:var(--line-2);">|</span>
+        <span>{{ _('创建于') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ order.created_at.strftime('%Y-%m-%d') if order.created_at else '—' }}</span></span>
+        {% if order.delivery_date %}
+        <span style="color:var(--line-2);">|</span>
+        <span>{{ _('期望交付') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{{ order.delivery_date.strftime('%Y-%m-%d') }}</span></span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      {{ at_btn(_('返回'), variant='ghost', icon_l='back', tag='a', href=url_for('sales_order.list_view')) }}
+      {% if order.status == 'draft' %}
+        {# 草稿:删除(物理删) + 确认订单 #}
+        {{ at_btn(_('删除'), variant='ghost', icon_l='close', onclick='atDeleteOrder()',
+                  extra_style='color:var(--danger);border-color:var(--danger-soft, #f1d4cf);') }}
+        {{ at_btn(_('确认订单'), variant='accent', icon_l='check', onclick='atConfirmOrder()') }}
+      {% elif order.status in ('confirmed', 'preparing') and not is_referenced
+              and (order.shipped_quantity or 0) == 0 %}
+        {# 已确认/备货中 + 未被 PO 引用 + 未发货:可取消(留档) #}
+        {{ at_btn(_('取消订单'), variant='ghost', icon_l='close', onclick='atCancelOrder()',
+                  extra_style='color:var(--danger);border-color:var(--danger-soft, #f1d4cf);') }}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 阶段条(5 阶段,从客户视角) -->
+  <div style="margin-bottom:24px;">
+    {{ at_stage_strip(stages, sticky=false) }}
+  </div>
+
+  <!-- 当前阶段动作卡(只读提示) -->
+  {% if current_action %}
+  <div style="margin-bottom:20px;">
+    {{ at_current_action_card(current_action) }}
+  </div>
+  {% endif %}
+
+  <!-- 基本信息 + 交付信息(合一,4 列 grid) -->
+  <div style="margin-bottom:20px;">
+    {% call at_section(_('订单信息')) %}
+      {% set _shipping_label = {'truck':_('汽运'),'air':_('空运'),'express':_('快递'),'self_pickup':_('自提')}.get(order.shipping_method, order.shipping_method or '—') %}
+      {% set _freight_label = {'seller':_('卖方承担'),'buyer':_('买方承担')}.get(order.freight_terms, order.freight_terms or '—') %}
+      {{ at_info_grid(items=[
+        {'k': _('客户'),         'v': order.customer.company_name if order.customer else '—'},
+        {'k': _('来源批价单'),   'v': (order.pricing_order.order_number if order.pricing_order else '—'), 'mono': true},
+        {'k': _('关联项目'),     'v': (order.project.project_name if order.project else '—')},
+        {'k': _('订单金额'),     'v': (currency_symbol ~ ('{:,.2f}'.format(order.total_amount or 0))), 'mono': true, 'strong': true},
+
+        {'k': _('订单日期'),     'v': order.created_at.strftime('%Y-%m-%d') if order.created_at else '—', 'mono': true},
+        {'k': _('期望交付'),     'v': order.delivery_date.strftime('%Y-%m-%d') if order.delivery_date else '—', 'mono': true},
+        {'k': _('总数量'),       'v': ((order.total_quantity or 0)|string ~ ' ' ~ _('件')), 'mono': true},
+        {'k': _('运输方式'),     'v': _shipping_label},
+
+        {'k': _('贸易术语'),     'v': order.incoterms or '—'},
+        {'k': _('运费承担'),     'v': _freight_label},
+        {'k': _('收货联系人'),   'v': order.delivery_contact or '—'},
+        {'k': _('收货电话'),     'v': order.delivery_phone or '—', 'mono': true},
+
+        {'k': _('收货邮箱'),     'v': order.delivery_email or '—'},
+        {'k': _('交付地址'),     'v': order.delivery_address or '—'},
+        {'k': _('创建人'),       'v': (order.created_by.real_name or order.created_by.username) if order.created_by else '—'},
+        {'k': _('更新时间'),     'v': order.updated_at.strftime('%Y-%m-%d') if order.updated_at else '—', 'mono': true}
+      ], cols=4) }}
+    {% endcall %}
+  </div>
+
+  <!-- 订单明细(只读,带 4 列进度) -->
+  <div style="margin-bottom:20px;">
+    {% set _items_subtitle = '<span class="at-mono at-tab-num">' ~ _('%(count)s 项 · 共 %(total)s 件', count=(items|length), total=((order.total_quantity or 0)|string)) ~ '</span>' %}
+    {% call at_section(_('订单明细'), subtitle=_items_subtitle) %}
+      {% if not items %}
+        {{ at_empty(label=_('无明细'), icon='cube') }}
+      {% else %}
+      <table style="width:100%;font-size:13px;border-collapse:separate;border-spacing:0;">
+        <thead>
+          <tr>
+            {% for h, a in [
+              (_('产品'),'left'),(_('MN 编码'),'left'),(_('型号'),'left'),(_('订购'),'right'),
+              (_('已采购'),'right'),(_('已发'),'right'),(_('已签收'),'right'),
+              (_('单价'),'right'),(_('金额'),'right')
+            ] %}
+            <th style="text-align:{{ a }};padding:8px 18px 10px;
+                       font-size:10.5px;font-weight:500;color:var(--ink-4);
+                       letter-spacing:0.08em;text-transform:uppercase;">{{ h }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% set ns = namespace(amount=0) %}
+          {% for it in items %}
+          {% set amt = (it.qty or 0) * (it.price or 0) %}
+          {% set ns.amount = ns.amount + amt %}
+          {# 进度色:已 >= 订购 → 绿;>0 → 橙;0 → 灰 #}
+          {% macro qty_cell(val, qty) -%}
+            {% set tone = 'var(--success)' if val >= qty and qty > 0 else ('var(--accent)' if val > 0 else 'var(--ink-4)') %}
+            <span class="at-mono at-tab-num" style="font-weight:500;color:{{ tone }};">{{ val }}</span>
+          {%- endmacro %}
+          <tr>
+            <td style="padding:14px 18px;max-width:280px;border-top:1px solid var(--line-soft);vertical-align:top;">
+              <div style="font-weight:500;font-size:13.5px;">{{ it.desc }}</div>
+              {% if it.spec %}
+              <div class="at-dim" style="font-size:11.5px;margin-top:3px;line-height:1.4;">{{ it.spec }}</div>
+              {% endif %}
+            </td>
+            <td class="at-mono" style="padding:14px 18px;border-top:1px solid var(--line-soft);font-size:12.5px;color:var(--ink-2);">{{ it.code or '-' }}</td>
+            <td class="at-mono" style="padding:14px 18px;border-top:1px solid var(--line-soft);font-size:12.5px;color:var(--ink-2);">{{ it.model or '-' }}</td>
+            <td class="at-mono at-tab-num" style="padding:14px 18px;border-top:1px solid var(--line-soft);text-align:right;">
+              {{ it.qty }} <span class="at-dim" style="font-size:11px;">{{ it.unit or '' }}</span>
+            </td>
+            <td style="padding:14px 18px;border-top:1px solid var(--line-soft);text-align:right;">{{ qty_cell(it.procured, it.qty) }}</td>
+            <td style="padding:14px 18px;border-top:1px solid var(--line-soft);text-align:right;">{{ qty_cell(it.shipped, it.qty) }}</td>
+            <td style="padding:14px 18px;border-top:1px solid var(--line-soft);text-align:right;">{{ qty_cell(it.received, it.qty) }}</td>
+            <td class="at-mono at-tab-num" style="padding:14px 18px;border-top:1px solid var(--line-soft);text-align:right;color:var(--ink-2);">
+              {{ currency_symbol }}{{ "{:,.2f}".format(it.price) }}
+            </td>
+            <td class="at-mono at-tab-num" style="padding:14px 18px;border-top:1px solid var(--line-soft);text-align:right;font-weight:500;">
+              {{ currency_symbol }}{{ "{:,.2f}".format(amt) }}
+            </td>
+          </tr>
+          {% endfor %}
+          <tr>
+            <td colspan="8" style="padding:12px 18px;border-top:1px solid var(--line);text-align:right;font-size:12px;color:var(--ink-3);">{{ _('合计') }}</td>
+            <td class="at-mono at-tab-num" style="padding:12px 18px;border-top:1px solid var(--line);text-align:right;font-weight:600;font-size:14px;">
+              {{ currency_symbol }}{{ "{:,.2f}".format(ns.amount) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {% endif %}
+    {% endcall %}
+  </div>
+
+  <!-- 发货记录(只显示该 SO 的发货单) -->
+  <div style="margin-bottom:20px;">
+    {% set ship_subtitle = '' %}
+    {% if shipments and shipments|length > 0 %}
+      {% set ship_subtitle = '<span class="at-mono at-tab-num">' ~ _('%(count)s 次发货', count=shipments|length) ~ '</span>' %}
+    {% endif %}
+    {% call at_section(_('发货记录'), subtitle=ship_subtitle) %}
+      {{ at_shipment_list(shipments, can_create=false, can_sign=false) }}
+    {% endcall %}
+  </div>
+
+</main>
+
+<!-- 文件预览模态(通用) -->
+{{ at_file_preview_modal() }}
+
+<script>
+function atConfirmOrder() {
+  ATConfirm.show({
+    title: '{{ _("确认订单") }}', icon: 'check', variant: 'accent',
+    message: '{{ _("确认后订单将进入备货流程,确认吗?") }}',
+    confirmText: '{{ _("确认订单") }}', cancelText: '{{ _("取消") }}',
+    onConfirm: () => {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      fetch('/sales-order/api/{{ order.id }}/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({})
+      })
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            ATToast.success('{{ _("订单已确认") }}');
+            setTimeout(() => location.reload(), 700);
+          } else {
+            ATToast.error('{{ _("确认失败") }}', res.message || '');
+          }
+        })
+        .catch(err => ATToast.error('{{ _("确认失败") }}', String(err)));
+    }
+  });
+}
+
+function atDeleteOrder() {
+  ATConfirm.show({
+    title: '{{ _("删除草稿订单") }}', icon: 'warn', variant: 'danger',
+    message: '{{ _("订单号 %(number)s 将被永久删除(含明细),无法恢复。是否继续?", number=order.order_number) }}',
+    confirmText: '{{ _("删除") }}', cancelText: '{{ _("保留") }}',
+    onConfirm: () => {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      fetch('/sales-order/api/{{ order.id }}/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({})
+      })
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            ATToast.success('{{ _("订单已删除") }}');
+            // 记录已不存在,跳列表页
+            setTimeout(() => { window.location.href = '{{ url_for("sales_order.list_view") }}'; }, 700);
+          } else {
+            ATToast.error('{{ _("删除失败") }}', res.message || '');
+          }
+        })
+        .catch(err => ATToast.error('{{ _("删除失败") }}', String(err)));
+    }
+  });
+}
+
+function atCancelOrder() {
+  ATConfirm.show({
+    title: '{{ _("取消订单") }}', icon: 'warn', variant: 'danger',
+    message: '{{ _("订单号 %(number)s 将被取消,记录保留但状态变为已取消。是否继续?", number=order.order_number) }}',
+    confirmText: '{{ _("取消订单") }}', cancelText: '{{ _("保留") }}',
+    onConfirm: () => {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      fetch('/sales-order/api/{{ order.id }}/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({})
+      })
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            ATToast.success('{{ _("订单已取消") }}');
+            setTimeout(() => location.reload(), 700);
+          } else {
+            ATToast.error('{{ _("取消失败") }}', res.message || '');
+          }
+        })
+        .catch(err => ATToast.error('{{ _("取消失败") }}', String(err)));
+    }
+  });
+}
+
+// 发货行展开(复用 PO 的 atToggleShipment)
+function atToggleShipment(shipId) {
+  const detail = document.querySelector(`tr.at-ship-detail[data-ship-id="${shipId}"]`);
+  const row    = document.querySelector(`tr.at-ship-row[data-ship-id="${shipId}"]`);
+  if (!detail || !row) return;
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : 'table-row';
+  const chev = row.querySelector('.at-ship-chev');
+  if (chev) chev.style.transform = isOpen ? 'rotate(0)' : 'rotate(90deg)';
+}
+</script>
+
+</div>{# /main col #}
+</div>{# /flex wrap #}
+</body>
+</html>

@@ -296,13 +296,13 @@ class SpecEditor {
         this.pendingChanges = { modified: [], added: [], deleted: [], descriptionChanged: [] };
 
         // 切换按钮显示
-        document.getElementById(this.buttons.edit)?.classList.add('hidden');
-        document.getElementById(this.buttons.apply)?.classList.remove('hidden');
-        document.getElementById(this.buttons.cancel)?.classList.remove('hidden');
+        { var _btnE1 = document.getElementById(this.buttons.edit); if (_btnE1) _btnE1.classList.add('hidden'); }
+        { var _btnA1 = document.getElementById(this.buttons.apply); if (_btnA1) _btnA1.classList.remove('hidden'); }
+        { var _btnC1 = document.getElementById(this.buttons.cancel); if (_btnC1) _btnC1.classList.remove('hidden'); }
 
         // 只有启用添加新规格功能时才显示添加按钮
         if (this.features.addNewSpec) {
-            document.getElementById(this.buttons.add)?.classList.remove('hidden');
+            { var _btnAdd1 = document.getElementById(this.buttons.add); if (_btnAdd1) _btnAdd1.classList.remove('hidden'); }
         }
 
         // 显示操作按钮和拖拽手柄
@@ -433,7 +433,7 @@ class SpecEditor {
             }
 
             const selectedOption = select.options[select.selectedIndex];
-            const code = selectedOption?.dataset?.code || '';
+            const code = (selectedOption && selectedOption.dataset) ? (selectedOption.dataset.code || '') : '';
             row.dataset.fieldValue = select.value;
             row.dataset.fieldCode = code;
             self._trackCodedSpecChange(spec.name, select.value, code, row.dataset.includeInDesc === 'true');
@@ -446,7 +446,7 @@ class SpecEditor {
         const unitDisplay = row.querySelector('.unit-display');
         const unitEdit = row.querySelector('.unit-edit');
 
-        confirmBtn?.addEventListener('click', function() {
+        if (confirmBtn) confirmBtn.addEventListener('click', function() {
             if (select.value && select.value !== '__MANAGE_OPTIONS__') {
                 // 显示已选值和单位
                 valueDisplay.textContent = select.value;
@@ -467,7 +467,7 @@ class SpecEditor {
         });
 
         // 点击已确认的值可以重新编辑
-        valueDisplay?.addEventListener('click', function() {
+        if (valueDisplay) valueDisplay.addEventListener('click', function() {
             if (self.isEditMode) {
                 this.classList.add('hidden');
                 unitDisplay.classList.add('hidden');
@@ -482,7 +482,8 @@ class SpecEditor {
         });
 
         // 可见性切换
-        row.querySelector('.spec-visibility-btn')?.addEventListener('click', function() {
+        var _vBtn = row.querySelector('.spec-visibility-btn');
+        if (_vBtn) _vBtn.addEventListener('click', function() {
             const icon = this.querySelector('.material-symbols-outlined');
             const isVisible = icon.textContent === 'visibility';
             icon.textContent = isVisible ? 'visibility_off' : 'visibility';
@@ -545,7 +546,7 @@ class SpecEditor {
 
     _trackCodedSpecChange(name, value, code, include) {
         const idx = (this.pendingChanges.added || []).findIndex(i => i.field_name === name);
-        const data = { field_name: name, field_value: value, field_code: code, include_in_description: include ?? true };
+        const data = { field_name: name, field_value: value, field_code: code, include_in_description: (include !== null && include !== undefined) ? include : true};
         if (idx >= 0) this.pendingChanges.added[idx] = data;
         else (this.pendingChanges.added = this.pendingChanges.added || []).push(data);
         this.updateApplyButtonState();
@@ -570,10 +571,10 @@ class SpecEditor {
         document.querySelectorAll('.spec-row-new-input').forEach(row => row.remove());
 
         // 切换按钮显示
-        document.getElementById(this.buttons.edit)?.classList.remove('hidden');
-        document.getElementById(this.buttons.apply)?.classList.add('hidden');
-        document.getElementById(this.buttons.cancel)?.classList.add('hidden');
-        document.getElementById(this.buttons.add)?.classList.add('hidden');
+        { var _btnE2 = document.getElementById(this.buttons.edit); if (_btnE2) _btnE2.classList.remove('hidden'); }
+        { var _btnA2 = document.getElementById(this.buttons.apply); if (_btnA2) _btnA2.classList.add('hidden'); }
+        { var _btnC2 = document.getElementById(this.buttons.cancel); if (_btnC2) _btnC2.classList.add('hidden'); }
+        { var _btnAdd2 = document.getElementById(this.buttons.add); if (_btnAdd2) _btnAdd2.classList.add('hidden'); }
 
         // 隐藏操作按钮和拖拽手柄
         document.querySelectorAll('.spec-actions').forEach(el => el.classList.add('hidden'));
@@ -654,7 +655,7 @@ class SpecEditor {
             // 保存编辑
             const newValue = valueSelect.value;
             const selectedOption = valueSelect.options[valueSelect.selectedIndex];
-            const newCode = selectedOption?.dataset?.code || '';
+            const newCode = (selectedOption && selectedOption.dataset) ? (selectedOption.dataset.code || '') : '';
 
             if (newValue !== row.dataset.fieldValue || newCode !== (row.dataset.fieldCode || '')) {
                 const existingIdx = this.pendingChanges.modified.findIndex(m => m.id === row.dataset.specId);
@@ -702,7 +703,7 @@ class SpecEditor {
 
         // 获取选中的编码
         const selectedOption = select.options[select.selectedIndex];
-        const code = selectedOption?.dataset?.code || '';
+        const code = (selectedOption && selectedOption.dataset) ? (selectedOption.dataset.code || '') : '';
 
         // 更新数据属性
         row.dataset.fieldValue = value;
@@ -754,7 +755,7 @@ class SpecEditor {
      */
     deleteSpec(btnOrRow, options = {}) {
         // 支持传入按钮或直接传入行
-        const row = btnOrRow.classList?.contains('spec-row') ? btnOrRow : btnOrRow.closest('.spec-row');
+        const row = (btnOrRow.classList && btnOrRow.classList.contains('spec-row')) ? btnOrRow : btnOrRow.closest('.spec-row');
         if (!row) return;
 
         const specId = row.dataset.specId;
@@ -793,7 +794,7 @@ class SpecEditor {
         if (options.showStrikethrough) {
             // 显示删除线样式
             row.classList.add('deleted', 'opacity-50');
-            row.querySelector('.value-display')?.classList.add('line-through');
+            { var _vd = row.querySelector('.value-display'); if (_vd) _vd.classList.add('line-through'); }
         } else {
             // 直接隐藏
             row.style.display = 'none';
@@ -1093,12 +1094,12 @@ class SpecEditor {
         modal.id = 'addSpecTreeModal';
         modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
         modal.innerHTML = `
-            <div class="absolute inset-0 bg-black/50" onclick="document.getElementById('addSpecTreeModal')?.remove()"></div>
+            <div class="absolute inset-0 bg-black/50" onclick="var _m=document.getElementById('addSpecTreeModal');if(_m)_m.remove()"></div>
             <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg max-h-[80vh] flex flex-col">
                 <!-- Header -->
                 <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
                     <h3 class="text-base font-semibold text-slate-900 dark:text-white">${this.i18n.addSpecTitle || '添加规格'}</h3>
-                    <button type="button" onclick="document.getElementById('addSpecTreeModal')?.remove()"
+                    <button type="button" onclick="var _m=document.getElementById('addSpecTreeModal');if(_m)_m.remove()"
                             class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
                         <span class="material-symbols-outlined text-xl">close</span>
                     </button>
@@ -1125,7 +1126,7 @@ class SpecEditor {
                         ${this.i18n.selectedCount || '已选'} <strong>0</strong> ${this.i18n.items || '项'}
                     </span>
                     <div class="flex gap-2">
-                        <button type="button" onclick="document.getElementById('addSpecTreeModal')?.remove()"
+                        <button type="button" onclick="var _m=document.getElementById('addSpecTreeModal');if(_m)_m.remove()"
                                 class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
                             ${this.i18n.cancel}
                         </button>
@@ -1315,7 +1316,7 @@ class SpecEditor {
                 if (!select.value || select.value === '__MANAGE_OPTIONS__') return;
 
                 const selectedOption = select.options[select.selectedIndex];
-                const code = selectedOption?.dataset?.code || '';
+                const code = (selectedOption && selectedOption.dataset) ? (selectedOption.dataset.code || '') : '';
 
                 // 更新数据
                 row.dataset.fieldValue = select.value;
@@ -1538,7 +1539,7 @@ class SpecEditor {
         // 检查未完成行
         const unfinishedRow = document.querySelector('.spec-row-new-input');
         if (unfinishedRow) {
-            unfinishedRow.querySelector('.new-spec-name')?.focus();
+            { var _nsn = unfinishedRow.querySelector('.new-spec-name'); if (_nsn) _nsn.focus(); }
             return;
         }
 
@@ -1586,7 +1587,7 @@ class SpecEditor {
             if (select && !select.classList.contains('hidden')) {
                 fieldValue = select.value;
                 const selectedOption = select.options[select.selectedIndex];
-                fieldCode = selectedOption?.dataset?.code || null;
+                fieldCode = (selectedOption && selectedOption.dataset) ? (selectedOption.dataset.code || null) : null;
             }
 
             const specId = row.dataset.specId;
@@ -1702,10 +1703,10 @@ class SpecEditor {
         this.isEditMode = false;
         this.pendingChanges = { modified: [], added: [], deleted: [], descriptionChanged: [] };
 
-        document.getElementById(this.buttons.edit)?.classList.remove('hidden');
-        document.getElementById(this.buttons.apply)?.classList.add('hidden');
-        document.getElementById(this.buttons.cancel)?.classList.add('hidden');
-        document.getElementById(this.buttons.add)?.classList.add('hidden');
+        { var _btnEr = document.getElementById(this.buttons.edit); if (_btnEr) _btnEr.classList.remove('hidden'); }
+        { var _btnAa = document.getElementById(this.buttons.apply); if (_btnAa) _btnAa.classList.add('hidden'); }
+        { var _btnCa = document.getElementById(this.buttons.cancel); if (_btnCa) _btnCa.classList.add('hidden'); }
+        { var _btnAdda = document.getElementById(this.buttons.add); if (_btnAdda) _btnAdda.classList.add('hidden'); }
 
         document.querySelectorAll('.spec-actions').forEach(el => el.classList.add('hidden'));
         document.querySelectorAll('.spec-drag-handle').forEach(el => el.classList.add('hidden'));
@@ -1917,7 +1918,7 @@ class SpecEditor {
         specsList.innerHTML = '';
 
         // 检查是否有数据
-        const totalSpecs = specCategories.reduce((sum, cat) => sum + (cat.specs?.length || 0), 0);
+        const totalSpecs = specCategories.reduce((sum, cat) => sum + (cat.specs ? cat.specs.length : 0), 0);
         if (totalSpecs === 0) {
             // 显示空消息
             const emptyMsg = document.getElementById('emptySpecsMessage');

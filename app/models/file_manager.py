@@ -112,11 +112,16 @@ class UserFileRef(db.Model):
     display_name = Column(String(500), nullable=False)  # 用户可重命名的显示名
     is_deleted = Column(Boolean, default=False)  # 软删除（回收站）
     deleted_at = Column(DateTime, nullable=True)  # 删除时间
+    # 管理员锁定标记：被锁定的 ref 在永久清理 / 自动压缩路径中被保护
+    is_admin_locked = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
+    admin_locked_at = Column(DateTime, nullable=True)
+    admin_locked_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
 
     # 关系
-    user = relationship('User', backref=backref('file_refs', lazy='dynamic'))
+    # foreign_keys 显式指定：admin_locked_by 也是 users 外键，不指明会触发 SQLAlchemy 歧义
+    user = relationship('User', foreign_keys=[user_id], backref=backref('file_refs', lazy='dynamic'))
     folder = relationship('UserFolder', backref=backref('files', lazy='dynamic'))
     file_library = relationship('FileLibrary', backref=backref('refs', lazy='dynamic'))
 
@@ -134,6 +139,9 @@ class UserFileRef(db.Model):
             'display_name': self.display_name,
             'is_deleted': self.is_deleted,
             'deleted_at': self.deleted_at.isoformat() if self.deleted_at else None,
+            'is_admin_locked': bool(self.is_admin_locked),
+            'admin_locked_at': self.admin_locked_at.isoformat() if self.admin_locked_at else None,
+            'admin_locked_by': self.admin_locked_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             # 物理文件信息
@@ -146,3 +154,67 @@ class UserFileRef(db.Model):
             'is_archived': lib.is_archived if lib else False,
             'original_size': lib.original_size if lib else None,
         }
+
+
+class UserFolderShare(db.Model):
+    """文件夹共享关系 - 文件夹拥有者将文件夹共享给其他用户"""
+    __tablename__ = 'user_folder_shares'
+
+    id = Column(Integer, primary_key=True)
+    folder_id = Column(Integer, ForeignKey('user_folders.id', ondelete='CASCADE'), nullable=False, index=True)
+    shared_with_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    shared_by_user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    permission = Column(String(10), nullable=False, default='read')  # 'read' | 'write'
+    message = Column(String(500), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default='true')
+    created_at = Column(DateTime, default=get_local_time)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
+
+    # 关系
+    folder = relationship('UserFolder', backref=backref('shares', lazy='dynamic', cascade='all, delete-orphan'))
+    shared_with = relationship('User', foreign_keys=[shared_with_user_id],
+                               backref=backref('received_folder_shares', lazy='dynamic'))
+    shared_by = relationship('User', foreign_keys=[shared_by_user_id],
+                             backref=backref('sent_folder_shares', lazy='dynamic'))
+
+    __table_args__ = (
+        Index('ix_user_folder_shares_folder_user', 'folder_id', 'shared_with_user_id', unique=True),
+        Index('ix_user_folder_shares_user_active', 'shared_with_user_id', 'is_active'),
+    )
+
+    def to_dict(self, include_user=True, include_folder=False):
+        result = {
+            'id': self.id,
+            'folder_id': self.folder_id,
+            'shared_with_user_id': self.shared_with_user_id,
+            'shared_by_user_id': self.shared_by_user_id,
+            'permission': self.permission,
+            'message': self.message,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_user and self.shared_with:
+            u = self.shared_with
+            result['shared_with'] = {
+                'id': u.id,
+                'username': u.username,
+                'real_name': u.real_name,
+                'display_name': u.real_name or u.username,
+                'department': u.department,
+            }
+        if include_user and self.shared_by:
+            u = self.shared_by
+            result['shared_by'] = {
+                'id': u.id,
+                'username': u.username,
+                'real_name': u.real_name,
+                'display_name': u.real_name or u.username,
+            }
+        if include_folder and self.folder:
+            result['folder'] = {
+                'id': self.folder.id,
+                'name': self.folder.name,
+                'parent_id': self.folder.parent_id,
+            }
+        return result

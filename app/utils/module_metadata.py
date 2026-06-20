@@ -54,17 +54,26 @@ MODULE_METADATA_FALLBACK = {
         'supports_content_filter': False,
         'description': '管理产品库存'
     },
+    'sales_order': {
+        'name': '客户订单',
+        'icon': 'shopping_cart',
+        'supports_discount': False,
+        'supports_owner_change': False,
+        'supports_affiliation': False,
+        'supports_content_filter': False,
+        'description': '管理客户订单'
+    },
     'order': {
-        'name': '订单管理',
+        'name': '采购订单',
         'icon': 'list_alt',
         'supports_discount': False,
         'supports_owner_change': False,
         'supports_affiliation': False,
         'supports_content_filter': False,
-        'description': '管理销售订单'
+        'description': '管理采购订单'
     },
     'pricing_order': {
-        'name': '批价单管理',
+        'name': '批价单',
         'icon': 'sell',
         'supports_discount': True,
         'supports_owner_change': False,
@@ -109,23 +118,15 @@ MODULE_METADATA_FALLBACK = {
         'description': '管理产品报价'
     },
     'settlement': {
-        'name': '结算管理',
+        'name': '结算单',
         'icon': 'payments',
         'supports_discount': False,
         'supports_owner_change': False,
         'supports_affiliation': False,
         'supports_content_filter': False,
-        'description': '管理财务结算'
+        'description': '查看结算单'
     },
-    'settlement_order': {
-        'name': '结算单管理',
-        'icon': 'credit_card',
-        'supports_discount': True,
-        'supports_owner_change': False,
-        'supports_affiliation': False,
-        'supports_content_filter': False,
-        'description': '管理结算单'
-    },
+    # settlement_order(结算单管理)为死模块,已停用,不再列入回退清单
     'user_management': {
         'name': '用户管理',
         'icon': 'group',
@@ -143,6 +144,15 @@ MODULE_METADATA_FALLBACK = {
         'supports_affiliation': False,
         'supports_content_filter': False,
         'description': '管理系统权限和配置'
+    },
+    'person_config': {
+        'name': '个人配置',
+        'icon': 'manage_accounts',
+        'supports_discount': False,
+        'supports_owner_change': False,
+        'supports_affiliation': False,
+        'supports_content_filter': False,
+        'description': '账户个人级配置(权限/归属/预算/绩效/薪资/AI),tab 由功能开关控制'
     },
     'approval': {
         'name': '审批中心',

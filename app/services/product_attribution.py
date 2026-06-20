@@ -10,7 +10,6 @@ from app import db
 from app.models.user import User
 from app.models.product import Product
 from app.models.product_code import ProductCategory
-from app.models.relation import ProjectMember
 from app.models.worklog import WorkItem
 from app.models.action import Action
 from sqlalchemy import func
@@ -50,13 +49,6 @@ def get_analysis_view_scope(user):
 
     if is_admin_or_ceo():
         return {'level': 'admin', 'associated_project_ids': [], 'managed_category_ids': []}
-
-    if user.role == 'solution_manager':
-        project_ids = [m.project_id for m in ProjectMember.query.filter(
-            ProjectMember.user_id == user.id,
-            ProjectMember.role == 'solution_engineer'
-        ).all()]
-        return {'level': 'se', 'associated_project_ids': project_ids, 'managed_category_ids': []}
 
     if user.role == 'product_manager':
         category_ids = [c.id for c in ProductCategory.query.filter_by(manager_id=user.id).all()]

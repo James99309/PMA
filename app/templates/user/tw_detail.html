@@ -776,11 +776,16 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="md:col-span-2">
+                        <div class="md:col-span-2 flex flex-wrap gap-2">
                             <button type="button" @click="resetToken()" :disabled="loading"
                                     class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 dark:text-amber-300 transition-colors disabled:opacity-50">
                                 <span class="material-symbols-outlined text-base">refresh</span>
                                 {{ _('重置 token（旧的立即失效）') }}
+                            </button>
+                            <button type="button" @click="sendDxt()" :disabled="loading"
+                                    class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:text-blue-300 transition-colors disabled:opacity-50">
+                                <span class="material-symbols-outlined text-base">extension</span>
+                                {{ _('发送 Claude Desktop 扩展') }}
                             </button>
                         </div>
                     </div>
@@ -988,6 +993,8 @@
                                             headers: {'Content-Type': 'application/json'},
                                             body: JSON.stringify({quota: self.quotaInput})
                                         });
+                                        if (r.status === 401) throw new Error('会话已过期，请刷新页面重新登录');
+                                        if (r.status === 403) throw new Error('权限不足');
                                         const d = await r.json();
                                         if (!d.success) throw new Error(d.message || '操作失败');
                                         let msg = turnOn ? '✓ 已启用' : '✓ 已禁用';
@@ -1017,6 +1024,20 @@
                                     }
                                 }
                             });
+                        },
+                        async sendDxt() {
+                            const self = this;
+                            self.loading = true;
+                            try {
+                                const r = await fetch(`/user/api/${self.userId}/claude-ai/send-dxt`, {method: 'POST'});
+                                const d = await r.json();
+                                if (!d.success) throw new Error(d.message || '发送失败');
+                                self.flash('✓ 扩展安装邮件已发送至 ' + (self.data.email || '用户邮箱'), 'info');
+                            } catch(e) {
+                                self.flash('✗ ' + e.message, 'error');
+                            } finally {
+                                self.loading = false;
+                            }
                         },
                         unlockDevice() {
                             const self = this;

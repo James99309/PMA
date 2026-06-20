@@ -1,6 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from app import db
+from app.utils.lockable import LockableMixin
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, Enum as SQLEnum, case
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -36,7 +37,7 @@ class SettlementOrderStatus(enum.Enum):
     REJECTED = 'rejected'     # 已拒绝
 
 
-class PricingOrder(db.Model):
+class PricingOrder(LockableMixin, db.Model):
     """批价单主表（面向经销商）"""
     __tablename__ = 'pricing_orders'
     
@@ -256,6 +257,9 @@ class SettlementOrder(db.Model):
 
     # 货币字段
     currency = Column(String(10), default='CNY', comment='货币类型')
+
+    # 结算单备注
+    notes = Column(Text, nullable=True, comment='结算单备注')
 
     # 业务类型（从布尔字段推导）
     @hybrid_property

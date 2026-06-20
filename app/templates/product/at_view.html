@@ -1,0 +1,455 @@
+{#
+  AT 产品详情(MVP — 仅含媒体组件预览,后续步骤补齐规格/关联/价格)
+#}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_tabs %}
+{% from 'components/at_header_badges.html' import at_header_chip_group %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles, at_detail_section, at_info_panel %}
+{% from 'components/at_product_media.html' import at_product_overview, at_product_files,
+    at_product_media_styles, at_product_media_script with context %}
+{% from 'components/at_product_specs_relations.html' import at_specs_relations_styles,
+    at_product_specs, at_product_relations, at_spec_preview_modal, at_spec_editor_init %}
+{% from 'components/at_spec_import_modal.html' import at_spec_import_modal, at_spec_import_script %}
+{% from 'components/at_product_relation_modal.html' import at_product_relation_modal, at_product_relation_script %}
+{% from 'components/at_product_sidebar.html' import at_product_sidebar_styles,
+    at_product_region_prices, at_product_qrcode, at_product_sidebar_script %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ product.product_name or product.model }} · {{ _('产品详情') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/currency-helpers.js') }}"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+<script src="{{ url_for('static', filename='js/spec-editor.js') }}"></script>
+<script>
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
+    darkMode: ['selector', '[data-theme="dark"]'],
+    corePlugins: { preflight: false },
+    theme: { extend: { colors: { primary: 'var(--accent)' } } }
+  };
+</script>
+<script src="{{ url_for('static', filename='vendor/tailwind/tailwind.forms.min.js') }}"></script>
+{{ at_detail_styles() }}
+{{ at_product_media_styles() }}
+{{ at_product_media_script() }}
+{{ at_specs_relations_styles() }}
+{{ at_product_sidebar_styles() }}
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='product') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- 顶栏面包屑 -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('产品中心') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('product.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('产品库') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);
+                 overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;">{{ product.product_name or product.model }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 80px;">
+
+  {# ── 页头 ── #}
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;
+              margin-bottom:24px;flex-wrap:wrap;gap:16px;">
+    <div style="flex:1;min-width:0;">
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        PRODUCT · {{ product.product_mn or '—' }}
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <h1 class="at-serif"
+            style="margin:0;font-size:32px;font-weight:500;letter-spacing:-0.005em;line-height:1.2;
+                   flex:0 1 auto;min-width:0;max-width:min(100%, 720px);
+                   overflow-wrap:anywhere;word-break:break-word;">
+          {{ product.product_name or product.model or _('未命名产品') }}
+        </h1>
+        {% call at_header_chip_group() %}
+          {# 状态：can_edit 时可下拉切换 #}
+          <div style="position:relative;" id="at-status-ctrl">
+            {% if can_edit %}
+            <button onclick="atToggleStatusMenu(event)"
+                    style="display:inline-flex;align-items:center;gap:3px;
+                           background:0;border:0;cursor:pointer;padding:0;border-radius:4px;">
+              {{ at_status_pill(product.status or 'active', scope='product') }}
+              <span class="material-symbols-outlined" style="font-size:13px;color:var(--ink-4);">expand_more</span>
+            </button>
+            <div id="atStatusMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;
+                 background:var(--bg-elev);border:1px solid var(--line);border-radius:8px;
+                 box-shadow:0 4px 16px rgba(0,0,0,.14);z-index:200;min-width:116px;padding:4px;">
+              <button onclick="atChangeStatus('active')"      class="at-sm-opt">{{ _('生产中') }}</button>
+              <button onclick="atChangeStatus('discontinued')" class="at-sm-opt">{{ _('已停产') }}</button>
+              <button onclick="atChangeStatus('upcoming')"    class="at-sm-opt">{{ _('待上市') }}</button>
+            </div>
+            {% else %}
+            {{ at_status_pill(product.status or 'active', scope='product') }}
+            {% endif %}
+          </div>
+          {# 厂商产品标记 #}
+          {% if product.is_vendor_product %}
+          <span style="font-size:11px;padding:2px 8px;border-radius:3px;
+                       background:rgba(99,102,241,.1);color:rgb(99,102,241);
+                       font-weight:500;letter-spacing:0.02em;">{{ _('厂商') }}</span>
+          {% endif %}
+        {% endcall %}
+      </div>
+      <div class="at-dim" style="font-size:12.5px;margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        {% if product.brand %}{{ product.brand }}{% endif %}
+        {% if product.model %} · {{ product.model }}{% endif %}
+        {% if product.unit %} · {{ product.unit }}{% endif %}
+        {% if product.owner %}
+        <span style="color:var(--line-2);">|</span>
+        <span>{{ product.owner.real_name or product.owner.username }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {# 右侧操作区 #}
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      {# 上一个 / 下一个 #}
+      {% if prev_product_id %}
+      <a href="{{ url_for('product.at_view_product', id=prev_product_id) }}"
+         title="{{ _('上一个产品') }}"
+         style="display:inline-flex;align-items:center;justify-content:center;
+                width:30px;height:30px;border:1px solid var(--line-2);border-radius:6px;
+                background:var(--bg-elev);color:var(--ink-2);text-decoration:none;
+                transition:background 100ms;">
+        <span class="material-symbols-outlined" style="font-size:16px;">chevron_left</span>
+      </a>
+      {% else %}
+      <span style="display:inline-flex;align-items:center;justify-content:center;
+                   width:30px;height:30px;border:1px solid var(--line);border-radius:6px;
+                   color:var(--ink-4);opacity:.4;">
+        <span class="material-symbols-outlined" style="font-size:16px;">chevron_left</span>
+      </span>
+      {% endif %}
+      {% if next_product_id %}
+      <a href="{{ url_for('product.at_view_product', id=next_product_id) }}"
+         title="{{ _('下一个产品') }}"
+         style="display:inline-flex;align-items:center;justify-content:center;
+                width:30px;height:30px;border:1px solid var(--line-2);border-radius:6px;
+                background:var(--bg-elev);color:var(--ink-2);text-decoration:none;
+                transition:background 100ms;">
+        <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+      </a>
+      {% else %}
+      <span style="display:inline-flex;align-items:center;justify-content:center;
+                   width:30px;height:30px;border:1px solid var(--line);border-radius:6px;
+                   color:var(--ink-4);opacity:.4;">
+        <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+      </span>
+      {% endif %}
+      {# 删除 #}
+      {% if can_delete %}
+      <button onclick="atDeleteProduct()"
+              style="display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 10px;
+                     border:1px solid var(--line-2);border-radius:6px;background:var(--bg-elev);
+                     font-size:12px;color:var(--danger,#dc2626);cursor:pointer;
+                     transition:background 100ms,border-color 100ms;">
+        <span class="material-symbols-outlined" style="font-size:14px;">delete</span>{{ _('删除') }}
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── 两栏:中栏 tabs + 右栏 sticky 价格/QR ── #}
+  <div style="display:grid;grid-template-columns:minmax(0, 1fr) minmax(280px, 360px);
+              gap:24px;align-items:start;">
+
+    {# 中栏:tab 容器 #}
+    <section>
+      {# Card 1:概览(独立卡)#}
+      {% call at_detail_section(_('概览'), body_padding='default') %}
+        {{ at_product_overview(product, effective_image=effective_image, can_edit=can_edit) }}
+      {% endcall %}
+
+      {# Card 2:规格 / 配置 / 资料（手写 tab 头，右侧保留操作按钮槽）#}
+      <div class="at-section" id="atProductSubTabs" data-active="specs" style="overflow:visible;">
+        <nav style="display:flex;align-items:stretch;">
+          {% for t_key, t_label, t_icon in [('specs',_('规格'),'docs'),('config',_('配置'),'grid'),('files',_('资料'),'file')] %}
+          {% set is_active = (t_key == 'specs') %}
+          <button type="button" data-tab-key="{{ t_key }}"
+                  onclick="atSelectTab('atProductSubTabs','{{ t_key }}')"
+                  style="padding:11px 18px;font-size:13px;font-weight:{{ '500' if is_active else '400' }};
+                         background:transparent;border:0;
+                         border-bottom:2px solid {{ 'var(--accent)' if is_active else 'transparent' }};
+                         color:{{ 'var(--accent)' if is_active else 'var(--ink-3)' }};
+                         cursor:pointer;transition:all 120ms;
+                         display:inline-flex;align-items:center;gap:6px;">
+            {{ at_icon(t_icon, 14) }}<span>{{ t_label }}</span>
+          </button>
+          {% endfor %}
+
+          {# Tab 右侧按钮区（flex:1 推到右侧，按 tab 显隐）#}
+          <div style="flex:1;display:flex;align-items:center;justify-content:flex-end;
+                      padding-right:16px;gap:6px;">
+            {% set _tbtn = 'font-size:12.5px;background:0;border:0;cursor:pointer;padding:4px 8px;border-radius:4px;transition:color 100ms;' %}
+
+            {# 规格 tab 按钮 #}
+            <div id="atTabAct-specs" style="display:flex;align-items:center;gap:6px;">
+              {% if can_edit %}
+              <button id="editSpecsBtn"   style="{{ _tbtn }}color:var(--ink-3);">{{ _('编辑') }}</button>
+              <button id="importSpecsBtn" style="{{ _tbtn }}color:var(--ink-3);" onclick="atSpecImportOpen()">{{ _('导入') }}</button>
+              <button id="applySpecsBtn"  style="{{ _tbtn }}color:var(--accent);font-weight:500;" class="hidden">{{ _('应用') }}</button>
+              <button id="cancelSpecsBtn" style="{{ _tbtn }}color:var(--ink-4);" class="hidden">{{ _('取消') }}</button>
+              {% endif %}
+            </div>
+
+            {# 配置 tab 按钮 #}
+            <div id="atTabAct-config" style="display:none;align-items:center;gap:6px;">
+              {% if can_edit %}
+              <button style="{{ _tbtn }}color:var(--ink-3);" onclick="atRelModalOpen()">{{ _('添加关联') }}</button>
+              {% endif %}
+            </div>
+
+            {# 资料 tab 按钮（暂无）#}
+            <div id="atTabAct-files" style="display:none;"></div>
+          </div>
+        </nav>
+
+        <div class="at-tabs-panels">
+          <div data-tab-panel="specs" style="padding:20px 22px;">
+            {{ at_product_specs(spec_categories, can_edit=can_edit) }}
+          </div>
+          <div data-tab-panel="config" style="padding:20px 22px;display:none;">
+            {{ at_product_relations(product, can_edit=can_edit) }}
+          </div>
+          <div data-tab-panel="files" style="padding:24px 22px;display:none;">
+            {{ at_product_files(product, can_edit=can_edit) }}
+          </div>
+        </div>
+
+        <script>
+        (function(){
+          if (!window.atSelectTab) {
+            window.atSelectTab = function(tabId, key) {
+              var wrap = document.getElementById(tabId);
+              if (!wrap) return;
+              wrap.dataset.active = key;
+              wrap.querySelectorAll(':scope > nav > [data-tab-key]').forEach(function(b){
+                var active = b.dataset.tabKey === key;
+                b.style.color = active ? 'var(--accent)' : 'var(--ink-3)';
+                b.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
+                b.style.fontWeight = active ? '500' : '400';
+              });
+              wrap.querySelectorAll(':scope > .at-tabs-panels > [data-tab-panel]').forEach(function(p){
+                p.style.display = (p.dataset.tabPanel === key) ? '' : 'none';
+              });
+              // 右侧按钮区随 tab 切换
+              ['specs','config','files'].forEach(function(k){
+                var el = document.getElementById('atTabAct-' + k);
+                if (el) el.style.display = (k === key) ? 'flex' : 'none';
+              });
+            };
+          }
+          // 上传/清除后页面刷新时还原 tab
+          var _restore = sessionStorage.getItem('at-tab-restore');
+          if (_restore) {
+            sessionStorage.removeItem('at-tab-restore');
+            window.atSelectTab('atProductSubTabs', _restore);
+          }
+        })();
+        </script>
+      </div>
+    </section>
+
+    {# 右栏:sticky 地区价格 + 二维码 + 元数据 #}
+    <aside style="position:sticky;top:80px;">
+      {% call at_detail_section(_('地区面价'), body_padding='default') %}
+        {{ at_product_region_prices(product, can_edit=can_edit) }}
+      {% endcall %}
+      {% call at_detail_section(_('产品二维码'), body_padding='default') %}
+        {{ at_product_qrcode(product) }}
+      {% endcall %}
+      {# 引用数量(含推荐系数:植入品质用,仅 CEO/admin 可设,其余只读) #}
+      <section class="at-section">
+        <header class="at-section-h"><h3 class="at-section-title">{{ _('引用数量') }}</h3></header>
+        <div class="at-section-body">
+          <dl style="margin:0;">
+            <div class="at-info-row">
+              <dt>{{ _('推荐系数') }}</dt>
+              <dd>
+                {% if can_set_citation %}
+                <input id="citationCoefInput" type="number" step="0.1" min="0"
+                       value="{{ '%g'|format(product.citation_coefficient) if product.citation_coefficient is not none else '' }}"
+                       placeholder="0"
+                       style="width:80px;padding:2px 6px;border:1px solid var(--line-2);border-radius:5px;background:var(--bg-elev);color:var(--ink);font:inherit;font-size:13px;"
+                       onchange="saveCitationCoef(this.value)">
+                <span id="citationCoefHint" class="at-dim" style="font-size:11px;margin-left:6px;">{{ _('失焦即保存 · 0/空=不计入品质') }}</span>
+                {% else %}
+                {{ '%g'|format(product.citation_coefficient) if product.citation_coefficient is not none else '—' }}
+                {% endif %}
+              </dd>
+            </div>
+            <div class="at-info-row"><dt>{{ _('设计用量') }}</dt><dd>{{ design_quantity }}</dd></div>
+            <div class="at-info-row"><dt>{{ _('成单用量') }}</dt><dd>{{ order_quantity }}</dd></div>
+          </dl>
+        </div>
+      </section>
+      {% if can_set_citation %}
+      <script>
+        async function saveCitationCoef(v) {
+          const hint = document.getElementById('citationCoefHint');
+          try {
+            const r = await (await fetch('{{ url_for("product.api_set_citation_coefficient", product_id=product.id) }}', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+              body: JSON.stringify({ citation_coefficient: v === '' ? null : parseFloat(v) }),
+            })).json();
+            if (hint) { hint.textContent = r.success ? '{{ _("✓ 已保存") }}' : (r.message || '{{ _("保存失败") }}'); hint.style.color = r.success ? 'var(--success)' : 'var(--danger)'; }
+          } catch (e) { if (hint) { hint.textContent = '{{ _("保存失败,请重试") }}'; hint.style.color = 'var(--danger)'; } }
+        }
+      </script>
+      {% endif %}
+      {{ at_info_panel(_('元数据'), [
+        (_('产品 ID'),   product.id, 'at-mono'),
+        (_('创建人'),    (product.owner.real_name or product.owner.username) if product.owner else '—'),
+        (_('创建时间'),  product.created_at.strftime('%Y-%m-%d') if product.created_at else '—'),
+        (_('更新时间'),  product.updated_at.strftime('%Y-%m-%d') if product.updated_at else '—'),
+      ]) }}
+    </aside>
+
+  </div>
+
+  {# at_tabs 已自带 panel 显隐逻辑(:scope > .at-tabs-panels > [data-tab-panel]),无需额外脚本 #}
+
+</main>
+
+</div></div>
+{{ at_product_sidebar_script(product, can_edit=can_edit) }}
+{% if can_edit %}
+{{ at_spec_import_modal(product) }}
+{{ at_spec_import_script(product) }}
+{{ at_product_relation_modal(product) }}
+{{ at_product_relation_script(product) }}
+<script>
+/* 从配置引入产品后自动打开规格引入弹框（?import_specs=1） */
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('import_specs') !== '1') return;
+  var sp8d = params.get('sp8d_config_id');
+  // 清除 URL 参数，避免刷新时重复弹出（atSpecImportOpen 已先捕获 sp8d_config_id）
+  window.history.replaceState({}, '', window.location.pathname);
+  setTimeout(function () {
+    if (window.atSpecImportOpen) window.atSpecImportOpen(sp8d || null);
+  }, 300);
+})();
+</script>
+{% endif %}
+{{ at_spec_preview_modal() }}
+{{ at_spec_editor_init(product, can_edit) }}
+
+<style>
+.at-sm-opt {
+  display:block;width:100%;text-align:left;padding:7px 12px;
+  font-size:12.5px;background:0;border:0;cursor:pointer;
+  border-radius:4px;color:var(--ink);transition:background 80ms;
+}
+.at-sm-opt:hover { background:var(--bg-hover); }
+</style>
+
+<script>
+(function(){
+  var PID = {{ product.id }};
+
+  function csrf() {
+    var m = document.querySelector('meta[name="csrf-token"]');
+    return m ? (m.content||'') : '';
+  }
+
+  /* ── 删除产品 ── */
+  window.atDeleteProduct = function() {
+    ATConfirm.show({
+      title: '{{ _("删除产品") }}',
+      message: '{{ _("确认永久删除「%(name)s」？此操作不可撤销。", name=(product.product_name or product.model)) }}',
+      variant: 'danger',
+      confirmText: '{{ _("确认删除") }}',
+      onConfirm: function() {
+        fetch('/api/products/' + PID + '/delete', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrf() },
+          credentials: 'same-origin'
+        })
+        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+        .then(function(res) {
+          if (res.ok && res.d.success) {
+            if (window.atToast) atToast('{{ _("产品已删除") }}', 'success');
+            setTimeout(function(){ window.location.href = '/product/at_list'; }, 800);
+          } else if (res.d.code === 'PRODUCT_REFERENCED') {
+            ATConfirm.show({
+              title: '{{ _("无法删除") }}',
+              message: res.d.message + '\n\n{{ _("是否将该产品设为【已停产】？") }}',
+              variant: 'warn',
+              confirmText: '{{ _("设为停产") }}',
+              onConfirm: function() { atChangeStatus('discontinued'); }
+            });
+          } else {
+            ATConfirm.show({ title: '{{ _("删除失败") }}', message: res.d.message || '{{ _("删除失败") }}', variant: 'warn', confirmText: '{{ _("知道了") }}', onCancel: null });
+          }
+        })
+        .catch(function() {
+          if (window.atToast) atToast('{{ _("网络错误") }}', 'error');
+        });
+      }
+    });
+  };
+
+  /* ── 状态切换 ── */
+  window.atToggleStatusMenu = function(e) {
+    e.stopPropagation();
+    var m = document.getElementById('atStatusMenu');
+    m.style.display = m.style.display === 'none' ? '' : 'none';
+  };
+  document.addEventListener('click', function() {
+    var m = document.getElementById('atStatusMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  window.atChangeStatus = function(status) {
+    var m = document.getElementById('atStatusMenu');
+    if (m) m.style.display = 'none';
+    fetch('/api/products/' + PID + '/update-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      credentials: 'same-origin',
+      body: JSON.stringify({ status: status })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        if (window.atToast) atToast('{{ _("状态已更新") }}', 'success');
+        setTimeout(function(){ location.reload(); }, 600);
+      } else {
+        if (window.atToast) atToast(d.message || '{{ _("更新失败") }}', 'error');
+      }
+    })
+    .catch(function() {
+      if (window.atToast) atToast('{{ _("网络错误") }}', 'error');
+    });
+  };
+})();
+</script>
+</body>
+</html>

@@ -210,6 +210,7 @@ window.{{ namespace }} = window.{{ namespace }} || {};
         notSubmitted: '{{ _("尚未提交审批") }}',
         clickToSubmit: '{{ _("点击下方按钮提交审批") }}',
         noApprovalFlow: '{{ _("暂无审批流程") }}',
+        approvedNoHistory: '{{ _("已批准(无审批历史记录)") }}',
         approved: '{{ _("已同意") }}',
         currentNode: '{{ _("当前节点") }}',
         rejected: '{{ _("已拒绝") }}',
@@ -294,6 +295,14 @@ window.{{ namespace }} = window.{{ namespace }} || {};
         } else if (status === 'recalled') {
             // 召回状态：不显示审批流程，清空容器
             html = '';
+        } else if (status === 'approved') {
+            // 已批准但没走 V2 审批系统(老数据 / 直接批准) → 更友好的空状态
+            html = `
+                <div class="text-center py-8">
+                    <span class="material-symbols-outlined text-4xl text-emerald-300 dark:text-emerald-700">verified</span>
+                    <p class="mt-2 text-slate-500 dark:text-slate-400">${i18n.approvedNoHistory}</p>
+                </div>
+            `;
         } else {
             html = `
                 <div class="text-center py-8">

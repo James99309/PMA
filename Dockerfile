@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libredwg-tools \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
+# 注：ffmpeg / libreoffice 不在镜像内,通过 Mac mini 服务 (PMA_WHISPER_SERVICE_URL /
+# PMA_OFFICE_CONVERT_URL) 远程转码,本地开发若需 fallback 自行 brew/apt 安装
 
 # 复制依赖文件并安装
 COPY requirements.txt .

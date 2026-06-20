@@ -13,9 +13,10 @@ points_bp = Blueprint('points', __name__, url_prefix='/points')
 @points_bp.route('/')
 @login_required
 def index():
+    # User.is_active 是 @property，SQL 必须用实际列 User._is_active
     departments = db.session.query(User.department).filter(
         User.department.isnot(None),
-        User.is_active == True
+        User._is_active == True
     ).distinct().order_by(User.department).all()
     departments = [d[0] for d in departments if d[0]]
     is_admin = current_user.role == 'admin'

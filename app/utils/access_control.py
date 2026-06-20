@@ -99,6 +99,29 @@ def get_personal_viewable_user_ids(user):
     return list(set(viewable_user_ids))
 
 
+def _pinyin_sort_key(name):
+    """姓名排序键:中文按拼音,英文/数字原样;无 pypinyin 时退回小写原串。"""
+    name = name or ''
+    try:
+        from pypinyin import lazy_pinyin
+        return ''.join(lazy_pinyin(name)).lower()
+    except Exception:
+        return name.lower()
+
+
+def build_owner_filter_options(owner_ids):
+    """负责人筛选下拉选项:在职在前、离职在后(灰色 muted),组内按拼音首字母排序,
+    离职 label 加「（离职）」。供 AT 列表(项目/客户/报价)筛选面板复用。"""
+    if not owner_ids:
+        return []
+    users = User.query.filter(User.id.in_(owner_ids)).all()
+    users.sort(key=lambda u: (not u.is_active, _pinyin_sort_key(u.real_name or u.username)))
+    return [{'value': u.id,
+             'label': (u.real_name or u.username or str(u.id)) + ('（离职）' if not u.is_active else ''),
+             'muted': not u.is_active}
+            for u in users]
+
+
 def get_managed_departments(user):
     """
     获取用户管理的部门列表（兼容新旧两种方式）
@@ -274,31 +297,25 @@ def apply_content_filters(query, model_class, module_name, user):
             content_filters = role_permission.content_filters
             logger.debug(f"使用角色权限的 content_filters: {content_filters}")
         else:
-            # 没有任何 content_filters 配置
-            # 如果模块定义了内容筛选选项，则必须配置才能查看
-            if module_filter_options:
-                logger.debug(f"{module_name} 模块定义了内容筛选但用户未配置，返回空查询")
-                return query.filter(False)
-            # 模块没有定义内容筛选选项，不做过滤
+            # 没有任何 content_filters 配置 = 不限(不过滤,全开)
+            # (原"模块可筛选但未配置 → 全关"与"不限=全开"直觉冲突,已废弃;
+            #  全开仍受 permission_level 数据范围约束)
             return query
 
         logger.debug(f"应用 {module_name} 模块的内容过滤: {content_filters}")
 
-        # 检查：模块定义的每个筛选字段，用户都必须配置
-        for filter_key in module_filter_options.keys():
-            if filter_key not in content_filters:
-                logger.debug(f"{module_name} 模块缺少必需的筛选字段 {filter_key}，返回空查询")
-                return query.filter(False)
+        # 缺某筛选字段 = 该维度「不限」(不过滤),不再因缺字段而全关
+        # (原"必须配齐每个字段否则全关"与"不限=全开"直觉冲突,已废弃)
 
-        # 动态应用过滤规则（AND 逻辑：所有字段都必须满足）
+        # 动态应用过滤规则（AND 逻辑：仅对"有具体值"的字段过滤;空/缺 = 不限）
         for filter_key, allowed_values in content_filters.items():
             if not isinstance(allowed_values, list):
                 continue
 
-            # 空列表 = 无权限
+            # 空列表 = 该维度「不限」(不过滤,全开),不再全关
             if not allowed_values:
-                logger.debug(f"{module_name}.{filter_key} 为空列表，返回空查询")
-                return query.filter(False)
+                logger.debug(f"{module_name}.{filter_key} 为空列表 → 视为不限,跳过该维度过滤")
+                continue
 
             # 获取该字段的配置
             filter_config = module_filter_options.get(filter_key, {})
@@ -420,13 +437,13 @@ def _get_worklog_shared_ids(user_id, field='project_id'):
     from app.models.worklog import WorkItem
 
     target_field = getattr(WorkItem, field)
+    # 仅"被共享给该用户"的行程才让关联客户/项目在列表可见(与 can_view_company/project 一致)。
+    # 不再包含 owner_id==user_id —— 否则"自己给某客户/项目记过行程"会让其误显示在列表,
+    # 但详情(只认共享)拒绝,造成"列表看得到、点不进"(转移走后尤为明显)。
     return db.session.query(target_field).filter(
         target_field.isnot(None),
         WorkItem.is_deleted == False,
-        db.or_(
-            WorkItem.owner_id == user_id,
-            cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
-        )
+        cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
     ).distinct()
 
 def _get_task_linked_ids(user_id, field='project_id'):
@@ -445,6 +462,43 @@ def _get_task_linked_ids(user_id, field='project_id'):
         GeneralTask.status.in_(['pending', 'in_progress', 'completed']),
         db.or_(GeneralTask.assignee_id == user_id, GeneralTask.creator_id == user_id)
     ).distinct()
+
+
+def additive_grant_conditions(model_class, user):
+    """「附加授权」OR 条件 —— 与权限级别无关,任何级别(system 除外,本就全见)都应叠加:
+       共享(shared_with_users) + 行程共享 + 任务关联 + 厂商销售负责人。
+       按模型自适应字段;返回 list[SQLAlchemy 条件](可能为空)。
+
+    解决:公司/部门级用户收不到跨公司/跨部门「显式共享」给他的数据(原共享仅 personal 级生效)。
+    """
+    conds = []
+    name = model_class.__name__
+    # 1) 通用共享 shared_with_users
+    if hasattr(model_class, 'shared_with_users'):
+        try:
+            from app.utils.sharing import SharingService
+            c = SharingService.get_sharing_query_condition(model_class, user.id)
+            if c is not None:
+                conds.append(c)
+        except Exception as e:
+            logger.warning(f"附加授权-共享条件构建失败 ({name}): {e}")
+    # 2) 按模型的其它附加授权
+    if name == 'Project':
+        conds.append(model_class.vendor_sales_manager_id == user.id)
+        conds.append(model_class.id.in_(_get_worklog_shared_ids(user.id, 'project_id')))
+        conds.append(model_class.id.in_(_get_task_linked_ids(user.id, 'project_id')))
+    elif name == 'Quotation':
+        # 报价单的附加授权由项目派生:厂商负责人 / 行程共享 的项目下报价 + 任务关联报价
+        proj_ids = set(p[0] for p in Project.query.filter(
+            Project.vendor_sales_manager_id == user.id).with_entities(Project.id).all())
+        proj_ids.update(r[0] for r in _get_worklog_shared_ids(user.id, 'project_id').all())
+        if proj_ids:
+            conds.append(model_class.project_id.in_(proj_ids))
+        conds.append(model_class.id.in_(_get_task_linked_ids(user.id, 'quotation_id')))
+    elif name == 'Company':
+        conds.append(model_class.id.in_(_get_worklog_shared_ids(user.id, 'customer_id')))
+    # Contact: 仅通用共享(若有 shared_with_users);其可见性主要随所属公司,不在此叠加
+    return conds
 
 def get_viewable_data(model_class, user, special_filters=None):
     """
@@ -519,7 +573,39 @@ def get_viewable_data(model_class, user, special_filters=None):
         query = apply_content_filters(query, model_class, 'order', user)
 
         return query
-    
+
+    if model_class.__name__ == 'SalesOrder':
+        # 客户订单：用 sales_order 模块 + created_by_id（SalesOrder 无 owner_id）
+        if not user.has_permission('sales_order', 'view'):
+            return model_class.query.filter(False)
+
+        permission_level = user.get_permission_level('sales_order')
+
+        if permission_level == 'system':
+            query = model_class.query.filter(*special_filters if special_filters else [])
+        elif permission_level == 'company' and user.company_name:
+            company_user_ids = get_company_user_ids(user)
+            query = model_class.query.filter(
+                model_class.created_by_id.in_(company_user_ids),
+                *special_filters
+            )
+        elif permission_level == 'department' and user.department:
+            dept_user_ids = get_department_user_ids(user)
+            query = model_class.query.filter(
+                model_class.created_by_id.in_(dept_user_ids),
+                *special_filters
+            )
+        else:  # personal
+            viewable_user_ids = get_personal_viewable_user_ids(user)
+            query = model_class.query.filter(
+                model_class.created_by_id.in_(viewable_user_ids),
+                *special_filters
+            )
+
+        query = apply_content_filters(query, model_class, 'sales_order', user)
+
+        return query
+
     # 处理特殊角色权限 - Project模型 - 基于四级权限管理系统（重构版）
     if model_class.__name__ == 'Project':
         # 检查用户是否有项目模块的查看权限
@@ -533,51 +619,17 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 使用统一的权限级别过滤逻辑
         if permission_level == 'system':
             query = model_class.query.filter(*special_filters)
-        elif permission_level == 'company' and user.company_name:
-            company_user_ids = get_company_user_ids(user)
-            query = model_class.query.filter(
-                db.or_(
-                    model_class.owner_id.in_(company_user_ids),
-                    model_class.vendor_sales_manager_id == user.id
-                ),
-                *special_filters
-            )
-        elif permission_level == 'department' and user.department and user.company_name:
-            dept_user_ids = get_department_user_ids(user)
-            query = model_class.query.filter(
-                db.or_(
-                    model_class.owner_id.in_(dept_user_ids),
-                    model_class.vendor_sales_manager_id == user.id
-                ),
-                *special_filters
-            )
-        else:  # personal
-            viewable_user_ids = get_personal_viewable_user_ids(user)
-
-            # 构建基础权限条件（Project特有：厂商销售负责人 + 共享机制）
-            basic_permission_conditions = [
-                model_class.owner_id.in_(viewable_user_ids),
-                model_class.vendor_sales_manager_id == user.id
-            ]
-
-            # 添加通用共享机制
-            from app.utils.sharing import SharingService
-            project_sharing_condition = SharingService.get_sharing_query_condition(model_class, user.id)
-            if project_sharing_condition is not None:
-                basic_permission_conditions.append(project_sharing_condition)
-
-            # 行程共享 → 项目可见
-            worklog_shared_project_ids = _get_worklog_shared_ids(user.id, 'project_id')
-            basic_permission_conditions.append(model_class.id.in_(worklog_shared_project_ids))
-
-            # 任务关联 → 项目可见
-            task_linked_project_ids = _get_task_linked_ids(user.id, 'project_id')
-            basic_permission_conditions.append(model_class.id.in_(task_linked_project_ids))
-
-            query = model_class.query.filter(
-                db.or_(*basic_permission_conditions),
-                *special_filters
-            )
+        else:
+            # 数据范围(按级别) + 附加授权(共享/行程/任务/厂商负责人,各级统一叠加)
+            if permission_level == 'company' and user.company_name:
+                scope_ids = get_company_user_ids(user)
+            elif permission_level == 'department' and user.department and user.company_name:
+                scope_ids = get_department_user_ids(user)
+            else:  # personal
+                scope_ids = get_personal_viewable_user_ids(user)
+            conditions = [model_class.owner_id.in_(scope_ids)]
+            conditions += additive_grant_conditions(model_class, user)
+            query = model_class.query.filter(db.or_(*conditions), *special_filters)
 
         # 应用内容过滤
         query = apply_content_filters(query, model_class, 'project', user)
@@ -614,9 +666,10 @@ def get_viewable_data(model_class, user, special_filters=None):
                 company_user_ids = get_company_user_ids(user, include_affiliations=True)
                 logger.info(f"🔍 [QUOTATION_ACCESS] 用户 {user.username} 公司用户IDs: {company_user_ids}")
 
-                # 直接通过报价单owner过滤（而不是通过项目）
+                # 公司内 owner + 附加授权(共享/行程/任务/厂商负责人,跨公司显式授权也可见)
+                _add = additive_grant_conditions(model_class, user)
                 query = model_class.query.filter(
-                    model_class.owner_id.in_(company_user_ids),
+                    db.or_(model_class.owner_id.in_(company_user_ids), *_add),
                     *special_filters if special_filters else []
                 )
         elif permission_level == 'department':
@@ -628,9 +681,10 @@ def get_viewable_data(model_class, user, special_filters=None):
                 dept_user_ids = get_department_user_ids(user, include_affiliations=True)
                 logger.info(f"🔍 [QUOTATION_ACCESS] 用户 {user.username} 部门用户IDs: {dept_user_ids}")
 
-                # 直接通过报价单owner过滤（而不是通过项目）
+                # 部门内 owner + 附加授权(共享/行程/任务/厂商负责人)
+                _add = additive_grant_conditions(model_class, user)
                 query = model_class.query.filter(
-                    model_class.owner_id.in_(dept_user_ids),
+                    db.or_(model_class.owner_id.in_(dept_user_ids), *_add),
                     *special_filters if special_filters else []
                 )
 
@@ -712,34 +766,22 @@ def get_viewable_data(model_class, user, special_filters=None):
             query = model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
         elif permission_level == 'company' and user.company_name:
             company_user_ids = get_company_user_ids(user)
-            all_filters = base_filters + [model_class.owner_id.in_(company_user_ids)] + (special_filters if special_filters else [])
+            _add = additive_grant_conditions(model_class, user)
+            all_filters = base_filters + [db.or_(model_class.owner_id.in_(company_user_ids), *_add)] + (special_filters if special_filters else [])
             query = model_class.query.filter(*all_filters)
         elif permission_level == 'department' and user.department and user.company_name:
             dept_user_ids = get_department_user_ids(user)
-            all_filters = base_filters + [model_class.owner_id.in_(dept_user_ids)] + (special_filters if special_filters else [])
+            _add = additive_grant_conditions(model_class, user)
+            all_filters = base_filters + [db.or_(model_class.owner_id.in_(dept_user_ids), *_add)] + (special_filters if special_filters else [])
             query = model_class.query.filter(*all_filters)
         else:  # personal
             viewable_user_ids = get_personal_viewable_user_ids(user)
 
-            # 构建权限查询条件（Customer特有：共享机制）
+            # owner 范围 + 附加授权(共享/行程,统一函数;与 company/department 级一致)
             permission_conditions = [model_class.owner_id.in_(viewable_user_ids)]
+            permission_conditions += additive_grant_conditions(model_class, user)
 
-            # Company模型添加通用共享机制
-            if model_class.__name__ == 'Company':
-                from app.utils.sharing import SharingService
-                company_sharing_condition = SharingService.get_sharing_query_condition(model_class, user.id)
-                if company_sharing_condition is not None:
-                    permission_conditions.append(company_sharing_condition)
-
-                # 行程共享 → 客户可见
-                worklog_shared_company_ids = _get_worklog_shared_ids(user.id, 'customer_id')
-                permission_conditions.append(model_class.id.in_(worklog_shared_company_ids))
-
-            # 使用OR条件组合所有权限
-            from sqlalchemy import or_
-            combined_permission_condition = or_(*permission_conditions)
-
-            all_filters = base_filters + [combined_permission_condition] + (special_filters if special_filters else [])
+            all_filters = base_filters + [db.or_(*permission_conditions)] + (special_filters if special_filters else [])
             query = model_class.query.filter(*all_filters)
 
         # 应用内容过滤
@@ -1125,6 +1167,16 @@ def can_edit_data(model_obj, user):
             hasattr(model_obj.project, 'vendor_sales_manager_id') and
             model_obj.project.vendor_sales_manager_id == user.id):
             return True
+
+        # 🆕 SM 确认被指派人可以编辑(独立于权限系统,确认核查时需调整产品/数量)
+        try:
+            from app.models.quotation_confirmation_task import QuotationConfirmationTask
+            if QuotationConfirmationTask.query.filter_by(
+                quotation_id=model_obj.id, assignee_id=user.id, status='pending'
+            ).first():
+                return True
+        except Exception:
+            pass
 
         # 检查用户是否有报价单模块的编辑权限（用于编辑他人数据）
         # 注：解决方案经理的编辑权限通过权限级别控制，而非直接授权所有报价单
@@ -1857,6 +1909,16 @@ def can_view_project(user, project):
             return True
     except Exception as e:
         logger.debug(f"检查任务关联权限时出错: {e}")
+
+    # 最后一道防线:通用权限系统(system/company/department 级 + content_filters)
+    # 修复审批通过后,曾经的"当前审批人"失去 is_current_approver 身份,但其
+    # 配置的 system 级 project 权限应该让他继续可见 — 之前代码漏了这层 fallback。
+    try:
+        viewable = get_viewable_data(Project, user, [Project.id == project.id]).first()
+        if viewable is not None:
+            return True
+    except Exception as e:
+        logger.debug(f"通用权限系统 fallback 检查失败: {e}")
 
     return False
 

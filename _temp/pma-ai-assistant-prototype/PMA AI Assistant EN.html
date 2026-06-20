@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en" data-pma-page="ai-assistant-en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PMA · Assistant (EN)</title>
+<script src="pma-nav.js" defer></script>
+<style>
+  html,body{margin:0;padding:0;background:#E9E7E2;font-family:-apple-system,"SF Pro Text",sans-serif;color:#1A1A1A}
+  .dc-root{background:#E9E7E2}
+  .hdr{padding:28px 36px 22px;background:#1A1A1A;color:#fff}
+  .hdr h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-0.3px}
+  .hdr h1 .a{color:#D97757}
+  .hdr p{margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.65);max-width:860px;line-height:1.6}
+  .hdr .meta{display:flex;gap:22px;margin-top:14px;font-size:11.5px;color:rgba(255,255,255,0.5);flex-wrap:wrap}
+  .hdr .meta b{color:rgba(255,255,255,0.85);font-weight:600}
+  .fc{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 14px 22px}
+  .fc .label{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase}
+  .fc .sub{font-size:11px;color:#7A7570;font-style:italic;max-width:380px;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>PMA · <span class="a">Assistant</span> · English</h1>
+    <p>English version of the Assistant content-interaction extension, 1:1 to the Chinese design. Four content capabilities on the existing chat: system data query · Wiki knowledge-base Q&A · slash commands · new-hire training. Core grammar: one unified thread, the AI auto-routes intent, every reply carries a source badge (◧ Data / ❝ Wiki / ⌘ Command / ◷ Training) for traceability. Hybrid input — free natural-language typing primary, tap slash quick-commands secondary, # to reference entities, @ people. Reuses the same cold-blue tokens / pixel-P logo / bubble forms; doesn't touch the handoff originals. Localised for SG (short English labels, "Month DD" dates).</p>
+    <div class="meta">
+      <span><b>17 screens</b> · Entry 2 + Data 3 + Wiki + Training + Routing + /trigger 2 + Skill registry 2 + Edge states 5</span>
+      <span><b>402 × 874</b> · iPhone</span>
+      <span><b>4 badges</b> · adaptive · commands = registered capabilities</span>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="pma-ai-assistant-en.jsx"></script>
+  <script type="text/babel">
+    function Phone({ children }) {
+      return (
+        <div style={{ width: 402, height: 874, borderRadius: 56, overflow: 'hidden', position: 'relative',
+          background: '#000', boxShadow: '0 0 0 12px #1a1a1a, 0 30px 60px rgba(0,0,0,0.18)' }}>
+          <div style={{ position: 'absolute', top: 13, left: '50%', transform: 'translateX(-50%)', width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 100 }}/>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 54, zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px',
+            color: '#000', fontSize: 16, fontWeight: 600, paddingTop: 18, mixBlendMode: 'difference' }}>
+            <span style={{ color: '#fff' }}>9:41</span><span style={{ width: 126 }}/>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#fff' }}>
+              <svg width="17" height="11" viewBox="0 0 19 12">
+                <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill="currentColor"/>
+                <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill="currentColor"/>
+                <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill="currentColor"/>
+                <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill="currentColor"/>
+              </svg>
+              <svg width="26" height="13" viewBox="0 0 28 13" fill="none">
+                <rect x="0.5" y="0.5" width="23" height="12" rx="3" stroke="currentColor" opacity="0.35"/>
+                <rect x="2" y="2" width="20" height="9" rx="1.5" fill="currentColor"/>
+                <rect x="24.5" y="4" width="2" height="5" rx="0.6" fill="currentColor" opacity="0.5"/>
+              </svg>
+            </span>
+          </div>
+          <div style={{ position: 'absolute', inset: 0 }}>{children}</div>
+          <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', width: 139, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.28)', zIndex: 200 }}/>
+        </div>
+      );
+    }
+    function F({ label, sub, children }) {
+      return <div className="fc"><Phone>{children}</Phone><div className="label">{label}</div>{sub && <div className="sub">{sub}</div>}</div>;
+    }
+    const W = 460, H = 1000;
+
+    function App() {
+      const {
+        AIXEntryEN, AIXDataEntityEN, AIXDataTableEN, AIXDataAggregateEN,
+        AIXWikiEN, AIXTrainEN, AIXMixedEN, AIXComposerStatesEN,
+        AIXSlashTypingEN, AIXSlashFilledEN, AIXSkillCatalogEN, AIXSkillDetailEN,
+      } = window;
+      return (
+        <DesignCanvas>
+          <DCSection id="entry" title="① Entry · no modes" subtitle="One composer · type to ask or tap the command panel · every reply is badged with its source">
+            <DCArtboard id="entry" label="Command-panel entry" width={W} height={H}>
+              <F label="Command-panel entry" sub="Welcome + 4 capability cards + composer + grouped command panel (Data/Wiki/Training/Draft)"><AIXEntryEN/></F>
+            </DCArtboard>
+            <DCArtboard id="composer" label="Composer states" width={W} height={H}>
+              <F label="Composer · # ref + / command" sub="# locks an entity (project/customer/quote chips, selected = dark) · / opens the grouped command panel (focus)"><AIXComposerStatesEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="data" title="② System data query · adaptive render" subtitle="AI picks the shape per question: single → entity card · many → scrollable mini-table · stats → big number + mini chart">
+            <DCArtboard id="data-entity" label="Data · entity card" width={W} height={H}>
+              <F label="Data · entity card" sub="“Baoshan Energy win rate” → answer + AIRefCard-style entity cards ×2 + source note"><AIXDataEntityEN/></F>
+            </DCArtboard>
+            <DCArtboard id="data-table" label="Data · mini-table" width={W} height={H}>
+              <F label="Data · mini-table" sub="“All bidding projects by amount” → compact table (project/stage/amount/owner) + see-all·export"><AIXDataTableEN/></F>
+            </DCArtboard>
+            <DCArtboard id="data-agg" label="Data · aggregate + chart" width={W} height={H}>
+              <F label="Data · aggregate" sub="“Quarter signings + YoY + stages” → big number card + 8-week sparkline + stage mini bars"><AIXDataAggregateEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="wiki" title="③ Wiki knowledge-base Q&A" subtitle="Answer body + collapsible source article cards (section anchor / updated date / open) + freshness note">
+            <DCArtboard id="wiki" label="Wiki Q&A · source citation" width={W} height={H}>
+              <F label="Wiki Q&A · source citation" sub="“Export quote FX timing” → key-point list + 2 source article cards + ⚠ defer-to-source note"><AIXWikiEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="train" title="④ New-hire training · learn by doing" subtitle="Step card + progress bar + App screenshot placeholder + “Try it in the App” deep-link + Next">
+            <DCArtboard id="train" label="Training · step card" width={W} height={H}>
+              <F label="Training · Step 2/5" sub="Progress bar + step copy + screenshot placeholder + deep-link to the real App page + stuck → ask"><AIXTrainEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="mixed" title="⑤ Adaptive routing overview" subtitle="Data/Wiki/Command/Training badges mixed in one scroll — proves “no need to pick a mode”">
+            <DCArtboard id="mixed" label="Adaptive routing overview" width={W} height={H + 120}>
+              <F label="Adaptive routing · mixed" sub="4 questions → 4 badges + each compact render · top strip: the AI decides where to fetch"><AIXMixedEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="slash" title="⑥ `/` trigger transition · closed loop" subtitle="Type / to summon → live filter (keyboard nav) → select fills an EDITABLE NL intent, never blind-executes">
+            <DCArtboard id="slash-typing" label="/ typing & filtering" width={W} height={H}>
+              <F label="Type /bid → live-filter overlay" sub="Overlay slides up above the keyboard · match highlight · ↑↓ select ↵ insert esc close · 4 matches"><AIXSlashTypingEN/></F>
+            </DCArtboard>
+            <DCArtboard id="slash-filled" label="Selected → editable NL" width={W} height={H}>
+              <F label="Selected → translated to editable NL" sub="Ghost hint “Filled from /bidding projects” · composer is editable natural language · send active"><AIXSlashFilledEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="catalog" title="⑦ Skill registry · capability contract" subtitle="Commands = registered capabilities (not free text): type/params/permission/output renderer · single source of truth">
+            <DCArtboard id="catalog" label="Registry · catalog list" width={W} height={H}>
+              <F label="Command registry · catalog" sub="Filter by type · each row: command/name/badge/param chips/permission/output · add a row = panel·routing·perms auto-apply"><AIXSkillCatalogEN/></F>
+            </DCArtboard>
+            <DCArtboard id="catalog-detail" label="Single capability contract" width={W} height={H}>
+              <F label="Capability contract · /bidding projects" sub="Intent + parameter schema table + Handler/Permission/Output + NL synonyms + example — for dev alignment"><AIXSkillDetailEN/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="edge" title="⑧ Edge states" subtitle="Thinking / Error / No permission / Empty / Overflow — each gives a traceable reason + a constructive next step, never blames the user">
+            <DCArtboard id="edge-thinking" label="Thinking · step trace" width={W} height={H}>
+              <F label="Thinking" sub="Routing steps visible: intent→scope→querying(animated)→compose · elapsed · stoppable"><AIXThinkingEN/></F>
+            </DCArtboard>
+            <DCArtboard id="edge-error" label="Error · recoverable" width={W} height={H}>
+              <F label="Error" sub="Clear cause (source timeout) + not your fault + Retry/Narrow/Report + error code"><AIXErrorStateEN/></F>
+            </DCArtboard>
+            <DCArtboard id="edge-perm" label="No permission · data scope" width={W} height={H}>
+              <F label="No permission" sub="Out-of-scope: ownership + what you can see + change scope/request/ask · get_viewable_data"><AIXNoPermissionEN/></F>
+            </DCArtboard>
+            <DCArtboard id="edge-empty" label="Empty · not an error" width={W} height={H}>
+              <F label="Empty result" sub="Echo filter chips + ran fine just no data + latest one + loosen suggestions"><AIXEmptyResultEN/></F>
+            </DCArtboard>
+            <DCArtboard id="edge-long" label="Overflow · no flooding" width={W} height={H}>
+              <F label="Overflow result" sub="1,284 rows → head 3 + collapsed + summarise/group/last-7d/export · ≤20 at once"><AIXLongResultEN/></F>
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

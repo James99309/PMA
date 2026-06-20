@@ -45,6 +45,21 @@ class Project(SharingMixin, db.Model):
     locked_reason = Column(String(100), nullable=True)  # 锁定原因
     locked_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # 锁定人
     locked_at = Column(DateTime, nullable=True)  # 锁定时间
+
+    # 成功锁定(锁单预判):负责人/厂商销售/部门经理可锁,签约自动解除,可人为解除
+    win_locked = Column(Boolean, default=False, nullable=False)
+    win_lock_reason = Column(Text, nullable=True)        # 锁定理由(强制)
+    win_locked_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    win_locked_at = Column(DateTime, nullable=True)
+    win_locked_quotation_id = Column(Integer, ForeignKey('quotations.id'), nullable=True)  # 锁定关联的报价单
+    win_locked_amount = Column(db.Float, nullable=True)                                    # 锁定金额快照
+
+    # 失败归因(失败审核流程中认定:步骤1部门经理→个人因素;步骤2总经理→管理失责)
+    fail_owner_fault = Column(Boolean, default=False, nullable=False)   # 个人因素为主
+    fail_mgmt_fault = Column(Boolean, default=False, nullable=False)    # 团队管理失责
+    fail_attribution_note = Column(Text, nullable=True)                # 失败责任认定评语(CEO 补录;不依赖审批实例)
+    fail_attribution_by = Column(Integer, nullable=True)               # 认定人 user id
+    fail_attribution_at = Column(DateTime, nullable=True)              # 认定时间
     
     # 软删除
     is_deleted = Column(Boolean, default=False, nullable=False)
@@ -82,6 +97,9 @@ class Project(SharingMixin, db.Model):
     # 通用共享字段
     shared_with_users = Column(JSON, default=list, nullable=True)  # 共享给的用户ID列表
     share_enabled = Column(Boolean, default=False, nullable=False)  # 是否启用共享
+
+    # 项目附件(通用实体附件;JSON: [{filename, url, size, type, uploaded_at}])
+    attachments = Column(Text, nullable=True)
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, default=get_local_time)
@@ -100,10 +118,22 @@ class Project(SharingMixin, db.Model):
     vendor_sales_manager = relationship('User', foreign_keys=[vendor_sales_manager_id])
     
     # 修改关系定义，移除可能导致循环引用的配置
-    quotations = db.relationship('Quotation', back_populates='project', lazy='dynamic', cascade='all, delete-orphan')
+    quotations = db.relationship('Quotation', back_populates='project', lazy='dynamic',
+                                 cascade='all, delete-orphan', foreign_keys='Quotation.project_id')
 
     def __repr__(self):
         return f'<Project {self.project_name}>'
+
+    @property
+    def attachments_list(self):
+        """项目附件列表(供前端 render_file_upload 渲染已有文件)。"""
+        import json as _json
+        if not self.attachments:
+            return []
+        try:
+            return _json.loads(self.attachments)
+        except (ValueError, TypeError):
+            return []
 
     @property
     def formatted_report_time(self):

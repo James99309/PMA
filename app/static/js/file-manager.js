@@ -44,10 +44,6 @@ function fileManager() {
         restoreModal: { show: false, file: null, filename: '', targetUserId: '' },
         allUsers: [],
 
-        // 预览
-        previewModal: { show: false, file: null, type: 'other' },
-        spreadsheetHtml: '',
-
         // 解压动画
         decompressModal: { show: false, fileName: '' },
 
@@ -79,6 +75,30 @@ function fileManager() {
         // 拖拽移动
         dragFileId: null,
         dropTargetFolderId: null,
+
+        // ------------------------------------------------------------------
+        // 文件夹共享
+        // ------------------------------------------------------------------
+        // {folder_id: {count, recipients: [{id, display_name}, ...]}}
+        foldersSharesSummary: {},
+        // 共享给我列表
+        sharedWithMe: [],
+        // 当前文件夹的共享上下文（被共享视图下非 null）
+        // {is_shared, owner_id, permission, shared_by, root_share_folder_id}
+        currentSharedContext: null,
+        // 共享 Modal 状态
+        shareModal: {
+            open: false,
+            folderId: null,
+            folderName: '',
+            searchKeyword: '',
+            searchResults: [],
+            selected: [],          // [{id, name, dept}]
+            permission: 'read',
+            message: '',
+            existing: [],          // 已共享列表（来自 API）
+            saving: false,
+        },
 
         init() {
             this.currentFolderId = window.__fileManagerInitFolderId || null;
@@ -122,12 +142,15 @@ function fileManager() {
                 this.files = data.data.files;
                 this.breadcrumbs = data.breadcrumbs;
                 this.quota = data.quota;
+                this.currentSharedContext = data.data.shared_context || null;
                 // 加载文件的知识库状态
                 await this._loadKbStatusForFiles();
                 // 加载 Wiki 状态（已编译标记 + 编译中标记）
                 await this._loadWikiStatusForFiles();
                 // 有 processing 状态的文件时，启动轮询
                 this._startWikiPollIfNeeded();
+                // 加载文件夹共享摘要（角标 + 头像组）
+                await this._loadFoldersSharesSummary();
             }
             this.loading = false;
         },
@@ -207,29 +230,34 @@ function fileManager() {
         },
 
         async _uploadFiles(fileList) {
+            const CHUNK_THRESHOLD = 50 * 1024 * 1024; // 50MB
             for (const file of fileList) {
-                const queueItem = { name: file.name, status: 'uploading' };
-                this.uploadQueue.push(queueItem);
+                const idx = this.uploadQueue.length;
+                this.uploadQueue.push({ name: file.name, status: 'uploading', progress: 0, errorMsg: '' });
 
-                const formData = new FormData();
-                formData.append('file', file);
-                if (this.currentFolderId) {
-                    formData.append('folder_id', this.currentFolderId);
-                }
+                const onProgress = (pct) => {
+                    if (this.uploadQueue[idx]) this.uploadQueue[idx].progress = pct;
+                };
 
                 try {
-                    const res = await fetch('/files/api/upload', {
-                        method: 'POST',
-                        body: formData,
-                    });
-                    const data = await res.json();
-                    queueItem.status = data.success ? 'done' : 'error';
-                    if (!data.success) {
-                        console.error('上传失败:', data.message);
+                    let data;
+                    if (file.size > CHUNK_THRESHOLD) {
+                        data = await this._uploadFileChunked(file, this.currentFolderId, onProgress);
+                    } else {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        if (this.currentFolderId) formData.append('folder_id', this.currentFolderId);
+                        data = await this._uploadFileXHR(formData, onProgress);
+                    }
+                    if (this.uploadQueue[idx]) {
+                        this.uploadQueue[idx].status = data.success ? 'done' : 'error';
+                        if (!data.success) this.uploadQueue[idx].errorMsg = data.message || '上传失败';
                     }
                 } catch (e) {
-                    queueItem.status = 'error';
-                    console.error('上传异常:', e);
+                    if (this.uploadQueue[idx]) {
+                        this.uploadQueue[idx].status = 'error';
+                        this.uploadQueue[idx].errorMsg = e.message || '网络错误';
+                    }
                 }
             }
 
@@ -237,10 +265,66 @@ function fileManager() {
             this.loadFiles();
             this.loadFolderTree();
 
-            // 3秒后清除上传队列
-            setTimeout(() => {
-                this.uploadQueue = this.uploadQueue.filter(q => q.status === 'uploading');
-            }, 3000);
+            // 5秒后清除上传队列
+            setTimeout(() => { this.uploadQueue = []; }, 5000);
+        },
+
+        async _uploadFileChunked(file, folderId, onProgress) {
+            const CHUNK_SIZE = 50 * 1024 * 1024;
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            const uploadId = crypto.randomUUID();
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+            for (let i = 0; i < totalChunks; i++) {
+                const chunk = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+                const formData = new FormData();
+                formData.append('file', chunk, file.name);
+                formData.append('upload_id', uploadId);
+                formData.append('chunk_index', i);
+                formData.append('total_chunks', totalChunks);
+                formData.append('filename', file.name);
+                if (folderId) formData.append('folder_id', folderId);
+
+                const result = await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.addEventListener('load', () => {
+                        try { resolve(JSON.parse(xhr.responseText)); }
+                        catch { reject(new Error('服务器返回异常')); }
+                    });
+                    xhr.addEventListener('error', () => reject(new Error('网络连接失败')));
+                    xhr.timeout = 300000;
+                    xhr.addEventListener('timeout', () => reject(new Error('分片上传超时')));
+                    xhr.open('POST', '/files/api/upload/chunk');
+                    xhr.withCredentials = true;
+                    xhr.setRequestHeader('X-CSRFToken', csrfToken);
+                    xhr.send(formData);
+                });
+
+                if (!result.success && !result.pending) return result;
+                if (onProgress) onProgress(Math.round((i + 1) / totalChunks * 100));
+                if (result.success) return result;
+            }
+        },
+
+        _uploadFileXHR(formData, onProgress) {
+            return new Promise((resolve, reject) => {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const xhr = new XMLHttpRequest();
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
+                });
+                xhr.addEventListener('load', () => {
+                    try { resolve(JSON.parse(xhr.responseText)); }
+                    catch { reject(new Error('服务器返回异常')); }
+                });
+                xhr.addEventListener('error', () => reject(new Error('网络连接失败')));
+                xhr.addEventListener('timeout', () => reject(new Error('上传超时')));
+                xhr.open('POST', '/files/api/upload');
+                xhr.withCredentials = true;
+                xhr.setRequestHeader('X-CSRFToken', csrfToken);
+                xhr.timeout = 120000;
+                xhr.send(formData);
+            });
         },
 
         // ------------------------------------------------------------------
@@ -648,55 +732,28 @@ function fileManager() {
         },
 
         // ------------------------------------------------------------------
-        // 预览
+        // 预览（统一交给公共组件 PMAFilePreview）
         // ------------------------------------------------------------------
-        async previewFile(file) {
-            const mime = file.mime_type || '';
-            let type = 'other';
-            if (mime.startsWith('image/')) type = 'image';
-            else if (mime === 'application/pdf') type = 'pdf';
-            else if (mime.startsWith('video/')) type = 'video';
-            else if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') type = 'spreadsheet';
-
-            if (type === 'other') {
+        previewFile(file) {
+            if (!window.PMAFilePreview) {
                 this.downloadFile(file);
                 return;
             }
-
             const fileName = this._getFileName(file);
 
-            // 归档文件 + 电子表格：先显示解压动画，fetch 完成后关闭
-            if (file.is_archived && type === 'spreadsheet') {
-                this.decompressModal = { show: true, fileName };
-            }
-
-            this.spreadsheetHtml = '';
-            this.previewModal = { show: true, file, type };
-
-            // 归档的图片/PDF/视频：显示简短解压提示（浏览器 src 加载自动处理）
-            if (file.is_archived && type !== 'spreadsheet') {
+            // 归档文件读取走解压路径，提示一下
+            if (file.is_archived) {
                 this.decompressModal = { show: true, fileName };
                 setTimeout(() => { this.decompressModal.show = false; }, 1500);
             }
 
-            if (type === 'spreadsheet') {
-                await this.loadSpreadsheet(file);
-                this.decompressModal.show = false;
-            }
-        },
-
-        async loadSpreadsheet(file) {
-            try {
-                const resp = await fetch(this._getFileUrl(file, 'preview'));
-                if (!resp.ok) throw new Error('Failed to fetch');
-                const buf = await resp.arrayBuffer();
-                const wb = XLSX.read(buf, { type: 'array' });
-                const sheet = wb.Sheets[wb.SheetNames[0]];
-                this.spreadsheetHtml = XLSX.utils.sheet_to_html(sheet);
-            } catch (e) {
-                console.error('Spreadsheet preview error:', e);
-                this.spreadsheetHtml = '<p class="text-center text-slate-500 py-8">无法预览该文件</p>';
-            }
+            window.PMAFilePreview.open({
+                filename: fileName,
+                mime_type: file.mime_type,
+                preview_url:     this._getFileUrl(file, 'preview'),
+                download_url:    this._getFileUrl(file, 'download'),
+                pdf_preview_url: this._getFileUrl(file, 'preview-pdf'),
+            });
         },
 
         // ------------------------------------------------------------------
@@ -1201,6 +1258,266 @@ function fileManager() {
                 }
             }
             return result;
+        },
+
+        // ==================================================================
+        // 文件夹共享方法
+        // ==================================================================
+
+        // 当前视图是否为被共享（只读）—— 暂不区分 read/write，统一只读
+        isInSharedFolder() {
+            return !!this.currentSharedContext;
+        },
+
+        canWriteCurrentFolder() {
+            // 自己的文件夹：可写
+            if (!this.currentSharedContext) return true;
+            // 被共享：保守版本统一只读（write 语义后续实现）
+            return false;
+        },
+
+        // 头像渐变色（按 user id 稳定派生）
+        avatarColor(userId) {
+            const palettes = [
+                '#fb923c, #ea580c',   // orange
+                '#a78bfa, #7c3aed',   // violet
+                '#38bdf8, #0284c7',   // sky
+                '#34d399, #059669',   // emerald
+                '#f87171, #dc2626',   // red
+                '#facc15, #ca8a04',   // yellow
+                '#f472b6, #db2777',   // pink
+                '#818cf8, #4f46e5',   // indigo
+            ];
+            return palettes[(userId || 0) % palettes.length];
+        },
+
+        formatShareTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            const now = new Date();
+            const diffMs = now - d;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            if (diffDays === 0) return '今天';
+            if (diffDays === 1) return '昨天';
+            if (diffDays < 7) return diffDays + ' 天前';
+            return d.toLocaleDateString();
+        },
+
+        getFolderShareCount(folderId) {
+            const s = this.foldersSharesSummary[folderId];
+            return s ? s.count : 0;
+        },
+
+        getFolderShareRecipients(folderId) {
+            const s = this.foldersSharesSummary[folderId];
+            return s ? s.recipients : [];
+        },
+
+        async _loadFoldersSharesSummary() {
+            if (!this.folders || this.folders.length === 0) {
+                this.foldersSharesSummary = {};
+                return;
+            }
+            const folderIds = this.folders.map(f => f.id);
+            try {
+                const data = await this.api('/files/api/folders/shares-summary', {
+                    method: 'POST',
+                    body: JSON.stringify({ folder_ids: folderIds }),
+                });
+                if (data.success) {
+                    this.foldersSharesSummary = data.data || {};
+                }
+            } catch (e) {
+                console.error('加载共享摘要失败', e);
+                this.foldersSharesSummary = {};
+            }
+        },
+
+        async loadSharedWithMe() {
+            this.loading = true;
+            try {
+                const data = await this.api('/files/api/shared-with-me');
+                if (data.success) {
+                    this.sharedWithMe = data.data || [];
+                }
+            } catch (e) {
+                console.error('加载共享给我失败', e);
+            }
+            this.loading = false;
+        },
+
+        openSharedFolder(folderId) {
+            // 暂用 navigateTo —— 后端 list_files 已支持权限检查
+            // TODO: 后续若要进入只读浏览体验，可以走 /shared-with-me/<id>/content
+            this.activeView = 'files';
+            this.navigateTo(folderId);
+        },
+
+        leaveShare(folderId) {
+            openConfirmModal('fileConfirmModal', {
+                title: '离开共享',
+                message: '离开此共享后，你将无法再访问该文件夹。确认离开？',
+                onConfirm: async () => {
+                    const data = await this.api(`/files/api/shared-with-me/${folderId}/leave`, { method: 'POST' });
+                    if (data.success) {
+                        this.showToast('success', '已离开共享');
+                        this.loadSharedWithMe();
+                    } else {
+                        throw new Error(data.message || '操作失败');
+                    }
+                }
+            });
+        },
+
+        // ---------- Modal ----------
+
+        async openShareModal(folder) {
+            this.shareModal.open = true;
+            this.shareModal.folderId = folder.id;
+            this.shareModal.folderName = folder.name;
+            this.shareModal.searchKeyword = '';
+            this.shareModal.searchResults = [];
+            this.shareModal.selected = [];
+            this.shareModal.permission = 'read';
+            this.shareModal.message = '';
+            this.shareModal.existing = [];
+            this.shareModal.saving = false;
+            await this._loadModalExistingShares();
+        },
+
+        shareModalClose() {
+            this.shareModal.open = false;
+        },
+
+        async _loadModalExistingShares() {
+            try {
+                const data = await this.api(`/files/api/folders/${this.shareModal.folderId}/shares`);
+                if (data.success) {
+                    this.shareModal.existing = data.data || [];
+                }
+            } catch (e) {
+                console.error('加载已共享列表失败', e);
+            }
+        },
+
+        async shareModalSearchUsers() {
+            const q = (this.shareModal.searchKeyword || '').trim();
+            try {
+                const data = await this.api('/chat/api/users/search?q=' + encodeURIComponent(q));
+                if (data.success) {
+                    // 过滤掉已选 + 已共享的用户
+                    const excludedIds = new Set([
+                        ...this.shareModal.selected.map(u => u.id),
+                        ...this.shareModal.existing.map(s => s.shared_with_user_id),
+                    ]);
+                    this.shareModal.searchResults = (data.data || [])
+                        .filter(u => !excludedIds.has(u.id));
+                }
+            } catch (e) {
+                console.error('搜索用户失败', e);
+            }
+        },
+
+        shareModalAddUser(user) {
+            if (this.shareModal.selected.find(u => u.id === user.id)) return;
+            this.shareModal.selected.push({
+                id: user.id,
+                name: user.name,
+                dept: user.dept || '',
+            });
+            this.shareModal.searchKeyword = '';
+            this.shareModal.searchResults = [];
+        },
+
+        shareModalRemoveUser(userId) {
+            this.shareModal.selected = this.shareModal.selected.filter(u => u.id !== userId);
+        },
+
+        async shareModalSave() {
+            if (this.shareModal.selected.length === 0) return;
+            this.shareModal.saving = true;
+            try {
+                const data = await this.api(`/files/api/folders/${this.shareModal.folderId}/shares`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user_ids: this.shareModal.selected.map(u => u.id),
+                        permission: this.shareModal.permission,
+                        message: this.shareModal.message || null,
+                    }),
+                });
+                if (data.success) {
+                    const r = data.data || {};
+                    this.showToast('success',
+                        '已共享给 ' + ((r.created || 0) + (r.updated || 0)) + ' 人');
+                    this.shareModal.selected = [];
+                    this.shareModal.message = '';
+                    await this._loadModalExistingShares();
+                    await this._loadFoldersSharesSummary();
+                } else {
+                    this.showToast('error', data.message || '共享失败');
+                }
+            } catch (e) {
+                this.showToast('error', '共享失败');
+            }
+            this.shareModal.saving = false;
+        },
+
+        async shareModalUpdatePermission(targetUserId, permission) {
+            try {
+                const data = await this.api(
+                    `/files/api/folders/${this.shareModal.folderId}/shares/${targetUserId}`,
+                    {
+                        method: 'PUT',
+                        body: JSON.stringify({ permission }),
+                    }
+                );
+                if (data.success) {
+                    this.showToast('success', '权限已更新');
+                    await this._loadModalExistingShares();
+                } else {
+                    this.showToast('error', data.message || '更新失败');
+                }
+            } catch (e) {
+                this.showToast('error', '更新失败');
+            }
+        },
+
+        async shareModalRemoveExisting(targetUserId) {
+            try {
+                const data = await this.api(
+                    `/files/api/folders/${this.shareModal.folderId}/shares/${targetUserId}`,
+                    { method: 'DELETE' }
+                );
+                if (data.success) {
+                    this.showToast('success', '已移除');
+                    await this._loadModalExistingShares();
+                    await this._loadFoldersSharesSummary();
+                } else {
+                    this.showToast('error', data.message || '移除失败');
+                }
+            } catch (e) {
+                this.showToast('error', '移除失败');
+            }
+        },
+
+        shareModalUnshareAll() {
+            openConfirmModal('fileConfirmModal', {
+                title: '收回全部共享',
+                message: '确定要收回此文件夹的所有共享？所有被共享用户将立即失去访问。',
+                onConfirm: async () => {
+                    const data = await this.api(
+                        `/files/api/folders/${this.shareModal.folderId}/shares`,
+                        { method: 'DELETE' }
+                    );
+                    if (data.success) {
+                        this.showToast('success', '已收回所有共享');
+                        await this._loadModalExistingShares();
+                        await this._loadFoldersSharesSummary();
+                    } else {
+                        throw new Error(data.message || '操作失败');
+                    }
+                }
+            });
         },
     };
 }

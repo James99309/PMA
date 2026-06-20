@@ -1,0 +1,5 @@
+{# 客户端 JS i18n 注入:window.I18N(中→英,随 locale)+ window.t() 兜底回中文 #}
+<script>
+window.I18N = {{ js_i18n_map() | tojson }};
+window.t = function (s) { return (window.I18N && window.I18N[s] != null) ? window.I18N[s] : s; };
+</script>

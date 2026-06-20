@@ -1,0 +1,457 @@
+{#
+  AT 工作日历(纯手写月历网格)— Phase 1:月历 + 工作项增删改完成
+  ──────────────────────────────────────────────────────────────
+  后端复用 /worklog/api/*(worklog_service 单一来源);本页只做前端。
+  工作类型仅「通用」组(meeting/internal_training/other)。
+  日报 / 团队 / 评论 / reaction / 共享 后续迭代。
+#}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_topbar.html' import at_topbar with context %}
+{% from 'components/at_base.html' import at_icon, at_btn, at_pill with context %}
+{% from 'components/at_grouped_select.html' import at_grouped_select %}
+{% from 'components/at_time_picker.html' import at_time_picker %}
+{% from 'components/at_date_picker.html' import at_date_picker %}
+{% from 'components/at_people_select.html' import at_people_select %}
+{% from 'components/at_file_preview.html' import at_file_preview_modal %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>PMA · {{ _('工作日历') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-search-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-grouped-select.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-time-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-date-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-people-select.js') }}"></script>
+<style>
+  /* ── 月历网格 ── */
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px;
+              background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .cal-wkhead { background:var(--bg-elev); padding:9px 0; text-align:center; font-size:11.5px;
+                font-weight:500; color:var(--ink-3); letter-spacing:0.04em; }
+  .cal-cell { background:var(--bg-elev); min-height:132px; min-width:0; padding:5px 6px; cursor:pointer;
+              display:flex; flex-direction:column; gap:3px; transition:background 100ms; position:relative; overflow:hidden; }
+  .cal-cell:hover { background:var(--bg-hover); }
+  .cal-cell.other { background:var(--bg-page); }
+  .cal-cell.other .cal-daynum { color:var(--ink-4); }
+  .cal-cell.weekend .cal-daynum { color:var(--ink-3); }
+  .cal-daynum { font-size:12.5px; font-weight:600; color:var(--ink-2); line-height:1;
+                display:inline-flex; align-items:center; justify-content:center; align-self:flex-start;
+                width:24px; height:24px; padding:0; border-radius:7px; }
+  .cal-cell.today .cal-daynum { background:var(--accent); color:#fff; }
+  /* 节假日:右上角内部小标签(红色) */
+  .cal-holiday { position:absolute; top:6px; right:6px; max-width:62%; font-size:10.5px; line-height:1.1;
+                 color:var(--danger,#d6453d); font-weight:600; text-align:right;
+                 overflow:hidden; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; }
+  .cal-cell.cal-day .cal-holiday, .cal-cell.cal-week .cal-holiday { font-size:12px; max-width:none; }
+  /* 假期国家选择下拉 */
+  .cal-hol-menu { position:absolute; top:38px; right:0; z-index:60; min-width:168px; padding:6px;
+                  background:var(--bg-elev); border:1px solid var(--line-2); border-radius:9px;
+                  box-shadow:0 8px 24px rgba(0,0,0,.12); }
+  .cal-hol-item { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px;
+                  font-size:13px; color:var(--ink); cursor:pointer; user-select:none; }
+  .cal-hol-item:hover { background:var(--bg-hover); }
+  .cal-hol-item input { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; }
+  .cal-hol-flag { width:18px; height:18px; border-radius:50%; flex-shrink:0; }
+  /* 账户选择下拉(查看他人日历) */
+  .cal-acct-menu { position:absolute; top:38px; right:0; z-index:60; min-width:230px;
+                   padding:6px; background:var(--bg-elev); border:1px solid var(--line-2); border-radius:9px;
+                   box-shadow:0 8px 24px rgba(0,0,0,.12); }
+  .cal-acct-search { padding:2px 2px 6px; }
+  .cal-acct-search input { width:100%; box-sizing:border-box; height:30px; padding:0 9px; font-size:13px;
+                           border:1px solid var(--line-2); border-radius:7px; background:var(--bg-page); color:var(--ink); }
+  #calAcctList { max-height:300px; overflow:auto; }
+  .cal-acct-item { padding:7px 9px; border-radius:6px; font-size:13px; color:var(--ink); cursor:pointer; user-select:none;
+                   display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .cal-acct-item:hover { background:var(--bg-hover); }
+  .cal-acct-item.on { background:var(--accent-tint); color:var(--accent); font-weight:600; }
+  .cal-acct-item.inactive { color:var(--ink-4); }
+  .cal-acct-item .acct-dept { font-size:11px; color:var(--ink-4); flex-shrink:0; }
+  .cal-acct-group { padding:8px 9px 3px; font-size:10.5px; letter-spacing:.05em; color:var(--ink-4); font-weight:600; }
+  /* 只读态(查看/共享)下附件区仍可交互(预览;上传/删除按钮另由 JS 控制显隐) */
+  body.at-page .wi-card.wi-view .wi-attach-area,
+  body.at-page .wi-card.wi-view .wi-attach-area * { pointer-events:auto; }
+  /* 附件预览层必须盖在工作项弹窗(z-index:1000)之上 */
+  #atFilePreview { z-index:2000 !important; }
+  /* 日报弹窗 */
+  .log-stats { display:flex; gap:10px; margin-top:4px; }
+  .log-stat { flex:1; background:var(--bg-sunk); border-radius:9px; padding:10px 8px; text-align:center; }
+  .log-stat-num { font-size:20px; font-weight:600; color:var(--ink); line-height:1.1; font-variant-numeric:tabular-nums; }
+  .log-stat-lbl { font-size:11px; color:var(--ink-4); margin-top:3px; }
+  .log-ai-btn { display:inline-flex; align-items:center; gap:5px; height:28px; padding:0 11px; font-size:12px;
+                border:1px solid var(--accent); color:var(--accent); background:var(--accent-tint);
+                border-radius:14px; cursor:pointer; }
+  .log-ai-btn:hover { background:var(--accent); color:#fff; }
+  .log-ai-btn:disabled { opacity:.55; cursor:default; }
+  .log-items { margin-top:14px; max-height:160px; overflow:auto; }
+  .log-item-row { display:flex; align-items:center; gap:7px; padding:4px 0; font-size:12.5px; color:var(--ink-2); border-top:1px solid var(--line-soft); }
+  .log-item-row:first-child { border-top:0; }
+  .log-item-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .log-item-time { color:var(--ink-4); font-variant-numeric:tabular-nums; flex-shrink:0; font-size:11.5px; }
+  /* 日报只读(已提交):禁输入 + 隐藏保存/提交,由 JS 控制 */
+  body.at-page #logCard.log-view textarea { pointer-events:none; background:var(--bg-sunk); }
+  /* 日历日记图标(右下角):实心=已提交, 空心=草稿待提交 */
+  .cal-logmark { position:absolute; bottom:5px; right:6px; line-height:1; color:var(--accent); opacity:.85; pointer-events:none; }
+  .cal-logmark.draft { color:var(--ink-4); }
+  .cal-cell.cal-week { min-height:420px; }
+  .cal-cell.cal-day { min-height:480px; }
+  .cal-ev { display:flex; align-items:center; gap:5px; font-size:11.5px; line-height:1.4;
+            padding:1px 4px; border-radius:5px; cursor:pointer; color:var(--ink);
+            background:transparent; overflow:hidden; min-width:0; max-width:100%; }
+  .cal-ev:hover { background:var(--bg-hover); }
+  .cal-ev-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .cal-ev-time { color:var(--ink-3); font-variant-numeric:tabular-nums; flex-shrink:0; }
+  .cal-ev-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cal-ev-check { color:var(--success); font-weight:700; font-size:11px; flex-shrink:0; }
+  .cal-ev.completed { opacity:0.85; }
+  .cal-ev.completed .cal-ev-title { color:var(--ink-3); }
+  .cal-ev.ended .cal-ev-title { color:var(--ink-4); }
+  .cal-ev.ended .cal-ev-time { color:var(--ink-4); }
+  .cal-cell.cal-drop { outline:2px dashed var(--accent); outline-offset:-2px; background:var(--accent-tint); }
+  .cal-ev[draggable="true"] { cursor:grab; }
+  .cal-more { font-size:10.5px; color:var(--ink-3); padding:1px 6px; cursor:pointer; }
+  .cal-more:hover { color:var(--accent); }
+
+  /* ── 弹窗 ── */
+  .wi-overlay { position:fixed; inset:0; z-index:1000; background:rgba(31,30,27,0.4);
+                display:none; align-items:flex-start; justify-content:center; padding:8vh 16px; overflow-y:auto; }
+  .wi-overlay.open { display:flex; }
+  .wi-card { width:560px; max-width:100%; background:var(--bg-elev); border:1px solid var(--line);
+             border-radius:14px; box-shadow:0 24px 64px rgba(31,30,27,0.25); padding:20px 22px; }
+  /* 查看(只读)态:禁用所有输入/触发器,仅保留 .wi-keep(取消)可点 */
+  body.at-page .wi-card.wi-view input,
+  body.at-page .wi-card.wi-view textarea,
+  body.at-page .wi-card.wi-view select,
+  body.at-page .wi-card.wi-view label,
+  body.at-page .wi-card.wi-view button:not(.wi-keep) { pointer-events:none; }
+  /* 关联人员组件:只读态整体禁用(chip 删除×/添加框) */
+  body.at-page .wi-card.wi-view .at-ps,
+  body.at-page .wi-card.wi-view .at-ps * { pointer-events:none; }
+  /* 评论区的 label 不禁(其实无交互),但确保区域整体可用 */
+  body.at-page .wi-card.wi-view .wi-comment-area label { pointer-events:auto; }
+  body.at-page .wi-card.wi-view .at-gsi,
+  body.at-page .wi-card.wi-view .at-ps-box,
+  body.at-page .wi-card.wi-view .wi-inp { background:var(--bg-sunk); }
+  /* 完成(只读)态:描述框仍可滚动/拖拽查看全文(配合 readOnly 防编辑) */
+  body.at-page .wi-card.wi-view #wiDesc { pointer-events:auto; resize:vertical; }
+  /* 评论区在查看(只读)态下仍可用 */
+  body.at-page .wi-card.wi-view .wi-comment-area input,
+  body.at-page .wi-card.wi-view .wi-comment-area textarea,
+  body.at-page .wi-card.wi-view .wi-comment-area button { pointer-events:auto; }
+  /* 评论气泡:标准聊天布局,自己头像在右、他人在左;时间在气泡内底部 */
+  .wc-row { display:flex; gap:8px; align-items:flex-start; }
+  .wc-row.own { flex-direction:row-reverse; }
+  .wc-av { width:28px; height:28px; border-radius:50%; background:var(--accent-tint); color:var(--accent);
+           display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex-shrink:0; }
+  .wc-bubble { display:flex; flex-direction:column; gap:3px; max-width:72%; min-width:0; font-size:12.5px;
+               color:var(--ink); background:var(--bg-page); border-radius:10px; padding:7px 11px; }
+  .wc-row.own .wc-bubble { background:var(--accent-tint); }
+  .wc-text { white-space:pre-wrap; word-break:break-word; }
+  .wc-foot { display:flex; align-items:center; gap:6px; align-self:flex-end; }
+  .wc-time { font-size:10px; color:var(--ink-4); }
+  body.at-page .wc-del { opacity:0; border:0; background:transparent; color:var(--ink-4); cursor:pointer;
+                         font-size:13px; line-height:1; padding:0; transition:opacity .12s; }
+  .wc-bubble:hover .wc-del { opacity:1; }
+  .wi-label { display:block; font-size:11.5px; color:var(--ink-3); margin-bottom:5px; }
+  .wi-inp { width:100%; box-sizing:border-box; height:34px; padding:0 11px; background:var(--bg-page);
+            border:1px solid var(--line-2); border-radius:7px; font:inherit; font-size:13px;
+            color:var(--ink); outline:none; }
+  .wi-seg { display:inline-flex; gap:4px; }
+  .wi-seg button { height:32px; padding:0 14px; border:1px solid var(--line-2); border-radius:7px;
+                   background:var(--bg-page); color:var(--ink-2); font:inherit; font-size:12.5px; cursor:pointer; }
+  .wi-seg button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .wi-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  /* ATSearchPicker 用视口坐标(getBoundingClientRect)定位 → 必须 fixed;z-index 高于 modal(1000) */
+  .wi-pick-drop { position:fixed; z-index:1100; background:var(--bg-elev);
+                  border:1px solid var(--line); border-radius:8px; box-shadow:0 12px 32px rgba(0,0,0,0.12);
+                  max-height:220px; overflow-y:auto; display:none; }
+  /* 关联任务 2 级下拉 */
+  .wi-task-menu { position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:40; background:var(--bg-elev);
+                  border:1px solid var(--line); border-radius:8px; box-shadow:0 12px 32px rgba(0,0,0,0.12);
+                  max-height:260px; overflow-y:auto; padding:5px; }
+  .wi-task-item { padding:7px 12px; border-radius:6px; cursor:pointer; font-size:13px; color:var(--ink);
+                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wi-task-item:hover { background:var(--bg-hover); }
+  .wi-task-item.sub { padding-left:28px; font-size:12.5px; color:var(--ink-2); }
+  .wi-task-item.on { background:var(--accent-tint); color:var(--accent); }
+</style>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='worklog') }}
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+  {{ at_topbar() }}
+
+  <main style="width:100%;box-sizing:border-box;max-width:1320px;margin:0 auto;padding:24px 36px 80px;">
+
+    {# ── 头部:标题 + 月份导航 + 新建 ── #}
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:16px;">
+      <div>
+        <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:6px;">
+          WORKLOG · {{ _('工作日历') }}
+        </div>
+        <h1 class="at-serif" style="margin:0;font-size:30px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
+          {{ _('工作日历') }}
+        </h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;align-items:center;gap:2px;">
+          <button type="button" id="calPrev" class="at-icon-btn"
+                  style="width:32px;height:32px;border:1px solid var(--line-2);background:var(--bg-elev);border-radius:7px;cursor:pointer;color:var(--ink-2);display:inline-flex;align-items:center;justify-content:center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <span id="calTitle" class="at-mono" style="min-width:128px;text-align:center;font-size:14px;font-weight:600;color:var(--ink);"></span>
+          <button type="button" id="calNext"
+                  style="width:32px;height:32px;border:1px solid var(--line-2);background:var(--bg-elev);border-radius:7px;cursor:pointer;color:var(--ink-2);display:inline-flex;align-items:center;justify-content:center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+        {{ at_btn(_('今天'), variant='ghost', size='sm', onclick='calToday()') }}
+        {# 账户选择(查看他人日历;仅有权限者显示,JS 控制) #}
+        <div id="calAccountWrap" style="position:relative;display:none;">
+          <button type="button" id="calAccountBtn"
+                  style="height:32px;padding:0 10px;border:1px solid var(--line-2);background:var(--bg-elev);border-radius:7px;cursor:pointer;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;font-size:12.5px;max-width:160px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span id="calAccountLabel" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ _('我的日历') }}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5;flex-shrink:0;"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div id="calAccountMenu" class="cal-acct-menu" hidden></div>
+        </div>
+        {# 节假日国家选择 #}
+        <div style="position:relative;">
+          <button type="button" id="calHolidayBtn" class="at-icon-btn" title="{{ _('假期') }}"
+                  style="width:32px;height:32px;padding:0;border:1px solid var(--line-2);background:var(--bg-elev);border-radius:7px;cursor:pointer;color:var(--ink-2);display:inline-flex;align-items:center;justify-content:center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a2 2 0 0 1 2-2h8l-1 5h6l-1 5H6"/></svg>
+          </button>
+          <div id="calHolidayMenu" class="cal-hol-menu" hidden></div>
+        </div>
+        <div class="at-seg" id="calViewSeg">
+          <button type="button" data-view="day">{{ _('日') }}</button>
+          <button type="button" data-view="week">{{ _('周') }}</button>
+          <button type="button" data-view="month" class="on">{{ _('月') }}</button>
+        </div>
+      </div>
+    </div>
+
+    {# 周历头 + 网格(JS 填充) #}
+    <div id="calGrid" class="cal-grid"></div>
+    <div class="at-dim" style="margin-top:10px;font-size:11.5px;">
+      {{ _('点击空白日期新建工作项;点击事件查看/编辑。') }}
+    </div>
+  </main>
+</div>
+</div>
+
+{# ── 工作项 创建/编辑 弹窗 ── #}
+<div id="wiModal" class="wi-overlay" onclick="if(event.target===this)wiClose()">
+  <div class="wi-card" id="wiCard">
+    <h3 id="wiModalTitle" style="margin:0 0 14px;font-size:16px;font-weight:600;color:var(--ink);">{{ _('新建工作项') }}</h3>
+    <div id="wiOwnerBanner" style="display:none;margin:-6px 0 14px;padding:8px 11px;border-radius:8px;background:var(--accent-tint);color:var(--accent);font-size:12.5px;line-height:1.4;"></div>
+    <input type="hidden" id="wiId">
+
+    <label class="wi-label">{{ _('标题') }} <span style="color:var(--danger);">*</span></label>
+    {{ at_grouped_select('wiTitleInput', work_type_groups, work_type_labels_json,
+                          placeholder=_('请输入工作内容'), required=true) }}
+
+    {# 关联任务(可选;一级=任务,二级=子任务;不选即不关联)#}
+    <div style="margin-top:12px;">
+      <div id="wiTaskBox" style="position:relative;">
+        <button type="button" id="wiTaskBtn" class="wi-inp" style="display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer;">
+          <span id="wiTaskLabel" class="at-dim">{{ _('选择任务 / 子任务') }}</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round" style="opacity:.5;flex-shrink:0;"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <input type="hidden" id="wiTaskId"><input type="hidden" id="wiSubtaskId">
+        <div id="wiTaskMenu" class="wi-task-menu" hidden></div>
+      </div>
+    </div>
+
+    {# 日期时间(内联一行):🕐 开始日期 [开始时间] – [结束日期/结束时间] · 全天 #}
+    <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div class="wi-dtrow">
+        {{ at_date_picker('wiStartDate', placeholder=_('开始日期'), inline=true) }}
+        <span id="wiStartTimeBox">{{ at_time_picker('wiStartTime', placeholder=_('时间'), minute_step=15) }}</span>
+        <span class="wi-dt-dash">–</span>
+        <span id="wiEndDateBox">{{ at_date_picker('wiEndDate', placeholder=_('结束日期'), inline=true) }}</span>
+        <span id="wiEndTimeBox">{{ at_time_picker('wiEndTime', placeholder=_('时间'), minute_step=15) }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:18px;flex-shrink:0;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);cursor:pointer;">
+          <input type="checkbox" id="wiAllDay"> {{ _('全天') }}
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);cursor:pointer;">
+          <input type="checkbox" id="wiTrip"> {{ _('出差') }}
+        </label>
+      </div>
+    </div>
+
+    {# 关联人员(多选,共享给参与人 → shared_with_users) #}
+    <div style="margin-top:14px;">
+      {{ at_people_select('wiParticipants', placeholder=_('添加关联人员')) }}
+    </div>
+
+    {# 项目搜索 #}
+    <div style="margin-top:12px;position:relative;">
+      <label class="wi-label">{{ _('关联项目(可选)') }}</label>
+      <input id="wiProject" class="wi-inp" autocomplete="off" placeholder="{{ _('输入 2+ 字搜索项目…') }}">
+      <input type="hidden" id="wiProjectId">
+      <button type="button" id="wiProjectClear" style="display:none;"></button>
+      <div id="wiProjectDropdown" class="wi-pick-drop"></div>
+    </div>
+
+    {# 客户搜索 + 联系人 #}
+    <div class="wi-row">
+      <div style="position:relative;">
+        <label class="wi-label">{{ _('关联客户(可选)') }}</label>
+        <input id="wiCustomer" class="wi-inp" autocomplete="off" placeholder="{{ _('输入 2+ 字搜索客户…') }}">
+        <input type="hidden" id="wiCustomerId">
+        <button type="button" id="wiCustomerClear" style="display:none;"></button>
+        <div id="wiCustomerDropdown" class="wi-pick-drop"></div>
+      </div>
+      <div>
+        <label class="wi-label">{{ _('联系人') }}</label>
+        <select id="wiContactId" class="wi-inp" style="color:var(--ink);" disabled>
+          <option value="">{{ _('先选客户') }}</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <label class="wi-label">{{ _('描述(可选)') }}</label>
+      <textarea id="wiDesc" rows="4" class="wi-inp" style="height:auto;min-height:96px;max-height:480px;padding:8px 11px;line-height:1.5;resize:vertical;overflow:auto;"
+                oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,480)+'px';"></textarea>
+    </div>
+
+    {# 附件 #}
+    <div id="wiAttachSection" class="wi-attach-area" style="margin-top:12px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <label class="wi-label" style="margin:0;">{{ _('附件') }}</label>
+        <input id="wiAttachInput" type="file" multiple style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);">
+        <label for="wiAttachInput" id="wiAttachAddBtn" title="{{ _('添加附件') }}"
+                style="cursor:pointer;color:var(--ink-3);padding:2px;display:inline-flex;align-items:center;margin:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </label>
+      </div>
+      <div id="wiAttachList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+    </div>
+
+    {# 评论(仅编辑/查看态;关联项目→项目跟进,关联任务→任务评论)#}
+    <div id="wiCommentSection" class="wi-comment-area" style="display:none;margin-top:16px;border-top:1px solid var(--line-soft);padding-top:14px;">
+      <label class="wi-label">{{ _('评论') }}</label>
+      <div id="wiCommentList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;max-height:264px;overflow-y:auto;"></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="wiCommentInput" type="text" placeholder="{{ _('输入评论内容…') }}"
+               style="flex:1;box-sizing:border-box;height:36px;padding:0 13px;background:var(--bg-page);border:1px solid var(--line-2);border-radius:18px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
+        <button type="button" id="wiCommentSend"
+                style="height:34px;padding:0 16px;border-radius:18px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:13px;cursor:pointer;flex-shrink:0;">{{ _('发送') }}</button>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:20px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" id="wiDeleteBtn" onclick="wiDelete()" style="display:none;height:34px;padding:0 14px;border-radius:7px;border:1px solid var(--line-2);background:transparent;color:var(--danger);font:inherit;font-size:13px;cursor:pointer;">{{ _('删除') }}</button>
+        <span id="wiReadonlyNote" class="at-dim" style="display:none;font-size:12px;">✓ {{ _('已完成 · 不可编辑') }}</span>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button type="button" class="wi-keep" onclick="wiClose()" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+        <button type="button" id="wiSaveBtn" onclick="wiSave()" style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('保存') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── 日报弹窗 ── #}
+<div id="logModal" class="wi-overlay" onclick="if(event.target===this)logClose()">
+  <div id="logCard" class="wi-card" style="width:620px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--ink);">{{ _('日报') }}</h3>
+      {{ at_date_picker('logDatePicker') }}
+      <span id="logStatusPill" style="display:none;font-size:11.5px;padding:2px 9px;border-radius:10px;margin-left:2px;"></span>
+    </div>
+    <input type="hidden" id="logDate">
+
+    {# 统计 #}
+    <div id="logStats" class="log-stats"></div>
+
+    {# 工作描述 + AI #}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 6px;">
+      <label class="wi-label" style="margin:0;">{{ _('工作描述') }}</label>
+      <button type="button" id="logAiBtn" class="log-ai-btn" onclick="logAiDraft()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L19.5 10l-5.6 1.2L12 17l-1.9-5.8L4.5 10l5.6-1.2z"/></svg>
+        <span>{{ _('AI 梳理草稿') }}</span>
+      </button>
+    </div>
+    <textarea id="logNotes" rows="14" class="wi-inp" style="resize:vertical;line-height:1.6;min-height:300px;"
+              placeholder="{{ _('总结当天工作,或点「AI 梳理草稿」自动生成后再修改…') }}"></textarea>
+
+    {# 当天工作项(只读上下文) #}
+    <div id="logItems" class="log-items"></div>
+
+    {# 评论(与工作项共用 AtComments 组件) #}
+    <div class="wi-comment-area" style="margin-top:16px;border-top:1px solid var(--line-soft);padding-top:14px;">
+      <label class="wi-label">{{ _('评论') }}</label>
+      <div id="logCommentList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;max-height:264px;overflow-y:auto;"></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="logCommentInput" type="text" placeholder="{{ _('输入评论内容…') }}"
+               style="flex:1;box-sizing:border-box;height:36px;padding:0 13px;background:var(--bg-page);border:1px solid var(--line-2);border-radius:18px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
+        <button type="button" id="logCommentSend"
+                style="height:34px;padding:0 16px;border-radius:18px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:13px;cursor:pointer;flex-shrink:0;">{{ _('发送') }}</button>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;margin-top:18px;">
+      <span id="logReadonlyNote" class="at-dim" style="display:none;font-size:12px;">✓ {{ _('已提交') }}</span>
+      <div style="display:flex;gap:10px;margin-left:auto;">
+        <button type="button" class="log-keep" onclick="logClose()" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+        <button type="button" id="logSaveBtn" onclick="logSave()" style="height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('保存草稿') }}</button>
+        <button type="button" id="logSubmitBtn" onclick="logSubmit()" style="height:34px;padding:0 20px;border-radius:7px;border:0;background:var(--ink);color:var(--bg-page);font:inherit;font-size:13px;font-weight:500;cursor:pointer;">{{ _('提交') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="calConfig" type="application/json">
+{
+  "items_url": "/worklog/api/items",
+  "contacts_url": "/worklog/api/customers/{id}/contacts",
+  "my_tasks_url": "/worklog/api/my-tasks",
+  "comments_url": "/worklog/api/items/{id}/comments",
+  "comment_del_url": "/worklog/api/items/comments/{id}",
+  "daily_url": "/worklog/api/daily/{date}",
+  "daily_submit_url": "/worklog/api/daily/{date}/submit",
+  "daily_ai_url": "/worklog/api/daily/{date}/ai-draft",
+  "daily_comments_url": "/worklog/api/daily/{date}/comments",
+  "daily_comment_del_url": "/worklog/api/daily/comments/{id}",
+  "current_user_id": {{ current_user.id }},
+  "current_user_name": {{ (current_user.real_name or current_user.username) | tojson }},
+  "accounts_url": "/worklog/api/calendar-accounts",
+  "can_view_others": {{ can_view_others | tojson }},
+  "search_customer_url": "/quotation/search_customers",
+  "search_project_url": "/quotation/search_projects",
+  "type_labels": {{ work_type_labels_json | tojson }},
+  "holidays": {{ holidays_data | tojson }},
+  "supported_countries": {{ supported_countries | tojson }},
+  "default_countries": {{ default_countries | tojson }},
+  "lang": "{{ session.get('language', 'zh') }}"
+}
+</script>
+{# 附件预览 — 复用 AT 通用预览组件 #}
+{{ at_file_preview_modal() }}
+<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-comments.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-worklog-calendar.js') }}"></script>
+</body>
+</html>

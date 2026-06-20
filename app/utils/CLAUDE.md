@@ -27,4 +27,10 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #6347 | 11:13 AM | 🔵 | Comprehensive Product Implantation Data Model Exploration | ~579 |
+
+### Apr 30, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8603 | 12:39 PM | 🔴 | Migrated DXT MCP bridge from Python to Node.js for Windows compatibility | ~476 |
 </claude-mem-context>

@@ -236,7 +236,7 @@ class ProductConfigModal {
 
             if (baseSnapshot.length === 0) {
                 console.error('产品编码快照为空');
-                this.showError('产品编码数据缺失');
+                this.showError(t('产品编码数据缺失'));
                 return;
             }
 
@@ -367,7 +367,7 @@ class ProductConfigModal {
             this.updateMNDisplay();
         } catch (error) {
             console.error('Error in analyzeAndShowCodeSelection:', error);
-            this.showError('分析产品编码时出错');
+            this.showError(t('分析产品编码时出错'));
         }
     }
 
@@ -385,9 +385,9 @@ class ProductConfigModal {
         const titleElement = document.getElementById('codeSelectionTitle');
         if (titleElement) {
             if (this.selectableFields && this.selectableFields.length > 0) {
-                titleElement.innerHTML = '<i class="fas fa-sliders-h"></i> 请选择产品规格';
+                titleElement.innerHTML = `<i class="fas fa-sliders-h"></i> ${t('请选择产品规格')}`;
             } else {
-                titleElement.innerHTML = '<i class="fas fa-list-ul"></i> 产品规格';
+                titleElement.innerHTML = `<i class="fas fa-list-ul"></i> ${t('产品规格')}`;
             }
         }
 
@@ -566,7 +566,7 @@ class ProductConfigModal {
         if (this.remainingProducts.length === 0) {
             // 没有匹配的产品 → 错误
             console.error('❌ 没有匹配的产品！');
-            this.showError('未找到匹配的产品，请检查规格选择');
+            this.showError(t('未找到匹配的产品，请检查规格选择'));
             this.updateMNDisplay();
 
         } else if (this.remainingProducts.length === 1) {
@@ -715,7 +715,7 @@ class ProductConfigModal {
         // 修改确认按钮的文本和行为
         const confirmBtn = document.getElementById('confirmProductSelection');
         if (confirmBtn) {
-            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认规格';
+            confirmBtn.innerHTML = `<i class="fas fa-check"></i> ${t('确认规格')}`;
             confirmBtn.onclick = () => this.confirmSpecsAndLoadConfig();
         }
     }
@@ -764,7 +764,7 @@ class ProductConfigModal {
         // 重置确认按钮为原来的行为
         const confirmBtn = document.getElementById('confirmProductSelection');
         if (confirmBtn) {
-            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认选择';
+            confirmBtn.innerHTML = `<i class="fas fa-check"></i> ${t('确认选择')}`;
             confirmBtn.onclick = () => this.confirmSelection();
         }
     }
@@ -822,11 +822,11 @@ class ProductConfigModal {
             // 更新型号（修复：规格选择后型号未更新的问题）
             const modelElement = document.getElementById('configProductModel');
             if (modelElement) {
-                modelElement.textContent = product.product_model || product.model || '未知';
+                modelElement.textContent = product.product_model || product.model || t('未知');
             }
 
             // 显示产品MN，绿色徽章
-            const displayMn = product.product_mn || '无';
+            const displayMn = product.product_mn || t('无');
             mnElement.innerHTML = `
                 <span class="mn-badge confirmed">
                     <i class="fas fa-check-circle"></i> ${displayMn}
@@ -861,7 +861,7 @@ class ProductConfigModal {
             // 完全未选择
             mnElement.innerHTML = `
                 <span class="mn-badge pending">
-                    <i class="fas fa-clock"></i> 待确定
+                    <i class="fas fa-clock"></i> ${t('待确定')}
                 </span>
             `;
             // 清空品牌价格和规格说明
@@ -877,10 +877,10 @@ class ProductConfigModal {
             // 错误：没有匹配产品
             mnElement.innerHTML = `
                 <span class="mn-badge error">
-                    <i class="fas fa-exclamation-triangle"></i> 未找到匹配产品
+                    <i class="fas fa-exclamation-triangle"></i> ${t('未找到匹配产品')}
                 </span>
                 <small class="text-danger d-block mt-1">
-                    请检查规格选择是否正确
+                    ${t('请检查规格选择是否正确')}
                 </small>
             `;
             // 清空品牌价格和规格说明
@@ -903,19 +903,19 @@ class ProductConfigModal {
         const imgElement = document.getElementById('configProductImage');
         if (imgElement) {
             imgElement.src = product.effective_image || product.image_path || '/static/images/no-image.png';
-            imgElement.alt = product.product_name || '产品图片';
+            imgElement.alt = product.product_name || t('产品图片');
         }
 
         // 产品名称
         const nameElement = document.getElementById('configProductName');
         if (nameElement) {
-            nameElement.textContent = product.product_name || '产品名称';
+            nameElement.textContent = product.product_name || t('产品名称');
         }
 
         // 产品型号（显示在产品名称右侧）
         const modelElement = document.getElementById('configProductModel');
         if (modelElement) {
-            modelElement.textContent = product.product_model || product.model || '未知';
+            modelElement.textContent = product.product_model || product.model || t('未知');
         }
 
         // MN号（保持简洁，只显示MN徽章）
@@ -923,7 +923,7 @@ class ProductConfigModal {
         if (mnElement) {
             mnElement.innerHTML = `
                 <span class="mn-badge confirmed">
-                    <i class="fas fa-check-circle"></i> ${product.product_mn || '无'}
+                    <i class="fas fa-check-circle"></i> ${product.product_mn || t('无')}
                 </span>
             `;
         }
@@ -963,7 +963,7 @@ class ProductConfigModal {
      */
     confirmSelection() {
         if (!this.selectedProduct) {
-            alert('未找到匹配的产品，请检查规格选择或稍后重试');
+            alert(t('未找到匹配的产品，请检查规格选择或稍后重试'));
             return;
         }
 
@@ -1107,9 +1107,9 @@ class ProductConfigModal {
 
         // 根据 relation_type 确定徽章类型（使用 i18nTexts 支持国际化）
         const badgeMap = {
-            'required_accessory': { type: 'relation-type-required', text: window.i18nTexts?.required || '必选' },
-            'recommended': { type: 'relation-type-recommended', text: window.i18nTexts?.recommended || '推荐' },
-            'optional_accessory': { type: 'relation-type-optional-mutual', text: window.i18nTexts?.optionalMutual || '可选互斥' }
+            'required_accessory': { type: 'relation-type-required', text: window.i18nTexts?.required || t('必选') },
+            'recommended': { type: 'relation-type-recommended', text: window.i18nTexts?.recommended || t('推荐') },
+            'optional_accessory': { type: 'relation-type-optional-mutual', text: window.i18nTexts?.optionalMutual || t('可选互斥') }
         };
 
         const badge = badgeMap[config.relation_type] || { type: '', text: '' };
@@ -1260,10 +1260,10 @@ class ProductConfigModal {
             // 显示确认对话框
             showConfirmDialog({
                 type: 'warning',
-                title: '确认产品配置',
-                message: `当前产品配置中有 ${this.pendingSpecs.length} 个规格未选择，系统将使用推荐的默认选项。\n\n在下单时，这个产品的最终规格还需要再次确认。\n\n是否继续添加此产品？`,
-                confirmText: '确认添加',
-                cancelText: '返回修改',
+                title: t('确认产品配置'),
+                message: `${t('当前产品配置中有')} ${this.pendingSpecs.length} ${t('个规格未选择，系统将使用推荐的默认选项。')}\n\n${t('在下单时，这个产品的最终规格还需要再次确认。')}\n\n${t('是否继续添加此产品？')}`,
+                confirmText: t('确认添加'),
+                cancelText: t('返回修改'),
                 onConfirm: () => {
                     // 用户确认后执行添加
                     this.executeAddProduct(this.selectedConfigurations);
@@ -1387,7 +1387,7 @@ class ProductConfigModal {
                 // 更新按钮为最终确认
                 const confirmBtn = document.getElementById('confirmProductSelection');
                 if (confirmBtn) {
-                    confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认产品';
+                    confirmBtn.innerHTML = `<i class="fas fa-check"></i> ${t('确认产品')}`;
                     confirmBtn.onclick = () => this.executeFinalAddProduct();
                 }
 
@@ -1405,7 +1405,7 @@ class ProductConfigModal {
             console.error('❌ 加载配置失败:', error);
             if (loadingSpinner) loadingSpinner.style.display = 'none';
             if (noConfigMessage) {
-                noConfigMessage.innerHTML = '<i class="fas fa-exclamation-triangle text-danger"></i> 加载配置失败';
+                noConfigMessage.innerHTML = `<i class="fas fa-exclamation-triangle text-danger"></i> ${t('加载配置失败')}`;
                 noConfigMessage.style.display = 'block';
             }
         }
@@ -1584,7 +1584,7 @@ class ProductConfigModal {
             // 已选配置模式：显示数量
             rightSpan.className = 'text-muted';
             rightSpan.style.fontSize = '0.9rem';
-            rightSpan.textContent = `数量: ${options.quantity}`;
+            rightSpan.textContent = `${t('数量')}: ${options.quantity}`;
         } else {
             // 正常配置选择模式：显示价格
             rightSpan.className = 'config-price';
@@ -1650,7 +1650,7 @@ class ProductConfigModal {
             // 使用通用模板，传递必选徽章（使用 i18nTexts 支持国际化）
             item.appendChild(this.createConfigItemContent(config, {
                 badgeType: 'relation-type-required',
-                badgeText: window.i18nTexts?.required || '必选'
+                badgeText: window.i18nTexts?.required || t('必选')
             }));
 
             // ⭐ 新增：如果有子配置且未超过最大层级，添加展开按钮和子配置容器
@@ -1675,7 +1675,7 @@ class ProductConfigModal {
                     const badge = document.createElement('span');
                     badge.id = `configured-badge-${config.related_product_id}`;
                     badge.className = 'badge bg-success ms-2';
-                    badge.textContent = '已配置';
+                    badge.textContent = t('已配置');
                     badge.style.display = 'none';
                     contentWrapper.appendChild(badge);
                 }
@@ -1718,11 +1718,11 @@ class ProductConfigModal {
             groupDiv.dataset.groupId = group.group_id;
             groupDiv.dataset.isRequired = 'true';
             groupDiv.dataset.groupRequired = 'true';
-            groupDiv.dataset.groupName = group.group_name || `必选互斥组 ${group.group_id}`;
+            groupDiv.dataset.groupName = group.group_name || `${t('必选互斥组')} ${group.group_id}`;
 
             const groupTitle = document.createElement('div');
             groupTitle.className = 'group-title';
-            groupTitle.textContent = group.group_name || `必选互斥组 ${group.group_id}`;
+            groupTitle.textContent = group.group_name || `${t('必选互斥组')} ${group.group_id}`;
             groupDiv.appendChild(groupTitle);
 
             // ⭐ 修复：先确定应该默认选中的那一个产品
@@ -1773,7 +1773,7 @@ class ProductConfigModal {
                 // 使用通用模板（显示必选互斥徽章，传递差异keys用于高亮）
                 label.appendChild(this.createConfigItemContent(product, {
                     badgeType: 'relation-type-required-mutual',
-                    badgeText: window.i18nTexts?.requiredMutual || '必选互斥',
+                    badgeText: window.i18nTexts?.requiredMutual || t('必选互斥'),
                     diffKeys: diffKeys
                 }));
 
@@ -1788,7 +1788,7 @@ class ProductConfigModal {
                     const badge = document.createElement('span');
                     badge.id = `configured-badge-${product.related_product_id}`;
                     badge.className = 'badge bg-success ms-2';
-                    badge.textContent = '已配置';
+                    badge.textContent = t('已配置');
                     badge.style.display = 'none';
                     label.appendChild(badge);
 
@@ -1901,7 +1901,7 @@ class ProductConfigModal {
             const diffKeys = diffMap.get(configId) || new Set();
             label.appendChild(this.createConfigItemContent(config, {
                 badgeType: 'relation-type-recommended',
-                badgeText: window.i18nTexts?.recommended || '推荐',
+                badgeText: window.i18nTexts?.recommended || t('推荐'),
                 diffKeys: diffKeys
             }));
 
@@ -1927,7 +1927,7 @@ class ProductConfigModal {
                 const badge = document.createElement('span');
                 badge.id = `configured-badge-${config.related_product_id}`;
                 badge.className = 'badge bg-success ms-2';
-                badge.textContent = '已配置';
+                badge.textContent = t('已配置');
                 badge.style.display = 'none';
                 label.appendChild(badge);
 
@@ -1991,7 +1991,7 @@ class ProductConfigModal {
 
                 const groupTitle = document.createElement('div');
                 groupTitle.className = 'group-title';
-                groupTitle.textContent = group.group_name || `可选互斥组 ${group.group_id}`;
+                groupTitle.textContent = group.group_name || `${t('可选互斥组')} ${group.group_id}`;
                 groupDiv.appendChild(groupTitle);
 
                 container.appendChild(groupDiv);
@@ -2041,7 +2041,7 @@ class ProductConfigModal {
                 // API 返回的 product 对象已经包含所有产品字段
                 label.appendChild(this.createConfigItemContent(product, {
                     badgeType: 'relation-type-optional-mutual',
-                    badgeText: window.i18nTexts?.optionalMutual || '可选互斥',
+                    badgeText: window.i18nTexts?.optionalMutual || t('可选互斥'),
                     diffKeys: diffKeys
                 }));
 
@@ -2067,7 +2067,7 @@ class ProductConfigModal {
                     const badge = document.createElement('span');
                     badge.id = `configured-badge-${product.related_product_id}`;
                     badge.className = 'badge bg-success ms-2';
-                    badge.textContent = '已配置';
+                    badge.textContent = t('已配置');
                     badge.style.display = 'none';
                     label.appendChild(badge);
 
@@ -2155,7 +2155,7 @@ class ProductConfigModal {
 
             if (!checkedRadio || !checkedRadio.value) {
                 const groupTitle = group.querySelector('.group-title').textContent;
-                alert(`请选择 "${groupTitle}" 中的一个配置选项`);
+                alert(`${t('请选择')} "${groupTitle}" ${t('中的一个配置选项')}`);
                 return false;
             }
         }
@@ -2267,7 +2267,7 @@ class ProductConfigModal {
         // 重置确认按钮状态
         const confirmBtn = document.getElementById('confirmProductSelection');
         if (confirmBtn) {
-            confirmBtn.innerHTML = '<i class="fas fa-check"></i> 确认选择';
+            confirmBtn.innerHTML = `<i class="fas fa-check"></i> ${t('确认选择')}`;
             confirmBtn.onclick = () => this.confirmSelection();
         }
 
@@ -2834,7 +2834,7 @@ class ProductConfigModal {
                 const checkedInputs = group.querySelectorAll('input[type="radio"]:checked');
 
                 if (checkedInputs.length === 0) {
-                    alert(`请为"${groupName}"选择一个选项`);
+                    alert(`${t('请为')}"${groupName}"${t('选择一个选项')}`);
                     return false;
                 }
 
@@ -2936,7 +2936,7 @@ class ProductConfigModal {
 
             const currentSpan = document.createElement('span');
             currentSpan.className = 'spec-current';
-            currentSpan.innerHTML = `当前: <span class="current-value">${field.current_value}${field.field_unit || ''}</span>`;
+            currentSpan.innerHTML = `${t('当前')}: <span class="current-value">${field.current_value}${field.field_unit || ''}</span>`;
 
             headerDiv.appendChild(nameSpan);
             headerDiv.appendChild(currentSpan);
@@ -3113,7 +3113,7 @@ class ProductConfigModal {
                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                <span class="ms-2 text-muted">正在计算新MN...</span>
+                <span class="ms-2 text-muted">${t('正在计算新MN...')}</span>
             `;
         }
 
@@ -3171,13 +3171,13 @@ class ProductConfigModal {
         if (priceAdjEl) {
             const priceYuan = data.price_adjustment_total / 100;
             if (priceYuan > 0) {
-                priceAdjEl.textContent = `价格 +¥${priceYuan.toFixed(2)}`;
+                priceAdjEl.textContent = `${t('价格')} +¥${priceYuan.toFixed(2)}`;
                 priceAdjEl.className = 'badge bg-warning text-dark';
             } else if (priceYuan < 0) {
-                priceAdjEl.textContent = `价格 ¥${priceYuan.toFixed(2)}`;
+                priceAdjEl.textContent = `${t('价格')} ¥${priceYuan.toFixed(2)}`;
                 priceAdjEl.className = 'badge bg-success';
             } else {
-                priceAdjEl.textContent = '价格不变';
+                priceAdjEl.textContent = t('价格不变');
                 priceAdjEl.className = 'badge bg-secondary';
             }
         }
@@ -3195,7 +3195,7 @@ class ProductConfigModal {
                 const msgEl = document.getElementById('previewExistingMessage');
                 if (msgEl && data.existing_product_price) {
                     const priceYuan = data.existing_product_price / 100;
-                    msgEl.textContent = `已存在相同规格产品，价格 ¥${priceYuan.toFixed(2)}`;
+                    msgEl.textContent = `${t('已存在相同规格产品，价格')} ¥${priceYuan.toFixed(2)}`;
                 }
             }
             if (newEl) newEl.style.display = 'none';

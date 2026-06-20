@@ -82,7 +82,9 @@ class MeetingService:
             }
         }
 
-        provider = os.environ.get('AI_PROVIDER', 'openai')  # 会议纪要默认用 OpenAI
+        # 会议纪要可单独 override；不设则跟随全局 AI_PROVIDER，缺省走 openai
+        provider = (os.environ.get('MEETING_AI_PROVIDER')
+                    or os.environ.get('AI_PROVIDER', 'openai'))
         if provider not in providers:
             provider = 'openai'
 
@@ -99,7 +101,8 @@ class MeetingService:
 
     @classmethod
     def upload_audio_chunk(cls, recording_id: int, chunk_data: bytes,
-                          chunk_index: int, is_final: bool = False) -> Dict:
+                          chunk_index: int, is_final: bool = False,
+                          track: str = 'mixed') -> Dict:
         """
         上传音频分块到存储（支持群晖WebDAV、Supabase、本地存储）
 
@@ -108,6 +111,7 @@ class MeetingService:
             chunk_data: 音频分块数据
             chunk_index: 分块索引
             is_final: 是否为最后一个分块
+            track: 'mixed'（mic+system 混音，用于回放）或 'system'（仅对方端，用于 pyannote）
 
         Returns:
             dict: {success: bool, chunk_path: str, error: str}
@@ -121,9 +125,11 @@ class MeetingService:
             if not recording:
                 return {'success': False, 'error': '录音记录不存在'}
 
-            # 生成分块文件名
+            track = track if track in ('mixed', 'system') else 'mixed'
+            # 生成分块文件名（track 加前缀避免冲突）
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            chunk_filename = f"chunk_{chunk_index:04d}_{timestamp}.webm"
+            track_prefix = '' if track == 'mixed' else 'sys_'
+            chunk_filename = f"{track_prefix}chunk_{chunk_index:04d}_{timestamp}.webm"
 
             # 根据存储类型选择上传方式
             storage_type = get_storage_type()
@@ -196,19 +202,21 @@ class MeetingService:
                 logger.info(f"音频分块上传到Supabase: {storage_path}")
 
             # 更新录音记录
-            if not recording.audio_chunks:
-                recording.audio_chunks = []
-            recording.audio_chunks.append({
+            # SQLAlchemy JSON 字段直接 .append() 不会触发 dirty 标记，必须整体重新赋值
+            target_attr = 'chunk_paths' if track == 'mixed' else 'system_chunk_paths'
+            chunks = list(getattr(recording, target_attr) or [])
+            chunks.append({
                 'index': chunk_index,
                 'path': chunk_url,
                 'storage_type': storage_type,
                 'size': len(chunk_data),
                 'uploaded_at': datetime.utcnow().isoformat()
             })
+            setattr(recording, target_attr, chunks)
 
-            if is_final:
+            # 仅以 mixed 轨判定上传完成（system 轨可选，不影响主流程）
+            if is_final and track == 'mixed':
                 recording.status = 'uploaded'
-                recording.upload_completed_at = datetime.utcnow()
 
             db.session.commit()
 
@@ -226,12 +234,14 @@ class MeetingService:
             return {'success': False, 'error': str(e)}
 
     @classmethod
-    def merge_audio_chunks(cls, recording_id: int) -> Dict:
+    def merge_audio_chunks(cls, recording_id: int, track: str = 'mixed') -> Dict:
         """
         合并音频分块为完整文件（支持群晖WebDAV、Supabase、本地存储）
 
         Args:
             recording_id: 录音记录ID
+            track: 'mixed' 合并 mic+system 混音轨（用于回放）
+                   'system' 合并仅对方端轨（用于 pyannote）
 
         Returns:
             dict: {success: bool, audio_url: str, duration: int}
@@ -244,11 +254,14 @@ class MeetingService:
             if not recording:
                 return {'success': False, 'error': '录音记录不存在'}
 
-            if not recording.audio_chunks:
-                return {'success': False, 'error': '没有音频分块数据'}
+            track = track if track in ('mixed', 'system') else 'mixed'
+            chunks_attr = 'chunk_paths' if track == 'mixed' else 'system_chunk_paths'
+            chunks_data = getattr(recording, chunks_attr) or []
+            if not chunks_data:
+                return {'success': False, 'error': f'没有{track}轨音频分块数据'}
 
             # 按索引排序分块
-            sorted_chunks = sorted(recording.audio_chunks, key=lambda x: x['index'])
+            sorted_chunks = sorted(chunks_data, key=lambda x: x['index'])
             merged_data = bytearray()
 
             # 确定存储类型（从第一个分块或当前配置获取）
@@ -285,7 +298,8 @@ class MeetingService:
 
             # 保存合并后的文件
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            merged_filename = f"recording_{recording_id}_{timestamp}.webm"
+            file_prefix = 'recording' if track == 'mixed' else 'system'
+            merged_filename = f"{file_prefix}_{recording_id}_{timestamp}.webm"
 
             if storage_type == 'synology':
                 # 上传到群晖WebDAV
@@ -343,11 +357,14 @@ class MeetingService:
 
                 logger.info(f"合并音频上传到Supabase: {storage_path}")
 
-            # 更新录音记录
-            recording.audio_url = audio_url
-            recording.storage_type = storage_type
-            recording.file_size = len(merged_data)
-            recording.status = 'merged'
+            # 更新录音记录（按 track 写入对应字段）
+            if track == 'mixed':
+                recording.storage_url = audio_url
+                recording.file_size_bytes = len(merged_data)
+                recording.status = 'merged'
+            else:
+                recording.system_storage_url = audio_url
+                # system 轨完成不影响主状态机
             db.session.commit()
 
             logger.info(f"音频合并完成: recording_id={recording_id}, size={len(merged_data)}, storage={storage_type}")
@@ -384,7 +401,7 @@ class MeetingService:
             if not recording:
                 return {'success': False, 'error': '录音记录不存在'}
 
-            if not recording.audio_url:
+            if not recording.storage_url:
                 return {'success': False, 'error': '音频文件不存在'}
 
             # 获取 OpenAI 客户端
@@ -402,16 +419,16 @@ class MeetingService:
             if storage_type == 'synology':
                 # 从群晖WebDAV下载
                 webdav = get_webdav_client()
-                audio_data = webdav.download_file(recording.audio_url)
+                audio_data = webdav.download_file(recording.storage_url)
                 if not audio_data:
                     return {'success': False, 'error': '无法从群晖下载音频文件'}
-                logger.info(f"从群晖下载音频文件: {recording.audio_url}")
+                logger.info(f"从群晖下载音频文件: {recording.storage_url}")
 
             elif storage_type == 'local':
                 # 本地文件
                 from flask import current_app
                 local_storage_root = current_app.config.get('LOCAL_STORAGE_ROOT', './storage')
-                local_path = recording.audio_url.replace('/storage/', local_storage_root + '/')
+                local_path = recording.storage_url.replace('/storage/', local_storage_root + '/')
                 with open(local_path, 'rb') as audio_file:
                     audio_data = audio_file.read()
                 logger.info(f"读取本地音频文件: {local_path}")
@@ -422,16 +439,16 @@ class MeetingService:
                 client = get_supabase_client()
 
                 if client.use_local_storage:
-                    local_path = recording.audio_url.replace('/storage/', client.local_storage_root + '/')
+                    local_path = recording.storage_url.replace('/storage/', client.local_storage_root + '/')
                     with open(local_path, 'rb') as audio_file:
                         audio_data = audio_file.read()
                 else:
                     import requests
-                    response = requests.get(recording.audio_url)
+                    response = requests.get(recording.storage_url)
                     if response.status_code != 200:
                         return {'success': False, 'error': '无法下载音频文件'}
                     audio_data = response.content
-                logger.info(f"从Supabase下载音频文件: {recording.audio_url}")
+                logger.info(f"从Supabase下载音频文件: {recording.storage_url}")
 
             # 调用 Whisper API
             logger.info(f"开始转录: recording_id={recording_id}")
@@ -460,11 +477,16 @@ class MeetingService:
             segments = []
 
             if hasattr(transcript_response, 'segments'):
+                from app.views.meeting import _is_hallucinated_segment
                 for seg in transcript_response.segments:
+                    text = seg.text or ''
+                    if _is_hallucinated_segment(text):
+                        logger.info(f"过滤 hallucination 段: {text[:50]!r}")
+                        continue
                     segments.append({
                         'start': seg.start,
                         'end': seg.end,
-                        'text': seg.text,
+                        'text': text,
                         'speaker': None  # 稍后通过说话人识别填充
                     })
 
@@ -482,7 +504,6 @@ class MeetingService:
 
             # 更新录音状态
             recording.status = 'transcribed'
-            recording.transcription_completed_at = datetime.utcnow()
 
             db.session.commit()
 
@@ -652,12 +673,20 @@ class MeetingService:
                 result = json.loads(response.choices[0].message.content)
                 return result.get('speakers', [])
             else:
-                # Anthropic Claude
+                # Anthropic Claude — 走 ANTHROPIC_BASE_URL 代理
+                # ❗OAuth 代理对 Sonnet/Opus 强制要求 system[0] 是 Claude Code 身份串
                 import anthropic
-                client = anthropic.Anthropic(api_key=config['api_key'])
+                client = anthropic.Anthropic(
+                    api_key=config['api_key'],
+                    base_url=os.environ.get('ANTHROPIC_BASE_URL') or None,
+                )
                 response = client.messages.create(
                     model=config['model'],
                     max_tokens=1000,
+                    system=[
+                        {'type': 'text', 'text': "You are Claude Code, Anthropic's official CLI for Claude."},
+                        {'type': 'text', 'text': '你是说话人分析助手，基于会议转录段落判断每位说话人的身份特征。输出 JSON。'},
+                    ],
                     messages=[
                         {"role": "user", "content": prompt}
                     ]
@@ -675,13 +704,15 @@ class MeetingService:
 
     @classmethod
     def generate_minutes(cls, recording_id: int,
-                        style: str = 'standard') -> Dict:
+                        style: str = 'standard',
+                        force: bool = False) -> Dict:
         """
         使用 AI 生成会议纪要
 
         Args:
             recording_id: 录音记录ID
             style: 纪要风格 ('standard', 'detailed', 'brief')
+            force: True 时即使已有 minutes 也覆盖；False 时已有则跳过
 
         Returns:
             dict: {success: bool, minutes_id: int, content: dict}
@@ -697,6 +728,18 @@ class MeetingService:
             if not recording:
                 return {'success': False, 'error': '录音记录不存在'}
 
+            # 已有 minutes：force=True 删除旧的，否则直接返回
+            existing = MeetingMinutes.query.filter_by(recording_id=recording_id).first()
+            if existing:
+                if not force:
+                    return {'success': True, 'minutes_id': existing.id, 'message': '纪要已存在'}
+                # force：删旧的（cascade 自动删 action_items）
+                old_version = existing.version or 1
+                db.session.delete(existing)
+                db.session.flush()
+            else:
+                old_version = 0
+
             # 获取转录文本
             transcript = MeetingTranscript.query.filter_by(
                 recording_id=recording_id
@@ -710,8 +753,9 @@ class MeetingService:
             if not config['api_key']:
                 return {'success': False, 'error': 'AI 服务未配置'}
 
-            # 构建纪要生成提示
-            full_text = transcript.full_text or ''
+            # 构建纪要生成提示：用带时间戳的 transcript（每段开头 [mm:ss]）
+            # 这样 AI 切 chapters 时能引用真实时间，不会偷懒按等分平均切
+            full_text = cls._build_timestamped_transcript(transcript) or transcript.full_text or ''
 
             prompt = cls._build_minutes_prompt(full_text, style, recording)
 
@@ -725,41 +769,73 @@ class MeetingService:
                 return {'success': False, 'error': f'AI 生成失败: {str(e)}'}
 
             # 创建纪要记录
+            # ❗严格按 MeetingMinutes 模型字段：content/ai_model/generated_at 都没有这些列；
+            #   generation_style 应该是 generation_mode；owner_id 是 nullable=False 必传
             minutes = MeetingMinutes(
                 recording_id=recording_id,
+                owner_id=recording.owner_id,
                 title=minutes_content.get('title', recording.title or '会议纪要'),
                 summary=minutes_content.get('summary', ''),
                 key_points=minutes_content.get('key_points', []),
                 decisions=minutes_content.get('decisions', []),
-                content=minutes_content,
-                ai_model=config['model'],
-                generation_style=style,
+                chapters=minutes_content.get('chapters', []),
+                key_quotes=minutes_content.get('key_quotes', []),
+                highlights=minutes_content.get('highlights', []),
+                generation_mode=style,
                 status='draft',
-                version=1,
-                generated_at=datetime.utcnow()
+                version=old_version + 1,
             )
             db.session.add(minutes)
             db.session.flush()  # 获取 minutes.id
 
             # 创建行动项
+            # ❗model 没有 due_date_text 和 priority 字段；due_date 是 DateTime 但 AI 返回的是自然语言
+            #   → 把这些信息合并到 description 里
             action_items = minutes_content.get('action_items', [])
             for item in action_items:
+                desc_parts = []
+                base_desc = item.get('description', '').strip()
+                if base_desc:
+                    desc_parts.append(base_desc)
+                if item.get('due_date'):
+                    desc_parts.append(f"截止：{item.get('due_date')}")
+                if item.get('priority'):
+                    desc_parts.append(f"优先级：{item.get('priority')}")
                 action = MeetingActionItem(
                     minutes_id=minutes.id,
-                    title=item.get('title', ''),
-                    description=item.get('description', ''),
-                    assignee_name=item.get('assignee', ''),
-                    due_date_text=item.get('due_date', ''),
-                    priority=item.get('priority', 'medium')
+                    title=item.get('title', '')[:500],
+                    description=' · '.join(desc_parts),
+                    assignee_name=item.get('assignee', '')[:100],
                 )
                 db.session.add(action)
 
             # 更新录音状态
             recording.status = 'minutes_generated'
 
+            # 把 AI 总结的标题同步到 recording.title（覆盖默认机械名）
+            # 默认名格式：'2026-XX-XX HH:MM 会议录音' / '会议录音' / 空
+            ai_title = (minutes_content.get('title') or '').strip()
+            cur_title = (recording.title or '').strip()
+            import re as _re
+            is_default = (
+                not cur_title
+                or cur_title == '会议录音'
+                or _re.match(r'^\d{4}[-/]\d{2}[-/]\d{2}.*会议录音$', cur_title)
+            )
+            if ai_title and is_default and ai_title != cur_title:
+                recording.title = ai_title[:200]
+                logger.info(f"recording {recording_id} title 自动更新为: {ai_title}")
+
             db.session.commit()
 
             logger.info(f"纪要生成完成: recording_id={recording_id}, minutes_id={minutes.id}")
+
+            # AI 文本推测说话人（基于 transcript 上下文 + 已知参会人员）
+            # 不阻塞返回，失败也不影响纪要
+            try:
+                cls._infer_speaker_mapping(recording_id, transcript, minutes_content, config)
+            except Exception as e:
+                logger.warning(f"AI 推测说话人失败: {e}")
 
             return {
                 'success': True,
@@ -774,6 +850,38 @@ class MeetingService:
             import traceback
             logger.error(traceback.format_exc())
             return {'success': False, 'error': str(e)}
+
+    @classmethod
+    def _build_timestamped_transcript(cls, transcript) -> str:
+        """
+        把 transcript.segments 拼成带时间戳的文本，每段：
+            [mm:ss] 说话人: 原文
+        让 AI 切 chapters 时引用真实时间，避免按等分平均切。
+        """
+        segs = transcript.segments if transcript else None
+        if not segs:
+            return ''
+
+        lines = []
+        for s in segs:
+            text = (s.get('text') or '').strip()
+            if not text:
+                continue
+            # 优先用 start_time（精确），fallback 用顺序
+            start_sec = s.get('start_time')
+            if not isinstance(start_sec, (int, float)):
+                continue
+            mm = int(start_sec) // 60
+            ss = int(start_sec) % 60
+            ts_str = f'{mm:02d}:{ss:02d}'
+            speaker_label = s.get('speaker_display') or s.get('speaker') or '?'
+            if speaker_label == 'me':
+                speaker_label = '我'
+            elif speaker_label == 'peer':
+                speaker_label = '对方'
+            lines.append(f'[{ts_str}] {speaker_label}: {text}')
+
+        return '\n'.join(lines)
 
     @classmethod
     def _build_minutes_prompt(cls, transcript: str, style: str,
@@ -792,11 +900,11 @@ class MeetingService:
 
 **会议信息**：
 - 会议标题：{recording.title or '未命名会议'}
-- 录音时长：{recording.duration or 0} 秒
+- 录音时长：{recording.duration_seconds or 0} 秒
 
 **转录内容**：
-{transcript[:15000]}
-{' [内容已截断...]' if len(transcript) > 15000 else ''}
+{transcript[:80000]}
+{' [内容已截断...]' if len(transcript) > 80000 else ''}
 
 **过滤规则**（请在生成纪要时应用）：
 1. 删除口语填充词（嗯、啊、那个、就是说等）
@@ -807,7 +915,7 @@ class MeetingService:
 
 **请以 JSON 格式返回**：
 {{
-    "title": "会议标题（如原标题不明确请根据内容生成）",
+    "title": "8-20 字的会议主题（必须基于实际讨论内容总结，不要返回'会议纪要'/'2026-XX-XX 会议录音'/'未命名会议'这种机械名；好例子：'阳刚 4G 平台合作进展评估'/'Q3 跨语种产品路线讨论'/'供应商心跳机延期对策'）",
     "summary": "2-3句话的会议摘要",
     "key_points": [
         "关键要点1",
@@ -826,6 +934,28 @@ class MeetingService:
             "priority": "high/medium/low"
         }}
     ],
+    "chapters": [
+        {{
+            "t": "00:00",
+            "title": "章节标题（短，6-12 字）",
+            "summary": "1 句话章节摘要",
+            "speakers": ["发言人姓名1", "发言人姓名2"]
+        }}
+    ],
+    "key_quotes": [
+        {{
+            "speaker": "发言人姓名",
+            "text": "原话引用（直接抄会议中说的话，不要改写、不要总结）",
+            "ts": "00:42",
+            "category": "决策/愿景/判断/风险/承诺"
+        }}
+    ],
+    "highlights": [
+        "跨语种",
+        "浮窗形态",
+        "贴片产能",
+        "Q3 灰度"
+    ],
     "discussion_topics": [
         {{
             "topic": "讨论主题",
@@ -833,7 +963,24 @@ class MeetingService:
             "conclusion": "结论"
         }}
     ]
-}}"""
+}}
+
+**chapters 要求**（严格遵守）：
+1. 必须根据**话题真正发生转折的位置**切——一个话题就是一段，长短不限（短的 2 分钟、长的 20 分钟都可以）
+2. **t 必须从 transcript 里实际出现的 [mm:ss] 时间戳里挑**，不要自己编、不要按等分平均切
+3. 不要按"15 分钟"、"半小时"这种整数间隔切——这是偷懒
+4. 章节数量 3-7 个；如果会议主题集中只有 2 个话题就只切 2 个，多就最多 7 个
+5. title 必须是 6-12 字的具体话题名（如"贴片产能问题"），不要写"开场介绍"、"总结"这种通用名
+
+**key_quotes 要求**：抽 2-5 句最有价值的"原话"，必须是有判断、决策、承诺、洞察的句子；不要抽日常闲聊或废话；text 必须忠实于原文（可省略口语填充但不重写）；如果没有真正值得抽的金句，返回空数组
+
+**highlights 要求（重要）**：抽 8-15 个**3-12 字**的"高光短语"，是会议中反复出现 / 关键决定 / 专业术语 / 人名地名等。
+1. 必须是 transcript 里**实际出现的字眼**（不能改写、不能加字）
+2. 长度严格控制在 3-12 字（绝不要整句话！）
+3. 用于段落里黄色 mark 高亮，所以要短才能视觉清晰
+4. 好例子：'跨语种'、'浮窗形态'、'贴片产能'、'阳刚 4G 平台'、'下周三前'
+5. 坏例子：'我们要做的不是又一个会议总结工具'（太长，这是金句不是 highlight）/ '会议'（太通用）
+"""
 
         return prompt
 
@@ -858,12 +1005,20 @@ class MeetingService:
             return json.loads(response.choices[0].message.content)
 
         else:
-            # Anthropic Claude
+            # Anthropic Claude — 走 ANTHROPIC_BASE_URL 代理（智能终端/聊天翻译同款配置）
+            # ❗OAuth 代理对 Sonnet/Opus 强制要求 system[0] 是 Claude Code 身份串，否则伪 429
             import anthropic
-            client = anthropic.Anthropic(api_key=config['api_key'])
+            client = anthropic.Anthropic(
+                api_key=config['api_key'],
+                base_url=os.environ.get('ANTHROPIC_BASE_URL') or None,
+            )
             response = client.messages.create(
                 model=config['model'],
                 max_tokens=4000,
+                system=[
+                    {'type': 'text', 'text': "You are Claude Code, Anthropic's official CLI for Claude."},
+                    {'type': 'text', 'text': '你是一个专业的会议纪要助手，擅长从会议录音转录中提取关键信息并生成结构化纪要。请始终返回有效的 JSON 格式。'},
+                ],
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
@@ -880,6 +1035,120 @@ class MeetingService:
                 if json_match:
                     return json.loads(json_match.group())
                 raise ValueError("无法解析 AI 响应为 JSON")
+
+    @classmethod
+    def _infer_speaker_mapping(cls, recording_id: int, transcript, minutes_content: dict, config: dict) -> None:
+        """
+        让 AI 看完整 transcript + 参会人员（来自 minutes_content.action_items / chapters / decisions 里
+        提到的人名），输出 SPEAKER_N → 真名的推测 mapping，应用到 segments.speaker_display。
+
+        失败、低置信度、找不到都跳过 — segments 保持原 SPEAKER_N（用户可在前端 modal 手动改）。
+        """
+        from app.models.meeting import MeetingTranscript
+        from app import db
+
+        # 收集 transcript 里出现的 SPEAKER_N
+        segs = list(transcript.segments or [])
+        speaker_keys = set()
+        for s in segs:
+            sp = s.get('speaker') or ''
+            if sp.startswith('SPEAKER_'):
+                speaker_keys.add(sp)
+        if not speaker_keys:
+            logger.info(f"[infer_speaker] recording={recording_id} 无 SPEAKER_N，跳过")
+            return
+
+        # 收集候选人名（从 AI 已生成内容里抽）
+        candidates = set()
+        for ai in minutes_content.get('action_items', []) or []:
+            n = (ai.get('assignee') or '').strip()
+            if n: candidates.add(n)
+        for ch in minutes_content.get('chapters', []) or []:
+            for n in ch.get('speakers', []) or []:
+                if n: candidates.add(n.strip())
+        for q in minutes_content.get('key_quotes', []) or []:
+            n = (q.get('speaker') or '').strip()
+            if n: candidates.add(n)
+
+        if not candidates:
+            logger.info(f"[infer_speaker] recording={recording_id} AI 内容里没提到任何人名，跳过")
+            return
+
+        # 构造 prompt：让 AI 看 transcript 的小样本（每个 SPEAKER 取前 3 段示例）
+        examples = {sp: [] for sp in speaker_keys}
+        for s in segs:
+            sp = s.get('speaker', '')
+            if sp in examples and len(examples[sp]) < 3:
+                examples[sp].append(s.get('text', '')[:120])
+
+        examples_str = '\n'.join(
+            f"  {sp}: \"{' / '.join(texts)}\""
+            for sp, texts in examples.items()
+        )
+        candidates_str = '、'.join(sorted(candidates))
+
+        prompt = f"""根据下面的会议转录片段，推测每位 SPEAKER 对应的真实姓名。
+
+【可能的参会人员】
+{candidates_str}
+
+【每位 SPEAKER 的发言片段】
+{examples_str}
+
+【判断依据】
+- 看发言里有没有直呼对方姓名（"@张三 你来跟进"→ 下一段大概率是张三）
+- 看自我介绍（"我是 X 部门的小王"）
+- 看口吻、语气、专业领域是否匹配
+- confidence 严格反映你的把握：0.9+ = 强证据多处指向；0.7-0.9 = 推测合理；< 0.6 别写
+
+【返回 JSON】
+{{
+    "mapping": {{
+        "SPEAKER_00": {{"name": "真名（必须来自上面的候选人名单）", "confidence": 0.92}},
+        "SPEAKER_01": {{"name": "...", "confidence": 0.75}}
+    }}
+}}
+若完全无法判断，返回 {{"mapping": {{}}}}。"""
+
+        try:
+            ai_resp = cls._call_ai_for_minutes(prompt, config)
+            raw_mapping = (ai_resp or {}).get('mapping') or {}
+            # 兼容：旧格式 {SPEAKER_00: "张三"} 或新 {SPEAKER_00: {name, confidence}}
+            mapping = {}
+            for k, v in raw_mapping.items():
+                if not k.startswith('SPEAKER_'):
+                    continue
+                if isinstance(v, dict):
+                    name = (v.get('name') or '').strip()
+                    conf = float(v.get('confidence') or 0)
+                else:
+                    name = str(v).strip()
+                    conf = 0.7  # 旧格式没置信度，给个中等值
+                if name and name in candidates and conf >= 0.6:
+                    mapping[k] = {'name': name, 'confidence': round(conf, 2)}
+
+            if not mapping:
+                logger.info(f"[infer_speaker] recording={recording_id} AI 给出空/低置信 mapping，跳过")
+                return
+
+            # ❗JSON 字段必须重新构造 list of NEW dicts（in-place mutation 不被 SQLAlchemy 追踪）
+            new_segs = []
+            for s in segs:
+                new_s = dict(s)
+                sp = new_s.get('speaker')
+                if sp in mapping:
+                    new_s['speaker_display'] = mapping[sp]['name']
+                    new_s['speaker_display_confidence'] = mapping[sp]['confidence']
+                    new_s['speaker_display_source'] = 'ai_infer'
+                new_segs.append(new_s)
+            transcript.segments = new_segs
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(transcript, 'segments')
+            db.session.commit()
+            logger.info(f"[infer_speaker] recording={recording_id} 应用 mapping: {mapping}")
+        except Exception as e:
+            db.session.rollback()
+            logger.warning(f"[infer_speaker] recording={recording_id} 失败: {e}")
 
     # ============ 辅助方法 ============
 
@@ -906,8 +1175,8 @@ class MeetingService:
                 'recording': {
                     'id': recording.id,
                     'status': recording.status,
-                    'duration': recording.duration,
-                    'has_audio': bool(recording.audio_url)
+                    'duration': recording.duration_seconds,
+                    'has_audio': bool(recording.storage_url)
                 },
                 'transcript': {
                     'exists': transcript is not None,
@@ -924,6 +1193,125 @@ class MeetingService:
         except Exception as e:
             logger.error(f"获取状态失败: {e}")
             return {'success': False, 'error': str(e)}
+
+    @classmethod
+    def fix_transcript_with_vocab(cls, recording_id: int) -> Dict:
+        """用 Claude 对完整转录段做"专有名词二次纠错"。
+        典型场景：Whisper 把"倪捷"识别成"你姐"——这里拿 PMA 参会人 real_name
+        作为字典，让 Claude 严格只替换同音/形近字，其他文本逐字保留。
+
+        策略：一次最多送 80 段；超出分批跑。失败/超时 → 跳过（不阻塞纪要生成）。
+        """
+        from app.models.meeting import MeetingRecording, MeetingTranscript
+        from app.models.user import User as _User
+        from app import db
+        from sqlalchemy.orm.attributes import flag_modified
+
+        recording = MeetingRecording.query.get(recording_id)
+        if not recording:
+            return {'success': False, 'error': '录音不存在'}
+
+        transcript = MeetingTranscript.query.filter_by(recording_id=recording_id).first()
+        if not transcript or not transcript.segments:
+            return {'success': False, 'error': '无 segments 可纠错'}
+
+        # 收集 vocab（owner + invited）
+        names = []
+        if recording.owner and recording.owner.real_name:
+            names.append(recording.owner.real_name)
+        for uid in (recording.invited_user_ids or []):
+            u = _User.query.get(uid)
+            if u and u.real_name and u.real_name not in names:
+                names.append(u.real_name)
+        if not names:
+            return {'success': True, 'fixed': 0, 'skipped': 'no_vocab'}
+
+        vocab_str = '、'.join(names)
+        segs = list(transcript.segments or [])
+        total = len(segs)
+        if total == 0:
+            return {'success': True, 'fixed': 0}
+
+        try:
+            import anthropic
+            client = anthropic.Anthropic(
+                api_key=os.environ.get('ANTHROPIC_API_KEY') or 'sk-ant-placeholder',
+                base_url=os.environ.get('ANTHROPIC_BASE_URL') or None,
+            )
+        except Exception as e:
+            logger.warning(f"Claude client 初始化失败: {e}")
+            return {'success': False, 'error': str(e)}
+
+        BATCH = 80
+        fixed_count = 0
+        for i in range(0, total, BATCH):
+            batch = segs[i:i + BATCH]
+            # 只把 idx/text/translation 送上去（其他字段不需要 Claude 看）
+            payload = [
+                {'i': j, 'text': (s.get('text') or ''), 'translation': (s.get('translation') or '')}
+                for j, s in enumerate(batch)
+            ]
+            sys_text = (
+                "你是会议转录的专有名词校对员。严格规则：\n"
+                "1. 只把与下列姓名【读音相近 / 字形相近】的同音/形近错字替换为正确姓名\n"
+                "2. 不修改任何其他文字：标点、口语填充词、语序、断句、错别字（非姓名类）全部原样保留\n"
+                "3. text 和 translation 都按上述规则校对\n"
+                "4. 输出必须是 JSON 数组，结构与输入完全一致（含 i 字段），只修改 text/translation 内容\n"
+                "5. 没有任何姓名需要校对时，原样返回输入\n"
+                f"参会人姓名列表：{vocab_str}"
+            )
+            user_msg = (
+                "输入 segments（JSON）：\n```json\n"
+                + json.dumps(payload, ensure_ascii=False)
+                + "\n```\n\n输出修正后的 JSON 数组，不要任何解释或 markdown 代码块包裹。"
+            )
+            try:
+                resp = client.messages.create(
+                    model='claude-haiku-4-5-20251001',
+                    max_tokens=8000,
+                    system=[
+                        {'type': 'text', 'text': "You are Claude Code, Anthropic's official CLI for Claude."},
+                        {'type': 'text', 'text': sys_text},
+                    ],
+                    messages=[{'role': 'user', 'content': user_msg}],
+                )
+                raw = (resp.content[0].text or '').strip()
+                # 容错剥离 ```json ... ```
+                if raw.startswith('```'):
+                    raw = raw.split('```', 2)[1]
+                    if raw.startswith('json'):
+                        raw = raw[4:]
+                    raw = raw.rsplit('```', 1)[0].strip()
+                fixed = json.loads(raw)
+                if not isinstance(fixed, list):
+                    continue
+                for item in fixed:
+                    j = item.get('i')
+                    if not isinstance(j, int) or j < 0 or j >= len(batch):
+                        continue
+                    orig_text = batch[j].get('text') or ''
+                    orig_tran = batch[j].get('translation') or ''
+                    new_text = item.get('text') or orig_text
+                    new_tran = item.get('translation') or orig_tran
+                    if new_text != orig_text or new_tran != orig_tran:
+                        # 写回 segs（注意 batch 是 segs 的切片，需要回到全局 index）
+                        seg_idx = i + j
+                        new_seg = dict(segs[seg_idx])
+                        new_seg['text'] = new_text
+                        new_seg['translation'] = new_tran
+                        segs[seg_idx] = new_seg
+                        fixed_count += 1
+            except Exception as e:
+                logger.warning(f"[fix-transcript] batch i={i} 失败: {e}")
+                continue
+
+        if fixed_count > 0:
+            transcript.segments = segs
+            flag_modified(transcript, 'segments')
+            db.session.commit()
+            logger.info(f"[fix-transcript] recording={recording_id} 共修正 {fixed_count} 段")
+
+        return {'success': True, 'fixed': fixed_count, 'total': total}
 
     @classmethod
     def validate_api_configuration(cls) -> Dict:

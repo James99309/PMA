@@ -422,6 +422,7 @@ def get_active_users():
                 'username': u.username,
                 'real_name': u.real_name,
                 'role': u.role,
+                'role_display': get_role_display_name(u.role) if u.role else '',
                 'company_name': u.company_name
             } for u in users]
         })
@@ -820,6 +821,19 @@ def create_user():
             logger.warning(f"[用户创建] 邮箱已存在: {email}")
             flash('邮箱已存在', 'danger')
             return render_template('user/edit.html', user=None, is_edit=False)
+        # 试用期(账户级):勾选后读起止日期
+        def _form_date(name):
+            v = (request.form.get(name) or '').strip()
+            if not v:
+                return None
+            try:
+                return datetime.strptime(v, '%Y-%m-%d').date()
+            except ValueError:
+                return None
+        prob_on = 'is_probation' in request.form
+        prob_start = _form_date('probation_start') if prob_on else None
+        prob_end = _form_date('probation_end') if prob_on else None
+
         user = User(
             username=username,
             real_name=real_name,
@@ -828,6 +842,8 @@ def create_user():
             phone=phone,
             department=department,
             is_department_manager=is_department_manager,
+            probation_start=prob_start,
+            probation_end=prob_end,
             role=role,
             settlement_currency=settlement_currency,
             is_active=False  # 新建用户默认未激活
@@ -847,7 +863,7 @@ def create_user():
                 logger.warning(f"记录用户创建历史失败: {str(track_err)}")
             
             flash('用户创建成功', 'success')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_user_detail', user_id=user.id))
         except Exception as db_error:
             db.session.rollback()
             logger.error(f"[用户创建] 失败: {str(db_error)}", exc_info=True)
@@ -864,7 +880,7 @@ def edit_user(user_id):
         user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
         if not user:
             flash('用户不存在或无权限编辑', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
         user_data = user.to_dict()
         return render_template('user/edit.html', user=user_data, is_edit=True)
     # POST请求 - 处理编辑表单提交
@@ -872,11 +888,11 @@ def edit_user(user_id):
         user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
         if not user:
             flash('用户不存在或无权限编辑', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
         from app.utils.access_control import can_edit_data
         if not can_edit_data(user, current_user):
             flash('无权限编辑该用户', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
         real_name = request.form.get('real_name')
         company = request.form.get('company')
         email = request.form.get('email')
@@ -925,6 +941,21 @@ def edit_user(user_id):
         user.settlement_currency = settlement_currency
         user.is_active = is_active
         user.is_department_manager = is_department_manager
+        # 试用期(账户级):勾选则存起止日期,取消则清空
+        def _form_date2(name):
+            v = (request.form.get(name) or '').strip()
+            if not v:
+                return None
+            try:
+                return datetime.strptime(v, '%Y-%m-%d').date()
+            except ValueError:
+                return None
+        if 'is_probation' in request.form:
+            user.probation_start = _form_date2('probation_start')
+            user.probation_end = _form_date2('probation_end')
+        else:
+            user.probation_start = None
+            user.probation_end = None
         # 跨系统镜像字段（admin only；mirror 用户本地不允许编辑这两项）
         if not bool(getattr(user, 'is_mirror', False)) and current_user.role == 'admin':
             user.cross_team_visible = cross_team_visible
@@ -1030,7 +1061,7 @@ def edit_user(user_id):
                     flash('邀请邮件发送失败，请手动通知用户', 'warning')
             else:
                 flash('用户信息更新成功', 'success')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_user_detail', user_id=user_id))
         except Exception as db_error:
             db.session.rollback()
             logger.error(f"[用户编辑] 失败: {str(db_error)}", exc_info=True)
@@ -1047,11 +1078,11 @@ def delete_user(user_id):
     user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
     if not user:
         flash('用户不存在或无权限删除', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     # 禁止删除当前登录用户
     if current_user.id == user_id:
         flash('不能删除当前登录用户', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     logger.info(f"[用户删除] 操作人: {current_user.username}, 目标用户ID: {user_id}")
     try:
         # 删除前检查引用关系
@@ -1099,7 +1130,7 @@ def delete_user(user_id):
         db.session.rollback()
         logger.error(f"[用户删除] 失败: {str(e)}", exc_info=True)
         flash('删除用户时发生错误，请稍后重试', 'danger')
-    return redirect(url_for('user.list_users'))
+    return redirect(url_for('user.at_list'))
 
 @user_bp.route('/permissions/<int:user_id>', methods=['GET', 'POST'])
 @login_required
@@ -1109,7 +1140,7 @@ def manage_permissions(user_id):
         user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
         if not user:
             flash('用户不存在或无权限查看', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
         user_data = user.to_dict()
         modules = get_default_modules()
         
@@ -1236,7 +1267,7 @@ def manage_permissions(user_id):
             user = User.query.get(user_id)
             if not user:
                 flash('用户不存在', 'danger')
-                return redirect(url_for('user.list_users'))
+                return redirect(url_for('user.at_list'))
             
             # 获取用户的角色权限
             from app.models.role_permissions import RolePermission
@@ -1333,7 +1364,7 @@ def manage_permissions(user_id):
 def manage_affiliations():
     """重定向到用户列表"""
     flash('请通过用户管理界面设置用户的数据归属关系', 'info')
-    return redirect(url_for('user.list_users'))
+    return redirect(url_for('user.at_list'))
 
 @user_bp.route('/affiliations/<int:user_id>')
 @login_required
@@ -1341,11 +1372,11 @@ def manage_user_affiliations(user_id):
     """管理用户数据归属权限"""
     if current_user.role != 'admin' and current_user.id != user_id:
         flash('您没有权限执行此操作', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     target_user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
     if not target_user:
         flash('用户不存在或无权限查看', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     ROLE_DICT = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
 
     return render_template('user/affiliations.html',
@@ -1378,25 +1409,25 @@ def import_users():
     """批量导入用户"""
     if not current_user.has_permission('user_management', 'create'):
         flash('您没有批量导入用户的权限', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
         
     try:
         # 检查是否有文件上传
         if 'csv_file' not in request.files:
             flash('没有选择文件', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
             
         file = request.files['csv_file']
         
         # 检查文件名是否为空
         if file.filename == '':
             flash('没有选择文件', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
             
         # 检查文件类型
         if not file.filename.endswith('.csv'):
             flash('只支持CSV文件格式', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
             
         # 尝试使用API导入
         api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/import"
@@ -1422,7 +1453,7 @@ def import_users():
                 else:
                     flash(f'成功导入 {imported_count} 名用户', 'success')
                     
-                return redirect(url_for('user.list_users'))
+                return redirect(url_for('user.at_list'))
         except json.JSONDecodeError as e:
             logger.error(f"导入用户API响应JSON解析错误: {str(e)}")
             # 如果JSON解析失败，继续直接处理CSV文件
@@ -1499,16 +1530,16 @@ def import_users():
                 db.session.rollback()
                 logger.error(f"提交导入用户事务时出错: {str(commit_error)}")
                 flash('导入过程中发生错误，所有更改已回滚', 'danger')
-                return redirect(url_for('user.list_users'))
+                return redirect(url_for('user.at_list'))
         else:
             flash('没有用户被导入，请检查CSV文件格式', 'warning')
         
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
         
     except Exception as e:
         logger.error(f"导入用户时出错: {str(e)}")
         flash(f'导入过程中发生错误: {str(e)}', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 @user_bp.route('/manage-permissions', methods=['GET', 'POST'])
 @login_required
@@ -1667,7 +1698,7 @@ def manage_role_permissions():
     except Exception as e:
         logger.error(f"加载角色权限设置页面时出错: {str(e)}")
         flash('加载角色权限设置页面时出错，请稍后重试', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 @user_bp.route('/manage-roles', methods=['GET'])
 @login_required
@@ -1686,7 +1717,7 @@ def manage_roles():
     except Exception as e:
         logger.error(f"加载角色管理页面时出错: {str(e)}")
         flash('加载角色管理页面时出错，请稍后重试', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 @user_bp.route('/manage-companies', methods=['GET'])
 @login_required
@@ -1705,7 +1736,7 @@ def manage_companies():
     except Exception as e:
         logger.error(f"加载企业字典管理页面时出错: {str(e)}")
         flash('加载企业字典管理页面时出错，请稍后重试', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 @user_bp.route('/manage-departments', methods=['GET'])
 @login_required
@@ -1733,14 +1764,18 @@ def manage_departments():
             User._is_active == True
         ).order_by(User.company_name, User.real_name).all()
 
+        # HRBP 候选(人事经理角色;下拉过滤用)
+        hr_users = [u for u in users if u.role == 'hr_manager']
+
         return render_template('user/tw_department_management.html',
                                departments=departments,
                                companies=company_list,
-                               users=users)
+                               users=users,
+                               hr_users=hr_users)
     except Exception as e:
         logger.error(f"加载部门管理页面时出错: {str(e)}")
         flash('加载部门管理页面时出错，请稍后重试', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
 
 
 @user_bp.route('/api/departments', methods=['GET'])
@@ -1766,6 +1801,8 @@ def api_get_departments():
             'company_name': d.company_name,
             'manager_id': d.manager_id,
             'manager_name': d.manager.real_name if d.manager else None,
+            'hrbp_user_id': d.hrbp_user_id,
+            'hrbp_name': (d.hrbp.real_name or d.hrbp.username) if d.hrbp else None,
             'is_active': d.is_active
         } for d in departments]
     })
@@ -1796,11 +1833,13 @@ def api_create_department():
     # 生成代码
     code = f"{name[:10]}_{company_name[:4]}"
 
+    hrbp_user_id = data.get('hrbp_user_id')
     dept = Department(
         name=name,
         code=code,
         company_name=company_name,
         manager_id=int(manager_id) if manager_id else None,
+        hrbp_user_id=int(hrbp_user_id) if hrbp_user_id else None,
         is_active=True
     )
     db.session.add(dept)
@@ -1828,6 +1867,8 @@ def api_update_department(dept_id):
         dept.name = data['name'].strip()
     if 'manager_id' in data:
         dept.manager_id = int(data['manager_id']) if data['manager_id'] else None
+    if 'hrbp_user_id' in data:
+        dept.hrbp_user_id = int(data['hrbp_user_id']) if data['hrbp_user_id'] else None
     if 'is_active' in data:
         dept.is_active = data['is_active']
 
@@ -1871,7 +1912,7 @@ def user_detail(user_id):
     user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
     if not user:
         flash('用户不存在或无权限查看', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     
     # 检查用户是否为厂商用户
     is_vendor = user.is_vendor_user()
@@ -2189,7 +2230,7 @@ def batch_delete_users():
             return jsonify({'success': True, 'message': '批量删除完成', 'data': {'deleted': deleted, 'deactivated': deactivated}})
         else:
             flash(f'批量删除完成，已删除: {deleted}，已禁用: {deactivated}', 'success')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
             
     except Exception as e:
         db.session.rollback()
@@ -2199,7 +2240,7 @@ def batch_delete_users():
             return jsonify({'success': False, 'message': str(e), 'data': None}), 500
         else:
             flash(f'批量删除失败: {str(e)}', 'danger')
-            return redirect(url_for('user.list_users'))
+            return redirect(url_for('user.at_list'))
 
 def to_dict(self):
     """将用户信息转为字典，用于API响应"""
@@ -2377,7 +2418,7 @@ def send_invitation(user_id):
     user = User.query.get(user_id)
     if not user:
         flash('用户不存在', 'danger')
-        return redirect(url_for('user.list_users'))
+        return redirect(url_for('user.at_list'))
     if user.is_active:
         flash('该用户已激活，无需发送邀请邮件', 'info')
         return redirect(url_for('user.user_detail', user_id=user_id))
@@ -2413,7 +2454,10 @@ def get_selected_users_api(user_id):
                 'message': '无权限访问此数据',
                 'data': []
             }), 403
-        
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能查看你负责部门的成员归属', 'data': []}), 403
+
         # 获取已有归属关系
         affiliations = Affiliation.query.filter_by(viewer_id=user_id).all()
         result = []
@@ -2455,7 +2499,11 @@ def save_affiliations_api(user_id):
                 'success': False,
                 'message': '无权限操作此数据'
             }), 403
-        
+        # HRBP 范围隔离:人事经理只能配置负责部门成员的归属
+        from app.helpers.hrbp_helpers import hrbp_denies
+        if hrbp_denies(current_user, user_id):
+            return jsonify({'success': False, 'message': '只能配置你负责部门的成员归属'}), 403
+
         # 检查用户是否存在
         target_user = UserModel.query.get(user_id)
         if not target_user:
@@ -2680,12 +2728,20 @@ def _assert_admin():
         return jsonify({'success': False, 'message': '仅管理员可操作'}), 403
     return None
 
+
+def _assert_ai_access(user_id, need_edit=False):
+    """Claude AI 代理管理放行:个人配置 pc_ai 功能开关驱动(admin 恒通过,否则需
+    person_config 权限 + pc_ai + 目标在数据范围内)。返回 403 响应或 None。"""
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_ai', need_edit=need_edit):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    return None
+
 @user_bp.route('/api/<int:user_id>/claude-ai', methods=['GET'])
 @login_required
-@permission_required('user', 'view')
 def api_claude_ai_get(user_id):
     """获取某用户的 Claude AI 代理状态 + 用量摘要 + 设备锁定状态"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id)
     if err: return err
     from app.services.ai_proxy_service import get_user_usage_summary, default_quota, get_device_lock_status
     user = User.query.get_or_404(user_id)
@@ -2710,10 +2766,9 @@ def api_claude_ai_get(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/enable', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'edit')
 def api_claude_ai_enable(user_id):
     """启用某用户的 Claude AI 代理（生成 token + 发邮件 + 推送 Mac mini）"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import enable_user
     user = User.query.get_or_404(user_id)
@@ -2740,10 +2795,9 @@ def api_claude_ai_enable(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/disable', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'edit')
 def api_claude_ai_disable(user_id):
     """禁用 Claude AI 代理"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import disable_user
     user = User.query.get_or_404(user_id)
@@ -2755,8 +2809,8 @@ def api_claude_ai_disable(user_id):
 @csrf.exempt
 @login_required
 def api_claude_ai_reset_token(user_id):
-    """重置 token：仅管理员可操作"""
-    err = _assert_admin();
+    """重置 token"""
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import reset_user_token
     user = User.query.get_or_404(user_id)
@@ -2776,10 +2830,9 @@ def api_claude_ai_reset_token(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/quota', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'edit')
 def api_claude_ai_quota(user_id):
-    """设置某用户的月度配额（admin 操作）"""
-    err = _assert_admin();
+    """设置某用户的月度配额"""
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import update_user_quota
     user = User.query.get_or_404(user_id)
@@ -2796,10 +2849,9 @@ def api_claude_ai_quota(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/refresh-usage', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'view')
 def api_claude_ai_refresh_usage(user_id):
     """从 Mac mini 拉取该用户最新用量（手动刷新）"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id)
     if err: return err
     from app.services.ai_proxy_service import _pull_user_daily_usage, get_user_usage_summary
     user = User.query.get_or_404(user_id)
@@ -2816,10 +2868,9 @@ def api_claude_ai_refresh_usage(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/unlock-device', methods=['POST'])
 @csrf.exempt
 @login_required
-@permission_required('user', 'edit')
 def api_claude_ai_unlock_device(user_id):
-    """解除该用户 token 的设备锁定（管理员操作）"""
-    err = _assert_admin();
+    """解除该用户 token 的设备锁定"""
+    err = _assert_ai_access(user_id, need_edit=True)
     if err: return err
     from app.services.ai_proxy_service import clear_device_lock
     user = User.query.get_or_404(user_id)
@@ -2833,10 +2884,9 @@ def api_claude_ai_unlock_device(user_id):
 
 @user_bp.route('/api/<int:user_id>/claude-ai/requests', methods=['GET'])
 @login_required
-@permission_required('user', 'view')
 def api_claude_ai_requests(user_id):
     """获取该用户的 Claude AI 提问记录（从 Mac mini admin_server 拉取）"""
-    err = _assert_admin();
+    err = _assert_ai_access(user_id)
     if err: return err
     import requests as http_requests
     from app.services.ai_proxy_service import _admin_url
@@ -2856,3 +2906,847 @@ def api_claude_ai_requests(user_id):
         return jsonify({'success': False, 'entries': [], 'dates': [], 'message': f'http {resp.status_code}'})
     except Exception as e:
         return jsonify({'success': False, 'entries': [], 'dates': [], 'message': str(e)})
+
+
+@user_bp.route('/api/claude-ai/download-dxt')
+def api_claude_ai_download_dxt():
+    """下载 .dxt 扩展文件。支持两种认证方式：
+    1. 已登录会话（直接访问）
+    2. ?t=<claude_ai_token>（邮件链接，无需登录）
+    """
+    from app.utils.email import generate_dxt_bytes
+    from flask import Response
+    import os
+
+    t = request.args.get('t', '').strip()
+    if t:
+        user = User.query.filter_by(claude_ai_token=t).first()
+        if not user:
+            return jsonify({'error': 'Invalid token'}), 403
+    elif current_user.is_authenticated:
+        user = current_user
+    else:
+        from flask import redirect, url_for
+        return redirect(url_for('auth.login', next=request.url))
+
+    if not user.claude_ai_token:
+        return jsonify({'error': '未开通 Claude AI'}), 403
+
+    db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
+    is_cn = (db_type == 'sp8d')
+    if is_cn:
+        mcp_host, dxt_name, display = 'pma-mcp.jamesgpone.win', 'pma', 'PMA'
+    else:
+        mcp_host, dxt_name, display = 'sg-pma-mcp.jamesgpone.win', 'pma-sg', 'PMA (SG)'
+    dxt_bytes = generate_dxt_bytes(user.claude_ai_token, display_name=display, host=mcp_host, dxt_name=dxt_name)
+    safe_name = (user.username or 'user').lower()
+    return Response(
+        dxt_bytes,
+        mimetype='application/zip',
+        headers={'Content-Disposition': f'attachment; filename="pma-{safe_name}.dxt"'}
+    )
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/send-dxt', methods=['POST'])
+@login_required
+@csrf.exempt
+def api_claude_ai_send_dxt(user_id):
+    """发送 Claude Desktop 扩展文件（.dxt）给用户"""
+    err = _assert_ai_access(user_id, need_edit=True)
+    if err: return err
+    user = User.query.get_or_404(user_id)
+    if not user.claude_ai_token:
+        return jsonify({'success': False, 'message': '该用户尚未开通 Claude AI，请先开通'}), 400
+    if not user.email:
+        return jsonify({'success': False, 'message': '用户未绑定邮箱'}), 400
+    try:
+        from app.utils.email import send_dxt_install_email
+        sent = send_dxt_install_email(user)
+        if sent:
+            return jsonify({'success': True, 'message': f'扩展安装邮件已发送至 {user.email}'})
+        return jsonify({'success': False, 'message': '邮件发送失败，请检查邮件配置'})
+    except Exception as e:
+        logger.exception(f'send_dxt error user={user_id}: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════
+# AT 个人配置(账户详情 · 个人级配置中心)
+# 划界:配置管理=角色默认/系统规则;此处=个人覆盖(目标/预算/权限)与归属
+# tab 由 person_config 模块功能开关控制(白名单);数据范围用标准四级
+# ═══════════════════════════════════════════════════════════
+
+def _person_tab_allowed(feature_id):
+    """个人配置某 tab 访问:纯功能开关驱动(白名单)—— admin,或 person_config view + 对应 feature。
+    数据范围决定能配哪些人(页内人员列表按 scope 过滤)。"""
+    u = current_user
+    if u.role == 'admin':
+        return True
+    return u.has_permission('person_config', 'view') and u.has_feature('person_config', feature_id)
+
+
+# 个人配置 tab 顺序(功能开关 → 路由 endpoint);落地路由按此取首个可访问 tab
+_PERSON_TAB_ORDER = [
+    ('pc_permission', 'user.at_person_permissions'),
+    ('pc_affiliation', 'user.at_person_affiliation'),
+    ('pc_budget', 'user.at_person_budget'),
+    ('pc_performance', 'user.at_person_performance'),
+    ('pc_salary', 'user.at_person_salary'),
+    ('pc_ai', 'user.at_person_ai'),
+]
+
+
+@user_bp.route('/at-config')
+@login_required
+def at_person_home():
+    """个人配置落地:重定向到当前用户第一个有权访问的 tab(避免落到无权 tab → 403)。
+    透传 ?user= 锁定参数。"""
+    from flask import redirect, url_for, request, abort
+    if current_user.role != 'admin' and not current_user.has_permission('person_config', 'view'):
+        abort(403)
+    qs = {}
+    if request.args.get('user'):
+        qs['user'] = request.args.get('user')
+    for feat, endpoint in _PERSON_TAB_ORDER:
+        if current_user.role == 'admin' or current_user.has_feature('person_config', feat):
+            return redirect(url_for(endpoint, **qs))
+    abort(403)
+
+
+@user_bp.route('/at-config/performance')
+@login_required
+def at_person_performance():
+    """AT 个人配置 · 绩效目标(个人覆盖,优先于角色默认)。
+    复用 performance_config 的 users/targets/batch(只提交变更项=未动的保持继承)。
+    绩效结算审批人(无配置权限)可经 ?user=&settle_q= 进入,仅用于展开审批 chip。"""
+    _has_cfg = _person_tab_allowed('pc_performance')
+    if not _has_cfg:
+        # 放行:?user 指定下属在数据范围内(标准四级)或为其绩效结算审批人
+        _ok = False
+        try:
+            _tu = request.args.get('user', type=int)
+            if _tu:
+                _tgt = User.query.get(_tu)
+                if _tgt and current_user.can_view_person(_tgt, 'person_config'):
+                    _ok = True
+                if not _ok:
+                    from app.helpers.perf_settlement_helpers import is_settlement_approver_of
+                    _ok = is_settlement_approver_of(current_user.id, _tu)
+        except Exception:
+            _ok = False
+        if not _ok:
+            from flask import abort
+            abort(403)
+
+    from app.services.role_kpi_schemes import get_role_scheme
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # HRBP 隔离:hr_manager 选人列表只列自己负责部门的成员
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        # 个人配置数据范围隔离:personal→仅自己 / department→本部门 / company→本公司 / system→全部
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+        'has_scheme': bool(get_role_scheme(u.role)),
+    } for u in users]
+    # 审批模式:确保被审批的下属在人员列表里(审批人权限范围可能不含 → 否则前端选不中)
+    if not _has_cfg:
+        _tu = request.args.get('user', type=int)
+        if _tu and not any(u['id'] == _tu for u in users_data):
+            _tgt = User.query.get(_tu)
+            if _tgt:
+                users_data.append({
+                    'id': _tgt.id, 'name': _tgt.real_name or _tgt.username,
+                    'role': _tgt.role or '', 'role_display': get_role_display_name(_tgt.role) if _tgt.role else '',
+                    'department': _tgt.department or '未分组', 'company': _tgt.company_name or '',
+                    'has_scheme': bool(get_role_scheme(_tgt.role)),
+                })
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+
+    # 手工录入指标清单(月度人工填报:研发达成/批次质量/上市支持/SE 培训等)
+    from app.models.performance_config import PerformanceMetricsDefinition
+    _MANUAL = ['se_response_rate', 'se_content_output', 'se_satisfaction']
+    manual_metrics = [{'code': m.metric_code, 'name': m.metric_name,
+                       'unit': m.default_unit or '', 'is_rate': m.data_type == 'percentage'}
+                      for m in PerformanceMetricsDefinition.query.filter(
+                          PerformanceMetricsDefinition.metric_code.in_(_MANUAL)).all()]
+
+    return render_template('user/at_person_performance.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=is_admin,
+                           manual_metrics=manual_metrics,
+                           current_year=datetime.now().year,
+                           approver_mode=(not _has_cfg),  # 审批人进入:仅审批,隐藏切换/其他 tab
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+@user_bp.route('/at-config/permissions')
+@login_required
+def at_person_permissions():
+    """AT 个人配置 · 权限覆盖。
+    语义:有个人 Permission 行的模块=整模块覆盖(含显式拒绝),无行=继承角色默认;
+    保存走 overrides 端点(只写覆盖集,不补显式拒绝行),行级「↺ 继承」删单模块行。"""
+    if not _person_tab_allowed('pc_permission'):
+        from flask import abort
+        abort(403)
+
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # 数据范围隔离:HRBP→负责部门;其余→person_config 级别(与绩效/薪资/费用/归属一致)
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+    } for u in users]
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+
+    return render_template('user/at_person_permissions.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=is_admin,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+@user_bp.route('/at-config/budget')
+@login_required
+def at_person_budget():
+    """AT 个人配置 · 费用预算(挂部门预算之下:个人 ≤ 部门待分配,部门明细强制保留)。
+    企业隔离:非 admin 只列/只配本公司用户。"""
+    if not _person_tab_allowed('pc_budget'):
+        from flask import abort
+        abort(403)
+
+    from app.models.expense import EXPENSE_CATEGORIES
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # 数据范围隔离:HRBP→负责部门;其余→person_config 级别(personal 仅自己)
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+    } for u in users]
+    # 公司清单:先选公司再选人;admin=全部公司,非 admin=本公司;
+    # 访问者所属公司(厂商)排最前 = admin 进入时的默认上下文
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+
+    currency_code = get_default_currency()
+    return render_template('user/at_person_budget.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=current_user.company_name or '',
+                           is_admin=is_admin,
+                           expense_categories=[{'code': c, 'name': n} for c, n in EXPENSE_CATEGORIES],
+                           currency_code=currency_code,
+                           currency_symbol=get_currency_symbol(currency_code),
+                           current_year=datetime.now().year,
+                           can_edit=current_user.has_permission('config_management', 'edit'))
+
+
+@user_bp.route('/at-list')
+@login_required
+@permission_required('user_management', 'view')
+def at_list():
+    """AT 风格账户列表(替代 tw_list);tabs=激活状态,筛选=角色/公司/部门"""
+    from sqlalchemy import or_
+
+    page = max(int(request.args.get('page', 1)), 1)
+    per_page = 50
+    tab = request.args.get('tab', 'active')
+    search = request.args.get('search', '').strip()
+    role_values = [v for v in request.args.getlist('role') if v.strip()]
+    company_values = [v for v in request.args.getlist('company') if v.strip()]
+    dept_values = [v for v in request.args.getlist('dept') if v.strip()]
+
+    base = get_viewable_data(User, current_user)
+
+    # 筛选选项(基于可见范围)
+    role_options = [{'value': r, 'label': get_role_display_name(r) or r}
+                    for (r,) in base.with_entities(User.role).distinct().all() if r]
+    role_options.sort(key=lambda x: x['label'])
+    company_options = sorted({c for (c,) in base.with_entities(User.company_name).distinct().all() if c})
+    dept_options = sorted({d for (d,) in base.with_entities(User.department).distinct().all() if d})
+
+    if role_values:
+        base = base.filter(User.role.in_(role_values))
+    if company_values:
+        base = base.filter(User.company_name.in_(company_values))
+    if dept_values:
+        base = base.filter(User.department.in_(dept_values))
+    if search:
+        like = f'%{search}%'
+        base = base.filter(or_(User.username.ilike(like), User.real_name.ilike(like),
+                               User.email.ilike(like), User.company_name.ilike(like),
+                               User.department.ilike(like)))
+
+    tab_counts = {
+        'all': base.count(),
+        'active': base.filter(User._is_active.is_(True)).count(),
+        'inactive': base.filter(User._is_active.is_(False)).count(),
+    }
+    q = base
+    if tab == 'active':
+        q = q.filter(User._is_active.is_(True))
+    elif tab == 'inactive':
+        q = q.filter(User._is_active.is_(False))
+
+    pagination = q.order_by(User.updated_at.desc().nullslast()).paginate(
+        page=page, per_page=per_page, error_out=False)
+
+    users_view = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'username': u.username,
+        'role_display': get_role_display_name(u.role) if u.role else '—',
+        'department': u.department or '—',
+        'company': u.company_name or '—',
+        'email': u.email or '',
+        'phone': u.phone or '',
+        'is_active': bool(u._is_active),
+        'is_dept_manager': bool(u.is_department_manager),
+        'in_probation': u.in_probation,
+        'probation_end': u.probation_end.isoformat() if u.probation_end else None,
+        # updated_at 在 User 模型里是 float 时间戳,统一在此格式化
+        'updated': (datetime.fromtimestamp(u.updated_at).strftime('%Y-%m-%d')
+                    if isinstance(u.updated_at, (int, float)) and u.updated_at
+                    else (u.updated_at.strftime('%Y-%m-%d') if u.updated_at else '—')),
+    } for u in pagination.items]
+
+    list_qs = {}
+    if search:
+        list_qs['search'] = search
+    if role_values:
+        list_qs['role'] = role_values
+    if company_values:
+        list_qs['company'] = company_values
+    if dept_values:
+        list_qs['dept'] = dept_values
+
+    # 新建账户模态框的字典选项(角色 key→显示名;公司/部门用值)
+    can_create = current_user.has_permission('user_management', 'create')
+    form_options = None
+    if can_create:
+        dicts = Dictionary.query.filter_by(is_active=True).all()
+        from app.models.expense import Department as _Dept
+        _depts = _Dept.query.filter_by(is_active=True).order_by(_Dept.company_name, _Dept.name).all()
+        form_options = {
+            'roles': sorted([{'value': d.key, 'label': d.value} for d in dicts if d.type == 'role'],
+                            key=lambda x: x['label']),
+            'companies': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'company'],
+            # 部门来自部门字典(Department 表),带公司用于联动过滤
+            'departments': [{'value': d.name, 'label': d.name, 'company': d.company_name or ''} for d in _depts],
+        }
+
+    return render_template('user/at_list.html',
+                           users=users_view,
+                           pagination=pagination,
+                           tab_counts=tab_counts,
+                           current_tab=tab,
+                           search=search,
+                           role_options=role_options,
+                           company_options=[{'value': c, 'label': c} for c in company_options],
+                           dept_options=[{'value': d, 'label': d} for d in dept_options],
+                           role_values=role_values,
+                           company_values=company_values,
+                           dept_values=dept_values,
+                           list_qs=list_qs,
+                           can_create=can_create,
+                           form_options=form_options)
+
+
+@user_bp.route('/at-detail/<int:user_id>')
+@login_required
+@permission_required('user_management', 'view')
+def at_user_detail(user_id):
+    """AT 风格账户详情:档案信息 + 账户操作;个人级配置跳「个人配置」四页签(?user= 预选)。"""
+    u = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+    if not u:
+        flash('用户不存在或无权限查看', 'danger')
+        return redirect(url_for('user.at_list'))
+
+    def _ts(v, fmt='%Y-%m-%d %H:%M'):
+        if not v:
+            return '—'
+        try:
+            return datetime.fromtimestamp(v).strftime(fmt) if isinstance(v, (int, float)) else v.strftime(fmt)
+        except Exception:
+            return '—'
+
+    info = {
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'username': u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '—',
+        'department': u.department or '—',
+        'company': u.company_name or '—',
+        'email': u.email or '',
+        'phone': u.phone or '',
+        'wechat': u.wechat_nickname or '',
+        'is_active': bool(u._is_active),
+        'is_dept_manager': bool(u.is_department_manager),
+        'in_probation': u.in_probation,
+        'probation_start': u.probation_start.isoformat() if u.probation_start else None,
+        'probation_end': u.probation_end.isoformat() if u.probation_end else None,
+        'created': _ts(u.created_at),
+        'last_login': _ts(u.last_login),
+    }
+    can_edit = current_user.has_permission('user_management', 'edit')
+    # 编辑模态:原始字段值(与 edit_user POST 字段对齐)+ 字典选项
+    edit_data, form_options = None, None
+    if can_edit:
+        edit_data = {
+            'username': u.username,
+            'real_name': u.real_name or '',
+            'role': u.role or '',
+            'department': u.department or '',
+            'company': u.company_name or '',
+            'email': u.email or '',
+            'phone': u.phone or '',
+            'settlement_currency': u.settlement_currency or '',
+            'is_active': bool(u._is_active),
+            'is_department_manager': bool(u.is_department_manager),
+            'probation_start': u.probation_start.isoformat() if u.probation_start else None,
+            'probation_end': u.probation_end.isoformat() if u.probation_end else None,
+            'cross_team_visible': bool(getattr(u, 'cross_team_visible', False)),
+            'cross_team_label': getattr(u, 'cross_team_label', '') or '',
+        }
+        dicts = Dictionary.query.filter_by(is_active=True).all()
+        from app.models.expense import Department as _Dept
+        _depts = _Dept.query.filter_by(is_active=True).order_by(_Dept.company_name, _Dept.name).all()
+        form_options = {
+            'roles': sorted([{'value': d.key, 'label': d.value} for d in dicts if d.type == 'role'],
+                            key=lambda x: x['label']),
+            'companies': [{'value': d.value, 'label': d.value} for d in dicts if d.type == 'company'],
+            # 部门来自部门字典(Department 表),带公司用于联动过滤
+            'departments': [{'value': d.name, 'label': d.name, 'company': d.company_name or ''} for d in _depts],
+        }
+    # 个人配置入口:逐 tab 按功能开关(白名单)gate;有 person_config 查看权 + 任一 feature 才显示该区块
+    _pc_view = current_user.has_permission('person_config', 'view')
+    pc_tabs = {
+        'pc_permission': current_user.has_feature('person_config', 'pc_permission'),
+        'pc_affiliation': current_user.has_feature('person_config', 'pc_affiliation'),
+        'pc_budget': current_user.has_feature('person_config', 'pc_budget'),
+        'pc_performance': current_user.has_feature('person_config', 'pc_performance'),
+        'pc_salary': current_user.has_feature('person_config', 'pc_salary'),
+        'pc_ai': current_user.has_feature('person_config', 'pc_ai'),
+    }
+    return render_template('user/at_detail.html',
+                           u=info,
+                           edit_data=edit_data,
+                           form_options=form_options,
+                           can_edit=can_edit,
+                           can_delete=current_user.has_permission('user_management', 'delete'),
+                           pc_tabs=pc_tabs,
+                           can_person_config=(_pc_view and any(pc_tabs.values())))
+
+
+# ── AT 个人配置 · 薪资(岗位结构套用 + 个人覆盖/专属项目;仅 admin/ceo/hr_manager) ──
+
+def _salary_guard():
+    from app.models.salary_structure import SALARY_ADMIN_ROLES
+    if current_user.role not in SALARY_ADMIN_ROLES:
+        from flask import abort
+        abort(403)
+
+
+@user_bp.route('/at-config/salary')
+@login_required
+def at_person_salary():
+    """AT 个人配置 · 薪资:显示该人岗位的薪资结构(继承),金额可个人覆盖,可加专属项目。"""
+    if not _person_tab_allowed('pc_salary'):
+        from flask import abort
+        abort(403)
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # HRBP 隔离:hr_manager 选人列表只列自己负责部门的成员
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        # 个人配置数据范围隔离:personal→仅自己 / department→本部门 / company→本公司 / system→全部
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+    } for u in users]
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+    return render_template('user/at_person_salary.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=is_admin,
+                           currency_symbol=get_currency_symbol(get_default_currency()),
+                           current_year=datetime.now().year,
+                           can_edit=True)
+
+
+@user_bp.route('/api/person-salary/<int:user_id>/<int:year>')
+@login_required
+def api_get_person_salary(user_id, year):
+    """个人薪资:套用全局结构(主子层级)+ 月度实发 + 试用期标记。
+    主项有子项→每月金额=子项汇总(前端算);叶子项 HR 按月回填实发(monthly)。"""
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_salary'):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    try:
+        from app.models.salary_structure import SalaryStructureItem, UserSalaryItem, UserSalaryProfile
+
+        def _monthly(row):
+            m = (row.monthly_amounts or {}) if row else {}
+            # JSON key 可能是字符串,统一成 {1..12: float}
+            return {int(k): float(v) for k, v in m.items() if v not in (None, '')}
+
+        u = User.query.get(user_id)
+        if not u:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        struct = SalaryStructureItem.query.filter_by(is_active=True)\
+            .order_by(SalaryStructureItem.sort_order, SalaryStructureItem.id).all()
+        urows = UserSalaryItem.query.filter_by(user_id=user_id, year=year).all()
+        amap = {x.item_code: x for x in urows if not x.is_personal}    # 结构项金额
+        personal = [x for x in urows if x.is_personal]
+        child_codes = {r.parent_code for r in struct if r.parent_code}
+        items = []
+        for r in struct:
+            a = amap.get(r.item_code)
+            # 发放方式:个人覆盖(a.pay_cycle)优先,默认引用配置结构(r.pay_cycle)
+            cyc = (a.pay_cycle if (a and a.pay_cycle) else None) or (r.pay_cycle or 'monthly')
+            items.append({
+                'item_code': r.item_code, 'item_name': r.item_name,
+                'parent_code': r.parent_code, 'pay_cycle': cyc,
+                'default_cycle': r.pay_cycle or 'monthly',
+                'is_locked': bool(r.is_locked), 'is_personal': False,
+                'has_children': r.item_code in child_codes,
+                'amount': float(a.amount) if (a and a.amount is not None) else None,
+                'monthly': _monthly(a),
+            })
+        for x in sorted(personal, key=lambda p: (p.sort_order or 0, p.id)):
+            items.append({
+                'item_code': x.item_code, 'item_name': x.item_name or '',
+                'parent_code': None, 'pay_cycle': x.pay_cycle or 'monthly',
+                'is_locked': False, 'is_personal': True, 'has_children': False,
+                'amount': float(x.amount) if x.amount is not None else None,
+                'monthly': _monthly(x),
+            })
+        # 薪资审批已锁定的月份(提交/通过 → 该月不可编辑)
+        from app.helpers.salary_run_helpers import locked_months as _locked_months_fn
+        lk = _locked_months_fn(u.company_name, year) if u.company_name else []
+        # 试用期为账户级属性(账户创建/编辑设定);薪资页只读引用并高亮对应月份
+        return jsonify({'success': True, 'data': {
+            'items': items,
+            'structure_configured': bool(struct),
+            'role': u.role or '', 'role_display': get_role_display_name(u.role) if u.role else '',
+            'in_probation': u.in_probation,
+            'probation_start': u.probation_start.isoformat() if u.probation_start else None,
+            'probation_end': u.probation_end.isoformat() if u.probation_end else None,
+            'locked_months': lk,
+        }})
+    except Exception as e:
+        logger.exception(f'person-salary get error: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@user_bp.route('/api/person-salary/<int:user_id>/<int:year>', methods=['POST'])
+@login_required
+def api_save_person_salary(user_id, year):
+    """保存个人薪资:结构项月度实发 + 个人专属项目整组替换 + 试用期开关/日期"""
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_salary', need_edit=True):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    try:
+        from app.models.salary_structure import SalaryStructureItem, UserSalaryItem, UserSalaryProfile
+        data = request.get_json() or {}
+        struct_rows = SalaryStructureItem.query.filter_by(is_active=True).all()
+        struct_codes = {r.item_code for r in struct_rows}
+        struct_cycle = {r.item_code: (r.pay_cycle or 'monthly') for r in struct_rows}
+
+        # 薪资审批已锁定的月份(提交/通过):该月各项实发不可改,保存时保留原值
+        from app.helpers.salary_run_helpers import locked_months as _locked_months_fn
+        _tu = User.query.get(user_id)
+        _locked = set(_locked_months_fn(_tu.company_name, year)) if (_tu and _tu.company_name) else set()
+
+        def _keep_locked(months, row):
+            if not _locked:
+                return months
+            existing = (row.monthly_amounts if row else None) or {}
+            for lm in _locked:
+                k = str(lm)
+                if k in existing:
+                    months[k] = existing[k]
+                else:
+                    months.pop(k, None)
+            return months
+
+        def _num(v):
+            return None if v in (None, '') else float(v)
+
+        def _cyc(v):
+            return v if v in ('monthly', 'quarterly', 'yearly') else None
+
+        def _months(raw):
+            """清理月度载荷 → {"1":float,...};空值剔除;无有效月返回 {}"""
+            out = {}
+            for k, v in (raw or {}).items():
+                if v in (None, ''):
+                    continue
+                try:
+                    mk = int(k)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= mk <= 12:
+                    out[str(mk)] = float(v)
+            return out
+
+        # 1) 结构项:标准金额 amount + 月度覆盖实发 monthly(两者皆空则删行)
+        for it in data.get('amounts', []):
+            code = it.get('item_code')
+            if code not in struct_codes:
+                continue
+            amt = _num(it.get('amount'))
+            months = _months(it.get('monthly'))
+            # 发放方式:与配置默认相同存 null(继承,配置改了跟随),不同则存覆盖
+            sub_cyc = _cyc(it.get('pay_cycle'))
+            cyc_override = sub_cyc if (sub_cyc and sub_cyc != struct_cycle.get(code)) else None
+            row = UserSalaryItem.query.filter_by(user_id=user_id, year=year,
+                                                 item_code=code, is_personal=False).first()
+            months = _keep_locked(months, row)   # 锁定月保留原值
+            if amt is None and not months and cyc_override is None:
+                if row:
+                    db.session.delete(row)
+                continue
+            if not row:
+                row = UserSalaryItem(user_id=user_id, year=year, item_code=code,
+                                     is_personal=False, created_by=current_user.id)
+                db.session.add(row)
+            row.amount = amt
+            row.monthly_amounts = months
+            row.pay_cycle = cyc_override
+            row.updated_by = current_user.id
+
+        # 2) 个人专属项目:整组替换(载荷外的删除)
+        if 'personal' in data:
+            keep = set()
+            for i, it in enumerate(data.get('personal') or []):
+                name = (it.get('item_name') or '').strip()
+                if not name:
+                    continue
+                code = (it.get('item_code') or '').strip()
+                if not code:
+                    import uuid
+                    code = 'pers_' + uuid.uuid4().hex[:8]
+                keep.add(code)
+                row = UserSalaryItem.query.filter_by(user_id=user_id, year=year, item_code=code).first()
+                if not row:
+                    row = UserSalaryItem(user_id=user_id, year=year, item_code=code,
+                                         is_personal=True, created_by=current_user.id)
+                    db.session.add(row)
+                row.is_personal = True
+                row.item_name = name
+                row.pay_cycle = it.get('pay_cycle') if it.get('pay_cycle') in ('monthly', 'quarterly', 'yearly') else 'monthly'
+                row.amount = _num(it.get('amount'))
+                row.monthly_amounts = _months(it.get('monthly'))
+                row.sort_order = i
+                row.updated_by = current_user.id
+            for row in UserSalaryItem.query.filter_by(user_id=user_id, year=year, is_personal=True).all():
+                if row.item_code not in keep:
+                    db.session.delete(row)
+
+        # 试用期已挪到账户设置(账户创建/编辑),薪资页不再写入
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': '个人薪资已保存'})
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f'person-salary save error: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@user_bp.route('/at-config/ai')
+@login_required
+def at_person_ai():
+    """AT 个人配置 · Claude AI 代理:开通/配额/用量/设备锁定。
+    由 person_config 功能开关 pc_ai 控制(默认仅 admin 勾选)。"""
+    if not _person_tab_allowed('pc_ai'):
+        from flask import abort
+        abort(403)
+
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # 数据范围隔离:HRBP→负责部门;其余→person_config 级别(与其它人事页一致)
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+        'ai_enabled': bool(u.claude_ai_enabled),
+    } for u in users]
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+
+    return render_template('user/at_person_ai.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=True,
+                           can_edit=True)
+
+
+@user_bp.route('/at-api/users/<int:user_id>/toggle-active', methods=['POST'])
+@login_required
+@permission_required('user_management', 'edit')
+def at_api_toggle_user_active(user_id):
+    """启用/停用账户(AT 详情页操作)"""
+    try:
+        u = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+        if not u:
+            return jsonify({'success': False, 'message': '用户不存在或无权限'}), 404
+        if u.id == current_user.id:
+            return jsonify({'success': False, 'message': '不能停用自己的账户'}), 400
+        if u.role == 'admin' and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '无权操作管理员账户'}), 403
+        was_active = bool(u._is_active)
+        u._is_active = not was_active
+        db.session.commit()
+
+        msg = '账户已激活' if u._is_active else '账户已停用'
+        # 首次激活的新账户(从未登录过)→ 发邀请邮件(激活链接,用户自设密码);
+        # 老账户重新激活不发(已有密码)。邮件失败不回滚激活,只提示。
+        if u._is_active and not was_active and not u.last_login:
+            try:
+                from app.utils.email import send_user_invitation_email
+                sent = send_user_invitation_email({
+                    'id': u.id, 'username': u.username, 'real_name': u.real_name,
+                    'company_name': u.company_name, 'email': u.email, 'phone': u.phone,
+                    'department': u.department, 'is_department_manager': u.is_department_manager,
+                    'role': u.role,
+                })
+                msg += (',邀请邮件已发送至 ' + (u.email or '')) if sent \
+                    else ',但邀请邮件发送失败,请手动通知用户设置密码'
+            except Exception as mail_err:
+                logger.warning(f"激活邀请邮件发送失败: {mail_err}")
+                msg += ',但邀请邮件发送失败,请手动通知用户设置密码'
+        return jsonify({'success': True, 'is_active': bool(u._is_active), 'message': msg})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"切换账户状态失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+
+@user_bp.route('/at-config/affiliation')
+@login_required
+def at_person_affiliation():
+    """AT 个人配置 · 归属关系(该用户作为 viewer 可查看哪些 owner 的数据)。
+    复用 /user/api/get_selected_users 与 /user/api/save_affiliations(整包替换)。
+    企业隔离:非 admin 只列/只配本公司用户。"""
+    if not _person_tab_allowed('pc_affiliation'):
+        from flask import abort
+        abort(403)
+
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    all_users = q.order_by(User.company_name, User.department, User.real_name).all()
+
+    def _ud(lst):
+        return [{
+            'id': u.id,
+            'name': u.real_name or u.username,
+            'role_display': get_role_display_name(u.role) if u.role else '',
+            'department': u.department or '未分组',
+            'company': u.company_name or '',
+            'is_dept_manager': bool(u.is_department_manager),
+        } for u in lst]
+
+    # 候选授权范围(点亮谁的数据可见)= 全公司,不受 HRBP 部门限制
+    #   ——归属本就是跨部门数据授权,候选不该被人事负责部门收窄
+    cand_users_data = _ud(all_users)
+    # 人员选择器(配置谁的归属)= 数据范围隔离:HRBP→负责部门;其余→person_config 级别
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        picker = [u for u in all_users if u.id in _scope]
+    else:
+        picker = [u for u in all_users if current_user.can_view_person(u, 'person_config')]
+    users_data = _ud(picker)
+    # 访问者所属公司(厂商)排最前 = admin 进入时的默认上下文
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in cand_users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+
+    return render_template('user/at_person_affiliation.html',
+                           users_data=users_data,
+                           cand_users_data=cand_users_data,
+                           companies=companies,
+                           user_company=current_user.company_name or '',
+                           is_admin=is_admin,
+                           can_edit=(is_admin or current_user.has_permission('user_management', 'edit')))
+
+

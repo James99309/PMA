@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN" data-pma-page="ai-assistant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PMA · 源助手 AI · 内容交互</title>
+<script src="pma-nav.js" defer></script>
+<style>
+  html,body{margin:0;padding:0;background:#E9E7E2;font-family:-apple-system,"PingFang SC",system-ui,sans-serif;color:#1A1A1A}
+  .dc-root{background:#E9E7E2}
+  .hdr{padding:28px 36px 22px;background:#1A1A1A;color:#fff}
+  .hdr h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-0.3px}
+  .hdr h1 .a{color:#D97757}
+  .hdr p{margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.65);max-width:860px;line-height:1.6}
+  .hdr .meta{display:flex;gap:22px;margin-top:14px;font-size:11.5px;color:rgba(255,255,255,0.5);flex-wrap:wrap}
+  .hdr .meta b{color:rgba(255,255,255,0.85);font-weight:600}
+  .fc{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 14px 22px}
+  .fc .label{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase}
+  .fc .sub{font-size:11px;color:#7A7570;font-style:italic;max-width:380px;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>PMA · <span class="a">源助手 AI</span> · 内容交互</h1>
+    <p>在现有「源助手」聊天上扩展四类内容能力:系统数据查询 · Wiki 知识库问答 · slash 命令 · 新人培训。核心语法:一个统一会话流,AI 自动路由意图,每条回答带「来源徽章」(◧数据 / ❝Wiki / ⌘命令 / ◷培训)兜底可追溯。输入混合 —— 自由打字 NL 为主,点选 slash 快捷指令为辅,# 引用实体、@ 人。沿用现有 ai-chat.jsx 同套冷蓝 token / 像素-P logo / 气泡形态,不改动 handoff 原文件。</p>
+    <div class="meta">
+      <span><b>20 屏</b> · 入口 2 + 数据 3 + Wiki + 培训 + 路由 + /触发 2 + 注册表 2 + 边界态 5 + 接缝屏 3</span>
+      <span><b>402 × 874</b> · iPhone</span>
+      <span><b>4 类徽章</b> · 自适应渲染 · 命令=已注册能力</span>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="pma-ai-assistant.jsx"></script>
+  <script type="text/babel">
+    function Phone({ children }) {
+      return (
+        <div style={{ width: 402, height: 874, borderRadius: 56, overflow: 'hidden', position: 'relative',
+          background: '#000', boxShadow: '0 0 0 12px #1a1a1a, 0 30px 60px rgba(0,0,0,0.18)' }}>
+          <div style={{ position: 'absolute', top: 13, left: '50%', transform: 'translateX(-50%)', width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 100 }}/>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 54, zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px',
+            color: '#000', fontSize: 16, fontWeight: 600, paddingTop: 18, mixBlendMode: 'difference' }}>
+            <span style={{ color: '#fff' }}>9:41</span><span style={{ width: 126 }}/>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#fff' }}>
+              <svg width="17" height="11" viewBox="0 0 19 12">
+                <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill="currentColor"/>
+                <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill="currentColor"/>
+                <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill="currentColor"/>
+                <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill="currentColor"/>
+              </svg>
+              <svg width="26" height="13" viewBox="0 0 28 13" fill="none">
+                <rect x="0.5" y="0.5" width="23" height="12" rx="3" stroke="currentColor" opacity="0.35"/>
+                <rect x="2" y="2" width="20" height="9" rx="1.5" fill="currentColor"/>
+                <rect x="24.5" y="4" width="2" height="5" rx="0.6" fill="currentColor" opacity="0.5"/>
+              </svg>
+            </span>
+          </div>
+          <div style={{ position: 'absolute', inset: 0 }}>{children}</div>
+          <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', width: 139, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.28)', zIndex: 200 }}/>
+        </div>
+      );
+    }
+    function F({ label, sub, children }) {
+      return <div className="fc"><Phone>{children}</Phone><div className="label">{label}</div>{sub && <div className="sub">{sub}</div>}</div>;
+    }
+    const W = 460, H = 1000;
+
+    function App() {
+      const {
+        AIXEntry, AIXDataEntity, AIXDataTable, AIXDataAggregate,
+        AIXWiki, AIXTrain, AIXMixed, AIXComposerStates,
+        AIXSlashTyping, AIXSlashFilled, AIXSkillCatalog, AIXSkillDetail,
+      } = window;
+      return (
+        <DesignCanvas>
+          <DCSection id="entry" title="① 入口 · 不分模式" subtitle="一个输入框 · 打字直接问 或 点命令面板 · 每条回答标来源徽章">
+            <DCArtboard id="entry" label="命令面板入口" width={W} height={H}>
+              <F label="命令面板入口" sub="欢迎语 + 4 类速览卡 + 组合框 + 召出的分组命令面板(数据/Wiki/培训/起草)"><AIXEntry/></F>
+            </DCArtboard>
+            <DCArtboard id="composer" label="组合框状态" width={W} height={H}>
+              <F label="组合框 · # 引用 + / 命令" sub="# 锁定实体(项目/客户/报价 chips,选中高亮)· / 召出分组命令面板(focus 态)"><AIXComposerStates/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="data" title="② 系统数据查询 · 自适应渲染" subtitle="AI 按问题自动选形态:单条→实体卡 · 多条→可横滚迷你表 · 统计→大数字+迷你图">
+            <DCArtboard id="data-entity" label="数据 · 实体卡" width={W} height={H}>
+              <F label="数据 · 实体卡" sub="「宝山节能赢率」→ 答案 + 复用 AIRefCard 形态实体卡 ×2 + 数据来源脚注"><AIXDataEntity/></F>
+            </DCArtboard>
+            <DCArtboard id="data-table" label="数据 · 迷你表" width={W} height={H}>
+              <F label="数据 · 迷你表" sub="「所有招标中项目按金额排」→ 紧凑表(项目/阶段/金额/负责)+ 查看全部·导出"><AIXDataTable/></F>
+            </DCArtboard>
+            <DCArtboard id="data-agg" label="数据 · 聚合数字+图" width={W} height={H}>
+              <F label="数据 · 聚合" sub="「本季签约额+同比+各阶段」→ 大数字卡 + 8 周柱状 sparkline + 分阶段 mini bars"><AIXDataAggregate/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="wiki" title="③ Wiki 知识库问答" subtitle="答案正文 + 可折叠「来源」文章卡(章节锚点 / 更新日期 / 看原文)+ 时效提示">
+            <DCArtboard id="wiki" label="Wiki 问答 · 来源引用" width={W} height={H}>
+              <F label="Wiki 问答 · 来源引用" sub="「出口报价汇率时点」→ 要点列表 + 2 张来源文章卡 + ⚠ 以原文为准提示"><AIXWiki/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="train" title="④ 新人培训 · 边学边练" subtitle="步骤卡 + 进度条 + App 截图占位 + 「在 App 里试一下」深链 + 下一步">
+            <DCArtboard id="train" label="培训引导 · 步骤卡" width={W} height={H}>
+              <F label="培训引导 · 第 2/5 步" sub="进度条 + 步骤说明 + 截图占位 + 深链 App 真实页 + 卡住可追问"><AIXTrain/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="mixed" title="⑤ 自适应路由总览" subtitle="同一条 scroll 里 数据/Wiki/命令/培训 徽章混排 —— 证明「不用先选模式」">
+            <DCArtboard id="mixed" label="自适应路由总览" width={W} height={H + 120}>
+              <F label="自适应路由 · 混排" sub="4 连问 → 4 种徽章 + 各自 compact 渲染 · 顶部说明条:AI 自己判断去哪取数"><AIXMixed/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="slash" title="⑥ `/` 触发转场 · 闭环" subtitle="打 / 唤出 → 实时过滤(键盘导航) → 选中回填可编辑的自然语言意图,不盲执行">
+            <DCArtboard id="slash-typing" label="/ 打字过滤态" width={W} height={H}>
+              <F label="打 /查 → 浮层实时过滤" sub="键盘上方滑出浮层 · 匹配高亮 · ↑↓选 ↵填入 esc关 · 4 个匹配"><AIXSlashTyping/></F>
+            </DCArtboard>
+            <DCArtboard id="slash-filled" label="选中 → 回填可编辑意图" width={W} height={H}>
+              <F label="选中 → 翻译成可改的 NL" sub="ghost 提示「由 /查招标中项目 填入」· 输入框是可编辑自然语言 · 发送键亮"><AIXSlashFilled/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="catalog" title="⑦ Skill 注册表 · 能力契约" subtitle="命令=已注册能力(非自由文本):类型/参数/权限/输出渲染器四件套 · 唯一真相源">
+            <DCArtboard id="catalog" label="注册表 · 目录列表" width={W} height={H}>
+              <F label="命令注册表 · 目录" sub="按类型筛 · 每条:命令/中文名/徽章/参数 chips/权限/输出 · 加一行=面板路由权限自动生效"><AIXSkillCatalog/></F>
+            </DCArtboard>
+            <DCArtboard id="catalog-detail" label="单条能力契约详情" width={W} height={H}>
+              <F label="能力契约 · /查招标中项目" sub="意图 + 参数 schema 表 + Handler/权限/输出 + NL 同义触发 + 示例 —— 给开发对齐"><AIXSkillDetail/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="edge" title="⑧ 边界态" subtitle="思考中 / 出错 / 无权限 / 空结果 / 超长结果 —— 每个都给可追溯的原因 + 建设性下一步,不甩锅给用户">
+            <DCArtboard id="edge-thinking" label="思考中 · 步骤追踪" width={W} height={H}>
+              <F label="思考中" sub="路由步骤可见:判意图→权限→查询中(动画)→生成 · 已用时 · 可停止"><AIXThinking/></F>
+            </DCArtboard>
+            <DCArtboard id="edge-error" label="出错 · 可恢复" width={W} height={H}>
+              <F label="出错" sub="说清原因(数据源超时)+ 不是你的错 + 重试/缩范围/反馈 + 错误码"><AIXErrorState/></F>
+            </DCArtboard>
+            <DCArtboard id="edge-perm" label="无权限 · 数据范围" width={W} height={H}>
+              <F label="无权限" sub="超出范围说清归属 + 你能看什么 + 改范围/申请/找人 · get_viewable_data"><AIXNoPermission/></F>
+            </DCArtboard>
+            <DCArtboard id="edge-empty" label="空结果 · 非错误" width={W} height={H}>
+              <F label="空结果" sub="回显条件 chips + 查询正常只是没数据 + 最近一笔 + 放宽建议"><AIXEmptyResult/></F>
+            </DCArtboard>
+            <DCArtboard id="edge-long" label="超长结果 · 防刷屏" width={W} height={H}>
+              <F label="超长结果" sub="1284 条 → 头 3 条 + 折叠 + 总结/分组/近7天/导出 · 单次≤20 条"><AIXLongResult/></F>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="seam" title="⑨ 接缝屏 · 与旧聊天整合" subtitle="把新语法回贴到旧 ai-chat.jsx 场景 —— 同一大脑,三种可见性:私有主界面 / 群公开 / 私聊草稿">
+            <DCArtboard id="seam-list" label="会话列表改版" width={W} height={H}>
+              <F label="会话列表 · 关系标清" sub="源助手置顶卡=私有主界面门 · 群「可@源助手」=公开 · 私聊「[AI草稿]」=仅你可见"><AIXConvList/></F>
+            </DCArtboard>
+            <DCArtboard id="seam-group" label="群内 @源助手 · 公开" width={W} height={H}>
+              <F label="群内 @源助手(公开)" sub="复用徽章+实体卡,但带「回@提问人 + 👥全群可见」抬头 · 升级旧 GroupAtAI"><AIXGroupPublic/></F>
+            </DCArtboard>
+            <DCArtboard id="seam-dm" label="私聊 @AI 草稿 · 私有" width={W} height={H}>
+              <F label="私聊 @AI 草稿(仅你可见)" sub="复用渲染+数据支撑标,落「✎仅你可见」· 采用填入/换一版 · 衔接旧 DMAIDraft"><AIXDMDraft/></F>
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

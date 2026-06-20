@@ -36,11 +36,11 @@ function renderNodes(){
     const hit=document.createElementNS('http://www.w3.org/2000/svg','rect');hit.setAttribute('x',-8);hit.setAttribute('y',-8);hit.setAttribute('width',n.w+16);hit.setAttribute('height',n.h+LABEL_OFFSET+28);hit.setAttribute('fill','transparent');g.appendChild(hit);
     const ig=document.createElementNS('http://www.w3.org/2000/svg','g');ig.innerHTML=renderIconSVG(n.iconData,n.w,0,0);g.appendChild(ig);
     if(isSel){const ring=document.createElementNS('http://www.w3.org/2000/svg','rect');ring.setAttribute('x',-6);ring.setAttribute('y',-6);ring.setAttribute('width',n.w+12);ring.setAttribute('height',n.h+12);ring.setAttribute('rx',10);ring.setAttribute('fill','none');ring.setAttribute('stroke',n.color);ring.setAttribute('stroke-width',1.5);ring.setAttribute('stroke-dasharray','4 2');ring.setAttribute('opacity',.6);g.appendChild(ring)}
-    if(!n.hideLabel){const nameText=displaySettings.iconLabel?n.name:'',modelText=(displaySettings.iconModel&&n.model)?n.model:'',tagText=n.label||'';
+    if(!n.hideLabel){const _dispName=_nodeDisplayName(n);const nameText=displaySettings.iconLabel?_dispName:'',modelText=(displaySettings.iconModel&&n.model)?n.model:'',tagText=n.label||'';
     // Floor/area label for topology view
     const floorAreaText=(n.floor_label&&n.floor_label!=='')?`${n.floor_label}${(n.area_label&&n.area_label!==n.floor_label)?'·'+n.area_label:''}`:'';
     const lines=[];if(nameText)lines.push(nameText);if(modelText)lines.push(modelText);if(tagText)lines.push(tagText);if(floorAreaText)lines.push(floorAreaText);
-    if(!lines.length)lines.push(n.name);
+    if(!lines.length)lines.push(_dispName);
     const lblW=Math.max(...lines.map(t=>t.length))*12+12,lblH=lines.length*12+4;
     const side=n.labelPosition||computeBestLabelSide(edges,n.id);
     const lc=getLabelCoords(side,n.w,n.h,lblW,lblH);
@@ -662,7 +662,7 @@ function showNodeProps(id){
     ${n.building_id?`<div class="props-field"><span class="props-label">${_t('归属楼层')}</span><select class="props-select" onchange="updateNodeFloor(${id},this.value)">${floorOpts}</select></div>`:''}`;
 
   document.getElementById('propsContent').innerHTML=`
-    <div class="props-field"><span class="props-label">${_t('子分类')}</span><input class="props-input" value="${n.name}" disabled></div>
+    <div class="props-field"><span class="props-label">${_t('子分类')}</span><input class="props-input" value="${_nodeDisplayName(n)}" disabled></div>
     ${modelHtml}
     ${productCard}
     ${ownershipHtml}

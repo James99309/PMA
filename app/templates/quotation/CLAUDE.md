@@ -11,4 +11,10 @@
 | #415 | " | 🔵 | TW Quotation List Shows Stat Cards with Dual Metrics and 4-Column Filter Bar | ~548 |
 | #414 | " | 🔵 | TW Quotation List Template Exists with Product Table Modal Integration | ~574 |
 | #413 | " | 🔵 | TW Quotation Detail Template Already Exists with Product Table and Spec Modals | ~727 |
+
+### Apr 30, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8601 | 12:01 PM | 🔴 | Fixed currency mismatch for newly added products in quotation form | ~496 |
 </claude-mem-context>

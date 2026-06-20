@@ -1,0 +1,205 @@
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'expense' %}
+
+{% block config_title %}部门预算{% endblock %}
+{% block config_desc %}按部门设定年度费用总额;细分科目按权重%从总额分配(合计 ≤100%),科目必须来自报销科目;每行粒度可选 年/季/月;货币与数据库环境一致。{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-budget-sheet.js') }}"></script>
+<style>
+  .eb-cats { display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; margin:0 0 12px; }
+  .eb-cats-label { font-size:11px; color:var(--ink-3); }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    {# 公司上下文:非 admin 锁定本公司;admin 可切换(切换后部门列表随之过滤) #}
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
+                 background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
+      <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
+      {% if is_admin and companies|length > 1 %}
+      <select id="ebCompany" onchange="ebCompanyGuarded(this)"
+              style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
+        {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <span id="ebCompanyName">{{ (companies[0] if is_admin and companies else user_company) or '未归属公司' }}</span>
+      {% endif %}
+    </span>
+    <div style="position:relative;">
+      <button type="button" class="cm-role-btn" onclick="ebToggleMenu(event)">
+        <span id="ebDeptName">选择部门</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="ebDeptMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="ebSub" class="at-dim" style="font-size:12px;"></span>
+    <span id="ebRoom" style="font-size:12px;"></span>
+    <div style="flex:1;"></div>
+    <select id="ebYear" onchange="ebYearGuarded(this)" style="height:32px;padding:0 8px;background:var(--bg-elev);
+            border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
+    </select>
+    <div id="ebEditBar"></div>
+  </div>
+
+  <div id="ebEditZone">
+  <div class="eb-cats">
+    <span class="eb-cats-label">细分科目(来自报销)</span>
+    <span id="ebCatChips" style="display:contents;"></span>
+  </div>
+
+  <div id="ebSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择部门…</div>
+  </div>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 「年度总额」为部门全年费用盘子;点亮上方科目即添加一行细分(熄灭=移除,保存生效);
+    细分填权重% 自动得出金额(合计 ≤100%,即不超总额,差额为机动余量),手改金额则反算权重;
+    点「粒度」在 年→季→月 间切换:年=一个数不管控节奏,季/月=自动均分可调剂;
+    货币:{{ currency_code }}({{ currency_symbol }}),与数据库环境一致;表格与个人预算页共用同一组件。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const DEPTS = {{ departments_data | tojson }};      // 已按访问者公司过滤(admin=全部,带 company 字段)
+  const COMPANIES = {{ companies | tojson }};
+  const CATS = {{ expense_categories | tojson }};
+  const CURRENCY_SYMBOL = {{ currency_symbol | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const CUR_YEAR = {{ current_year }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+
+  let _deptId = null;
+  let _company = COMPANIES[0] || '';
+  const deptsOf = () => DEPTS.filter(d => d.company === _company);
+
+  // 公用预算表组件(与「个人配置·费用预算」同源;dept 模式=机动余量制)
+  const bs = ATBudgetSheet({
+    container: 'ebSheet',
+    chipsContainer: 'ebCatChips',
+    canEdit: CAN_EDIT,
+    mode: 'dept',
+    currencySymbol: CURRENCY_SYMBOL,
+    categories: CATS,
+    onChange: function (st) { renderStats(st); if (guard) guard.markDirty(); },
+  });
+
+  function renderStats(st) {
+    const el = document.getElementById('ebRoom');
+    if (st.overTotal) {
+      el.style.color = 'var(--danger)';
+      el.textContent = `细分超出总额 ${CURRENCY_SYMBOL}${Math.abs(st.room).toLocaleString('zh-CN')},请调低细分或上调总额`;
+    } else {
+      el.style.color = 'var(--ink-3)';
+      el.textContent = `机动余量 ${CURRENCY_SYMBOL}${st.room.toLocaleString('zh-CN')}`;
+    }
+  }
+
+  window.ebCompanyChange = function (c) {
+    _company = c;
+    const list = deptsOf();
+    if (list.length) ebSelect(list[0].id);
+    else {
+      _deptId = null;
+      document.getElementById('ebDeptName').textContent = '选择部门';
+      document.getElementById('ebSub').textContent = '';
+      document.getElementById('ebSheet').innerHTML =
+        '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">该公司暂无部门,请先在部门管理中创建</div>';
+    }
+  };
+
+  function renderMenu() {
+    document.getElementById('ebDeptMenu').innerHTML = deptsOf().map(d => `
+      <div class="cm-role-item${d.id === _deptId ? ' active' : ''}" onclick="ebSelect(${d.id})">
+        <span class="material-symbols-outlined" style="color:var(--accent);">corporate_fare</span>
+        <span style="flex:1;">${esc(d.name)}</span>
+        ${d.manager ? `<span class="at-dim" style="font-size:10.5px;">${esc(d.manager)}</span>` : ''}
+        <span class="at-dim at-mono" style="font-size:10.5px;">${d.count}人</span>
+      </div>`).join('');
+  }
+  window.ebToggleMenu = function (e) {
+    e.stopPropagation();
+    const menu = document.getElementById('ebDeptMenu');
+    const show = menu.style.display === 'none';
+    if (show) renderMenu();
+    menu.style.display = show ? 'block' : 'none';
+  };
+  document.addEventListener('click', () => {
+    const m = document.getElementById('ebDeptMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  const yearSel = document.getElementById('ebYear');
+  [CUR_YEAR - 1, CUR_YEAR, CUR_YEAR + 1].forEach(y => {
+    const o = document.createElement('option'); o.value = y; o.textContent = y + ' 年';
+    if (y === CUR_YEAR) o.selected = true; yearSel.appendChild(o);
+  });
+
+  window.ebSelect = function (id) {
+    guard.attempt(function () {
+      _deptId = id;
+      document.getElementById('ebDeptMenu').style.display = 'none';
+      ebLoad();
+    });
+  };
+
+  // 年份/公司切换守卫(编辑且脏时提醒;取消则回退 select 值)
+  let _appliedYear = String(CUR_YEAR);
+  window.ebYearGuarded = function (sel) {
+    guard.attempt(function () { _appliedYear = sel.value; ebLoad(); },
+                  function () { sel.value = _appliedYear; });
+  };
+  window.ebCompanyGuarded = function (sel) {
+    guard.attempt(function () { ebCompanyChange(sel.value); },
+                  function () { sel.value = _company; });
+  };
+
+  window.ebLoad = async function () {
+    if (!_deptId) return;
+    const d0 = DEPTS.find(x => x.id === _deptId);
+    document.getElementById('ebDeptName').textContent = d0 ? d0.name : '';
+    document.getElementById('ebSub').textContent = d0 ?
+      `${d0.manager ? '负责人 ' + d0.manager + ' · ' : ''}${d0.count} 人` : '';
+    try {
+      const d = await (await fetch(`/config-management/api/department-budgets/${_deptId}?year=${yearSel.value}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      bs.setData({ items: d.data.items || [] });
+    } catch (e) {
+      document.getElementById('ebSheet').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
+    }
+  };
+
+  async function ebSaveCore() {
+    if (!_deptId) return false;
+    const v = bs.validate();
+    if (!v.ok) { ATToast.error(v.msg); return false; }
+    try {
+      const d = await (await fetch(`/config-management/api/department-budgets/${_deptId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ year: parseInt(yearSel.value), items: bs.getPayloadItems() }),
+      })).json();
+      if (d.success) { ATToast.success(d.message || '已保存'); ebLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  // 编辑模式守卫:默认只读,点「编辑」才能改;保存确认;切部门/年/公司/离开页提醒
+  const guard = AtEditMode.init({
+    mount: 'ebEditBar', lockEl: 'ebEditZone', canEdit: CAN_EDIT,
+    onSave: ebSaveCore,
+    onDiscard: function () { ebLoad(); },
+    saveConfirm: { message: '确认保存该部门的预算配置?' },
+  });
+
+  if (deptsOf().length) ebSelect(deptsOf()[0].id);
+  else document.getElementById('ebSheet').innerHTML =
+    '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">当前公司暂无部门,请先在部门管理中创建</div>';
+</script>
+{% endblock %}

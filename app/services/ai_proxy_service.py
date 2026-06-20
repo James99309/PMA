@@ -63,6 +63,10 @@ def default_quota():
 
 def _build_sync_payload():
     """生成 Mac mini 需要的全量白名单 payload"""
+    import os
+    db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
+    source = db_type  # sp8d → cf-tunnel-sp8d, ovs → cf-tunnel-ovs
+
     users = User.query.filter(User.claude_ai_token.isnot(None)).all()
     items = []
     for u in users:
@@ -74,7 +78,7 @@ def _build_sync_payload():
             'user_id': u.id,
             'email': u.email or '',
         })
-    return {'items': items, 'as_of': datetime.utcnow().isoformat(timespec='seconds')}
+    return {'items': items, 'source': source, 'as_of': datetime.utcnow().isoformat(timespec='seconds')}
 
 
 def push_to_macmini(timeout=10):

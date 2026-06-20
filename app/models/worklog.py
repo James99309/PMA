@@ -47,6 +47,13 @@ class WorkItem(db.Model):
     contact_id = Column(Integer, ForeignKey('contacts.id'), nullable=True)
     contact = relationship('Contact', backref='work_items')
 
+    # 关联任务(可选):任务 + 可选子任务(二级)
+    related_task_id = Column(Integer, ForeignKey('tasks.id'), nullable=True)
+    related_subtask_id = Column(Integer, ForeignKey('subtasks.id'), nullable=True)
+    related_task = relationship('Task', foreign_keys=[related_task_id])
+    related_subtask = relationship('SubTask', foreign_keys=[related_subtask_id])
+    related_action_id = Column(Integer, ForeignKey('actions.id'), nullable=True)  # 关联项目时生成的跟进记录(评论作为其 ActionReply)
+
     work_type = Column(String(50))                      # 工作类型（visit/meeting/development/research/admin/other）
 
     # 执行状态
@@ -131,6 +138,10 @@ class WorkItem(db.Model):
         'product_confirmation': '#f97316',
         # 任务跟进 - 靛蓝
         'task_work': '#6366f1',
+        # ── 考核驱动的活动类型 ──
+        'se_sales_support': '#6366f1', 'se_quote_confirm': '#6366f1',   # 解决方案(靛蓝)
+        'pm_rd_task': '#f97316', 'pm_quality_task': '#f97316', 'pm_launch_support': '#f97316',  # 产品(橘)
+        'hr_training': '#ec4899', 'hr_team_build': '#ec4899',           # 人事(粉)
     }
 
     # 工作类型标签（31个子类型，出差已改为独立勾选框）
@@ -183,6 +194,14 @@ class WorkItem(db.Model):
         # 待办任务
         'product_confirmation': '产品确认',
         'task_work': '任务跟进',
+        # 考核驱动的活动类型
+        'se_sales_support': '销售支持',
+        'se_quote_confirm': '报价确认',
+        'pm_rd_task': '研发任务',
+        'pm_quality_task': '质量处理',
+        'pm_launch_support': '上市支持',
+        'hr_training': '培训',
+        'hr_team_build': '团建',
     }
 
     def to_calendar_event(self, current_user_id=None):
@@ -329,6 +348,10 @@ class WorkItem(db.Model):
             'customer_name': self.customer.company_name if self.customer else None,
             'contact_id': self.contact_id,
             'contact_name': self.contact.name if self.contact else None,
+            'related_task_id': self.related_task_id,
+            'related_task_title': self.related_task.title if self.related_task else None,
+            'related_subtask_id': self.related_subtask_id,
+            'related_subtask_title': self.related_subtask.title if self.related_subtask else None,
             'work_type': self.work_type,
             'work_type_label': self.get_type_label(),
             'color': self.get_type_color(),
@@ -866,6 +889,29 @@ class WorkLogComment(db.Model):
             'owner_name': self.owner.real_name or self.owner.username if self.owner else None,
             'created_at': self.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_at else None,
             'can_delete': False  # 由 API 动态设置
+        }
+
+
+class WorkItemComment(db.Model):
+    """工作项评论。镜像到关联任务(TaskReply)或关联项目(Action 跟进)。"""
+    __tablename__ = 'work_item_comments'
+
+    id = Column(Integer, primary_key=True)
+    work_item_id = Column(Integer, ForeignKey('work_items.id'), nullable=False, index=True)
+    work_item = relationship('WorkItem', backref='comments')
+    content = Column(Text, nullable=False)
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    owner = relationship('User')
+    created_at = Column(DateTime, default=get_local_time, index=True)
+    is_deleted = Column(Boolean, default=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'content': self.content,
+            'owner_id': self.owner_id,
+            'owner_name': (self.owner.real_name or self.owner.username) if self.owner else None,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else None,
         }
 
 

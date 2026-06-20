@@ -538,6 +538,14 @@ def add_step():
     # 更新动作类型并提交
     if step:
         step.action_type = approver_data['action_type'] if approver_data['action_type'] else None
+        # submitter_designate 步骤:保存可选范围(designate_pool)
+        # PMA 用户/企业模型用的是 User.company_name 字符串,不是 department_id
+        if approver_data['approver_type'] == 'submitter_designate':
+            roles = request.form.getlist('designate_pool_roles') or []
+            companies = request.form.getlist('designate_pool_companies') or []
+            step.designate_pool = {'roles': roles, 'companies': companies}
+        else:
+            step.designate_pool = None
         db.session.commit()
         
         # 如果是分支步骤，使用统一服务层创建分支条件

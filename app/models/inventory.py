@@ -1,15 +1,24 @@
 from app import db
+from app.utils.lockable import LockableMixin
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean, Float, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 class Inventory(db.Model):
-    """库存表 - 记录每个公司的产品库存"""
+    """库存表 - 记录每个公司的产品库存
+
+    厂商自营仓库:is_vendor_warehouse=true 且 company_id=NULL (系统级,不在 companies 表)
+    客户/经销商仓库:is_vendor_warehouse=false 且 company_id 指向 companies.id
+    """
     __tablename__ = 'inventory'
-    
+
     id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey('companies.id'), nullable=False)  # 关联公司表
+    # 厂商仓库时为 NULL(系统级,不挂任何 Company 实体)
+    company_id = Column(Integer, ForeignKey('companies.id'), nullable=True)
+    # 厂商自营仓库标记 — 字典 dictionaries(type='company', is_vendor=true) 是
+    # 唯一权威定义"哪个名字属于厂商",这里只标记"这是厂商仓"
+    is_vendor_warehouse = Column(Boolean, default=False, nullable=False)
     product_id = Column(Integer, ForeignKey('products.id'), nullable=False)  # 关联标准产品库
     quantity = Column(Integer, default=0, nullable=False)  # 当前库存数量
     unit = Column(String(20), nullable=True)  # 单位
@@ -20,18 +29,19 @@ class Inventory(db.Model):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    
+
     # 关系
     company = relationship('Company', backref='inventories')
     product = relationship('Product', backref='inventories')
     created_by = relationship('User', backref='created_inventories')
-    
-    # 索引约束：每个公司的每个产品只能有一条库存记录
-    __table_args__ = (
-        db.UniqueConstraint('company_id', 'product_id', name='unique_company_product_inventory'),
-    )
-    
+
+    # 唯一约束由 partial unique index 保证(见 alembic 迁移):
+    #   - 厂商仓:(is_vendor_warehouse, product_id) 当 is_vendor_warehouse=true
+    #   - 客户仓:(company_id, product_id) 当 company_id IS NOT NULL
+
     def __repr__(self):
+        if self.is_vendor_warehouse:
+            return f'<Inventory [厂商仓] - {self.product.name if self.product else "Unknown"}: {self.quantity}>'
         return f'<Inventory {self.company.company_name if self.company else "Unknown"} - {self.product.name if self.product else "Unknown"}: {self.quantity}>'
 
 class InventoryTransaction(db.Model):
@@ -108,7 +118,7 @@ class SettlementDetail(db.Model):
     def __repr__(self):
         return f'<SettlementDetail {self.product.name if self.product else "Unknown"}: {self.quantity_settled}>'
 
-class PurchaseOrder(db.Model):
+class PurchaseOrder(LockableMixin, db.Model):
     """采购订单表 - 管理从供应商采购的订单"""
     __tablename__ = 'purchase_orders'
 
@@ -265,11 +275,14 @@ class PurchaseOrderDetail(db.Model):
     discount = Column(db.Numeric(5, 4), default=1.0000)  # 折扣率 (0.8000 = 80%)
     total_price = Column(db.Numeric(15, 2), default=0)  # 总价
     received_quantity = Column(Integer, default=0)  # 已收货数量
+    sales_order_detail_id = Column(Integer, ForeignKey('sales_order_details.id'), nullable=True)  # 关联客户订单需求
+    dispatched_quantity = Column(Integer, default=0)  # 已分配发货的数量
     notes = Column(Text, nullable=True)  # 备注
-    
+
     # 关系
     order = relationship('PurchaseOrder', backref='details')
     product = relationship('Product', backref='order_details')
+    sales_order_detail = relationship('SalesOrderDetail', backref='purchase_details')
     
     def __repr__(self):
         return f'<PurchaseOrderDetail {self.product_name}: {self.quantity}>'
@@ -295,6 +308,19 @@ class PurchaseOrderDetail(db.Model):
     def remaining_quantity(self):
         """剩余未入库数量"""
         return max(0, self.quantity - self.received_quantity)
+
+    @property
+    def remaining_to_dispatch(self):
+        """剩余可发数量（总量 - 已发出量）"""
+        return max(0, self.quantity - (self.dispatched_quantity or 0))
+
+    @property
+    def source_label(self):
+        """需求来源标签"""
+        if self.sales_order_detail_id and self.sales_order_detail:
+            so = self.sales_order_detail.sales_order
+            return f"{so.order_number} {so.customer.company_name if so.customer else ''}"
+        return "备货"
 
 
 class PurchaseOrderStageHistory(db.Model):

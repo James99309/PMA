@@ -1,0 +1,74 @@
+{# ─────────────────────────────────────────────────────────────────────────
+   AT 通用筛选面板(公用组件)
+   用法:
+     {% from 'components/at_filter_panel.html' import at_filter_panel %}
+     {{ at_filter_panel(
+          action_url=url_for('project.at_list_view'),
+          fields=[
+            {'key':'owner',  'label':'负责人', 'type':'user',   'items':owner_options,    'values':current.owner},
+            {'key':'region', 'label':'地区',   'type':'select', 'options':region_options, 'values':current.region},
+            {'key':'stage',  'label':'阶段',   'type':'select', 'options':stage_options,  'values':current.stage},
+          ],
+          hidden={'tab':current_tab, 'search':search}) }}
+   字段:
+     'values' 为已选值列表(多选);'type' 仅区分取 items(user)还是 options(select)。
+     所有字段统一渲染为可搜索 + 复选框多选下拉,提交时同名多个 query 参数(getlist 可取)。
+   依赖:页面需已加载 at-searchable-select.js。
+   ───────────────────────────────────────────────────────────────────────── #}
+{% from 'components/at_base.html' import at_icon, at_select %}
+{% from 'components/at_searchable_select.html' import at_searchable_select %}
+
+{% macro at_filter_panel(action_url, fields, hidden={}, panel_id='atFilterPanel') %}
+  {% set _active = fields | selectattr('values') | list | length %}
+  <div style="position:relative;" data-at-filter-root>
+    {# 触发:纯图标,无文字、无边框/背景;有筛选时图标变橙 + 右上角小圆点 #}
+    <button type="button" onclick="atFilterToggle('{{ panel_id }}')" title="{{ _('筛选') }}"
+            style="height:34px;width:34px;padding:0;border:none;background:transparent;cursor:pointer;
+                   display:inline-flex;align-items:center;justify-content:center;position:relative;
+                   color:{{ 'var(--accent)' if _active else 'var(--ink-3)' }};transition:color 120ms;">
+      {{ at_icon('filter', 17) }}
+      {% if _active %}<span style="position:absolute;top:3px;right:4px;width:7px;height:7px;
+            border-radius:4px;background:var(--accent);border:1.5px solid var(--bg-elev);"></span>{% endif %}
+    </button>
+
+    {# 浮层面板 #}
+    <div id="{{ panel_id }}" data-at-filter-pop hidden
+         style="position:absolute;top:40px;left:0;z-index:900;width:300px;
+                background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;
+                box-shadow:0 12px 36px rgba(31,30,27,0.16);padding:16px;">
+      <form method="get" action="{{ action_url }}">
+        {% for k, v in hidden.items() %}
+          {% if v is not none and v != '' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}
+        {% endfor %}
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          {% for f in fields %}
+          <div>
+            <label style="display:block;font-size:11px;color:var(--ink-3);margin-bottom:5px;
+                          letter-spacing:0.04em;">{{ f.label }}</label>
+            {# 全部字段统一用 at_searchable_select(外观/占位一致);把 user 的 items 或
+               select 的 options(元组/dict)统一归一化成 [{value,label}] #}
+            {% set _items = [] %}
+            {% for o in (f['items'] if f['type'] == 'user' else f['options']) or [] %}
+              {% if o is mapping %}{% set _x = _items.append(o) %}
+              {% else %}{% set _x = _items.append({'value': o[0], 'label': o[1]}) %}{% endif %}
+            {% endfor %}
+            {{ at_searchable_select('atfilt_' ~ f['key'], name=f['key'], items=_items,
+                                    multiple=true, values=(f['values'] or []),
+                                    placeholder=_('全部') ~ f['label'], width='100%') }}
+          </div>
+          {% endfor %}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button type="submit"
+                  style="flex:1;height:34px;border-radius:6px;border:none;cursor:pointer;
+                         background:var(--accent);color:#fff;font-size:13px;font-weight:500;">{{ _('应用筛选') }}</button>
+          <a href="{{ action_url }}{% if hidden.tab %}?tab={{ hidden.tab }}{% endif %}" title="{{ _('重置') }}"
+             style="width:34px;height:34px;border-radius:6px;border:1px solid var(--line-2);
+                    background:var(--bg-elev);color:var(--ink-3);
+                    display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
+                    flex-shrink:0;">{{ at_icon('history', 15) }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endmacro %}

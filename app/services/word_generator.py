@@ -1584,7 +1584,31 @@ class WordGenerator:
             # PDF输出路径
             tmp_pdf_path = tmp_docx_path.replace('.docx', '.pdf')
 
-            system = platform.system()
+            # 优先走 Mac mini office-convert 服务（容器无需 LibreOffice）
+            service_url = os.environ.get('PMA_OFFICE_CONVERT_URL', '').rstrip('/')
+            if service_url:
+                import requests as _http
+                try:
+                    resp = _http.post(
+                        f"{service_url}/convert",
+                        files={'file': (os.path.basename(tmp_docx_path), word_content,
+                                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document')},
+                        data={'target': 'pdf'},
+                        timeout=120,
+                    )
+                    if resp.status_code == 200:
+                        with open(tmp_pdf_path, 'wb') as f:
+                            f.write(resp.content)
+                    else:
+                        logger.warning(f"office-convert 服务返回 {resp.status_code}: {resp.text[:200]}")
+                        raise Exception(f"远程转换失败 HTTP {resp.status_code}")
+                except _http.exceptions.RequestException as e:
+                    logger.error(f"office-convert 服务不可达: {e}")
+                    raise Exception(f"远程转换服务不可达: {e}")
+                # 跳过本地路径
+                system = None
+            else:
+                system = platform.system()
 
             if system == "Darwin":  # macOS
                 # 尝试使用 LibreOffice
@@ -1880,14 +1904,15 @@ class WordGenerator:
         if template_type == 'ovs':
             return self._generate_quotation_excel_ovs(quotation)
         elif template_type == 'sp8d':
-            return self._generate_quotation_excel_default(quotation)
+            return self._generate_quotation_excel_ovs(quotation, lang='zh')
 
         # 自动检测：OVS数据库使用专用模板
         if self._is_ovs_database():
             return self._generate_quotation_excel_ovs(quotation)
 
-        # 原有SP8D/默认模板逻辑
-        return self._generate_quotation_excel_default(quotation)
+        # SP8D/默认:与 OVS 同一代版式的中文模板(quotation_template_sp8d_v2.xlsx);
+        # 旧版式 _generate_quotation_excel_default 保留备查不再使用
+        return self._generate_quotation_excel_ovs(quotation, lang='zh')
 
     def _generate_quotation_excel_default(self, quotation):
         """
@@ -2119,9 +2144,11 @@ class WordGenerator:
             logger.error(f"生成报价单Excel文档失败: {str(e)}")
             raise
 
-    def _generate_quotation_excel_ovs(self, quotation):
+    def _generate_quotation_excel_ovs(self, quotation, lang='en'):
         """
         使用OVS专用Excel模板生成报价单（Singapore模板）
+        lang='zh' 时使用同版式中文模板 quotation_template_sp8d_v2.xlsx
+        (中文文案/¥/中式日期/中文条款),填充坐标完全一致
 
         模板结构 (quotation_template_ovs.xlsx):
         - D2-D4: 公司信息（已固定在模板中）
@@ -2139,7 +2166,9 @@ class WordGenerator:
         - 汇总行固定: G38(Total before GST) G39(GST=0) G40(Total after GST)
         """
         try:
-            template_path = self._get_template_path('quotation_template_ovs.xlsx')
+            zh = (lang == 'zh')
+            template_path = self._get_template_path(
+                'quotation_template_sp8d_v2.xlsx' if zh else 'quotation_template_ovs.xlsx')
             wb = openpyxl.load_workbook(template_path)
             ws = wb.active
 
@@ -2160,9 +2189,10 @@ class WordGenerator:
             contact_name = quotation.contact.name if quotation.contact else ''
             contact_phone = quotation.contact.phone if quotation.contact else ''
 
-            # 日期格式 mm/dd/yyyy
-            quotation_date = quotation.created_at.strftime('%m/%d/%Y') if quotation.created_at else ''
-            valid_until = (quotation.created_at + timedelta(days=30)).strftime('%m/%d/%Y') if quotation.created_at else ''
+            # 日期格式:中文 YYYY-MM-DD / 英文 mm/dd/yyyy
+            _dfmt = '%Y-%m-%d' if zh else '%m/%d/%Y'
+            quotation_date = quotation.created_at.strftime(_dfmt) if quotation.created_at else ''
+            valid_until = (quotation.created_at + timedelta(days=30)).strftime(_dfmt) if quotation.created_at else ''
 
             # 填充客户信息
             # 根据模板合并单元格分析：
@@ -2179,9 +2209,9 @@ class WordGenerator:
             # 报价信息区域
             ws['H7'] = quotation.quotation_number  # Quotation No.: 后
             ws['H8'] = quotation_date              # Quotation Date: 后
-            ws['H9'] = 'Net 30 Days'               # Payment Terms: 固定值
-            ws['H10'] = 'FOB Singapore'            # Shipping Terms: 固定值
-            ws['H11'] = '30 Days'                  # Validity: 固定值
+            ws['H9'] = '合同签订后30天内付款' if zh else 'Net 30 Days'    # 付款条款
+            ws['H10'] = '项目现场交付' if zh else 'FOB Singapore'          # 交付条款
+            ws['H11'] = '30 天' if zh else '30 Days'                       # 有效期
             ws['H12'] = quotation.quotation_number # Ref No.: 使用报价编号
 
             # 明细配置
@@ -2238,7 +2268,7 @@ class WordGenerator:
                 if detail.product_name:
                     desc_parts.append(detail.product_name)
                 if detail.product_model:
-                    desc_parts.append(f"Model: {detail.product_model}")
+                    desc_parts.append(f"{'型号' if zh else 'Model'}: {detail.product_model}")
                 if detail.product_desc:
                     # 不截断规格描述，保留完整内容
                     desc_parts.append(detail.product_desc)
@@ -2349,7 +2379,28 @@ class WordGenerator:
             excel_content = excel_result['content']
             excel_filename = excel_result['filename']
 
-            # 2. 创建临时目录
+            # 优先走 Mac mini office-convert 服务
+            service_url = os.environ.get('PMA_OFFICE_CONVERT_URL', '').rstrip('/')
+            if service_url:
+                import requests as _http
+                try:
+                    resp = _http.post(
+                        f"{service_url}/convert",
+                        files={'file': (excel_filename, excel_content,
+                                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')},
+                        data={'target': 'pdf'},
+                        timeout=120,
+                    )
+                except _http.exceptions.RequestException as e:
+                    logger.error(f"office-convert 服务不可达: {e}")
+                    raise RuntimeError(f"远程转换服务不可达: {e}")
+                if resp.status_code != 200:
+                    logger.error(f"office-convert 服务返回 {resp.status_code}: {resp.text[:200]}")
+                    raise RuntimeError(f"远程转换失败 HTTP {resp.status_code}")
+                pdf_filename = excel_filename.replace('.xlsx', '.pdf')
+                return {'content': resp.content, 'filename': pdf_filename}
+
+            # 2. 创建临时目录（本地 fallback）
             temp_dir = tempfile.mkdtemp()
             try:
                 # 保存Excel到临时文件
@@ -2373,7 +2424,7 @@ class WordGenerator:
                         break
 
                 if not soffice_cmd:
-                    raise RuntimeError("LibreOffice未安装，无法转换PDF")
+                    raise RuntimeError("LibreOffice未安装，无法转换PDF (可配置 PMA_OFFICE_CONVERT_URL 改用远程服务)")
 
                 # 执行转换
                 cmd = [

@@ -1,0 +1,172 @@
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'performance' %}
+
+{% block config_title %}绩效配置 · 角色目标{% endblock %}
+{% block config_desc %}考核项与权重由岗位方案固定;此处设置角色默认目标,成员自动继承,个别差异在「个人配置」覆盖。{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="position:relative;">
+      <button type="button" class="cm-role-btn" onclick="cmToggleRoleMenu(event)">
+        <span id="cmRoleName">选择角色</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="cmRoleMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="cmPanelSub" class="at-dim" style="font-size:12px;"></span>
+    <span id="cmWeightSum" style="font-size:12px;"></span>
+    <div style="flex:1;"></div>
+    <select id="cmYear" onchange="cmYearGuarded(this)" style="height:32px;padding:0 8px;background:var(--bg-elev);
+            border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;">
+    </select>
+    <div id="cmEditBar"></div>
+  </div>
+
+  <div id="cmSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择角色…</div>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 填年度后自动均分到季/月,可在周期间调剂,合计封顶不超年度;比率类(%)为水平目标;
+    权重可改,余量为 0 时只能调低/挪移;点「季/月」切换粒度(任一行月考时才展开月份表头)。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const ROLES = {{ roles_data | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const CUR_YEAR = {{ current_year }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+
+  let _roleCode = null;
+
+  // 公用目标表格组件(与「个人配置·绩效目标」同源)
+  const sheet = ATTargetSheet({
+    container: 'cmSheet',
+    canEdit: CAN_EDIT,
+    mode: 'role',
+    weightEditable: true,
+    showDesc: true,
+    onChange: function () { updateWeightRoom(); if (guard) guard.markDirty(); },
+  });
+
+  function updateWeightRoom() {
+    const room = Math.round((100 - sheet.weightSum()) * 10) / 10;
+    const wEl = document.getElementById('cmWeightSum');
+    wEl.textContent = `权重余量 ${room}%`;
+    wEl.style.color = room === 0 ? 'var(--success)' : (room < 0 ? 'var(--danger)' : 'var(--ink-3)');
+  }
+
+  function renderRoleMenu() {
+    document.getElementById('cmRoleMenu').innerHTML = ROLES.map(r => `
+      <div class="cm-role-item${r.role === _roleCode ? ' active' : ''}" onclick="cmSelectRole('${r.role}')">
+        <span class="material-symbols-outlined" style="color:var(--accent);">badge</span>
+        <span style="flex:1;">${esc(r.display)}</span>
+        ${r.has_scheme ? '<span title="考核项由岗位方案固定" style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--warn-soft);color:var(--warn);">方案</span>' : ''}
+        <span class="at-dim at-mono" style="font-size:10.5px;">${r.count}人</span>
+      </div>`).join('');
+  }
+  window.cmToggleRoleMenu = function (e) {
+    e.stopPropagation();
+    const menu = document.getElementById('cmRoleMenu');
+    const show = menu.style.display === 'none';
+    if (show) renderRoleMenu();
+    menu.style.display = show ? 'block' : 'none';
+  };
+  document.addEventListener('click', () => {
+    const m = document.getElementById('cmRoleMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  const yearSel = document.getElementById('cmYear');
+  [CUR_YEAR - 1, CUR_YEAR, CUR_YEAR + 1].forEach(y => {
+    const o = document.createElement('option'); o.value = y; o.textContent = y + ' 年';
+    if (y === CUR_YEAR) o.selected = true; yearSel.appendChild(o);
+  });
+
+  window.cmSelectRole = function (role) {
+    guard.attempt(function () {
+      _roleCode = role;
+      document.getElementById('cmRoleMenu').style.display = 'none';
+      cmLoad();
+    });
+  };
+
+  let _appliedYear = String(CUR_YEAR);
+  window.cmYearGuarded = function (sel) {
+    guard.attempt(function () { _appliedYear = sel.value; cmLoad(); },
+                  function () { sel.value = _appliedYear; });
+  };
+
+  window.cmLoad = async function () {
+    if (!_roleCode) return;
+    const r = ROLES.find(x => x.role === _roleCode);
+    document.getElementById('cmRoleName').textContent = r ? r.display : _roleCode;
+    document.getElementById('cmPanelSub').textContent = `角色默认目标 · ${r ? r.count : 0} 名成员继承`;
+    try {
+      const d = await (await fetch(`/performance/config/api/role/${_roleCode}/targets/${yearSel.value}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      sheet.setItems(d.data.items || []);
+      updateWeightRoom();
+    } catch (e) {
+      document.getElementById('cmSheet').innerHTML =
+        `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
+    }
+  };
+
+  async function cmSaveCore() {
+    if (!_roleCode) return false;
+    if (sheet.weightSum() > 100.0001) {
+      ATToast.error(`权重余量为负,请调整后再保存`);
+      return false;
+    }
+    const items = sheet.getItems().map(it => {
+      const isM = it.gran === 'M';
+      const monthly = {};
+      if (isM) for (let m = 1; m <= 12; m++) {
+        const v = it.monthly_targets[String(m)];
+        if (v != null && v !== '') monthly[String(m)] = parseFloat(v) || 0;
+      }
+      const _cum = it.scoring_mode === 'cumulative';
+      return {
+        item_code: it.item_code, item_name: it.item_name, unit: it.unit,
+        enabled: it.enabled !== false,
+        weight: (it.weight == null || it.weight === '') ? null : parseFloat(it.weight),
+        annual_target: (it.annual_target == null || it.annual_target === '') ? null : parseFloat(it.annual_target),
+        enable_quarterly: _cum ? (it.gran === 'Q') : (!isM && [1,2,3,4].some(q => it['q'+q+'_target'] != null && it['q'+q+'_target'] !== '')),
+        q1_target: (!_cum && !isM) ? (it.q1_target ?? null) : null,
+        q2_target: (!_cum && !isM) ? (it.q2_target ?? null) : null,
+        q3_target: (!_cum && !isM) ? (it.q3_target ?? null) : null,
+        q4_target: (!_cum && !isM) ? (it.q4_target ?? null) : null,
+        enable_monthly: _cum ? (it.gran === 'M') : (isM && Object.keys(monthly).length > 0),
+        monthly_targets: (!_cum && isM && Object.keys(monthly).length) ? monthly : null,
+      };
+    });
+    try {
+      const r = await fetch(`/performance/config/api/role/${_roleCode}/targets/${yearSel.value}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ items }),
+      });
+      const d = await r.json();
+      if (d.success) { ATToast.success('角色默认目标已保存'); cmLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  const guard = AtEditMode.init({
+    mount: 'cmEditBar', lockEl: 'cmSheet', canEdit: CAN_EDIT,
+    onSave: cmSaveCore,
+    onDiscard: function () { cmLoad(); },
+    saveConfirm: { message: '确认保存该角色的绩效目标?' },
+  });
+
+  if (ROLES.length) cmSelectRole(ROLES[0].role);
+</script>
+{% endblock %}

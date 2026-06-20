@@ -31,10 +31,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-cjk \
     curl \
     postgresql-client \
-    libreoffice-writer \
-    libreoffice-common \
     fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
+# 注：ffmpeg / libreoffice 不在镜像,走 Mac mini 服务（PMA_*_SERVICE_URL）
 
 # 复制依赖文件
 COPY requirements.txt .

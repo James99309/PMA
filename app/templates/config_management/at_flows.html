@@ -1,0 +1,141 @@
+{% extends 'components/at_config_layout.html' %}
+{% set cfg_active = 'flows' %}
+
+{% block config_title %}流程配置{% endblock %}
+{% block config_desc %}选择流程查看步骤拓扑:节点为审批动作,显示审批人解析规则与参数;动态路由流程的审批人由代码按业务规则实时解析,可配置模板按既有配置执行;编辑能力后续提供。{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* 纵向拓扑流程图 */
+  .fl-canvas { background:var(--bg-elev); border:1px solid var(--line); border-radius:12px;
+               padding:26px 30px; }
+  .fl-col { display:flex; flex-direction:column; align-items:center; max-width:560px; margin:0 auto; }
+  .fl-endpoint { display:inline-flex; align-items:center; gap:7px; padding:5px 16px;
+                 border:1px dashed var(--line-2); border-radius:999px;
+                 font-size:11.5px; color:var(--ink-3); background:var(--bg-page); }
+  .fl-endpoint .dot { width:7px; height:7px; border-radius:4px; }
+  .fl-link { width:1.5px; height:26px; background:var(--line-2); position:relative; }
+  .fl-link::after { content:''; position:absolute; bottom:-1px; left:50%; transform:translateX(-50%);
+                    border:5px solid transparent; border-top:6px solid var(--ink-4); }
+  .fl-node { width:100%; box-sizing:border-box; background:var(--bg-page);
+             border:1px solid var(--line-2); border-radius:10px; padding:13px 16px; }
+  .fl-node-h { display:flex; align-items:center; gap:8px; }
+  .fl-node-no { width:20px; height:20px; border-radius:50%; background:var(--accent-tint);
+                color:var(--accent); font-size:10.5px; font-weight:600;
+                display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .fl-node-t { font-size:13px; font-weight:600; color:var(--ink); flex:1; }
+  .fl-node-d { font-size:11.5px; color:var(--ink-2); line-height:1.65; margin-top:7px; }
+  .fl-node-params { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .fl-param { padding:1px 8px; border-radius:4px; font-size:10px;
+              background:var(--bg-sunk); color:var(--ink-3); }
+  .fl-notes { max-width:560px; margin:14px auto 0; padding:11px 16px;
+              background:var(--bg-sunk); border-radius:9px;
+              font-size:11.5px; color:var(--ink-3); line-height:1.8; }
+  .fl-notes b { color:var(--ink-2); font-weight:500; }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <div style="position:relative;">
+      <button type="button" class="cm-role-btn" onclick="flToggleMenu(event)">
+        <span id="flName">选择流程</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="flMenu" class="cm-role-menu" style="display:none;min-width:340px;"></div>
+    </div>
+    <span id="flSub" class="at-dim" style="font-size:12px;"></span>
+  </div>
+
+  <div id="flCanvas" class="fl-canvas">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择流程…</div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const FLOWS = {{ flows | tojson }};
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  let _key = null;
+
+  function renderMenu() {
+    // 启用在前,停用灰显在后
+    const sorted = [...FLOWS].sort((a, b) => (b.active - a.active));
+    document.getElementById('flMenu').innerHTML = sorted.map((f, i) => `
+      <div class="cm-role-item${flKey(f) === _key ? ' active' : ''}" onclick="flSelect('${flKey(f)}')"
+           style="${f.active ? '' : 'opacity:0.5;'}">
+        <span class="material-symbols-outlined" style="color:${f.active ? 'var(--accent)' : 'var(--ink-4)'};">account_tree</span>
+        <span style="flex:1;">${esc(f.name)}</span>
+        ${f.tag === '动态路由' ? '<span style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--accent-tint);color:var(--accent);">动态</span>' : ''}
+        <span class="at-dim" style="font-size:10.5px;">${esc(f.object_label)}${f.active ? '' : ' · 停用'}</span>
+      </div>`).join('');
+  }
+  const flKey = f => f.object_type + '_' + (f.id == null ? 'x' : f.id);
+
+  window.flToggleMenu = function (e) {
+    e.stopPropagation();
+    const m = document.getElementById('flMenu');
+    const show = m.style.display === 'none';
+    if (show) renderMenu();
+    m.style.display = show ? 'block' : 'none';
+  };
+  document.addEventListener('click', () => {
+    const m = document.getElementById('flMenu');
+    if (m) m.style.display = 'none';
+  });
+
+  window.flSelect = function (key) {
+    _key = key;
+    document.getElementById('flMenu').style.display = 'none';
+    const f = FLOWS.find(x => flKey(x) === key);
+    if (!f) return;
+    document.getElementById('flName').textContent = f.name;
+    document.getElementById('flSub').innerHTML =
+      `${esc(f.object_label)}(<span class="at-mono">${esc(f.object_type)}</span>)` +
+      ` · ${f.tag}` +
+      (f.active
+        ? ' · <span style="color:var(--success);font-weight:500;">启用中</span>'
+        : ' · <span style="color:var(--ink-4);">已停用</span>');
+    renderFlow(f);
+  };
+
+  function renderFlow(f) {
+    const link = '<div class="fl-link"></div>';
+    let html = '<div class="fl-col">';
+    // 发起端点
+    html += `<div class="fl-endpoint"><span class="dot" style="background:var(--info);"></span>发起</div>`;
+    // 步骤节点(审批动作)
+    f.steps.forEach(st => {
+      html += link;
+      html += `
+      <div class="fl-node">
+        <div class="fl-node-h">
+          <span class="fl-node-no">${st.order}</span>
+          <span class="fl-node-t">${esc(st.name)}</span>
+        </div>
+        <div class="fl-node-d">${esc(st.desc)}</div>
+        <div class="fl-node-params">
+          <span class="fl-param">动作:审批(同意 / 驳回)</span>
+          ${st.email ? '<span class="fl-param">✉ 邮件通知</span>' : ''}
+          ${f.tag === '动态路由' ? '<span class="fl-param">审批人:系统实时解析</span>'
+                                 : '<span class="fl-param">审批人:模板配置</span>'}
+        </div>
+      </div>`;
+    });
+    // 完成端点
+    html += link;
+    html += `<div class="fl-endpoint"><span class="dot" style="background:var(--success);"></span>完成</div>`;
+    html += '</div>';
+    // 流程说明
+    if (f.notes && f.notes.length) {
+      html += `<div class="fl-notes"><b>流程说明</b><br>` +
+              f.notes.map(n => '· ' + esc(n)).join('<br>') + '</div>';
+    }
+    document.getElementById('flCanvas').innerHTML = html;
+  }
+
+  // 默认选第一个启用的流程
+  const first = FLOWS.find(f => f.active) || FLOWS[0];
+  if (first) flSelect(flKey(first));
+</script>
+{% endblock %}

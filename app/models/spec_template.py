@@ -252,6 +252,9 @@ class SpecTemplateItem(db.Model):
     use_in_code = Column(Boolean, default=False)  # 是否参与MN编码生成
     code_length = Column(Integer, default=1)  # 编码长度：1位或2位
 
+    # 是否将该规格加入产品描述（引入产品时按此勾选拼入描述，与参与编码解耦）
+    include_in_description = Column(Boolean, default=False, nullable=False, server_default='false')
+
     # 关联关系
     template = relationship("SpecTemplate", back_populates="items")
     # definition 关系已移除（definition_id FK 指向旧表 spec_definitions，已废弃）
@@ -300,7 +303,9 @@ class SpecTemplateItem(db.Model):
             'options': self.options,
             # 编码生成相关字段
             'use_in_code': self.use_in_code,
-            'code_length': self.code_length
+            'code_length': self.code_length,
+            # 是否加入产品描述
+            'include_in_description': self.include_in_description
         }
 
 

@@ -276,3 +276,54 @@ def test_safe_filename_cleans_path_separators(app_ctx):
     assert '\\' not in safe_filename('path\\to\\evil.pdf')
     # 前导 . 被去掉
     assert not safe_filename('.hidden').startswith('.')
+
+
+# ══════════════════════════════════════════════════════════════════
+# 资源目录 / 图片保存 / .history 备份 / sha256
+# ══════════════════════════════════════════════════════════════════
+
+def test_assets_dir_path(app_ctx):
+    from app.services.wiki.paths import assets_dir_for_article
+    p = assets_dir_for_article('product', 'gp328p')
+    assert p.name == 'gp328p'
+    assert p.parent.name == '_assets'
+    assert p.parent.parent.name == 'product'
+
+
+def test_save_article_image_creates_file_and_returns_relative_path(app_ctx, wiki_root):
+    from app.services.wiki.storage import save_article_image
+    rel = save_article_image('product', 'gp328p', 1, b'\x89PNG\r\n\x1a\n...', 'image/png')
+    assert rel == '_assets/gp328p/img-1.png'
+    abs_path = wiki_root / 'wiki' / 'product' / rel
+    assert abs_path.exists()
+    assert abs_path.read_bytes() == b'\x89PNG\r\n\x1a\n...'
+
+
+def test_replace_article_image_backs_up_old_to_history(app_ctx, wiki_root):
+    from app.services.wiki.storage import save_article_image, replace_article_image
+    save_article_image('product', 'gp328p', 1, b'OLD', 'image/png')
+    replace_article_image('product', 'gp328p', 1, b'NEW', 'image/png')
+    abs_path = wiki_root / 'wiki' / 'product' / '_assets' / 'gp328p' / 'img-1.png'
+    assert abs_path.read_bytes() == b'NEW'
+    history = list((abs_path.parent / '.history').glob('img-1.png.*.bak'))
+    assert len(history) == 1
+    assert history[0].read_bytes() == b'OLD'
+
+
+def test_save_article_image_rejects_unsupported_media_type(app_ctx):
+    from app.services.wiki.storage import save_article_image
+    with pytest.raises(ValueError):
+        save_article_image('product', 'gp328p', 1, b'data', 'application/pdf')
+
+
+def test_save_article_image_rejects_zero_or_negative_index(app_ctx):
+    from app.services.wiki.storage import save_article_image
+    with pytest.raises(ValueError):
+        save_article_image('product', 'gp328p', 0, b'd', 'image/png')
+
+
+def test_sha256_bytes_returns_hex_digest(app_ctx):
+    from app.services.wiki.storage import sha256_bytes
+    h = sha256_bytes(b'hello')
+    assert len(h) == 64
+    assert h == '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'

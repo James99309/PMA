@@ -18,7 +18,7 @@ from app.utils import version_check
 import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency, format_achievement_rate
 from app.utils.dictionary_helpers import (
-    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency, approval_status_label, product_type_label, product_status_label, dev_product_status_label, active_status_label,
+    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, share_permission_label, user_label, get_role_display_name, get_all_active_roles, get_all_user_companies, get_amount_unit_config, get_currency_symbol, get_default_currency, approval_status_label, product_type_label, product_status_label, dev_product_status_label, active_status_label, country_label,
     activity_status_label, activity_status_color,
     make_i18n_filter
 )
@@ -120,6 +120,15 @@ def create_app(config_class=Config):
     app.config['SESSION_COOKIE_SECURE'] = False  # 在开发环境中设为False，生产环境设为True
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+    # 多 localhost 实例隔离:本地同时跑多个 PMA(主 worktree + RF + mobile-test 等)
+    # 都用默认 cookie 名 'session' 会互相覆盖 → 各自跳登录。按 PORT 派生 cookie 名,
+    # 让每个实例的 session/remember 互不影响。
+    # 生产 / NAS / 单一实例场景:不设 PORT 时回退默认名,行为不变。
+    _local_port = (os.environ.get('PORT') or os.environ.get('FLASK_RUN_PORT') or '').strip()
+    if _local_port:
+        app.config['SESSION_COOKIE_NAME']  = f'pma_session_{_local_port}'
+        app.config['REMEMBER_COOKIE_NAME'] = f'pma_remember_{_local_port}'
     
     # 调试模式或开发环境关闭CSRF
     if os.environ.get('FLASK_ENV') == 'development' or os.environ.get('FLASK_DEBUG') == '1':
@@ -133,6 +142,17 @@ def create_app(config_class=Config):
     # 初始化登录管理器
     login_manager.login_view = 'auth.login'
     login_manager.init_app(app)
+
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        from flask import request, jsonify, redirect, url_for
+        # AJAX / API 请求返回 JSON 401，避免返回 HTML 重定向
+        if (request.is_json
+                or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                or request.path.startswith('/api/')
+                or '/api/' in request.path):
+            return jsonify({'success': False, 'message': '会话已过期，请刷新页面重新登录'}), 401
+        return redirect(url_for('auth.login', next=request.url))
     
     # 初始化JWT
     jwt.init_app(app)
@@ -185,6 +205,12 @@ def create_app(config_class=Config):
         # 报销模块API路径豁免
         if request.path.startswith('/expense/api/'):
             logger.debug(f'CSRF exempt Expense API path: {request.path}, Method: {request.method}')
+            return True
+
+        # CLI Agent API 路径豁免:闲置超 1h 后 CSRF token 过期会导致 HTTP 400
+        # 已有 @login_required + _require_cli_access() 双重保护,JSON 请求 + 自定义 header
+        if request.path.startswith('/cli/api/'):
+            logger.debug(f'CSRF exempt CLI API path: {request.path}, Method: {request.method}')
             return True
             
         # 审批配置模块API路径豁免
@@ -275,6 +301,10 @@ def create_app(config_class=Config):
     from app.models.prospect_project import ProspectProject, ProspectStakeholder
     from app.models.prospect_claim_request import ProspectClaimRequest
     from app.models.chat import ChatConversation, ChatParticipant, ChatMessage, ChatTranslation
+    from app.models.training import (
+        TrainingModuleState, TrainingQuizAttempt,
+        TrainingStreak, TrainingApplicationSubmission,
+    )
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
@@ -322,6 +352,9 @@ def create_app(config_class=Config):
 
     # 导入序列号管理蓝图
     from app.routes.product_sn_routes import product_sn_bp
+
+    # AT 设计系统预览(开发期临时)
+    from app.routes.at_preview_routes import at_preview_bp
 
     # 导入库存管理蓝图
     from app.routes.inventory import inventory
@@ -372,6 +405,8 @@ def create_app(config_class=Config):
     csrf.exempt(shipment_bp)  # 豁免发货管理蓝图的CSRF保护
     app.register_blueprint(product_sn_bp, url_prefix='/product-sn')  # 注册序列号管理蓝图
     csrf.exempt(product_sn_bp)  # 豁免序列号管理蓝图的CSRF保护
+
+    app.register_blueprint(at_preview_bp)  # AT 设计系统预览(开发期)
     app.register_blueprint(inventory, url_prefix='/inventory')  # 注册库存管理蓝图
     app.register_blueprint(purchase_order_bp)  # 注册采购订单蓝图（Tailwind风格）
     csrf.exempt(purchase_order_bp)  # 豁免采购订单蓝图的CSRF保护
@@ -384,6 +419,11 @@ def create_app(config_class=Config):
     app.register_blueprint(worklog)
     csrf.exempt(worklog)  # 豁免工作日历蓝图的CSRF保护
 
+    # 注册通用实体附件蓝图(项目等复用同一套上传/删除)
+    from app.views.attachments import attachments_bp
+    app.register_blueprint(attachments_bp)
+    csrf.exempt(attachments_bp)  # 上传为 multipart,豁免 CSRF(与 worklog 一致)
+
     # 注册积分系统蓝图
     app.register_blueprint(points_bp)
 
@@ -391,6 +431,11 @@ def create_app(config_class=Config):
     from app.views.file_manager import file_manager_bp
     app.register_blueprint(file_manager_bp)
     csrf.exempt(file_manager_bp)  # 豁免文件管理蓝图的CSRF保护（用于文件上传）
+
+    # 注册管理员视角的文件管理蓝图
+    from app.views.file_manager_admin import file_manager_admin_bp
+    app.register_blueprint(file_manager_admin_bp)
+    csrf.exempt(file_manager_admin_bp)
 
     # 注册会议录音纪要蓝图
     from app.views.meeting import meeting
@@ -506,16 +551,25 @@ def create_app(config_class=Config):
     from app.routes.geo_monitor import geo_monitor_bp
     app.register_blueprint(geo_monitor_bp, url_prefix='/geo')
 
+    # 注册内部 API 蓝图（供 MCP Server 以用户身份查询数据，使用 X-Internal-Token 鉴权）
+    from app.routes.internal_api import internal_api_bp
+    app.register_blueprint(internal_api_bp)
+    csrf.exempt(internal_api_bp)  # 内部 API 使用 token 鉴权，豁免 CSRF
+
+    # pma-training v2 内部 API (X-Internal-Token + X-User-ID 鉴权)
+    from app.routes.training_api import training_api_bp, wiki_image_public_bp
+    app.register_blueprint(training_api_bp)
+    csrf.exempt(training_api_bp)
+
+    # 公开 wiki 图片端点 (HMAC token 鉴权, 无 session/X-Internal-Token)
+    # 路径: /wiki-img/<token>  — 供 Cowork 客户端渲染 markdown 图片用
+    app.register_blueprint(wiki_image_public_bp)
+    csrf.exempt(wiki_image_public_bp)
+
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)
 
-    # 注册 geo_monitor 蓝图（导航菜单引用了它的 endpoint）
-    try:
-        from app.routes.geo_monitor import geo_monitor_bp
-        app.register_blueprint(geo_monitor_bp, url_prefix='/geo')
-    except Exception as e:
-        logger.warning(f"geo_monitor 蓝图未注册: {e}")
 
     # 注册绩效管理蓝图
     register_performance_routes(app)
@@ -691,6 +745,9 @@ def create_app(config_class=Config):
             '/health',  # 健康检查（Docker + OpenClaw 回调验证）
             '/system-diagram/s/',  # 系统设计图外部分享页面（邮箱验证访问）
             '/api/dingtalk/',  # 钉钉服务器回调（企业事件推送，自有签名验证）
+            '/internal/api/',  # 内部 API（MCP Server 专用，使用 X-Internal-Token 鉴权）
+            '/user/api/claude-ai/download-dxt',  # DXT 下载（使用 ?t=token 认证，无需登录）
+            '/wiki-img/',  # 公开 wiki 图片端点（HMAC token 鉴权，供 Cowork 客户端渲染 markdown 图片）
             '/quotation/mobile-view/',  # 移动端报价单预览（JWT token 自包含鉴权）
         ]
         
@@ -791,7 +848,34 @@ def create_app(config_class=Config):
         """向模板上下文注入current_user"""
         from flask_login import current_user
         return {'current_user': current_user}
-        
+
+    @app.context_processor
+    def inject_task_types():
+        """向模板注入当前用户可选的任务类型(日常+本岗位),供全局任务创建模态框使用"""
+        from flask_login import current_user
+        try:
+            if not current_user.is_authenticated:
+                return {'available_task_types': [], 'available_task_type_groups': [], 'task_type_labels_map': {}}
+            from app.helpers.task_types import (
+                task_types_for, task_type_groups_for, task_type_labels_for)
+            types = task_types_for(current_user)
+            return {
+                'available_task_types': types,
+                'available_task_type_groups': task_type_groups_for(current_user),
+                'task_type_labels_map': task_type_labels_for(current_user),
+                'task_type_review_codes': [t['code'] for t in types if t.get('require_review')],
+                'task_type_nolink_codes': [t['code'] for t in types if not t.get('allow_link', True)],
+            }
+        except Exception:
+            return {'available_task_types': [], 'available_task_type_groups': [],
+                    'task_type_labels_map': {}, 'task_type_review_codes': [], 'task_type_nolink_codes': []}
+
+    @app.context_processor
+    def inject_js_i18n():
+        """向模板注入 js_i18n_map(供 _js_i18n.html 渲染 window.I18N 给客户端 JS)"""
+        from app.helpers.js_i18n import js_i18n_map
+        return {'js_i18n_map': js_i18n_map}
+
     # 添加权限检查全局上下文处理器
     @app.context_processor
     def inject_permissions():
@@ -889,6 +973,14 @@ def create_app(config_class=Config):
     app.jinja_env.filters['company_type_color'] = company_type_color
     app.jinja_env.filters['product_situation_label'] = make_i18n_filter(product_situation_label)
     app.jinja_env.filters['industry_label'] = make_i18n_filter(industry_label)
+    app.jinja_env.filters['country_label'] = country_label
+    from app.utils.dictionary_helpers import currency_type_label
+    app.jinja_env.filters['currency_label'] = currency_type_label
+
+    # 报销科目 label(基于 model 的 EXPENSE_CATEGORIES list,无需重复定义)
+    from app.models.expense import EXPENSE_CATEGORIES
+    _expense_cat_map = dict(EXPENSE_CATEGORIES)
+    app.jinja_env.filters['expense_category_label'] = lambda v: _expense_cat_map.get(v, v) if v else ''
     app.jinja_env.filters['industry_color'] = industry_color
     app.jinja_env.filters['status_label'] = make_i18n_filter(status_label)
     app.jinja_env.filters['activity_status_label'] = make_i18n_filter(activity_status_label)
@@ -901,6 +993,14 @@ def create_app(config_class=Config):
     # 研发库已废弃 (2025-12-26)，但保留过滤器以避免模板解析错误
     app.jinja_env.filters['dev_product_status_label'] = make_i18n_filter(dev_product_status_label)
     app.jinja_env.filters['active_status_label'] = make_i18n_filter(active_status_label)
+
+    # AT 状态徽章统一映射(label + tone),供模板用 at_status_pill 宏调用
+    from app.utils.status_meta import get_status_meta, get_status_label
+    app.jinja_env.globals['get_status_meta'] = get_status_meta
+    app.jinja_env.globals['get_status_label'] = get_status_label
+
+    # AT 关联数据服务:导入触发注册(company / project / ... 各实体的关联模块)
+    from app.utils import related_data_register  # noqa: F401
 
     def datetimeformat(value):
         if not value:
@@ -930,6 +1030,8 @@ def create_app(config_class=Config):
     app.register_blueprint(projectpm_statistics, url_prefix='/projectpm/statistics')
 
     app.jinja_env.globals['get_role_display_name'] = get_role_display_name
+    app.jinja_env.globals['get_all_active_roles'] = get_all_active_roles
+    app.jinja_env.globals['get_all_user_companies'] = get_all_user_companies
     # 注册语言感知的货币单位相关函数
     app.jinja_env.globals['get_amount_unit_config'] = get_amount_unit_config
     app.jinja_env.globals['get_currency_symbol'] = get_currency_symbol
@@ -1285,6 +1387,18 @@ def create_app(config_class=Config):
         except Exception as e:
             logger.error(f"服务本地存储文件失败: {str(e)}")
             abort(500)
+
+    # 本地开发：为 /uploads/ 目录提供文件访问（NAS部署时由WebDAV处理）
+    @app.route('/uploads/<path:filename>')
+    def serve_uploads_file(filename):
+        import os
+        from flask import send_from_directory, abort
+        uploads_dir = os.path.join(app.root_path, '..', 'uploads')
+        uploads_dir = os.path.abspath(uploads_dir)
+        requested_path = os.path.abspath(os.path.join(uploads_dir, filename))
+        if not requested_path.startswith(uploads_dir) or not os.path.exists(requested_path):
+            abort(404)
+        return send_from_directory(os.path.dirname(requested_path), os.path.basename(requested_path))
 
     # 注册统一中文映射功能到Jinja2模板环境
     try:

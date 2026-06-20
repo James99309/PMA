@@ -404,6 +404,19 @@
                         </div>
                     </div>
                     {% endif %}
+
+                    <!-- 团队 Skills 商店入口 -->
+                    {# 按 PMA 部署来源(不是 session.language)决定文字和链接语言：OVS=海外→en，其余→zh #}
+                    {% set _mp_is_en = config.get('IS_OVS') %}
+                    <div class="mt-2 pt-6 border-t border-slate-200/60 dark:border-slate-700/60">
+                        <a href="https://marketplace.jamesgpone.win/?lang={{ 'en' if _mp_is_en else 'zh' }}" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-base">storefront</span>
+                            <span>{{ 'Team Skills Marketplace' if _mp_is_en else '团队 Skills 商店' }}</span>
+                            <span class="text-xs text-slate-400 dark:text-slate-500">— {{ 'private skills for Cowork (Claude-3p)' if _mp_is_en else '为 Cowork (Claude-3p) 提供团队私有 skill' }}</span>
+                            <span class="material-symbols-outlined text-sm">open_in_new</span>
+                        </a>
+                    </div>
                 </div>
         </div>
     {% endif %}

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+{# 报销单 PDF — EVERTAC 品牌横版 A4。基本信息 + 明细 + 签字行；
+   不含发票附件 / 系统审批流 / 支付信息。语言 lang: en(OVS) / zh(SP8D·本地)。 #}
+{% set is_en = (lang == 'en') %}
+{% set L = {
+  'brand_tag':  'EXPENSE  ·  REIMBURSEMENT',
+  'doc_title':  'Expense Reimbursement' if is_en else '报销单',
+  'no':         'NO.' if is_en else '编号 / NO.',
+  'sec1_name':  'General' if is_en else '基本信息',
+  'sec1_sub':   '' if is_en else 'GENERAL',
+  'sec2_name':  'Line Items' if is_en else '报销明细',
+  'sec2_sub':   '' if is_en else 'LINE ITEMS',
+  'subject':    'Subject' if is_en else '报销主题',
+  'created':    'Date Created' if is_en else '创建日期',
+  'applicant':  'Applicant' if is_en else '申请人',
+  'attributed': 'Cost Owner' if is_en else '费用归属人',
+  'customer':   'Customer' if is_en else '客户',
+  'project':    'Project' if is_en else '项目',
+  'currency':   'Currency' if is_en else '币种',
+  'total_lbl':  'Total Amount' if is_en else '报销总额',
+  'notes':      'Notes' if is_en else '报销说明',
+  'idx':        'No.' if is_en else '序号',
+  'date':       'Date' if is_en else '发生日期',
+  'category':   'Category' if is_en else '报销科目',
+  'item_desc':  'Description' if is_en else '明细描述',
+  'docs':       'Receipts' if is_en else '单据数',
+  'inv_amount': 'Invoice Amt (Orig.)' if is_en else '发票金额(原币)',
+  'rate':       'Rate' if is_en else '汇率',
+  'amount':     'Amount (Local)' if is_en else '报销金额(本币)',
+  'total':      'Total' if is_en else '合计 TOTAL',
+  'sig_applicant': 'Applicant' if is_en else '申请人签字',
+  'sig_dept':      'Department Approval' if is_en else '部门审批',
+  'sig_finance':   'Finance Review' if is_en else '财务审核',
+  'sig_gm':        'GM Approval' if is_en else '总经理审批',
+  'sig_date':      'DATE' if is_en else 'DATE',
+  'company':    'Heyuan Communications (Shanghai) Co., Ltd.' if is_en else '和源通信（上海）股份有限公司',
+  'address':    'Room 1102, Jinhuan Plaza, 88 Wuning Road, Putuo, Shanghai' if is_en else '上海市普陀区武宁路88号金环大厦1102室',
+  'tel':        'Tel +86 21 6259 6028' if is_en else '电话 021-62596028',
+  'web':        'Web www.evertac.net' if is_en else '网址 www.evertac.net',
+  'generated':  'Generated' if is_en else '生成时间',
+  'none':       '—',
+} %}
+<html lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<style>
+  {{ fontface_css | safe }}
+
+  :root { --teal:#00A6C4; --teal-soft:#E1F2F7; --ink:#1d1d1f; --ink-2:#3a3a3c;
+          --ink-3:#6b6b70; --ink-4:#9a9aa0; --line:#e3e3e6; --line-2:#d4d4d8;
+          --head:#222; --zebra:#f6f7f8; }
+
+  @page {
+    size: A4 landscape;
+    margin: 13mm 15mm 12mm 15mm;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--ink);
+    font-family: "Geist", "Noto Sans CJK SC", sans-serif;
+    font-size: 10.5px; line-height: 1.5;
+    -weasy-hyphens: none;
+  }
+  .mono { font-family: "Geist Mono", "Noto Sans CJK SC", monospace; }
+
+  /* ── 品牌头 ── */
+  .brandbar { display: flex; align-items: flex-end; justify-content: space-between;
+              padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .brandbar img { height: 30px; width: auto; }
+  .brand-tag { font-family: "Geist Mono", monospace; font-size: 9px; letter-spacing: 0.18em;
+               color: var(--ink-4); text-transform: uppercase; padding-bottom: 2px; }
+
+  /* ── 标题行 ── */
+  .titlerow { display: flex; align-items: baseline; gap: 18px; margin: 16px 0 6px; }
+  .doc-title { font-family: "Instrument Serif", "Noto Sans CJK SC", serif;
+               font-size: 33px; line-height: 1; color: var(--ink); font-weight: 400; }
+  .numbox { display: flex; flex-direction: column; gap: 1px; padding-bottom: 2px; }
+  .num-lbl { font-family: "Geist Mono", monospace; font-size: 8px; letter-spacing: 0.14em;
+             color: var(--ink-4); text-transform: uppercase; }
+  .num-val { font-family: "Geist Mono", monospace; font-size: 14px; color: var(--ink); letter-spacing: 0.02em; }
+  .titlerow .spacer { flex: 1; }
+  .status-pill { font-size: 11px; font-weight: 500; color: var(--teal);
+                 background: var(--teal-soft); border: 1px solid #bfe6ef;
+                 border-radius: 999px; padding: 4px 14px; white-space: nowrap; align-self: center; }
+
+  /* ── 分节标题 ── */
+  .sec { display: flex; align-items: center; gap: 8px; margin: 16px 0 9px; }
+  .sec-no { font-family: "Geist Mono", monospace; font-size: 12px; font-weight: 500; color: var(--teal); }
+  .sec-name { font-family: "Instrument Serif", "Noto Sans CJK SC", serif; font-size: 16px; color: var(--ink); }
+  .sec-sub { font-family: "Geist Mono", monospace; font-size: 9px; letter-spacing: 0.16em;
+             color: var(--ink-4); text-transform: uppercase; }
+  .sec .rule { flex: 1; height: 1px; background: var(--line); margin-left: 4px; }
+
+  /* ── 基本信息表 ── */
+  table { width: 100%; border-collapse: collapse; }
+  .info td { border: 1px solid var(--line); padding: 8px 12px; vertical-align: top; }
+  .info .lbl { background: #fafafb; color: var(--ink-3); width: 11%; font-size: 10px; white-space: nowrap; }
+  .info .val { color: var(--ink); width: 39%; }
+  .info .val.full { width: auto; }
+
+  /* ── 明细表 ── */
+  .items { margin-top: 2px; font-size: 10px; }
+  .items thead th { background: var(--head); color: #fff; font-weight: 500; padding: 9px 8px;
+                    text-align: center; letter-spacing: 0.02em; }
+  .items thead th.l { text-align: left; }
+  .items thead th.r { text-align: right; }
+  .items tbody td { border: 1px solid var(--line); padding: 8px; text-align: center; vertical-align: top; }
+  .items tbody td.l { text-align: left; }
+  .items tbody td.r { text-align: right; }
+  .items tbody tr:nth-child(even) td { background: var(--zebra); }
+  .items .empty { color: var(--ink-4); padding: 16px; }
+  .items tfoot td { background: #f0f1f2; padding: 10px 12px; font-weight: 500; border: 1px solid var(--line); }
+  .items tfoot .total-lbl { text-align: right; color: var(--ink-2); letter-spacing: 0.04em; }
+  .items tfoot .total-val { text-align: right; color: var(--teal); font-size: 13px;
+                            font-family: "Geist Mono", "Noto Sans CJK SC", monospace; }
+
+  /* ── 签字行 ── */
+  .sign { display: flex; gap: 22px; margin-top: 30px; }
+  .sign .cell { flex: 1; }
+  .sign .line { border-bottom: 1px solid var(--line-2); height: 22px; }
+  .sign .cap { display: flex; align-items: baseline; justify-content: space-between;
+               margin-top: 6px; font-size: 9.5px; color: var(--ink-3); }
+  .sign .cap .dt { font-family: "Geist Mono", monospace; font-size: 8.5px; color: var(--ink-4); letter-spacing: 0.05em; }
+
+  /* ── 页脚 ── */
+  .foot { margin-top: 22px; padding-top: 9px; border-top: 1px solid var(--line);
+          display: flex; align-items: flex-end; justify-content: space-between;
+          font-family: "Geist Mono", "Noto Sans CJK SC", monospace; font-size: 8.5px; color: var(--ink-4); }
+  .foot .co { line-height: 1.7; }
+  .foot .co .nm { color: var(--ink-3); }
+  .foot .meta { text-align: right; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+  <!-- 品牌头 -->
+  <div class="brandbar">
+    {% if logo_url %}<img src="{{ logo_url }}" alt="EVERTAC">{% else %}<span></span>{% endif %}
+    <div class="brand-tag">{{ L.brand_tag }}</div>
+  </div>
+
+  <!-- 标题行 -->
+  <div class="titlerow">
+    <span class="doc-title">{{ L.doc_title }}</span>
+    <span class="numbox">
+      <span class="num-lbl">{{ L.no }}</span>
+      <span class="num-val">{{ expense.expense_number }}</span>
+    </span>
+    <span class="spacer"></span>
+    <span class="status-pill">{{ status_label(expense.status) }}</span>
+  </div>
+
+  <!-- 01 基本信息 -->
+  <div class="sec">
+    <span class="sec-no">01</span>
+    <span class="sec-name">{{ L.sec1_name }}</span>
+    {% if L.sec1_sub %}<span class="sec-sub">· {{ L.sec1_sub }}</span>{% endif %}
+    <span class="rule"></span>
+  </div>
+  <table class="info">
+    <tr>
+      <td class="lbl">{{ L.subject }}</td>
+      <td class="val">{{ expense.title or L.none }}</td>
+      <td class="lbl">{{ L.created }}</td>
+      <td class="val mono">{{ expense.created_at.strftime('%Y-%m-%d') if expense.created_at else L.none }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">{{ L.applicant }}</td>
+      <td class="val">{{ (expense.owner.real_name or expense.owner.username) if expense.owner else L.none }}</td>
+      <td class="lbl">{{ L.attributed }}</td>
+      <td class="val">{{ (expense.attributed_to.real_name or expense.attributed_to.username) if expense.attributed_to else L.none }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">{{ L.customer }}</td>
+      <td class="val">{{ expense.customer.company_name if expense.customer else L.none }}</td>
+      <td class="lbl">{{ L.project }}</td>
+      <td class="val">{{ expense.project.project_name if expense.project else L.none }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">{{ L.currency }}</td>
+      <td class="val mono">{{ currency_sym }} {{ expense.currency or 'CNY' }}</td>
+      <td class="lbl">{{ L.total_lbl }}</td>
+      <td class="val mono"><strong>{{ currency_sym }} {{ '{:,.2f}'.format(expense.total_amount or 0) }}</strong></td>
+    </tr>
+    <tr>
+      <td class="lbl">{{ L.notes }}</td>
+      <td class="val full" colspan="3">{{ expense.description or L.none }}</td>
+    </tr>
+  </table>
+
+  <!-- 02 报销明细 -->
+  <div class="sec">
+    <span class="sec-no">02</span>
+    <span class="sec-name">{{ L.sec2_name }}</span>
+    {% if L.sec2_sub %}<span class="sec-sub">· {{ L.sec2_sub }}</span>{% endif %}
+    <span class="rule"></span>
+  </div>
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:42px;">{{ L.idx }}</th>
+        <th style="width:88px;">{{ L.date }}</th>
+        <th style="width:120px;" class="l">{{ L.category }}</th>
+        <th class="l">{{ L.item_desc }}</th>
+        <th style="width:58px;">{{ L.docs }}</th>
+        <th style="width:120px;" class="r">{{ L.inv_amount }}</th>
+        <th style="width:62px;">{{ L.rate }}</th>
+        <th style="width:120px;" class="r">{{ L.amount }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in expense.details %}
+      <tr>
+        <td class="mono">{{ loop.index }}</td>
+        <td class="mono">{{ d.expense_date.strftime('%Y-%m-%d') if d.expense_date else '' }}</td>
+        <td class="l">{{ cat_label(d.expense_category) }}</td>
+        <td class="l">{{ d.description or '' }}</td>
+        <td class="mono">{{ d.document_count or 1 }}</td>
+        <td class="r mono">{{ cur_sym(d.currency or expense.currency) }} {{ '{:,.2f}'.format(d.invoice_amount or 0) }}</td>
+        <td class="mono">{{ d.formatted_exchange_rate }}</td>
+        <td class="r mono">{{ currency_sym }} {{ '{:,.2f}'.format(d.current_amount or 0) }}</td>
+      </tr>
+      {% else %}
+      <tr><td class="empty" colspan="8">{{ L.none }}</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td class="total-lbl" colspan="7">{{ L.total }}</td>
+        <td class="total-val">{{ currency_sym }} {{ '{:,.2f}'.format(expense.total_amount or 0) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- 签字行 -->
+  <div class="sign">
+    {% for cap in [L.sig_applicant, L.sig_dept, L.sig_finance, L.sig_gm] %}
+    <div class="cell">
+      <div class="line"></div>
+      <div class="cap"><span>{{ cap }}</span><span class="dt">{{ L.sig_date }} _______</span></div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- 页脚 -->
+  <div class="foot">
+    <div class="co">
+      <div><span class="nm">{{ L.company }}</span> &nbsp;·&nbsp; {{ L.address }}</div>
+      <div>{{ L.tel }} &nbsp;·&nbsp; {{ L.web }}</div>
+    </div>
+    <div class="meta">
+      <div>{{ L.generated }} {{ generated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+    </div>
+  </div>
+
+</body>
+</html>

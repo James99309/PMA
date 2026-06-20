@@ -148,3 +148,107 @@ def test_query_empty_question_raises(app_ctx):
     from app.services.wiki.querier import query_wiki, QueryError
     with pytest.raises(QueryError, match='不能为空'):
         query_wiki('  ')
+
+
+def test_cited_articles_include_image_summary(app_ctx, wiki_root):
+    """query_wiki 返回的 cited_articles 应当带 images 字段(只含 index/path/caption)。"""
+    from app import db
+    from app.models import User
+    from app.models.knowledge import KnowledgeWikiArticle
+    from app.services.wiki.querier import query_wiki
+    from app.services.wiki.storage import write_article
+
+    admin = User.query.filter_by(role='admin').first()
+    write_article('product', 'test-img-query', '# T\n\n![caption A](_assets/test-img-query/img-1.png)\n')
+    art = KnowledgeWikiArticle(
+        topic='product', slug='test-img-query', title='Img Query Test',
+        file_path='wiki/product/test-img-query.md', summary='测试',
+        content_length=100, scope='company', owner_id=admin.id,
+        image_manifest=[
+            {'index': 1, 'path': '_assets/test-img-query/img-1.png',
+             'caption': 'caption A', 'source': {'type': 'docx_para', 'paragraph_index': 1},
+             'manually_replaced': False, 'replaced_at': None,
+             'sha256': 'abc', 'size_bytes': 100},
+            {'index': 2, 'path': '_assets/test-img-query/img-2.png',
+             'caption': 'caption B', 'source': {'type': 'docx_para', 'paragraph_index': 3},
+             'manually_replaced': False, 'replaced_at': None,
+             'sha256': 'def', 'size_bytes': 200},
+        ],
+    )
+    db.session.add(art)
+    db.session.commit()
+    art_id = art.id
+
+    try:
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text='## 直接回答\n\n测试。\n',
+            usage={'input_tokens': 10, 'output_tokens': 5, 'model': 'test'},
+        )
+        result = query_wiki('test image query', claude=fake, top_k=3)
+        # Find our article in cited
+        ours = [c for c in result['cited_articles'] if c['id'] == art_id]
+        assert len(ours) == 1
+        assert ours[0]['images'] == [
+            {'index': 1, 'path': '_assets/test-img-query/img-1.png', 'caption': 'caption A'},
+            {'index': 2, 'path': '_assets/test-img-query/img-2.png', 'caption': 'caption B'},
+        ]
+        # Should NOT leak internal fields
+        assert 'sha256' not in ours[0]['images'][0]
+        assert 'size_bytes' not in ours[0]['images'][0]
+        assert 'source' not in ours[0]['images'][0]
+        assert 'manually_replaced' not in ours[0]['images'][0]
+        assert 'replaced_at' not in ours[0]['images'][0]
+    finally:
+        KnowledgeWikiArticle.query.filter_by(id=art_id).delete()
+        db.session.commit()
+
+
+def test_cited_articles_images_empty_when_no_manifest(app_ctx, wiki_root):
+    """没有 image_manifest 的文章应返回 images=[]，不抛错。"""
+    from app import db
+    from app.models import User
+    from app.models.knowledge import KnowledgeWikiArticle
+    from app.services.wiki.querier import query_wiki
+    from app.services.wiki.storage import write_article
+
+    admin = User.query.filter_by(role='admin').first()
+    # 两篇文章：一篇 image_manifest=None，一篇 image_manifest=[]
+    write_article('product', 'test-img-none', '# None\n\n无图。\n')
+    write_article('product', 'test-img-empty', '# Empty\n\n空图。\n')
+    art_none = KnowledgeWikiArticle(
+        topic='product', slug='test-img-none', title='Img None Test',
+        file_path='wiki/product/test-img-none.md', summary='无图测试',
+        content_length=50, scope='company', owner_id=admin.id,
+        image_manifest=None,
+    )
+    art_empty = KnowledgeWikiArticle(
+        topic='product', slug='test-img-empty', title='Img Empty Test',
+        file_path='wiki/product/test-img-empty.md', summary='空图测试',
+        content_length=50, scope='company', owner_id=admin.id,
+        image_manifest=[],
+    )
+    db.session.add(art_none)
+    db.session.add(art_empty)
+    db.session.commit()
+    none_id = art_none.id
+    empty_id = art_empty.id
+
+    try:
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text='## 直接回答\n\n测试。\n',
+            usage={'input_tokens': 10, 'output_tokens': 5, 'model': 'test'},
+        )
+        result = query_wiki('test img none empty', claude=fake, top_k=5)
+        ours = {c['id']: c for c in result['cited_articles']
+                if c['id'] in (none_id, empty_id)}
+        assert none_id in ours
+        assert empty_id in ours
+        assert ours[none_id]['images'] == []
+        assert ours[empty_id]['images'] == []
+    finally:
+        KnowledgeWikiArticle.query.filter(
+            KnowledgeWikiArticle.id.in_([none_id, empty_id])
+        ).delete(synchronize_session=False)
+        db.session.commit()

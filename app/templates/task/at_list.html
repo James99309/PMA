@@ -1,0 +1,176 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_status_pill, at_btn, at_input, at_select, at_avatar, at_progress %}
+
+{% block sidebar_active %}task{% endblock %}
+{% block page_title %}{{ _('任务管理') }}{% endblock %}
+{% block category_label %}TASK · {{ _('协作中心') }}{% endblock %}
+{% block page_description %}{{ _('跟踪任务进度、子任务、里程碑与复核。') }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('协作中心') }}</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('任务管理') }}</span>
+{% endblock %}
+
+{% block page_actions %}
+{{ at_btn(_('新建任务'), variant='primary', icon_l='plus', tag='a',
+          href=url_for('task.at_create_view')) }}
+{% endblock %}
+
+{% block tabs %}
+{% set _tabs = [
+  {'k':'my',      'l':_('我的任务'),   'c':tab_counts.my},
+  {'k':'created', 'l':_('我创建的'),   'c':tab_counts.created},
+  {'k':'shared',  'l':_('协助我的'),   'c':tab_counts.shared},
+  {'k':'review',  'l':_('我审核的'),   'c':tab_counts.review},
+  {'k':'all',     'l':_('全部'),       'c':tab_counts.all}
+] %}
+{% for t in _tabs %}
+{% set active = (current_tab == t.k) %}
+<a href="{{ url_for('task.at_list_view', tab=t.k, **list_qs) }}"
+   style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
+          position:relative;text-decoration:none;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;white-space:nowrap;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ t.l }}</span>
+  <span class="at-tab-num at-mono"
+        style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
+</a>
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+<div style="display:flex;gap:12px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+
+  {# 搜索(回车提交,保留 tab/status/sort/view_user) #}
+  <form method="get" action="{{ url_for('task.at_list_view') }}" style="display:flex;align-items:center;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+    {% if sort and sort != 'updated' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    {% if view_user_id %}<input type="hidden" name="view_user_id" value="{{ view_user_id }}">{% endif %}
+    {{ at_input(name='search', value=search, placeholder=_('搜索任务标题…'), icon_l='search', width='280px') }}
+  </form>
+
+  {# 状态筛选 — 公用分段开关组件 .at-seg(同仪表盘切换样式),服务端跳转 #}
+  {% set _statuses = [
+    {'k':'',           'l':_('全部')},
+    {'k':'pending',    'l':_('待办')},
+    {'k':'in_progress','l':_('进行中')},
+    {'k':'completed',  'l':_('已完成')},
+    {'k':'paused',     'l':_('已暂停')},
+    {'k':'cancelled',  'l':_('已取消')}
+  ] %}
+  <div class="at-seg">
+    {% for s in _statuses %}
+    <button type="button" class="{{ 'on' if status == s.k else '' }}"
+            onclick="location.href='{{ url_for('task.at_list_view', tab=current_tab, status=(s.k or none),
+                        search=(search or none), sort=(sort if sort != 'updated' else none),
+                        view_user_id=(view_user_id or none)) }}'">{{ s.l }}</button>
+    {% endfor %}
+  </div>
+
+  <span style="flex:1;"></span>
+
+  {# 排序 + 查看他人 #}
+  <form method="get" action="{{ url_for('task.at_list_view') }}" style="display:flex;gap:10px;align-items:center;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+    {% if search %}<input type="hidden" name="search" value="{{ search }}">{% endif %}
+    {{ at_select(name='sort', value=sort,
+         options=[
+           {'value':'updated','label':_('按更新时间')},
+           {'value':'due_date','label':_('按截止日期')},
+           {'value':'priority','label':_('按优先级')},
+           {'value':'created','label':_('按创建时间')}],
+         extra_attrs="onchange='this.form.submit()'") }}
+    {% if can_view_team and team_options %}
+    {{ at_select(name='view_user_id', value=(view_user_id|string if view_user_id else ''),
+         placeholder=_('查看本人'), options=team_options,
+         extra_attrs="onchange='this.form.submit()'") }}
+    {% endif %}
+  </form>
+</div>
+{% endblock %}
+
+{% block thead %}
+{% for h, a in [(_('状态'),'left'),(_('任务'),'left'),(_('进度'),'left'),
+                (_('指派'),'left'),(_('截止'),'left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% for t in tasks %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+{% set sc = t.subtask_count or 0 %}
+{% set sd = t.subtask_completed or 0 %}
+{% set pct = ((sd * 100) // sc) if sc > 0 else (100 if t.status == 'completed' else 0) %}
+<tr class="at-row" data-href="{{ url_for('task.at_list_view') }}"
+    onclick="location.href='/task/at/{{ t.id }}'"
+    style="height:var(--row-h, 58px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    {{ at_status_pill(t.status, scope='task') }}
+    {% if t.review_status %}
+      <span style="margin-left:6px;">{{ at_status_pill(t.review_status, scope='task_review') }}</span>
+    {% endif %}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:360px;">
+    <div style="font-size:13.5px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+      {{ t.title }}
+      {% if t.milestone_count and t.milestone_count > 0 %}
+        <span style="margin-left:6px;color:var(--accent);font-size:11px;">★ {{ t.milestone_confirmed }}/{{ t.milestone_count }}</span>
+      {% endif %}
+    </div>
+    {% if t.project_name or t.customer_name %}
+    <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+      {{ t.project_name or t.customer_name }}
+    </div>
+    {% endif %}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span style="display:inline-flex;align-items:center;gap:8px;">
+      {{ at_progress(pct, width=120) }}
+      {% if sc > 0 %}<span class="at-mono" style="font-size:11px;color:var(--ink-4);">{{ sd }}/{{ sc }}</span>{% endif %}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span style="display:inline-flex;align-items:center;gap:8px;color:var(--ink-2);font-size:12.5px;">
+      {{ at_avatar(t.assignee_name or '?', 24) }}{{ t.assignee_name or '—' }}
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ t.due_date[:10] if t.due_date else '—' }}
+    </span>
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="5" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    {{ _('没有符合条件的任务') }}
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block pagination %}
+{% if pagination.pages > 1 %}
+<span class="at-mono at-dim" style="font-size:11.5px;">
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }}
+</span>
+<div style="display:flex;gap:6px;">
+  {% if pagination.has_prev %}
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('task.at_list_view', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
+  {% endif %}
+  {% if pagination.has_next %}
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('task.at_list_view', tab=current_tab, page=pagination.next_num, **list_qs)) }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

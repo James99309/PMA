@@ -1,0 +1,10 @@
+# Python 3.13 + 最新 torch/torchaudio + 在 main.py 用 shim 兼容 pyannote 3.3.2
+pyannote.audio==3.3.2
+# huggingface_hub 1.x 移除了 use_auth_token 参数，pyannote 3.3.2 还在用 → 锁 0.x
+huggingface_hub<1.0
+fastapi>=0.110
+uvicorn[standard]>=0.27
+httpx>=0.27
+soundfile>=0.12
+python-multipart>=0.0.20
+matplotlib>=3.8

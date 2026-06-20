@@ -4,12 +4,13 @@
 从批价单转换而来，包含物流交付信息
 """
 from app import db
+from app.utils.lockable import LockableMixin
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 
-class SalesOrder(db.Model):
+class SalesOrder(LockableMixin, db.Model):
     """客户订单表 - 从批价单转换，管理发货和交付"""
     __tablename__ = 'sales_orders'
 
@@ -69,7 +70,7 @@ class SalesOrder(db.Model):
     pricing_order = relationship('PricingOrder', backref='sales_orders')
     project = relationship('Project', backref='sales_orders')
     customer = relationship('Company', backref='customer_sales_orders')
-    created_by = relationship('User', backref='created_sales_orders')
+    created_by = relationship('User', foreign_keys=[created_by_id], backref='created_sales_orders')
 
     def __repr__(self):
         return f'<SalesOrder {self.order_number}>'
@@ -77,6 +78,11 @@ class SalesOrder(db.Model):
     @property
     def formatted_delivery_date(self):
         return self.delivery_date.strftime('%Y-%m-%d') if self.delivery_date else ''
+
+    @property
+    def procured_quantity(self):
+        """总已采购数量"""
+        return sum(detail.procured_quantity or 0 for detail in self.details)
 
     @property
     def shipped_quantity(self):
@@ -105,9 +111,10 @@ class SalesOrderDetail(db.Model):
     pricing_detail_id = Column(Integer, ForeignKey('pricing_order_details.id'), nullable=True)  # 来源批价单明细
     product_id = Column(Integer, ForeignKey('products.id'), nullable=False)
 
-    # 产品信息（冗余存储）
+    # 产品信息（冗余存储 - 创建时快照,避免产品库改名/改 MN 影响订单）
     product_name = Column(String(200), nullable=False)
     product_model = Column(String(100), nullable=True)
+    product_mn = Column(String(100), nullable=True)  # 物料编码 MN, 创建时从 Product.product_mn 落地
     specification = Column(Text, nullable=True)  # 产品规格
 
     # 数量和价格
@@ -117,7 +124,8 @@ class SalesOrderDetail(db.Model):
     discount = Column(Numeric(5, 4), default=1.0000)  # 折扣率
     total_price = Column(Numeric(15, 2), default=0)  # 总价
 
-    # 发货和签收状态
+    # 采购、发货和签收状态
+    procured_quantity = Column(Integer, default=0)  # 已纳入采购的数量
     shipped_quantity = Column(Integer, default=0)  # 已发货数量
     received_quantity = Column(Integer, default=0)  # 已签收数量
     status = Column(String(20), default='pending')
@@ -136,6 +144,11 @@ class SalesOrderDetail(db.Model):
 
     def __repr__(self):
         return f'<SalesOrderDetail {self.product_name}: {self.quantity}>'
+
+    @property
+    def remaining_to_procure(self):
+        """剩余未采购数量"""
+        return max(0, self.quantity - (self.procured_quantity or 0))
 
     @property
     def remaining_to_ship(self):

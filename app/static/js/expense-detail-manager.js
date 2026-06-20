@@ -11,8 +11,22 @@ class ExpenseDetailManager {
         this.config = this.mergeConfig(config);
         this.rows = [];
         this.eventHandlers = new Map();
-        
+
         this.init();
+    }
+
+    /**
+     * 汇率显示格式: 保留 4 位精度,但去掉尾部多余的 0。
+     * 1     → '1'
+     * 1.2   → '1.2'
+     * 0.5795→ '0.5795'
+     * 1.0000→ '1'
+     * 用户反馈: 输入 1.2 不要被改成 1.2000。
+     */
+    _formatRate(v) {
+        const n = parseFloat(v);
+        if (!isFinite(n) || n <= 0) return '1';
+        return (Math.round(n * 10000) / 10000).toString();
     }
     
     /**
@@ -495,23 +509,22 @@ class ExpenseDetailManager {
         input.className = 'form-control text-center exchange-rate-input';
         input.name = fieldName;
         input.id = fieldId;
-        input.value = data[column.key] || 1.0000;
+        input.value = this._formatRate(data[column.key]);
         input.step = '0.0001';
         input.min = '0.0001';
-        input.placeholder = '1.0000';
+        input.placeholder = '1';
         input.dataset.rowIndex = rowIndex;
         input.dataset.field = column.key;
-        
+
         // 汇率变化时重新计算报销金额
         input.addEventListener('input', () => {
             this.handleExchangeRateChange(rowIndex, parseFloat(input.value) || 1.0);
         });
-        
-        // 失去焦点时格式化显示并重新计算
+
+        // 失焦时按用户输入的精度回填(不再补 4 个 0)
         input.addEventListener('blur', () => {
             const rate = parseFloat(input.value) || 1.0;
-            input.value = rate.toFixed(4);
-            // 触发重新计算
+            input.value = this._formatRate(rate);
             this.handleExchangeRateChange(rowIndex, rate);
         });
         
@@ -684,10 +697,10 @@ class ExpenseDetailManager {
         }
         
         if (exchangeRateElement) {
-            exchangeRateElement.value = exchangeRate.toFixed(4);
+            exchangeRateElement.value = this._formatRate(exchangeRate);
             // 更新行数据
             this.updateRowData(rowIndex, 'exchange_rate', exchangeRate);
-            console.log(`✅ 汇率输入框已更新: ${exchangeRate.toFixed(4)} (元素类型: ${exchangeRateElement.closest('.expense-detail-input-card') ? '移动端' : 'PC端'})`);
+            console.log(`✅ 汇率输入框已更新: ${this._formatRate(exchangeRate)} (元素类型: ${exchangeRateElement.closest('.expense-detail-input-card') ? '移动端' : 'PC端'})`);
             
             // 🔥 汇率更新后重新计算报销金额
             this.calculateCurrentAmountMobile(rowIndex);
@@ -1729,13 +1742,13 @@ class ExpenseDetailManager {
                 this.calculateTotal();
             });
             
-            // 🔥 为汇率输入框添加实时格式化
+            // 🔥 汇率输入框失焦时回填用户输入精度(不补 0)
             if (input.classList.contains('exchange-rate-input')) {
                 input.addEventListener('blur', (e) => {
                     const value = parseFloat(e.target.value);
                     if (!isNaN(value)) {
-                        e.target.value = value.toFixed(4);
-                        this.rows[index].exchange_rate = value.toFixed(4);
+                        e.target.value = this._formatRate(value);
+                        this.rows[index].exchange_rate = value;  // 存数值而非字符串
                         this.calculateCurrentAmountMobile(index);
                     }
                 });
@@ -2018,7 +2031,7 @@ class ExpenseDetailManager {
                 
                 <div class="expense-detail-card-field">
                     <div class="expense-detail-card-field-label">汇率</div>
-                    <div class="expense-detail-card-field-value">${parseFloat(rowData.exchange_rate || 1).toFixed(4)}</div>
+                    <div class="expense-detail-card-field-value">${this._formatRate(rowData.exchange_rate)}</div>
                 </div>
                 
                 <div class="expense-detail-card-field">
@@ -2147,15 +2160,15 @@ class ExpenseDetailManager {
                     <!-- 汇率 (保持4位小数精度) -->
                     <div class="mobile-input-row">
                         <label class="mobile-input-label">汇率</label>
-                        <input type="number" 
-                               name="details[${index}][exchange_rate]" 
-                               class="form-control mobile-input-field exchange-rate-input" 
+                        <input type="number"
+                               name="details[${index}][exchange_rate]"
+                               class="form-control mobile-input-field exchange-rate-input"
                                data-field="exchange_rate"
                                data-row-index="${index}"
-                               step="0.0001" 
+                               step="0.0001"
                                min="0"
-                               value="${parseFloat(rowData.exchange_rate || 1.0000).toFixed(4)}"
-                               placeholder="1.0000">
+                               value="${this._formatRate(rowData.exchange_rate)}"
+                               placeholder="1">
                     </div>
                     
                     <!-- 报销金额 (汇率下面) -->

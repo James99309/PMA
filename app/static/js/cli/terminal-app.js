@@ -365,24 +365,37 @@ class CliTerminalApp {
     header.appendChild(titleSpan);
     header.appendChild(chevron);
 
+    // 容量上限:约 12 行(含表头/内边距),超过后 iframe 自带滚动条
+    const ARTIFACT_MAX_HEIGHT = 460;
+    // 高度读取失败的兜底(比浏览器默认 150px 更合理,约 10 行)
+    const ARTIFACT_FALLBACK_HEIGHT = 380;
+
     const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'width:100%;border:none;display:block;min-height:40px;transition:height .2s';
-    iframe.sandbox = 'allow-scripts';
+    iframe.style.cssText = `width:100%;border:none;display:block;min-height:80px;max-height:${ARTIFACT_MAX_HEIGHT}px;transition:height .2s`;
+    // 加 allow-same-origin: 服务端生成的可信 HTML, 用于让父页能读到 contentDocument.scrollHeight
+    iframe.sandbox = 'allow-scripts allow-same-origin';
     iframe.srcdoc = html;
 
-    // 高度自适应：用 postMessage 或直接读取
+    // 高度自适应:读取 iframe 内容真实高度,设到 iframe 上(受 max-height 限制 → 内部滚动)
     const resizeIframe = () => {
       try {
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (doc) {
+        if (doc && doc.body) {
           const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
-          if (h > 0) iframe.style.height = h + 'px';
+          if (h > 0) {
+            iframe.style.height = Math.min(h, ARTIFACT_MAX_HEIGHT) + 'px';
+            return;
+          }
         }
       } catch (_) {}
+      // 跨域/读取失败兜底:给个比浏览器默认 150px 大得多的高度
+      if (!iframe.style.height || iframe.style.height === '0px') {
+        iframe.style.height = ARTIFACT_FALLBACK_HEIGHT + 'px';
+      }
     };
     iframe.onload = () => {
       resizeIframe();
-      // 二次检查（图片/字体加载后高度可能变化）
+      // 二次检查(图片/字体加载后高度可能变化)
       setTimeout(resizeIframe, 200);
     };
 

@@ -114,7 +114,14 @@ class ApprovalStep(db.Model):
     process_id = db.Column(db.Integer, db.ForeignKey("approval_process_template.id"), nullable=False, comment="所属流程模板")
     step_order = db.Column(db.Integer, nullable=False, comment="流程顺序")
     approver_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, comment="审批人账号ID")
-    approver_type = db.Column(db.String(20), default='user', comment="审批人类型：user(固定用户) 或 auto(自动选择)")
+    approver_type = db.Column(db.String(20), default='user',
+                              comment="审批人类型:"
+                                      " user(固定用户) / next_level(直属上级) / auto(项目类型映射)"
+                                      " / role(角色) / submitter_designate(提交时指定)")
+    # 当 approver_type='submitter_designate' 时使用:限定提交者只能在某角色/部门内选审批人
+    # JSON 格式: {'roles': ['sales_manager'], 'departments': [3, 5]}(都为空则允许所有用户)
+    designate_pool = db.Column(db.JSON, nullable=True,
+                                comment="submitter_designate 模式下的可选范围(roles/departments)")
     description = db.Column(db.Text, comment="步骤描述")
     step_name = db.Column(db.String(100), nullable=False, comment="步骤说明（如\"财务审批\"）")
     send_email = db.Column(db.Boolean, default=True, comment="是否发送邮件通知")
@@ -938,6 +945,11 @@ class ApprovalInstance(db.Model):
     # 新增：模板版本化字段
     template_snapshot = db.Column(db.JSON, comment="创建时的模板快照")
     template_version = db.Column(db.String(50), comment="模板版本号")
+
+    # 提交时由提交者指定的审批人(approver_type='submitter_designate' 的步骤)
+    # JSON 格式: {str(step_id): user_id, ...}
+    designated_approvers = db.Column(db.JSON, nullable=True,
+                                      comment="提交时指定的审批人 {step_id: user_id}")
 
     # 转交字段(per-step 代理): 当前步骤被转交时, 由 delegated_to_id 用户代审
     # 流程推进到下一步时清空(转交仅对当前步骤有效)

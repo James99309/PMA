@@ -1,0 +1,72 @@
+{#
+  AT 风险提醒条(条件性显示在 topbar 下方)
+  按 spec §5.5 落地:
+    琥珀色背景 + ⚠ 图标 + 多条提醒(· 分隔) + 右侧关闭 ×
+
+  用法:
+    {% from 'components/at_risk_banner.html' import at_risk_banner %}
+    {{ at_risk_banner(risks) }}
+
+  Args:
+    risks: list of dict, 每条 {label: '...', href: '...', count?: 3}
+           为空时不渲染
+    storage_key: 关闭后 sessionStorage 不再显示的 key(默认 'at-risk-banner-dismissed')
+#}
+{% from 'components/at_base.html' import at_icon %}
+
+
+{% macro at_risk_banner(risks, storage_key='at-risk-banner-dismissed') %}
+  {% if risks %}
+  <div id="atRiskBanner"
+       style="display:flex;align-items:center;gap:10px;
+              height:36px;padding:0 20px;
+              background:var(--warn-soft);border-bottom:1px solid var(--warn-soft);
+              color:var(--warn);font-size:12.5px;flex-shrink:0;">
+    <span style="display:inline-flex;align-items:center;">
+      {{ at_icon('warn', 14) }}
+    </span>
+    <div style="flex:1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;overflow:hidden;">
+      {% for r in risks %}
+        <a href="{{ r.href }}"
+           style="color:var(--warn);text-decoration:none;font-weight:500;
+                  display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">
+          {{ r.label }}
+          {% if r.count %}
+          <span class="at-mono at-tab-num"
+                style="display:inline-flex;align-items:center;justify-content:center;
+                       min-width:18px;height:16px;padding:0 5px;border-radius:8px;
+                       background:var(--warn);color:#fff;font-size:10.5px;font-weight:600;">{{ r.count }}</span>
+          {% endif %}
+        </a>
+        {% if not loop.last %}
+        <span style="color:var(--warn);opacity:0.5;">·</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <button type="button" onclick="atDismissRiskBanner('{{ storage_key }}')"
+            title="本次会话不再显示"
+            style="display:inline-flex;align-items:center;justify-content:center;
+                   width:24px;height:24px;border-radius:50%;border:0;background:transparent;
+                   color:var(--warn);cursor:pointer;opacity:0.7;"
+            onmouseover="this.style.opacity='1';this.style.background='rgba(255,255,255,0.3)'"
+            onmouseout="this.style.opacity='0.7';this.style.background='transparent'">
+      {{ at_icon('close', 13) }}
+    </button>
+  </div>
+  <script>
+    (function() {
+      const KEY = '{{ storage_key }}';
+      // 已 dismiss → 立即隐藏
+      if (sessionStorage.getItem(KEY) === '1') {
+        const el = document.getElementById('atRiskBanner');
+        if (el) el.style.display = 'none';
+      }
+      window.atDismissRiskBanner = function(key) {
+        sessionStorage.setItem(key, '1');
+        const el = document.getElementById('atRiskBanner');
+        if (el) el.style.display = 'none';
+      };
+    })();
+  </script>
+  {% endif %}
+{% endmacro %}

@@ -19,27 +19,9 @@ class SalesOrderService:
 
     @staticmethod
     def generate_order_number():
-        """
-        生成客户订单号
-        格式: SO202501-001
-        """
-        today = datetime.now()
-        prefix = f"SO{today.strftime('%Y%m')}"
-
-        latest_order = SalesOrder.query.filter(
-            SalesOrder.order_number.like(f"{prefix}%")
-        ).order_by(SalesOrder.order_number.desc()).first()
-
-        if latest_order:
-            try:
-                latest_num = int(latest_order.order_number.split('-')[-1])
-                new_num = latest_num + 1
-            except (ValueError, IndexError):
-                new_num = 1
-        else:
-            new_num = 1
-
-        return f"{prefix}-{new_num:03d}"
+        """生成客户订单号 SO<YYYYMM>-NNN — 走统一生成器"""
+        from app.utils.doc_number import generate_doc_number
+        return generate_doc_number('SO', SalesOrder)
 
     @staticmethod
     def create_from_pricing_order(pricing_order_id, delivery_info, current_user_id):
@@ -124,12 +106,21 @@ class SalesOrderService:
                 # 尝试查找产品ID
                 product_id = SalesOrderService._find_product_id(pd)
 
+                # MN 编码:优先用批价单明细自带,fallback 查产品库
+                _mn = (getattr(pd, 'product_mn', None) or '').strip()
+                if not _mn and product_id:
+                    from app.models.product import Product
+                    _p = Product.query.get(product_id)
+                    if _p:
+                        _mn = (_p.product_mn or '').strip()
+
                 detail = SalesOrderDetail(
                     sales_order_id=sales_order.id,
                     pricing_detail_id=pd.id,
                     product_id=product_id,
                     product_name=pd.product_name,
                     product_model=pd.product_model,
+                    product_mn=_mn or None,
                     specification=pd.product_desc,
                     quantity=pd.quantity,
                     unit=pd.unit,
@@ -225,30 +216,37 @@ class SalesOrderService:
             return False, f'操作失败: {str(e)}'
 
     @staticmethod
+    def is_referenced_by_po(order):
+        """订单的任一明细被 PO 引用过 → True。草稿态不应有引用,确认后才可能。"""
+        return any(getattr(d, 'purchase_details', None) for d in order.details)
+
+    @staticmethod
     def cancel_order(order_id, current_user_id, reason=None):
         """
-        取消订单
+        取消订单(只保留记录,标记 cancelled)。草稿态请走 delete_order。
 
-        Args:
-            order_id: 订单ID
-            current_user_id: 当前用户ID
-            reason: 取消原因
-
-        Returns:
-            (success, message)
+        约束:
+          - 草稿不能取消(应该删除)
+          - 已发货(shipped_quantity>0)不能取消
+          - 已被关联 PO 引用 → 不能取消(走 PO 链路逆向处理)
+          - 已完成/已取消 不能取消
         """
         try:
             order = SalesOrder.query.get(order_id)
             if not order:
                 return False, '订单不存在'
 
-            # 只有草稿和已确认状态可以取消
-            if order.status not in ['draft', 'confirmed']:
+            if order.status == 'draft':
+                return False, '草稿订单请使用删除,而非取消'
+
+            if order.status in ('cancelled', 'completed'):
                 return False, f'当前状态 {order.status} 不允许取消'
 
-            # 检查是否有发货记录
-            if order.shipped_quantity > 0:
-                return False, '已有发货记录，不能取消'
+            if order.shipped_quantity and order.shipped_quantity > 0:
+                return False, '已有发货记录,不能取消'
+
+            if SalesOrderService.is_referenced_by_po(order):
+                return False, '订单已生成关联采购单,不能取消'
 
             order.status = 'cancelled'
             if reason:
@@ -262,6 +260,37 @@ class SalesOrderService:
         except Exception as e:
             db.session.rollback()
             logger.error(f"取消订单失败: {str(e)}")
+            return False, f'操作失败: {str(e)}'
+
+    @staticmethod
+    def delete_order(order_id, current_user_id):
+        """
+        删除草稿订单(物理删除 SalesOrder + 级联明细)。仅 draft 可删。
+        """
+        try:
+            order = SalesOrder.query.get(order_id)
+            if not order:
+                return False, '订单不存在'
+
+            if order.status != 'draft':
+                return False, '仅草稿订单可以删除,非草稿订单请使用取消'
+
+            # 双重保险:草稿理论上不会被 PO 引用,但万一异常数据也拦一道
+            if SalesOrderService.is_referenced_by_po(order):
+                return False, '订单已被采购单引用,不能删除'
+
+            order_number = order.order_number
+            # 物理删除明细
+            SalesOrderDetail.query.filter_by(sales_order_id=order.id).delete()
+            db.session.delete(order)
+            db.session.commit()
+
+            logger.info(f"客户订单 {order_number} 已删除(物理)")
+            return True, '订单已删除'
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"删除订单失败: {str(e)}")
             return False, f'操作失败: {str(e)}'
 
     @staticmethod

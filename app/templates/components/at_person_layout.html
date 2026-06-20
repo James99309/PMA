@@ -1,0 +1,155 @@
+{#
+  AT 个人配置统一壳(账户详情 · 个人级配置中心)
+  ─────────────────────────────────────────────
+  与 at_config_layout(角色/系统级)对偶:本壳承载"对某个人"的配置域。
+  划界:配置管理=角色默认/系统规则;本壳=个人覆盖(目标/预算/权限)与归属。
+
+  blocks:
+    person_title / person_desc / extra_head / content / scripts
+  子页顶层 {% set person_active = 'performance' %} 指定当前 tab;
+  路由需传 users_data(在职人员清单:id/name/role/role_display/department)。
+  tab url=none 时灰显「待开发」。
+#}
+{% from 'components/at_base.html' import at_icon, at_pill, at_avatar %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{# tab 由 person_config 模块功能开关控制(权限矩阵·白名单) #}
+{% set _person_tabs = [] %}
+{% if current_user.has_feature('person_config', 'pc_permission') %}
+  {% set _person_tabs = _person_tabs + [('permissions', '权限覆盖', url_for('user.at_person_permissions'))] %}
+{% endif %}
+{% if current_user.has_feature('person_config', 'pc_affiliation') %}
+  {% set _person_tabs = _person_tabs + [('affiliation', '归属关系', url_for('user.at_person_affiliation'))] %}
+{% endif %}
+{% if current_user.has_feature('person_config', 'pc_budget') %}
+  {% set _person_tabs = _person_tabs + [('budget', '费用预算', url_for('user.at_person_budget'))] %}
+{% endif %}
+{% if current_user.has_feature('person_config', 'pc_performance') %}
+  {% set _person_tabs = _person_tabs + [('performance', '绩效目标', url_for('user.at_person_performance'))] %}
+{% endif %}
+{% if current_user.has_feature('person_config', 'pc_salary') %}
+  {% set _person_tabs = _person_tabs + [('salary', '薪资', url_for('user.at_person_salary'))] %}
+{% endif %}
+{% if current_user.has_feature('person_config', 'pc_ai') %}
+  {% set _person_tabs = _person_tabs + [('ai', 'AI 代理', url_for('user.at_person_ai'))] %}
+{% endif %}
+{% set _active = person_active | default('') %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{% block page_title %}{{ self.person_title() }}{% endblock %} · 个人配置</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; font-size: 17px; }
+
+  /* tab 条(同配置壳) */
+  .cfg-tabs { display:flex; align-items:center; gap:2px; border-bottom:1px solid var(--line);
+              margin-bottom:22px; }
+  .cfg-tab { padding:9px 14px; font-size:13px; color:var(--ink-3); text-decoration:none;
+             border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+  .cfg-tab:hover { color:var(--ink); }
+  .cfg-tab.on { color:var(--ink); font-weight:500; border-bottom-color:var(--accent); }
+  .cfg-tab.off { color:var(--ink-4); cursor:not-allowed; }
+
+  /* 人员下拉(同配置壳角色下拉) */
+  .cm-role-btn { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent;
+                 font:inherit; font-size:20px; font-weight:600; color:var(--ink); cursor:pointer; padding:2px 4px;
+                 border-radius:6px; }
+  .cm-role-btn:hover { background:var(--bg-hover); }
+  .cm-role-menu { position:absolute; top:calc(100% + 6px); left:0; min-width:300px; z-index:50;
+                  background:var(--bg-elev); border:1px solid var(--line); border-radius:10px;
+                  box-shadow:0 12px 32px rgba(0,0,0,0.12); padding:6px; max-height:420px; overflow-y:auto; }
+  .cm-role-item { display:flex; align-items:center; gap:8px; padding:7px 12px; border-radius:6px;
+                  cursor:pointer; font-size:13px; color:var(--ink); }
+  .cm-role-item:hover { background:var(--bg-hover); }
+  .cm-role-item.active { background:var(--accent-tint); }
+  .pp-dep { font-size:10.5px; letter-spacing:0.08em; color:var(--ink-4); padding:8px 12px 2px; }
+  .pp-search { width:calc(100% - 12px); margin:4px 6px 6px; box-sizing:border-box; height:30px; padding:0 10px;
+               background:var(--bg-page); border:1px solid var(--line-2); border-radius:6px;
+               font:inherit; font-size:12.5px; color:var(--ink); outline:none; }
+
+  /* Excel 式紧凑表格(同配置壳) */
+  .cm-sheet { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; table-layout:fixed; }
+  .cm-sheet th, .cm-sheet td { border:0; border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+                               padding:6px 8px; text-align:center;
+                               overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .cm-sheet tr > *:last-child { border-right:0; }
+  .cm-sheet tbody tr:last-child td { border-bottom:0; }
+  .cm-sheet thead th { background:var(--bg-sunk); font-size:11px; font-weight:500; color:var(--ink-2);
+                       letter-spacing:0.04em; padding:7px 6px; position:sticky; top:0; z-index:2; }
+  .cm-sheet td.cm-name { text-align:left; }
+  .cm-sheet td[contenteditable] { cursor:cell; background:var(--bg-page); }
+  .cm-sheet td[contenteditable]:hover { background:var(--bg-hover); }
+  .cm-sheet td[contenteditable]:focus { outline:2px solid var(--accent); outline-offset:-2px;
+                                        background:var(--bg-elev); }
+  .cm-sheet td.cm-bad { color:var(--danger); font-weight:500; }
+  .cm-gran-btn { border:0; background:transparent; font:inherit; font-size:11.5px; color:var(--ink-3);
+                 cursor:pointer; padding:2px 4px; border-bottom:1px dashed var(--line-2); }
+  .cm-gran-btn:hover { color:var(--accent); border-bottom-color:var(--accent); }
+</style>
+{% block extra_head %}{% endblock %}
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-person-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-edit-mode.js') }}"></script>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='person_config') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<header style="background:var(--bg-elev);position:sticky;top:0;z-index:30;">
+  <div style="max-width:1500px;margin:0 auto;width:100%;box-sizing:border-box;padding:14px 32px 6px;
+              display:flex;align-items:center;gap:8px;">
+    <span style="font-size:13px;color:var(--ink);">个人配置</span>
+    <div style="flex:1;"></div>
+    {# 从账户详情锁定进入(?user=)→ 返回该账户详情;自由模式 → 账户列表 #}
+    {% set _back_user = request.args.get('user') %}
+    {% if _back_user and _back_user.isdigit() %}
+    <a href="{{ url_for('user.at_user_detail', user_id=_back_user | int) }}"
+       class="at-dim" style="font-size:12px;text-decoration:none;">返回账户详情 →</a>
+    {% else %}
+    <a href="{{ url_for('user.at_list') }}"
+       class="at-dim" style="font-size:12px;text-decoration:none;">账户列表 →</a>
+    {% endif %}
+  </div>
+  {# 审批人模式(经绩效结算放行进入):隐藏所有页签,仅审批当前绩效 #}
+  {% if not approver_mode %}
+  {# 从账户详情锁定进入(?user=)时,页签切换透传该参数,保持锁定同一用户 #}
+  {% set _user_qs = ('?user=' ~ request.args.get('user')) if request.args.get('user') else '' %}
+  <nav class="cfg-tabs" style="max-width:1500px;margin:0 auto;padding:0 32px;box-sizing:border-box;">
+    {% for key, label, url in _person_tabs %}
+      {% if url %}
+        <a class="cfg-tab{{ ' on' if key == _active }}" href="{{ url }}{{ _user_qs }}">{{ label }}</a>
+      {% else %}
+        <span class="cfg-tab off" title="待开发">{{ label }}</span>
+      {% endif %}
+    {% endfor %}
+  </nav>
+  {% endif %}
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1500px;margin:0 auto;padding:24px 40px 80px;min-width:0;">
+
+  <div style="margin-bottom:18px;">
+    <h1 class="at-serif" style="margin:0;font-size:24px;font-weight:600;">{% block person_title %}{% endblock %}</h1>
+    {% if self.person_desc() | trim %}
+    <div class="at-dim" style="font-size:12.5px;margin-top:6px;">{% block person_desc %}{% endblock %}</div>
+    {% endif %}
+  </div>
+
+  {% block content %}{% endblock %}
+</main>
+</div>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

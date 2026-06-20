@@ -13,8 +13,50 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 import threading
 import logging
+import json as _json_mod
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_first_json(text):
+    """从文本中提取第一个完整合法的 JSON 对象，处理 Claude 输出中的格式瑕疵。"""
+    start = text.find('{')
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text[start:], start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                candidate = text[start:i + 1]
+                try:
+                    return _json_mod.loads(candidate)
+                except _json_mod.JSONDecodeError:
+                    # 尝试 json-repair 风格：截断到最后一个完整 project
+                    try:
+                        import re as _re
+                        # 找到 "projects": [ ... ] 部分，逐步截断
+                        fixed = _re.sub(r',\s*\{[^}]*$', '', candidate) + ']}'
+                        return _json_mod.loads(fixed)
+                    except Exception:
+                        return None
+    return None
+
 
 # 全局并发限制：最多 2 个 AI 调研任务同时运行（适配单 worker Gunicorn）
 _research_semaphore = threading.Semaphore(2)
@@ -837,35 +879,20 @@ Use the web_search tool to find new-build / major-upgrade projects in {current_y
 TARGET COUNTRIES: {country_str}
 TARGET INDUSTRIES: {industry_str}
 
-[SEARCH STRATEGY — run several searches per country+industry]
+[SEARCH STRATEGY — 3-5 searches total, efficient]
 
-Step 1 — Find projects (per country + industry combo):
-- "[country] [industry keyword] new project {current_year} announcement developer"
-- "[country] [industry keyword] groundbreaking {current_year} site"
-- "[country] regulatory approval {current_year} [industry keyword]"  (BCA / URA / EDB for SG; CIDB for MY; PUPR / OSS for ID; BOI for TH)
+Step 1 — Find projects (run 1-2 searches per country+industry combo):
+- "[country] [industry keyword] new project {current_year} developer"
+- "[country] [industry keyword] construction {current_year} awarded"
 
-Step 2 — Find Main Contractor / General Contractor:
-- "[project name] main contractor awarded"
-- "[project name] general contractor contract"
-- "[developer] [project keyword] tender awarded main contractor"
+Step 2 — For each project found, one follow-up search for key stakeholders:
+- "[project name] main contractor M&E consultant ELV"
+- "[developer] [project] contractor consultant awarded"
 
-Step 3 — Find M&E / ELV / Security Consultant (where radio + intercom + PA scope is specified):
-- "[project name] M&E consultant" or "[project name] MEP consultant design"
-- "[project name] ELV consultant" or "[project name] security consultant"
-- "[project name] ICT consultant" / "[project name] IBMS consultant"
-- "[M&E consultant firm] ELV department contact"
-
-Step 4 — Find System Integrator for ELV / Security / ICT:
-- "[project name] ELV system integrator"
-- "[project name] security integrator CCTV access control"
-- "[project name] PA intercom radio system integrator"
-- "[project name] ICT system integrator LAN WiFi"
-
-[KEY DEPARTMENTS WORTH NAMING]
-- Data Center / Semiconductor / Hospital: ELV / ICT / IBMS team inside the M&E consultancy
-- Manufacturing / Shipyard: Engineering / E&I (electrical & instrumentation) team
-- Port / Airport / MRT: Communication & Control Systems team
-- Hotel / Real Estate: Building Services / Smart Building team
+[KEY DEPARTMENTS]
+- Data Center / Hospital: ELV / ICT team inside M&E consultancy
+- Manufacturing / Shipyard: Engineering / E&I team
+- Port / Airport: Communication & Control Systems team
 
 [OUTPUT FORMAT — strict JSON, output JSON only, no surrounding prose]
 {{
@@ -876,13 +903,13 @@ Step 4 — Find System Integrator for ELV / Security / ICT:
       "city": "city / district (e.g. Johor Bahru, Batam) or null",
       "industry": "industry key — must be one of: datacenter / hospitality / healthcare / manufacturing / semiconductor / transportation / real_estate / shipbuilding / energy / education / government / other",
       "stage": "determine from research: planning (approved/announced, not yet started) / designing (design phase) / tendering (active tender/procurement underway) / construction (under construction) / completed (built and operational)",
-      "stage_data": {
+      "stage_data": {{
         "planning": "What is known about the planning/approval phase — English only — or null",
         "designing": "What is known about the design phase — English only — or null",
         "tendering": "Active tender or procurement details — English only — or null",
         "construction": "Construction progress — English only — or null",
         "completed": "Completion/handover info — English only — or null"
-      },
+      }},
       "total_investment": "amount with currency (e.g. USD 800M, SGD 1.2B, RM 500M) or null",
       "description": "2-4 sentence summary of project scope and scale — ENGLISH ONLY",
       "progress": "latest construction milestone with date (1-3 sentences) — ENGLISH ONLY — or null",
@@ -914,28 +941,81 @@ Stakeholder type guide (choose the MOST SPECIFIC type that applies):
 - other            → Any other party that does not fit the above (e.g. strategic infrastructure platform, connectivity partner, utility provider)
 
 Rules:
-1. Run at least 8-12 searches across multiple country + industry combos before producing output.
-2. Find a MINIMUM of 10 projects in total — spread across the target countries and industries.
-3. Each project must include at least: one owner, one main_contractor, and one consultant (MEP/ELV/Security).
-4. If a system integrator for ELV/security/ICT is found, always include them — they are high priority.
-5. Use null for any field not explicitly stated in search results — do not fabricate.
-6. ALL text values in the JSON must be in English. Translate if necessary.
-7. Output complete, valid JSON only."""
+1. Run 3-5 searches total — do not over-search.
+2. Find 3-6 projects across the target countries and industries.
+3. Each project must include at least one owner and one contractor or consultant.
+4. Use null for any field not found — do not fabricate.
+5. ALL text values must be in English.
+6. Output valid JSON only."""
+
+
+def _run_batch_research_async(app, log_id, user_id, prompt, is_admin):
+    """后台线程：执行调研并将结果写入 ProspectResearchLog.result_json。"""
+    from app.services.claude_research_provider import send_claude_research_request
+    import json, time
+    with app.app_context():
+        log = ProspectResearchLog.query.get(log_id)
+        try:
+            raw = None
+            last_err = None
+            for attempt in range(3):  # 最多重试 3 次
+                try:
+                    raw = send_claude_research_request(prompt, timeout=300, user_id=user_id)
+                    break
+                except RuntimeError as e:
+                    last_err = e
+                    app.logger.warning(f'[batch-research] 第 {attempt+1} 次失败: {e}')
+                    if attempt < 2:
+                        time.sleep(15 * (attempt + 1))  # 15s / 30s 退避
+            if raw is None:
+                raise last_err
+            data = _extract_first_json(raw)
+            if not data:
+                log.status = 'failed'
+                log.result_json = json.dumps({'error': 'AI 未返回有效 JSON'})
+                log.completed_at = datetime.utcnow()
+                db.session.commit()
+                return
+            ai_projects = data.get('projects') or []
+
+            existing = {
+                p.project_name.strip()
+                for p in ProspectProject.query.filter(
+                    ProspectProject.is_deleted == False,
+                    ProspectProject.link_type.is_(None),
+                ).all()
+            }
+            result = []
+            for proj in ai_projects:
+                if not isinstance(proj, dict):
+                    continue
+                proj['in_library'] = proj.get('project_name', '').strip() in existing
+                result.append(proj)
+
+            remaining_after = _batch_quota_remaining(user_id) if not is_admin else None
+            log.status = 'done'
+            log.result_json = json.dumps({'projects': result, 'quota_remaining': remaining_after})
+            log.completed_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as e:
+            app.logger.exception("Async batch research failed")
+            log.status = 'failed'
+            log.result_json = json.dumps({'error': str(e)[:300]})
+            log.completed_at = datetime.utcnow()
+            db.session.commit()
+        finally:
+            _research_semaphore.release()
 
 
 @prospect_bp.route('/batch-research', methods=['POST'])
 @login_required
 @permission_required('project', 'view')
 def batch_research():
-    """批量调研：按地区(省份/国家)+行业触发 AI 搜索。CN 用省份+中文 prompt，SG 用国家+英文 prompt。"""
-    from app.services.claude_research_provider import send_claude_research_request
+    """批量调研：按地区(省份/国家)+行业触发 AI 搜索，立即返回 job_id，后台异步执行。"""
     from config import Config
-    import json
-    import re
 
     body = request.get_json() or {}
     is_ovs = bool(getattr(Config, 'IS_OVS', False))
-    # SG 传 countries，CN 传 provinces；为兼容也接受任一键
     regions = body.get('countries') if is_ovs else body.get('provinces')
     if not regions:
         regions = body.get('provinces') or body.get('countries') or []
@@ -949,14 +1029,11 @@ def batch_research():
     industries = industries[:2]
 
     current_year = datetime.now().year
-    if is_ovs:
-        prompt = _build_batch_prompt_sg(regions, industries, current_year)
-    else:
-        prompt = _build_batch_prompt_cn(regions, industries, current_year)
+    prompt = _build_batch_prompt_sg(regions, industries, current_year) if is_ovs \
+        else _build_batch_prompt_cn(regions, industries, current_year)
 
     _recover_stale_logs()
 
-    # 非管理员每日配额检查
     if not is_admin_or_ceo(current_user):
         remaining = _batch_quota_remaining(current_user.id)
         if remaining <= 0:
@@ -967,43 +1044,38 @@ def batch_research():
         return jsonify(success=False, message=_('调研队列繁忙（最多2个并发），请稍后重试')), 429
 
     log = _log_research(current_user.id, 'batch')
-    try:
-        raw = send_claude_research_request(prompt, timeout=300, user_id=current_user.id)
-        m = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not m:
-            _finish_log(log, False)
-            return jsonify(success=False, message=_('AI 未返回有效 JSON')), 500
-        data = json.loads(m.group())
-        ai_projects = data.get('projects') or []
+    is_admin = is_admin_or_ceo(current_user)
 
-        # 去重检查：与已有 ProspectProject（standalone intel）比对
-        existing = {
-            p.project_name.strip()
-            for p in ProspectProject.query.filter(
-                ProspectProject.is_deleted == False,
-                ProspectProject.link_type.is_(None),
-            ).all()
-        }
+    t = threading.Thread(
+        target=_run_batch_research_async,
+        args=(current_app._get_current_object(), log.id, current_user.id, prompt, is_admin),
+        daemon=True,
+    )
+    t.start()
 
-        result = []
-        for proj in ai_projects:
-            if not isinstance(proj, dict):
-                continue
-            proj['in_library'] = proj.get('project_name', '').strip() in existing
-            result.append(proj)
+    return jsonify(success=True, job_id=log.id, status='running')
 
-        _finish_log(log, True)
-        remaining_after = (
-            _batch_quota_remaining(current_user.id)
-            if not is_admin_or_ceo(current_user) else None
-        )
-        return jsonify(success=True, projects=result, quota_remaining=remaining_after)
-    except Exception as e:
-        _finish_log(log, False)
-        current_app.logger.exception("Batch research failed")
-        return jsonify(success=False, message=f'调研失败：{str(e)[:200]}'), 500
-    finally:
-        _research_semaphore.release()
+
+@prospect_bp.route('/batch-research/status/<int:job_id>', methods=['GET'])
+@login_required
+@permission_required('project', 'view')
+def batch_research_status(job_id):
+    """轮询批量调研状态。running → 继续轮询；done/failed → 返回结果。"""
+    import json
+    log = ProspectResearchLog.query.get_or_404(job_id)
+    if log.user_id != current_user.id and not is_admin_or_ceo(current_user):
+        return jsonify(success=False, message='无权查看'), 403
+
+    if log.status == 'running':
+        return jsonify(success=True, status='running')
+
+    result = json.loads(log.result_json) if log.result_json else {}
+    if log.status == 'failed':
+        return jsonify(success=False, status='failed', message=result.get('error', '调研失败'))
+
+    return jsonify(success=True, status='done',
+                   projects=result.get('projects', []),
+                   quota_remaining=result.get('quota_remaining'))
 
 
 @prospect_bp.route('/batch-research/save', methods=['POST'])
@@ -1148,16 +1220,19 @@ def save_ai_research(prospect_id):
         stype = (entry.get('stakeholder_type') or 'other').strip().lower()
         if stype not in valid_types:
             stype = 'other'
+        def _trunc(s, n):
+            return s[:n] if s else s
+
         sk = ProspectStakeholder(
             prospect_id=p.id,
-            stakeholder_type=stype,
+            stakeholder_type=stype[:20],
             company_name=company_name[:200],
-            department=_clean(entry.get('department')),
-            address=_clean(entry.get('address')),
-            phone=_clean(entry.get('phone')),
-            contact_person=_clean(entry.get('contact_person')),
-            email=_clean(entry.get('email')),
-            website=_clean(entry.get('website')),
+            department=_trunc(_clean(entry.get('department')), 100),
+            address=_trunc(_clean(entry.get('address')), 300),
+            phone=_trunc(_clean(entry.get('phone')), 50),
+            contact_person=_trunc(_clean(entry.get('contact_person')), 50),
+            email=_trunc(_clean(entry.get('email')), 200),
+            website=_trunc(_clean(entry.get('website')), 300),
             business_scope=_clean(entry.get('business_scope')),
             notes=_clean(entry.get('notes')),
         )
@@ -1651,11 +1726,16 @@ def stakeholder_update_fields(id, sid):
         'address', 'alternative_addresses', 'website',
         'business_scope', 'notes',
     }
+    _field_max = {'department': 100, 'contact_person': 50, 'phone': 50,
+                  'email': 200, 'address': 300, 'website': 300}
     updated = []
 
     for field, value in fields.items():
         if field in allowed:
-            setattr(s, field, str(value).strip() if value else None)
+            v = str(value).strip() if value else None
+            if v and field in _field_max:
+                v = v[:_field_max[field]]
+            setattr(s, field, v)
             updated.append(field)
 
     # 为每个被勾选的 additional contact 创建一个新的 ProspectStakeholder 行
@@ -1664,9 +1744,9 @@ def stakeholder_update_fields(id, sid):
     for item in additional:
         if not isinstance(item, dict):
             continue
-        person = (item.get('contact_person') or '').strip()
-        phone  = (item.get('phone') or '').strip()
-        dept   = (item.get('department') or '').strip()
+        person = (item.get('contact_person') or '').strip()[:50]
+        phone  = (item.get('phone') or '').strip()[:50]
+        dept   = (item.get('department') or '').strip()[:100]
         if not (person or phone or dept):
             continue
         new_row = ProspectStakeholder(
@@ -1676,7 +1756,7 @@ def stakeholder_update_fields(id, sid):
             department=dept or None,
             contact_person=person or None,
             phone=phone or None,
-            email=(item.get('email') or '').strip() or None,
+            email=((item.get('email') or '').strip() or None)[:200] if item.get('email') else None,
             notes=(item.get('role_description') or '').strip() or None,
         )
         db.session.add(new_row)

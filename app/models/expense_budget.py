@@ -1,6 +1,6 @@
 from app import db
 from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime, Numeric, ForeignKey, String
+from sqlalchemy import Column, Integer, DateTime, Numeric, ForeignKey, String, JSON
 from sqlalchemy.orm import relationship
 
 
@@ -20,6 +20,9 @@ class RoleExpenseBudget(db.Model):
     office_budget = Column(Numeric(15, 2), default=0, comment='办公费预算')
     communication_budget = Column(Numeric(15, 2), default=0, comment='通讯费预算')
     other_budget = Column(Numeric(15, 2), default=0, comment='其他费用预算')
+
+    # 季/月度分摊: {category: {"gran": "Q"|"M", "periods": {"1": 金额, ...}}};空=年度均摊
+    period_budgets = Column(JSON, nullable=True)
 
     # 元数据
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -62,6 +65,40 @@ class RoleExpenseBudget(db.Model):
         }
 
 
+class DepartmentExpenseBudget(db.Model):
+    """部门级费用预算:年度总额 + 动态细分科目(键必须来自报销科目 EXPENSE_CATEGORIES)。
+
+    与 Role/User 预算的 6 固定列不同:细分按需添加,存 JSON
+      category_budgets: {"entertainment": 50000, "fuel": 12000, ...}   # 年度额,元
+      period_budgets:   {"total": {"gran":"Q"|"M","periods":{...}}, "<cat>": {...}}  # 空=年度均摊
+    """
+    __tablename__ = 'department_expense_budgets'
+
+    id = Column(Integer, primary_key=True)
+    department_id = Column(Integer, ForeignKey('departments.id'), nullable=False)
+    year = Column(Integer, nullable=False)
+
+    total_budget = Column(Numeric(15, 2), default=0)
+    category_budgets = Column(JSON, nullable=True)
+    period_budgets = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey('users.id'))
+    updated_by = Column(Integer, ForeignKey('users.id'))
+
+    department = relationship('Department', backref='expense_budgets')
+    creator = relationship('User', foreign_keys=[created_by])
+    updater = relationship('User', foreign_keys=[updated_by], post_update=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('department_id', 'year', name='uq_department_expense_budget'),
+    )
+
+    def __repr__(self):
+        return f'<DepartmentExpenseBudget dept={self.department_id} {self.year}>'
+
+
 class ExpenseBudget(db.Model):
     """年度报销预算表"""
     __tablename__ = 'expense_budgets'
@@ -80,6 +117,12 @@ class ExpenseBudget(db.Model):
     office_budget = Column(Numeric(15, 2), default=0, comment='办公费预算')
     communication_budget = Column(Numeric(15, 2), default=0, comment='通讯费预算')
     other_budget = Column(Numeric(15, 2), default=0, comment='其他费用预算')
+
+    # 季/月度分摊: {category: {"gran": "Q"|"M", "periods": {"1": 金额, ...}}};空=年度均摊
+    period_budgets = Column(JSON, nullable=True)
+
+    # 动态细分科目(键来自报销 EXPENSE_CATEGORIES,与部门预算同构;旧 6 固定列保留兼容)
+    category_budgets = Column(JSON, nullable=True)
 
     # 元数据
     created_at = Column(DateTime, default=datetime.utcnow)

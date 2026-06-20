@@ -1662,12 +1662,18 @@ class ApprovalConfigManager {
 
         // 确定是添加还是编辑模式
         const isEditMode = select.id.includes('edit_');
-        const infoSectionId = isEditMode ? 'edit_next_level_info_section' : 'next_level_info_section';
+        const prefix = isEditMode ? 'edit_' : '';
 
         // 显示/隐藏上级领导说明
-        const infoSection = document.getElementById(infoSectionId);
-        if (infoSection) {
-            infoSection.style.display = value === 'next_level' ? 'block' : 'none';
+        const nextLevelSection = document.getElementById(prefix + 'next_level_info_section');
+        if (nextLevelSection) {
+            nextLevelSection.style.display = value === 'next_level' ? 'block' : 'none';
+        }
+
+        // 显示/隐藏"提交时指定"配置区
+        const designateSection = document.getElementById(prefix + 'designate_info_section');
+        if (designateSection) {
+            designateSection.style.display = value === 'submitter_designate' ? 'block' : 'none';
         }
 
         // 更新隐藏字段
@@ -2905,6 +2911,13 @@ class ApprovalConfigManager {
         if (value === 'next_level') {
             if (approverTypeField) {
                 approverTypeField.value = 'next_level';
+            }
+            if (approverIdField) {
+                approverIdField.value = '';
+            }
+        } else if (value === 'submitter_designate') {
+            if (approverTypeField) {
+                approverTypeField.value = 'submitter_designate';
             }
             if (approverIdField) {
                 approverIdField.value = '';

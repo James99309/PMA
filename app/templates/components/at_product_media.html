@@ -1,0 +1,353 @@
+{#
+  AT 产品媒体两块独立 macro(供 tab 内嵌使用,不再包 at_detail_section 外壳)
+  ─────────────────────────────────────────────────────────────
+    at_product_overview(product, effective_image, can_edit)
+      → 主图 + 文字描述 + 概况字段(品牌/分类/型号/MN+锁/单位/零售价)
+    at_product_files(product, can_edit)
+      → SVG 图标 + PDF 数据手册
+
+  上传/清除 endpoint 沿用 TW:
+    POST /api/products/<id>/upload-image|svg|pdf  multipart  field=file
+    POST /api/products/<id>/clear-image|pdf
+    POST /api/products/<id>/delete-svg
+#}
+{% from 'components/at_base.html' import at_icon, at_btn %}
+
+
+{# ─── 概览 ─── #}
+{% macro at_product_overview(product, effective_image=none, can_edit=false) %}
+<div class="at-pm at-pm-overview" data-product-id="{{ product.id }}">
+
+  <div class="at-pm-grid">
+
+    {# 主图 #}
+    <div class="at-pm-image-col">
+      <div class="at-pm-image-wrap{% if can_edit %} at-pm-clickable{% endif %}"
+           {% if can_edit %}onclick="document.getElementById('atPmImageInput').click()"{% endif %}>
+        {% if effective_image %}
+          {% set _img_src = effective_image if effective_image.startswith(('http','/storage/'))
+                            else url_for('static', filename='uploads/products/' + effective_image) %}
+          <img src="{{ _img_src }}" alt="{{ product.product_name or product.model }}" class="at-pm-image"
+               onerror="this.style.display='none';this.parentElement.classList.add('at-pm-image-empty');">
+        {% else %}
+          <div class="at-pm-image-placeholder">
+            {{ at_icon('box', 42) }}
+            <span class="at-dim" style="font-size:11px;margin-top:6px;">{{ _('未上传') }}</span>
+          </div>
+        {% endif %}
+        {% if can_edit %}
+        <div class="at-pm-overlay">
+          {{ at_icon('upload', 18) }}<span>{{ _('上传') }}</span>
+        </div>
+        {% endif %}
+      </div>
+      {% if can_edit %}
+      <input type="file" id="atPmImageInput" accept="image/jpeg,image/png,image/gif" hidden>
+      {% if product.image_path %}
+      <div style="text-align:center;margin-top:8px;">
+        <button type="button" class="at-pm-clear" onclick="atProductMedia.clear('image')">
+          {{ at_icon('trash', 12) }} {{ _('清除图片') }}
+        </button>
+      </div>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    {# 右侧:描述 + 概况字段 #}
+    <div class="at-pm-info-col">
+      {% if product.specification %}
+      <div class="at-pm-spec">
+        <div class="at-pm-spec-label">{{ _('规格说明') }}</div>
+        <p class="at-pm-spec-text">{{ product.specification }}</p>
+      </div>
+      {% endif %}
+
+      <div class="at-pm-fields">
+        <div class="at-pm-field">
+          <div class="at-pm-field-label">{{ _('产品分类') }}</div>
+          <div class="at-pm-field-value">
+            {{ (product.subcategory_obj.name if product.subcategory_obj else '') or '—' }}
+          </div>
+        </div>
+        <div class="at-pm-field">
+          <div class="at-pm-field-label">{{ _('品牌') }}</div>
+          <div class="at-pm-field-value">{{ product.brand or '—' }}</div>
+        </div>
+        <div class="at-pm-field">
+          <div class="at-pm-field-label">{{ _('型号') }}</div>
+          <div class="at-pm-field-value at-mono">{{ product.model or '—' }}</div>
+        </div>
+        <div class="at-pm-field">
+          <div class="at-pm-field-label">
+            {{ _('产品编码') }}
+            <span class="at-pm-lock-icon at-pm-lock-on" title="{{ _('MN 已锁定') }}">
+              {{ at_icon('lock', 12) }}
+            </span>
+          </div>
+          <div class="at-pm-field-value at-mono">{{ product.product_mn or '—' }}</div>
+        </div>
+        <div class="at-pm-field">
+          <div class="at-pm-field-label">{{ _('计量单位') }}</div>
+          <div class="at-pm-field-value">{{ product.unit or '—' }}</div>
+        </div>
+        <div class="at-pm-field">
+          <div class="at-pm-field-label">{{ _('零售价') }}</div>
+          <div class="at-pm-field-value">
+            {% if product.unit_price %}{{ product.currency or '' }} {{ product.unit_price }}{% else %}—{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endmacro %}
+
+
+{# ─── 资料(SVG + PDF)─── #}
+{% macro at_product_files(product, can_edit=false) %}
+<div class="at-pm at-pm-files" data-product-id="{{ product.id }}">
+
+  {# SVG 图标：有文件才展示，纯只读 #}
+  {% if product.icon_svg %}
+  <div class="at-pm-file-row">
+    <div class="at-pm-file-label">
+      <div class="at-pm-file-name">{{ _('SVG 图标') }}</div>
+      <div class="at-pm-file-hint">{{ _('用于设计图、报价单图示') }}</div>
+    </div>
+    <div class="at-pm-svg-wrap">
+      <div class="at-pm-svg-box">{{ product.icon_svg | safe }}</div>
+    </div>
+    <div class="at-pm-file-actions"></div>
+  </div>
+  {% endif %}
+
+  {# PDF 数据手册 #}
+  <div class="at-pm-file-row">
+    <div class="at-pm-file-label">
+      <div class="at-pm-file-name">{{ _('数据手册 (PDF)') }}</div>
+      <div class="at-pm-file-hint">{{ _('技术规格 / 接口定义文档') }}</div>
+    </div>
+    <div class="at-pm-pdf">
+      {% if product.pdf_path %}
+        <div class="at-pm-pdf-info">
+          {{ at_icon('file', 16) }}
+          {% set _pdf_display = product.pdf_original_name if product.pdf_original_name else product.pdf_path.split('/')[-1] %}
+          <span class="at-pm-pdf-name" title="{{ _pdf_display }}">{{ _pdf_display }}</span>
+        </div>
+      {% else %}
+        <div class="at-pm-pdf-empty{% if can_edit %} at-pm-clickable{% endif %}"
+             {% if can_edit %}onclick="document.getElementById('atPmPdfInput').click()"{% endif %}>
+          {{ at_icon('file', 22) }}
+          {% if can_edit %}<span>{{ _('上传 PDF') }}</span>{% else %}<span>{{ _('暂无文件') }}</span>{% endif %}
+        </div>
+      {% endif %}
+    </div>
+    <div class="at-pm-file-actions">
+      {% if product.pdf_path %}
+        {{ at_btn(_('下载'), variant='ghost', size='sm', tag='a',
+                  href=url_for('product.download_pdf', id=product.id)) }}
+        {% if can_edit %}
+        {{ at_btn(_('替换'), variant='ghost', size='sm',
+                  onclick="document.getElementById('atPmPdfInput').click()") }}
+        <button type="button" class="at-pm-clear" onclick="atProductMedia.clear('pdf')">
+          {{ at_icon('trash', 12) }} {{ _('清除') }}
+        </button>
+        {% endif %}
+      {% endif %}
+      {% if can_edit %}
+      <input type="file" id="atPmPdfInput" accept=".pdf" hidden>
+      {% endif %}
+    </div>
+  </div>
+
+  {# PDF 内嵌预览 #}
+  {% if product.pdf_path %}
+  <div style="margin-top:12px;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
+    <embed src="{{ url_for('product.get_pdf_preview', id=product.id) }}#view=FitH&toolbar=0"
+           type="application/pdf"
+           style="width:100%;height:720px;display:block;border:0;">
+  </div>
+  {% endif %}
+
+</div>
+
+{% endmacro %}
+
+
+{# ─── 共用 CSS(at_view 在 <head> 里手动调用一次即可,无需去重)─── #}
+{% macro at_product_media_styles() %}
+<style>
+  /* 概览 grid:图片 / 信息双列 */
+  .at-pm-grid { display:grid; grid-template-columns:180px 1fr; gap:24px; align-items:start; }
+  @media (max-width:640px) { .at-pm-grid { grid-template-columns:1fr; } }
+
+  .at-pm-image-wrap { position:relative; width:180px; height:180px; border-radius:10px;
+                      background:var(--bg-page); border:1px solid var(--line);
+                      overflow:hidden; }
+  .at-pm-image { width:100%; height:100%; object-fit:contain; display:block; }
+  .at-pm-image-placeholder { width:100%; height:100%;
+                              display:flex; flex-direction:column;
+                              align-items:center; justify-content:center; color:var(--ink-4); }
+  .at-pm-image-empty { background:var(--bg-page); }
+
+  .at-pm-spec       { padding-bottom:14px; margin-bottom:14px;
+                      border-bottom:1px solid var(--line-soft); }
+  .at-pm-spec-label { font-size:11.5px; color:var(--ink-3); margin-bottom:6px; letter-spacing:0.04em; }
+  .at-pm-spec-text  { margin:0; font-size:13px; color:var(--ink-2); line-height:1.65; }
+
+  .at-pm-fields     { display:grid; grid-template-columns:repeat(2, 1fr);
+                      row-gap:14px; column-gap:24px; }
+  .at-pm-field-label { font-size:11.5px; color:var(--ink-3); margin-bottom:4px;
+                       letter-spacing:0.04em; display:flex; align-items:center; gap:6px; }
+  .at-pm-field-value { font-size:13px; color:var(--ink);
+                       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .at-pm-lock-icon { display:inline-flex; cursor:default; transition:transform 100ms; }
+  .at-pm-lock-icon.at-pm-lock-on  { color:var(--danger); }
+  .at-pm-lock-icon.at-pm-lock-off { color:var(--success, #16a34a); }
+  .at-pm-lock-icon[onclick] { cursor:pointer; }
+  .at-pm-lock-icon[onclick]:hover { transform:scale(1.15); }
+
+  /* 资料 row */
+  .at-pm-file-row { display:flex; align-items:center; gap:18px; padding:16px 0;
+                    border-bottom:1px solid var(--line-soft); }
+  .at-pm-file-row:first-child { padding-top:4px; }
+  .at-pm-file-row:last-child  { border-bottom:0; padding-bottom:4px; }
+  .at-pm-file-label { flex:0 0 160px; }
+  .at-pm-file-name  { font-size:13px; color:var(--ink); font-weight:500; }
+  .at-pm-file-hint  { font-size:11px; color:var(--ink-4); margin-top:3px; }
+  .at-pm-file-actions { margin-left:auto; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+
+  /* SVG box */
+  .at-pm-svg-wrap { position:relative; width:64px; height:64px; border-radius:8px;
+                    background:var(--bg-page); flex-shrink:0; overflow:hidden;
+                    display:flex; align-items:center; justify-content:center; }
+  .at-pm-svg-box { width:42px; height:42px; display:flex; align-items:center; justify-content:center; }
+  .at-pm-svg-box svg { width:100%; height:100%; }
+  .at-pm-svg-empty { width:100%; height:100%; border:1px dashed var(--line);
+                     border-radius:8px; display:flex; align-items:center; justify-content:center;
+                     color:var(--ink-4); }
+
+  /* PDF row 内容 */
+  .at-pm-pdf { flex:1; min-width:0; display:flex; align-items:center; gap:10px; }
+  .at-pm-pdf-info { display:flex; align-items:center; gap:8px; color:var(--ink-2); font-size:12.5px;
+                    min-width:0; }
+  .at-pm-pdf-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+                    font-family:var(--at-mono); max-width:280px; }
+  .at-pm-pdf-upload { display:inline-flex; align-items:center; gap:6px;
+                      padding:7px 12px; font-size:12px; color:var(--ink-2);
+                      background:var(--bg-page); border:1px dashed var(--line);
+                      border-radius:6px; cursor:pointer;
+                      transition:border-color 100ms,color 100ms; }
+  .at-pm-pdf-upload:hover { border-color:var(--accent); color:var(--accent); }
+
+  /* PDF 空态占位 */
+  .at-pm-pdf-empty { display:inline-flex; flex-direction:column; align-items:center;
+                     justify-content:center; gap:6px; width:96px; height:80px;
+                     border:1px dashed var(--line); border-radius:8px;
+                     background:var(--bg-page); color:var(--ink-4); font-size:11.5px;
+                     transition:border-color 100ms,color 100ms; }
+  .at-pm-pdf-empty.at-pm-clickable { cursor:pointer; }
+  .at-pm-pdf-empty.at-pm-clickable:hover { border-color:var(--accent); color:var(--accent); }
+
+  /* hover overlay 共用 */
+  .at-pm-clickable { cursor:pointer; }
+  .at-pm-overlay { position:absolute; inset:0; background:rgba(0,0,0,0.45);
+                   color:#fff; font-size:12px; display:flex; gap:6px;
+                   align-items:center; justify-content:center;
+                   opacity:0; transition:opacity 120ms; }
+  .at-pm-clickable:hover .at-pm-overlay { opacity:1; }
+
+  /* 清除 chip */
+  .at-pm-clear { display:inline-flex; align-items:center; gap:4px;
+                 padding:5px 9px; font-size:11.5px; color:var(--ink-4);
+                 background:transparent; border:0; border-radius:4px; cursor:pointer; }
+  .at-pm-clear:hover { color:var(--danger); background:var(--bg-page); }
+</style>
+{% endmacro %}
+
+
+{# ─── 共用 JS ─── #}
+{% macro at_product_media_script() %}
+<script>
+(function(){
+  if (window.atProductMedia) return;
+
+  function rootEl() { return document.querySelector('.at-pm'); }
+  function pid() { var el = rootEl(); return el ? el.dataset.productId : null; }
+  function csrfToken() {
+    var m = document.querySelector('meta[name="csrf-token"]');
+    if (m) return m.content || '';
+    var i = document.querySelector('input[name="csrf_token"]');
+    return i ? (i.value || '') : '';
+  }
+
+  function postFile(url, file, fieldName) {
+    var fd = new FormData();
+    fd.append(fieldName || 'file', file);
+    fd.append('update_category', 'false');
+    return fetch(url, { method:'POST', body:fd,
+      headers:{ 'X-CSRFToken': csrfToken() }, credentials:'same-origin' })
+      .then(function(r){ return r.ok ? r.json() : r.json().then(function(e){ return Promise.reject(e); }); });
+  }
+  function postAction(url) {
+    return fetch(url, { method:'POST',
+      headers:{ 'X-CSRFToken': csrfToken() }, credentials:'same-origin' })
+      .then(function(r){ return r.ok ? r.json() : r.json().then(function(e){ return Promise.reject(e); }); });
+  }
+
+  function _toast(err, fallback) {
+    var msg = (err && err.message) ? err.message : fallback;
+    if (window.atToast && window.atToast.error) window.atToast.error(msg);
+    else alert(msg);
+  }
+
+  function _saveTabAndReload() {
+    var wrap = document.getElementById('atProductSubTabs');
+    if (wrap && wrap.dataset.active) {
+      sessionStorage.setItem('at-tab-restore', wrap.dataset.active);
+    }
+    location.reload();
+  }
+
+  window.atProductMedia = {
+    upload: function(kind, file) {
+      var id = pid(); if (!id || !file) return;
+      postFile('/api/products/' + id + '/upload-' + kind, file, kind)
+        .then(function(){ _saveTabAndReload(); })
+        .catch(function(err){ _toast(err, '{{ _("上传失败") }}'); });
+    },
+    clear: function(kind) {
+      var id = pid(); if (!id) return;
+      var label = kind === 'image' ? '{{ _("图片") }}' : kind === 'svg' ? 'SVG' : 'PDF';
+      ATConfirm.show({
+        title: '{{ _("清除") }}' + label,
+        message: '{{ _("确定清除该") }}' + label + '{{ _("吗？") }}',
+        variant: 'danger',
+        confirmText: '{{ _("清除") }}',
+        onConfirm: function() {
+          var ep = kind === 'svg' ? '/api/products/' + id + '/delete-svg'
+                                  : '/api/products/' + id + '/clear-' + kind;
+          postAction(ep).then(function(){ _saveTabAndReload(); })
+            .catch(function(err){ _toast(err, '{{ _("清除失败") }}'); });
+        }
+      });
+    },
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    [['atPmImageInput','image'], ['atPmPdfInput','pdf']]
+      .forEach(function(pair) {
+        var eid = pair[0], kind = pair[1];
+        var el = document.getElementById(eid);
+        if (el) el.addEventListener('change', function(e) {
+          var f = e.target.files && e.target.files[0];
+          if (f) window.atProductMedia.upload(kind, f);
+        });
+      });
+  });
+})();
+</script>
+{% endmacro %}

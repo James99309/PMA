@@ -880,7 +880,7 @@
                                     container_id='workItemAttachmentUpload',
                                     entity_type='workitem',
                                     accept_types='image/*,.pdf',
-                                    max_file_size=5242880,
+                                    max_file_size=0,
                                     max_files=10,
                                     label=_('附件'),
                                     show_label=true,
@@ -1241,6 +1241,20 @@
                         </div>
                         <span class="material-symbols-outlined text-slate-400">chevron_right</span>
                     </button>
+
+                    <!-- 实时翻译会议（浮窗模式） -->
+                    <button @click="startTranslationMeetingFromCalendar()"
+                            class="w-full flex items-start gap-4 p-4 rounded-xl border-2 border-primary/30 dark:border-primary/40 hover:border-primary transition-colors text-left bg-primary/5 dark:bg-primary/10">
+                        <span class="material-symbols-outlined text-2xl text-primary">translate</span>
+                        <div class="flex-1">
+                            <h4 class="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+                                {{ _('实时翻译会议') }}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-primary text-white">{{ _('新') }}</span>
+                            </h4>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('右侧浮窗，多人跨语种实时翻译') }}</p>
+                        </div>
+                        <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                    </button>
                 </div>
 
                 <!-- 底部 -->
@@ -1304,7 +1318,7 @@
                                         container_id='worklogAttachmentUpload',
                                         entity_type='worklog',
                                         accept_types='image/*,.pdf',
-                                        max_file_size=5242880,
+                                        max_file_size=0,
                                         max_files=10,
                                         label=_('附件'),
                                         show_label=true,
@@ -1867,8 +1881,9 @@ function workCalendar() {
             const ownerId = params.get('owner_id');
             const date = params.get('date');
             const openItemId = params.get('open_item');
+            const openToday = params.get('open_today');  // 顶栏"写日志"：进入即打开当天日志
 
-            if (ownerId || date || openItemId) {
+            if (ownerId || date || openItemId || openToday) {
                 // 清除 URL 参数，防止刷新重复处理
                 window.history.replaceState({}, '', window.location.pathname);
 
@@ -1888,6 +1903,16 @@ function workCalendar() {
                     // 自动打开行程详情弹窗（从通知点击跳转）
                     if (openItemId) {
                         this.openViewModalById(openItemId);
+                    }
+
+                    // 自动打开当天日志编辑（顶栏"写日志"入口）
+                    if (openToday) {
+                        const t = new Date();
+                        const todayStr = t.getFullYear() + '-'
+                            + String(t.getMonth() + 1).padStart(2, '0') + '-'
+                            + String(t.getDate()).padStart(2, '0');
+                        if (this.calendar) this.calendar.gotoDate(todayStr);
+                        this.openLogModal(todayStr);
                     }
                 }, 100);
             }
@@ -2875,6 +2900,40 @@ function workCalendar() {
             } catch (error) {
                 console.error('创建录音失败:', error);
                 window.TwNotification?.show('{{ _("创建录音失败") }}', 'error');
+            }
+        },
+
+        async startTranslationMeetingFromCalendar() {
+            // 从日历会议行程发起实时翻译会议（浮窗模式）
+            try {
+                const response = await fetch('/meeting/api/recordings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        work_item_id: this.recordingWorkItemId,
+                        recording_mode: 'microphone'
+                    })
+                });
+                const data = await response.json();
+
+                if (data.success && data.recording) {
+                    this.showRecordingModeModal = false;
+                    this.closeViewModal && this.closeViewModal();
+                    window.dispatchEvent(new CustomEvent('open-meeting-panel', {
+                        detail: {
+                            recordingId: data.recording.id,
+                            title: data.recording.title || '{{ _("实时翻译会议") }}',
+                            enableTranslation: true,
+                            sourceLang: 'zh-CN',
+                            targetLang: 'en'
+                        }
+                    }));
+                } else {
+                    window.TwNotification?.show(data.message || '{{ _("创建会议失败") }}', 'error');
+                }
+            } catch (error) {
+                console.error('创建翻译会议失败:', error);
+                window.TwNotification?.show('{{ _("创建会议失败") }}', 'error');
             }
         },
 

@@ -9175,28 +9175,6 @@ document.addEventListener('DOMContentLoaded', function() {
     <span class="tw-badge {{ badge_class }} font-mono">{{ code }}</span>
 {% endmacro %}
 
-{# 采购订单状态徽章 - Tailwind 风格 #}
-{% macro render_tw_purchase_order_status_badge(status) %}
-    {%- set status_config = {
-        'draft': {'class': 'tw-badge-slate', 'zh': '草稿', 'en': 'DRAFT'},
-        'pending': {'class': 'tw-badge-amber', 'zh': '待审批', 'en': 'PENDING'},
-        'approved': {'class': 'tw-badge-blue', 'zh': '已审批', 'en': 'APPROVED'},
-        'rejected': {'class': 'tw-badge-red', 'zh': '已拒绝', 'en': 'REJECTED'},
-        'recalled': {'class': 'tw-badge-orange', 'zh': '已召回', 'en': 'RECALLED'},
-        'confirmed': {'class': 'tw-badge-blue', 'zh': '已确认', 'en': 'CONFIRMED'},
-        'producing': {'class': 'tw-badge-yellow', 'zh': '生产中', 'en': 'PRODUCING'},
-        'tested': {'class': 'tw-badge-cyan', 'zh': '已测试', 'en': 'TESTED'},
-        'shipped': {'class': 'tw-badge-purple', 'zh': '已发货', 'en': 'SHIPPED'},
-        'stored': {'class': 'tw-badge-green', 'zh': '已入库', 'en': 'STORED'},
-        'completed': {'class': 'tw-badge-green', 'zh': '已完成', 'en': 'COMPLETED'},
-        'cancelled': {'class': 'tw-badge-gray', 'zh': '已取消', 'en': 'CANCELLED'}
-    } -%}
-    {%- set config = status_config.get(status, {'class': 'tw-badge-gray', 'zh': status or '未知', 'en': status or 'UNKNOWN'}) -%}
-    {%- set lang = session.get('language', 'zh') -%}
-    {%- set display_text = config.zh if lang == 'zh' else config.en -%}
-    <span class="tw-badge {{ config.class }}">{{ display_text }}</span>
-{% endmacro %}
-
 {# ============================================================================= #}
 {# 产品相关 Tailwind 徽章组件                                                     #}
 {# ============================================================================= #}
@@ -9331,4 +9309,40 @@ document.addEventListener('DOMContentLoaded', function() {
 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ config.color }}">
     {{ config.label }}
 </span>
+{% endmacro %}
+
+
+{# ==================== 会议模块徽章 ==================== #}
+
+{# 会议状态徽章：基于 recording 对象推断状态
+   英文 status (DB) → 中文 text + 颜色 的统一映射字典 #}
+{% macro render_tw_meeting_status_badge(rec) %}
+    {#
+        简化为 4 种用户感知状态：录音中 / 处理中 / 完成 / 失败
+        把 10 种 raw status 归并到 4 种，避免技术细节噪音
+    #}
+    {%- set _status = rec.status -%}
+    {%- if _status == 'recording' or _status == 'uploading' -%}
+        <span class="tw-badge tw-badge-red">
+            <span class="w-1.5 h-1.5 rounded-full bg-current opacity-75 status-pulse mr-1 inline-block"></span>
+            {{ _('录音中') }}
+        </span>
+    {%- elif _status in ('uploaded', 'merged', 'transcribing') -%}
+        <span class="tw-badge tw-badge-blue">{{ _('处理中') }}</span>
+    {%- elif _status in ('transcription_failed', 'failed') -%}
+        <span class="tw-badge tw-badge-red">{{ _('失败') }}</span>
+    {%- elif _status in ('transcribed', 'minutes_generated', 'published') -%}
+        <span class="tw-badge tw-badge-green">{{ _('完成') }}</span>
+    {%- else -%}
+        <span class="tw-badge tw-badge-gray">{{ _status }}</span>
+    {%- endif -%}
+{% endmacro %}
+
+{# 会议形式徽章：'线上' / '线下' #}
+{% macro render_tw_meeting_form_badge(form) %}
+    {%- if form == '线上' or form == 'online' -%}
+        <span class="tw-badge tw-badge-blue">{{ _('线上') }}</span>
+    {%- else -%}
+        <span class="tw-badge tw-badge-slate">{{ _('线下') }}</span>
+    {%- endif -%}
 {% endmacro %}

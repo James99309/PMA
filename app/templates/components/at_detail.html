@@ -1,0 +1,369 @@
+{#
+  AT 详情页通用组件(extends 用)
+  ─────────────────────────────────────────────────────────────
+  提供 5 个宏 + 1 个 CSS 样式块:
+    - at_detail_styles()       — 注入 .at-section / .at-mini-table / .at-info-row CSS
+    - at_detail_section(...)   — section 外壳({% call %} 块,内容由调用方填)
+    - at_info_panel(...)       — 档案信息面板(label-value 列表)
+    - at_contact_list(...)     — 联系人列表
+    - at_action_timeline(...)  — 跟进时间线(类 worklog 风格)
+    - at_ai_research_card(...) — AI 调研入口卡
+
+  用法:
+    {% from 'components/at_detail.html' import at_detail_styles, at_detail_section,
+                                               at_info_panel, at_contact_list,
+                                               at_action_timeline, at_ai_research_card %}
+
+    <head>{{ at_detail_styles() }}</head>
+
+    {% call at_detail_section('关联项目', count=5, has_more=true,
+                               create_url=url_for('project.list_projects')) %}
+      <table class="at-mini-table">...</table>
+    {% endcall %}
+#}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_avatar %}
+
+
+{# ─── 1. 注入 CSS(放 <head> 末尾)─── #}
+{% macro at_detail_styles() %}
+<style>
+  .at-section { background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+                margin-bottom:16px;overflow:hidden; }
+  .at-section-h { padding:14px 18px;
+                   display:flex;align-items:center;gap:12px;background:var(--bg-elev); }
+  .at-section-title { margin:0;font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.02em; }
+  .at-section-body { padding:14px 18px; }
+  .at-mini-table { width:100%;font-size:12.5px;border-collapse:separate;border-spacing:0; }
+  .at-mini-table th { text-align:left;padding:6px 12px;font-size:10.5px;font-weight:500;
+                       color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+                       white-space:nowrap;border-bottom:1px solid var(--line); }
+  .at-mini-table td { padding:9px 12px;border-bottom:1px solid var(--line-soft); }
+  .at-mini-table tr:last-child td { border-bottom:0; }
+  .at-mini-table tbody tr { cursor:pointer; transition:background 100ms; }
+  .at-mini-table tbody tr:hover { background:var(--bg-hover); }
+  .at-info-row { display:flex;gap:14px;padding:6px 0;font-size:12.5px;border-bottom:1px solid var(--line-soft); }
+  .at-info-row:last-child { border-bottom:0; }
+  .at-info-row dt { width:88px;flex-shrink:0;color:var(--ink-3); }
+  .at-info-row dd { margin:0;color:var(--ink-2);flex:1;min-width:0;
+                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+  [hidden] { display:none !important; }
+  /* 等高行(用 .at-row-eq 包,内部 .at-section 自动撑满高度,body 可滚)*/
+  .at-row-eq { display:grid; align-items:stretch; }
+  .at-row-eq > .at-section { margin-bottom:0;height:100%;display:flex;flex-direction:column; }
+  .at-row-eq > .at-section > .at-section-body { flex:1;min-height:0;overflow-y:auto; }
+</style>
+{% endmacro %}
+
+
+{# ─── 2. Section 外壳 ───
+   title:    标题文字
+   count:    右侧数量徽章(int/None)
+   has_more: 数量后加 "+" 标记
+   create_url: 有则显示"+ 新建"按钮
+   create_label: 按钮文字(默认 '+ 新建')
+   body_padding: 'default'(14/18) | 'none'(0,适合 table 贴边)
+#}
+{% macro at_detail_section(title, count=none, has_more=false,
+                           create_url=none, create_label=_('+ 新建'),
+                           body_padding='none') %}
+<section class="at-section">
+  <header class="at-section-h">
+    <h3 class="at-section-title">{{ title }}</h3>
+    {% if count is not none %}
+    <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">
+      {{ count }}{% if has_more %}+{% endif %}
+    </span>
+    {% endif %}
+    <div style="flex:1;"></div>
+    {% if create_url %}
+      {{ at_btn(create_label, variant='ghost', size='sm', tag='a', href=create_url) }}
+    {% endif %}
+  </header>
+  <div class="at-section-body" style="{{ 'padding:0;' if body_padding == 'none' else '' }}">
+    {{ caller() }}
+  </div>
+</section>
+{% endmacro %}
+
+
+{# ─── 3. 档案信息面板 ───
+   title: 卡片标题
+   rows:  [(label, value), ...] 或 [(label, value, value_class), ...]
+   columns: 1(默认单列 KV)| 2 | 3 | 4(grid 布局,适合宽 section)
+   action_html: 标题右侧操作 HTML(如 [编辑] 按钮),传完整 HTML 字符串
+#}
+{% macro at_info_panel(title, rows, columns=1, action_html='', filter_empty=false, empty_text='') %}
+{# filter_empty=true → 跳过 value 为 None/空字符串/0 的行;若全空且有 empty_text → 整段渲染占位文本 #}
+{% set _rows = [] %}
+{% if filter_empty %}
+  {% set _ns = namespace(out=[]) %}
+  {% for row in rows %}
+    {% set _v = row[1] %}
+    {% if _v is not none and _v != '' and _v != 0 %}{% do _ns.out.append(row) %}{% endif %}
+  {% endfor %}
+  {% set _rows = _ns.out %}
+{% else %}
+  {% set _rows = rows %}
+{% endif %}
+<section class="at-section">
+  <header class="at-section-h">
+    <h3 class="at-section-title">{{ title }}</h3>
+    {% if action_html %}<div style="flex:1;"></div>{{ action_html | safe }}{% endif %}
+  </header>
+  <div class="at-section-body">
+    {% if filter_empty and _rows|length == 0 %}
+      <div style="text-align:center;padding:24px 8px;color:var(--ink-4);font-size:12px;">
+        {{ empty_text or _('暂无信息') }}
+      </div>
+    {% elif columns > 1 %}
+      <div style="display:grid;grid-template-columns:repeat({{ columns }}, 1fr);row-gap:18px;column-gap:24px;">
+        {% for row in _rows %}
+        {% set label = row[0] %}
+        {% set value = row[1] %}
+        {% set vclass = row[2] if row|length > 2 else '' %}
+        {% set action = row[3] if row|length > 3 else '' %}
+        <div>
+          <div class="at-dim" style="font-size:11.5px;margin-bottom:5px;letter-spacing:0.04em;">{{ label }}</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div{% if vclass %} class="{{ vclass }}"{% endif %} title="{{ value or '' }}"
+                 style="font-size:13.5px;color:var(--ink);min-width:0;
+                        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {{ value or '—' }}
+            </div>
+            {% if action %}{{ action | safe }}{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <dl style="margin:0;">
+        {% for row in _rows %}
+        {% set label = row[0] %}
+        {% set value = row[1] %}
+        {% set vclass = row[2] if row|length > 2 else '' %}
+        {% set action = row[3] if row|length > 3 else '' %}
+        <div class="at-info-row">
+          <dt>{{ label }}</dt>
+          <dd{% if vclass %} class="{{ vclass }}"{% endif %} title="{{ value or '' }}">{{ value or '—' }}{% if action %} {{ action | safe }}{% endif %}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+    {% endif %}
+  </div>
+</section>
+{% endmacro %}
+
+
+{# ─── 4. 联系人列表 ───
+   contacts: Contact 对象列表(需要 name/position/phone/email/is_primary 字段)
+   add_url:  添加按钮链接(None 则不显示)
+#}
+{% macro at_contact_list(contacts, add_url=none) %}
+<section class="at-section">
+  <header class="at-section-h">
+    <h3 class="at-section-title">{{ _('联系人') }}</h3>
+    <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ contacts|length }}</span>
+    <div style="flex:1;"></div>
+    {% if add_url %}{{ at_btn('+', variant='ghost', size='sm', tag='a', href=add_url) }}{% endif %}
+  </header>
+  <div class="at-section-body" style="padding:8px 18px;">
+    {% if contacts %}
+      {% for c in contacts %}
+      <a href="{{ url_for('customer.at_view_contact', contact_id=c.id) }}"
+         style="display:block;padding:8px 0;text-decoration:none;color:inherit;
+                border-bottom:{{ '0' if loop.last else '1px solid var(--line-soft)' }};
+                transition:background 100ms;margin:0 -18px;padding-left:18px;padding-right:18px;"
+         onmouseover="this.style.background='var(--bg-hover)'"
+         onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px;">
+          <span style="font-size:13px;font-weight:500;color:var(--ink);">{{ c.name }}</span>
+          {% if c.is_primary %}<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--accent-tint);color:var(--accent);">{{ _('主') }}</span>{% endif %}
+          {% if c.position %}<span style="font-size:11.5px;color:var(--ink-3);">{{ c.position }}</span>{% endif %}
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-3);display:flex;gap:10px;flex-wrap:wrap;">
+          {% if c.phone %}<span class="at-mono">{{ c.phone }}</span>{% endif %}
+          {% if c.email %}<span style="color:var(--ink-4);">{{ c.email }}</span>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div style="text-align:center;padding:16px 0;color:var(--ink-4);font-size:12px;">{{ _('暂无联系人') }}</div>
+    {% endif %}
+  </div>
+</section>
+{% endmacro %}
+
+
+{# ─── 5. 跟进时间线 ───
+   actions:  Action 对象列表(字段:owner/communication/date/created_at/company/project/contact)
+   add_url:  添加按钮链接
+   max_height: 滚动区高度(默认 560px)
+   show_context: 是否在头部显示 关联客户/项目/联系人 上下文标签(详情页内本身已有上下文 → 通常 false)
+#}
+{% macro at_action_timeline(actions, add_url=none, max_height='560px', show_context=false) %}
+<section class="at-section">
+  <header class="at-section-h">
+    <h3 class="at-section-title">{{ _('跟进记录') }}</h3>
+    <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ actions|length }}</span>
+    <div style="flex:1;"></div>
+    {% if add_url %}{{ at_btn(_('+ 添加跟进'), variant='ghost', size='sm', tag='a', href=add_url) }}{% endif %}
+  </header>
+  <div class="at-section-body">
+    {% if actions %}
+      <div style="display:flex;flex-direction:column;gap:14px;max-height:{{ max_height }};overflow-y:auto;padding-right:4px;">
+        {% for a in actions %}
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          {{ at_avatar(a.owner.real_name or a.owner.username if a.owner else '—', 28) }}
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px;font-size:12.5px;flex-wrap:wrap;">
+              <span style="font-weight:500;color:var(--ink);">
+                {{ (a.owner.real_name or a.owner.username) if a.owner else '—' }}
+              </span>
+              {% if show_context %}
+                {% if a.contact %}<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg-page);color:var(--ink-3);">{{ a.contact.name }}</span>{% endif %}
+                {% if a.project %}<span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--info-soft,#e6f0fa);color:var(--info);">{{ a.project.project_name[:20] }}</span>{% endif %}
+              {% endif %}
+              <span style="flex:1;"></span>
+              <span class="at-mono" style="font-size:11px;color:var(--ink-4);">
+                {{ a.date.strftime('%Y-%m-%d') if a.date else (a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '—') }}
+              </span>
+            </div>
+            <div class="at-expandable" style="font-size:12.5px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap;
+                        display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;">
+{{- a.communication or '—' -}}
+            </div>
+            {% if a.replies and a.replies.count() > 0 %}
+            <div style="margin-top:6px;font-size:11px;color:var(--ink-4);">
+              {{ a.replies.count() }} {{ _('条回复') }}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="text-align:center;padding:24px 0;color:var(--ink-4);font-size:12.5px;">{{ _('暂无跟进记录') }}</div>
+    {% endif %}
+  </div>
+</section>
+{# 跟进记录文本可点击展开(超出 5 行时)— 幂等脚本,多次引入安全 #}
+<script src="{{ url_for('static', filename='js/at-clamp-expand.js') }}"></script>
+{% endmacro %}
+
+
+{# ─── 6.1 Summary stats strip(4 tile 一行,适合详情页头部摘要)───
+   tiles: [
+     {
+       'label': '报价总额',    # 上标
+       'value': '¥1,234,567',  # 大数字
+       'sub': '8 项 · 13 件',  # 副标
+       'strong': true,         # 高亮(accent 底色 + 强调)
+       'mono': true,           # 大数字用 mono 字体(数字 / 日期)
+     }, ...
+   ]
+#}
+{% macro at_summary_strip(tiles) %}
+<div style="display:grid;grid-template-columns:repeat({{ tiles|length }}, 1fr);
+            background:var(--bg-elev);border:1px solid var(--line);
+            border-radius:10px;margin-bottom:16px;overflow:hidden;">
+  {% for t in tiles %}
+  <div style="padding:20px 22px;
+              border-left:{{ '0' if loop.first else '1px solid var(--line)' }};
+              background:{{ 'var(--accent-tint)' if t.strong else 'transparent' }};">
+    <div class="at-dim" style="font-size:11px;letter-spacing:0.06em;margin-bottom:8px;
+                                display:flex;align-items:center;gap:6px;">
+      {{ t.label }}
+      {% if t.strong %}<span style="width:5px;height:5px;border-radius:3px;background:var(--accent);"></span>{% endif %}
+    </div>
+    <div class="{{ 'at-mono at-tab-num' if t.mono else 'at-serif at-tab-num' }}"
+         style="font-size:{{ '22px' if t.mono else '28px' }};font-weight:500;letter-spacing:-0.01em;
+                line-height:1.1;color:{{ 'var(--accent)' if t.strong else 'var(--ink)' }};">
+      {{ t.value }}
+    </div>
+    {% if t.sub_safe %}<div style="margin-top:6px;font-size:11.5px;color:var(--ink-3);line-height:1.5;">{{ t.sub_safe|safe }}</div>
+    {% elif t.sub %}<div style="margin-top:6px;font-size:11.5px;color:var(--ink-3);">{{ t.sub }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ─── 6. AI 调研入口卡 ───
+   status:        ai_research_status 字段值(none/pre_searching/researching/completed/error)
+   view_url:      "查看 / 触发调研" 按钮链接
+   description:   副标题描述(可省)
+#}
+{# at_ai_research_card(status, entity_type, entity_id, description=none, view_url=none, updated_at=none)
+   entity_type: 'customer' | 'project'
+   按钮态:
+     none           → 触发调研   (POST retry → 轮询)
+     completed      → 重新调研   (POST retry → 轮询)
+     error          → 重试调研   (POST retry → 轮询)
+     pre_searching  → 调研中…    (disabled, 自动轮询)
+     researching    → 调研中…    (disabled, 自动轮询)
+     needs_input    → 选择候选   (跳 view_url) #}
+{% macro at_ai_research_card(status, entity_type, entity_id, description=none, view_url=none, updated_at=none) %}
+{% set _st = status or 'none' %}
+{% set _fetch_url = ('/customer/api/company/' ~ entity_id ~ '/ai-research') if entity_type == 'customer'
+                   else ('/project/api/' ~ entity_id ~ '/ai-research') %}
+{% set _retry_url = _fetch_url ~ '/retry' %}
+{% set _is_running = _st in ('pre_searching', 'researching') %}
+{% set _btn_label = {'none':_('触发调研'),'completed':_('重新调研'),'error':_('重试调研'),
+                    'pre_searching':_('调研中…'),'researching':_('调研中…'),
+                    'needs_input':_('选择候选')}.get(_st, _('触发调研')) %}
+<section class="at-section"
+         data-ai-research="{{ entity_type }}"
+         data-ai-research-id="{{ entity_id }}"
+         data-ai-status="{{ _st }}"
+         data-ai-fetch-url="{{ _fetch_url }}"
+         data-ai-retry-url="{{ _retry_url }}"
+         data-ai-view-url="{{ view_url or '' }}">
+  <header class="at-section-h">
+    <h3 class="at-section-title">{{ _('AI 网络调研') }}</h3>
+    <span data-at-ai-badge style="font-size:10.5px;padding:1px 6px;border-radius:3px;
+          background:{% if _st == 'completed' %}var(--success-soft){% elif _is_running %}var(--warn-soft){% elif _st == 'error' %}var(--danger-soft){% elif _st == 'needs_input' %}var(--info-soft, #e6f0fa){% else %}transparent{% endif %};
+          color:{% if _st == 'completed' %}var(--success){% elif _is_running %}var(--warn){% elif _st == 'error' %}var(--danger){% elif _st == 'needs_input' %}var(--info, #2563eb){% else %}transparent{% endif %};
+          display:{{ 'inline-block' if _st in ('completed','pre_searching','researching','error','needs_input') else 'none' }};">
+      {% if _st == 'completed' %}{{ _('已完成') }}
+      {% elif _is_running %}{{ _('进行中') }}
+      {% elif _st == 'error' %}{{ _('出错') }}
+      {% elif _st == 'needs_input' %}{{ _('待确认') }}{% endif %}
+    </span>
+  </header>
+  <div class="at-section-body">
+    {% if description %}
+    <p style="margin:0 0 10px;font-size:12px;color:var(--ink-3);line-height:1.55;">{{ description }}</p>
+    {% endif %}
+    <p class="at-mono" data-at-ai-updated style="margin:0 0 10px;font-size:11px;color:var(--ink-4);
+                                                 display:{{ 'block' if updated_at else 'none' }};">
+      {% if updated_at %}{{ _('上次调研') }}:{{ updated_at.strftime('%Y-%m-%d %H:%M') if updated_at.strftime is defined else updated_at }}{% endif %}
+    </p>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button type="button"
+              class="at-btn at-btn-ghost at-btn-sm"
+              data-at-ai-trigger
+              {% if _is_running or (_st == 'needs_input' and view_url) %}disabled{% endif %}
+              style="display:inline-flex;align-items:center;gap:6px;">
+        {{ at_icon('bot', 13) }}<span data-at-ai-label>{{ _btn_label }}</span>
+      </button>
+      {% if _st == 'needs_input' and view_url %}
+        <a href="{{ view_url }}" data-at-ai-candidates-link
+           style="font-size:12px;color:var(--accent);text-decoration:none;">{{ _('选择候选') }} →</a>
+      {% endif %}
+      <button type="button"
+              class="at-btn at-btn-ghost at-btn-sm"
+              data-at-ai-toggle
+              style="display:{{ 'inline-flex' if _st == 'completed' else 'none' }};align-items:center;gap:6px;">
+        <span data-at-ai-toggle-label>{{ _('查看详情') }}</span>
+      </button>
+    </div>
+
+    <div data-at-ai-detail
+         style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft);">
+      <div data-at-ai-detail-body style="font-size:12.5px;color:var(--ink-2);line-height:1.6;">
+        <div style="color:var(--ink-4);padding:8px 0;">{{ _('加载中…') }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endmacro %}

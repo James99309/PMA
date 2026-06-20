@@ -28,6 +28,8 @@ class User(db.Model, UserMixin):
     phone = db.Column(db.String(20))  # 联系电话（带国家号）
     department = db.Column(db.String(100))  # 部门归属
     is_department_manager = db.Column(db.Boolean, default=False)  # 是否为部门负责人
+    probation_start = db.Column(db.Date)  # 试用期开始日期(账户级)
+    probation_end = db.Column(db.Date)    # 试用期结束日期;过期后试用期徽章自动消失
     role = db.Column(db.String(20), default='user')  # 用户角色
     is_profile_complete = db.Column(db.Boolean, default=False)  # 是否已完善信息
     wechat_openid = db.Column(db.String(64), unique=True)  # 微信ID
@@ -109,7 +111,15 @@ class User(db.Model, UserMixin):
     def is_active(self, value):
         """设置is_active属性"""
         self._is_active = bool(value)
-        
+
+    @property
+    def in_probation(self):
+        """当前是否处于试用期(有结束日期且今天未超过结束日期);结束后自动 False"""
+        if not self.probation_end:
+            return False
+        from datetime import date
+        return date.today() <= self.probation_end
+
     @property
     def name(self):
         """返回用户的名称，优先使用真实姓名，如果没有则使用用户名"""
@@ -283,6 +293,52 @@ class User(db.Model, UserMixin):
 
             return False
     
+    def get_data_scope(self, module):
+        """模块数据范围:system/company/department/personal(admin→system;未配置→personal)。"""
+        if self.role == 'admin':
+            return 'system'
+        try:
+            role_permission, personal_permission = self._get_cached_permissions(module)
+            perm = personal_permission or role_permission
+            return (perm.permission_level if perm and perm.permission_level else 'personal')
+        except Exception:
+            return 'personal'
+
+    def can_view_person(self, target_user, module):
+        """按模块数据范围判断能否查看某人(用于个人配置等以「人」为对象的页面)。"""
+        if self.role == 'admin':
+            return True
+        if not self.has_permission(module, 'view'):
+            return False
+        scope = self.get_data_scope(module)
+        if scope == 'system':
+            return True
+        if scope == 'company':
+            return (target_user.company_name or '') == (self.company_name or '')
+        if scope == 'department':
+            return ((target_user.company_name or '') == (self.company_name or '')
+                    and (target_user.department or '') == (self.department or ''))
+        return target_user.id == self.id   # personal
+
+    def has_feature(self, module_id, feature_id):
+        """模块内功能开关(tab 等):白名单制 —— admin 恒真;否则查 role_feature_permissions,
+        仅当存在记录且 is_enabled 时为真(未配置=隐藏)。"""
+        try:
+            if self.role == 'admin':
+                return True
+            from app.models.permission_module import RoleFeaturePermission
+            rec = RoleFeaturePermission.query.filter_by(
+                role=self.role, module_id=module_id, feature_id=feature_id).first()
+            return bool(rec and rec.is_enabled)
+        except Exception as e:
+            print(f'[ERROR][has_feature] {e}')
+            try:
+                from app import db
+                db.session.rollback()
+            except Exception:
+                pass
+            return self.role == 'admin'
+
     def has_cli_permission(self, module):
         """
         检查用户是否具有 CLI 查询该模块数据的权限

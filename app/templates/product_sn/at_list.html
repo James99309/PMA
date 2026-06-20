@@ -1,0 +1,111 @@
+{% from 'components/at_base.html' import at_icon, at_pill %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ _('序号管理') }} · {{ _('查询') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='product_sn') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- Topbar -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1100px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <span style="font-size:13px;color:var(--ink-3);">{{ _('库存中心') }}</span>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);">{{ _('序号管理') }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1100px;margin:0 auto;padding:48px 40px 80px;">
+
+  <!-- 页眉 -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;
+              margin-bottom:36px;gap:16px;flex-wrap:wrap;">
+    <div>
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        SERIAL NUMBER · {{ _('序号管理') }}
+      </div>
+      <h1 class="at-serif" style="margin:0;font-size:36px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;">
+        {{ _('序号查询') }}
+      </h1>
+      <div class="at-muted" style="margin-top:10px;font-size:13px;">
+        {{ _('输入完整或部分 SN 查询 · 支持扫码 · 精确匹配直达详情') }}
+      </div>
+    </div>
+    <div class="at-mono at-tab-num at-dim" style="font-size:12px;">
+      {{ _('系统已登记') }} <span style="color:var(--ink-2);font-weight:500;">{{ total_sn }}</span> {{ _('个序号') }}
+    </div>
+  </div>
+
+  <!-- 大搜索框 -->
+  <div style="position:relative;margin-bottom:36px;">
+    <span style="position:absolute;left:18px;top:50%;transform:translateY(-50%);color:var(--ink-3);pointer-events:none;">
+      {{ at_icon('search', 18) }}
+    </span>
+    <input id="snSearchInput" type="text" autocomplete="off" autofocus
+           placeholder="{{ _('输入完整或部分 SN(支持扫码)…') }}"
+           style="width:100%;box-sizing:border-box;height:52px;padding:0 50px 0 50px;
+                  font-size:15px;font-family:var(--font-mono);
+                  background:var(--bg-elev);border:1px solid var(--line-2);
+                  border-radius:10px;color:var(--ink);outline:none;
+                  transition:border-color 120ms,box-shadow 120ms;">
+    <button id="snClearBtn" type="button"
+            style="display:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);
+                   width:26px;height:26px;border-radius:50%;border:0;cursor:pointer;
+                   background:var(--bg-page);color:var(--ink-3);
+                   align-items:center;justify-content:center;">
+      {{ at_icon('close', 12) }}
+    </button>
+  </div>
+
+  <!-- 结果区 -->
+  <div id="snResults">
+    <div id="snEmptyState" style="text-align:center;padding:48px 12px;color:var(--ink-4);">
+      {{ at_icon('search', 40) }}
+      <div style="margin-top:12px;font-size:13px;">{{ _('输入 SN 开始查询') }}</div>
+    </div>
+  </div>
+
+</main>
+
+</div>
+</div>
+
+<!-- 全局 status meta(JS 渲染 pill 用) -->
+<script>
+window.SN_STATUS_META = {
+  registered: {label:'已登记',  bg:'var(--ink-4-soft, #ececea)',     fg:'var(--ink-2)'},
+  in_stock:   {label:'库存中',  bg:'var(--success-soft, #e6f3ec)',   fg:'var(--success)'},
+  reserved:   {label:'已预留',  bg:'var(--warn-soft)',                fg:'var(--warn)'},
+  shipped:    {label:'已发货',  bg:'var(--info-soft, #e6effa)',       fg:'var(--info)'},
+  delivered:  {label:'已交付',  bg:'var(--success-soft, #e6f3ec)',   fg:'var(--success)'},
+  returned:   {label:'已退回',  bg:'var(--warn-soft)',                fg:'var(--warn)'},
+  defective:  {label:'故障',   bg:'var(--danger-soft, #fde2dd)',     fg:'var(--danger)'},
+};
+window.SN_DETAIL_URL_PREFIX = '{{ url_for("product_sn.detail_view", sn_id=0) }}'.slice(0, -1);
+</script>
+<script src="{{ url_for('static', filename='js/at-sn-search.js') }}"></script>
+
+</body>
+</html>

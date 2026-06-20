@@ -1,0 +1,473 @@
+{% extends 'components/at_person_layout.html' %}
+{% set person_active = 'salary' %}
+
+{% block person_title %}薪资 · 标准与月度{% endblock %}
+{% block person_desc %}套用全局薪资结构(配置管理 · 薪资配置),设定各项标准金额与发放方式;发放方式决定可发月份(月发全月 / 季发 3·6·9·12 月 / 年发 12 月),有效月默认按标准额发放,HR 可逐月覆盖实发;主项有子项时按月汇总;可加个人专属项;可标记试用期区间。仅管理员 / 总经理 / 人事可见。{% endblock %}
+
+{% block content %}
+  <style>
+    .prob-mark { background:var(--accent-tint) !important; }
+    .cyc-btn { border:1px solid var(--line-2); background:var(--bg-page); font:inherit; font-size:11.5px;
+               color:var(--ink-2); cursor:pointer; padding:2px 10px; border-radius:5px; }
+    .cyc-btn:hover { color:var(--accent); border-color:var(--accent); }
+    .ss-del { border:0; background:transparent; cursor:pointer; color:var(--ink-4); display:inline-flex; padding:2px; }
+    .ss-del:hover { color:var(--danger); }
+    #psTable td.mcell { cursor:cell; background:var(--bg-page); text-align:right; padding-right:8px; }
+    #psTable td.mcell:hover { background:var(--bg-hover); }
+    #psTable td.mcell:focus { outline:2px solid var(--accent); outline-offset:-2px; background:var(--bg-elev); }
+    #psTable td.mcell[data-ph]:empty::before { content:attr(data-ph); color:var(--ink-4); font-style:italic; }
+    #psTable td.mcell-off { background:var(--bg-sunk); color:var(--ink-4); text-align:center; }
+    #psTable td.msum, #psTable td.mstd { text-align:right; padding-right:8px; }
+  </style>
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
+                 background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
+      <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
+      {% if is_admin and companies|length > 1 %}
+      <select id="psCompany" onchange="psCompanyGuarded(this)"
+              style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
+        {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <span>{{ (companies[0] if companies else user_company) or '未归属公司' }}</span>
+      {% endif %}
+    </span>
+    <div style="position:relative;">
+      <button type="button" id="psPickerBtn" class="cm-role-btn">
+        <span id="psUserName">选择人员</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="psUserMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="psSub" class="at-dim" style="font-size:12px;"></span>
+    <span id="psDirty" style="font-size:12px;color:var(--warn);"></span>
+    <div style="flex:1;"></div>
+    <select id="psYear" onchange="psYearGuarded(this)" style="height:32px;padding:0 8px;background:var(--bg-elev);
+            border:1px solid var(--line-2);border-radius:6px;font:inherit;font-size:13px;color:var(--ink);outline:none;"></select>
+    <button type="button" id="psAddBtn" onclick="psAddPersonal()" style="display:none;
+            height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+            background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">+ 个人项目</button>
+    <div id="psEditBar"></div>
+  </div>
+
+  {# 试用期为账户属性(在账户设置中设定),此处只读引用并高亮对应月份 #}
+  <div id="psProbBar" style="display:none;align-items:center;gap:10px;margin-bottom:12px;padding:9px 14px;
+                              background:var(--warn-soft);border-radius:8px;">
+    <span class="material-symbols-outlined" style="font-size:16px;color:var(--warn);">schedule</span>
+    <span style="font-size:12.5px;color:var(--ink);">试用期</span>
+    <span id="psProbRange" style="font-size:12.5px;color:var(--ink-2);"></span>
+    <span class="at-dim" style="font-size:11px;">· 高亮列为试用期月份(在账户设置中修改)</span>
+  </div>
+
+  <div id="psSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
+    <table id="psTable" class="cm-sheet" style="min-width:1360px;">
+      <thead><tr id="psHead"></tr></thead>
+      <tbody id="psTbody"><tr><td colspan="17" class="at-dim" style="padding:26px;text-align:center;">请选择人员…</td></tr></tbody>
+      <tfoot id="psTfoot"></tfoot>
+    </table>
+  </div>
+  <div class="at-dim" style="font-size:11px;margin-top:8px;">
+    ⓘ 标准金额=每期应发(设定);发放方式决定可发月份:月发=全月 / 季发=3·6·9·12 月 / 年发=12 月,其他月份置灰无效;
+    有效月默认按标准额发放(灰色占位),HR 可逐月填实发覆盖;年度合计=各有效月(实发优先,未改用标准)之和;
+    主项有子项时按月汇总;标记试用期区间后对应月份列高亮。
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const USERS = {{ users_data | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const CURRENT_USER_ID = {{ current_user.id }};
+  const IS_ADMIN = {{ (current_user.role == 'admin') | tojson }};
+  // 防自定薪:非 admin 看自己的薪资 → 只读(本人薪资由上级/财务录入)
+  const _selfLock = () => CAN_EDIT && !IS_ADMIN && _userId === CURRENT_USER_ID;
+  const CUR_YEAR = {{ current_year }};
+  const COMPANIES = {{ companies | tojson }};
+  const SYM = {{ currency_symbol | tojson }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  const fmtMoney = v => (v == null || v === 0 || v === '') ? '' : Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+  const CYC = { monthly: '月发', quarterly: '季发', yearly: '年发' };
+  const CYC_NEXT = { monthly: 'quarterly', quarterly: 'yearly', yearly: 'monthly' };
+  const EFF = { monthly: [1,2,3,4,5,6,7,8,9,10,11,12], quarterly: [3,6,9,12], yearly: [12] };
+
+  let _userId = null, _company = COMPANIES[0] || '', guard = null;
+  let _items = [], _dirtyCodes = new Set();
+  let _isProbation = false, _probStart = null, _probEnd = null;
+  let _settledMonths = new Set();   // 绩效结算已锁定的季末月(performance_salary 只读)
+  let _lockedMonths = new Set();    // 薪资审批已锁定的月份(提交/通过 → 该月全部只读)
+  const usersOf = () => USERS.filter(u => u.company === _company);
+
+  const yearSel = document.getElementById('psYear');
+  for (let y = CUR_YEAR - 1; y <= CUR_YEAR + 1; y++) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y + ' 年';
+    if (y === CUR_YEAR) o.selected = true;
+    yearSel.appendChild(o);
+  }
+
+  window.psCompanyChange = function (c) {
+    _company = c;
+    const list = usersOf();
+    if (list.length) psSelect(list[0].id);
+    else {
+      _userId = null;
+      document.getElementById('psUserName').textContent = '选择人员';
+      document.getElementById('psTbody').innerHTML =
+        '<tr><td colspan="17" class="at-dim" style="padding:26px;text-align:center;">该公司暂无在职人员</td></tr>';
+    }
+  };
+
+  // 人员下拉:公用组件(搜索+部门分组),替代原内联实现
+  window.psSelect = function (id) { guard.attempt(function () { _userId = id; psLoad(); }); };
+  let _appliedYear = null;
+  window.psYearGuarded = function (sel) {
+    if (!_appliedYear) _appliedYear = sel.value;
+    guard.attempt(function () { _appliedYear = sel.value; psLoad(); },
+                  function () { sel.value = _appliedYear; });
+  };
+  window.psCompanyGuarded = function (sel) {
+    guard.attempt(function () { psCompanyChange(sel.value); }, function () { sel.value = _company; });
+  };
+  const _picker = AtPersonPicker.init({
+    button: 'psPickerBtn', menu: 'psUserMenu',
+    getUsers: usersOf, activeId: () => _userId, onSelect: psSelect,
+  });
+
+  window.psLoad = async function () {
+    if (!_userId) return;
+    const u = USERS.find(x => x.id === _userId);
+    document.getElementById('psUserName').textContent = u ? u.name : '';
+    // 防自定薪:看自己的薪资强制只读、隐藏编辑栏
+    const _eb = document.getElementById('psEditBar');
+    if (_selfLock()) {
+      if (guard) guard.exit();
+      if (_eb) _eb.style.display = 'none';
+    } else if (_eb) { _eb.style.display = ''; }
+    _dirtyCodes = new Set(); setDirty();
+    // 已结算锁定的绩效季末月(performance_salary 该月只读)
+    _settledMonths = new Set();
+    try {
+      const sd = await (await fetch(`/performance/config/api/user/${_userId}/settlements/${yearSel.value}`,
+                                    { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (sd.success) {
+        const QEND = { 1: 3, 2: 6, 3: 9, 4: 12 };
+        Object.values(sd.data || {}).forEach(s => {
+          if (s.is_locked && s.status === 'approved') _settledMonths.add(QEND[s.quarter]);
+        });
+      }
+    } catch (_) {}
+    try {
+      const d = await (await fetch(`/user/api/person-salary/${_userId}/${yearSel.value}`,
+                                   { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || '加载失败');
+      _items = (d.data.items || []).map(it => ({ ...it, monthly: it.monthly || {} }));
+      _lockedMonths = new Set((d.data.locked_months || []).map(Number));
+      document.getElementById('psSub').textContent =
+        `${d.data.role_display || ''}${d.data.structure_configured ? '' : ' · 尚未配置全局薪资结构'}`;
+      _isProbation = !!d.data.in_probation;
+      _probStart = d.data.probation_start || null;
+      _probEnd = d.data.probation_end || null;
+      const bar = document.getElementById('psProbBar');
+      if (_isProbation && _probStart && _probEnd) {
+        bar.style.display = 'flex';
+        document.getElementById('psProbRange').textContent = `${_probStart} 至 ${_probEnd}（${probLenText()}）`;
+      } else {
+        bar.style.display = 'none';
+      }
+      render();
+    } catch (e) {
+      document.getElementById('psTbody').innerHTML =
+        `<tr><td colspan="17" style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</td></tr>`;
+    }
+  };
+
+  function setDirty() {
+    document.getElementById('psDirty').textContent = _dirtyCodes.size ? `${_dirtyCodes.size} 项变更未保存` : '';
+    if (guard && _dirtyCodes.size) guard.markDirty();
+  }
+
+  const kidsOf = code => _items.filter(x => !x.is_personal && x.parent_code === code);
+  const effMonths = it => EFF[it.pay_cycle] || EFF.monthly;
+  const isEff = (it, m) => effMonths(it).indexOf(m) >= 0;
+  const stdOf = it => it.amount == null || it.amount === '' ? 0 : Number(it.amount);
+  const effVal = (it, m) => {
+    if (!isEff(it, m)) return 0;
+    const ov = it.monthly[m];
+    return (ov == null || ov === '') ? stdOf(it) : Number(ov);
+  };
+  const rowAnnual = it => {
+    if (!it.is_personal && kidsOf(it.item_code).length)
+      return kidsOf(it.item_code).reduce((s, k) => s + rowAnnual(k), 0);
+    return effMonths(it).reduce((s, m) => s + effVal(it, m), 0);
+  };
+  const sumKidsMonth = (code, m) => kidsOf(code).reduce((s, k) => s + effVal(k, m), 0);
+
+  // 试用期覆盖月份(与当前年份交集)
+  function probMonths() {
+    if (!_isProbation || !_probStart || !_probEnd) return new Set();
+    const y = parseInt(yearSel.value);
+    const a = new Date(_probStart), b = new Date(_probEnd);
+    if (isNaN(a) || isNaN(b) || b < a) return new Set();
+    const set = new Set();
+    for (let m = 1; m <= 12; m++) {
+      const first = new Date(y, m - 1, 1), last = new Date(y, m, 0);
+      if (last >= a && first <= b) set.add(m);
+    }
+    return set;
+  }
+
+  function renderHead() {
+    const pm = probMonths();
+    let th = `<th style="width:160px;text-align:left;position:sticky;left:0;background:var(--bg-sunk);z-index:3;">薪资项目</th>
+              <th style="width:74px;">发放方式</th><th style="width:96px;">标准金额</th>`;
+    for (let m = 1; m <= 12; m++)
+      th += `<th class="${pm.has(m) ? 'prob-mark' : ''}" style="width:74px;">${m}月${_lockedMonths.has(m) ? ' 🔒' : ''}</th>`;
+    th += `<th style="width:96px;">年度合计</th><th style="width:36px;"></th>`;
+    document.getElementById('psHead').innerHTML = th;
+  }
+
+  function monthCells(it, pm) {
+    const ce = CAN_EDIT ? 'contenteditable spellcheck="false"' : '';
+    const i = _items.indexOf(it);
+    let c = '';
+    const locked = it.item_code === 'performance_salary';
+    for (let m = 1; m <= 12; m++) {
+      const mark = pm.has(m) ? 'prob-mark' : '';
+      // 薪资审批已锁定该月 → 全部薪资项只读(显示有效实发 + 锁标)
+      if (_lockedMonths.has(m)) {
+        const disp = isEff(it, m) ? (fmtMoney(effVal(it, m)) || '0') : '—';
+        c += `<td class="mcell-off ${mark}" title="薪资审批已锁定该月,不可编辑(召回审批可解锁)" style="color:var(--ink-2);">${disp} 🔒</td>`;
+        continue;
+      }
+      if (!isEff(it, m)) { c += `<td class="mcell-off ${mark}">—</td>`; continue; }
+      const ov = it.monthly[m];
+      const content = (ov == null || ov === '') ? '' : fmtMoney(ov);
+      // 绩效结算已折算金额的季末月:显示金额(来自结算),可调整;固化交给薪资审批,不在此锁定
+      if (locked && _settledMonths.has(m)) {
+        const phS = stdOf(it) ? fmtMoney(stdOf(it)) : '';
+        c += `<td class="mcell ${mark}" ${ce} data-m="${i}|${m}" data-ph="${phS}"
+                 title="来自绩效结算折算金额(可调整;薪资审批后固化)"
+                 style="color:var(--success);">${content}</td>`;
+        continue;
+      }
+      const ph = stdOf(it) ? fmtMoney(stdOf(it)) : '';
+      c += `<td class="mcell ${mark}" ${ce} data-m="${i}|${m}" data-ph="${ph}">${content}</td>`;
+    }
+    return c;
+  }
+
+  function render() {
+    renderHead();
+    const pm = probMonths();
+    const ce = CAN_EDIT ? 'contenteditable spellcheck="false"' : '';
+    const struct = _items.filter(it => !it.is_personal);
+    const personal = _items.filter(it => it.is_personal);
+    const mains = struct.filter(it => !it.parent_code);
+    let html = '';
+
+    const nameTd = (it, isChild) => {
+      const i = _items.indexOf(it);
+      const tag = it.is_personal ? '<span class="at-dim" style="font-size:10px;margin-left:5px;">个人</span>' : '';
+      const nm = it.is_personal
+        ? `<span ${ce} data-f="name" data-i="${i}" style="display:inline-block;min-width:90px;">${esc(it.item_name || '')}</span>`
+        : `<span style="font-weight:${isChild ? 400 : 500};">${esc(it.item_name)}</span>`;
+      return `<td class="cm-name" style="position:sticky;left:0;background:var(--bg-elev);z-index:2;">
+        <div style="display:flex;align-items:center;gap:5px;${isChild ? 'padding-left:18px;' : ''}">
+          ${isChild ? '<span style="color:var(--ink-4);">└</span>' : ''}${nm}${tag}</div></td>`;
+    };
+    const cycTd = (it) => {
+      const i = _items.indexOf(it);
+      // 结构项与个人项均可切换发放方式(结构项默认引用配置,可个人覆盖)
+      return `<td>${CAN_EDIT
+        ? `<button type="button" class="cyc-btn" data-cyc="${i}" title="点击切换 月→季→年(默认引用配置)">${CYC[it.pay_cycle] || '月发'}</button>`
+        : `<span class="at-dim" style="font-size:11.5px;">${CYC[it.pay_cycle] || '月发'}</span>`}</td>`;
+    };
+
+    const leafRow = (it, isChild) => {
+      const i = _items.indexOf(it);
+      const dirty = _dirtyCodes.has(it.item_code) ? ' style="box-shadow:inset 2px 0 0 var(--warn);"' : '';
+      const ops = CAN_EDIT && it.is_personal
+        ? `<button type="button" data-delp="${i}" title="删除个人项目" class="ss-del"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>`
+        : '';
+      return `<tr${dirty}>
+        ${nameTd(it, isChild)}${cycTd(it)}
+        <td class="mstd" ${ce} data-f="amount" data-i="${i}" style="font-weight:500;">${fmtMoney(it.amount)}</td>
+        ${monthCells(it, pm)}
+        <td class="msum at-dim" data-annual="${it.item_code}" style="font-weight:500;">${fmtMoney(rowAnnual(it))}</td>
+        <td>${ops}</td></tr>`;
+    };
+
+    const summaryRow = (m) => {
+      let cells = '';
+      for (let mo = 1; mo <= 12; mo++)
+        cells += `<td class="msum ${pm.has(mo) ? 'prob-mark' : ''}" data-sum="${m.item_code}|${mo}"
+                     style="color:var(--ink-3);font-weight:600;">${fmtMoney(sumKidsMonth(m.item_code, mo))}</td>`;
+      return `<tr style="background:var(--bg-sunk);">
+        <td class="cm-name" style="position:sticky;left:0;background:var(--bg-sunk);z-index:2;">
+          <span style="font-weight:600;">${esc(m.item_name)}</span>
+          <span class="at-dim" style="font-size:10px;margin-left:6px;">子项汇总</span></td>
+        <td></td><td class="mstd at-dim">—</td>
+        ${cells}
+        <td class="msum" data-annual="${m.item_code}" style="font-weight:600;">${fmtMoney(rowAnnual(m))}</td>
+        <td></td></tr>`;
+    };
+
+    mains.forEach(m => {
+      const kids = kidsOf(m.item_code);
+      if (kids.length) { html += summaryRow(m); kids.forEach(k => html += leafRow(k, true)); }
+      else html += leafRow(m, false);
+    });
+    personal.forEach(p => html += leafRow(p, false));
+    if (!html) html = `<tr><td colspan="17" class="at-dim" style="padding:26px;text-align:center;">尚未配置全局薪资结构,且无个人项目</td></tr>`;
+    document.getElementById('psTbody').innerHTML = html;
+
+    renderFooter(pm);
+    bind();
+  }
+
+  function footMonth(m) {
+    return _items.reduce((s, it) =>
+      (it.is_personal || !kidsOf(it.item_code).length) ? s + effVal(it, m) : s, 0);
+  }
+  function footAnnual() {
+    return _items.reduce((s, it) =>
+      (it.is_personal || !kidsOf(it.item_code).length) ? s + rowAnnual(it) : s, 0);
+  }
+  function renderFooter(pm) {
+    let cells = '';
+    for (let m = 1; m <= 12; m++)
+      cells += `<td class="msum ${pm.has(m) ? 'prob-mark' : ''}" data-foot="${m}" style="font-weight:600;">${fmtMoney(footMonth(m))}</td>`;
+    document.getElementById('psTfoot').innerHTML = `<tr style="background:var(--bg-sunk);">
+      <td class="cm-name" style="font-weight:600;position:sticky;left:0;background:var(--bg-sunk);z-index:2;">月度合计</td>
+      <td></td><td></td>${cells}
+      <td class="msum" id="psTotal" style="font-weight:600;">${fmtMoney(footAnnual())}</td><td></td></tr>`;
+  }
+
+  // 改月度格后只更新合计(保留焦点)
+  function updateTotals() {
+    _items.forEach(it => {
+      const el = document.querySelector(`[data-annual="${CSS.escape(it.item_code)}"]`);
+      if (el) el.textContent = fmtMoney(rowAnnual(it));
+      if (!it.is_personal && kidsOf(it.item_code).length)
+        for (let m = 1; m <= 12; m++) {
+          const sc = document.querySelector(`[data-sum="${CSS.escape(it.item_code)}|${m}"]`);
+          if (sc) sc.textContent = fmtMoney(sumKidsMonth(it.item_code, m));
+        }
+    });
+    for (let m = 1; m <= 12; m++) {
+      const ft = document.querySelector(`[data-foot="${m}"]`);
+      if (ft) ft.textContent = fmtMoney(footMonth(m));
+    }
+    const tot = document.getElementById('psTotal');
+    if (tot) tot.textContent = fmtMoney(footAnnual());
+  }
+
+  function bind() {
+    const tb = document.getElementById('psTbody');
+    tb.querySelectorAll('[data-m]').forEach(el => {
+      el.addEventListener('blur', () => {
+        const [i, m] = el.dataset.m.split('|');
+        const it = _items[parseInt(i)];
+        const raw = (el.textContent || '').replace(/[,\s]/g, '');
+        if (raw === '') delete it.monthly[m]; else it.monthly[m] = parseFloat(raw) || 0;
+        _dirtyCodes.add(it.item_code || ('new' + i)); setDirty();
+        updateTotals();
+      });
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+    });
+    tb.querySelectorAll('[data-f="amount"]').forEach(el => {
+      el.addEventListener('blur', () => {
+        const it = _items[parseInt(el.dataset.i)];
+        const raw = (el.textContent || '').replace(/[,\s]/g, '');
+        it.amount = raw === '' ? null : (parseFloat(raw) || 0);
+        _dirtyCodes.add(it.item_code || ('new' + el.dataset.i)); setDirty();
+        render();   // 标准额变 → 占位与合计重算
+      });
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+    });
+    tb.querySelectorAll('[data-f="name"]').forEach(el => {
+      el.addEventListener('blur', () => {
+        const it = _items[parseInt(el.dataset.i)];
+        it.item_name = (el.textContent || '').trim();
+        _dirtyCodes.add(it.item_code || ('new' + el.dataset.i)); setDirty();
+      });
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+    });
+    tb.querySelectorAll('[data-cyc]').forEach(b =>
+      b.addEventListener('click', () => {
+        const it = _items[parseInt(b.dataset.cyc)];
+        it.pay_cycle = CYC_NEXT[it.pay_cycle] || 'monthly';
+        _dirtyCodes.add(it.item_code || ('new' + b.dataset.cyc));
+        setDirty(); render();   // 有效月变 → 重渲
+      }));
+    tb.querySelectorAll('[data-delp]').forEach(b =>
+      b.addEventListener('click', () => {
+        const i = parseInt(b.dataset.delp);
+        ATConfirm.show({
+          title: '删除个人项目', message: `删除「${_items[i].item_name || '未命名'}」?保存后生效。`,
+          variant: 'danger', icon: 'delete', confirmText: '删除', cancelText: '取消',
+          onConfirm: () => { _items.splice(i, 1); _dirtyCodes.add('_del'); setDirty(); render(); },
+        });
+      }));
+  }
+
+  window.psAddPersonal = function () {
+    if (!_userId) { ATToast.error('请先选择人员'); return; }
+    _items.push({ item_code: '', item_name: '', parent_code: null, pay_cycle: 'monthly',
+                  amount: null, monthly: {}, is_personal: true, is_locked: false, has_children: false });
+    _dirtyCodes.add('_new'); setDirty(); render();
+    const els = document.querySelectorAll('[data-f="name"]');
+    if (els.length) els[els.length - 1].focus();
+  };
+
+  function probLenText() {
+    if (!_probStart || !_probEnd) return '';
+    const a = new Date(_probStart), b = new Date(_probEnd);
+    if (isNaN(a) || isNaN(b) || b < a) return '';
+    const days = Math.round((b - a) / 86400000) + 1;
+    return `约 ${Math.round(days / 30.44 * 10) / 10} 个月`;
+  }
+
+  async function psSaveCore() {
+    if (!_userId) return false;
+    const hasMonths = it => Object.values(it.monthly || {}).some(v => v != null && v !== '');
+    const amounts = _items.filter(it => !it.is_personal && kidsOf(it.item_code).length === 0 &&
+        (it.amount != null || hasMonths(it) || _dirtyCodes.has(it.item_code)))
+      .map(it => ({ item_code: it.item_code, amount: it.amount, monthly: it.monthly, pay_cycle: it.pay_cycle }));
+    const personal = _items.filter(it => it.is_personal)
+      .map(it => ({ item_code: it.item_code || null, item_name: it.item_name,
+                    pay_cycle: it.pay_cycle, amount: it.amount, monthly: it.monthly }));
+    try {
+      const d = await (await fetch(`/user/api/person-salary/${_userId}/${yearSel.value}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+        body: JSON.stringify({ amounts, personal }),
+      })).json();
+      if (d.success) { ATToast.success(d.message || '已保存'); psLoad(); return true; }
+      ATToast.error(d.message || '保存失败'); return false;
+    } catch (_) { ATToast.error('保存失败,请重试'); return false; }
+  }
+
+  guard = AtEditMode.init({
+    mount: 'psEditBar', lockEl: 'psSheet', canEdit: CAN_EDIT,
+    onSave: psSaveCore,
+    onDiscard: function () { psLoad(); },
+    onEnter: function () { const b = document.getElementById('psAddBtn'); if (b) b.style.display = ''; },
+    onExit: function () { const b = document.getElementById('psAddBtn'); if (b) b.style.display = 'none'; },
+    saveConfirm: { message: '确认保存该人员的薪资?' },
+  });
+
+  // ?user= 预选(账户详情跳入)
+  const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));
+  if (_pre) {
+    _company = _pre.company || _company;
+    const cs = document.getElementById('psCompany');
+    if (cs) cs.value = _company;
+    psSelect(_pre.id);
+  } else if (usersOf().length) {
+    psSelect(usersOf()[0].id);
+  }
+</script>
+{% endblock %}

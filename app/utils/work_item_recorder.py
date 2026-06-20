@@ -115,6 +115,44 @@ def record_activity(action, module, object_name, user,
         time_str = now_time.strftime('%H:%M')
         log_line = f'{time_str} {description or prefix}'
 
+        # ── 项目级聚合：有 project_id 时,同一天/同一人/同一项目的所有动作
+        #    (建项目/改项目/项目下报价单增改确认/项目级跟进)合并为一条 ──
+        if project_id:
+            try:
+                from app.models.project import Project
+                _p = Project.query.get(project_id)
+                proj_name = _p.project_name if _p else object_name
+            except Exception:
+                proj_name = object_name
+            agg_title = f"{_('项目动态')}: {proj_name}"
+            existing = WorkItem.query.filter(
+                WorkItem.owner_id == user.id,
+                WorkItem.planned_date == today,
+                WorkItem.title == agg_title,
+                WorkItem.is_deleted == False,
+            ).first()
+            if existing:
+                existing.end_time = now_time
+                existing.completed_at = now
+                if duration_hours:
+                    existing.actual_hours = round((existing.actual_hours or 0) + duration_hours, 2)
+                if log_line not in (existing.description or ''):
+                    existing.description = ((existing.description or '') + '\n' + log_line).strip()
+                if not existing.customer_id and customer_id:
+                    existing.customer_id = customer_id
+                db.session.commit()
+                return existing
+            work_item = WorkItem(
+                title=agg_title, description=log_line, planned_date=today,
+                is_all_day=False, start_time=start_time, end_time=now_time,
+                work_type=work_type, status='completed', completed_at=now,
+                actual_hours=duration_hours, owner_id=user.id,
+                project_id=project_id, customer_id=customer_id,
+            )
+            db.session.add(work_item)
+            db.session.commit()
+            return work_item
+
         # 去重检查：同天同用户同模块同对象合并（不跨模块）
         from sqlalchemy import or_ as sql_or
         module_titles = [

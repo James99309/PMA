@@ -7,7 +7,7 @@
 import logging
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, jsonify, request, render_template, redirect, url_for
 from flask_login import login_required, current_user
 from flask_babel import gettext as _
 from sqlalchemy.orm import joinedload
@@ -123,130 +123,16 @@ def _can_access(t):
 @task.route('/api/create', methods=['POST'])
 @login_required
 def create_task():
-    """创建任务"""
+    """创建任务(薄壳:逻辑+副作用在 app.services.task_service,web/mobile 共用)"""
     try:
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'message': '无效的请求数据'}), 400
-
-        title = (data.get('title') or '').strip()
-        if not title:
-            return jsonify({'success': False, 'message': '任务标题不能为空'}), 400
-
-        assignee_id = data.get('assignee_id')
-        if not assignee_id:
-            return jsonify({'success': False, 'message': '请选择指派人'}), 400
-
-        new_task = Task(
-            title=title,
-            description=(data.get('description') or '').strip() or None,
-            creator_id=current_user.id,
-            assignee_id=int(assignee_id),
-            priority=data.get('priority', 'normal'),
-            external_link=(data.get('external_link') or '').strip() or None,
-            external_link_label=(data.get('external_link_label') or '').strip() or None,
-            project_id=data.get('project_id') or None,
-            quotation_id=data.get('quotation_id') or None,
-            customer_id=data.get('customer_id') or None,
-        )
-
-        # 协助人
-        shared_users = data.get('shared_with_users')
-        if shared_users and isinstance(shared_users, list):
-            new_task.shared_with_users = [int(uid) for uid in shared_users if uid]
-
-        # 处理截止日期
-        due_date_str = data.get('due_date')
-        if due_date_str:
-            try:
-                new_task.due_date = datetime.fromisoformat(due_date_str)
-            except (ValueError, TypeError):
-                pass
-
-        # 处理开始日期 → 决定初始状态
-        start_date_str = data.get('start_date')
-        if start_date_str:
-            try:
-                new_task.start_date = date.fromisoformat(start_date_str[:10])
-                if new_task.start_date <= date.today():
-                    new_task.status = 'in_progress'
-                else:
-                    new_task.status = 'pending'
-            except (ValueError, TypeError):
-                new_task.status = 'in_progress'
-        else:
-            # 没有开始日期 → 立即开始
-            new_task.status = 'in_progress'
-
-        # calendar_date 默认与 due_date 一致
-        if new_task.due_date:
-            new_task.calendar_date = new_task.due_date.date()
-
-        db.session.add(new_task)
-        db.session.flush()  # 获取 id
-
-        # 审计对象（会审，支持多人）
-        reviewer_ids = data.get('reviewer_ids') or []
-        # 兼容旧的单审计人字段
-        if not reviewer_ids and data.get('reviewer_id'):
-            reviewer_ids = [data['reviewer_id']]
-        for rid in reviewer_ids:
-            rid = int(rid)
-            tr = TaskReviewer(task_id=new_task.id, reviewer_id=rid)
-            db.session.add(tr)
-
-        # 发送通知给被指派人和协助人
-        notify_ids = set()
-        if new_task.assignee_id != current_user.id:
-            notify_ids.add(new_task.assignee_id)
-        for uid in (new_task.shared_with_users or []):
-            if uid != current_user.id:
-                notify_ids.add(uid)
-        if notify_ids:
-            try:
-                from app.models.message import Message
-                for uid in notify_ids:
-                    msg = Message.create_task_assigned(
-                        sender_id=current_user.id,
-                        recipient_id=uid,
-                        task=new_task
-                    )
-                    db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送任务通知失败: {e}")
-
+        from app.services import task_service
         try:
-            from app.services.points_service import award_points
-            award_points(user_id=current_user.id, behavior_code='task_create',
-                         source_type='task', source_id=new_task.id,
-                         context=new_task.title)
-        except Exception as _pts_err:
-            logger.warning(f'task_create积分发放失败: {_pts_err}')
-
-        db.session.commit()
-
-        try:
-            from app.utils.work_item_recorder import record_task_activity
-            record_task_activity(
-                'create', new_task.id, new_task.title, current_user,
-                project_id=new_task.project_id, customer_id=new_task.customer_id
-            )
-        except Exception as _log_err:
-            logger.warning(f'task日志记录失败: {_log_err}')
-
-        # 跨系统推送任务通知（异步，不阻塞）
-        if new_task.assignee_id != current_user.id:
-            try:
-                from app.services.cross_sync_service import is_cross_sync_enabled, push_task_to_peer
-                if is_cross_sync_enabled():
-                    assignee = User.query.get(new_task.assignee_id)
-                    if assignee and assignee.email:
-                        creator_name = current_user.real_name or current_user.username
-                        due_str = new_task.due_date.strftime('%Y-%m-%d') if new_task.due_date else None
-                        push_task_to_peer(assignee.email, creator_name, title, due_str)
-            except Exception as e:
-                logger.warning(f"跨系统任务推送失败: {e}")
-
+            new_task = task_service.create_task(current_user, data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({
             'success': True,
             'message': _('任务创建成功'),
@@ -368,61 +254,11 @@ def update_task(id):
         if not data:
             return jsonify({'success': False, 'message': '无效的请求数据'}), 400
 
-        for field in ['title', 'description', 'priority', 'external_link', 'external_link_label']:
-            if field in data:
-                setattr(t, field, (data[field] or '').strip() or None if field != 'title' else (data[field] or '').strip())
-
-        for fk_field in ['assignee_id', 'project_id', 'quotation_id', 'customer_id']:
-            if fk_field in data:
-                setattr(t, fk_field, data[fk_field] or None)
-
-        # 会审审计人更新
-        if 'reviewer_ids' in data:
-            new_ids = set(int(rid) for rid in (data['reviewer_ids'] or []) if rid)
-            old_ids = set(r.reviewer_id for r in t.task_reviewers)
-            # 删除移除的审计人
-            for tr in list(t.task_reviewers):
-                if tr.reviewer_id not in new_ids:
-                    db.session.delete(tr)
-            # 添加新的审计人
-            for rid in new_ids - old_ids:
-                db.session.add(TaskReviewer(task_id=t.id, reviewer_id=rid))
-
-        if 'shared_with_users' in data:
-            t.shared_with_users = [int(uid) for uid in (data['shared_with_users'] or []) if uid]
-
-        if 'due_date' in data:
-            if data['due_date']:
-                try:
-                    t.due_date = datetime.fromisoformat(data['due_date'])
-                    t.calendar_date = t.due_date.date()
-                except (ValueError, TypeError):
-                    pass
-            else:
-                t.due_date = None
-                t.calendar_date = None
-
-        if 'start_date' in data:
-            if data['start_date']:
-                try:
-                    t.start_date = date.fromisoformat(data['start_date'][:10])
-                    # 根据开始时间自动调整状态
-                    if t.status == 'pending' and t.start_date <= date.today():
-                        t.status = 'in_progress'
-                    elif t.status == 'in_progress' and t.start_date > date.today():
-                        t.status = 'pending'
-                except (ValueError, TypeError):
-                    pass
-            else:
-                t.start_date = None
-                # 没有开始日期且还在等待 → 立即开始
-                if t.status == 'pending':
-                    t.status = 'in_progress'
-
-        if 'status' in data and data['status'] in ('pending', 'in_progress', 'paused'):
-            t.status = data['status']
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            task_service.update_task(current_user, t, data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('任务已更新'), 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -441,60 +277,10 @@ def complete_task(id):
         if t.assignee_id != current_user.id and t.creator_id != current_user.id:
             return jsonify({'success': False, 'message': '无权完成此任务'}), 403
 
-        # 审计类任务（会审）：进入待审核状态而非直接完成
-        if t.task_reviewers and not t.review_status:
-            t.status = 'pending_review'
-            t.review_status = 'pending_review'
-            # 所有审计人重置为 pending 并通知
-            try:
-                from app.models.message import Message
-                for tr in t.task_reviewers:
-                    tr.status = 'pending'
-                    tr.reviewed_at = None
-                    tr.comment = None
-                    msg = Message.create_task_assigned(
-                        sender_id=current_user.id,
-                        recipient_id=tr.reviewer_id,
-                        task=t
-                    )
-                    db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送审计通知失败: {e}")
-            db.session.commit()
-            return jsonify({'success': True, 'message': _('任务已提交审核'), 'data': t.to_dict()})
-
-        t.status = 'completed'
-        t.completed_at = get_local_time()
-
-        # 通知创建人
-        if t.creator_id != current_user.id:
-            try:
-                from app.models.message import Message
-                msg = Message.create_task_completed(
-                    sender_id=current_user.id,
-                    recipient_id=t.creator_id,
-                    task=t
-                )
-                db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送完成通知失败: {e}")
-
-        # 发放积分：任务完成
-        try:
-            from app.services.points_service import award_points
-            assignee_id = t.assignee_id if t.assignee_id else current_user.id
-            award_points(
-                user_id=assignee_id,
-                behavior_code='task_complete',
-                source_type='task',
-                source_id=t.id,
-                context=t.title,
-            )
-        except Exception as pts_err:
-            logger.warning(f"发放任务完成积分失败: {pts_err}")
-
-        db.session.commit()
-        return jsonify({'success': True, 'message': _('任务已完成'), 'data': t.to_dict()})
+        from app.services import task_service
+        task_service.complete_task(current_user, t)
+        msg = _('任务已提交审核') if t.status == 'pending_review' else _('任务已完成')
+        return jsonify({'success': True, 'message': msg, 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
         logger.error(f"完成任务失败: {e}", exc_info=True)
@@ -512,8 +298,8 @@ def cancel_task(id):
         if not _can_edit(t):
             return jsonify({'success': False, 'message': '无权取消此任务'}), 403
 
-        t.status = 'cancelled'
-        db.session.commit()
+        from app.services import task_service
+        task_service.cancel_task(current_user, t)
         return jsonify({'success': True, 'message': _('任务已取消'), 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -533,46 +319,34 @@ def pause_task(id):
             return jsonify({'success': False, 'message': '无权操作此任务'}), 403
 
         data = request.get_json() or {}
-        reason = (data.get('reason') or '').strip()
-        if not reason:
-            return jsonify({'success': False, 'message': _('请填写暂停理由')}), 400
-
-        t.status = 'paused'
-
-        # 通知审计人
-        if t.task_reviewers:
-            try:
-                from app.models.message import Message
-                for tr in t.task_reviewers:
-                    msg = Message(
-                        sender_id=current_user.id,
-                        recipient_id=tr.reviewer_id,
-                        message_type='task_notification',
-                        title=_('任务已暂停'),
-                        content=f'{t.title} - {_("暂停理由")}: {reason}',
-                        related_object_type='task',
-                        related_object_id=t.id,
-                    )
-                    db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送暂停通知失败: {e}")
-
-        # 记录暂停理由到回复中，便于追溯
+        from app.services import task_service
         try:
-            reply = TaskReply(
-                task_id=t.id,
-                author_id=current_user.id,
-                content=f'[{_("任务暂停")}] {reason}',
-            )
-            db.session.add(reply)
-        except Exception as e:
-            logger.warning(f"记录暂停理由失败: {e}")
-
-        db.session.commit()
+            task_service.pause_task(current_user, t, data.get('reason'))
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('任务已暂停'), 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
         logger.error(f"暂停任务失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@task.route('/api/<int:id>/resume', methods=['POST'])
+@login_required
+def resume_task(id):
+    """从暂停恢复为进行中。"""
+    try:
+        t = Task.query.filter_by(id=id, is_deleted=False).first()
+        if not t:
+            return jsonify({'success': False, 'message': '任务不存在'}), 404
+        if not _can_access(t):
+            return jsonify({'success': False, 'message': '无权操作此任务'}), 403
+        from app.services import task_service
+        task_service.resume_task(current_user, t)
+        return jsonify({'success': True, 'message': _('任务已恢复'), 'data': t.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"恢复任务失败: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -587,20 +361,8 @@ def delete_task(id):
         if not _can_edit(t):
             return jsonify({'success': False, 'message': '无权删除此任务'}), 403
 
-        # 删除 NAS/本地存储中的附件文件
-        attachments = TaskAttachment.query.filter_by(task_id=id).all()
-        if attachments:
-            from app.utils.smart_storage_manager import get_smart_storage
-            storage = get_smart_storage()
-            for att in attachments:
-                if att.storage_path:
-                    try:
-                        storage.delete_file(att.storage_path, bucket_type='task')
-                    except Exception as e:
-                        logger.warning(f"删除附件文件失败: {e}")
-
-        db.session.delete(t)  # cascade 删除 attachments + replies
-        db.session.commit()
+        from app.services import task_service
+        task_service.delete_task(current_user, t)
         return jsonify({'success': True, 'message': _('任务已删除')})
     except Exception as e:
         db.session.rollback()
@@ -634,33 +396,15 @@ def upload_attachment(id):
         file_size = file.tell()
         file.seek(0)
 
-        from app.utils.smart_storage_manager import get_smart_storage
-        smart_storage = get_smart_storage()
-        result = smart_storage.upload_file(
-            object_id=id,
-            file=file,
-            filename=filename,
-            file_type='attachment',
-            bucket_type='task',
-            business_type='task'
-        )
-
-        if not result:
-            return jsonify({'success': False, 'message': '文件上传失败'}), 500
-
         subtask_id = request.form.get('subtask_id', type=int)
 
-        attachment = TaskAttachment(
-            task_id=id,
-            subtask_id=subtask_id,
-            filename=filename,
-            storage_path=result.get('storage_path', ''),
-            file_size=file_size,
-            file_type=file_ext,
-            uploaded_by=current_user.id,
-        )
-        db.session.add(attachment)
-        db.session.commit()
+        from app.services import task_service
+        try:
+            attachment = task_service.add_attachment(
+                current_user, t, file, filename, file_size, file_ext,
+                subtask_id=subtask_id)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
 
         subtask_title = None
         if attachment.subtask_id:
@@ -697,21 +441,11 @@ def delete_attachment(id, att_id):
         if not att:
             return jsonify({'success': False, 'message': '附件不存在'}), 404
 
-        # 只有上传者本人可以删除附件
-        if att.uploaded_by != current_user.id:
-            return jsonify({'success': False, 'message': _('只能删除自己上传的附件')}), 403
-
-        # 删除存储文件
-        if att.storage_path:
-            try:
-                from app.utils.smart_storage_manager import get_smart_storage
-                storage = get_smart_storage()
-                storage.delete_file(att.storage_path, bucket_type='task')
-            except Exception as e:
-                logger.warning(f"删除附件文件失败: {e}")
-
-        db.session.delete(att)
-        db.session.commit()
+        from app.services import task_service
+        try:
+            task_service.delete_attachment(current_user, att)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 403
         return jsonify({'success': True, 'message': _('附件已删除')})
     except Exception as e:
         db.session.rollback()
@@ -755,6 +489,37 @@ def download_attachment(id, att_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@task.route('/api/<int:id>/attachments/<int:att_id>/preview', methods=['GET'])
+@login_required
+def preview_attachment(id, att_id):
+    """内联预览附件(图片/PDF 直接渲染),供公用 ATFilePreview 组件使用。"""
+    try:
+        att = TaskAttachment.query.filter_by(id=att_id, task_id=id, is_deleted=False).first()
+        if not att:
+            return jsonify({'success': False, 'message': '附件不存在'}), 404
+        t = Task.query.filter_by(id=id, is_deleted=False).first()
+        if not t or not _can_access(t):
+            return jsonify({'success': False, 'message': '无权操作'}), 403
+
+        import mimetypes
+        from flask import Response
+        from urllib.parse import quote
+        from app.utils.smart_storage_manager import get_smart_storage
+
+        file_data = get_smart_storage().download_file(att.storage_path, bucket_type='task')
+        if not file_data:
+            return jsonify({'success': False, 'message': '文件不存在'}), 404
+
+        mime = mimetypes.guess_type(att.filename)[0] or 'application/octet-stream'
+        encoded = quote(att.filename)
+        return Response(file_data, mimetype=mime, headers={
+            'Content-Disposition': f"inline; filename*=UTF-8''{encoded}",
+        })
+    except Exception as e:
+        logger.error(f"预览附件失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @task.route('/api/<int:id>/replies', methods=['POST'])
 @login_required
 def add_reply(id):
@@ -766,65 +531,15 @@ def add_reply(id):
         if not _can_access(t):
             return jsonify({'success': False, 'message': '无权操作此任务'}), 403
 
-        data = request.get_json()
-        content = (data.get('content') or '').strip() if data else ''
-        if not content:
-            return jsonify({'success': False, 'message': '回复内容不能为空'}), 400
-
-        subtask_id = data.get('subtask_id') if data else None
-        reply_type = (data.get('reply_type') or 'comment') if data else 'comment'
-        if reply_type not in ('comment', 'update'):
-            reply_type = 'comment'
-
-        reply = TaskReply(
-            task_id=id,
-            subtask_id=subtask_id,
-            author_id=current_user.id,
-            content=content,
-            reply_type=reply_type,
-        )
-        db.session.add(reply)
-
-        # 评论通知(站内 Message + APNs 推送)
-        # 主任务评论 → creator + assignee + 协助人
-        # 子任务评论 → subtask.assignee + task.creator + task.assignee
-        sub_obj = None
+        data = request.get_json() or {}
+        from app.services import task_service
         try:
-            if subtask_id:
-                sub_obj = SubTask.query.get(subtask_id)
-                recipients = {
-                    getattr(sub_obj, 'assignee_id', None),
-                    t.creator_id,
-                    t.assignee_id,
-                }
-            else:
-                recipients = {t.creator_id, t.assignee_id}
-                for uid in (t.shared_with_users or []):
-                    recipients.add(uid)
-            recipients.discard(current_user.id)
-            recipients.discard(None)
-            if recipients:
-                from app.models.message import Message
-                for rid in recipients:
-                    msg = Message.create_task_reply(
-                        sender_id=current_user.id, recipient_id=rid,
-                        task=t, comment_content=content, subtask=sub_obj)
-                    db.session.add(msg)
-                    _push_task_async(rid, msg.title, msg.content,
-                                     task_id=t.id, subtask_id=subtask_id)
-        except Exception as _nf:
-            logger.warning(f'task reply 通知失败: {_nf}')
-
-        db.session.commit()
-
-        try:
-            from app.utils.work_item_recorder import record_task_activity
-            record_task_activity(
-                'reply', t.id, t.title, current_user,
-                project_id=t.project_id, customer_id=t.customer_id
-            )
-        except Exception as _log_err:
-            logger.warning(f'task日志记录失败: {_log_err}')
+            reply = task_service.add_reply(
+                current_user, t, data.get('content'),
+                subtask_id=data.get('subtask_id'),
+                reply_type=data.get('reply_type') or 'comment')
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
 
         subtask_title = None
         if reply.subtask_id:
@@ -851,17 +566,110 @@ def add_reply(id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@task.route('/api/<int:id>/comments', methods=['GET'])
+@login_required
+def list_comments(id):
+    """评论/进展线程(兼容 at-comments 公用组件契约)。
+    query: subtask_id(空=任务级) + reply_type(comment|update)。"""
+    t = Task.query.filter_by(id=id, is_deleted=False).first()
+    if not t:
+        return jsonify({'success': False, 'message': '任务不存在'}), 404
+    if not _can_access(t):
+        return jsonify({'success': False, 'message': '无权访问'}), 403
+    subtask_id = request.args.get('subtask_id', type=int)
+    reply_type = request.args.get('reply_type', 'comment')
+    q = TaskReply.query.options(joinedload(TaskReply.author)).filter_by(
+        task_id=id, is_deleted=False, reply_type=reply_type)
+    q = q.filter_by(subtask_id=subtask_id) if subtask_id else q.filter(TaskReply.subtask_id.is_(None))
+    is_admin = current_user.role in ('admin', 'ceo')
+    out = [{
+        'id': r.id, 'owner_id': r.author_id,
+        'owner_name': (r.author.real_name or r.author.username) if r.author else None,
+        'content': r.content,
+        'created_at': r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '',
+        'can_delete': (r.author_id == current_user.id or is_admin or t.creator_id == current_user.id),
+    } for r in q.order_by(TaskReply.created_at.asc()).all()]
+    return jsonify({'success': True, 'comments': out})
+
+
+@task.route('/api/<int:id>/comments', methods=['POST'])
+@login_required
+def add_comment(id):
+    """新增评论/进展(兼容 at-comments)。subtask_id/reply_type 走 query。"""
+    t = Task.query.filter_by(id=id, is_deleted=False).first()
+    if not t:
+        return jsonify({'success': False, 'message': '任务不存在'}), 404
+    if not _can_access(t):
+        return jsonify({'success': False, 'message': '无权操作'}), 403
+    subtask_id = request.args.get('subtask_id', type=int)
+    reply_type = request.args.get('reply_type', 'comment')
+    data = request.get_json() or {}
+    from app.services import task_service
+    try:
+        task_service.add_reply(current_user, t, data.get('content'), subtask_id=subtask_id, reply_type=reply_type)
+    except ValueError as ve:
+        return jsonify({'success': False, 'message': str(ve)}), 400
+    return jsonify({'success': True})
+
+
+@task.route('/api/<int:id>/comments/<int:cid>/delete', methods=['POST'])
+@login_required
+def delete_comment(id, cid):
+    """删除评论/进展(兼容 at-comments 的 POST 删除)。"""
+    r = TaskReply.query.filter_by(id=cid, task_id=id, is_deleted=False).first()
+    if not r:
+        return jsonify({'success': False, 'message': '评论不存在'}), 404
+    from app.services import task_service
+    try:
+        task_service.delete_reply(current_user, r)
+    except ValueError as ve:
+        return jsonify({'success': False, 'message': str(ve)}), 403
+    return jsonify({'success': True})
+
+
+@task.route('/api/<int:id>/replies/<int:reply_id>', methods=['DELETE'])
+@login_required
+def delete_reply(id, reply_id):
+    """删除评论/进展(软删除)。权限:作者/创建人/管理员。"""
+    try:
+        r = TaskReply.query.filter_by(id=reply_id, task_id=id, is_deleted=False).first()
+        if not r:
+            return jsonify({'success': False, 'message': '评论不存在'}), 404
+        from app.services import task_service
+        try:
+            task_service.delete_reply(current_user, r)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 403
+        return jsonify({'success': True, 'message': _('已删除')})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除评论失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @task.route('/management')
 @login_required
 def task_management():
-    """任务管理页面"""
+    """[已由 AT 任务替代] 老 TW 任务页 → 重定向到 AT 任务,保留 task_id 深链。"""
+    tid = request.args.get('task_id', type=int) or request.args.get('open', type=int) or request.args.get('task', type=int)
+    if tid:
+        return redirect(url_for('task.at_detail_view', id=tid))
+    return redirect(url_for('task.at_list_view'))
+
+
+@task.route('/management/_legacy')
+@login_required
+def task_management_legacy():
+    """旧 TW 任务页(保留可达,以防排查);正常入口已全部指向 AT。"""
     team_members = []
     can_view_team = False
 
     is_admin = current_user.role in ('admin', 'ceo')
     is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+    # 公司级 task 权限（如 HR）：可查看本公司全部成员的任务
+    is_company_viewer = current_user.get_permission_level('task') in ('company', 'system')
 
-    if is_admin or is_dept_mgr:
+    if is_admin or is_dept_mgr or is_company_viewer:
         can_view_team = True
 
         # 先把有活跃任务的 assignee_id 取成 Python list，避免 ORM 子查询兼容性问题
@@ -880,7 +688,14 @@ def task_management():
                 User.id.in_(active_ids),
                 User._is_active == True,
             ).order_by(User.real_name).all()
-        elif current_user.department and current_user.company_name:
+        elif is_company_viewer and current_user.company_name:
+            # 公司级：本公司全部成员（不限部门）
+            users = User.query.filter(
+                User.id.in_(active_ids),
+                User.company_name == current_user.company_name,
+                User._is_active == True,
+            ).order_by(User.real_name).all()
+        elif is_dept_mgr and current_user.department and current_user.company_name:
             users = User.query.filter(
                 User.id.in_(active_ids),
                 User.department == current_user.department,
@@ -909,6 +724,215 @@ def task_management():
     )
 
 
+def _resolve_proxy_uid():
+    """代理查看他人任务的 uid 解析(管理员/公司级 task 权限/部门负责人);无权限回落本人。"""
+    uid = current_user.id
+    view_user_id = request.args.get('view_user_id', type=int)
+    if view_user_id and view_user_id != uid:
+        is_admin = current_user.role in ('admin', 'ceo')
+        is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+        is_company_viewer = current_user.get_permission_level('task') in ('company', 'system')
+        if is_admin:
+            uid = view_user_id
+        elif is_company_viewer and current_user.company_name:
+            target = User.query.get(view_user_id)
+            if target and target._is_active and target.company_name == current_user.company_name:
+                uid = view_user_id
+        elif is_dept_mgr and current_user.department and current_user.company_name:
+            target = User.query.get(view_user_id)
+            if target and target._is_active \
+                    and target.department == current_user.department \
+                    and target.company_name == current_user.company_name:
+                uid = view_user_id
+    return uid
+
+
+def _build_task_list_query(uid, tab='my', status='', search=''):
+    """构建任务列表查询(不含排序/分页)。tab: my/created/shared/review/all。
+    API(management_list)与 AT 页面(at_list_view)共用,避免重复。"""
+    from app.models.subtask import MilestoneReviewer, SubTask
+    query = Task.query.filter(Task.is_deleted == False)
+
+    reviewer_task_ids = db.session.query(TaskReviewer.task_id).filter(
+        TaskReviewer.reviewer_id == uid).scalar_subquery()
+    milestone_task_ids = db.session.query(SubTask.task_id).join(
+        MilestoneReviewer, MilestoneReviewer.subtask_id == SubTask.id).filter(
+        MilestoneReviewer.reviewer_id == uid,
+        MilestoneReviewer.status == 'pending').scalar_subquery()
+
+    if tab == 'my':
+        query = query.filter(Task.assignee_id == uid)
+    elif tab == 'created':
+        query = query.filter(Task.creator_id == uid)
+    elif tab == 'shared':
+        query = query.filter(Task.shared_with_users.cast(db.Text).contains(str(uid)))
+    elif tab == 'review':
+        query = query.filter(db.or_(
+            Task.id.in_(reviewer_task_ids), Task.id.in_(milestone_task_ids)))
+    else:  # all
+        query = query.filter(db.or_(
+            Task.assignee_id == uid, Task.creator_id == uid,
+            Task.shared_with_users.cast(db.Text).contains(str(uid)),
+            Task.id.in_(reviewer_task_ids), Task.id.in_(milestone_task_ids)))
+
+    if status:
+        query = query.filter(Task.status == status)
+    if search:
+        query = query.filter(Task.title.ilike(f'%{search}%'))
+    return query
+
+
+def _apply_task_sort(query, sort='updated'):
+    """统一排序:已完成/已取消沉底。"""
+    completed_last = db.case((Task.status.in_(['completed', 'cancelled']), 1), else_=0)
+    if sort == 'due_date':
+        return query.order_by(completed_last, Task.due_date.asc().nullslast(), Task.updated_at.desc())
+    if sort == 'priority':
+        priority_order = db.case(
+            (Task.priority == 'urgent', 1), (Task.priority == 'high', 2),
+            (Task.priority == 'normal', 3), (Task.priority == 'low', 4), else_=5)
+        return query.order_by(completed_last, priority_order, Task.updated_at.desc())
+    if sort == 'created':
+        return query.order_by(completed_last, Task.created_at.desc())
+    return query.order_by(completed_last, Task.updated_at.desc())
+
+
+def _task_team_members(uid):
+    """代理查看下拉的团队成员(管理员/公司级/部门负责人可见;含本人)。返回 (can_view, members)。"""
+    is_admin = current_user.role in ('admin', 'ceo')
+    is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+    is_company_viewer = current_user.get_permission_level('task') in ('company', 'system')
+    if not (is_admin or is_dept_mgr or is_company_viewer):
+        return False, []
+    active_ids = [r[0] for r in db.session.query(Task.assignee_id).filter(
+        Task.is_deleted == False, Task.status.notin_(['completed', 'cancelled'])
+    ).distinct().all() if r[0] is not None]
+    if not active_ids:
+        return True, []
+    q = User.query.filter(User.id.in_(active_ids), User._is_active == True)
+    if is_admin:
+        pass
+    elif is_company_viewer and current_user.company_name:
+        q = q.filter(User.company_name == current_user.company_name)
+    elif is_dept_mgr and current_user.department and current_user.company_name:
+        q = q.filter(User.department == current_user.department,
+                     User.company_name == current_user.company_name)
+    else:
+        return False, []
+    members = [{'id': u.id, 'name': u.real_name or u.username} for u in q.order_by(User.real_name).all()]
+    return True, members
+
+
+@task.route('/at')
+@login_required
+def at_list_view():
+    """AT 风格任务列表(服务端渲染,复用 management_list 同款查询/排序/代理查看)。"""
+    _auto_promote_pending_tasks()
+    tab = request.args.get('tab', 'my')
+    sort = request.args.get('sort', 'updated')
+    status = request.args.get('status', '').strip()
+    search = request.args.get('search', '').strip()
+    page = max(request.args.get('page', 1, type=int), 1)
+    per_page = 30
+
+    uid = _resolve_proxy_uid()
+    view_user_id = request.args.get('view_user_id', type=int)
+    can_view_team, team_members = _task_team_members(current_user.id)
+
+    # 各 tab 计数(不带 status/search)
+    tab_counts = {k: _build_task_list_query(uid, k).count()
+                  for k in ('all', 'my', 'created', 'shared', 'review')}
+
+    query = _apply_task_sort(_build_task_list_query(uid, tab, status, search), sort)
+    pagination = query.options(
+        joinedload(Task.creator), joinedload(Task.assignee), joinedload(Task.project),
+    ).paginate(page=page, per_page=per_page, error_out=False)
+
+    # 保留筛选态用于翻页链接
+    list_qs = {}
+    if status:
+        list_qs['status'] = status
+    if search:
+        list_qs['search'] = search
+    if sort and sort != 'updated':
+        list_qs['sort'] = sort
+    if view_user_id:
+        list_qs['view_user_id'] = view_user_id
+
+    team_options = [{'value': str(m['id']), 'label': m['name']} for m in team_members]
+
+    return render_template(
+        'task/at_list.html',
+        tasks=[t.to_dict() for t in pagination.items], pagination=pagination,
+        tab_counts=tab_counts, current_tab=tab,
+        status=status, search=search, sort=sort,
+        can_view_team=can_view_team, team_options=team_options,
+        view_user_id=view_user_id, list_qs=list_qs,
+    )
+
+
+@task.route('/api/superior', methods=['GET'])
+@login_required
+def api_superior():
+    """取某用户(默认本人)的直属上级,用于审核任务自动带入审核人。"""
+    from app.models.user import Affiliation
+    uid = request.args.get('user_id', type=int) or current_user.id
+    aff = Affiliation.query.filter_by(owner_id=uid).first()
+    if aff:
+        u = User.query.get(aff.viewer_id)
+        if u and u._is_active and u.id != uid:
+            return jsonify({'success': True, 'id': u.id, 'name': u.real_name or u.username})
+    return jsonify({'success': True, 'id': None})
+
+
+@task.route('/api/generate-title', methods=['POST'])
+@login_required
+def api_generate_title():
+    """根据任务描述用 AI 生成简短标题(复用通用 generate_title,domain=task)。
+    入参 {description};出参 {success, title}。"""
+    from flask import session as flask_session
+    data = request.get_json(silent=True) or {}
+    description = (data.get('description') or '').strip()
+    if not description:
+        return jsonify({'success': True, 'title': ''})
+    from app.services.expense_title_generator import generate_title
+    lang = 'en' if flask_session.get('language') == 'en' else 'zh'
+    try:
+        title = generate_title(description, fallback='', lang=lang, domain='task')
+    except Exception as e:
+        logger.warning(f'task auto-title failed: {e}')
+        return jsonify({'success': False, 'message': str(e)})
+    return jsonify({'success': True, 'title': title or ''})
+
+
+@task.route('/at/new')
+@login_required
+def at_create_view():
+    """AT 风格新建任务(复用详情页表单基础设施,创建模式)。"""
+    from app.helpers.task_types import task_type_groups_for, task_type_labels_for, TASK_TYPES
+    return render_template('task/at_detail.html', task_id='new', task_title=_('新建任务'),
+                           task_type_groups=task_type_groups_for(current_user),
+                           task_type_labels=task_type_labels_for(current_user),
+                           task_review_codes=[tt['code'] for tt in TASK_TYPES if tt.get('require_review')])
+
+
+@task.route('/at/<int:id>')
+@login_required
+def at_detail_view(id):
+    """AT 风格任务详情(独立页 + 选卡)。数据由 /task/api/<id> 客户端拉取渲染。"""
+    from flask import abort
+    from app.helpers.task_types import task_type_groups_for, task_type_labels_for, TASK_TYPES
+    t = Task.query.filter_by(id=id, is_deleted=False).first()
+    if not t:
+        abort(404)
+    if not _can_access(t):
+        abort(403)
+    return render_template('task/at_detail.html', task_id=id, task_title=t.title,
+                           task_type_groups=task_type_groups_for(current_user),
+                           task_type_labels=task_type_labels_for(current_user),
+                           task_review_codes=[tt['code'] for tt in TASK_TYPES if tt.get('require_review')])
+
+
 @task.route('/api/management/list', methods=['GET'])
 @login_required
 def management_list():
@@ -922,93 +946,10 @@ def management_list():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
 
-        uid = current_user.id
-
-        # 代理查看：管理员或部门负责人可查看他人任务
-        view_user_id = request.args.get('view_user_id', type=int)
-        if view_user_id and view_user_id != uid:
-            is_admin = current_user.role in ('admin', 'ceo')
-            is_dept_mgr = getattr(current_user, 'is_department_manager', False)
-            if is_admin:
-                uid = view_user_id
-            elif is_dept_mgr and current_user.department and current_user.company_name:
-                target = User.query.get(view_user_id)
-                if target and target._is_active \
-                        and target.department == current_user.department \
-                        and target.company_name == current_user.company_name:
-                    uid = view_user_id
-
-        query = Task.query.filter(Task.is_deleted == False)
-
-        # 作为审计人的任务ID
-        reviewer_task_ids = db.session.query(TaskReviewer.task_id).filter(
-            TaskReviewer.reviewer_id == uid
-        ).scalar_subquery()
-
-        # 作为里程碑确认人的任务ID（通过子任务关联）
-        from app.models.subtask import MilestoneReviewer, SubTask
-        milestone_task_ids = db.session.query(SubTask.task_id).join(
-            MilestoneReviewer, MilestoneReviewer.subtask_id == SubTask.id
-        ).filter(
-            MilestoneReviewer.reviewer_id == uid,
-            MilestoneReviewer.status == 'pending',
-        ).scalar_subquery()
-
-        # Tab 筛选
-        if tab == 'my':
-            query = query.filter(Task.assignee_id == uid)
-        elif tab == 'created':
-            query = query.filter(Task.creator_id == uid)
-        elif tab == 'shared':
-            query = query.filter(Task.shared_with_users.cast(db.Text).contains(str(uid)))
-        elif tab == 'review':
-            query = query.filter(db.or_(
-                Task.id.in_(reviewer_task_ids),
-                Task.id.in_(milestone_task_ids),
-            ))
-        else:
-            # tab == 'all': 我能看到的全部
-            query = query.filter(db.or_(
-                Task.assignee_id == uid,
-                Task.creator_id == uid,
-                Task.shared_with_users.cast(db.Text).contains(str(uid)),
-                Task.id.in_(reviewer_task_ids),
-                Task.id.in_(milestone_task_ids),
-            ))
-
-        # 状态筛选
-        if status:
-            query = query.filter(Task.status == status)
-
-        # 搜索
-        if search:
-            query = query.filter(Task.title.ilike(f'%{search}%'))
-
-        # 统计
+        uid = _resolve_proxy_uid()
+        query = _build_task_list_query(uid, tab, status, search)
         total = query.count()
-
-        # 排序：已完成/已取消 排到底部
-        completed_last = db.case(
-            (Task.status.in_(['completed', 'cancelled']), 1),
-            else_=0
-        )
-        if sort == 'due_date':
-            query = query.order_by(completed_last, Task.due_date.asc().nullslast(), Task.updated_at.desc())
-        elif sort == 'priority':
-            priority_order = db.case(
-                (Task.priority == 'urgent', 1),
-                (Task.priority == 'high', 2),
-                (Task.priority == 'normal', 3),
-                (Task.priority == 'low', 4),
-                else_=5
-            )
-            query = query.order_by(completed_last, priority_order, Task.updated_at.desc())
-        elif sort == 'created':
-            query = query.order_by(completed_last, Task.created_at.desc())
-        else:
-            query = query.order_by(completed_last, Task.updated_at.desc())
-
-        # 分页
+        query = _apply_task_sort(query, sort)
         tasks = query.options(
             joinedload(Task.creator),
             joinedload(Task.assignee),
@@ -1216,77 +1157,13 @@ def review_task(id):
         if not t:
             return jsonify({'success': False, 'message': '任务不存在'}), 404
 
-        # 找到当前用户的审计记录
-        my_review = next((r for r in t.task_reviewers if r.reviewer_id == current_user.id), None)
-        if not my_review:
-            return jsonify({'success': False, 'message': _('您不是此任务的审计对象')}), 403
-        if t.review_status != 'pending_review':
-            return jsonify({'success': False, 'message': _('任务不在待审核状态')}), 400
-        if my_review.status != 'pending':
-            return jsonify({'success': False, 'message': _('您已完成审核')}), 400
-
         data = request.get_json() or {}
-        action = data.get('action')  # 'approve' or 'reject'
-        comment = (data.get('comment') or '').strip()
-
-        if action == 'approve':
-            my_review.status = 'approved'
-            my_review.comment = comment or None
-            my_review.reviewed_at = get_local_time()
-
-            # 检查是否所有人都已通过 → 任务完成
-            all_approved = all(r.status == 'approved' for r in t.task_reviewers)
-            if all_approved:
-                t.review_status = 'approved'
-                t.reviewed_at = get_local_time()
-                t.status = 'completed'
-                t.completed_at = get_local_time()
-                msg_text = _('任务审核通过')
-                # 发放积分
-                try:
-                    from app.services.points_service import award_points
-                    award_points(user_id=t.assignee_id, behavior_code='task_complete',
-                                 source_type='task', source_id=t.id,
-                                 context=t.title)
-                    for r in t.task_reviewers:
-                        award_points(user_id=r.reviewer_id, behavior_code='task_review_approved',
-                                     source_type='task_review', source_id=t.id,
-                                     context=t.title)
-                except Exception as pts_err:
-                    logger.warning(f"发放任务完成积分失败: {pts_err}")
-            else:
-                # 部分通过，等待其他审计人
-                remaining = [r for r in t.task_reviewers if r.status == 'pending']
-                msg_text = _('您已通过，等待其他审计人')
-
-        elif action == 'reject':
-            if not comment:
-                return jsonify({'success': False, 'message': _('驳回时必须填写意见')}), 400
-            my_review.status = 'rejected'
-            my_review.comment = comment
-            my_review.reviewed_at = get_local_time()
-            # 任一驳回 → 整体驳回
-            t.review_status = 'rejected'
-            t.reviewed_at = get_local_time()
-            t.status = 'in_progress'
-            msg_text = _('任务审核被驳回')
-        else:
-            return jsonify({'success': False, 'message': _('无效的操作')}), 400
-
-        # 通知执行人（全部通过或被驳回时）
-        if t.review_status in ('approved', 'rejected'):
-            try:
-                from app.models.message import Message
-                msg = Message.create_task_completed(
-                    sender_id=current_user.id,
-                    recipient_id=t.assignee_id,
-                    task=t
-                )
-                db.session.add(msg)
-            except Exception as e:
-                logger.warning(f"发送审计结果通知失败: {e}")
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            t, msg_text = task_service.review_task(
+                current_user, t, data.get('action'), data.get('comment'), data.get('rating'))
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': msg_text, 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -1304,30 +1181,11 @@ def resubmit_review(id):
             return jsonify({'success': False, 'message': '任务不存在'}), 404
         if t.assignee_id != current_user.id and t.creator_id != current_user.id:
             return jsonify({'success': False, 'message': '无权操作'}), 403
-        if t.review_status != 'rejected':
-            return jsonify({'success': False, 'message': _('任务不在被驳回状态')}), 400
-
-        t.status = 'pending_review'
-        t.review_status = 'pending_review'
-        t.reviewed_at = None
-
-        # 重置所有审计人状态并通知
+        from app.services import task_service
         try:
-            from app.models.message import Message
-            for tr in t.task_reviewers:
-                tr.status = 'pending'
-                tr.comment = None
-                tr.reviewed_at = None
-                msg = Message.create_task_assigned(
-                    sender_id=current_user.id,
-                    recipient_id=tr.reviewer_id,
-                    task=t
-                )
-                db.session.add(msg)
-        except Exception as e:
-            logger.warning(f"发送重新提交通知失败: {e}")
-
-        db.session.commit()
+            task_service.resubmit_review(current_user, t)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('已重新提交审核'), 'data': t.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -1378,72 +1236,11 @@ def create_subtask(task_id):
         if not data:
             return jsonify({'success': False, 'message': '无效的请求数据'}), 400
 
-        title = (data.get('title') or '').strip()
-        if not title:
-            return jsonify({'success': False, 'message': '节点标题不能为空'}), 400
-
-        is_milestone = bool(data.get('is_milestone', False))
-
-        # 计算排序
-        max_order = db.session.query(db.func.max(SubTask.sort_order)).filter_by(
-            task_id=task_id, is_deleted=False
-        ).scalar() or 0
-
-        subtask = SubTask(
-            task_id=task_id,
-            title=title,
-            description=(data.get('description') or '').strip() or None,
-            assignee_id=data.get('assignee_id') or None,
-            is_milestone=is_milestone,
-            sort_order=max_order + 1,
-        )
-
-        # 日期 + 根据开始日期设初始状态
-        if data.get('start_date'):
-            try:
-                subtask.start_date = date.fromisoformat(data['start_date'])
-                if subtask.start_date <= date.today():
-                    subtask.status = 'in_progress'
-                else:
-                    subtask.status = 'pending'
-            except (ValueError, TypeError):
-                pass
-        else:
-            subtask.status = 'in_progress'
-
-        if data.get('due_date'):
-            try:
-                subtask.due_date = date.fromisoformat(data['due_date'])
-            except (ValueError, TypeError):
-                pass
-
-        # 里程碑专属字段
-        if is_milestone:
-            subtask.milestone_criteria = (data.get('milestone_criteria') or '').strip() or None
-
-        db.session.add(subtask)
-        db.session.flush()
-
-        # 里程碑确认人（会审，支持多人）
-        if is_milestone:
-            confirmer_ids = data.get('milestone_confirmer_ids') or []
-            if not confirmer_ids and data.get('milestone_confirmer_id'):
-                confirmer_ids = [data['milestone_confirmer_id']]
-            for cid in confirmer_ids:
-                mr = MilestoneReviewer(subtask_id=subtask.id, reviewer_id=int(cid))
-                db.session.add(mr)
-
-        db.session.commit()
-
+        from app.services import task_service
         try:
-            from app.utils.work_item_recorder import record_task_activity
-            record_task_activity(
-                'subtask', t.id, t.title, current_user,
-                project_id=t.project_id, customer_id=t.customer_id
-            )
-        except Exception as _log_err:
-            logger.warning(f'task日志记录失败: {_log_err}')
-
+            subtask = task_service.create_subtask(current_user, t, data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('节点已创建'), 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -1468,41 +1265,11 @@ def update_subtask(task_id, subtask_id):
             return jsonify({'success': False, 'message': '节点不存在'}), 404
 
         data = request.get_json() or {}
-
-        for field in ['title', 'description']:
-            if field in data:
-                setattr(subtask, field, (data[field] or '').strip() or None)
-
-        if 'assignee_id' in data:
-            subtask.assignee_id = data['assignee_id'] or None
-
-        if 'start_date' in data:
-            try:
-                subtask.start_date = date.fromisoformat(data['start_date']) if data['start_date'] else None
-            except (ValueError, TypeError):
-                pass
-        if 'due_date' in data:
-            try:
-                subtask.due_date = date.fromisoformat(data['due_date']) if data['due_date'] else None
-            except (ValueError, TypeError):
-                pass
-
-        if 'is_milestone' in data:
-            subtask.is_milestone = bool(data['is_milestone'])
-        if 'milestone_criteria' in data:
-            subtask.milestone_criteria = (data['milestone_criteria'] or '').strip() or None
-
-        # 里程碑确认人更新（会审）
-        if 'milestone_confirmer_ids' in data:
-            new_ids = set(int(cid) for cid in (data['milestone_confirmer_ids'] or []) if cid)
-            old_ids = set(r.reviewer_id for r in subtask.milestone_reviewers)
-            for mr in list(subtask.milestone_reviewers):
-                if mr.reviewer_id not in new_ids:
-                    db.session.delete(mr)
-            for cid in new_ids - old_ids:
-                db.session.add(MilestoneReviewer(subtask_id=subtask.id, reviewer_id=cid))
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            task_service.update_subtask(current_user, t, subtask, data)
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': _('节点已更新'), 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -1526,8 +1293,8 @@ def delete_subtask(task_id, subtask_id):
         if not subtask:
             return jsonify({'success': False, 'message': '节点不存在'}), 404
 
-        subtask.is_deleted = True
-        db.session.commit()
+        from app.services import task_service
+        task_service.delete_subtask(current_user, subtask)
         return jsonify({'success': True, 'message': _('节点已删除')})
     except Exception as e:
         db.session.rollback()
@@ -1552,53 +1319,12 @@ def update_subtask_status(task_id, subtask_id):
             return jsonify({'success': False, 'message': '节点不存在'}), 404
 
         data = request.get_json() or {}
-        action = data.get('action')  # 'start', 'complete'
-
-        today = date.today()
-
-        if action == 'start':
-            # 检查子任务开始日期，未设则看任务开始日期
-            start = subtask.start_date or t.start_date
-            if start and today < start:
-                return jsonify({'success': False,
-                                'message': _('该节点尚未到开始日期（%(date)s）', date=start.strftime("%m/%d"))}), 400
-            subtask.status = 'in_progress'
-        elif action == 'complete':
-            # 里程碑节点完成时进入待确认（会审）
-            if subtask.is_milestone and subtask.milestone_reviewers:
-                subtask.status = 'completed'
-                subtask.completed_at = get_local_time()
-                subtask.milestone_status = 'pending_confirmation'
-                # 重置并通知所有确认人
-                try:
-                    from app.models.message import Message
-                    for mr in subtask.milestone_reviewers:
-                        mr.status = 'pending'
-                        mr.reviewed_at = None
-                        mr.comment = None
-                        msg = Message.create_task_assigned(
-                            sender_id=current_user.id,
-                            recipient_id=mr.reviewer_id,
-                            task=t
-                        )
-                        db.session.add(msg)
-                except Exception as e:
-                    logger.warning(f"发送里程碑通知失败: {e}")
-            else:
-                subtask.status = 'completed'
-                subtask.completed_at = get_local_time()
-                try:
-                    from app.services.points_service import award_points
-                    uid = subtask.assignee_id or t.assignee_id
-                    award_points(user_id=uid, behavior_code='subtask_complete',
-                                 source_type='subtask', source_id=subtask.id,
-                                 context=subtask.title)
-                except Exception as _pts_err:
-                    logger.warning(f'subtask_complete积分发放失败: {_pts_err}')
-        else:
-            return jsonify({'success': False, 'message': '无效操作'}), 400
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            task_service.set_subtask_status(
+                current_user, t, subtask, data.get('action'))
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()
@@ -1621,71 +1347,14 @@ def confirm_milestone(task_id, subtask_id):
         if not subtask.is_milestone:
             return jsonify({'success': False, 'message': _('此节点不是里程碑')}), 400
 
-        # 找到当前用户的确认记录
-        my_review = next((r for r in subtask.milestone_reviewers if r.reviewer_id == current_user.id), None)
-        if not my_review:
-            return jsonify({'success': False, 'message': _('您不是此里程碑的确认人')}), 403
-        if subtask.milestone_status != 'pending_confirmation':
-            return jsonify({'success': False, 'message': _('里程碑不在待确认状态')}), 400
-        if my_review.status != 'pending':
-            return jsonify({'success': False, 'message': _('您已完成确认')}), 400
-
         data = request.get_json() or {}
-        action = data.get('action')  # 'confirm' or 'reject'
-        comment = (data.get('comment') or '').strip()
-
-        if action == 'confirm':
-            my_review.status = 'confirmed'
-            my_review.comment = comment or None
-            my_review.reviewed_at = get_local_time()
-
-            # 检查是否所有人都已确认
-            all_confirmed = all(r.status == 'confirmed' for r in subtask.milestone_reviewers)
-            if all_confirmed:
-                subtask.milestone_status = 'confirmed'
-                subtask.milestone_confirmed_at = get_local_time()
-                try:
-                    from app.services.points_service import award_points
-                    uid = subtask.assignee_id or t.assignee_id
-                    award_points(user_id=uid, behavior_code='task_milestone_confirmed',
-                                 source_type='subtask', source_id=subtask.id,
-                                 context=subtask.title)
-                except Exception as _pts_err:
-                    logger.warning(f'task_milestone_confirmed积分发放失败: {_pts_err}')
-                msg_text = _('里程碑已确认通过')
-            else:
-                msg_text = _('您已确认，等待其他确认人')
-
-        elif action == 'reject':
-            if not comment:
-                return jsonify({'success': False, 'message': _('驳回时必须填写意见')}), 400
-            my_review.status = 'rejected'
-            my_review.comment = comment
-            my_review.reviewed_at = get_local_time()
-            # 任一驳回 → 整体驳回
-            subtask.milestone_status = 'rejected'
-            subtask.milestone_confirmed_at = get_local_time()
-            subtask.status = 'in_progress'
-            msg_text = _('里程碑已被驳回')
-        else:
-            return jsonify({'success': False, 'message': _('无效操作')}), 400
-
-        # 通知任务执行人（全部确认或被驳回时）
-        if subtask.milestone_status in ('confirmed', 'rejected'):
-            notify_uid = subtask.assignee_id or t.assignee_id
-            if notify_uid != current_user.id:
-                try:
-                    from app.models.message import Message
-                    msg = Message.create_task_assigned(
-                        sender_id=current_user.id,
-                        recipient_id=notify_uid,
-                        task=t
-                    )
-                    db.session.add(msg)
-                except Exception as e:
-                    logger.warning(f"发送里程碑结果通知失败: {e}")
-
-        db.session.commit()
+        from app.services import task_service
+        try:
+            subtask, msg_text = task_service.confirm_milestone(
+                current_user, t, subtask, data.get('action'),
+                data.get('comment') or '')
+        except ValueError as ve:
+            return jsonify({'success': False, 'message': str(ve)}), 400
         return jsonify({'success': True, 'message': msg_text, 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()

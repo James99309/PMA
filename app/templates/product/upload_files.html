@@ -189,8 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const errorDetails = document.getElementById('errorDetails');
     const fileLinks = document.getElementById('fileLinks');
     
-    // 文件大小限制 (12MB)
-    const MAX_FILE_SIZE = 12 * 1024 * 1024;
+    const MAX_FILE_SIZE = 0; // 无文件大小限制
     
     // 图片文件预览
     document.getElementById('imageFile').addEventListener('change', function(e) {
@@ -200,9 +199,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const info = document.getElementById('imageInfo');
         
         if (file) {
-            // 验证文件大小
-            if (file.size > MAX_FILE_SIZE) {
-                alert(`{{ _("图片文件太大！最大允许 12MB，当前文件") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
+            // 验证文件大小（MAX_FILE_SIZE=0 表示不限制）
+            if (MAX_FILE_SIZE > 0 && file.size > MAX_FILE_SIZE) {
+                alert(`文件过大，当前文件: ${(file.size / (1024*1024)).toFixed(1)}MB`);
                 e.target.value = '';
                 previewContainer.style.display = 'none';
                 return;

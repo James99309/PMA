@@ -1,0 +1,163 @@
+{% extends 'components/at_list_layout.html' %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_input %}
+
+{% block sidebar_active %}user_list{% endblock %}
+{% block page_title %}{{ _('账户列表') }}{% endblock %}
+{% block category_label %}ACCOUNT · {{ _('系统设置') }}{% endblock %}
+{% block page_description %}{{ _('账户、角色与归属一览;个人级配置(目标/预算/权限/归属)在「个人配置」中操作。') }}{% endblock %}
+
+{% block extra_head %}
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('系统设置') }}</a>
+<span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+<span style="font-size:13px;color:var(--ink);">{{ _('账户列表') }}</span>
+{% endblock %}
+
+{% block page_actions %}
+{% if can_create %}
+{{ at_btn(_('新建账户'), variant='primary', icon_l='plus', onclick='ucOpenCreate()') }}
+{% endif %}
+{% endblock %}
+
+{% block tabs %}
+{% set _tabs = [
+  {'k':'active',   'l':_('已激活'), 'c':tab_counts.active},
+  {'k':'inactive', 'l':_('未激活'), 'c':tab_counts.inactive},
+  {'k':'all',      'l':_('全部'),   'c':tab_counts.all}
+] %}
+{% for t in _tabs %}
+{% set active = (current_tab == t.k) %}
+<a href="{{ url_for('user.at_list', tab=t.k, **list_qs) }}"
+   style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
+          position:relative;text-decoration:none;
+          color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
+          border-bottom:1.5px solid {{ 'var(--ink)' if active else 'transparent' }};
+          margin-bottom:-1px;transition:color 120ms;white-space:nowrap;">
+  <span style="font-size:13px;font-weight:{{ '500' if active else '400' }};">{{ t.l }}</span>
+  <span class="at-tab-num at-mono"
+        style="font-size:11px;color:{{ 'var(--ink-2)' if active else 'var(--ink-4)' }};">{{ t.c }}</span>
+</a>
+{% endfor %}
+{% endblock %}
+
+{% block filter_row %}
+{% from 'components/at_filter_panel.html' import at_filter_panel %}
+<div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <form method="get" action="{{ url_for('user.at_list') }}"
+        style="display:flex;gap:10px;align-items:center;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% for v in role_values %}<input type="hidden" name="role" value="{{ v }}">{% endfor %}
+    {% for v in company_values %}<input type="hidden" name="company" value="{{ v }}">{% endfor %}
+    {% for v in dept_values %}<input type="hidden" name="dept" value="{{ v }}">{% endfor %}
+    {{ at_input(name='search', value=search, placeholder=_('搜索姓名 / 用户名 / 邮箱 / 公司…'), icon_l='search', width='320px') }}
+  </form>
+  {{ at_filter_panel(
+       action_url=url_for('user.at_list'),
+       fields=[
+         {'key':'role',    'label':_('角色'), 'type':'select', 'options':role_options,    'values':role_values},
+         {'key':'company', 'label':_('公司'), 'type':'select', 'options':company_options, 'values':company_values},
+         {'key':'dept',    'label':_('部门'), 'type':'select', 'options':dept_options,    'values':dept_values},
+       ],
+       hidden={'tab':current_tab,'search':search},
+       panel_id='userFilterPanel') }}
+</div>
+
+{% if can_create and form_options %}
+{% from 'components/at_user_modal.html' import at_user_modal %}
+{{ at_user_modal(form_options) }}
+{% endif %}
+{% endblock %}
+
+{% block thead %}
+{% for h, a in [(_('账户'),'left'),(_('角色'),'left'),(_('部门'),'left'),(_('公司'),'left'),
+                (_('联系方式'),'left'),(_('状态'),'left'),(_('更新'),'left')] %}
+<th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
+{% endfor %}
+{% endblock %}
+
+{% block trows %}
+{% for u in users %}
+{% set cell_bd = '' if loop.last else '1px solid var(--line-soft)' %}
+<tr class="at-row" data-href="{{ url_for('user.at_user_detail', user_id=u.id) }}"
+    onclick="location.href=this.dataset.href"
+    style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span style="display:inline-flex;align-items:center;gap:9px;">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+                   border-radius:50%;background:var(--accent-tint);color:var(--accent);
+                   font-size:12px;font-weight:600;flex-shrink:0;">{{ u.name[0] }}</span>
+      <span style="display:inline-flex;flex-direction:column;line-height:1.3;">
+        <span style="font-size:13px;font-weight:500;color:var(--ink);display:inline-flex;align-items:center;gap:6px;">
+          {{ u.name }}
+          {% if u.is_dept_manager %}<span title="{{ _('部门负责人') }}"
+                style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:500;
+                       background:var(--accent-tint);color:var(--accent);">{{ _('负责人') }}</span>{% endif %}
+          {% if u.in_probation %}<span title="{{ _('新手 · 试用期') }}{% if u.probation_end %}{{ _('至 %(date)s', date=u.probation_end) }}{% endif %}"
+                style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
+                       background:var(--success-soft);color:var(--success);flex-shrink:0;">
+            <span class="material-symbols-outlined" style="font-size:15px;">eco</span></span>{% endif %}
+        </span>
+        <span class="at-mono" style="font-size:11px;color:var(--ink-4);">{{ u.username }}</span>
+      </span>
+    </span>
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
+    {{ u.role_display }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;color:var(--ink-2);font-size:12.5px;">
+    {{ u.department }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:220px;color:var(--ink-3);font-size:12px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    {{ u.company }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:220px;color:var(--ink-3);font-size:12px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    {{ u.email or u.phone or '—' }}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    {% if u.is_active %}
+      {{ at_pill(_('已激活'), tone='success', dot=true) }}
+    {% else %}
+      {{ at_pill(_('未激活'), tone='neutral') }}
+    {% endif %}
+  </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
+    <span class="at-mono at-tab-num" style="font-size:12px;color:var(--ink-3);">
+      {{ u.updated }}
+    </span>
+  </td>
+</tr>
+{% else %}
+<tr>
+  <td colspan="7" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    {{ _('没有符合筛选条件的账户') }}
+  </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block pagination %}
+{% if pagination.pages > 1 %}
+<span class="at-mono at-dim" style="font-size:11.5px;">
+  {{ _('第 %(page)s / %(pages)s 页', page=pagination.page, pages=pagination.pages) }} · {{ _('共 %(total)s 个账户', total=pagination.total) }}
+</span>
+<div style="display:flex;gap:6px;">
+  {% if pagination.has_prev %}
+    {{ at_btn(_('上一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('user.at_list', tab=current_tab, page=pagination.prev_num, **list_qs)) }}
+  {% endif %}
+  {% if pagination.has_next %}
+    {{ at_btn(_('下一页'), variant='ghost', size='sm', tag='a',
+              href=url_for('user.at_list', tab=current_tab, page=pagination.next_num, **list_qs)) }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

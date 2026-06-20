@@ -25,6 +25,8 @@ from app.models.performance_config import (
 from app.models.expense import Expense, Department
 from app.models.expense_budget import ExpenseBudget
 from app.models.project_customer_association import ProjectCustomerAssociation
+from app.models.salary_structure import SalaryStructureItem, UserSalaryItem, UserSalaryProfile, SalaryRun
+from app.models.performance_settlement import PerformanceSettlement
 from app.models.salary_config import (
     SalaryGradeConfig, SalaryGradeBandwidth, SalaryBaseParams, SalaryStepRules,
     SalaryFormulaConfig, SalesTeamConfig, EmployeeSalaryConfig,
@@ -54,7 +56,7 @@ from app.models.meeting import (
     MeetingMinutes, MeetingActionItem
 )
 # 文件管理模块
-from app.models.file_manager import FileLibrary, UserFolder, UserFileRef
+from app.models.file_manager import FileLibrary, UserFolder, UserFileRef, UserFolderShare
 # 知识库模块（Karpathy LLM Wiki 方案）
 from app.models.knowledge import KnowledgeTag, KnowledgeRawFile, KnowledgeWikiArticle
 # 资源池访问请求
@@ -107,7 +109,7 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'QuotationConfirmationTask',
            'Task', 'TaskAttachment', 'TaskReply', 'TaskReviewer',
            'SubTask', 'SubTaskUpdate', 'SubTaskAttachment', 'MilestoneReviewer',
-           'FileLibrary', 'UserFolder', 'UserFileRef',
+           'FileLibrary', 'UserFolder', 'UserFileRef', 'UserFolderShare',
            'KnowledgeTag', 'KnowledgeRawFile', 'KnowledgeWikiArticle',
            'AccessRequest',
            'SystemDiagram', 'DiagramShareToken', 'DiagramExternalSession',

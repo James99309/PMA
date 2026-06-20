@@ -1,0 +1,206 @@
+{#
+=============================================================================
+文件夹共享 Modal（Alpine.js）
+=============================================================================
+依赖：
+- 父级 x-data 必须暴露：shareModal（对象状态），shareModalSave / shareModalClose / shareModalAddUser / shareModalRemoveUser / shareModalRemoveExisting / shareModalUpdatePermission / shareModalUnshareAll / shareModalSearchUsers 方法
+- 由 fileManager() Alpine 组件统一管理
+- 使用方式：{% include 'components/tw_folder_share_modal.html' %}
+=============================================================================
+#}
+
+<div x-show="shareModal.open"
+     x-cloak
+     x-transition.opacity
+     class="fixed inset-0 z-50 flex items-center justify-center p-4"
+     @keydown.escape.window="shareModalClose()">
+
+    {# 遮罩 #}
+    <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" @click="shareModalClose()"></div>
+
+    {# Modal 主体 #}
+    <div class="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-slate-200 dark:ring-slate-700 max-h-[90vh] flex flex-col"
+         @click.stop>
+
+        {# ========== 头部 ========== #}
+        <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+            <div class="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-xl">group_add</span>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-[11px] text-slate-400 dark:text-slate-500">{{ _('共享文件夹') }}</div>
+                <div class="text-sm font-semibold text-slate-900 dark:text-white truncate" x-text="shareModal.folderName"></div>
+            </div>
+            <button class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800" @click="shareModalClose()">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        {# ========== 内容 ========== #}
+        <div class="p-5 space-y-5 overflow-y-auto flex-1">
+
+            {# ① 选择共享对象 #}
+            <div>
+                <label class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{{ _('添加共享对象') }}</label>
+
+                {# 搜索框 + 下拉建议 #}
+                <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
+                    <input type="text"
+                           x-model="shareModal.searchKeyword"
+                           @input.debounce.300ms="shareModalSearchUsers()"
+                           @focus="shareModalSearchUsers()"
+                           placeholder="{{ _('搜索用户 / 部门...') }}"
+                           class="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none">
+
+                    {# 搜索结果下拉 #}
+                    <div x-show="shareModal.searchResults.length > 0"
+                         x-transition
+                         class="absolute top-full left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl z-10">
+                        <template x-for="u in shareModal.searchResults" :key="'sr-' + u.id">
+                            <button @click="shareModalAddUser(u)"
+                                    class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
+                                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                                     :style="'background: linear-gradient(135deg, ' + avatarColor(u.id) + ')'"
+                                     x-text="u.avatar || (u.name || '?')[0]"></div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="u.name"></div>
+                                    <div class="text-[11px] text-slate-400" x-text="u.dept || ''"></div>
+                                </div>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                {# 已选 chips #}
+                <div class="mt-2 flex flex-wrap gap-1.5" x-show="shareModal.selected.length > 0">
+                    <template x-for="u in shareModal.selected" :key="'sel-' + u.id">
+                        <span class="inline-flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs">
+                            <span class="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-semibold text-white"
+                                  :style="'background: linear-gradient(135deg, ' + avatarColor(u.id) + ')'"
+                                  x-text="(u.name || '?')[0]"></span>
+                            <span class="text-slate-700 dark:text-slate-300" x-text="u.name"></span>
+                            <button class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-0.5"
+                                    @click="shareModalRemoveUser(u.id)">
+                                <span class="material-symbols-outlined text-[14px]">close</span>
+                            </button>
+                        </span>
+                    </template>
+                </div>
+            </div>
+
+            {# ② 权限 #}
+            <div>
+                <label class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">{{ _('权限') }}</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-start gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors"
+                           :class="shareModal.permission === 'read' ? 'border-primary bg-primary/5' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'">
+                        <input type="radio" name="folder-share-perm" value="read" x-model="shareModal.permission" class="mt-0.5 text-primary focus:ring-primary/50">
+                        <div class="flex-1">
+                            <div class="text-sm font-medium text-slate-900 dark:text-white">{{ _('只读') }}</div>
+                            <div class="text-[11px] text-slate-500 leading-tight mt-0.5">{{ _('仅可查看 / 下载') }}</div>
+                        </div>
+                    </label>
+                    <label class="flex items-start gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors"
+                           :class="shareModal.permission === 'write' ? 'border-primary bg-primary/5' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'">
+                        <input type="radio" name="folder-share-perm" value="write" x-model="shareModal.permission" class="mt-0.5 text-primary focus:ring-primary/50">
+                        <div class="flex-1">
+                            <div class="text-sm font-medium text-slate-900 dark:text-white">{{ _('可编辑') }}</div>
+                            <div class="text-[11px] text-slate-500 leading-tight mt-0.5">{{ _('可上传 / 删除') }}</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            {# ③ 留言 #}
+            <div>
+                <label class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                    {{ _('留言') }} <span class="text-slate-400 font-normal">{{ _('（可选）') }}</span>
+                </label>
+                <textarea x-model="shareModal.message" rows="2"
+                          placeholder="{{ _('附加说明，被共享人会看到') }}"
+                          class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none resize-none"></textarea>
+            </div>
+
+            {# ④ 已共享列表 #}
+            <div x-show="shareModal.existing.length > 0">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {{ _('已共享给') }} (<span x-text="shareModal.existing.length"></span> {{ _('人') }})
+                    </label>
+                    <button class="text-[11px] text-red-500 hover:underline"
+                            @click="shareModalUnshareAll()">{{ _('全部收回') }}</button>
+                </div>
+                <div class="space-y-1.5">
+                    <template x-for="s in shareModal.existing" :key="'ex-' + s.id">
+                        <div class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                                 :style="'background: linear-gradient(135deg, ' + avatarColor(s.shared_with.id) + ')'"
+                                 x-text="(s.shared_with.display_name || '?')[0]"></div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-medium text-slate-900 dark:text-white truncate">
+                                    <span x-text="s.shared_with.display_name"></span>
+                                    <span class="text-[11px] text-slate-400 font-normal" x-text="s.shared_with.department || ''"></span>
+                                </div>
+                                <div class="text-[11px] text-slate-500" x-text="formatShareTime(s.created_at)"></div>
+                            </div>
+                            <select :value="s.permission"
+                                    @change="shareModalUpdatePermission(s.shared_with.id, $event.target.value)"
+                                    class="text-xs rounded-md border border-slate-200 dark:border-slate-700 px-1.5 py-1 bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary">
+                                <option value="read">{{ _('只读') }}</option>
+                                <option value="write">{{ _('可编辑') }}</option>
+                            </select>
+                            <button class="text-slate-300 hover:text-red-500 p-1"
+                                    @click="shareModalRemoveExisting(s.shared_with.id)">
+                                <span class="material-symbols-outlined text-base">person_remove</span>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            {# 空状态 #}
+            <div x-show="shareModal.existing.length === 0 && shareModal.selected.length === 0"
+                 class="text-center py-4 text-xs text-slate-400">
+                {{ _('此文件夹尚未共享给任何人') }}
+            </div>
+        </div>
+
+        {# ========== 底部 ========== #}
+        <div class="flex items-center justify-between gap-2 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0">
+            {# 左侧：状态提示，让用户知道改动已落库 #}
+            <div class="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1" x-show="shareModal.existing.length > 0 && shareModal.selected.length === 0">
+                <span class="material-symbols-outlined text-emerald-500" style="font-size:14px">check_circle</span>
+                {{ _('改动已保存') }}
+            </div>
+            <div x-show="!(shareModal.existing.length > 0 && shareModal.selected.length === 0)"></div>
+
+            {# 右侧按钮区 #}
+            <div class="flex items-center gap-2">
+                {# 模式 A：有待共享对象 → 取消 / 确认共享 #}
+                <template x-if="shareModal.selected.length > 0">
+                    <div class="flex items-center gap-2">
+                        <button class="px-4 py-1.5 text-sm rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                @click="shareModalClose()">{{ _('取消') }}</button>
+                        <button class="px-4 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                :disabled="shareModal.saving"
+                                @click="shareModalSave()">
+                            <span class="material-symbols-outlined text-base" x-show="!shareModal.saving">check</span>
+                            <span class="material-symbols-outlined text-base animate-spin" x-show="shareModal.saving">progress_activity</span>
+                            <span x-text="shareModal.saving ? '{{ _('保存中...') }}' : '{{ _('确认共享') }}'"></span>
+                        </button>
+                    </div>
+                </template>
+
+                {# 模式 B：无待共享对象（管理已有 / 空白状态） → 关闭 #}
+                <template x-if="shareModal.selected.length === 0">
+                    <button class="px-4 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 inline-flex items-center gap-1.5"
+                            @click="shareModalClose()">
+                        <span class="material-symbols-outlined text-base">done</span>
+                        {{ _('完成') }}
+                    </button>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>

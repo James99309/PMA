@@ -1,0 +1,157 @@
+{#
+  AT 列表通用骨架(extends 用)
+  ─────────────────────────────────────────────────────────────
+  从 at_purchase_order_list.html 提炼,业务管理 / 订单中心 等列表通用。
+
+  必填 block:
+    sidebar_active        — sidebar 高亮 key
+    page_title            — h1 标题
+    thead                 — <th>...</th> tr
+    trows                 — tbody 行循环
+
+  可选 block:
+    extra_head, page_meta_title, breadcrumb, category_label, page_description,
+    page_actions, tabs, total_count, filter_row, table_min_width,
+    pagination, modals, scripts
+#}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_input, at_select, at_progress %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{# 当前用户信息(JS 通过 meta 读取,如新建项目时自动预选厂商销售为自己) #}
+{% if current_user.is_authenticated %}
+<meta name="current-user-id" content="{{ current_user.id }}">
+<meta name="current-user-is-vendor" content="{{ '1' if current_user.is_vendor_user() else '0' }}">
+{% endif %}
+{# 地图 SDK 配置(MapPicker / AddressPicker 通过 meta 读取,无 key 时为空 OK) #}
+<meta name="map-provider" content="{{ config.MAP_PROVIDER or 'google' }}">
+<meta name="google-maps-api-key" content="{{ config.GOOGLE_MAPS_API_KEY or '' }}">
+<meta name="amap-js-key" content="{{ config.AMAP_JS_KEY or '' }}">
+<meta name="amap-security-key" content="{{ config.AMAP_SECURITY_KEY or '' }}">
+<title>{% block page_meta_title %}{{ self.page_title() }} · PMA{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+{% block extra_head %}{% endblock %}
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key=self.sidebar_active()) }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+<!-- 顶栏:面包屑 + 暗色切换 -->
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    {% block breadcrumb %}{% endblock %}
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 24px;
+             display:flex;flex-direction:column;height:calc(100vh - 57px);">
+
+  <!-- Page header -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;
+              margin-bottom:24px;flex-wrap:wrap;gap:16px;flex-shrink:0;">
+    <div>
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        {% block category_label %}{% endblock %}
+      </div>
+      <h1 class="at-serif" style="margin:0;font-size:40px;font-weight:500;
+                                   letter-spacing:-0.01em;line-height:1.1;">{% block page_title %}{% endblock %}</h1>
+      <p style="margin:10px 0 0;color:var(--ink-3);font-size:14px;max-width:560px;">
+        {% block page_description %}{% endblock %}
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      {% block page_actions %}{% endblock %}
+    </div>
+  </div>
+
+  <!-- Status tabs + total -->
+  <div style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+              display:flex;align-items:center;gap:0;margin-bottom:16px;flex-shrink:0;
+              overflow-x:auto;">
+    {% block tabs %}{% endblock %}
+    <div style="flex:1;"></div>
+    <div class="at-dim" style="font-size:12px;padding-right:4px;display:flex;align-items:center;gap:10px;">
+      <span>{{ _('共') }} <span class="at-mono at-tab-num" style="color:var(--ink-2);">{% block total_count %}{% if pagination is defined %}{{ pagination.total }}{% endif %}{% endblock %}</span> {{ _('条') }}</span>
+      {% block total_extra %}{% endblock %}
+    </div>
+  </div>
+
+  <!-- Filter row -->
+  {% block filter_row %}{% endblock %}
+
+  <!-- Table -->
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:10px;
+              overflow:auto;flex:1;min-height:0;">
+    <table style="width:100%;min-width:{% block table_min_width %}920px{% endblock %};
+                  font-size:13px;border-collapse:separate;border-spacing:0;">
+      <thead>
+        <tr style="background:var(--bg-elev);">
+          {% block thead %}{% endblock %}
+        </tr>
+      </thead>
+      <tbody>
+        {% block trows %}{% endblock %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              padding:16px 4px 0;flex-shrink:0;">
+    {% block pagination %}{% endblock %}
+  </div>
+</main>
+
+{% block modals %}{% endblock %}
+
+<script>
+  document.querySelectorAll('.at-row').forEach(r => {
+    r.addEventListener('mouseenter', () => { r.style.background = 'var(--bg-hover)'; });
+    r.addEventListener('mouseleave', () => { r.style.background = 'transparent'; });
+  });
+
+  // AT 筛选面板:开关 + 点外部关闭(公用组件 at_filter_panel 使用)
+  window.atFilterToggle = function(panelId) {
+    const pop = document.getElementById(panelId);
+    if (!pop) return;
+    const willShow = pop.hidden;
+    document.querySelectorAll('[data-at-filter-pop]').forEach(p => { p.hidden = true; });
+    pop.hidden = !willShow;
+  };
+  // 用 mousedown(非 click):at-ss 选项在 mousedown 时 pick() 后会立刻隐藏下拉面板,
+  // 等到 click 触发时面板已 display:none、光标落到背后元素上,closest('.at-ss-panel')
+  // 便失效而误关筛选面板。改听 mousedown 后,at-ss 选项 mousedown 里的 stopPropagation
+  // 会拦住冒泡,本处理器根本不会触发。
+  document.addEventListener('mousedown', function(e) {
+    // 放行:筛选面板自身,以及被移到 <body> 的 at-searchable-select 下拉面板
+    if (e.target.closest('[data-at-filter-root]') || e.target.closest('.at-ss-panel')) return;
+    document.querySelectorAll('[data-at-filter-pop]').forEach(p => { p.hidden = true; });
+  });
+</script>
+{# 筛选面板「负责人」可搜索下拉依赖 #}
+<script src="{{ url_for('static', filename='js/at-searchable-select.js') }}"></script>
+{% block scripts %}{% endblock %}
+
+</div>
+</div>
+</body>
+</html>

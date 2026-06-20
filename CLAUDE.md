@@ -13,6 +13,8 @@
 - **CLAUDE-DATABASE.md** - 数据库备份和迁移规范
 - **CLAUDE-SCRIPTS.md** - 脚本创建与管理规范
 - **CLAUDE-CODE-QUALITY.md** - 代码质量与重构规范
+- **CLAUDE-LOCKING.md** - 审批锁定统一规范(Lockable Protocol)
+- **CLAUDE-INVENTORY.md** - 库存系统设计规范(厂商 vs 客户仓库)
 
 ### **📋 使用说明**
 - **Claude AI助手**: 需要时请主动读取相应的专门规范文件

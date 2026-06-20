@@ -18,6 +18,7 @@ class PerformanceMetricsDefinition(db.Model):
     metric_name = Column(String(100), nullable=False)
     metric_category = Column(String(50), default='custom')
     data_type = Column(String(20), nullable=False)  # amount, count, percentage, score
+    scoring_mode = Column(String(20), nullable=True)  # target(默认)/inverse/cumulative;NULL 走代码兜底
     default_unit = Column(String(20))
     description = Column(Text)
     available_sources = Column(JSON)  # 可用数据源配置
@@ -40,6 +41,7 @@ class PerformanceMetricsDefinition(db.Model):
             'metric_name': self.metric_name,
             'metric_category': self.metric_category,
             'data_type': self.data_type,
+            'scoring_mode': self.scoring_mode,
             'default_unit': self.default_unit,
             'description': self.description,
             'available_sources': self.available_sources,
@@ -457,6 +459,7 @@ class RolePerformanceTarget(db.Model):
 
     # 单位配置
     target_unit = Column(String(20), default='万元')              # 万元/个
+    weight = Column(Numeric(5, 2))                                # 考核权重%(角色级覆盖;空=用岗位方案默认)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -540,6 +543,7 @@ class UserPerformanceTarget(db.Model):
     q4_target_override = Column(Numeric(15, 2))
     enable_monthly_override = Column(Boolean)
     monthly_targets_override = Column(JSON)
+    weight_override = Column(Numeric(5, 2))   # 个人权重覆盖(%);空=用角色/方案默认权重
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

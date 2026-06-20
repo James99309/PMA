@@ -452,8 +452,10 @@ function renderFloorBackground(fp){
   const bg=fp.background;
   const canvasGroup=document.getElementById('canvasGroup');
 
-  // Reuse existing element if URL unchanged
-  if(cachedFloorBgImg && _cachedBgUrl===bg.url && cachedFloorBgImg.parentNode===canvasGroup){
+  // Reuse existing element if URL unchanged.
+  // 用 contains() 而非 parentNode===canvasGroup：背景图实际插在 blurWrap 子节点里，
+  // 严格相等永远 false → 复用永远走不通 → calibration 后 fade 路径产生残影。
+  if(cachedFloorBgImg && _cachedBgUrl===bg.url && canvasGroup.contains(cachedFloorBgImg)){
     // Only update attributes that may have changed
     cachedFloorBgImg.setAttribute('x',bg.offset_x||0);
     cachedFloorBgImg.setAttribute('y',bg.offset_y||0);
@@ -466,6 +468,13 @@ function renderFloorBackground(fp){
   // Create new element (first render or URL changed)
   const oldImg=cachedFloorBgImg;
   const orphan=document.getElementById('floorBgImage');
+
+  // 同步清掉任何不是 oldImg 的残余 floorBgImage 元素。
+  // Fade-in 分支用 onload 异步清理 oldImg：当多分辨率 URL 快速连续切换时（fitView→onScaleChanged
+  // 触发的 URL swap），后一次的 imgC.onload 会移除 imgB，浏览器中断 imgB 加载导致 imgB.onload
+  // 永不触发，imgB 闭包持有的 imgA 就成了画布上残留的"小地图"。
+  const _bgHost=document.getElementById('blurWrap')||canvasGroup;
+  _bgHost.querySelectorAll('[id="floorBgImage"]').forEach(el=>{if(el!==oldImg)el.remove()});
 
   const img=document.createElementNS('http://www.w3.org/2000/svg','image');
   img.setAttribute('id','floorBgImage');
@@ -2432,9 +2441,10 @@ function renderFloorNodes(fp){
 
     // Label
     if(!n.hideLabel){
-      const nameText=displaySettings.iconLabel?n.name:'',modelText=(displaySettings.iconModel&&n.model)?n.model:'';
+      const _dispName=_nodeDisplayName(n);
+      const nameText=displaySettings.iconLabel?_dispName:'',modelText=(displaySettings.iconModel&&n.model)?n.model:'';
       const lines=[];if(nameText)lines.push(nameText);if(modelText)lines.push(modelText);
-      if(!lines.length)lines.push(n.name);
+      if(!lines.length)lines.push(_dispName);
       const lblW=Math.max(...lines.map(t=>t.length))*12+12,lblH=lines.length*12+4;
       const side=pl.labelPosition||computeBestLabelSide((fp.routes||[]).map(r=>({sourceId:r.sourceNodeId,targetId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort})),n.id);
       const lc=getLabelCoords(side,n.w,n.h,lblW,lblH);
@@ -4190,7 +4200,7 @@ function showFloorNodeProps(id){
   const maxQty=nodeQty-usedElsewhere;
   const plQty=pl?(pl.qty||1):1;
   document.getElementById('propsContent').innerHTML=`
-    <div class="props-field"><span class="props-label">${_t('名称')}</span><input class="props-input" value="${n.name}" disabled></div>
+    <div class="props-field"><span class="props-label">${_t('名称')}</span><input class="props-input" value="${_nodeDisplayName(n)}" disabled></div>
     ${n.model?`<div class="props-field"><span class="props-label">${_t('型号')}</span><input class="props-input" value="${n.model}" disabled></div>`:''}
     <div class="props-field"><span class="props-label">${_t('位置')}</span><input class="props-input" value="X: ${Math.round(pl?pl.x:n.x)}, Y: ${Math.round(pl?pl.y:n.y)}" disabled></div>
     ${pl?`

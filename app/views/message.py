@@ -57,6 +57,9 @@ def get_panel_data():
             elif msg.related_object_type == 'workitem':
                 # 行程类消息（共享、取消、完成等），用户自己收到的通知，可以查看自己的日历
                 can_view = True
+            # 日报评论:收件人即日报创建者,可看自己的日报
+            if msg.message_type == 'worklog_comment':
+                can_view = True
 
             msg_dict['can_view_calendar'] = can_view
             mention_list.append(msg_dict)
@@ -540,9 +543,9 @@ def _get_approval_detail_url(object_type, object_id):
         elif object_type == 'quotation':
             return url_for('quotation.view_quotation', id=object_id)
         elif object_type == 'pricing_order':
-            return url_for('pricing_order.list_pricing_orders') + f'?open={object_id}'
+            return url_for('pricing_order.excel_edit_pricing_order', order_id=object_id)
         elif object_type == 'purchase_order':
-            return url_for('purchase_order.detail_view', order_id=object_id)
+            return url_for('purchase_order.at_detail_view', order_id=object_id)
         elif object_type == 'customer':
             return url_for('customer.view_company', company_id=object_id)
         elif object_type == 'rd_product':

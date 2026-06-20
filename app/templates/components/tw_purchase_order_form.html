@@ -28,7 +28,7 @@
 {% set modal_title = _('编辑采购订单') if is_edit else _('新建采购订单') %}
 {% set submit_label = _('保存修改') if is_edit else _('创建采购订单') %}
 {% set default_currency = order.currency if is_edit and order else 'CNY' %}
-{% set currency_symbol = '$' if default_currency == 'USD' else '¥' %}
+{% set currency_symbol = get_currency_symbol(default_currency or get_default_currency()) %}
 
 <div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden">
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="POFormModal.close()"></div>
@@ -187,19 +187,27 @@
 
                         <!-- 底部操作区：添加按钮（左） + 货币和总计（右） -->
                         <div class="flex items-center justify-between">
-                            <button type="button" class="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                                onclick="window.EditableTable.addRow('poProductTable')">
-                                <span class="material-symbols-outlined text-base">add</span>
-                                {{ _('添加产品') }}
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                    onclick="window.EditableTable.addRow('poProductTable')">
+                                    <span class="material-symbols-outlined text-base">add</span>
+                                    {{ _('添加产品') }}
+                                </button>
+                                <button type="button" class="inline-flex items-center gap-2 px-3 py-2 border border-primary/50 rounded-lg text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+                                    onclick="openDemandPoolPanel()">
+                                    <span class="material-symbols-outlined text-base">add_shopping_cart</span>
+                                    {{ _('从客户需求导入') }}
+                                </button>
+                            </div>
                             <div class="flex items-center gap-4">
                                 <div class="flex items-center gap-2">
                                     <label class="text-sm text-slate-600 dark:text-slate-400">{{ _('货币') }}:</label>
                                     <select id="{{ modal_id }}_currency"
                                         class="h-9 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                                         onchange="POFormModal.onCurrencyChange(this.value)">
-                                        <option value="CNY" {{ 'selected' if default_currency == 'CNY' }}>CNY (¥)</option>
-                                        <option value="USD" {{ 'selected' if default_currency == 'USD' }}>USD ($)</option>
+                                        {% for code, name in currency_options|default([('CNY', '人民币'), ('USD', '美元')]) %}
+                                        <option value="{{ code }}" {{ 'selected' if code == default_currency }}>{{ name }}</option>
+                                        {% endfor %}
                                     </select>
                                 </div>
                                 <span class="text-sm text-slate-600 dark:text-slate-400">
@@ -491,9 +499,202 @@ function closePurchaseOrderFormModal(modalId) {
     POFormModal.close();
 }
 
+// ============== 需求池导入 ==============
+let demandPoolVisible = false;
+let demandPoolData = [];
+// 记录当前表格中已从需求池导入的数量 { sales_order_detail_id: quantity }
+let importedDemandQty = {};
+
+function openDemandPoolPanel() {
+    demandPoolVisible = true;
+    const panel = document.getElementById('demandPoolPanel');
+    if (panel) {
+        panel.classList.remove('hidden');
+        loadDemandPool();
+    }
+}
+
+function closeDemandPoolPanel() {
+    demandPoolVisible = false;
+    const panel = document.getElementById('demandPoolPanel');
+    if (panel) panel.classList.add('hidden');
+}
+
+async function loadDemandPool(search = '') {
+    try {
+        // 扫描当前表格中已导入的需求数量
+        _scanImportedDemands();
+
+        const resp = await fetch(`/purchase-order/api/procurement-demands?search=${encodeURIComponent(search)}`);
+        const data = await resp.json();
+        if (data.success) {
+            demandPoolData = data.demands;
+            renderDemandPool();
+        }
+    } catch (e) {
+        console.error('加载需求池失败:', e);
+    }
+}
+
+function _scanImportedDemands() {
+    // 从 EditableTable 的行数据中收集已导入的 sales_order_detail_id 和数量
+    importedDemandQty = {};
+    const instance = window.EditableTable && window.EditableTable.instances && window.EditableTable.instances['poProductTable'];
+    if (instance && instance.rows) {
+        instance.rows.forEach(r => {
+            const soDetailId = r.data && r.data.sales_order_detail_id;
+            if (soDetailId) {
+                const qty = parseInt(r.data.quantity) || 0;
+                importedDemandQty[soDetailId] = (importedDemandQty[soDetailId] || 0) + qty;
+            }
+        });
+    }
+}
+
+function renderDemandPool() {
+    const tbody = document.getElementById('demandPoolBody');
+    if (!tbody) return;
+
+    // 过滤掉已全部导入的需求，调整剩余可导入数量
+    const displayData = [];
+    demandPoolData.forEach((d, i) => {
+        const alreadyImported = importedDemandQty[d.sales_order_detail_id] || 0;
+        const adjustedRemaining = d.remaining_to_procure - alreadyImported;
+        if (adjustedRemaining > 0) {
+            displayData.push({ ...d, _originalIdx: i, _adjustedRemaining: adjustedRemaining });
+        }
+    });
+
+    if (displayData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">{{ _("暂无待采购需求") }}</td></tr>';
+        return;
+    }
+    tbody.innerHTML = displayData.map((d, di) => `
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
+            <td class="p-2"><input type="checkbox" data-idx="${d._originalIdx}" class="demand-check rounded border-slate-300"></td>
+            <td class="p-2 text-xs text-primary">${d.order_number}</td>
+            <td class="p-2 text-xs text-slate-600 dark:text-slate-300">${d.customer_name}</td>
+            <td class="p-2 text-xs text-slate-900 dark:text-white">${d.product_name}</td>
+            <td class="p-2 text-xs text-slate-500">${d.product_model || ''}</td>
+            <td class="p-2 text-right">
+                <input type="number" data-idx="${d._originalIdx}" class="demand-qty w-16 h-7 px-1 text-xs text-right rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary"
+                    value="${d._adjustedRemaining}" min="1" max="${d._adjustedRemaining}">
+            </td>
+        </tr>
+    `).join('');
+}
+
+function importSelectedDemands() {
+    const checks = document.querySelectorAll('.demand-check:checked');
+    if (checks.length === 0) return;
+
+    // 先删除空行（产品选择器还是 placeholder 状态的行）
+    const tbody = document.querySelector('#poProductTable tbody');
+    if (tbody) {
+        Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+            const trigger = tr.querySelector('.product-selector-trigger');
+            // 只删除没有选过产品的行（没有 has-value class）
+            if (trigger && !trigger.classList.contains('has-value')) {
+                tr.remove();
+            }
+        });
+    }
+
+    // 导入选中的需求（读取用户调整后的数量）
+    const instance = window.EditableTable.instances && window.EditableTable.instances['poProductTable'];
+    checks.forEach(chk => {
+        const idx = parseInt(chk.dataset.idx);
+        const d = demandPoolData[idx];
+        if (d) {
+            const qtyInput = document.querySelector(`.demand-qty[data-idx="${idx}"]`);
+            const maxQty = d.remaining_to_procure - (importedDemandQty[d.sales_order_detail_id] || 0);
+            const qty = qtyInput ? Math.min(parseInt(qtyInput.value) || maxQty, maxQty) : maxQty;
+
+            // 检查表格中是否已有同一个 sales_order_detail_id 的行
+            let existingRow = null;
+            if (instance && instance.rows) {
+                existingRow = instance.rows.find(r => r.data && r.data.sales_order_detail_id == d.sales_order_detail_id);
+            }
+
+            if (existingRow) {
+                // 累加数量到已有行
+                const newQty = (parseInt(existingRow.data.quantity) || 0) + qty;
+                existingRow.data.quantity = newQty;
+                const row = document.getElementById(existingRow.rowId);
+                if (row) {
+                    const qtyEl = row.querySelector('input[data-col-key="quantity"]');
+                    if (qtyEl) qtyEl.value = newQty;
+                }
+                // 触发金额重算
+                if (window.EditableTable.recalculateRow) {
+                    window.EditableTable.recalculateRow('poProductTable', existingRow.rowId);
+                }
+            } else {
+                // 新增行
+                window.EditableTable.addRow('poProductTable', null, {
+                    product_id: d.product_id,
+                    product_name: d.product_name,
+                    product_model: d.product_model,
+                    product_desc: d.product_desc || '',
+                    quantity: qty,
+                    unit: d.unit || '台',
+                    sales_order_detail_id: d.sales_order_detail_id
+                });
+            }
+        }
+    });
+
+    // 在末尾加一个空行供手动添加
+    window.EditableTable.addRow('poProductTable');
+
+    closeDemandPoolPanel();
+    if (typeof showToast === 'function') showToast(`{{ _("已导入") }} ${checks.length} {{ _("条需求") }}`, 'success');
+}
+
 // 页面加载时初始化产品选择器
 document.addEventListener('DOMContentLoaded', function() {
     POFormModal.initProductSelector();
 });
 </script>
+
+<!-- 需求池导入面板 -->
+<div id="demandPoolPanel" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/30">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+        <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">add_shopping_cart</span>
+                {{ _('客户需求池') }}
+            </h3>
+            <button onclick="closeDemandPoolPanel()" class="text-slate-400 hover:text-slate-600">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+            <input type="text" id="demandPoolSearch" placeholder="{{ _('搜索产品名称/订单号...') }}"
+                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
+                oninput="loadDemandPool(this.value)">
+        </div>
+        <div class="flex-1 overflow-auto p-4">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                    <tr>
+                        <th class="p-2 w-8"></th>
+                        <th class="p-2 text-left text-xs font-semibold text-slate-500">{{ _('订单号') }}</th>
+                        <th class="p-2 text-left text-xs font-semibold text-slate-500">{{ _('客户') }}</th>
+                        <th class="p-2 text-left text-xs font-semibold text-slate-500">{{ _('产品') }}</th>
+                        <th class="p-2 text-left text-xs font-semibold text-slate-500">{{ _('型号') }}</th>
+                        <th class="p-2 text-right text-xs font-semibold text-slate-500">{{ _('待采购') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="demandPoolBody">
+                    <tr><td colspan="6" class="p-4 text-center text-slate-400">{{ _('加载中...') }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+            <button onclick="closeDemandPoolPanel()" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">{{ _('取消') }}</button>
+            <button onclick="importSelectedDemands()" class="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark">{{ _('导入选中') }}</button>
+        </div>
+    </div>
+</div>
 {% endmacro %}

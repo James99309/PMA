@@ -1,0 +1,1945 @@
+{# AT 规格模板详情 — 配置矩阵 / 规格项 / 配置版本 #}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles, at_info_panel %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ template.model }} · 规格模板</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+<script>
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
+    darkMode: ['selector', '[data-theme="dark"]'],
+    corePlugins: { preflight: false },
+    theme: { extend: { colors: { primary: 'var(--accent)' } } }
+  };
+</script>
+<script src="{{ url_for('static', filename='vendor/tailwind/tailwind.forms.min.js') }}"></script>
+<script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+<script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/sortablejs/Sortable.min.js') }}"></script>
+{{ at_detail_styles() }}
+<style>
+/* ── 矩阵表格 ─────────────────────────────────── */
+.atm-wrap { overflow-x:auto;max-height:calc(100vh - 260px);overflow-y:auto; }
+.atm-table { border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:600px;width:100%; }
+.atm-table th { padding:8px 12px;vertical-align:middle;white-space:nowrap; }
+.atm-table td { padding:8px 10px;vertical-align:top;text-align:left;word-break:break-word; }
+.atm-table td:not(.atm-s1):not(.atm-s2) { padding-left:16px; }
+.atm-col-head { min-width:144px;text-align:left !important; }
+.atm-table thead th {
+  position:sticky;top:0;z-index:5;
+  background:var(--bg-elev);
+  box-shadow:inset 0 -1px 0 var(--line); /* 替代 border-bottom，不穿透 */
+  font-size:11px;font-weight:500;color:var(--ink-3);
+  letter-spacing:0.06em;text-transform:uppercase;
+}
+.atm-s1 { position:sticky;left:0;z-index:4;background:var(--bg-elev);
+           width:200px;min-width:200px;max-width:200px;border-right:1px solid var(--line-soft);
+           text-align:left; }
+.atm-s2 { position:sticky;left:200px;z-index:3;background:var(--bg-elev);
+           width:56px;min-width:56px;border-right:1px solid var(--line-soft); }
+thead .atm-s1, thead .atm-s2 { z-index:6; }
+.atm-cat-row td { background:var(--bg-elev-2);font-weight:500;font-size:11.5px;color:var(--ink-2);padding:5px 12px; }
+.atm-cat-row .atm-s1 { background:var(--bg-elev-2); }
+.atm-select {
+  width:100%;min-width:88px;padding:3px 6px;
+  border:1px solid var(--line-2);border-radius:4px;
+  background:var(--bg);color:var(--ink);font-size:12px;
+  transition:border-color 120ms;
+}
+.atm-select:focus { outline:none;border-color:var(--accent); }
+.atm-select.changed { border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent); }
+.atm-locked-val { font-size:12.5px;color:var(--ink-2);text-align:left;display:block;padding:4px 0; }
+/* category underline tabs — 需覆盖 at-theme.css body.at-page button { padding:0 } */
+body.at-page .atm-cat-pill {
+  padding:16px 18px;border:0;
+  border-radius:0;background:transparent;color:var(--ink-3);font-size:13px;
+  cursor:pointer;white-space:nowrap;transition:color 100ms,box-shadow 100ms;
+  display:inline-flex;align-items:center;gap:5px;
+}
+body.at-page .atm-cat-pill.active {
+  box-shadow:inset 0 -2px 0 var(--accent);
+  color:var(--ink);font-weight:500;
+}
+body.at-page .atm-cat-pill:hover:not(.active) { color:var(--ink-2); }
+/* count — 纯文本，无 badge */
+.atm-cat-count {
+  font-size:11.5px;font-family:var(--font-mono,monospace);
+  color:var(--ink-4);
+}
+body.at-page .atm-cat-pill.active .atm-cat-count { color:var(--accent); }
+/* table row hover */
+.atm-table tbody tr:hover td { background:var(--bg-elev-2); }
+.atm-table tbody tr:hover .atm-s1,
+.atm-table tbody tr:hover .atm-s2 { background:var(--bg-elev-2); }
+/* unit column center */
+.atm-s2 { text-align:center !important; }
+.atm-table th.atm-s2 { text-align:center !important; }
+/* full-width header bottom border */
+.atm-table thead tr { border-bottom:1px solid var(--line); }
+
+/* ── 基本信息栏 ─────────────────────────────── */
+.at-bi-val { font-size:13.5px;color:var(--ink);min-height:20px; }
+.at-bi-empty { color:var(--ink-4); }
+
+/* ── 规格项表格 ─────────────────────────────── */
+.ats-table { width:100%;border-collapse:collapse;font-size:13px; }
+.ats-table th { font-size:11px;font-weight:500;color:var(--ink-3);letter-spacing:0.06em;
+                text-transform:uppercase;padding:10px 14px;border-bottom:1px solid var(--line); }
+.ats-table td { padding:10px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top; }
+.ats-cat-header td { background:var(--bg-elev-2);font-weight:500;font-size:11.5px;color:var(--ink-2);padding:6px 14px; }
+.ats-drag-handle { cursor:grab;color:var(--line-2);font-size:16px;line-height:1;user-select:none;
+                   display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px; }
+.ats-drag-handle:active { cursor:grabbing; }
+.ats-sort-ghost { opacity:.35;background:color-mix(in srgb,var(--accent) 8%,transparent); }
+.ats-sort-drag { box-shadow:0 4px 12px rgba(0,0,0,.12); }
+
+/* ── 配置版本卡片 ────────────────────────────── */
+.atc-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;padding:20px 22px; }
+.atc-card {
+  border:1px solid var(--line);border-radius:8px;padding:16px;
+  background:var(--bg-elev);cursor:pointer;
+  transition:box-shadow 120ms,border-color 120ms;
+}
+.atc-card:hover { border-color:var(--line-2);box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.atc-mn { font-family:var(--font-mono,monospace);font-size:13px;font-weight:600;color:var(--ink); }
+.atc-meta { font-size:11.5px;color:var(--ink-3);margin-top:6px; }
+.atc-actions { display:flex;gap:6px;margin-top:12px; }
+
+/* ── 弹窗 ────────────────────────────────────── */
+.at-modal-bg { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;
+               display:flex;align-items:center;justify-content:center; }
+.at-modal-box { background:var(--bg-elev);border-radius:10px;padding:28px;
+                min-width:340px;max-width:480px;width:90%;
+                box-shadow:0 8px 32px rgba(0,0,0,.18);position:relative; }
+.at-form-field { margin-bottom:16px; }
+.at-form-label { font-size:12px;font-weight:500;color:var(--ink-2);display:block;margin-bottom:5px; }
+.at-form-input, .at-form-select {
+  width:100%;padding:7px 10px;
+  border:1px solid var(--line-2) !important;border-radius:5px !important;
+  color:var(--ink);font-size:13px;
+  box-sizing:border-box;outline:none !important;box-shadow:none !important;
+}
+.at-form-input {
+  background:var(--bg) !important;
+}
+.at-form-select {
+  background-color:var(--bg) !important;
+  cursor:pointer;
+}
+.at-form-input:focus, .at-form-select:focus {
+  border-color:var(--accent) !important;
+  outline:none !important;box-shadow:none !important;
+}
+</style>
+</head>
+{% set has_locked_config = configurations|selectattr('mn_locked')|list|length > 0 %}
+<body class="at-page">
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='spec_template') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+
+{# ── 顶栏面包屑 ── #}
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);
+               position:sticky;top:0;z-index:30;">
+  <div style="max-width:1400px;margin:0 auto;padding:14px 32px;
+              display:flex;align-items:center;gap:8px;">
+    <a href="#" style="font-size:13px;color:var(--ink-3);">产品中心</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('spec_template.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">规格模板</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px;">{{ template.model }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()"
+            style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                   background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                   display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} 暗色
+    </button>
+  </div>
+</header>
+
+<main style="max-width:1400px;margin:0 auto;padding:32px 40px 80px;width:100%;box-sizing:border-box;">
+
+  {# ── 页头 ── #}
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px;">
+    <div style="flex:1;min-width:0;">
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;">
+        SPEC TEMPLATE · {{ template.category.name if template.category else '—' }}
+      </div>
+      <h1 style="font-size:28px;font-weight:600;color:var(--ink);margin:0 0 8px;line-height:1.2;">
+        {{ template.model }}
+      </h1>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        {% if template.name and template.name != 'None' %}
+        <span style="font-size:14px;color:var(--ink-3);">{{ template.name }}</span>
+        {% endif %}
+        <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;
+                     background:var(--bg-elev-2);border:1px solid var(--line);color:var(--ink-3);
+                     font-family:var(--font-mono,monospace);">{{ template.version or 'V1.0' }}</span>
+        {% if template.subcategory %}
+        <span style="font-size:12.5px;color:var(--ink-3);">{{ template.subcategory.name }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;"></div>
+  </div>
+
+  {# ── 统计数字 ── #}
+  <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
+    {% for label, val in [('规格项', all_items|length), ('配置版本', configurations|length)] %}
+    <div style="flex:1;min-width:140px;background:var(--bg-elev);border:1px solid var(--line);
+                border-radius:8px;padding:14px 18px;">
+      <div class="at-mono" style="font-size:22px;font-weight:600;color:var(--ink);">{{ val }}</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px;">{{ label }}</div>
+    </div>
+    {% endfor %}
+    <div style="flex:1;min-width:140px;background:var(--bg-elev);border:1px solid var(--line);
+                border-radius:8px;padding:14px 18px;">
+      <div class="at-mono" style="font-size:22px;font-weight:600;color:var(--ink);">
+        {{ all_items|selectattr('is_required')|list|length }}</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px;">必填项</div>
+    </div>
+    {% if template.updated_at %}
+    <div style="flex:1;min-width:140px;background:var(--bg-elev);border:1px solid var(--line);
+                border-radius:8px;padding:14px 18px;">
+      <div class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);padding-top:4px;">
+        {{ template.updated_at.strftime('%Y-%m-%d') }}</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:3px;">最近更新</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── 基本信息（独立区域，tab 面板上方）── #}
+  <div class="at-section" id="atBasicInfo" style="padding:20px 22px;margin-bottom:16px;">
+    {# 标题行 #}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <span style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;">基本信息</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        {% if can_edit %}
+        <button id="atBiEditBtn" onclick="atBiStartEdit()"
+                style="height:28px;padding:0 12px;border-radius:5px;border:1px solid var(--line-2);
+                       background:0;color:var(--ink-3);font-size:12px;cursor:pointer;">编辑</button>
+        <button id="atBiCancelBtn" onclick="atBiCancelEdit()"
+                style="display:none;height:28px;padding:0 12px;border-radius:5px;border:1px solid var(--line-2);
+                       background:0;color:var(--ink-3);font-size:12px;cursor:pointer;">取消</button>
+        <button id="atBiSaveBtn" onclick="atBiSave()"
+                style="display:none;height:28px;padding:0 14px;border-radius:5px;border:0;
+                       background:var(--accent);color:#fff;font-size:12px;font-weight:500;cursor:pointer;">保存</button>
+        {% endif %}
+      </div>
+    </div>
+
+    {# 只读视图 #}
+    <div id="atBiView" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px 20px;">
+      <div>
+        <div class="at-form-label">型号</div>
+        <div class="at-bi-val at-mono">{{ template.model }}</div>
+      </div>
+      <div>
+        <div class="at-form-label">产品名称</div>
+        <div class="at-bi-val {% if not template.name %}at-bi-empty{% endif %}">{{ template.name or '—' }}</div>
+      </div>
+      <div>
+        <div class="at-form-label">英文名称</div>
+        <div class="at-bi-val {% if not template.name_en %}at-bi-empty{% endif %}">{{ template.name_en or '—' }}</div>
+      </div>
+      <div>
+        <div class="at-form-label">产品分类</div>
+        <div class="at-bi-val {% if not template.category %}at-bi-empty{% endif %}">{{ template.category.name if template.category else '—' }}</div>
+      </div>
+      <div>
+        <div class="at-form-label">产品子类</div>
+        <div class="at-bi-val {% if not template.subcategory %}at-bi-empty{% endif %}">{{ template.subcategory.name if template.subcategory else '—' }}</div>
+      </div>
+      <div>
+        <div class="at-form-label">计量单位</div>
+        <div class="at-bi-val {% if not template.unit %}at-bi-empty{% endif %}">{{ template.unit or '—' }}</div>
+      </div>
+      <div>
+        <div class="at-form-label">版本</div>
+        <div class="at-bi-val at-mono">{{ template.version or 'V1.0' }}</div>
+      </div>
+      <div style="grid-column:1/-1;">
+        <div class="at-form-label">模版描述</div>
+        <div class="at-bi-val {% if not template.description %}at-bi-empty{% endif %}">{{ template.description or '—' }}</div>
+      </div>
+    </div>
+
+    {# 编辑表单（默认隐藏）#}
+    {% if can_edit %}
+    <div id="atBiForm" style="display:none;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px 20px;">
+      <div class="at-form-field">
+        <label class="at-form-label">型号 <span style="color:var(--accent);">*</span></label>
+        <input id="atbi-model" class="at-form-input" type="text" value="{{ template.model }}">
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">产品名称</label>
+        <input id="atbi-name" class="at-form-input" type="text" value="{{ template.name or '' }}" placeholder="可选">
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">英文名称</label>
+        <input id="atbi-name-en" class="at-form-input" type="text" value="{{ template.name_en or '' }}" placeholder="可选">
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">产品分类</label>
+        <select id="atbi-category" class="at-form-select" onchange="atBiOnCategoryChange()">
+          <option value="">— 选择 —</option>
+          {% for cat in product_categories %}
+          <option value="{{ cat.id }}" {% if template.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">产品子类</label>
+        <select id="atbi-subcategory" class="at-form-select">
+          <option value="">— 选择 —</option>
+          {% if template.category_id %}
+          {% for subcat in subcategories_by_category.get(template.category_id, []) %}
+          <option value="{{ subcat.id }}" {% if template.subcategory_id == subcat.id %}selected{% endif %}>{{ subcat.name }}</option>
+          {% endfor %}
+          {% endif %}
+        </select>
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">计量单位</label>
+        <select id="atbi-unit" class="at-form-select">
+          <option value="">—</option>
+          {% for u in ['套','个','台','米','根','批','次','个/年'] %}
+          <option value="{{ u }}" {% if template.unit == u %}selected{% endif %}>{{ u }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">版本</label>
+        <input class="at-form-input" type="text" value="{{ template.version or 'V1.0' }}" disabled style="opacity:.5;cursor:not-allowed;">
+      </div>
+      <div class="at-form-field" style="grid-column:1/-1;">
+        <label class="at-form-label">模版描述</label>
+        <textarea id="atbi-desc" class="at-form-input" rows="3"
+                  style="resize:vertical;min-height:64px;"
+                  placeholder="模板级说明（可选）">{{ template.description or '' }}</textarea>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── 编码顺序（可折叠）── #}
+    {% if code_items_data %}
+    <div style="border-top:1px solid var(--line-soft);margin-top:18px;padding-top:16px;">
+      {# 标题行 — 点击折叠/展开 #}
+      <div id="atBiCodeHeader"
+           onclick="atToggleCodeList()"
+           style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+        <span style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;">编码顺序</span>
+        {% if has_locked_config %}
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             style="color:var(--warning,#d97706);flex-shrink:0;" title="存在已锁定配置，顺序不可修改">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        {% endif %}
+        <span style="font-size:11px;color:var(--ink-4);">MN 第 4 位起 · 共 {{ code_items_data|length }} 项</span>
+        <span style="flex:1;"></span>
+        <svg id="atBiCodeChevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2"
+             style="color:var(--ink-4);transition:transform .2s;transform:rotate(-90deg);flex-shrink:0;">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </div>
+      {# 折叠内容 #}
+      <div id="atBiCodeContent" style="display:none;margin-top:10px;">
+        <div id="atBiCodeList" style="display:flex;flex-direction:column;gap:4px;">
+          {% for item in code_items_data %}
+          {% set pos = code_position_map[item.id] %}
+          {% set is_locked = has_locked_config %}
+          <div data-item-id="{{ item.id }}"
+               style="display:flex;align-items:center;gap:8px;padding:6px 10px;
+                      border:1px solid var(--line-soft);border-radius:6px;background:var(--bg-elev-2);">
+            {% if can_edit and not is_locked %}
+            <span class="ats-drag-handle" style="color:var(--ink-4);font-size:15px;" title="拖拽排序">⠿</span>
+            {% else %}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="color:var(--ink-4);flex-shrink:0;">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            {% endif %}
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+                         width:20px;height:20px;min-width:20px;font-size:11px;font-weight:700;
+                         border-radius:50%;background:var(--warning,#d97706);color:#fff;">{{ pos.index }}</span>
+            <span style="font-size:13px;color:var(--ink);flex:1;">{{ item.name }}</span>
+            <span style="font-size:11px;color:var(--ink-4);font-family:var(--font-mono,monospace);">
+              第 {{ pos.start_pos }}{% if item.code_length > 1 %}–{{ pos.start_pos + item.code_length - 1 }}{% endif %} 位
+            </span>
+            <span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--bg-elev);
+                         border:1px solid var(--line);color:var(--ink-4);">{{ item.code_length }}位</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% if can_edit and not has_locked_config %}
+        <p style="font-size:11px;color:var(--ink-4);margin-top:8px;">拖拽调整编码位置顺序，保存后影响 MN 编码结构</p>
+        {% elif has_locked_config %}
+        <p style="font-size:11px;color:var(--warning,#d97706);margin-top:8px;">存在已锁定的配置版本，编码顺序不可修改</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── 主面板 Tabs ── #}
+  <div class="at-section" id="atSpecTabs" data-active="configs">
+    <nav style="display:flex;align-items:stretch;border-bottom:1px solid var(--line);">
+      {% for t_key, t_label, t_ic in [('configs','配置版本','box'),('specs','规格项','docs'),('matrix','配置矩阵','grid')] %}
+      {% set is_active = (t_key == 'configs') %}
+      <button type="button" data-tab-key="{{ t_key }}"
+              onclick="atSelectTab('atSpecTabs','{{ t_key }}')"
+              style="padding:11px 18px;font-size:13px;font-weight:{{ '500' if is_active else '400' }};
+                     background:transparent;border:0;
+                     border-bottom:2px solid {{ 'var(--accent)' if is_active else 'transparent' }};
+                     color:{{ 'var(--accent)' if is_active else 'var(--ink-3)' }};
+                     cursor:pointer;transition:all 120ms;
+                     display:inline-flex;align-items:center;gap:6px;margin-bottom:-1px;">
+        {{ at_icon(t_ic, 14) }}<span>{{ t_label }}</span>
+      </button>
+      {% endfor %}
+      {# 右侧动作区 #}
+      <div style="flex:1;display:flex;align-items:center;justify-content:flex-end;padding-right:16px;gap:8px;">
+        <div id="atTabAct-matrix" style="display:none;align-items:center;gap:6px;">
+          {% if can_edit %}
+          <button id="atMatSaveBtn"
+                  onclick="atMatSaveAll()"
+                  style="display:none;height:30px;padding:0 14px;border-radius:5px;align-items:center;
+                         background:var(--accent);color:#fff;border:0;font-size:12.5px;
+                         font-weight:500;cursor:pointer;line-height:30px;">保存</button>
+          {% endif %}
+        </div>
+        <div id="atTabAct-specs" style="display:none;align-items:center;gap:6px;">
+          {% if can_edit %}
+          <button onclick="atAddSpecOpen()"
+                  style="height:30px;padding:0 10px;border:0;background:0;
+                         color:var(--ink-3);font-size:12.5px;cursor:pointer;
+                         transition:color 120ms;">+ 添加规格项</button>
+          {% endif %}
+        </div>
+        <div id="atTabAct-configs" style="display:flex;align-items:center;gap:6px;">
+          {% if can_edit %}
+          <button onclick="atConfigOpenCreate()"
+                  style="height:30px;padding:0 10px;border:0;background:0;
+                         color:var(--ink-3);font-size:12.5px;cursor:pointer;
+                         transition:color 120ms;">+ 新建配置版本</button>
+          {% endif %}
+        </div>
+      </div>
+    </nav>
+
+    <div class="at-tabs-panels">
+
+      {# ── Tab: 配置矩阵 ── #}
+      <div data-tab-panel="matrix" style="display:none;padding:0;">
+        {% if configurations %}
+        {# 分类 tab 筛选 #}
+        <div style="display:flex;gap:0;overflow-x:auto;padding:0 20px;">
+          <button id="atm-cat-all" class="atm-cat-pill active" onclick="atMatFilter('all')">
+            全部<span class="atm-cat-count">{{ all_items|length }}</span>
+          </button>
+          {% for category in categories if items_by_category.get(category.id) %}
+          <button id="atm-cat-{{ category.id }}" class="atm-cat-pill"
+                  onclick="atMatFilter('{{ category.id }}')">
+            {{ category.name }}<span class="atm-cat-count">{{ items_by_category.get(category.id)|length }}</span>
+          </button>
+          {% endfor %}
+        </div>
+        {# 矩阵表格 #}
+        <div class="atm-wrap" style="padding:0 22px 16px;">
+          <table class="atm-table">
+            <thead>
+              <tr>
+                <th class="atm-s1" style="padding-left:16px;">规格名称</th>
+                <th class="atm-s2" style="text-align:center;">单位</th>
+                {% for config in configurations %}
+                <th class="atm-col-head">
+                  <div style="font-size:12.5px;font-weight:600;color:var(--ink);font-family:var(--font-mono,monospace);">
+                    {{ config.config_code }}</div>
+                  <div style="font-size:11px;color:var(--ink-3);margin-top:2px;font-weight:400;display:flex;align-items:center;gap:3px;">
+                    {{ config.region_name.split('(')[0].strip() if config.region_name else '—' }}
+                    {% if config.mn_locked %}{{ at_icon('lock', 10) }}{% endif %}
+                  </div>
+                  <div id="atm-mn-{{ config.id }}"
+                       style="font-size:10.5px;font-family:var(--font-mono,monospace);
+                              color:{{ 'var(--warning,#d97706)' if config.mn_locked else 'var(--ink-4)' }};
+                              margin-top:2px;display:flex;align-items:center;gap:3px;">
+                    {{ config.mn_code or '—' }}
+                    {% if config.mn_locked %}{{ at_icon('lock', 9) }}{% endif %}
+                  </div>
+                </th>
+                {% endfor %}
+                <th style="width:100%;"></th>{# 填充列让 border-bottom 延伸到右边缘 #}
+              </tr>
+            </thead>
+            <tbody>
+              {% for category in categories %}
+              {% set cat_items = items_by_category.get(category.id, []) %}
+              {% if cat_items %}
+              {# 规格项行 #}
+              {% for item in cat_items %}
+              <tr data-row-cat="{{ category.id }}">
+                <td class="atm-s1" style="padding-left:16px;">
+                  <div style="display:flex;align-items:flex-start;gap:6px;">
+                    <div style="flex:1;">
+                      <div style="font-size:12.5px;color:var(--ink);">{{ item.spec_dict.name }}</div>
+                      {% if item.spec_dict.name_en %}
+                      <div style="font-size:11px;color:var(--ink-4);">{{ item.spec_dict.name_en }}</div>
+                      {% endif %}
+                      {% if item.is_required %}
+                      <span style="font-size:10px;color:var(--accent);">必填</span>
+                      {% endif %}
+                    </div>
+                    {% if item.id in code_position_map %}
+                    {% set pos = code_position_map[item.id] %}
+                    <span data-code-item="{{ item.id }}"
+                          style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;min-width:18px;font-size:11px;font-weight:700;border-radius:50%;background:var(--ink-4);color:#fff;flex-shrink:0;margin-top:1px;transition:background .15s;"
+                          title="MN编码第{{ pos.start_pos }}位{% if pos.length > 1 %}-{{ pos.start_pos + pos.length - 1 }}位{% endif %}">{{ pos.index }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="atm-s2" style="font-size:12px;color:var(--ink-3);text-align:center;">
+                  {{ item.spec_dict.unit or '—' }}
+                </td>
+                {% for config in configurations %}
+                {% set saved_val = config_values_matrix.get(config.id, {}).get(item.id, '') %}
+                <td style="min-width:132px;">
+                  {% set opts = definition_indicators.get(item.spec_dict_id, []) %}
+                  {% if config.mn_locked or (not opts and not saved_val) %}
+                    <span class="atm-locked-val">{{ saved_val or (item.general_value or '—') }}</span>
+                  {% else %}
+                    <select class="atm-select"
+                            data-config="{{ config.id }}"
+                            data-item="{{ item.id }}"
+                            data-orig="{{ saved_val }}"
+                            onchange="atMatChange(this)">
+                      <option value="">{{ item.general_value or '—' }}</option>
+                      {% if saved_val and saved_val not in opts|map(attribute='value')|list %}
+                      <option value="{{ saved_val }}" selected>{{ saved_val }}</option>
+                      {% endif %}
+                      {% for opt in opts %}
+                      <option value="{{ opt.value }}" {{ 'selected' if opt.value == saved_val else '' }}>{{ opt.value }}</option>
+                      {% endfor %}
+                    </select>
+                  {% endif %}
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+              {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        {# 空状态 #}
+        <div style="padding:80px 24px;text-align:center;color:var(--ink-4);">
+          {{ at_icon('grid', 40) }}
+          <p style="margin-top:12px;font-size:14px;">尚无配置版本</p>
+          {% if can_edit %}
+          <button onclick="atSelectTab('atSpecTabs','configs');setTimeout(atConfigOpenCreate,100)"
+                  style="margin-top:16px;height:34px;padding:0 18px;border-radius:6px;
+                         background:var(--accent);color:#fff;border:0;font-size:13px;cursor:pointer;">
+            新建配置版本
+          </button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {# ── Tab: 规格项 ── #}
+      <div data-tab-panel="specs" style="display:none;padding:0 0 20px;">
+        {% if all_items %}
+        {# 每个分类独立一块，table 共享 thead，tbody 各自独立可排序 #}
+        <table class="ats-table">
+          <thead>
+            <tr>
+              {% if can_edit %}<th style="width:28px;"></th>{% endif %}
+              <th style="text-align:left;width:240px;">规格名称</th>
+              <th style="text-align:left;width:60px;">单位</th>
+              <th style="text-align:left;">通用值</th>
+              <th style="text-align:left;">测试条件</th>
+              <th style="text-align:left;">测试方法</th>
+              <th style="text-align:center;width:52px;">必填</th>
+              {% if can_edit %}<th style="width:40px;"></th>{% endif %}
+            </tr>
+          </thead>
+
+          {% for category in categories %}
+          {% set cat_items = items_by_category.get(category.id, []) %}
+          {% if cat_items %}
+          {# 分类标题行 — 独立 tbody，不参与排序 #}
+          <tbody>
+            <tr class="ats-cat-header">
+              <td colspan="{{ 8 if can_edit else 6 }}">
+                {{ category.name }}
+                <span style="font-size:11px;color:var(--ink-4);font-weight:400;margin-left:6px;">{{ cat_items|length }} 项</span>
+              </td>
+            </tr>
+          </tbody>
+          {# 规格项 tbody — 每个分类独立，可在分类内拖拽 #}
+          <tbody class="ats-cat-body" data-cat-id="{{ category.id }}">
+            {% for item in cat_items %}
+            <tr id="ats-row-{{ item.id }}" data-item-id="{{ item.id }}" data-cat-id="{{ category.id }}">
+              {% if can_edit %}
+              <td style="padding:10px 4px 0 10px;vertical-align:top;">
+                <span class="ats-drag-handle" title="分类内拖拽排序">⠿</span>
+              </td>
+              {% endif %}
+              <td>
+                <div style="display:flex;align-items:flex-start;gap:6px;">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;color:var(--ink);">{{ item.spec_dict.name }}</div>
+                    {% if item.spec_dict.name_en %}
+                    <div style="font-size:11px;color:var(--ink-4);">{{ item.spec_dict.name_en }}</div>
+                    {% endif %}
+                  </div>
+                  {% if item.id in code_position_map %}
+                  {% set pos = code_position_map[item.id] %}
+                  <span style="display:inline-flex;align-items:center;justify-content:center;
+                               width:18px;height:18px;min-width:18px;font-size:11px;font-weight:700;
+                               border-radius:50%;background:var(--warning,#d97706);color:#fff;
+                               flex-shrink:0;margin-top:1px;"
+                        title="MN编码第{{ pos.start_pos }}位{% if pos.length > 1 %}–{{ pos.start_pos + pos.length - 1 }}位{% endif %}">{{ pos.index }}</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td style="color:var(--ink-3);">{{ item.spec_dict.unit or '—' }}</td>
+              <td id="ats-gv-{{ item.id }}" style="color:var(--ink-2);">{{ item.general_value or '—' }}</td>
+              <td id="ats-tc-{{ item.id }}" style="color:var(--ink-3);">
+                {% if item.test_condition %}{{ item.test_condition.name }}
+                {% elif item.test_condition_text %}{{ item.test_condition_text }}
+                {% else %}—{% endif %}
+              </td>
+              <td id="ats-tm-{{ item.id }}" style="color:var(--ink-3);">
+                {% if item.test_method %}{{ item.test_method.name }}
+                {% elif item.test_method_text %}{{ item.test_method_text }}
+                {% else %}—{% endif %}
+              </td>
+              <td id="ats-req-{{ item.id }}" style="text-align:center;">
+                {% if item.is_required %}
+                <span style="font-size:11px;color:var(--accent);">✓</span>
+                {% else %}
+                <span style="color:var(--line-2);">—</span>
+                {% endif %}
+              </td>
+              {% if can_edit %}
+              <td style="text-align:center;">
+                <button onclick="atItemEdit({{ item.id }})"
+                        style="width:28px;height:28px;border-radius:5px;border:0;background:0;
+                               cursor:pointer;color:var(--ink-4);font-size:13px;line-height:1;
+                               display:inline-flex;align-items:center;justify-content:center;"
+                        title="编辑">{{ at_icon('edit',14) }}</button>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% endif %}
+          {% endfor %}
+
+        </table>
+        {% else %}
+        <div style="text-align:center;padding:60px;color:var(--ink-4);">
+          <div>暂无规格项</div>
+          {% if can_edit %}
+          <button onclick="atAddSpecOpen()"
+                  style="margin-top:16px;height:34px;padding:0 18px;border-radius:6px;
+                         background:var(--accent);color:#fff;border:0;font-size:13px;cursor:pointer;">
+            + 添加规格项
+          </button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {# ── Tab: 配置版本 ── #}
+      <div data-tab-panel="configs" style="" id="atConfigsPanel">
+        {% if configurations %}
+        {# 产品描述（前端实时拼接，按选中配置版本 + 勾选"加入描述"的规格）#}
+        <div id="atProdDescBox"
+             style="margin-bottom:16px;padding:12px 14px;border:1px solid var(--line);
+                    border-radius:8px;background:var(--bg-elev-2);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <span style="font-size:11px;font-weight:600;color:var(--ink-3);
+                         text-transform:uppercase;letter-spacing:.08em;">产品描述</span>
+            <span id="atProdDescConfig" class="at-mono" style="font-size:11px;color:var(--ink-4);"></span>
+          </div>
+          <div id="atProdDescText" style="font-size:13px;color:var(--ink);line-height:1.6;">—</div>
+          <div style="font-size:11px;color:var(--ink-4);margin-top:6px;">
+            点击下方配置版本卡片切换；引入该配置生成产品时即写入此描述。
+          </div>
+        </div>
+        <div class="atc-grid" id="atConfigGrid">
+          {% for config in configurations %}
+          {% set status_map = {
+            'development': ('研发中', 'var(--ink-3)', 'var(--bg-elev-2)'),
+            'prototype':   ('研发样机', '#b45309', '#fef3c7'),
+            'pilot':       ('小批量', '#1d4ed8', '#dbeafe'),
+            'production':  ('可生产', '#15803d', '#dcfce7'),
+            'discontinued':('停产', '#b91c1c', '#fee2e2')
+          } %}
+          {% set st = status_map.get(config.status, ('研发中','var(--ink-3)','var(--bg-elev-2)')) %}
+          <div class="atc-card" id="atc-card-{{ config.id }}"
+               onclick="atShowProductDesc({{ config.id }})"
+               style="display:flex;flex-direction:column;cursor:pointer;">
+            <div style="flex:1;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+                <div class="atc-mn">{{ config.config_code }}</div>
+                <span style="font-size:11px;padding:2px 8px;border-radius:4px;white-space:nowrap;
+                             color:{{ st[1] }};background:{{ st[2] }};">{{ st[0] }}</span>
+              </div>
+              <div class="atc-meta at-mono" id="atc-mn-{{ config.id }}" style="margin-top:6px;font-size:12px;">MN: {{ config.mn_code or '—' }}</div>
+              <div class="atc-meta">地区: {% if config.region %}{{ config.region_name.split('(')[0].strip() if config.region_name else config.region }}{% else %}—{% endif %}</div>
+              <div class="atc-meta">版本: {{ config.template_version or '—' }}</div>
+              {% if config.mn_locked %}
+              <div style="font-size:11px;color:var(--warning,#d97706);margin-top:6px;display:flex;align-items:center;gap:4px;">
+                {{ at_icon('lock', 11) }} MN 已锁定
+              </div>
+              {% else %}
+              <div style="height:22px;margin-top:6px;"></div>
+              {% endif %}
+            </div>
+            {% if can_edit %}
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+              <button onclick="atConfigEdit({{ config.id }})"
+                      style="height:28px;padding:0;border:0;background:0;
+                             color:var(--ink-3);font-size:12px;cursor:pointer;">编辑</button>
+              {% if not config.mn_locked %}
+              <button onclick="atConfigDelete({{ config.id }}, '{{ config.config_code }}')"
+                      style="height:28px;padding:0;border:0;
+                             background:0;color:var(--danger,#dc2626);font-size:12px;cursor:pointer;">删除</button>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:80px;color:var(--ink-4);">
+          {{ at_icon('box', 36) }}
+          <p style="margin-top:10px;font-size:13px;">暂无配置版本</p>
+        </div>
+        {% endif %}
+      </div>
+
+    </div>{# end at-tabs-panels #}
+
+    {# Tab 切换脚本 #}
+    <script>
+    (function(){
+      if (!window.atSelectTab) {
+        window.atSelectTab = function(tabId, key) {
+          var wrap = document.getElementById(tabId);
+          if (!wrap) return;
+          wrap.dataset.active = key;
+          wrap.querySelectorAll(':scope > nav > [data-tab-key]').forEach(function(b){
+            var act = b.dataset.tabKey === key;
+            b.style.color = act ? 'var(--accent)' : 'var(--ink-3)';
+            b.style.borderBottomColor = act ? 'var(--accent)' : 'transparent';
+            b.style.fontWeight = act ? '500' : '400';
+          });
+          wrap.querySelectorAll(':scope > .at-tabs-panels > [data-tab-panel]').forEach(function(p){
+            p.style.display = p.dataset.tabPanel === key ? '' : 'none';
+          });
+          ['matrix','specs','configs'].forEach(function(k){
+            var el = document.getElementById('atTabAct-' + k);
+            if (el) el.style.display = k === key ? 'flex' : 'none';
+          });
+        };
+      }
+    })();
+    </script>
+  </div>{# end at-section #}
+
+</main>
+</div>
+</div>
+
+{# ── 配置版本弹窗 ── #}
+<div id="atConfigModal" class="at-modal-bg" style="display:none;" onclick="if(event.target===this)atConfigCloseModal()">
+  <div class="at-modal-box">
+    <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:20px;" id="atConfigModalTitle">新建配置版本</div>
+    <form id="atConfigForm" onsubmit="atConfigSubmit(event)">
+      <input type="hidden" id="atConfigId" value="">
+      <div class="at-form-field">
+        <label class="at-form-label">开发代号 <span style="color:var(--danger,#dc2626);">*</span></label>
+        <input class="at-form-input" type="text" id="atConfigCode" placeholder="如：TS、MSJ123" required>
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">适用地区</label>
+        <select class="at-form-select" id="atConfigRegion">
+          <option value="">请选择</option>
+          {% for opt in region_options %}
+          <option value="{{ opt.value }}">{{ opt.label }}</option>
+          {% endfor %}
+        </select>
+        <div id="atConfigRegionDisplay" style="display:none;padding:7px 10px;font-size:13px;
+             border:1px solid var(--line-2);border-radius:5px;background:var(--bg-elev-2);
+             color:var(--ink-2);">—</div>
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">生产状态</label>
+        <select class="at-form-select" id="atConfigStatus">
+          {% for opt in status_options %}
+          <option value="{{ opt.value }}">{{ opt.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="at-form-field" id="atConfigMnField" style="display:none;">
+        <label class="at-form-label">MN 编码</label>
+        <div id="atConfigMnDisplay"
+             style="padding:6px 10px;font-size:12.5px;border-radius:5px;
+                    background:var(--bg-elev-2);border:1px solid var(--line);
+                    color:var(--ink-3);font-family:var(--font-mono,monospace);">—</div>
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">备注</label>
+        <textarea class="at-form-input" id="atConfigNotes" rows="2"
+                  style="resize:vertical;min-height:60px;"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" onclick="atConfigCloseModal()"
+                style="height:34px;padding:0 16px;border-radius:5px;border:1px solid var(--line-2);
+                       background:0;color:var(--ink-2);font-size:13px;cursor:pointer;">取消</button>
+        <button type="submit" id="atConfigSubmitBtn"
+                style="height:34px;padding:0 18px;border-radius:5px;background:var(--accent);
+                       color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── 规格项编辑弹窗 ── #}
+{# ── 添加规格项弹窗 ── #}
+<div id="atAddSpecModal" class="at-modal-bg" style="display:none;" onclick="if(event.target===this)atAddSpecClose()">
+  <div style="background:var(--bg-elev);border-radius:10px;width:680px;max-width:95vw;
+              max-height:82vh;display:flex;flex-direction:column;overflow:hidden;">
+    {# 标题行 #}
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:18px 22px 14px;border-bottom:1px solid var(--line-soft);flex-shrink:0;">
+      <div>
+        <div style="font-size:15px;font-weight:600;color:var(--ink);">添加规格项</div>
+        <div style="font-size:12px;color:var(--ink-4);margin-top:2px;">从规格字典中选择，已存在的项目不显示</div>
+      </div>
+      <button onclick="atAddSpecClose()"
+              style="width:28px;height:28px;border:0;background:0;cursor:pointer;
+                     color:var(--ink-4);font-size:18px;line-height:1;border-radius:5px;">✕</button>
+    </div>
+    {# 分类 tab #}
+    <div id="atAddSpecCatTabs" style="display:flex;gap:0;overflow-x:auto;padding:0 22px;
+                                       border-bottom:1px solid var(--line-soft);flex-shrink:0;"></div>
+    {# 搜索框 #}
+    <div style="padding:10px 22px 6px;flex-shrink:0;">
+      <input id="atAddSpecSearch" type="text" placeholder="搜索规格名称…"
+             oninput="atAddSpecFilter()"
+             style="width:100%;height:32px;border:1px solid var(--line);border-radius:6px;
+                    padding:0 10px;font-size:13px;background:var(--bg);color:var(--ink);box-sizing:border-box;
+                    outline:none;" />
+    </div>
+    {# 规格列表（可滚动）#}
+    <div id="atAddSpecList" style="flex:1;overflow-y:auto;padding:0 22px 12px;"></div>
+    {# 底部操作栏 #}
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:12px 22px;border-top:1px solid var(--line-soft);flex-shrink:0;">
+      <span id="atAddSpecCount" style="font-size:12px;color:var(--ink-4);">已选 0 项</span>
+      <div style="display:flex;gap:8px;">
+        <button onclick="atAddSpecClose()"
+                style="height:34px;padding:0 16px;border-radius:5px;border:1px solid var(--line-2);
+                       background:0;color:var(--ink-2);font-size:13px;cursor:pointer;">取消</button>
+        <button id="atAddSpecConfirmBtn" onclick="atAddSpecConfirm()"
+                style="height:34px;padding:0 18px;border-radius:5px;background:var(--accent);
+                       color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;">添加</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="atItemModal" class="at-modal-bg" style="display:none;" onclick="if(event.target===this)atItemCloseModal()">
+  <div class="at-modal-box">
+    <div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:4px;" id="atItemModalTitle">编辑规格项</div>
+    <div id="atItemModalSubtitle" style="font-size:12px;color:var(--ink-4);margin-bottom:18px;"></div>
+    <form id="atItemForm" onsubmit="atItemSave(event)">
+      <input type="hidden" id="atItemId" value="">
+      <div class="at-form-field">
+        <label class="at-form-label">通用值</label>
+        <select class="at-form-select" id="atItemGvSel" onchange="atItemGvToggle()">
+          <option value="">—</option>
+        </select>
+        <input class="at-form-input" type="text" id="atItemGvText" placeholder="自定义通用值"
+               style="display:none;margin-top:6px;">
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">测试条件</label>
+        <select class="at-form-select" id="atItemTcSel" onchange="atItemTcToggle()">
+          <option value="">—</option>
+          {% for tc in test_conditions %}
+          <option value="{{ tc.id }}">{{ tc.name }}</option>
+          {% endfor %}
+          <option value="__custom__">自定义…</option>
+        </select>
+        <input class="at-form-input" type="text" id="atItemTcText" placeholder="自定义测试条件"
+               style="display:none;margin-top:6px;">
+      </div>
+      <div class="at-form-field">
+        <label class="at-form-label">测试方法</label>
+        <select class="at-form-select" id="atItemTmSel" onchange="atItemTmToggle()">
+          <option value="">—</option>
+          {% for tm in test_methods %}
+          <option value="{{ tm.id }}">{{ tm.name }}</option>
+          {% endfor %}
+          <option value="__custom__">自定义…</option>
+        </select>
+        <input class="at-form-input" type="text" id="atItemTmText" placeholder="自定义测试方法"
+               style="display:none;margin-top:6px;">
+      </div>
+      <div class="at-form-field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="atItemRequired" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);">
+        <label for="atItemRequired" class="at-form-label" style="margin:0;cursor:pointer;">必填</label>
+      </div>
+      <div class="at-form-field" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <input type="checkbox" id="atItemUseInCode" onchange="atItemCodeToggle()"
+               style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);">
+        <label for="atItemUseInCode" class="at-form-label" style="margin:0;cursor:pointer;">参与编码</label>
+        <span id="atItemCodeLock" style="display:none;font-size:11px;color:var(--warning,#d97706);
+              display:none;align-items:center;gap:3px;">{{ at_icon('lock',11) }} 已锁定</span>
+      </div>
+      <div class="at-form-field" id="atItemCodeLenField" style="display:none;">
+        <label class="at-form-label">编码长度</label>
+        <select class="at-form-select" id="atItemCodeLen">
+          <option value="1">1 位</option>
+          <option value="2">2 位</option>
+        </select>
+      </div>
+      <div class="at-form-field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="atItemInDesc" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);">
+        <label for="atItemInDesc" class="at-form-label" style="margin:0;cursor:pointer;">加入描述</label>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" onclick="atItemCloseModal()"
+                style="height:34px;padding:0 16px;border-radius:5px;border:1px solid var(--line-2);
+                       background:0;color:var(--ink-2);font-size:13px;cursor:pointer;">取消</button>
+        <button type="submit" id="atItemSubmitBtn"
+                style="height:34px;padding:0 18px;border-radius:5px;background:var(--accent);
+                       color:#fff;border:0;font-size:13px;font-weight:500;cursor:pointer;">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+var TEMPLATE_ID = {{ template.id }};
+var API_BASE = '{{ url_for("spec_template.list_templates") }}api';
+var SPECS_PARTIAL_URL = '{{ url_for("spec_template.at_specs_partial", template_id=template.id) }}';
+var MATRIX_PARTIAL_URL = '{{ url_for("spec_template.at_matrix_partial", template_id=template.id) }}';
+var CSRF = document.querySelector('meta[name="csrf-token"]').content;
+var SUBCATEGORIES_BY_CATEGORY = {{ subcategories_by_category|tojson }};
+
+// 规格项数据（用于弹窗回填）
+var SPEC_ITEMS_DATA = {
+  {% for item in all_items %}
+  {{ item.id }}: {
+    id: {{ item.id }},
+    spec_dict_id: {{ item.spec_dict_id or 'null' }},
+    name: {{ (item.spec_dict.name)|tojson }},
+    name_en: {{ (item.spec_dict.name_en or '')|tojson }},
+    general_value: {{ (item.general_value or '')|tojson }},
+    test_condition_id: {{ item.test_condition_id or 'null' }},
+    test_condition_text: {{ (item.test_condition_text or '')|tojson }},
+    test_method_id: {{ item.test_method_id or 'null' }},
+    test_method_text: {{ (item.test_method_text or '')|tojson }},
+    is_required: {{ 'true' if item.is_required else 'false' }},
+    use_in_code: {{ 'true' if item.use_in_code else 'false' }},
+    code_length: {{ item.code_length or 1 }},
+    include_in_description: {{ 'true' if item.include_in_description else 'false' }},
+    unit: {{ (item.spec_dict.unit or '')|tojson }},
+    display_order: {{ item.display_order or 0 }},
+    is_code_locked: {{ 'true' if has_locked_config else 'false' }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+
+// 配置版本规格值矩阵：{config_id: {item_id: value}}（用于前端实时拼"产品描述"）
+var CONFIG_VALUES = {{ config_values_matrix|tojson }};
+
+// 配置版本元信息：{config_id: {code, region}}
+var CONFIG_META = {
+  {% for config in configurations %}
+  {{ config.id }}: {
+    code: {{ (config.config_code or '')|tojson }},
+    region: {{ ((config.region_name.split('(')[0].strip() if config.region_name else config.region) or '')|tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+var CONFIG_ORDER = [{% for config in configurations %}{{ config.id }}{% if not loop.last %},{% endif %}{% endfor %}];
+var _atSelectedConfigId = null;
+
+// 按某配置版本 + 勾选"加入描述"的规格，拼接产品描述（值取该配置实际值，缺省回退通用值）
+function composeProductDesc(configId) {
+  var vals = CONFIG_VALUES[configId] || {};
+  var items = [];
+  for (var k in SPEC_ITEMS_DATA) {
+    if (SPEC_ITEMS_DATA.hasOwnProperty(k) && SPEC_ITEMS_DATA[k].include_in_description) {
+      items.push(SPEC_ITEMS_DATA[k]);
+    }
+  }
+  items.sort(function(a, b){ return (a.display_order || 0) - (b.display_order || 0); });
+  var parts = [];
+  items.forEach(function(it){
+    var v = vals[it.id];
+    if (v === undefined || v === null || v === '') v = it.general_value || '';
+    if (v) {
+      var unit = it.unit ? (' ' + it.unit) : '';
+      parts.push(it.name + ': ' + v + unit);
+    }
+  });
+  return parts.join(', ');
+}
+
+// 点击配置版本卡片 → 更新前端产品描述到该版本
+window.atShowProductDesc = function(configId) {
+  _atSelectedConfigId = configId;
+  var meta = CONFIG_META[configId] || {};
+  var box = document.getElementById('atProdDescText');
+  var lbl = document.getElementById('atProdDescConfig');
+  if (lbl) lbl.textContent = (meta.code || '') + (meta.region ? ' · ' + meta.region : '');
+  var desc = composeProductDesc(configId);
+  if (box) box.textContent = desc || '（该版本暂无可拼接的描述规格）';
+  // 高亮选中卡片
+  CONFIG_ORDER.forEach(function(cid){
+    var card = document.getElementById('atc-card-' + cid);
+    if (card) card.style.outline = (cid === configId) ? '2px solid var(--accent)' : 'none';
+  });
+};
+
+// 初始化：默认选第一个配置版本
+document.addEventListener('DOMContentLoaded', function(){
+  if (CONFIG_ORDER.length && document.getElementById('atProdDescBox')) {
+    window.atShowProductDesc(CONFIG_ORDER[0]);
+  }
+});
+
+// 规格字典选项（spec_dict_id → [{value}]，用于通用值下拉）
+var DEF_INDICATORS = {{ definition_indicators|tojson }};
+
+// 测试条件/方法名称映射（id→name，用于保存后更新行显示）
+var TC_NAMES = {
+  {% for tc in test_conditions %}{{ tc.id }}: {{ tc.name|tojson }}{% if not loop.last %},{% endif %}{% endfor %}
+};
+var TM_NAMES = {
+  {% for tm in test_methods %}{{ tm.id }}: {{ tm.name|tojson }}{% if not loop.last %},{% endif %}{% endfor %}
+};
+
+
+/* ── 矩阵分类筛选 ── */
+function atMatFilter(catId) {
+  document.querySelectorAll('.atm-cat-pill').forEach(function(p) {
+    p.classList.remove('active');
+  });
+  var active = catId === 'all'
+    ? document.getElementById('atm-cat-all')
+    : document.getElementById('atm-cat-' + catId);
+  if (active) active.classList.add('active');
+  document.querySelectorAll('[data-row-cat]').forEach(function(row) {
+    row.style.display = (catId === 'all' || row.dataset.rowCat === String(catId)) ? '' : 'none';
+  });
+}
+
+/* ── 矩阵单元格变更 ── */
+/* ── MN 编码实时预览 ── */
+var SAFE_CHARS = "346789ABCDEFGHJKLMNPRTUVWXY";
+var CATEGORY_CODE = {{ (template.category.code_letter|tojson) if template.category else 'null' }};
+var SUBCATEGORY_CODE = {{ (template.subcategory.code_letter|tojson) if template.subcategory else 'null' }};
+var CONFIG_REGIONS = {
+  {% for config in configurations %}
+  {{ config.id }}: {{ (config.region|tojson) if config.region else 'null' }}{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+var CONFIG_MN_LOCKED = {
+  {% for config in configurations %}
+  {{ config.id }}: {{ 'true' if config.mn_locked else 'false' }}{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+var CODE_ITEMS = {{ code_items_data|tojson }};
+// 编码项在 MN 字符串中的位置：{item_id: {start(1-based), len}}
+var CODE_ITEM_POSITIONS = {
+  {% for item_id, pos in code_position_map.items() %}
+  {{ item_id }}: { start: {{ pos.start_pos }}, len: {{ pos.length }} }{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+// 追踪每个配置中哪些编码项被修改过：{configId: {itemId: true}}
+var _changedItems = {};
+
+function _mnCheckDigit(code) {
+  var total = 0;
+  for (var i = 0; i < code.length; i++) {
+    var idx = SAFE_CHARS.indexOf(code[i]);
+    if (idx >= 0) total += (i + 1) * idx;
+  }
+  return SAFE_CHARS[total % SAFE_CHARS.length];
+}
+
+function _mnCodeChar(value, options, codeLength) {
+  var len = codeLength || 1;
+  if (!value) return 'X'.repeat(len);
+  var raw = (options || {})[value];
+  if (!raw) return 'X'.repeat(len);
+  var code = '';
+  for (var i = 0; i < raw.length; i++) {
+    var ch = raw[i];
+    if (SAFE_CHARS.indexOf(ch) >= 0) { code += ch; }
+    else { var n = parseInt(ch); code += isNaN(n) ? 'X' : SAFE_CHARS[n % SAFE_CHARS.length]; }
+  }
+  while (code.length < len) code += 'X';
+  return code.substring(0, len);
+}
+
+function atMnPreview(configId) {
+  if (CONFIG_MN_LOCKED[configId]) return;
+  var regionCode = CONFIG_REGIONS[configId] || '?';
+  var catCode = CATEGORY_CODE || '?';
+  var subCode = SUBCATEGORY_CODE || '?';
+  var specCodes = '';
+  for (var i = 0; i < CODE_ITEMS.length; i++) {
+    var item = CODE_ITEMS[i];
+    var el = document.querySelector('.atm-select[data-config="' + configId + '"][data-item="' + item.id + '"]');
+    var value = el ? el.value.trim() : '';
+    if (!value && el && el.options[0]) value = el.options[0].text.trim();
+    var opts = Object.assign({}, item.options || {});
+    if (value && !opts[value]) {
+      var used = new Set(Object.values(opts));
+      for (var j = 0; j < SAFE_CHARS.length; j++) {
+        if (!used.has(SAFE_CHARS[j])) { opts[value] = SAFE_CHARS[j]; break; }
+      }
+    }
+    specCodes += _mnCodeChar(value, opts, item.code_length);
+  }
+  var base = regionCode + catCode + subCode + specCodes;
+  var mn = base + _mnCheckDigit(base);
+  var mnEl = document.getElementById('atm-mn-' + configId);
+  if (!mnEl) return;
+
+  // 渲染每个字符，修改过的编码位置显示橙色
+  var changed = _changedItems[String(configId)] || {};
+  var hasAny = Object.keys(changed).length > 0;
+  mnEl.style.gap = '0'; // 防止 flex gap 撑开字符间距
+  var html = '';
+  for (var ci = 0; ci < mn.length; ci++) {
+    var isOrange = false;
+    if (ci === mn.length - 1) {
+      // 校验位：任意编码项改变则变橙
+      isOrange = hasAny;
+    } else {
+      for (var ki = 0; ki < CODE_ITEMS.length; ki++) {
+        var kId = String(CODE_ITEMS[ki].id);
+        var kPos = CODE_ITEM_POSITIONS[CODE_ITEMS[ki].id];
+        if (!kPos) continue;
+        var s = kPos.start - 1; // 转 0-based
+        if (ci >= s && ci < s + kPos.len) {
+          isOrange = !!changed[kId];
+          break;
+        }
+      }
+    }
+    var col = isOrange ? 'var(--warning,#d97706)' : 'var(--ink-4)';
+    html += '<span style="color:' + col + '">' + mn[ci] + '</span>';
+  }
+  mnEl.innerHTML = html;
+}
+
+function atMatChange(el) {
+  var changed = el.value !== el.dataset.orig;
+  el.classList.toggle('changed', changed);
+  var btn = document.getElementById('atMatSaveBtn');
+  if (btn) btn.style.display = 'flex';
+  // 追踪编码项变更
+  var configId = String(el.dataset.config);
+  var itemId = String(el.dataset.item);
+  if (!_changedItems[configId]) _changedItems[configId] = {};
+  if (changed) _changedItems[configId][itemId] = true;
+  else delete _changedItems[configId][itemId];
+  // 同行 badge 高亮
+  var tr = el.closest('tr');
+  var badge = tr ? tr.querySelector('[data-code-item]') : null;
+  if (badge) badge.style.background = changed ? 'var(--warning,#d97706)' : 'var(--ink-4)';
+  atMnPreview(configId);
+}
+
+async function atMatSaveAll() {
+  var btn = document.getElementById('atMatSaveBtn');
+  // gather all changed selects
+  var changes = {};
+  document.querySelectorAll('.atm-select').forEach(function(sel) {
+    if (sel.value !== sel.dataset.orig) {
+      var cid = sel.dataset.config;
+      var iid = sel.dataset.item;
+      if (!changes[cid]) changes[cid] = {};
+      changes[cid][iid] = sel.value;
+    }
+  });
+  if (!Object.keys(changes).length) return;
+  if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+  try {
+    for (var cid in changes) {
+      var valuesArr = Object.keys(changes[cid]).map(function(iid) {
+        return { template_item_id: parseInt(iid), value: changes[cid][iid] };
+      });
+      var res = await fetch(API_BASE + '/configurations/' + cid + '/values', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ values: valuesArr })
+      });
+      if (!res.ok) throw new Error('save failed');
+      // PUT 响应直接包含新 mn_code，无需二次 GET
+      var rd = await res.json();
+      if (rd.mn_code !== undefined && !rd.mn_locked) {
+        // 清除该配置的变更记录，重绘矩阵头 MN（全灰）
+        delete _changedItems[String(cid)];
+        if (rd.mn_code) {
+          var mnEl = document.getElementById('atm-mn-' + cid);
+          if (mnEl) {
+            mnEl.style.gap = '0';
+            var mnh = '';
+            for (var mci = 0; mci < rd.mn_code.length; mci++) {
+              mnh += '<span style="color:var(--ink-4)">' + rd.mn_code[mci] + '</span>';
+            }
+            mnEl.innerHTML = mnh;
+          }
+          // 同步更新配置版本卡片里的 MN
+          var cardMnEl = document.getElementById('atc-mn-' + cid);
+          if (cardMnEl) cardMnEl.textContent = 'MN: ' + rd.mn_code;
+        }
+      }
+    }
+    // commit orig values
+    document.querySelectorAll('.atm-select').forEach(function(sel) {
+      if (sel.value !== sel.dataset.orig) {
+        sel.dataset.orig = sel.value;
+        sel.classList.remove('changed');
+      }
+    });
+    if (btn) { btn.style.display = 'none'; btn.disabled = false; btn.textContent = '保存'; }
+    // 清除所有 badge 高亮
+    document.querySelectorAll('[data-code-item]').forEach(function(b) { b.style.background = 'var(--ink-4)'; });
+    if (window.atToast) atToast('已保存', 'success');
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '保存'; }
+    if (window.atToast) atToast('保存失败', 'error');
+  }
+}
+
+/* ── 配置版本 CRUD ── */
+function _atConfigResetModal() {
+  document.getElementById('atConfigCode').value = '';
+  document.getElementById('atConfigStatus').value = 'development';
+  document.getElementById('atConfigRegion').value = '';
+  document.getElementById('atConfigRegion').style.display = '';
+  document.getElementById('atConfigRegionDisplay').style.display = 'none';
+  document.getElementById('atConfigNotes').value = '';
+  document.getElementById('atConfigMnField').style.display = 'none';
+  document.getElementById('atConfigMnDisplay').textContent = '—';
+}
+
+/* ── 规格项编辑 ── */
+function atItemEdit(itemId) {
+  var d = SPEC_ITEMS_DATA[itemId];
+  if (!d) return;
+  document.getElementById('atItemId').value = itemId;
+  document.getElementById('atItemModalSubtitle').textContent = d.name + (d.name_en ? ' / ' + d.name_en : '');
+  document.getElementById('atItemRequired').checked = d.is_required;
+
+  // 通用值：根据 definition_indicators 动态填充下拉
+  var gvSel = document.getElementById('atItemGvSel');
+  var gvText = document.getElementById('atItemGvText');
+  gvSel.innerHTML = '<option value="">—</option>';
+  var opts = (d.spec_dict_id && DEF_INDICATORS[d.spec_dict_id]) ? DEF_INDICATORS[d.spec_dict_id] : [];
+  opts.forEach(function(opt) {
+    var o = document.createElement('option');
+    o.value = opt.value; o.textContent = opt.value;
+    gvSel.appendChild(o);
+  });
+  gvSel.appendChild(new Option('自定义…', '__custom__'));
+  if (d.general_value) {
+    gvSel.value = d.general_value;
+    if (gvSel.value !== d.general_value) {
+      gvSel.value = '__custom__'; gvText.style.display = ''; gvText.value = d.general_value;
+    } else { gvText.style.display = 'none'; gvText.value = ''; }
+  } else { gvSel.value = ''; gvText.style.display = 'none'; gvText.value = ''; }
+
+  // 测试条件
+  var tcSel = document.getElementById('atItemTcSel');
+  var tcText = document.getElementById('atItemTcText');
+  if (d.test_condition_id) {
+    tcSel.value = String(d.test_condition_id); tcText.style.display = 'none'; tcText.value = '';
+  } else if (d.test_condition_text) {
+    tcSel.value = '__custom__'; tcText.style.display = ''; tcText.value = d.test_condition_text;
+  } else { tcSel.value = ''; tcText.style.display = 'none'; tcText.value = ''; }
+
+  // 测试方法
+  var tmSel = document.getElementById('atItemTmSel');
+  var tmText = document.getElementById('atItemTmText');
+  if (d.test_method_id) {
+    tmSel.value = String(d.test_method_id); tmText.style.display = 'none'; tmText.value = '';
+  } else if (d.test_method_text) {
+    tmSel.value = '__custom__'; tmText.style.display = ''; tmText.value = d.test_method_text;
+  } else { tmSel.value = ''; tmText.style.display = 'none'; tmText.value = ''; }
+
+  // 参与编码 + 编码长度
+  var uic = document.getElementById('atItemUseInCode');
+  var lockEl = document.getElementById('atItemCodeLock');
+  var lenField = document.getElementById('atItemCodeLenField');
+  uic.checked = d.use_in_code;
+  document.getElementById('atItemCodeLen').value = String(d.code_length || 1);
+  lenField.style.display = d.use_in_code ? '' : 'none';
+  if (d.is_code_locked) {
+    uic.disabled = true; lockEl.style.display = 'inline-flex';
+    document.getElementById('atItemCodeLen').disabled = true;
+  } else {
+    uic.disabled = false; lockEl.style.display = 'none';
+    document.getElementById('atItemCodeLen').disabled = false;
+  }
+
+  // 加入描述
+  document.getElementById('atItemInDesc').checked = !!d.include_in_description;
+
+  document.getElementById('atItemModal').style.display = 'flex';
+}
+
+function atItemGvToggle() {
+  var v = document.getElementById('atItemGvSel').value;
+  var t = document.getElementById('atItemGvText');
+  t.style.display = v === '__custom__' ? '' : 'none';
+  if (v !== '__custom__') t.value = '';
+}
+
+function atItemTcToggle() {
+  var v = document.getElementById('atItemTcSel').value;
+  document.getElementById('atItemTcText').style.display = v === '__custom__' ? '' : 'none';
+  if (v !== '__custom__') document.getElementById('atItemTcText').value = '';
+}
+
+function atItemTmToggle() {
+  var v = document.getElementById('atItemTmSel').value;
+  document.getElementById('atItemTmText').style.display = v === '__custom__' ? '' : 'none';
+  if (v !== '__custom__') document.getElementById('atItemTmText').value = '';
+}
+
+function atItemCodeToggle() {
+  var checked = document.getElementById('atItemUseInCode').checked;
+  document.getElementById('atItemCodeLenField').style.display = checked ? '' : 'none';
+}
+
+function atItemCloseModal() {
+  document.getElementById('atItemModal').style.display = 'none';
+}
+
+async function atItemSave(e) {
+  e.preventDefault();
+  var itemId = document.getElementById('atItemId').value;
+  var btn = document.getElementById('atItemSubmitBtn');
+  btn.disabled = true; btn.textContent = '保存中…';
+
+  // 通用值
+  var gvSel = document.getElementById('atItemGvSel').value;
+  var gvVal = gvSel === '__custom__'
+    ? (document.getElementById('atItemGvText').value.trim() || null)
+    : (gvSel || null);
+
+  var tcSel = document.getElementById('atItemTcSel').value;
+  var d = SPEC_ITEMS_DATA[itemId];
+  var payload = {
+    general_value: gvVal,
+    is_required: document.getElementById('atItemRequired').checked,
+    include_in_description: document.getElementById('atItemInDesc').checked
+  };
+
+  if (!d.is_code_locked) {
+    payload.use_in_code = document.getElementById('atItemUseInCode').checked;
+    payload.code_length = parseInt(document.getElementById('atItemCodeLen').value) || 1;
+  }
+
+  if (tcSel === '__custom__') {
+    payload.test_condition_id = null;
+    payload.test_condition_text = document.getElementById('atItemTcText').value.trim() || null;
+  } else {
+    payload.test_condition_id = tcSel ? parseInt(tcSel) : null;
+    payload.test_condition_text = null;
+  }
+
+  var tmSel = document.getElementById('atItemTmSel').value;
+  if (tmSel === '__custom__') {
+    payload.test_method_id = null;
+    payload.test_method_text = document.getElementById('atItemTmText').value.trim() || null;
+  } else {
+    payload.test_method_id = tmSel ? parseInt(tmSel) : null;
+    payload.test_method_text = null;
+  }
+
+  try {
+    var res = await fetch(API_BASE + '/items/' + itemId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(payload)
+    });
+    var rd = await res.json();
+    if (!rd.success) throw new Error(rd.message || 'error');
+
+    // 更新内存数据和行显示
+    Object.assign(d, payload);
+    document.getElementById('ats-gv-' + itemId).textContent = gvVal || '—';
+    document.getElementById('ats-tc-' + itemId).textContent =
+      payload.test_condition_id ? (TC_NAMES[payload.test_condition_id] || '—') :
+      (payload.test_condition_text || '—');
+    document.getElementById('ats-tm-' + itemId).textContent =
+      payload.test_method_id ? (TM_NAMES[payload.test_method_id] || '—') :
+      (payload.test_method_text || '—');
+    var reqEl = document.getElementById('ats-req-' + itemId);
+    reqEl.innerHTML = payload.is_required
+      ? '<span style="font-size:11px;color:var(--accent);">✓</span>'
+      : '<span style="color:var(--line-2);">—</span>';
+
+    // 勾选"加入描述"可能变了，刷新当前选中配置版本的产品描述预览
+    if (window.atShowProductDesc && _atSelectedConfigId != null) {
+      window.atShowProductDesc(_atSelectedConfigId);
+    }
+
+    atItemCloseModal();
+    if (window.atToast) atToast('已保存', 'success');
+  } catch(err) {
+    if (window.atToast) atToast('保存失败', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '保存';
+  }
+}
+
+function atConfigOpenCreate() {
+  document.getElementById('atConfigModalTitle').textContent = '新建配置版本';
+  document.getElementById('atConfigId').value = '';
+  _atConfigResetModal();
+  document.getElementById('atConfigModal').style.display = 'flex';
+}
+
+async function atConfigEdit(configId) {
+  var res = await fetch(API_BASE + '/configurations/' + configId, {
+    headers: { 'X-CSRFToken': CSRF }
+  });
+  if (!res.ok) { if (window.atToast) atToast('加载失败', 'error'); return; }
+  var resp = await res.json();
+  var cfg = resp.data || resp;
+  _atConfigResetModal();
+  document.getElementById('atConfigModalTitle').textContent = '编辑配置版本';
+  document.getElementById('atConfigId').value = configId;
+  document.getElementById('atConfigCode').value = cfg.config_code || '';
+  document.getElementById('atConfigStatus').value = cfg.status || 'development';
+  var regionEl = document.getElementById('atConfigRegion');
+  regionEl.value = cfg.region || '';
+  if (cfg.region && regionEl.value !== cfg.region) {
+    var opt = document.createElement('option');
+    opt.value = cfg.region;
+    opt.textContent = cfg.region_name ? cfg.region_name.split('(')[0].trim() : cfg.region;
+    regionEl.insertBefore(opt, regionEl.options[1] || null);
+    regionEl.value = cfg.region;
+  }
+  document.getElementById('atConfigNotes').value = cfg.notes || '';
+  if (cfg.mn_locked) {
+    var regionLabel = cfg.region_name ? cfg.region_name.split('(')[0].trim() : (cfg.region || '—');
+    document.getElementById('atConfigRegion').style.display = 'none';
+    document.getElementById('atConfigRegionDisplay').style.display = '';
+    document.getElementById('atConfigRegionDisplay').textContent = regionLabel;
+    document.getElementById('atConfigMnField').style.display = '';
+    document.getElementById('atConfigMnDisplay').textContent = cfg.mn_code || '自动生成';
+  }
+  document.getElementById('atConfigModal').style.display = 'flex';
+}
+
+function atConfigCloseModal() {
+  document.getElementById('atConfigModal').style.display = 'none';
+}
+
+async function atConfigSubmit(e) {
+  e.preventDefault();
+  var configId = document.getElementById('atConfigId').value;
+  var payload = {
+    config_code: document.getElementById('atConfigCode').value,
+    status: document.getElementById('atConfigStatus').value,
+    region: document.getElementById('atConfigRegion').value,
+    notes: document.getElementById('atConfigNotes').value
+  };
+  var url = configId
+    ? API_BASE + '/configurations/' + configId
+    : API_BASE + '/' + TEMPLATE_ID + '/configurations';
+  var method = configId ? 'PUT' : 'POST';
+  var res = await fetch(url, {
+    method: method,
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    var err = await res.json().catch(function(){ return {}; });
+    if (window.atToast) atToast(err.error || '操作失败', 'error');
+    return;
+  }
+  atConfigCloseModal();
+  location.reload();
+}
+
+function atConfigDelete(configId, configCode) {
+  ATConfirm.show({
+    title: '删除配置版本',
+    message: '确认删除配置版本 ' + configCode + '？此操作不可恢复。',
+    variant: 'danger',
+    confirmText: '删除',
+    onConfirm: async function() {
+      var res = await fetch(API_BASE + '/configurations/' + configId, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': CSRF }
+      });
+      if (res.ok) {
+        var card = document.getElementById('atc-card-' + configId);
+        if (card) card.remove();
+        if (window.atToast) atToast('已删除', 'success');
+      } else {
+        if (window.atToast) atToast('删除失败', 'error');
+      }
+    }
+  });
+}
+
+/* ── 添加/移除规格项弹窗 ── */
+{% if can_edit %}
+// _addSpecData: [{category_id, category_name, definitions:[{id,name,name_en,unit,in_template,item_id,is_referenced}]}]
+var _addSpecData = [];
+// _addSpecState: {def_id: bool}  — 当前弹窗中各项的勾选状态（含初始已添加的）
+var _addSpecInitState = {};  // 打开时的初始状态，用于 diff
+var _addSpecState = {};
+var _addSpecActiveCat = null;
+
+async function atAddSpecOpen() {
+  document.getElementById('atAddSpecSearch').value = '';
+  document.getElementById('atAddSpecModal').style.display = 'flex';
+  var res = await fetch(API_BASE + '/' + TEMPLATE_ID + '/available-definitions', {
+    headers: {'X-CSRFToken': CSRF}
+  });
+  var json = await res.json();
+  if (!json.success) { if (window.atToast) atToast('加载失败', 'error'); return; }
+  _addSpecData = json.data;
+
+  // 初始化勾选状态：已在模版中的 → true，其余 → false
+  _addSpecInitState = {};
+  _addSpecState = {};
+  _addSpecData.forEach(function(cat) {
+    cat.definitions.forEach(function(d) {
+      _addSpecInitState[d.id] = d.in_template;
+      _addSpecState[d.id] = d.in_template;
+    });
+  });
+
+  _atAddSpecRenderTabs();
+  _atAddSpecActivate(_addSpecData.length ? _addSpecData[0].category_id : null);
+  _atAddSpecUpdateFooter();
+}
+
+function atAddSpecClose() {
+  document.getElementById('atAddSpecModal').style.display = 'none';
+}
+
+function _atAddSpecRenderTabs() {
+  var tabs = document.getElementById('atAddSpecCatTabs');
+  tabs.innerHTML = '';
+  _addSpecData.forEach(function(cat) {
+    var btn = document.createElement('button');
+    btn.dataset.catId = cat.category_id;
+    btn.textContent = cat.category_name;
+    btn.onclick = function() { _atAddSpecActivate(cat.category_id); };
+    btn.style.cssText = 'height:36px;padding:0 14px;border:0;background:0;font-size:13px;cursor:pointer;' +
+      'border-bottom:2px solid transparent;white-space:nowrap;transition:all 120ms;color:var(--ink-3);';
+    tabs.appendChild(btn);
+  });
+}
+
+function _atAddSpecActivate(catId) {
+  _addSpecActiveCat = catId;
+  document.getElementById('atAddSpecSearch').value = '';
+  document.querySelectorAll('#atAddSpecCatTabs button').forEach(function(b) {
+    var active = parseInt(b.dataset.catId) === catId;
+    b.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
+    b.style.color = active ? 'var(--accent)' : 'var(--ink-3)';
+    b.style.fontWeight = active ? '600' : '400';
+  });
+  _atAddSpecRenderList('');
+}
+
+function atAddSpecFilter() {
+  _atAddSpecRenderList(document.getElementById('atAddSpecSearch').value);
+}
+
+function _atAddSpecRenderList(keyword) {
+  var list = document.getElementById('atAddSpecList');
+  var cat = _addSpecData.find(function(c) { return c.category_id === _addSpecActiveCat; });
+  if (!cat || !cat.definitions.length) {
+    list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--ink-4);">该分类下暂无规格项</div>';
+    return;
+  }
+  var kw = (keyword || '').trim().toLowerCase();
+  var defs = kw ? cat.definitions.filter(function(d) {
+    return d.name.toLowerCase().includes(kw) || (d.name_en && d.name_en.toLowerCase().includes(kw));
+  }) : cat.definitions;
+  if (!defs.length) {
+    list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--ink-4);">无匹配规格项</div>';
+    return;
+  }
+  list.innerHTML = '';
+  defs.forEach(function(def) {
+    var checked = !!_addSpecState[def.id];
+    // is_referenced 且 in_template → 已引用，锁定勾选
+    var locked = def.is_referenced;
+    var row = document.createElement('div');
+    row.dataset.defId = def.id;
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;' +
+      'cursor:' + (locked ? 'default' : 'pointer') + ';' +
+      'border:1px solid ' + (checked ? 'var(--accent)' : 'transparent') + ';' +
+      'background:' + (checked ? 'color-mix(in srgb,var(--accent) 6%,transparent)' : 'transparent') + ';' +
+      'margin-bottom:3px;transition:all 100ms;' +
+      (locked ? 'opacity:.65;' : '');
+
+    // 勾选框
+    var boxColor = locked ? 'var(--line-2)' : (checked ? 'var(--accent)' : 'var(--line-2)');
+    var boxBg = checked ? (locked ? 'var(--line-2)' : 'var(--accent)') : 'transparent';
+    var checkSvg = checked
+      ? '<svg width="10" height="10" viewBox="0 0 12 12"><polyline points="1,6 5,10 11,2" stroke="#fff" stroke-width="2" fill="none"/></svg>'
+      : '';
+    // 锁图标（已引用）
+    var lockBadge = locked
+      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-4);flex-shrink:0;" title="已被配置引用，不可移除"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+      : '';
+
+    row.innerHTML =
+      '<div style="width:18px;height:18px;border-radius:4px;border:1.5px solid ' + boxColor + ';flex-shrink:0;' +
+        'display:flex;align-items:center;justify-content:center;background:' + boxBg + ';">' + checkSvg + '</div>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<span style="font-size:13px;color:var(--ink);">' + def.name + '</span>' +
+        (def.name_en ? '<span style="font-size:11px;color:var(--ink-4);margin-left:6px;">' + def.name_en + '</span>' : '') +
+      '</div>' +
+      lockBadge +
+      (def.unit ? '<span style="font-size:11px;color:var(--ink-4);padding:1px 6px;border:1px solid var(--line);border-radius:3px;">' + def.unit + '</span>' : '');
+
+    if (!locked) {
+      row.onclick = function() { _atAddSpecToggle(def.id); };
+    }
+    list.appendChild(row);
+  });
+}
+
+function _atAddSpecToggle(defId) {
+  // 找到 def 对象确认不是 locked
+  var def = null;
+  _addSpecData.forEach(function(cat) {
+    cat.definitions.forEach(function(d) { if (d.id === defId) def = d; });
+  });
+  if (!def || def.is_referenced) return;
+  _addSpecState[defId] = !_addSpecState[defId];
+  _atAddSpecUpdateFooter();
+  _atAddSpecRenderList(document.getElementById('atAddSpecSearch').value);
+}
+
+function _atAddSpecUpdateFooter() {
+  // 统计变化
+  var addIds = [], removeItemIds = [];
+  _addSpecData.forEach(function(cat) {
+    cat.definitions.forEach(function(d) {
+      var wasChecked = _addSpecInitState[d.id];
+      var isChecked = _addSpecState[d.id];
+      if (!wasChecked && isChecked) addIds.push(d.id);
+      if (wasChecked && !isChecked && !d.is_referenced) removeItemIds.push(d.item_id);
+    });
+  });
+  var changes = addIds.length + removeItemIds.length;
+  var addedTotal = Object.values(_addSpecState).filter(Boolean).length;
+  document.getElementById('atAddSpecCount').textContent =
+    '已选 ' + addedTotal + ' 项' + (changes ? '（' + (addIds.length ? '+' + addIds.length : '') + (removeItemIds.length ? ' −' + removeItemIds.length : '') + '）' : '');
+  var btn = document.getElementById('atAddSpecConfirmBtn');
+  btn.textContent = changes ? '保存变更 (' + changes + ')' : '保存';
+  btn.style.opacity = changes ? '1' : '0.6';
+}
+
+async function atAddSpecConfirm() {
+  var addIds = [], removeItemIds = [];
+  _addSpecData.forEach(function(cat) {
+    cat.definitions.forEach(function(d) {
+      var wasChecked = _addSpecInitState[d.id];
+      var isChecked = _addSpecState[d.id];
+      if (!wasChecked && isChecked) addIds.push(d.id);
+      if (wasChecked && !isChecked && !d.is_referenced) removeItemIds.push(d.item_id);
+    });
+  });
+  if (!addIds.length && !removeItemIds.length) {
+    atAddSpecClose(); return;
+  }
+  var btn = document.getElementById('atAddSpecConfirmBtn');
+  btn.disabled = true; btn.textContent = '保存中…';
+  try {
+    var res = await fetch(API_BASE + '/' + TEMPLATE_ID + '/items/batch-update', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+      body: JSON.stringify({add_ids: addIds, remove_ids: removeItemIds})
+    });
+    var json = await res.json();
+    if (json.success) {
+      atAddSpecClose();
+      var msg = [];
+      if (json.added_count) msg.push('新增 ' + json.added_count + ' 项');
+      if (json.removed_count) msg.push('移除 ' + json.removed_count + ' 项');
+      if (window.atToast) atToast(msg.join('，') + '，完成', 'success');
+      await atRefreshSpecsPanel();
+    } else {
+      if (window.atToast) atToast(json.message || '保存失败', 'error');
+    }
+  } catch(e) {
+    if (window.atToast) atToast('网络错误', 'error');
+  }
+  btn.disabled = false;
+}
+
+async function atRefreshSpecsPanel() {
+  try {
+    var res = await fetch(SPECS_PARTIAL_URL, {
+      headers: {'X-CSRFToken': CSRF}
+    });
+    var html = await res.text();
+    var panel = document.querySelector('[data-tab-panel="specs"]');
+    if (!panel) return;
+    panel.innerHTML = html;
+    // 执行 partial 中的 <script>（innerHTML 不自动执行脚本）
+    panel.querySelectorAll('script').forEach(function(s) {
+      var ns = document.createElement('script');
+      ns.textContent = s.textContent;
+      document.head.appendChild(ns);
+      ns.remove();
+    });
+    // 重新绑定分类内拖拽排序
+    if (typeof Sortable !== 'undefined') {
+      panel.querySelectorAll('tbody.ats-cat-body').forEach(function(tbody) {
+        Sortable.create(tbody, {
+          handle: '.ats-drag-handle',
+          ghostClass: 'ats-sort-ghost',
+          dragClass: 'ats-sort-drag',
+          animation: 150,
+          onEnd: function() {
+            var rows = tbody.querySelectorAll('tr[data-item-id]');
+            var payload = [];
+            rows.forEach(function(row, idx) {
+              payload.push({ id: parseInt(row.dataset.itemId), display_order: idx + 1 });
+            });
+            saveOrder(payload);
+          }
+        });
+      });
+    }
+    // 同步刷新配置矩阵
+    atRefreshMatrixPanel();
+    // 切换到规格项 tab（确保可见）
+    atSelectTab('atSpecTabs', 'specs');
+  } catch(e) {
+    console.error('局部刷新失败', e);
+  }
+}
+
+async function atRefreshMatrixPanel() {
+  try {
+    var res = await fetch(MATRIX_PARTIAL_URL, { headers: {'X-CSRFToken': CSRF} });
+    var html = await res.text();
+    var panel = document.querySelector('[data-tab-panel="matrix"]');
+    if (!panel) return;
+    // 保留当前激活的分类筛选状态
+    var activeCat = 'all';
+    var activePill = panel.querySelector('.atm-cat-pill.active');
+    if (activePill) {
+      var m = (activePill.getAttribute('onclick') || '').match(/atMatFilter\('([^']+)'\)/);
+      if (m) activeCat = m[1];
+    }
+    panel.innerHTML = html;
+    atMatFilter(activeCat);
+  } catch(e) {
+    console.error('矩阵局部刷新失败', e);
+  }
+}
+{% endif %}
+
+/* ── 编码顺序折叠 ── */
+var _codeListSortable = null;
+function atToggleCodeList() {
+  var content = document.getElementById('atBiCodeContent');
+  var chevron = document.getElementById('atBiCodeChevron');
+  if (!content) return;
+  var isOpen = content.style.display !== 'none';
+  content.style.display = isOpen ? 'none' : 'block';
+  chevron.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+  {% if not has_locked_config %}
+  // 首次展开时懒初始化 Sortable（display:none 时初始化无效）
+  if (!isOpen && !_codeListSortable && typeof Sortable !== 'undefined') {
+    var codeList = document.getElementById('atBiCodeList');
+    if (codeList) {
+      _codeListSortable = Sortable.create(codeList, {
+        handle: '.ats-drag-handle',
+        ghostClass: 'ats-sort-ghost',
+        dragClass: 'ats-sort-drag',
+        animation: 150,
+        onEnd: function() {
+          var items = codeList.querySelectorAll('[data-item-id]');
+          var payload = [];
+          items.forEach(function(el, idx) {
+            payload.push({ id: parseInt(el.dataset.itemId), display_order: idx + 1 });
+            var badge = el.querySelector('span[style*="border-radius:50%"]');
+            if (badge) badge.textContent = idx + 1;
+          });
+          saveOrder(payload);
+        }
+      });
+    }
+  }
+  {% endif %}
+}
+
+/* ── 基本信息内联编辑 ── */
+{% if can_edit %}
+function atBiStartEdit() {
+  document.getElementById('atBiView').style.display = 'none';
+  document.getElementById('atBiForm').style.display = 'grid';
+  document.getElementById('atBiEditBtn').style.display = 'none';
+  document.getElementById('atBiCancelBtn').style.display = '';
+  document.getElementById('atBiSaveBtn').style.display = '';
+}
+
+function atBiCancelEdit() {
+  document.getElementById('atBiView').style.display = 'grid';
+  document.getElementById('atBiForm').style.display = 'none';
+  document.getElementById('atBiEditBtn').style.display = '';
+  document.getElementById('atBiCancelBtn').style.display = 'none';
+  document.getElementById('atBiSaveBtn').style.display = 'none';
+}
+
+function atBiOnCategoryChange() {
+  var catId = document.getElementById('atbi-category').value;
+  var subSel = document.getElementById('atbi-subcategory');
+  subSel.innerHTML = '<option value="">— 选择 —</option>';
+  var subs = catId ? (SUBCATEGORIES_BY_CATEGORY[catId] || []) : [];
+  subs.forEach(function(s) {
+    var o = document.createElement('option');
+    o.value = s.id; o.textContent = s.name + (s.code_letter ? ' (' + s.code_letter + ')' : '');
+    subSel.appendChild(o);
+  });
+}
+
+async function atBiSave() {
+  var btn = document.getElementById('atBiSaveBtn');
+  btn.disabled = true; btn.textContent = '保存中…';
+  var payload = {
+    model:          document.getElementById('atbi-model').value.trim(),
+    name:           document.getElementById('atbi-name').value.trim() || null,
+    name_en:        document.getElementById('atbi-name-en').value.trim() || null,
+    description:    document.getElementById('atbi-desc').value.trim() || null,
+    unit:           document.getElementById('atbi-unit').value || null,
+    category_id:    document.getElementById('atbi-category').value || null,
+    subcategory_id: document.getElementById('atbi-subcategory').value || null,
+  };
+  try {
+    var res = await fetch(API_BASE + '/' + TEMPLATE_ID + '/basic', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(payload)
+    });
+    var rd = await res.json();
+    if (!rd.success) throw new Error(rd.message || 'error');
+
+    // 更新只读视图各字段
+    var view = document.getElementById('atBiView');
+    var vals = view.querySelectorAll('.at-bi-val');
+    var fields = [
+      { idx:0, val:rd.model,            mono:true  },
+      { idx:1, val:rd.name,             mono:false },
+      { idx:2, val:rd.name_en,          mono:false },
+      { idx:3, val:rd.category_name,    mono:false },
+      { idx:4, val:rd.subcategory_name, mono:false },
+      { idx:5, val:rd.unit,             mono:false },
+      { idx:7, val:rd.description,      mono:false },
+    ];
+    fields.forEach(function(f) {
+      var el = vals[f.idx]; if (!el) return;
+      var text = f.val || '—';
+      el.textContent = text;
+      el.classList.toggle('at-bi-empty', !f.val);
+    });
+
+    // 同步页头型号
+    var h1 = document.querySelector('h1');
+    if (h1 && rd.model) h1.textContent = rd.model;
+
+    btn.disabled = false; btn.textContent = '保存';
+    atBiCancelEdit();
+    if (window.atToast) atToast('基本信息已保存', 'success');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '保存';
+    if (window.atToast) atToast(e.message || '保存失败', 'error');
+  }
+}
+{% endif %}
+
+/* ── 规格项分类内拖拽排序 ── */
+{% if can_edit %}
+(function() {
+  if (typeof Sortable === 'undefined') return;
+
+  async function saveOrder(payload) {
+    try {
+      var res = await fetch(API_BASE + '/items/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify(payload)
+      });
+      var rd = await res.json();
+      if (!rd.success) throw new Error(rd.message || 'error');
+      if (window.atToast) atToast('排序已保存', 'success');
+      atRefreshMatrixPanel();
+    } catch(e) {
+      if (window.atToast) atToast('保存排序失败', 'error');
+    }
+  }
+
+  // 每个分类 tbody 各自独立 Sortable，不能跨分类拖拽
+  document.querySelectorAll('tbody.ats-cat-body').forEach(function(tbody) {
+    Sortable.create(tbody, {
+      handle: '.ats-drag-handle',
+      ghostClass: 'ats-sort-ghost',
+      dragClass: 'ats-sort-drag',
+      animation: 150,
+      onEnd: function() {
+        var rows = tbody.querySelectorAll('tr[data-item-id]');
+        var payload = [];
+        rows.forEach(function(row, idx) {
+          payload.push({ id: parseInt(row.dataset.itemId), display_order: idx + 1 });
+        });
+        saveOrder(payload);
+      }
+    });
+  });
+
+  // 编码顺序列表排序由 atToggleCodeList() 首次展开时懒初始化
+})();
+{% endif %}
+</script>
+
+</body>
+</html>

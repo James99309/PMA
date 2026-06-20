@@ -135,6 +135,8 @@ tests/analyze_*.py
 # 正式 pytest 测试目录（不被 test_*.py 全局规则屏蔽）
 !tests/wiki/
 !tests/wiki/**
+!tests/file_manager/
+!tests/file_manager/**
 
 # 迁移/导出中间产物
 db_export*.json
@@ -192,3 +194,4 @@ storage/
 mobile-app/node_modules/
 mobile-app/dist/
 mobile-app/ios/App/Pods/
+i18n_preview/

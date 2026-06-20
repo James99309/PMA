@@ -37,7 +37,7 @@ class FileUploadComponent {
         this.deleteApi = options.deleteApi || this.container.dataset.deleteApi;
         this.previewApi = options.previewApi || this.container.dataset.previewApi;
         this.acceptTypes = options.acceptTypes || this.container.dataset.acceptTypes || 'image/*,.pdf';
-        this.maxFileSize = parseInt(options.maxFileSize || this.container.dataset.maxFileSize || 5242880);
+        this.maxFileSize = parseInt(options.maxFileSize ?? this.container.dataset.maxFileSize ?? 0);
         this.maxFiles = parseInt(options.maxFiles || this.container.dataset.maxFiles || 10);
         this.readonly = (options.readonly || this.container.dataset.readonly) === 'true';
         this.compact = (options.compact || this.container.dataset.compact) === 'true';
@@ -61,6 +61,8 @@ class FileUploadComponent {
         this.fileList = this.container.querySelector('.file-list');
         this.progressEl = this.container.querySelector('.upload-progress');
         this.progressText = this.container.querySelector('.upload-progress-text');
+        this.progressBar = this.container.querySelector('.upload-progress-bar');
+        this.progressPercent = this.container.querySelector('.upload-progress-percent');
         this.errorEl = this.container.querySelector('.upload-error');
         this.errorText = this.container.querySelector('.upload-error-text');
 
@@ -141,8 +143,8 @@ class FileUploadComponent {
      * @returns {{valid: boolean, error?: string}}
      */
     validateFile(file) {
-        // 检查文件大小
-        if (file.size > this.maxFileSize) {
+        // 检查文件大小（maxFileSize=0 表示不限制）
+        if (this.maxFileSize > 0 && file.size > this.maxFileSize) {
             const maxSizeMB = (this.maxFileSize / 1024 / 1024).toFixed(1);
             return { valid: false, error: `文件 "${file.name}" 大小超过 ${maxSizeMB}MB 限制` };
         }
@@ -197,14 +199,19 @@ class FileUploadComponent {
             return;
         }
 
-        this.showProgress('上传中...');
-
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            this.showProgress(`上传中 (${i + 1}/${files.length})...`);
+            const label = files.length > 1 ? `上传中 (${i + 1}/${files.length})` : '上传中';
+            this.showProgress(label);
 
             try {
-                const result = await this.uploadSingleFile(file);
+                const CHUNK_THRESHOLD = 50 * 1024 * 1024; // 50MB
+                const uploadFn = file.size > CHUNK_THRESHOLD
+                    ? this.uploadChunked.bind(this)
+                    : this.uploadSingleFile.bind(this);
+                const result = await uploadFn(file, (pct) => {
+                    this.updateProgress(pct);
+                });
                 if (result.success) {
                     this.addFileItem(result.data);
                     if (this.onUploadSuccess) {
@@ -219,7 +226,7 @@ class FileUploadComponent {
                 }
             } catch (error) {
                 console.error('Upload error:', error);
-                this.showError('上传失败：' + error.message);
+                this.showError('上传失败：网络错误，请重试');
                 if (this.onUploadError) {
                     this.onUploadError(error.message);
                 }
@@ -231,27 +238,89 @@ class FileUploadComponent {
     }
 
     /**
-     * 上传单个文件
+     * 上传单个文件（使用 XHR 支持进度事件）
      * @param {File} file
+     * @param {Function} onProgress - 进度回调 (percent: 0-100)
      * @returns {Promise<Object>}
      */
-    async uploadSingleFile(file) {
-        const formData = new FormData();
-        formData.append('file', file);
+    uploadSingleFile(file, onProgress) {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', file);
 
-        // 获取 CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const xhr = new XMLHttpRequest();
 
-        const response = await fetch(this.uploadApi, {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin',
-            headers: {
-                'X-CSRFToken': csrfToken
-            }
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && onProgress) {
+                    onProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                try {
+                    resolve(JSON.parse(xhr.responseText));
+                } catch {
+                    reject(new Error(`服务器返回异常 (${xhr.status})`));
+                }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('网络连接失败')));
+            xhr.addEventListener('timeout', () => reject(new Error('上传超时')));
+
+            xhr.open('POST', this.uploadApi);
+            xhr.withCredentials = true;
+            xhr.setRequestHeader('X-CSRFToken', csrfToken);
+            xhr.timeout = 120000;
+            xhr.send(formData);
         });
+    }
 
-        return await response.json();
+    /**
+     * 分片上传大文件（>50MB），绕过 Cloudflare 100MB 限制
+     * @param {File} file
+     * @param {Function} onProgress
+     */
+    async uploadChunked(file, onProgress) {
+        const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const uploadId = crypto.randomUUID();
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const chunkApi = this.uploadApi.replace('/upload', '/upload/chunk');
+
+        for (let i = 0; i < totalChunks; i++) {
+            const chunk = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            const formData = new FormData();
+            formData.append('file', chunk, file.name);
+            formData.append('upload_id', uploadId);
+            formData.append('chunk_index', i);
+            formData.append('total_chunks', totalChunks);
+            formData.append('filename', file.name);
+            if (this.folderId) formData.append('folder_id', this.folderId);
+
+            const result = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.addEventListener('load', () => {
+                    try { resolve(JSON.parse(xhr.responseText)); }
+                    catch { reject(new Error(`服务器返回异常 (${xhr.status})`)); }
+                });
+                xhr.addEventListener('error', () => reject(new Error('网络连接失败')));
+                xhr.timeout = 300000; // 300s per chunk
+                xhr.addEventListener('timeout', () => reject(new Error('分片上传超时')));
+                xhr.open('POST', chunkApi);
+                xhr.withCredentials = true;
+                xhr.setRequestHeader('X-CSRFToken', csrfToken);
+                xhr.send(formData);
+            });
+
+            if (!result.success && !result.pending) {
+                return result; // 出错提前返回
+            }
+
+            if (onProgress) onProgress(Math.round((i + 1) / totalChunks * 100));
+
+            if (result.success) return result; // 最后一片，合并完成
+        }
     }
 
     /**
@@ -562,7 +631,7 @@ class FileUploadComponent {
     }
 
     /**
-     * 显示上传进度
+     * 显示上传进度（重置进度条到0）
      * @param {string} text
      */
     showProgress(text) {
@@ -571,6 +640,20 @@ class FileUploadComponent {
             if (this.progressText) {
                 this.progressText.textContent = text;
             }
+            this.updateProgress(0);
+        }
+    }
+
+    /**
+     * 更新进度条百分比
+     * @param {number} percent - 0 to 100
+     */
+    updateProgress(percent) {
+        if (this.progressBar) {
+            this.progressBar.style.width = `${percent}%`;
+        }
+        if (this.progressPercent) {
+            this.progressPercent.textContent = `${percent}%`;
         }
     }
 
@@ -580,6 +663,7 @@ class FileUploadComponent {
     hideProgress() {
         if (this.progressEl) {
             this.progressEl.classList.add('hidden');
+            this.updateProgress(0);
         }
     }
 
@@ -658,14 +742,17 @@ class FileUploadComponent {
         this.uploadApi = uploadApi || this.uploadApi;
         const results = [];
 
-        this.showProgress('上传附件中...');
-
         for (let i = 0; i < this.pendingFiles.length; i++) {
             const file = this.pendingFiles[i];
-            this.showProgress(`上传附件 (${i + 1}/${this.pendingFiles.length})...`);
+            const label = this.pendingFiles.length > 1
+                ? `上传附件 (${i + 1}/${this.pendingFiles.length})`
+                : '上传附件中';
+            this.showProgress(label);
 
             try {
-                const result = await this.uploadSingleFile(file);
+                const result = await this.uploadSingleFile(file, (pct) => {
+                    this.updateProgress(pct);
+                });
                 results.push(result);
 
                 if (!result.success) {
@@ -674,6 +761,7 @@ class FileUploadComponent {
                 }
             } catch (error) {
                 console.error('Upload pending file error:', error);
+                this.showError('上传失败：网络错误，请重试');
                 results.push({ success: false, message: error.message });
                 break;
             }

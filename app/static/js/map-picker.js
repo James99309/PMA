@@ -292,6 +292,29 @@ window.MapPicker = (function() {
 
         initAmapAutocomplete();
         updateSelectedLocation(center.lat, center.lng);
+
+        // 如果 open() 时传了 initialQuery — 只预填搜索框 + 触发 AutoComplete 下拉,
+        // 让用户主动从下拉选择(避免 PlaceSearch 拿到无关首条结果导致误定位)
+        if (state.pendingInitialQuery) {
+            var q = state.pendingInitialQuery;
+            state.pendingInitialQuery = null;
+            var input = document.getElementById('mapSearchInput');
+            if (input) {
+                input.value = q;
+                input.focus();
+                // 模拟 input 事件触发 AMap.AutoComplete 弹下拉
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                // 部分版本 AutoComplete 需要 keyup 才触发
+                try {
+                    input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: q.slice(-1) }));
+                } catch (e) {}
+            }
+        }
+    }
+
+    function _toastNoMatch(msg) {
+        if (window.ATToast) ATToast.warn('地图定位', msg);
+        else console.warn('[MapPicker]', msg);
     }
 
     function initAmapAutocomplete() {
@@ -305,13 +328,21 @@ window.MapPicker = (function() {
         });
 
         autoComplete.on('select', function(e) {
-            if (e.poi && e.poi.location) {
+            if (!e || !e.poi) return;
+
+            // 情况 1:POI 自带 location(地标性建筑)→ 直接居中
+            if (e.poi.location) {
                 var lnglat = e.poi.location;
                 state.map.setCenter(lnglat);
                 state.map.setZoom(CONFIG.defaultZoom);
                 state.marker.setPosition(lnglat);
                 updateSelectedLocation(lnglat.getLat(), lnglat.getLng());
+                return;
             }
+
+            // 情况 2:用户选的 POI 无 location → 高德没该 POI 精确坐标
+            // 不做 fallback 猜测(容易拿无关结果),直接提示让用户调整
+            _toastNoMatch('“' + (e.poi.name || '') + '” 在高德无精确坐标,请微调搜索词或在地图上手动点选位置');
         });
     }
 
@@ -487,6 +518,17 @@ window.MapPicker = (function() {
         var addressEl = document.getElementById('selectedAddress');
         if (addressEl) {
             addressEl.textContent = '请在地图上选择位置';
+        }
+
+        // 预填搜索框 + 自动触发查询(caller 传 options.initialQuery)
+        var initialQuery = (options.initialQuery || '').trim();
+        var searchInputEl = document.getElementById('mapSearchInput');
+        if (searchInputEl) searchInputEl.value = initialQuery;
+        if (initialQuery) {
+            // 延后执行让 SDK 完成 init,然后用 PlaceSearch 直接定位首条结果
+            state.pendingInitialQuery = initialQuery;
+        } else {
+            state.pendingInitialQuery = null;
         }
 
         var coordsEl = document.getElementById('selectedCoords');

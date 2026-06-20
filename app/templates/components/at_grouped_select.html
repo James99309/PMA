@@ -1,0 +1,37 @@
+{#
+  AT 组合输入框组件:前半「分组下拉选择」+ 后半「文本输入」(可复用)
+  ───────────────────────────────────────────────────────────────
+  典型用法(工作类型 + 内容 → 组合标题):
+    {% from 'components/at_grouped_select.html' import at_grouped_select %}
+    {{ at_grouped_select('wiTitleInput', work_type_groups, work_type_labels_json,
+                          placeholder=_('请输入工作内容'), required=true) }}
+
+  group_list 元素:{key, label, options:[{value,label}]}(兼容 items)
+  labels_map  :{value: label}
+
+  配套 JS:static/js/at-grouped-select.js
+    var ctl = AtGroupedSelect.init('wiTitleInput');
+    ctl.getWorkType()  → 选中值
+    ctl.getContent()   → 输入内容(trim)
+    ctl.getTitle()     → 组合标题 "label-content"
+    ctl.setValue(type, fullTitle)  → 回填(自动剥离 label- 前缀)
+#}
+{% macro at_grouped_select(field_id, group_list, labels_map, placeholder='', required=false) %}
+<div class="at-gsi" id="{{ field_id }}" data-at-grouped-select data-labels='{{ labels_map | tojson }}'>
+  <button type="button" class="at-gsi-trigger" data-gsi-trigger>
+    <span data-gsi-label>{{ _('请选择') }}</span>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+         stroke-linecap="round" stroke-linejoin="round" style="opacity:.5;"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <span class="at-gsi-sep">-</span>
+  <input type="text" class="at-gsi-input" data-gsi-input placeholder="{{ placeholder }}"{% if required %} required{% endif %}>
+  <div class="at-gsi-menu" data-gsi-menu hidden>
+    {% for grp in group_list %}
+    <div class="at-gsi-grp">{{ grp.label }}</div>
+    {% for o in (grp.options if grp.options is defined else grp['items']) %}
+    <div class="at-gsi-item" data-gsi-val="{{ o.value }}">{{ o.label }}</div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
