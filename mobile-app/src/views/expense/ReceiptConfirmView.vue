@@ -293,8 +293,9 @@
             top: calc(env(safe-area-inset-top) + 12px);
             right: 16px;
             width: 36px; height: 36px;
-            background: rgba(255,255,255,0.4);
+            background: rgba(0,0,0,0.55);
             color: #fff; font-size: 18px;
+            border: 1px solid rgba(255,255,255,0.5);
           ">×</button>
         <div class="absolute text-white text-[12px] opacity-70"
           style="bottom: calc(env(safe-area-inset-bottom) + 16px);">

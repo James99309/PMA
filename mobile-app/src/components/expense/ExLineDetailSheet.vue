@@ -148,7 +148,7 @@
         :style="{ paddingTop: 'calc(env(safe-area-inset-top) + 8px)', paddingBottom: '8px' }">
         <button @click="viewerOpen = false"
           class="flex items-center justify-center rounded-full active:opacity-70"
-          style="width: 36px; height: 36px; background: rgba(255,255,255,0.16); color: #fff; font-size: 18px;">×</button>
+          style="width: 36px; height: 36px; background: rgba(255,255,255,0.32); color: #fff; font-size: 18px;">×</button>
         <span class="text-white text-[13px] opacity-80">{{ viewerIdx + 1 }} / {{ photos.length }}</span>
         <span style="width: 36px;" />
       </div>
@@ -164,11 +164,11 @@
         :style="{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)', paddingTop: '12px' }">
         <button @click="viewerIdx = (viewerIdx - 1 + photos.length) % photos.length"
           class="flex items-center justify-center rounded-full active:opacity-70"
-          style="width: 44px; height: 44px; background: rgba(255,255,255,0.16); color: #fff; font-size: 20px;">‹</button>
+          style="width: 44px; height: 44px; background: rgba(255,255,255,0.32); color: #fff; font-size: 20px;">‹</button>
         <span class="text-white text-[12px] opacity-60">{{ t('expense.lineTapBlankClose') }}</span>
         <button @click="viewerIdx = (viewerIdx + 1) % photos.length"
           class="flex items-center justify-center rounded-full active:opacity-70"
-          style="width: 44px; height: 44px; background: rgba(255,255,255,0.16); color: #fff; font-size: 20px;">›</button>
+          style="width: 44px; height: 44px; background: rgba(255,255,255,0.32); color: #fff; font-size: 20px;">›</button>
       </div>
     </div>
   </Teleport>
