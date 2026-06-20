@@ -329,6 +329,8 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const store = useExpenseStore()
+// TEMP DEBUG: group call result (remove after diagnosis)
+const dbg = (() => { try { return JSON.parse(localStorage.getItem('__grpDbg') || '{}') } catch { return {} } })()
 
 const expenseId = computed(() => parseInt(route.params.id))
 const idx = computed(() => parseInt(route.query.idx) || 0)
