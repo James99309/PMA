@@ -17,37 +17,14 @@ from app.models.user import User
 from app.models.expense import Expense, ExpenseDetail, EXPENSE_CATEGORIES, EXPENSE_STATUS
 from app.api.v1.utils import get_request_lang as _lang
 
-# 英文映射 (mobile 端国际化) — EXPENSE_CATEGORIES 是 [(key,zh)] 元组保持不变
-_EXPENSE_CATEGORY_EN = {
-    'entertainment':        'Entertainment',
-    'local_transport':      'Local Transport',
-    'travel_accommodation': 'Travel & Lodging',
-    'office_supplies':      'Office Supplies',
-    'communication':        'Communication',
-    'fuel':                 'Fuel',
-    'parking':              'Parking',
-    'meals':                'Meals',
-    'other':                'Other',
-}
-_EXPENSE_STATUS_EN = {
-    'draft':            'Draft',
-    'pending':          'Pending',
-    'approved':         'Approved',
-    'rejected':         'Rejected',
-    'recalled':         'Recalled',
-    'awaiting_payment': 'Awaiting Payment',
-    'paid':             'Paid',
-}
-
+# 科目/状态英文 label 统一收口到 app.helpers.expense_labels(唯一来源),此处不再各写一份
 def _category_label(key):
-    if _lang() == 'en':
-        return _EXPENSE_CATEGORY_EN.get(key, key or '')
-    return next((zh for k, zh in EXPENSE_CATEGORIES if k == key), key or '')
+    from app.helpers.expense_labels import expense_category_label
+    return expense_category_label(key, _lang())
 
 def _status_label_i18n(key):
-    if _lang() == 'en':
-        return _EXPENSE_STATUS_EN.get(key, key or '')
-    return next((zh for k, zh in EXPENSE_STATUS if k == key), key or '')
+    from app.helpers.expense_labels import expense_status_label
+    return expense_status_label(key, _lang())
 from app.utils.access_control import get_viewable_data
 import logging
 

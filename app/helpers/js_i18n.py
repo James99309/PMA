@@ -20,6 +20,7 @@ _JS_FILES = [
     'at-file-manager.js',
     'at-file-manager-admin.js',
     'at-task-detail.js',
+    'at-expense-form.js',
 ]
 _PAT = re.compile(r"""(?<![\w.$])t\(\s*(['"])(.*?)\1""")
 

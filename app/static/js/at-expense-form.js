@@ -362,13 +362,13 @@
       var newRow = appendBlankRow();
       if (res && res.success) {
         fillRowFromOcr(newRow, res.fields || {});
-        if (g.ATToast) ATToast.success('识别完成', '请核对字段(低置信度已飘黄)');
+        if (g.ATToast) ATToast.success(t('识别完成'), t('请核对字段(低置信度已飘黄)'));
       } else {
-        if (g.ATToast) ATToast.error('识别失败', (res && res.message) || '请手动填写');
+        if (g.ATToast) ATToast.error(t('识别失败'), (res && res.message) || t('请手动填写'));
       }
       addFileToRow(newRow, file);
     } catch (e) {
-      if (g.ATToast) ATToast.error('网络错误', e.message || '');
+      if (g.ATToast) ATToast.error(t('网络错误'), e.message || '');
     } finally {
       setBtnSpinner(menuBtn, false);
     }
@@ -433,9 +433,9 @@
 
     var header = '<div style="padding:18px 22px;border-bottom:1px solid var(--line);">' +
         '<h3 class="at-serif" style="margin:0;font-size:18px;font-weight:500;color:var(--ink);">' +
-          '多张发票 — 如何处理?</h3>' +
+          t('多张发票 — 如何处理?') + '</h3>' +
         '<p style="margin:6px 0 0;font-size:12.5px;color:var(--ink-3);">' +
-          '已识别 ' + results.length + ' 张 · 自动按类别+货币分组为 ' + groupKeys.length + ' 组</p>' +
+          t('已识别') + ' ' + results.length + ' ' + t('张 · 按类别+货币分为') + ' ' + groupKeys.length + ' ' + t('组') + '</p>' +
       '</div>';
 
     var listHtml = '<div style="padding:14px 22px;overflow-y:auto;flex:1;">';
@@ -450,9 +450,9 @@
             '<div>' +
               '<span style="font-size:13px;font-weight:500;color:var(--ink);">' + esc(catLabel) + '</span>' +
               '<span class="at-mono" style="font-size:11px;color:var(--ink-4);margin-left:6px;">' + esc(parts[1]) + '</span>' +
-              (idxs.length > 1 ? '<span style="margin-left:8px;font-size:10.5px;padding:1px 6px;border-radius:3px;background:var(--accent-tint);color:var(--accent);">可合并 ' + idxs.length + ' 张</span>' : '') +
+              (idxs.length > 1 ? '<span style="margin-left:8px;font-size:10.5px;padding:1px 6px;border-radius:3px;background:var(--accent-tint);color:var(--accent);">' + t('可合并') + ' ' + idxs.length + ' ' + t('张') + '</span>' : '') +
             '</div>' +
-            '<span class="at-mono" style="font-size:12px;color:var(--ink-2);">合计 ' + groupSum.toFixed(2) + '</span>' +
+            '<span class="at-mono" style="font-size:12px;color:var(--ink-2);">' + t('合计') + ' ' + groupSum.toFixed(2) + '</span>' +
           '</div>' +
           idxs.map(function (i) {
             var r = results[i];
@@ -471,16 +471,16 @@
       '<div style="padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">' +
         '<button type="button" data-modal-action="cancel"' +
         ' style="height:32px;padding:0 14px;border:1px solid var(--line-2);border-radius:5px;' +
-        ' background:var(--bg-elev);color:var(--ink-2);cursor:pointer;font-size:12.5px;">取消</button>' +
+        ' background:var(--bg-elev);color:var(--ink-2);cursor:pointer;font-size:12.5px;">' + t('取消') + '</button>' +
         '<button type="button" data-modal-action="all-merge"' +
         ' style="height:32px;padding:0 14px;border:1px solid var(--line-2);border-radius:5px;' +
-        ' background:var(--bg-elev);color:var(--ink);cursor:pointer;font-size:12.5px;">全部合并 (1 行)</button>' +
+        ' background:var(--bg-elev);color:var(--ink);cursor:pointer;font-size:12.5px;">' + t('全部合并 (1 行)') + '</button>' +
         '<button type="button" data-modal-action="all-separate"' +
         ' style="height:32px;padding:0 14px;border:1px solid var(--line-2);border-radius:5px;' +
-        ' background:var(--bg-elev);color:var(--ink);cursor:pointer;font-size:12.5px;">全部独立 (' + results.length + ' 行)</button>' +
+        ' background:var(--bg-elev);color:var(--ink);cursor:pointer;font-size:12.5px;">' + t('全部独立') + ' (' + results.length + ' ' + t('行') + ')</button>' +
         '<button type="button" data-modal-action="group-merge"' +
         ' style="height:32px;padding:0 14px;border:0;border-radius:5px;' +
-        ' background:var(--accent);color:#fff;cursor:pointer;font-size:12.5px;font-weight:500;">按类别合并 (' + groupKeys.length + ' 行)</button>' +
+        ' background:var(--accent);color:#fff;cursor:pointer;font-size:12.5px;font-weight:500;">' + t('按类别合并') + ' (' + groupKeys.length + ' ' + t('行') + ')</button>' +
       '</div>';
 
     panel.innerHTML = header + listHtml + footer;

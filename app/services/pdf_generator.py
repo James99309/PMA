@@ -325,27 +325,9 @@ class PDFGenerator:
             logger.error(f"生成订单PDF失败: {str(e)}")
             raise
     
-    # 报销科目中英标签（数据库 EXPENSE_CATEGORIES 仅有中文，这里补英文）
-    EXPENSE_CATEGORY_LABELS = {
-        'entertainment':        {'zh': '招待费',   'en': 'Entertainment'},
-        'local_transport':      {'zh': '市内交通', 'en': 'Local Transport'},
-        'travel_accommodation': {'zh': '差旅住宿', 'en': 'Travel & Accommodation'},
-        'office_supplies':      {'zh': '办公用品', 'en': 'Office Supplies'},
-        'communication':        {'zh': '通讯费',   'en': 'Communication'},
-        'fuel':                 {'zh': '油费',     'en': 'Fuel'},
-        'parking':              {'zh': '停车费',   'en': 'Parking'},
-        'meals':                {'zh': '餐费',     'en': 'Meals'},
-        'other':                {'zh': '其他',     'en': 'Other'},
-    }
-    EXPENSE_STATUS_LABELS = {
-        'draft':            {'zh': '草稿',   'en': 'Draft'},
-        'pending':          {'zh': '待审批', 'en': 'Pending'},
-        'approved':         {'zh': '已通过', 'en': 'Approved'},
-        'rejected':         {'zh': '已驳回', 'en': 'Rejected'},
-        'recalled':         {'zh': '已召回', 'en': 'Recalled'},
-        'awaiting_payment': {'zh': '待支付', 'en': 'Awaiting Payment'},
-        'paid':             {'zh': '已支付', 'en': 'Paid'},
-    }
+    # 报销科目/状态中英标签 —— 统一收口到 app.helpers.expense_labels(唯一来源,结构同为 {code:{zh,en}})
+    from app.helpers.expense_labels import EXPENSE_CATEGORY_I18N as EXPENSE_CATEGORY_LABELS
+    from app.helpers.expense_labels import EXPENSE_STATUS_I18N as EXPENSE_STATUS_LABELS
 
     def _editorial_fontface_css(self):
         """报销单横版 PDF 专用 @font-face（编辑风格品牌字体）。

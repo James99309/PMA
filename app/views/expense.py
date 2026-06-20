@@ -5,6 +5,7 @@ from config import Config
 from app.extensions import csrf
 from app.utils.chinese_mapping_manager import mapping_manager
 from app.models.expense import Expense, ExpenseDetail, EXPENSE_CATEGORIES, EXPENSE_STATUS
+from app.helpers.expense_labels import localized_expense_categories
 from app.models.customer import Company, Contact
 from app.models.project import Project
 from app.models.action import Action
@@ -537,7 +538,7 @@ def expense_list():
                               filter_config=filter_config,
                               list_config=list_config,
                               currency_options=get_currency_type_options(),
-                              expense_categories=EXPENSE_CATEGORIES,
+                              expense_categories=localized_expense_categories(),
                               default_currency=user_default_currency)
 
     except Exception as e:
@@ -664,7 +665,7 @@ def expense_list():
                               filter_config=error_filter_config,
                               list_config=error_list_config,
                               currency_options=get_currency_type_options(),
-                              expense_categories=EXPENSE_CATEGORIES,
+                              expense_categories=localized_expense_categories(),
                               default_currency=error_default_currency)
 
 @expense.route('/<int:id>/at_view')
@@ -782,7 +783,7 @@ def at_view_expense(id):
                            is_approval_edit=is_approval_edit,
                            editable_fields=editable_fields_list,
                            approval_step_name=approval_step_name,
-                           expense_categories=EXPENSE_CATEGORIES,
+                           expense_categories=localized_expense_categories(),
                            currency_options=get_currency_type_options(),
                            default_currency=(e.currency or Config.DEFAULT_CURRENCY),
                            expense_details=expense_details)
@@ -913,7 +914,7 @@ def at_new_expense():
                            currency_sym=currency_sym,
                            is_new=True,
                            is_edit=False,
-                           expense_categories=EXPENSE_CATEGORIES,
+                           expense_categories=localized_expense_categories(),
                            currency_options=get_currency_type_options(),
                            default_currency=default_currency,
                            expense_details=[])
@@ -1661,7 +1662,7 @@ def create_expense():
 
     return render_template('expense/create_expense.html',
                          currency_options=get_currency_type_options(),
-                         expense_categories=EXPENSE_CATEGORIES,
+                         expense_categories=localized_expense_categories(),
                          default_currency=default_currency)
 
 @expense.route('/<int:id>')
@@ -1760,7 +1761,7 @@ def expense_detail(id):
                          approval_edit_info=approval_edit_info,
                          can_edit_this_expense=can_edit_this_expense,
                          currency_options=get_currency_type_options(),
-                         expense_categories=EXPENSE_CATEGORIES,
+                         expense_categories=localized_expense_categories(),
                          default_currency=expense_obj.currency or Config.DEFAULT_CURRENCY,
                          expense_budget=expense_budget_data)
 
@@ -2443,7 +2444,7 @@ def edit_expense(id):
                          approval_edit_mode=approval_edit_mode,
                          approval_edit_info=approval_edit_info,
                          currency_options=get_currency_type_options(),
-                         expense_categories=EXPENSE_CATEGORIES)
+                         expense_categories=localized_expense_categories())
 
 @expense.route('/<int:id>/delete', methods=['POST'])
 @login_required
