@@ -541,6 +541,22 @@ def mobile_expense_add_line(expense_id):
     return api_response(success=True, data=_line_dict(d))
 
 
+@api_v1_bp.route('/mobile/expense/invoices/group', methods=['POST'])
+@jwt_required()
+def mobile_expense_group_invoices():
+    """发票分组合并 — 与 web 同一份逻辑(services/expense_detail_service)。
+    入参/出参同 web /expense/api/invoices/group。前端拿 groups/payloads 渲染,不再自己分组。"""
+    from app.services.expense_detail_service import group_invoices, build_detail_payloads
+    data = request.get_json(silent=True) or {}
+    items = data.get('items') or []
+    default_currency = data.get('default_currency') or 'CNY'
+    decision = data.get('decision') or 'by_group'
+    group_description = data.get('group_description') or {}
+    groups = group_invoices(items, default_currency)
+    payloads = build_detail_payloads(items, decision, default_currency, group_description, _lang())
+    return api_response(success=True, data={'groups': groups, 'payloads': payloads})
+
+
 @api_v1_bp.route('/mobile/expense/<int:expense_id>/lines/<int:line_id>', methods=['PUT'])
 @jwt_required()
 def mobile_expense_update_line(expense_id, line_id):

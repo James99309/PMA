@@ -2712,6 +2712,29 @@ def api_ocr_invoice():
     return jsonify({'success': True, 'fields': result.get('data', {})})
 
 
+@expense.route('/api/invoices/group', methods=['POST'])
+@login_required
+@permission_required('expense', 'create')
+def api_group_invoices():
+    """发票分组合并 — 共用逻辑(services/expense_detail_service),web/mobile 同调,前端不再各自分组。
+
+    入参 JSON: {items:[{category,currency,invoice_amount,date,description,seller,invoice_no,url,...}],
+               default_currency?, decision?('by_group'|'merge_all'|'separate'), group_description?}
+    出参: {success, groups:[...], payloads:[...]}  (payloads 按 decision,默认 by_group)
+    """
+    from flask import session as flask_session
+    from app.services.expense_detail_service import group_invoices, build_detail_payloads
+    data = request.get_json(silent=True) or {}
+    items = data.get('items') or []
+    default_currency = data.get('default_currency') or 'CNY'
+    decision = data.get('decision') or 'by_group'
+    group_description = data.get('group_description') or {}
+    lang = 'en' if flask_session.get('language') == 'en' else 'zh'
+    groups = group_invoices(items, default_currency)
+    payloads = build_detail_payloads(items, decision, default_currency, group_description, lang)
+    return jsonify({'success': True, 'groups': groups, 'payloads': payloads})
+
+
 @expense.route('/api/upload_invoice_temp', methods=['POST'])
 @login_required
 @permission_required('expense', 'edit')

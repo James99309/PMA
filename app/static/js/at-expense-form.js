@@ -413,15 +413,28 @@
     openMergeModal(row, results);
   }
 
-  // ─── 三选一合并 modal ─────────────────────────────────
-  function openMergeModal(row, results) {
-    // 按 (category, currency) 分组
-    var groups = {};
-    results.forEach(function (r, i) {
-      var key = (r.fields.category || 'other') + '|' + (r.fields.currency || $('expCurrency').value);
-      (groups[key] = groups[key] || []).push(i);
-    });
-    var groupKeys = Object.keys(groups);
+  // ─── 三选一合并 modal(分组/合并值走后端共用 services/expense_detail_service) ───
+  function postGroup(items, decision) {
+    return fetch('/expense/api/invoices/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ items: items,
+        default_currency: $('expCurrency').value || CFG.default_currency || 'CNY',
+        decision: decision || 'by_group' })
+    }).then(function (r) { return r.json(); });
+  }
+  function payloadToFields(p) {
+    // 后端 payload → fillRowFromOcr 所需 OCR 字段名(合并描述已是后端摘要,不再 prefix seller)
+    return { category: p.expense_category, currency: p.currency,
+             invoice_amount: p.invoice_amount, date: p.expense_date, description: p.description };
+  }
+
+  async function openMergeModal(row, results) {
+    // 前端不再各自分组:调后端拿分组(与移动端同一份逻辑)
+    var items = results.map(function (r) { return r.fields; });
+    var _gr = await postGroup(items, 'by_group');
+    var groups = (_gr && _gr.groups) || [];
+    var groupKeys = groups;  // 下方仅用到 .length
 
     var overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9998;' +
@@ -439,17 +452,16 @@
       '</div>';
 
     var listHtml = '<div style="padding:14px 22px;overflow-y:auto;flex:1;">';
-    groupKeys.forEach(function (k) {
-      var idxs = groups[k];
-      var parts = k.split('|');
-      var catLabel = (CFG.expense_categories.find(function (c) { return c[0] === parts[0]; }) || [])[1] || parts[0];
-      var groupSum = idxs.reduce(function (a, i) { return a + (parseFloat(results[i].fields.invoice_amount) || 0); }, 0);
+    groups.forEach(function (g) {
+      var idxs = g.indices;
+      var catLabel = (CFG.expense_categories.find(function (c) { return c[0] === g.category; }) || [])[1] || g.category;
+      var groupSum = g.total_amount || 0;
       listHtml +=
         '<div style="margin-bottom:14px;padding:10px 12px;background:var(--bg-page);border-radius:6px;border:1px solid var(--line-soft);">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
             '<div>' +
               '<span style="font-size:13px;font-weight:500;color:var(--ink);">' + esc(catLabel) + '</span>' +
-              '<span class="at-mono" style="font-size:11px;color:var(--ink-4);margin-left:6px;">' + esc(parts[1]) + '</span>' +
+              '<span class="at-mono" style="font-size:11px;color:var(--ink-4);margin-left:6px;">' + esc(g.currency) + '</span>' +
               (idxs.length > 1 ? '<span style="margin-left:8px;font-size:10.5px;padding:1px 6px;border-radius:3px;background:var(--accent-tint);color:var(--accent);">' + t('可合并') + ' ' + idxs.length + ' ' + t('张') + '</span>' : '') +
             '</div>' +
             '<span class="at-mono" style="font-size:12px;color:var(--ink-2);">' + t('合计') + ' ' + groupSum.toFixed(2) + '</span>' +
@@ -501,28 +513,28 @@
 
   // ─── 应用决策 ─────────────────────────────────────────
   // row 为 null 时表示「通过发票添加」入口 → 全部新建明细行
-  function applyDecision(row, results, groups, action) {
-    function targetRow() { return row || appendBlankRow(); }
-    if (action === 'all-merge') {
-      mergeIntoRow(targetRow(), results, results.map(function (_, i) { return i; }));
-      return;
-    }
-    if (action === 'all-separate') {
-      mergeIntoRow(targetRow(), [results[0]], [0]);
-      for (var i = 1; i < results.length; i++) {
-        mergeIntoRow(appendBlankRow(), [results[i]], [0]);
+  async function applyDecision(row, results, groups, action) {
+    var items = results.map(function (r) { return r.fields; });
+    var decision = (action === 'all-merge') ? 'merge_all'
+                 : (action === 'all-separate') ? 'separate' : 'by_group';
+    var resp = await postGroup(items, decision);
+    var payloads = (resp && resp.payloads) || [];
+    // 每个 payload 对应的文件 index 集合(文件仍在前端,随表单提交)
+    var idxSets;
+    if (decision === 'merge_all') idxSets = [results.map(function (_, i) { return i; })];
+    else if (decision === 'separate') idxSets = results.map(function (_, i) { return [i]; });
+    else idxSets = groups.map(function (g) { return g.indices; });  // by_group
+    payloads.forEach(function (p, gi) {
+      var tgt = (gi === 0) ? (row || appendBlankRow()) : appendBlankRow();
+      var idxs = idxSets[gi] || [];
+      if (idxs.length > 1) {
+        fillRowFromOcr(tgt, payloadToFields(p));        // 合并行:后端摘要描述(随语言,无 (合并N张))
+      } else if (idxs.length === 1) {
+        fillRowFromOcr(tgt, results[idxs[0]].fields);   // 单张:保留 seller 前缀等原样
       }
-      return;
-    }
-    if (action === 'group-merge') {
-      var groupKeys = Object.keys(groups);
-      groupKeys.forEach(function (k, gi) {
-        var idxs = groups[k];
-        var groupResults = idxs.map(function (i) { return results[i]; });
-        var tgt = (gi === 0) ? targetRow() : appendBlankRow();
-        mergeIntoRow(tgt, groupResults, idxs.map(function (_, j) { return j; }));
-      });
-    }
+      idxs.forEach(function (i) { addFileToRow(tgt, results[i].file); });
+    });
+    updateTotal();
   }
 
   function appendBlankRow() {
@@ -536,25 +548,8 @@
     return newRow;
   }
 
-  function mergeIntoRow(row, results, _ignored) {
-    // results 全部累加进 row;字段用第 1 张
-    var first = results[0];
-    var fields = Object.assign({}, first.fields);
-    if (results.length > 1) {
-      var total = results.reduce(function (a, r) { return a + (parseFloat(r.fields.invoice_amount) || 0); }, 0);
-      fields.invoice_amount = total;
-      var sellers = results.map(function (r) { return r.fields.seller; }).filter(Boolean);
-      var uniqSellers = sellers.filter(function (s, i) { return sellers.indexOf(s) === i; });
-      var sellerDesc = uniqSellers.slice(0, 2).join(' / ') + (uniqSellers.length > 2 ? ' 等' : '');
-      var desc = first.fields.description || '';
-      fields.description = (sellerDesc ? (sellerDesc + ' · ') : '') + (desc || '') + ' (合并 ' + results.length + ' 张)';
-      fields.seller = ''; // 不再 prefix(已在 description 里)
-    }
-    fillRowFromOcr(row, fields);
-    // 文件全挂当前行
-    results.forEach(function (r) { addFileToRow(row, r.file); });
-    updateTotal();
-  }
+  // mergeIntoRow 已移除:合并/描述逻辑下沉到后端 services/expense_detail_service,
+  // 由 applyDecision 调 /expense/api/invoices/group 取 payloads 后建行。
 
   // ─── OCR:上传单张图/PDF 自动识别填字段。文件已在 row._files,无需挂回。
   function ocrRow(row, file) {
