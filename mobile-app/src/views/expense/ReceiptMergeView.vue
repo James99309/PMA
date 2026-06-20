@@ -20,7 +20,7 @@
 
     <div
       class="overflow-auto h-full no-scrollbar"
-      :style="{ paddingTop: '102px', paddingBottom: '100px' }"
+      :style="{ paddingTop: '102px', paddingBottom: '150px' }"
     >
       <!-- hero -->
       <div :style="{ padding: '14px 20px 6px' }">
@@ -59,7 +59,7 @@
             }"
           />
           <div class="flex-1 min-w-0">
-            <div :style="{ fontSize: '13px', fontWeight: 500 }">{{ r.fields?.seller || t('receiptScan.mergeUnknownSeller') }}</div>
+            <div :style="{ fontSize: '13px', fontWeight: 500 }">{{ r.fields?.description || r.fields?.seller || t('receiptScan.mergeUnknownSeller') }}</div>
             <div
               :style="{
                 fontSize: '10px', color: 'var(--color-ex-ink4)',
@@ -80,8 +80,14 @@
       <!-- 汇总字段 -->
       <ExSectionHeader>{{ t('receiptScan.mergeFieldsAgg') }}</ExSectionHeader>
       <ExFieldRow :label="t('receiptScan.fCategory')" :value="categoryLabel" />
-      <ExFieldRow :label="t('receiptScan.mergeTimeRange')" :value="dateRange" />
-      <ExFieldRow :label="t('receiptScan.fDesc')" :value="form.description" />
+      <ExFieldRow :label="t('receiptScan.mergeTimeRange')">
+        <input type="date" v-model="form.expense_date"
+          :style="{ border: 'none', background: 'transparent', fontSize: '14px', color: 'var(--color-ex-ink)', textAlign: 'right', width: '100%', outline: 'none' }" />
+      </ExFieldRow>
+      <ExFieldRow :label="t('receiptScan.fDesc')">
+        <input type="text" v-model="form.description" :placeholder="t('receiptScan.fDesc')"
+          :style="{ border: 'none', background: 'transparent', fontSize: '14px', color: 'var(--color-ex-ink)', textAlign: 'right', width: '100%', outline: 'none' }" />
+      </ExFieldRow>
       <ExFieldRow
         :label="t('receiptScan.mergeFAmount')"
         :value="`${currencySymbol} ${formatAmount(totalAmount)}`"
@@ -150,7 +156,7 @@ const dateRange = computed(() => {
   return `${dates[0]} — ${dates[dates.length - 1]}`
 })
 
-const form = ref({ description: '' })
+const form = ref({ description: '', expense_date: '' })
 
 const categoryLabel = computed(() => store.categoryLabel(category.value))
 const currencySymbol = computed(() => store.currencySymbol(currency.value))
@@ -164,6 +170,9 @@ function formatAmount(n) {
 onMounted(async () => {
   await store.loadReference()
   form.value.description = t('receiptScan.mergeDescFmt', { label: categoryLabel.value, n: included.value.length })
+  // time range defaults to first receipt date (earliest when multi-day), else today; editable
+  const firstDate = included.value.map(r => r.fields?.date).filter(Boolean).sort()[0]
+  form.value.expense_date = firstDate || new Date().toISOString().slice(0, 10)
 })
 
 function onRemove(idx) {
@@ -179,7 +188,7 @@ async function onSaveMerge() {
   try {
     const payload = {
       expense_category: category.value,
-      expense_date: included.value[0].fields?.date || new Date().toISOString().slice(0, 10),
+      expense_date: form.value.expense_date || included.value[0].fields?.date || new Date().toISOString().slice(0, 10),
       currency: currency.value,
       invoice_amount: totalAmount.value,
       description: form.value.description,
