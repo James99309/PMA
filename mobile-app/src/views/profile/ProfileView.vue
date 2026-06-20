@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
@@ -31,6 +31,7 @@ async function loadTaskCounts() {
 }
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const { t, locale } = useI18n()
 
@@ -107,6 +108,11 @@ async function checkUpdate() {
       const dl = await CapacitorUpdater.download({ url: latest.url, version: latest.version })
       bundleStatus.value = t('profile.bundleDownloaded')
       await CapacitorUpdater.set({ id: dl.id })
+      // apply new bundle and auto-restart (reload webview); web/dev falls back to location.reload
+      bundleStatus.value = t('profile.bundleApplying')
+      setTimeout(async () => {
+        try { await CapacitorUpdater.reload() } catch { location.reload() }
+      }, 800)
     } else {
       bundleStatus.value = t('profile.bundleLatest')
     }
@@ -132,6 +138,8 @@ onMounted(async () => {
   } catch {
     // Web/dev 环境忽略
   }
+  // arrived from the upgrade banner (?ota=1) → auto start check + upgrade
+  if (route.query.ota === '1') checkUpdate()
 })
 
 // Eyebrow 文案: away 时双语提示

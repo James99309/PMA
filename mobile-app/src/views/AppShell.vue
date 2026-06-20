@@ -7,6 +7,7 @@ import { getUnreadCount } from '@/api/chat'
 import { useAuthStore } from '@/stores/auth'
 import { REGIONS } from '@/api/client'
 import CrossRegionBar from '@/components/common/CrossRegionBar.vue'
+import { CapacitorUpdater } from '@capgo/capacitor-updater'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,9 +37,27 @@ async function refreshUnread() {
     // 静默失败
   }
 }
+// OTA: detect a newer bundle is available → show upgrade banner; tap → ProfileView auto-upgrades
+const otaAvailable = ref('')
+async function checkOtaAvailable() {
+  try {
+    const cur = await CapacitorUpdater.current()
+    const curVer = cur?.bundle?.version || 'builtin'
+    const latest = await CapacitorUpdater.getLatest()
+    if (latest?.version && latest.version !== curVer) otaAvailable.value = latest.version
+  } catch {
+    // web/dev or no new version → ignore
+  }
+}
+function goUpgrade() {
+  otaAvailable.value = ''
+  router.push('/profile?ota=1')
+}
+
 onMounted(() => {
   refreshUnread()
   unreadTimer = setInterval(refreshUnread, 30000)
+  checkOtaAvailable()
 })
 onUnmounted(() => { if (unreadTimer) clearInterval(unreadTimer) })
 
@@ -84,6 +103,13 @@ const tabs = computed(() => [
   <div class="flex flex-col h-full bg-[#F7F5F2]">
     <!-- 顶部安全区域（刘海/灵动岛）-->
     <div style="height: env(safe-area-inset-top); background:#F7F5F2;" />
+
+    <!-- OTA upgrade banner: new version available, tap to upgrade -->
+    <div v-if="otaAvailable" @click="goUpgrade" class="active:opacity-80"
+      style="background:#C77B22;color:#fff;font-size:12.5px;padding:9px 16px;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <span>{{ t('common.otaAvailable', { ver: otaAvailable }) }}</span>
+      <span style="text-decoration:underline;font-weight:600;">{{ t('common.otaUpgrade') }}</span>
+    </div>
 
     <!-- 全局跨区域提示条: 用户切到非本位区时常驻 -->
     <CrossRegionBar v-if="showCrossBar"
