@@ -126,7 +126,7 @@ const category = computed(() => primary.value?.fields?.category || 'other')
 const currency = computed(() => primary.value?.fields?.currency || 'CNY')
 
 const included = computed(() => {
-  // 优先用后端 groupKey 判同组(与 web 同一份分组逻辑);缺失则回退两边兜底比较
+  // prefer backend groupKey for same-group (same logic as web); fall back to both-sides-defaulted compare
   const pk = primary.value?.groupKey
   if (pk) {
     return store.pendingReceipts.filter(r =>

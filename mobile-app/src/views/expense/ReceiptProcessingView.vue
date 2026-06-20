@@ -96,7 +96,7 @@ onMounted(async () => {
     }
   }
 
-  // 分组走后端共用逻辑(与 web 同一份):给每张打 groupKey,确认/合并页据此判定同组
+  // grouping via shared backend logic (same as web): tag each receipt with groupKey for confirm/merge pages
   try {
     let defCcy = 'CNY'
     try {

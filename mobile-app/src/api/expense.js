@@ -33,7 +33,7 @@ export const updateExpense = (id, payload) => client.put(`/mobile/expense/${id}`
 export const deleteExpense = (id) => client.delete(`/mobile/expense/${id}`)
 export const getAttributedCandidates = () => client.get('/mobile/expense/attributed-to-candidates')
 
-// 发票分组合并 — 与 web 同一份后端逻辑(services/expense_detail_service)
+// Invoice grouping/merge — same backend logic as web (services/expense_detail_service)
 export const groupInvoices = (items, defaultCurrency, decision = 'by_group') =>
   client.post('/mobile/expense/invoices/group', { items, default_currency: defaultCurrency, decision })
 

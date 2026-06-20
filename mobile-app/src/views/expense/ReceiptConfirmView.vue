@@ -467,10 +467,10 @@ function onInputFocus(e) {
 }
 
 const mergeable = computed(() => {
-  // 同组(同 category+currency)的其它 receipts
+  // other receipts in the same group (same category+currency)
   const cur = receipt.value
   if (!cur) return []
-  // 优先用后端打的 groupKey(与 web 同一份分组逻辑);缺失则回退本地比较(两边都兜底,修原不对称漏合并)
+  // prefer backend groupKey (same grouping logic as web); fall back to local compare (both sides defaulted, fixes the old asymmetric miss)
   if (cur.groupKey) {
     return store.pendingReceipts
       .filter((r, i) => i !== idx.value && r.status === 'done' && r.groupKey === cur.groupKey)
