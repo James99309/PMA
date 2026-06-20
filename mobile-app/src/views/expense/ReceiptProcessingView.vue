@@ -33,7 +33,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { uploadInvoice } from '@/api/expense'
+import { uploadInvoice, groupInvoices } from '@/api/expense'
 import { useExpenseStore } from '@/stores/expense'
 import ExNav from '@/components/expense/ExNav.vue'
 import OcrProcessingAnimation from '@/components/common/OcrProcessingAnimation.vue'
@@ -86,6 +86,23 @@ onMounted(async () => {
         error: e.response?.data?.message || e.message,
       })
     }
+  }
+
+  // 分组走后端共用逻辑(与 web 同一份):给每张打 groupKey,确认/合并页据此判定同组
+  try {
+    let defCcy = 'CNY'
+    try {
+      const d = await store.fetchDetail(expenseId.value, false)
+      if (d?.currency) defCcy = d.currency
+    } catch {}
+    const items = store.pendingReceipts.map(r => r.fields || {})
+    const resp = await groupInvoices(items, defCcy)
+    const groups = resp?.data?.data?.groups || []
+    groups.forEach(g => (g.indices || []).forEach(i => {
+      store.updatePendingReceipt(i, { groupKey: g.key })
+    }))
+  } catch (e) {
+    console.warn('[expense] groupInvoices failed, fallback to per-receipt', e?.message)
   }
 
   // 全部处理完 → 跳确认页

@@ -344,13 +344,20 @@ async function fetchRate() {
 const currentAmount = computed(() => (form.value.invoice_amount || 0) * (form.value.exchange_rate || 1))
 
 const mergeable = computed(() => {
-  // 当前及之前的同 category + 同 currency 的 receipts
+  // 同组(同 category+currency)的其它 receipts
   const cur = receipt.value
   if (!cur) return []
+  // 优先用后端打的 groupKey(与 web 同一份分组逻辑);缺失则回退本地比较(两边都兜底,修原不对称漏合并)
+  if (cur.groupKey) {
+    return store.pendingReceipts
+      .filter((r, i) => i !== idx.value && r.status === 'done' && r.groupKey === cur.groupKey)
+  }
+  const curCat = form.value.expense_category || 'other'
+  const curCcy = form.value.currency
   return store.pendingReceipts
     .filter((r, i) => i !== idx.value && r.status === 'done' &&
-      r.fields?.category === form.value.expense_category &&
-      r.fields?.currency === form.value.currency)
+      (r.fields?.category || 'other') === curCat &&
+      (r.fields?.currency || curCcy) === curCcy)
 })
 
 function pct(key) {

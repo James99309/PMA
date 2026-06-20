@@ -27,6 +27,10 @@ export const createExpense = (payload) => client.post('/mobile/expense', payload
 export const updateExpense = (id, payload) => client.put(`/mobile/expense/${id}`, payload)
 export const deleteExpense = (id) => client.delete(`/mobile/expense/${id}`)
 
+// 发票分组合并 — 与 web 同一份后端逻辑(services/expense_detail_service)
+export const groupInvoices = (items, defaultCurrency, decision = 'by_group') =>
+  client.post('/mobile/expense/invoices/group', { items, default_currency: defaultCurrency, decision })
+
 export const addLine = (id, payload) => client.post(`/mobile/expense/${id}/lines`, payload)
 export const updateLine = (id, lid, payload) => client.put(`/mobile/expense/${id}/lines/${lid}`, payload)
 export const deleteLine = (id, lid) => client.delete(`/mobile/expense/${id}/lines/${lid}`)
