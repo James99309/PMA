@@ -487,6 +487,7 @@ export default {
     mergeFCurrency: '币种',
     mergeFDocCount: '单据数',
     mergeTimeRange: '时间范围',
+    mergeRemoveTitle: '从合并中移除这张发票?',
     mergeSave: '保存合并',
     mergeSplit: '拆分独立',
     mergeNoneToMerge: '没有可合并的发票',

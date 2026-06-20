@@ -476,6 +476,7 @@ export default {
     mergeFCurrency: 'Currency',
     mergeFDocCount: 'Documents',
     mergeTimeRange: 'Date range',
+    mergeRemoveTitle: 'Remove this receipt from merge?',
     mergeSave: 'Save merge',
     mergeSplit: 'Split standalone',
     mergeNoneToMerge: 'No invoices to merge',

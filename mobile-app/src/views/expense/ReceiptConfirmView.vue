@@ -419,11 +419,24 @@ async function loadExpenseCurrency() {
   } catch {}
 }
 
+function persistForm() {
+  // persist current edits onto the receipt (edited) so navigating away/back keeps user values, not OCR originals
+  if (store.pendingReceipts[idx.value]) {
+    store.updatePendingReceipt(idx.value, { edited: { ...form.value } })
+  }
+}
+
 function loadFromReceipt() {
   const r = store.pendingReceipts[idx.value]
   if (!r) return
   if (r.status === 'failed') {
     alert(t('receiptScan.failParse', { msg: r.error || t('receiptScan.unknownErr') }))
+  }
+  // restore user-edited values first (kept across next/back)
+  if (r.edited) {
+    form.value = { ...r.edited }
+    fetchRate()
+    return
   }
   const f = r.fields || {}
   form.value = {
@@ -568,12 +581,14 @@ function onSkip() {
 // 纯导航 — 不动 saved/skipped 状态, 用户可来回浏览
 function navTo(targetIdx) {
   if (targetIdx < 0 || targetIdx >= total.value) return
+  persistForm()
   router.replace(`/expense/${expenseId.value}/confirm?idx=${targetIdx}`)
 }
 
 // 智能跳转 — 跳到下一张未处理的(saved=false 且 skipped=false)
 // 全部处理完则清队列 + 跳 edit
 function nextUnprocessed() {
+  persistForm()
   const arr = store.pendingReceipts
   // 优先找当前 idx 之后的未处理
   let target = arr.findIndex((r, i) => i > idx.value && !r.saved && !r.skipped)

@@ -72,7 +72,7 @@
           </div>
           <div
             :style="{ fontSize: '16px', color: 'var(--color-ex-ink4)', fontWeight: 300 }"
-            @click="onRemove(r.idx)"
+            @click="askRemove(r.idx)"
           >×</div>
         </div>
       </div>
@@ -84,10 +84,7 @@
         <input type="date" v-model="form.expense_date"
           :style="{ border: 'none', background: 'transparent', fontSize: '14px', color: 'var(--color-ex-ink)', textAlign: 'right', width: '100%', outline: 'none' }" />
       </ExFieldRow>
-      <ExFieldRow :label="t('receiptScan.fDesc')">
-        <input type="text" v-model="form.description" :placeholder="t('receiptScan.fDesc')"
-          :style="{ border: 'none', background: 'transparent', fontSize: '14px', color: 'var(--color-ex-ink)', textAlign: 'right', width: '100%', outline: 'none' }" />
-      </ExFieldRow>
+      <ExFieldRow :label="t('receiptScan.fDesc')" :value="form.description" @click="descEditorOpen = true" />
       <ExFieldRow
         :label="t('receiptScan.mergeFAmount')"
         :value="`${currencySymbol} ${formatAmount(totalAmount)}`"
@@ -105,6 +102,24 @@
       @primary="onSaveMerge"
       @secondary="onSplit"
     />
+
+    <!-- delete-receipt confirm -->
+    <ExConfirmSheet
+      v-model="confirmDelOpen"
+      :title="t('receiptScan.mergeRemoveTitle')"
+      :confirm-label="t('common.delete')"
+      color="red"
+      @confirm="doRemove"
+    />
+
+    <!-- description fullscreen editor (avoids keyboard occlusion) -->
+    <FullscreenTextEditor
+      v-model="descEditorOpen"
+      :value="form.description"
+      :title="t('receiptScan.fDesc')"
+      :placeholder="t('receiptScan.fDesc')"
+      @save="v => { form.description = v }"
+    />
   </div>
 </template>
 
@@ -118,6 +133,8 @@ import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExFieldRow from '@/components/expense/ExFieldRow.vue'
 import ExBottomBar from '@/components/expense/ExBottomBar.vue'
+import ExConfirmSheet from '@/components/expense/ExConfirmSheet.vue'
+import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -175,6 +192,15 @@ onMounted(async () => {
   form.value.expense_date = firstDate || new Date().toISOString().slice(0, 10)
 })
 
+const descEditorOpen = ref(false)
+const confirmDelOpen = ref(false)
+const delIdx = ref(null)
+function askRemove(idx) { delIdx.value = idx; confirmDelOpen.value = true }
+function doRemove() {
+  if (delIdx.value != null) onRemove(delIdx.value)
+  confirmDelOpen.value = false
+  delIdx.value = null
+}
 function onRemove(idx) {
   store.updatePendingReceipt(idx, { skipped: true })
 }
