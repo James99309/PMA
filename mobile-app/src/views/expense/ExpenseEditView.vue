@@ -35,7 +35,7 @@
 
     <div
       class="flex-1 overflow-y-auto no-scrollbar"
-      :style="{ paddingBottom: '110px' }"
+      :style="{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }"
     >
       <!-- 主表区域 — 始终显示, 让用户在有明细时也能改主题/客户/项目/说明 -->
       <div>
@@ -306,13 +306,7 @@
       </div>
     </div>
 
-    <!-- 底部 CTA: 保存草稿。 提交审批移到详情页 (存草稿后 detail.control.can_submit
-         才出现), 编辑态不提交流程 -->
-    <ExBottomBar
-      :primary="savingTop ? t('expense.lineSaving') : t('expense.save')"
-      :disabled="savingTop"
-      @primary="onTopSave"
-    />
+    <!-- bottom save CTA removed: duplicate of top-right "save draft"; keep the top one -->
 
     <!-- 客户/项目 picker -->
     <ExSearchPickerSheet
@@ -492,7 +486,6 @@ const descEditorOpen = ref(false)
 function onDescSave(v) { form.value.description = v }
 import ExNav from '@/components/expense/ExNav.vue'
 import ExRow from '@/components/expense/ExRow.vue'
-import ExBottomBar from '@/components/expense/ExBottomBar.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
 import ExLineFormSheet from '@/components/expense/ExLineFormSheet.vue'
 import ExSubmitSheet from '@/components/expense/ExSubmitSheet.vue'
