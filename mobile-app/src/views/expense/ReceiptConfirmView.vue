@@ -37,6 +37,13 @@
       </div>
     </div>
 
+    <!-- TEMP DEBUG bar (locate why merge not shown; screenshot then remove) -->
+    <div style="background:#7a0000;color:#fff;font-size:10px;line-height:1.5;padding:4px 8px;word-break:break-all;font-family:monospace;">
+      DBG n={{ total }} idx={{ idx }} gk={{ receipt?.groupKey || '∅' }} merge={{ mergeable.length }} kb={{ kbOpen }}
+      | grpOK={{ dbg.ok }} grp={{ (dbg.groups || []).join(',') }} err={{ dbg.err || '' }}
+      | items={{ (dbg.items || []).join(' ') }}
+    </div>
+
     <!-- 主滚动区(整页可滚动, 包括缩略图和字段表单).
          键盘弹起时 --kb-height 由 main.js 写入, 这里加到 padding 让最后一行也能滚到键盘上方 -->
     <div class="flex-1 overflow-y-auto no-scrollbar"

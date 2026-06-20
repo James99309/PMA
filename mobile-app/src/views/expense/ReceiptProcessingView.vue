@@ -97,6 +97,7 @@ onMounted(async () => {
   }
 
   // grouping via shared backend logic (same as web): tag each receipt with groupKey for confirm/merge pages
+  const __dbg = {}
   try {
     let defCcy = 'CNY'
     try {
@@ -104,14 +105,21 @@ onMounted(async () => {
       if (d?.currency) defCcy = d.currency
     } catch {}
     const items = store.pendingReceipts.map(r => r.fields || {})
+    __dbg.defCcy = defCcy
+    __dbg.items = items.map(i => `${i.category || '∅'}|${i.currency || '∅'}`)
     const resp = await groupInvoices(items, defCcy)
     const groups = resp?.data?.data?.groups || []
+    __dbg.ok = true
+    __dbg.groups = groups.map(g => `${g.key}(${(g.indices || []).length})`)
     groups.forEach(g => (g.indices || []).forEach(i => {
       store.updatePendingReceipt(i, { groupKey: g.key })
     }))
   } catch (e) {
+    __dbg.ok = false
+    __dbg.err = `${e?.response?.status || ''}:${e?.message || e}`
     console.warn('[expense] groupInvoices failed, fallback to per-receipt', e?.message)
   }
+  try { localStorage.setItem('__grpDbg', JSON.stringify(__dbg)) } catch {}
 
   // 全部处理完 → 跳确认页
   setTimeout(() => {
