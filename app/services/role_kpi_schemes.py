@@ -99,12 +99,43 @@ ROLE_KPI_SCHEMES['hr_manager'] = [
 ]
 
 
+# ── SG(OVS) 角色方案覆盖 ──────────────────────────────────────────────
+# 考核项仍锁定(scheme 语义),只是项目集按当地协议;权重仍可在角色配置页前端调整。
+# channel_manager(2026-06-21,依 Daniel 渠道销售经理协议): 无「新渠道客户」,
+#   渠道拓展仅保留「新经销商/分销商」。默认权重(去掉新客户后合计 90)仅为初值,
+#   实际权重以角色配置页设置为准(weightEditable)。
+ROLE_KPI_SCHEMES_SG = {
+    'channel_manager': [
+        {'item_code': 'channel_sales_amount',           'weight': 30, 'default_annual': None},
+        {'item_code': 'channel_implant_amount',         'weight': 20, 'default_annual': None},
+        {'item_code': 'channel_new_projects',           'weight': 10, 'default_annual': None},
+        {'item_code': 'channel_new_dealers',            'weight': 10, 'default_annual': None},
+        {'item_code': 'channel_customer_activity_rate', 'weight': 10, 'default_annual': 100},
+        {'item_code': 'channel_project_activity_rate',  'weight': 10, 'default_annual': 90},
+        {'item_code': 'channel_fail_rate',              'weight': 0,  'default_annual': None},
+    ],
+}
+
+
+def _is_sg():
+    """当前实例是否 SG(OVS)。CN=CNY / SG=USD(见 config.DEFAULT_CURRENCY)。"""
+    try:
+        from config import Config
+        return (Config.DEFAULT_CURRENCY or '').upper() == 'USD'
+    except Exception:
+        return False
+
+
 def get_role_scheme(role):
-    """返回角色的写死考核方案(list[dict]),无方案返回 None。"""
+    """返回角色的写死考核方案(list[dict]),无方案返回 None。
+    SG(OVS) 有覆盖的角色用 ROLE_KPI_SCHEMES_SG(项目集按当地协议);CN 用全局方案。
+    """
+    if _is_sg() and role in ROLE_KPI_SCHEMES_SG:
+        return ROLE_KPI_SCHEMES_SG[role]
     return ROLE_KPI_SCHEMES.get(role)
 
 
 def get_role_scheme_codes(role):
     """返回角色方案的 item_code 列表,无方案返回 None。"""
-    scheme = ROLE_KPI_SCHEMES.get(role)
+    scheme = get_role_scheme(role)
     return [it['item_code'] for it in scheme] if scheme else None
