@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" /><title>Quarterly Performance Report · SG</title>
+<style>
+/* =====================================================================
+   editorial-word-doc · base.css
+   Shared variables, @font-face declarations, A4 page chrome,
+   print rules. Loaded by BOTH cn.css and en.css.
+
+   Fonts are symlinked from editorial-pptx-deck/assets/fonts so that
+   PPT and Word docs render identically. To override the path, change
+   the @font-face url() lines below.
+   ===================================================================== */
+
+/* ---------- self-hosted fonts (offline, identical to PPTX skill) ---------- */
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url("fonts/editorial/InstrumentSerif-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: italic; font-weight: 400; font-display: swap;
+  src: url("fonts/editorial/InstrumentSerif-Italic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Geist";
+  font-style: normal; font-weight: 300; font-display: swap;
+  src: url("fonts/editorial/Geist-Light.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Geist";
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url("fonts/editorial/Geist-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Geist";
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url("fonts/editorial/Geist-Medium.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url("fonts/editorial/GeistMono-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url("fonts/editorial/GeistMono-Medium.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: normal; font-weight: 200 900; font-display: swap;
+  src: url("fonts/editorial/SourceSerif4-Variable.ttf") format("truetype-variations");
+}
+@font-face {
+  font-family: "Inter Tight";
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("fonts/editorial/InterTight-Variable.ttf") format("truetype-variations");
+}
+
+/* ---------- design tokens (shared CN + EN) ---------- */
+:root {
+  --bg:        #FDFAF8;
+  --paper:     #FFFFFF;
+  --ink:       #0E0E0E;
+  --ink-2:     #1A1A1A;
+  --gray-700:  #4A4A4A;
+  --gray-500:  #8A8A87;
+  --gray-300:  #C7C3BA;
+  --rule:      #E6E3DC;
+  --teal:      #00A6C4;
+  --teal-deep: #0E7C92;
+  --teal-tint:  rgba(0,166,196,0.06);
+  --teal-tint2: rgba(0,166,196,0.12);
+
+  /* warning pill (used by EN cmp-tbl) */
+  --warn-bg:   rgba(180,40,40,0.06);
+  --warn-bd:   rgba(140,30,30,0.40);
+  --warn-fg:   #8E2222;
+
+  --mono:  "Geist Mono", "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+
+html, body { margin: 0; padding: 0; }
+body {
+  background: #ECE9E2;
+  color: var(--ink-2);
+  -webkit-font-smoothing: antialiased;
+  padding: 28px 0;
+}
+
+/* ---------- A4 page (210×297mm) ---------- */
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 16px;
+  box-sizing: border-box;
+  background: var(--bg);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+  position: relative;
+  page-break-after: always;
+  display: flex;
+  flex-direction: column;
+}
+.page:last-child { page-break-after: auto; margin-bottom: 0; }
+
+/* ---------- page body (constrained content region) ----------
+   Wrap ALL between-chrome content in <div class="page-body">…</div>.
+
+   Why this exists: the footer is pinned to the bottom of the .page flex
+   column (margin-top:auto). Without a dedicated body region, content is a
+   direct flex child and, when a page is overstuffed, the last line butts
+   right against the footer's top border — the "corner collision" — or
+   spills past it. .page-body claims the remaining height (flex:1) and
+   clips its OWN overflow, while padding-bottom reserves a permanent safety
+   gap so body text can never reach the footer corner. If content overflows,
+   it is clipped INSIDE the body region (above the gap) — the footer is
+   never touched. Overflow = a signal to move content to the next page,
+   not a layout that silently breaks. */
+.page-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 8mm;   /* safety gap: body text never butts the footer */
+}
+
+/* Inline shared utilities */
+.mono { font-family: var(--mono); }
+hr.rule      { border: 0; border-top: 1px solid var(--rule); margin: 6mm 0; }
+hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
+
+/* ---------- print ---------- */
+@media print {
+  body { background: #fff; padding: 0; margin: 0; }
+  .page {
+    box-shadow: none;
+    margin: 0;
+    /* Keep width: 210mm and min-height: 297mm from the .page rule above —
+       overriding them with `auto` lets Chromium collapse .page to content size,
+       which makes flex children push past 297mm and Chrome then splits the
+       .page across two physical PDF pages. Explicit 210×297mm + overflow:hidden
+       keeps one logical .page = one PDF page. */
+    height: 297mm;
+    overflow: hidden;
+  }
+  @page {
+    size: A4;
+    margin: 0;
+  }
+}
+
+/* =====================================================================
+   editorial-word-doc · en.css
+   English A4 word-style document. Pair with base.css.
+
+   Type system
+     Display (h1, h2, h3, italic emphasis): Instrument Serif 400
+     Body:                                  Geist 300/400/500
+     Mono labels/freq/captions:             Geist Mono 400/500
+
+   Page rhythm
+     Margins: 18mm — tighter than CN; English copy is denser per cm².
+     Body: 10pt / 1.55, justify + hyphens (English typesetting tradition).
+     section-bar replaces big standalone h2 — one row: number + h2 + tag.
+     Italic-serif takes the place of CN's color-emphasis em rule.
+
+   Includes advanced doc components:
+     · cmp-tbl    — before/after comparison matrix (with .group rows + pills)
+     · spectrum   — band allocation chart (left%/width% positioned bands)
+     · duty       — dual-row duty-cycle timeline
+     · channels-row, tstrip, tot-row, inline-steps
+   ===================================================================== */
+
+:root {
+  --serif: "Instrument Serif", "Times New Roman", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  font-family: var(--sans);
+  font-size: 10pt;
+  line-height: 1.55;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.page { padding: 18mm 18mm 16mm; }
+
+/* ---------- header / footer ---------- */
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 3mm;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 8mm;
+}
+.page-head .logo-img { height: 7mm; width: auto; display: block; }
+.page-head .crumb {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  text-align: right;
+  line-height: 1.4;
+}
+.page-head .crumb .ttl {
+  display: block;
+  font-family: var(--serif);
+  font-size: 11pt;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+  font-weight: 400;
+}
+.page-head .crumb .ver { color: var(--teal); }
+
+.page-foot {
+  margin-top: auto;
+  padding-top: 3mm;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12mm;
+  font-size: 7.75pt;
+  color: var(--gray-500);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+.page-foot .mono { font-family: var(--mono); }
+.page-foot .web  { color: var(--teal-deep); font-family: var(--mono); }
+.page-foot .pageno {
+  font-family: var(--mono);
+  font-size: 8pt;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.page-foot .pageno .now { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- type ---------- */
+h1, h2, h3, h4, h5 {
+  font-family: var(--serif);
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0;
+}
+
+.section-bar {
+  display: grid;
+  grid-template-columns: 18mm 1fr auto;
+  align-items: baseline;
+  gap: 6mm;
+  margin: 7mm 0 4mm;
+}
+.section-bar:first-of-type { margin-top: 0; }
+.section-bar .n {
+  font-family: var(--mono);
+  font-size: 11pt;
+  color: var(--teal);
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+.section-bar h2 {
+  font-family: var(--serif);
+  font-size: 22pt;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  line-height: 1.05;
+  font-weight: 400;
+}
+.section-bar h2 em { font-style: italic; color: var(--teal-deep); }
+.section-bar .tag {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+
+h3.sub {
+  font-family: var(--serif);
+  font-size: 13pt;
+  font-weight: 400;
+  color: var(--ink-2);
+  margin: 5mm 0 1.5mm;
+  display: flex;
+  align-items: baseline;
+  gap: 3mm;
+  letter-spacing: 0.005em;
+}
+h3.sub::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px; height: 2px;
+  background: var(--teal);
+  align-self: center;
+}
+h3.sub .en {
+  font-family: var(--mono);
+  font-size: 7pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-left: auto;
+  font-weight: 400;
+}
+
+h4.run-in {
+  display: inline;
+  font-family: var(--serif);
+  font-size: 11.5pt;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink-2);
+  margin-right: 5pt;
+  letter-spacing: 0.005em;
+}
+
+p {
+  margin: 0 0 2mm;
+  color: var(--ink-2);
+  text-wrap: pretty;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+p.compact { margin-bottom: 1.5mm; }
+p.note {
+  font-size: 9.25pt;
+  color: var(--gray-700);
+  border-left: 2px solid var(--teal);
+  padding: 1.5mm 0 1.5mm 4mm;
+  margin: 2mm 0;
+  background: var(--teal-tint);
+  text-align: left;
+  hyphens: none;
+}
+p.note .lk {
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+  margin-right: 5pt;
+  font-weight: 500;
+}
+
+strong { color: var(--ink); font-weight: 600; }
+em.italic-serif {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink);
+  font-size: 1.05em;
+}
+
+/* ---------- inline tokens ---------- */
+.tk {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0 4px;
+  color: var(--ink-2);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.tk-t {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  background: var(--teal-tint);
+  border: 1px solid var(--teal);
+  border-radius: 2px;
+  padding: 0 4px;
+  color: var(--teal-deep);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+/* ---------- compact lists ---------- */
+ol.cmp, ul.cmp {
+  margin: 1mm 0 2mm;
+  padding: 0;
+  list-style: none;
+  counter-reset: it;
+}
+ol.cmp li, ul.cmp li {
+  position: relative;
+  padding-left: 9mm;
+  margin-bottom: 1.75mm;
+  line-height: 1.55;
+  font-size: 10pt;
+  text-align: justify;
+  hyphens: auto;
+}
+ol.cmp li { counter-increment: it; }
+ol.cmp li::before {
+  content: counter(it, decimal-leading-zero);
+  position: absolute;
+  left: 0; top: 0;
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.04em;
+  color: var(--teal);
+  width: 7mm;
+}
+ul.cmp li::before {
+  content: "";
+  position: absolute;
+  left: 2mm; top: 0.65em;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+ol.cmp li b, ul.cmp li b {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 11pt;
+  color: var(--ink);
+  margin-right: 3pt;
+  letter-spacing: 0.005em;
+}
+
+/* ---------- inline run-in step list ---------- */
+.inline-steps { margin: 1mm 0 3mm; }
+.inline-steps .step {
+  padding: 1.75mm 0;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: 7mm 1fr;
+  gap: 3mm;
+  font-size: 10pt;
+  line-height: 1.55;
+}
+.inline-steps .step:first-child { border-top: none; padding-top: 0.5mm; }
+.inline-steps .step .n {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.04em;
+  color: var(--teal);
+  padding-top: 1.5pt;
+}
+.inline-steps .step .ttl {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 11pt;
+  color: var(--ink);
+  margin-right: 4pt;
+  letter-spacing: 0.005em;
+}
+
+/* ---------- params table ---------- */
+table.params {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+  margin: 2mm 0;
+}
+table.params th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  font-weight: 500;
+  padding: 1.5mm 3mm 1.5mm 0;
+  border-bottom: 1.5px solid var(--ink-2);
+  vertical-align: bottom;
+}
+table.params td {
+  padding: 1.8mm 3mm 1.8mm 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-2);
+  vertical-align: top;
+}
+table.params td .freq { font-family: var(--mono); font-size: 9.5pt; color: var(--ink); }
+table.params tr.data td       { color: var(--teal-deep); }
+table.params tr.data td .freq { color: var(--teal-deep); }
+table.params td .lbl {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.05em;
+}
+
+table.kv {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+  margin: 1mm 0 2mm;
+}
+table.kv td {
+  padding: 1.75mm 3mm 1.75mm 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+table.kv td.k {
+  font-family: var(--mono);
+  font-size: 8pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  width: 38mm;
+}
+table.kv td.k .full {
+  display: block;
+  font-size: 6.5pt;
+  letter-spacing: 0.16em;
+  color: var(--gray-300);
+  margin-top: 0.5mm;
+}
+
+/* ---------- cover ---------- */
+.cover { display: flex; flex-direction: column; height: 100%; }
+.cover .brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 5mm;
+  border-bottom: 1px solid var(--rule);
+}
+.cover .brand .logo-img { height: 18mm; width: auto; }
+.cover .brand .meta {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  text-align: right;
+  line-height: 1.6;
+}
+.cover .brand .meta .v {
+  display: block;
+  color: var(--teal);
+  font-size: 9.5pt;
+  margin-top: 0.5mm;
+}
+
+.cover .body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14mm;
+}
+.cover .eb {
+  font-family: var(--mono);
+  font-size: 9pt;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 6mm;
+  font-weight: 500;
+}
+.cover h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 56pt;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 4mm;
+}
+.cover h1 em { font-style: italic; color: var(--teal-deep); }
+.cover .sub {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 17pt;
+  color: var(--gray-700);
+  letter-spacing: 0;
+  margin-bottom: 7mm;
+  line-height: 1.3;
+}
+.cover .abstract {
+  font-size: 11pt;
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 150mm;
+  text-align: justify;
+  hyphens: auto;
+}
+.cover .abstract strong { color: var(--ink); font-weight: 600; }
+.cover .abstract .lead {
+  font-family: var(--mono);
+  font-size: 8.25pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+  margin-right: 6pt;
+  font-weight: 500;
+}
+
+.cover .info-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6mm;
+  padding: 5mm 0;
+  border-top: 2px solid var(--ink-2);
+  border-bottom: 1px solid var(--rule);
+}
+.cover .info-row .k {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 1.5mm;
+}
+.cover .info-row .v {
+  font-family: var(--serif);
+  font-size: 13pt;
+  color: var(--ink-2);
+  line-height: 1.2;
+}
+.cover .info-row .v.italic { font-style: italic; }
+
+.cover .company {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8mm;
+  padding-top: 5mm;
+}
+.cover .company .col .ev {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.32em;
+  color: var(--teal);
+  font-weight: 500;
+  margin-bottom: 1.5mm;
+}
+.cover .company .col .name {
+  font-family: var(--serif);
+  font-size: 13pt;
+  color: var(--ink-2);
+  line-height: 1.35;
+  letter-spacing: 0.005em;
+}
+.cover .company .col.right .ln {
+  display: grid;
+  grid-template-columns: 18mm 1fr;
+  gap: 3mm;
+  font-size: 9pt;
+  margin-bottom: 1mm;
+  line-height: 1.5;
+}
+.cover .company .col.right .ln .k {
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+.cover .company .col.right .ln .v.mono { font-family: var(--mono); color: var(--ink-2); }
+.cover .company .col.right .ln .v.web  { font-family: var(--mono); color: var(--teal-deep); }
+
+/* ---------- channels-row mini ---------- */
+.channels-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4mm;
+  margin: 2mm 0 3mm;
+}
+.ch-box {
+  padding: 3mm 4mm;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 9pt;
+  background: var(--paper);
+}
+.ch-box.teal { background: var(--teal-tint); border-color: var(--teal); }
+.ch-box .l {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 1mm;
+}
+.ch-box.teal .l { color: var(--teal-deep); }
+.ch-box .t {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 14pt;
+  color: var(--ink-2);
+  margin-bottom: 1mm;
+  letter-spacing: 0.005em;
+}
+.ch-box.teal .t { color: var(--teal-deep); }
+.ch-box .m {
+  font-family: var(--mono);
+  font-size: 8pt;
+  color: var(--gray-700);
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+}
+.ch-box.teal .m { color: var(--teal-deep); }
+
+/* ---------- timing strip compact ---------- */
+.tstrip {
+  display: grid;
+  grid-template-columns: 1.4fr auto 1fr auto 1.4fr;
+  align-items: stretch;
+  gap: 2mm;
+  margin: 2mm 0;
+}
+.tstrip .b {
+  padding: 2.75mm 3mm;
+  border-radius: 3px;
+  font-size: 9pt;
+  line-height: 1.3;
+}
+.tstrip .b.v { background: var(--teal-tint); border: 1px solid var(--teal); }
+.tstrip .b.d { background: var(--paper);     border: 1px solid var(--gray-500); }
+.tstrip .b .k {
+  font-family: var(--mono);
+  font-size: 7pt;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 0.5mm;
+}
+.tstrip .b.v .k { color: var(--teal-deep); }
+.tstrip .b .v {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12pt;
+  color: var(--ink-2);
+  font-weight: 400;
+  letter-spacing: 0.005em;
+}
+.tstrip .b.v .v { color: var(--teal-deep); }
+.tstrip .arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11pt; color: var(--gray-300);
+}
+
+/* ---------- TOT row ---------- */
+.tot-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm;
+  margin: 2mm 0;
+}
+.tot-cell {
+  padding: 3.5mm 5mm;
+  border-radius: 3px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+}
+.tot-cell.t { background: var(--teal-tint); border-color: var(--teal); }
+.tot-cell .k {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 1mm;
+}
+.tot-cell.t .k { color: var(--teal-deep); }
+.tot-cell .v { display: flex; align-items: baseline; gap: 2.5mm; }
+.tot-cell .v .n {
+  font-family: var(--serif);
+  font-size: 32pt;
+  line-height: 1;
+  color: var(--ink-2);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+.tot-cell.t .v .n { color: var(--teal-deep); }
+.tot-cell .v .u {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.18em;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+.tot-cell.t .v .u { color: var(--teal-deep); }
+.tot-cell .d {
+  font-size: 8.75pt;
+  color: var(--gray-700);
+  margin-top: 1.5mm;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.colophon {
+  margin-top: 10mm;
+  padding-top: 4mm;
+  border-top: 1px solid var(--ink-2);
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  text-align: center;
+}
+
+/* ---------- comparison table (before / after) ---------- */
+table.cmp-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+  margin: 2mm 0 3mm;
+  table-layout: fixed;
+}
+table.cmp-tbl thead th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  font-weight: 500;
+  padding: 2mm 4mm 2mm 0;
+  border-bottom: 1.5px solid var(--ink-2);
+  vertical-align: bottom;
+}
+table.cmp-tbl thead th .sub {
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13pt;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+  margin-top: 1.2mm;
+  font-weight: 400;
+}
+table.cmp-tbl thead th.teal-h           { color: var(--teal-deep); }
+table.cmp-tbl thead th.teal-h .sub      { color: var(--teal-deep); }
+table.cmp-tbl tr.group td {
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--teal);
+  padding: 3mm 0 1mm;
+  border-bottom: none;
+  font-weight: 500;
+}
+table.cmp-tbl tbody td {
+  padding: 1.65mm 4mm 1.65mm 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+table.cmp-tbl tbody td.k       { color: var(--gray-700); font-size: 9.5pt; }
+table.cmp-tbl tbody td.before  { color: var(--gray-700); }
+table.cmp-tbl tbody td.after   { color: var(--ink); font-weight: 500; }
+
+.pill {
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 1px 6px 1.5px;
+  border-radius: 2px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.pill.warn { background: var(--warn-bg);   border: 1px solid var(--warn-bd); color: var(--warn-fg); }
+.pill.good { background: var(--teal-tint); border: 1px solid var(--teal);    color: var(--teal-deep); }
+
+/* ---------- analysis chart frame ---------- */
+.chart-frame {
+  margin: 3mm 0 4mm;
+  padding: 4mm 0 2mm;
+  border-top: 1px solid var(--rule);
+}
+.chart-cap {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6mm;
+}
+.chart-cap .ttl {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13pt;
+  color: var(--ink-2);
+}
+.chart-cap .axis {
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  padding-left: 8mm;
+}
+.chart-foot {
+  font-size: 8.5pt;
+  color: var(--gray-700);
+  margin-top: 3mm;
+  text-align: left;
+  line-height: 1.5;
+  hyphens: none;
+}
+.chart-foot .legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4pt;
+  margin-right: 14pt;
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gray-700);
+}
+.chart-foot .legend .sw {
+  display: inline-block;
+  width: 12px; height: 8px;
+  border-radius: 1px;
+  vertical-align: middle;
+}
+.chart-foot .legend .sw.voice { background: rgba(0,166,196,0.18); border: 1px solid var(--teal); }
+.chart-foot .legend .sw.data  { background: var(--teal);          border: 1px solid var(--teal-deep); }
+
+/* ---------- spectrum chart ---------- */
+.spectrum { position: relative; height: 26mm; margin: 0; }
+.spectrum .scale {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 6mm;
+  border-top: 1px solid var(--ink-2);
+}
+.spectrum .scale .tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+  padding-top: 3mm;
+}
+.spectrum .scale .tick::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 50%;
+  width: 1px; height: 1.8mm;
+  background: var(--gray-300);
+}
+.spectrum .band {
+  position: absolute;
+  height: 10mm;
+  bottom: 8mm;
+  border-radius: 2px;
+}
+.spectrum .band.voice { background: rgba(0,166,196,0.15); border: 1px solid var(--teal); }
+.spectrum .band.data  { background: var(--teal);          border: 1px solid var(--teal-deep); }
+.spectrum .band .lbl {
+  position: absolute;
+  bottom: 100%; left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  margin-bottom: 1.5mm;
+  font-family: var(--mono);
+  font-size: 7pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+  text-align: center;
+}
+.spectrum .band .lbl strong {
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 11pt;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  margin-top: 0.5mm;
+}
+
+/* ---------- duty cycle chart ---------- */
+.duty-rows { margin: 0; }
+.duty {
+  display: grid;
+  grid-template-columns: 20mm 1fr;
+  gap: 4mm;
+  align-items: center;
+  margin: 1.75mm 0;
+}
+.duty .rowlabel {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  text-align: right;
+}
+.duty .rowlabel .freq {
+  display: block;
+  font-size: 6.5pt;
+  color: var(--gray-300);
+  letter-spacing: 0.12em;
+  margin-top: 0.5mm;
+}
+.duty .bar {
+  position: relative;
+  height: 7mm;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.duty .bar .seg { position: absolute; top: 0; bottom: 0; }
+.duty .bar .seg.voice { background: rgba(0,166,196,0.18); }
+.duty .bar .seg.data  { background: var(--teal); }
+.duty .bar .seg-lbl {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--mono);
+  font-size: 7pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+}
+.duty .bar .seg-lbl.on-data  { left: 11%; color: var(--teal-deep); }
+.duty .bar .seg-lbl.on-voice { left: 50%; transform: translate(-50%, -50%); color: var(--teal-deep); }
+.duty-axis {
+  display: grid;
+  grid-template-columns: 20mm 1fr;
+  gap: 4mm;
+  margin-top: 1mm;
+}
+.duty-axis .ticks {
+  position: relative;
+  height: 5mm;
+  border-top: 1px solid var(--ink-2);
+}
+.duty-axis .ticks span {
+  position: absolute;
+  top: 0;
+  font-family: var(--mono);
+  font-size: 7pt;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+  transform: translateX(-50%);
+  padding-top: 2.5mm;
+}
+.duty-axis .ticks span::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 50%;
+  width: 1px; height: 1.8mm;
+  background: var(--gray-300);
+}
+
+</style></head><body>
+<!-- ===== PAGE 1 · COVER ===== -->
+<div class="page">
+  <div class="cover">
+    <div class="brand">
+      <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+      <div class="meta">
+        <span>Quarterly Performance Review</span>
+        <span class="v">{{ year }} Q{{ quarter }}</span>
+      </div>
+    </div>
+
+    <div class="body">
+      <div>
+        <div class="eb">Performance Review · Individual</div>
+        <h1>Quarterly Performance Report</h1>
+        <div class="sub">{{ user_name }} · {{ role_name }} · {{ dept_name }}</div>
+
+        <p class="abstract">
+          <span class="lead">Summary —</span> This report sets out the quarterly performance assessment for <strong>{{ user_name }}</strong> for <strong>{{ year }} Q{{ quarter }}</strong> ({{ q_start }} – {{ q_end }}). The weighted score is <strong>{{ total_score }} / 100</strong> (assessed weight {{ assessed_weight }}%). Each item scores as <em>achievement × weight</em> (achievement capped at 100%); items with no target are excluded from the weighted base. All figures are auto-collected by the PMA system under one unified definition; amounts are shown in <strong>{{ currency }} / {{ amount_unit }}</strong> (SG default $ / K).
+        </p>
+      </div>
+
+      <div>
+        <div class="info-row">
+          <div><div class="k">Employee</div><div class="v">{{ user_name }}</div></div>
+          <div><div class="k">Period</div><div class="v italic">{{ year }} Q{{ quarter }}</div></div>
+          <div><div class="k">Score</div><div class="v">{{ total_score }} / 100</div></div>
+          <div><div class="k">Settlement</div><div class="v italic">{{ settlement_status }}</div></div>
+        </div>
+
+        <div class="company">
+          <div class="col">
+            <div class="ev">EVERTAC SOLUTIONS</div>
+            <div class="name">Evertac Solutions Singapore Pte. Ltd.</div>
+          </div>
+          <div class="col right">
+            <div class="ln"><div class="k">Address</div><div class="v">18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966</div></div>
+            <div class="ln"><div class="k">Tel</div><div class="v mono">+65 6568 1543</div></div>
+            <div class="ln"><div class="k">Web</div><div class="v web">www.evertacsolutions.com</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE 2 · §1 PROFILE · §2 SCORE ===== -->
+<div class="page">
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+    <div class="crumb">
+      <span class="ttl">Quarterly Performance Report</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
+    </div>
+  </div>
+
+  <div class="section-bar"><div class="n">01</div><h2>Profile &amp; Period</h2><div class="tag">Profile</div></div>
+  <table class="kv-table" style="margin-top:4mm">
+    <tr><td class="k">Name</td><td>{{ user_name }}</td></tr>
+    <tr><td class="k">Role / Department</td><td>{{ role_name }} · {{ dept_name }}</td></tr>
+    <tr><td class="k">Company</td><td>{{ company_name }}</td></tr>
+    <tr><td class="k">Assessment period</td><td>{{ year }} Q{{ quarter }} ({{ q_start }} – {{ q_end }})</td></tr>
+    <tr><td class="k">Currency / unit</td><td>{{ currency }} / {{ amount_unit }} (SG default $ / K)</td></tr>
+    <tr><td class="k">Generated at</td><td>{{ generated_at }}</td></tr>
+    <tr><td class="k">Settlement status</td><td>{{ settlement_status }}</td></tr>
+  </table>
+
+  <div class="section-bar" style="margin-top:8mm"><div class="n">02</div><h2>Overall Score</h2><div class="tag">Score</div></div>
+  <p class="note">
+    <span class="lk">Weighted score</span>
+    <strong>{{ total_score }} / 100</strong> &nbsp;— assessed-item weights total {{ assessed_weight }}%.
+  </p>
+  <h3 class="sub">Scoring rules <span class="en">Method</span></h3>
+  <ul class="cmp">
+    <li><b>Item score = achievement × weight</b>, with achievement capped at 100%; total = sum of item scores.</li>
+    <li><b>No / zero target = not assessed this quarter</b> — excluded from the weighted base (shown as "—").</li>
+    <li><b>Reverse indicators</b> (e.g. loss rate): full marks when actual ≤ target.</li>
+    <li><b>Fixed-tier indicators</b> (e.g. implant quality): pass 3 → 50% / good 5 → 100%.</li>
+  </ul>
+
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
+    </div>
+    <div class="pageno">P. <span class="now">02</span> / 08</div>
+  </div>
+</div>
+
+<!-- ===== PAGE 3 · §3 BREAKDOWN ===== -->
+<div class="page">
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+    <div class="crumb">
+      <span class="ttl">Quarterly Performance Report</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
+    </div>
+  </div>
+
+  <div class="section-bar"><div class="n">03</div><h2>Assessment Breakdown</h2><div class="tag">Breakdown</div></div>
+  <p>Weight, quarterly target, actual, achievement and weighted score per item; data is auto-collected and aggregated by the PMA system.</p>
+
+  <table class="params" style="margin-top:3mm">
+    <thead>
+      <tr>
+        <th style="width:5%">#</th><th style="width:27%">Assessment item</th><th style="width:10%">Weight</th>
+        <th style="width:16%">Target</th><th style="width:14%">Actual</th><th style="width:13%">Achiev.</th><th style="width:15%">Weighted</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Sales (approved pricing)</td><td>30%</td><td>{{ t1_target }}</td><td>{{ t1_actual }}</td><td>{{ t1_rate }}</td><td>{{ t1_score }}</td></tr>
+      <tr><td>2</td><td>Implant value</td><td>30%</td><td>{{ t2_target }}</td><td>{{ t2_actual }}</td><td>{{ t2_rate }}</td><td>{{ t2_score }}</td></tr>
+      <tr><td>3</td><td>New projects (qualified)</td><td>20%</td><td>{{ t3_target }}</td><td>{{ t3_actual }}</td><td>{{ t3_rate }}</td><td>{{ t3_score }}</td></tr>
+      <tr><td>4</td><td>New customers (qualified)</td><td>10%</td><td>{{ t4_target }}</td><td>{{ t4_actual }}</td><td>{{ t4_rate }}</td><td>{{ t4_score }}</td></tr>
+      <tr><td>5</td><td>Customer activity rate</td><td>5%</td><td>{{ t5_target }}</td><td>{{ t5_actual }}</td><td>{{ t5_rate }}</td><td>{{ t5_score }}</td></tr>
+      <tr><td>6</td><td>Project activity rate</td><td>5%</td><td>{{ t6_target }}</td><td>{{ t6_actual }}</td><td>{{ t6_rate }}</td><td>{{ t6_score }}</td></tr>
+      <tr><td>7</td><td>Personal loss rate (reverse)</td><td>0%</td><td>≤ {{ t7_target }}</td><td>{{ t7_actual }}</td><td>{{ t7_rate }}</td><td>—</td></tr>
+      <tr class="data"><td></td><td>Total</td><td>100%</td><td></td><td></td><td></td><td>{{ total_score }}</td></tr>
+    </tbody>
+  </table>
+  <p class="compact" style="font-size:8.5pt; color:var(--gray-500); margin-top:3mm">
+    Amounts shown in base currency ({{ currency }}); achievement capped at 100%; reverse indicators score full marks when actual ≤ target. Line-level evidence in Appendix A.
+  </p>
+
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
+    </div>
+    <div class="pageno">P. <span class="now">03</span> / 08</div>
+  </div>
+</div>
+
+<!-- ===== PAGE 4 · §4 CRITERIA (1-4) ===== -->
+<div class="page">
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+    <div class="crumb">
+      <span class="ttl">Quarterly Performance Report</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
+    </div>
+  </div>
+
+  <div class="section-bar"><div class="n">04</div><h2>Assessment Criteria</h2><div class="tag">Criteria</div></div>
+  <p>How each metric is counted, measured and time-attributed, so the score is auditable. Line-level evidence is in Appendix A.</p>
+
+  <h3 class="sub">1 · Sales (approved pricing)</h3>
+  <ul class="cmp">
+    <li><b>Counted —</b> pricing orders created by the employee with status "approved".</li>
+    <li><b>Measured —</b> approved total; multi-currency converted to base currency before summing.</li>
+    <li><b>Attribution —</b> falls into the quarter by approval date.</li>
+    <li><b>Excluded —</b> draft / pending / rejected orders; orders created by others.</li>
+  </ul>
+
+  <h3 class="sub">2 · Implant value</h3>
+  <ul class="cmp">
+    <li><b>Counted —</b> vendor-product implant value in quotations where the employee is owner.</li>
+    <li><b>Measured —</b> sum of implant subtotals, converted to base currency.</li>
+    <li><b>Attribution —</b> falls into the quarter by quotation creation date.</li>
+  </ul>
+
+  <h3 class="sub">3 · New projects (qualified)</h3>
+  <ul class="cmp">
+    <li><b>Counted (all required) —</b> ① not deleted ② registration approved (authorization no.) ③ ≥1 follow-up ④ a linked customer ⑤ ≥1 quotation.</li>
+    <li><b>Attribution —</b> by first-qualified time — stamped the moment all conditions are first met, never recomputed; later additions count only in the quarter qualified.</li>
+    <li><b>Owner —</b> the project owner.</li>
+  </ul>
+
+  <h3 class="sub">4 · New customers (qualified)</h3>
+  <ul class="cmp">
+    <li><b>Counted (all required) —</b> ① not deleted ② name / address / company type complete ③ ≥1 contact ④ ≥1 follow-up.</li>
+    <li><b>Attribution —</b> by first-qualified time, stamped and never recomputed; owner is the customer owner.</li>
+  </ul>
+
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
+    </div>
+    <div class="pageno">P. <span class="now">04</span> / 08</div>
+  </div>
+</div>
+
+<!-- ===== PAGE 5 · §4 CRITERIA (5-7) ===== -->
+<div class="page">
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+    <div class="crumb">
+      <span class="ttl">Quarterly Performance Report</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
+    </div>
+  </div>
+
+  <div class="section-bar"><div class="n">04</div><h2>Assessment Criteria — continued</h2><div class="tag">Criteria</div></div>
+
+  <h3 class="sub">5 · Customer activity rate (level · snapshot)</h3>
+  <ul class="cmp">
+    <li><b>Measured —</b> among the employee's non-deleted customers, the share in "highly active / active / normal"; "to-follow / dormant / churned" count as inactive.</li>
+    <li><b>Source —</b> customer status is maintained by a daily 01:00 activity batch.</li>
+    <li><b>Nature —</b> snapshot — reflects the current level, independent of the quarter window.</li>
+  </ul>
+
+  <h3 class="sub">6 · Project activity rate (level · snapshot)</h3>
+  <ul class="cmp">
+    <li><b>Measured —</b> among projects the employee owns (owner or vendor sales) that are not signed / paused / failed, the share whose last follow-up is within 20 days.</li>
+  </ul>
+
+  <h3 class="sub">7 · Personal loss rate (reverse · level)</h3>
+  <ul class="cmp">
+    <li><b>Measured —</b> projects failed this year attributed mainly to personal factors ÷ total projects owned.</li>
+    <li><b>Direction —</b> lower is better; full marks when actual ≤ target.</li>
+  </ul>
+
+  <p class="note" style="margin-top:8mm">
+    <span class="lk">Single source of truth</span>
+    Targets are set per role in the PMA system; actuals are auto-collected under one unified definition (kpi_actual_service), identical to the "My KPI" dashboard and the performance page.
+  </p>
+
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
+    </div>
+    <div class="pageno">P. <span class="now">05</span> / 08</div>
+  </div>
+</div>
+
+<!-- ===== PAGE 6 · §5 IMPROVEMENT · §6 SIGN-OFF ===== -->
+<div class="page">
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+    <div class="crumb">
+      <span class="ttl">Quarterly Performance Report</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
+    </div>
+  </div>
+
+  <div class="section-bar"><div class="n">05</div><h2>Improvement Notes</h2><div class="tag">Improvement</div></div>
+  <p>The system flags under-target items (achievement &lt; 100%); {{ reviewer }} may add notes.</p>
+  <ol class="cmp" style="margin-top:3mm">
+    <li>{{ improvement_point_1 }}</li>
+    <li>{{ improvement_point_2 }}</li>
+    <li>{{ improvement_point_3 }}</li>
+  </ol>
+  <p class="note">
+    <span class="lk">Manager's comment</span>
+    {{ manager_comment }}
+  </p>
+
+  <div class="section-bar" style="margin-top:10mm"><div class="n">06</div><h2>Sign-off</h2><div class="tag">Execution</div></div>
+  <table class="params" style="margin-top:3mm">
+    <thead><tr><th style="width:24%">Stage</th><th style="width:28%">Name</th><th style="width:30%">Comment</th><th style="width:18%">Date</th></tr></thead>
+    <tbody>
+      <tr><td>Employee</td><td>{{ user_name }}</td><td></td><td></td></tr>
+      <tr><td>Line manager</td><td>{{ manager_name }}</td><td></td><td></td></tr>
+      <tr><td>General manager</td><td>{{ ceo_name }}</td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
+    </div>
+    <div class="pageno">P. <span class="now">06</span> / 08</div>
+  </div>
+</div>
+
+<!-- ===== PAGE 7 · APPENDIX A (A.1-A.3) ===== -->
+<div class="page">
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+    <div class="crumb">
+      <span class="ttl">Appendix A · Evidence Detail</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
+    </div>
+  </div>
+
+  <div class="section-bar"><div class="n">A</div><h2>Evidence Detail</h2><div class="tag">Appendix</div></div>
+  <p>Line-by-line detail behind each "actual", for audit and traceability.</p>
+
+  <h3 class="sub">A.1 · New customers (qualified {{ t4_actual }})</h3>
+  <table class="params">
+    <thead><tr><th style="width:34%">Customer</th><th style="width:20%">Type</th><th style="width:14%">Contacts</th><th style="width:14%">Follow-ups</th><th style="width:18%">Qualified at</th></tr></thead>
+    <tbody>
+      <tr><td>{{ cust_name }}</td><td>{{ cust_type }}</td><td>{{ cust_contacts }}</td><td>{{ cust_follows }}</td><td>{{ cust_qualified_at }}</td></tr>
+      <tr><td>…</td><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub" style="margin-top:6mm">A.2 · New projects (qualified {{ t3_actual }})</h3>
+  <table class="params">
+    <thead><tr><th style="width:26%">Project</th><th style="width:18%">Auth. no.</th><th style="width:18%">Customer</th><th style="width:10%">Follows</th><th style="width:10%">Quotes</th><th style="width:18%">Qualified at</th></tr></thead>
+    <tbody>
+      <tr><td>{{ proj_name }}</td><td>{{ proj_auth_no }}</td><td>{{ proj_customer }}</td><td>{{ proj_follows }}</td><td>{{ proj_quotes }}</td><td>{{ proj_qualified_at }}</td></tr>
+      <tr><td>…</td><td></td><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub" style="margin-top:6mm">A.3 · Sales · pricing orders</h3>
+  <table class="params">
+    <thead><tr><th style="width:18%">PO no.</th><th style="width:22%">Customer</th><th style="width:16%">Amount</th><th style="width:10%">Cur.</th><th style="width:18%">Conv. ({{ currency }})</th><th style="width:16%">Approved</th></tr></thead>
+    <tbody>
+      <tr><td>{{ po_no }}</td><td>{{ po_customer }}</td><td>{{ po_amount }}</td><td>{{ po_cur }}</td><td>{{ po_converted }}</td><td>{{ po_approved_at }}</td></tr>
+      <tr class="data"><td>Total</td><td></td><td></td><td></td><td>{{ t1_actual }}</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
+    </div>
+    <div class="pageno">P. <span class="now">07</span> / 08</div>
+  </div>
+</div>
+
+<!-- ===== PAGE 8 · APPENDIX A (A.4-A.5) ===== -->
+<div class="page">
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+    <div class="crumb">
+      <span class="ttl">Appendix A · Evidence Detail</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
+    </div>
+  </div>
+
+  <h3 class="sub">A.4 · Implant value · quotation detail</h3>
+  <table class="params">
+    <thead><tr><th style="width:18%">Quote no.</th><th style="width:22%">Project</th><th style="width:24%">Implant product (MN)</th><th style="width:14%">Implant</th><th style="width:10%">Cur.</th><th style="width:12%">Conv.</th></tr></thead>
+    <tbody>
+      <tr><td>{{ quo_no }}</td><td>{{ quo_project }}</td><td>{{ quo_product_mn }}</td><td>{{ quo_implant }}</td><td>{{ quo_cur }}</td><td>{{ quo_converted }}</td></tr>
+      <tr class="data"><td>Total</td><td></td><td></td><td></td><td></td><td>{{ t2_actual }}</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub" style="margin-top:8mm">A.5 · Activity rate · numerator / denominator</h3>
+  <table class="params">
+    <thead><tr><th style="width:28%">Metric</th><th style="width:30%">Numerator (active / ≤20d)</th><th style="width:30%">Denominator (owned / ongoing)</th><th style="width:12%">Rate</th></tr></thead>
+    <tbody>
+      <tr><td>Customer activity rate</td><td>{{ cust_active }}</td><td>{{ cust_total }}</td><td>{{ t5_actual }}</td></tr>
+      <tr><td>Project activity rate</td><td>{{ proj_followed }}</td><td>{{ proj_ongoing }}</td><td>{{ t6_actual }}</td></tr>
+    </tbody>
+  </table>
+
+  <p class="note" style="margin-top:10mm">
+    <span class="lk">Data statement</span>
+    This report is auto-generated by the PMA performance system under one unified definition (kpi_actual_service), identical to the "My KPI" dashboard and the performance page. Placeholders <span class="tk">…</span> are filled at export with the employee's actual quarter data.
+  </p>
+
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
+    </div>
+    <div class="pageno">P. <span class="now">08</span> / 08</div>
+  </div>
+</div>
+
+</body></html>
