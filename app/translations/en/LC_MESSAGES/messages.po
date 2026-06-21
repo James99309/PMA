@@ -36865,3 +36865,6 @@ msgstr "No target this quarter — not assessed"
 
 msgid "导出报告"
 msgstr "Export Report"
+
+msgid "导出失败,请重试"
+msgstr "Export failed, please retry"

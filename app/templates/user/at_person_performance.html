@@ -7,6 +7,7 @@
 {% block extra_head %}
 <script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
+<style>.ppspin{animation:ppspin 1s linear infinite}@keyframes ppspin{to{transform:rotate(360deg)}}</style>
 {% endblock %}
 
 {% block content %}
@@ -179,6 +180,8 @@
     noScore:         {{ _('该季度暂无得分(无实际数据),无法发起结算')|tojson }},
     notAssessed:     {{ _('本季未设目标,不参加考核')|tojson }},
     exportPdf:       {{ _('导出报告')|tojson }},
+    exporting:       {{ _('生成中…')|tojson }},
+    exportFail:      {{ _('导出失败,请重试')|tojson }},
     initiated:       {{ _('已发起')|tojson }},
     initiateFail:    {{ _('发起失败')|tojson }},
     initiateFailRetry:{{ _('发起失败,请重试')|tojson }},
@@ -450,6 +453,33 @@
     stRender();
   }
 
+  // 导出报告:fetch→blob 下载,按钮内联 spinner(WeasyPrint 渲染需数秒,避免空白页干等)
+  window.ppExportReport = async function (btn, q) {
+    if (btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    const html0 = btn.innerHTML;
+    btn.innerHTML = `<span class="material-symbols-outlined ppspin" style="font-size:15px;">progress_activity</span>${I.exporting}`;
+    btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none';
+    try {
+      const r = await fetch(`/performance/config/report/${_userId}/${yearSel.value}/${q}`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const blob = await r.blob();
+      const cd = r.headers.get('Content-Disposition') || '';
+      let fn = `report_${q}.pdf`;
+      const m = cd.match(/filename\*=UTF-8''([^;]+)/);
+      if (m) { try { fn = decodeURIComponent(m[1]); } catch (e) {} }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = fn;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (e) {
+      if (window.ATToast) ATToast.error(I.exportFail);
+    } finally {
+      btn.innerHTML = html0; btn.style.opacity = ''; btn.style.pointerEvents = '';
+      delete btn.dataset.busy;
+    }
+  };
+
   function stRender() {
     const box = document.getElementById('stCards');
     if (!box) return;
@@ -491,13 +521,13 @@
           : `<span class="at-dim" style="font-size:11px;">${I.notSettled}</span>`;
         foot = (st && st.status === 'rejected') ? (stChip(st) + btn) : btn;
       }
-      const _rptUrl = `/performance/config/report/${_userId}/${yearSel.value}/${q}`;
       html += `<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg-elev);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <span style="font-size:13px;font-weight:600;">${I.quarterFmt.replace('{q}', q)}</span>
-          <a href="${_rptUrl}" target="_blank" title="${I.exportPdf}"
-             style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--accent);text-decoration:none;">
-            <span class="material-symbols-outlined" style="font-size:15px;">picture_as_pdf</span>${I.exportPdf}</a>
+          <button type="button" onclick="ppExportReport(this, ${q})" title="${I.exportPdf}"
+             style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--accent);
+                    background:none;border:0;cursor:pointer;padding:2px 4px;font:inherit;">
+            <span class="material-symbols-outlined" style="font-size:15px;">picture_as_pdf</span>${I.exportPdf}</button>
         </div>
         <div style="margin-bottom:10px;">${body}</div>
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">${foot}</div>
