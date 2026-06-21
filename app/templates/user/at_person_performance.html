@@ -178,6 +178,7 @@
     settleMsgFmt:    {{ _('{name} {q} 季度得分 {score} 分。发起后将提交「直属上级 → 总经理」审批;通过后按绩效基数×得分%折算写入薪资并锁定该季,确认发起?')|tojson }},
     noScore:         {{ _('该季度暂无得分(无实际数据),无法发起结算')|tojson }},
     notAssessed:     {{ _('本季未设目标,不参加考核')|tojson }},
+    exportPdf:       {{ _('导出报告')|tojson }},
     initiated:       {{ _('已发起')|tojson }},
     initiateFail:    {{ _('发起失败')|tojson }},
     initiateFailRetry:{{ _('发起失败,请重试')|tojson }},
@@ -490,9 +491,13 @@
           : `<span class="at-dim" style="font-size:11px;">${I.notSettled}</span>`;
         foot = (st && st.status === 'rejected') ? (stChip(st) + btn) : btn;
       }
+      const _rptUrl = `/performance/config/report/${_userId}/${yearSel.value}/${q}`;
       html += `<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg-elev);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <span style="font-size:13px;font-weight:600;">${I.quarterFmt.replace('{q}', q)}</span>
+          <a href="${_rptUrl}" target="_blank" title="${I.exportPdf}"
+             style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--accent);text-decoration:none;">
+            <span class="material-symbols-outlined" style="font-size:15px;">picture_as_pdf</span>${I.exportPdf}</a>
         </div>
         <div style="margin-bottom:10px;">${body}</div>
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">${foot}</div>

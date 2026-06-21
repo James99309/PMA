@@ -36862,3 +36862,6 @@ msgstr "Insufficient data"
 
 msgid "本季未设目标,不参加考核"
 msgstr "No target this quarter — not assessed"
+
+msgid "导出报告"
+msgstr "Export Report"

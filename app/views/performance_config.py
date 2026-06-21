@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session, current_app
 from flask_login import login_required, current_user
 from flask_babel import get_locale
 from datetime import datetime
@@ -2779,6 +2779,42 @@ def _can_read_person_perf(user_id, year=None):
         return is_settlement_approver_of(current_user.id, user_id)
     except Exception:
         return False
+
+
+@performance_config_bp.route('/report/<int:user_id>/<int:year>/<int:quarter>')
+@login_required
+def export_quarter_report(user_id, year, quarter):
+    """导出季度绩效评估报告 PDF（编辑级模板,WeasyPrint 渲染;数据与系统统一口径同源）。"""
+    if not _can_read_person_perf(user_id, year):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    if quarter not in (1, 2, 3, 4):
+        return jsonify({'success': False, 'message': '季度无效'}), 400
+    try:
+        from flask import render_template, make_response
+        from weasyprint import HTML
+        from weasyprint.text.fonts import FontConfiguration
+        from app.services.performance_report_service import build_report_context
+        from config import Config
+        ctx = build_report_context(user_id, year, quarter,
+                                   lang=('en' if getattr(Config, 'DEFAULT_CURRENCY', 'CNY') == 'USD' else 'zh'))
+        if not ctx:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        # SG 英文版模板未就绪时回退中文模板
+        import os as _os
+        tpl = 'performance_report/report_en.html' if ctx['lang'] == 'en' else 'performance_report/report_cn.html'
+        if not _os.path.exists(_os.path.join(current_app.root_path, 'templates', tpl)):
+            tpl = 'performance_report/report_cn.html'
+        html = render_template(tpl, **ctx)
+        pdf = HTML(string=html, base_url=current_app.static_folder).write_pdf(font_config=FontConfiguration())
+        resp = make_response(pdf)
+        resp.headers['Content-Type'] = 'application/pdf'
+        fname = f"绩效评估_{ctx['user_name']}_{year}Q{quarter}.pdf"
+        from urllib.parse import quote
+        resp.headers['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(fname)}"
+        return resp
+    except Exception as e:
+        logger.error(f"导出季度绩效报告失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @performance_config_bp.route('/api/user/<int:user_id>/actuals/<int:year>')
