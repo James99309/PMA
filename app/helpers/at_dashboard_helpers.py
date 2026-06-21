@@ -1526,9 +1526,11 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
     _ALIAS = {'sales_target': 'sales_amount'}   # 定义表 code → 看板 code
     try:
         from app.models.performance_config import PerformanceMetricsDefinition
+        from app.helpers.metric_i18n import metric_label
         for m in PerformanceMetricsDefinition.query.all():
+            _nm = metric_label(m.metric_code, m.metric_name)
             for key in {m.metric_code, _ALIAS.get(m.metric_code, m.metric_code)}:
-                name_map[key] = m.metric_name
+                name_map[key] = _nm
                 unit_map[key] = m.default_unit or ''
                 dtype_map[key] = m.data_type or ''
                 smode_map[key] = getattr(m, 'scoring_mode', None)

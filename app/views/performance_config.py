@@ -1512,14 +1512,15 @@ def get_preset_performance_items():
         # 获取图标
         icon = icon_map.get(m.metric_code, category_icon_map.get(m.metric_category, 'assessment'))
 
+        from app.helpers.metric_i18n import metric_label, metric_desc
         result.append({
             'id': m.id,
             'code': m.metric_code,
-            'name': m.metric_name,
+            'name': metric_label(m.metric_code, m.metric_name),
             'unit': unit,
             'data_type': m.data_type,
             'scoring_mode': (m.scoring_mode or _sm_default(m.metric_code)),
-            'description': m.description or '',
+            'description': metric_desc(m.metric_code, m.description or ''),
             'icon': icon,
             'category': m.metric_category or '其他',
             'is_system_metric': m.is_system_metric,
