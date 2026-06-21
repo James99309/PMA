@@ -103,6 +103,9 @@ class Project(SharingMixin, db.Model):
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, default=get_local_time)
+    # 合格新项目「达标时间」:首次满足合格口径(报备通过+≥1跟进+关联客户+≥1报价单)的时刻,
+    # 一旦写入永不重算,供绩效新增项目按"达标月"归属(冻结历史);由 kpi_actual_service 盖戳任务维护。
+    qualified_at = Column(DateTime, nullable=True, index=True)
 
     # 不可变字段 - 记录谁发起/报备了项目
     created_by = Column(Integer, ForeignKey('users.id'), nullable=False, comment='项目发起人/报备人（不可变）')

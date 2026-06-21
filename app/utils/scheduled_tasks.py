@@ -386,6 +386,25 @@ def run_geo_monitor_daily():
         logger.error(traceback.format_exc())
 
 
+def run_qualified_at_stamp():
+    """合格新客户/项目「达标时间」盖戳:给已达标但未盖戳的记录写入 qualified_at(幂等)。
+    绩效新增客户/项目按达标月归属,冻结历史;每小时跑一次即可(已盖戳的永不重算)。"""
+    from flask import current_app
+    from app import create_app
+    try:
+        try:
+            app = current_app._get_current_object()
+        except RuntimeError:
+            app = create_app()
+        with app.app_context():
+            from app.services.kpi_actual_service import stamp_qualified_at
+            n_cust, n_proj = stamp_qualified_at()
+        if n_cust or n_proj:
+            logger.info(f"[{datetime.now()}] 达标盖戳: 新增客户 {n_cust} / 项目 {n_proj}")
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 达标盖戳失败: {e}")
+
+
 def start_scheduler(run_time="01:00"):
     """
     启动定时任务调度器
@@ -439,6 +458,10 @@ def start_scheduler(run_time="01:00"):
     # Claude AI 代理用量同步（每 5 分钟从 Mac mini 拉取）
     schedule.every(5).minutes.do(run_claude_usage_pull)
     logger.info("Claude AI 用量同步任务已注册: 每 5 分钟")
+
+    # 合格新客户/项目「达标时间」盖戳（每小时 :20,幂等,冻结历史归属）
+    schedule.every().hour.at(":20").do(run_qualified_at_stamp)
+    logger.info("达标时间盖戳任务已注册: 每小时 :20")
 
     _scheduler_running = True
 

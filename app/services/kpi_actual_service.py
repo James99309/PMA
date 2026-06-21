@@ -64,41 +64,94 @@ def _qualified_customer_filters():
 
 
 def _qualified_project_filters():
-    """合格新项目:报备通过(有授权编号) + ≥1 跟进记录 + 有关联客户。"""
+    """合格新项目:报备通过(有授权编号) + ≥1 跟进记录 + 有关联客户 + ≥1 报价单
+    (2026-06-21 新增报价单条件:无报价单不算合格新项目)。"""
     from app import db
     from sqlalchemy import func
     from app.models.project import Project
     from app.models.action import Action
+    from app.models.quotation import Quotation
     from app.models.project_customer_association import ProjectCustomerAssociation as _PCA
     act_exists = db.session.query(Action.id).filter(Action.project_id == Project.id).exists()
     cust_exists = db.session.query(_PCA.id).filter(_PCA.project_id == Project.id).exists()
+    quo_exists = db.session.query(Quotation.id).filter(Quotation.project_id == Project.id).exists()
     return [
         Project.is_deleted == False,
         Project.authorization_code.isnot(None), func.trim(Project.authorization_code) != '',
-        act_exists, cust_exists,
+        act_exists, cust_exists, quo_exists,
     ]
 
 
+def stamp_qualified_at():
+    """给【已达标但未盖戳】的客户/项目写入 qualified_at = 推导的首次达标时刻,幂等(只动 NULL),
+    永不重算已盖戳记录(达标后即便资料被删也保留 → 过去月份不变)。
+    既用于一次性回填,也供周期任务调用。返回 (新增盖戳客户数, 新增盖戳项目数)。
+
+    达标时刻 = 各合格条件满足时间的最大值(GREATEST):
+      客户 = max(建档, 首个联系人, 第1条跟进);
+      项目 = max(建档, 第1条跟进, 第1个关联客户, 第1张报价单)。
+    条件口径与 _qualified_customer_filters / _qualified_project_filters 一致(此处用 SQL 直写以批量高效);
+    统一 ::timestamp 规避 quotations.created_at(timestamptz)与其余 naive 时间混比。"""
+    from app import db
+    from sqlalchemy import text
+    cust_sql = text("""
+        UPDATE companies c SET qualified_at = sub.qa FROM (
+          SELECT c2.id, GREATEST(
+                   c2.created_at::timestamp,
+                   (SELECT min(ct.created_at) FROM contacts ct WHERE ct.company_id=c2.id)::timestamp,
+                   (SELECT min(a.created_at)  FROM actions  a  WHERE a.company_id=c2.id)::timestamp
+                 ) AS qa
+          FROM companies c2
+          WHERE c2.qualified_at IS NULL AND c2.is_deleted = false
+            AND c2.company_name IS NOT NULL AND btrim(c2.company_name) <> ''
+            AND c2.address      IS NOT NULL AND btrim(c2.address)      <> ''
+            AND c2.company_type IS NOT NULL AND btrim(c2.company_type) <> ''
+            AND EXISTS (SELECT 1 FROM contacts ct WHERE ct.company_id=c2.id)
+            AND (SELECT count(*) FROM actions a WHERE a.company_id=c2.id) >= 1
+        ) sub WHERE c.id = sub.id
+    """)
+    proj_sql = text("""
+        UPDATE projects p SET qualified_at = sub.qa FROM (
+          SELECT p2.id, GREATEST(
+                   p2.created_at::timestamp,
+                   (SELECT min(a.created_at)   FROM actions a   WHERE a.project_id=p2.id)::timestamp,
+                   (SELECT min(pca.created_at) FROM project_customer_associations pca WHERE pca.project_id=p2.id)::timestamp,
+                   (SELECT min(q.created_at)   FROM quotations q WHERE q.project_id=p2.id)::timestamp
+                 ) AS qa
+          FROM projects p2
+          WHERE p2.qualified_at IS NULL AND p2.is_deleted = false
+            AND p2.authorization_code IS NOT NULL AND btrim(p2.authorization_code) <> ''
+            AND EXISTS (SELECT 1 FROM actions a   WHERE a.project_id=p2.id)
+            AND EXISTS (SELECT 1 FROM project_customer_associations pca WHERE pca.project_id=p2.id)
+            AND EXISTS (SELECT 1 FROM quotations q WHERE q.project_id=p2.id)
+        ) sub WHERE p.id = sub.id
+    """)
+    n_cust = db.session.execute(cust_sql).rowcount
+    n_proj = db.session.execute(proj_sql).rowcount
+    db.session.commit()
+    return n_cust, n_proj
+
+
 def _act_new_projects(user, s, e):
-    """合格新项目(我名下 owner_id 本期新建)。"""
+    """合格新项目(我名下 owner_id,按【达标时间】落窗口 — 冻结历史,补资料不改过去月份)。"""
     from sqlalchemy import func
     from app import db
     from app.models.project import Project
     return db.session.query(func.count(Project.id)).filter(
-        Project.owner_id == user.id,
-        Project.created_at >= s, Project.created_at < e,
-        *_qualified_project_filters(),
+        Project.owner_id == user.id, Project.is_deleted == False,
+        Project.qualified_at.isnot(None),
+        Project.qualified_at >= s, Project.qualified_at < e,
     ).scalar() or 0
 
 def _act_new_customers(user, s, e):
-    """合格新客户(我名下 owner_id 本期新建)。"""
+    """合格新客户(我名下 owner_id,按【达标时间】落窗口 — 冻结历史,补资料不改过去月份)。"""
     from sqlalchemy import func
     from app import db
     from app.models.customer import Company
     return db.session.query(func.count(Company.id)).filter(
-        Company.owner_id == user.id,
-        Company.created_at >= s, Company.created_at < e,
-        *_qualified_customer_filters(),
+        Company.owner_id == user.id, Company.is_deleted == False,
+        Company.qualified_at.isnot(None),
+        Company.qualified_at >= s, Company.qualified_at < e,
     ).scalar() or 0
 
 def _act_quotation_count(user, s, e):
@@ -456,9 +509,9 @@ def _act_team_new_projects(user, s, e):
     from app import db
     from app.models.project import Project
     return db.session.query(func.count(Project.id)).filter(
-        Project.owner_id.in_(_dept_member_ids(user)),
-        Project.created_at >= s, Project.created_at < e,
-        *_qualified_project_filters(),
+        Project.owner_id.in_(_dept_member_ids(user)), Project.is_deleted == False,
+        Project.qualified_at.isnot(None),
+        Project.qualified_at >= s, Project.qualified_at < e,
     ).scalar() or 0
 
 
@@ -467,9 +520,9 @@ def _act_team_new_customers(user, s, e):
     from app import db
     from app.models.customer import Company
     return db.session.query(func.count(Company.id)).filter(
-        Company.owner_id.in_(_dept_member_ids(user)),
-        Company.created_at >= s, Company.created_at < e,
-        *_qualified_customer_filters(),
+        Company.owner_id.in_(_dept_member_ids(user)), Company.is_deleted == False,
+        Company.qualified_at.isnot(None),
+        Company.qualified_at >= s, Company.qualified_at < e,
     ).scalar() or 0
 
 
@@ -568,8 +621,8 @@ def _act_channel_new_projects(user, s, e):
     from app.models.project import Project
     return db.session.query(func.count(Project.id)).filter(
         *_channel_project_filter(),
-        Project.created_at >= s, Project.created_at < e,
-        *_qualified_project_filters(),
+        Project.qualified_at.isnot(None),
+        Project.qualified_at >= s, Project.qualified_at < e,
     ).scalar() or 0
 
 
@@ -585,9 +638,9 @@ def _act_channel_new_customers(user, s, e):
     from app import db
     from app.models.customer import Company
     return db.session.query(func.count(Company.id)).filter(
-        Company.owner_id.in_(_dealer_user_ids()),
-        Company.created_at >= s, Company.created_at < e,
-        *_qualified_customer_filters(),
+        Company.owner_id.in_(_dealer_user_ids()), Company.is_deleted == False,
+        Company.qualified_at.isnot(None),
+        Company.qualified_at >= s, Company.qualified_at < e,
     ).scalar() or 0
 
 

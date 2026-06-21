@@ -64,6 +64,9 @@ class Company(SharingMixin, db.Model):
     pending_company_type = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=get_local_time)
     updated_at = db.Column(db.DateTime, default=get_local_time)
+    # 合格新客户「达标时间」:首次满足合格口径(资料齐全+联系人+≥1跟进)的时刻,一旦写入永不重算,
+    # 供绩效新增客户按"达标月"归属(冻结历史);由 kpi_actual_service 的盖戳任务维护。
+    qualified_at = db.Column(db.DateTime, nullable=True, index=True)
     notes = db.Column(db.Text)  # 备注
     is_deleted = db.Column(db.Boolean, default=False)  # 是否删除
 
