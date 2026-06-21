@@ -81,11 +81,11 @@ def build_report_context(user_id, year, quarter, lang='zh'):
         rate = it.get('achievement_rate', 0) or 0
         items.append({
             'idx': i,
-            'name': it.get('name') or code,
+            'name': _metric_name(code, it.get('name') or code, lang),
             'weight': f"{round(it.get('weight', 0) or 0)}%",
             'target': _disp(code, it.get('target'), True),
             'actual': _disp(code, it.get('actual')),
-            'rate': '满分' if rev and rate >= 100 else f"{round(rate)}%",
+            'rate': (('满分' if lang == 'zh' else 'Full') if rev and rate >= 100 else f"{round(rate)}%"),
             'score': '—' if (it.get('weight', 0) or 0) == 0 else f"{round(it.get('weighted_score', 0) or 0, 1)}",
             'reverse': rev,
         })
@@ -97,8 +97,11 @@ def build_report_context(user_id, year, quarter, lang='zh'):
             r = float(str(it['rate']).rstrip('%')) if it['rate'] not in ('满分',) else 100
         except ValueError:
             r = 100
-        if it['rate'] != '满分' and r < 100:
-            improvements.append(f"{it['name']}（{it['rate']}）：未达本季目标，建议针对性补强。")
+        if it['rate'] not in ('满分', 'Full') and r < 100:
+            if lang == 'en':
+                improvements.append(f"{it['name']} ({it['rate']}): below this quarter's target — targeted improvement suggested.")
+            else:
+                improvements.append(f"{it['name']}（{it['rate']}）：未达本季目标，建议针对性补强。")
     if not improvements:
         improvements.append("各考核项均达标，保持当前节奏。" if lang == 'zh' else "All items met target — keep up the pace.")
 
@@ -128,10 +131,23 @@ def build_report_context(user_id, year, quarter, lang='zh'):
     return ctx
 
 
+def _metric_name(code, fallback, lang):
+    try:
+        from app.helpers.metric_i18n import METRIC_I18N
+        n = (METRIC_I18N.get(code) or {}).get('name') or {}
+        return n.get(lang) or n.get('zh') or fallback
+    except Exception:
+        return fallback
+
+
 def _role_label(role, lang):
-    from app.helpers.metric_i18n import _lang  # noqa
-    # 简化:直接返回 role（前端已有角色显示名映射,此处兜底）
-    return role or '—'
+    if not role:
+        return '—'
+    try:
+        from app.utils.dictionary_helpers import get_role_display_name
+        return get_role_display_name(role) or role
+    except Exception:
+        return role
 
 
 def _settlement_status(user_id, year, quarter, lang):
@@ -189,11 +205,44 @@ METRIC_CRITERIA = {
          '方向：越低越好，实际 ≤ 目标即满分。'])},
 }
 
+# 英文口径（与中文一一对应）
+METRIC_CRITERIA_EN = {
+    'sales_amount': ('Sales (approved pricing)',
+        ['Counted: pricing orders created by you with status "approved".',
+         'Measure: total approved amount, mixed currencies converted to base currency.',
+         'Attribution: falls in the quarter of the approval date.',
+         'Excluded: draft / pending / rejected; orders created by others.']),
+    'implant_amount': ('Implant value',
+        ['Counted: vendor-product implant amount in quotations you own.',
+         'Measure: sum of implant subtotals, converted to base currency.',
+         'Attribution: falls in the quarter of the quotation creation date.']),
+    'new_projects': ('New projects (qualified)',
+        ['Counted (all required): ① not deleted ② approved registration (authorization code) ③ ≥1 follow-up ④ has linked customer ⑤ ≥1 quotation.',
+         'Attribution: by first-qualified time (stamped once, never recomputed); later data only counts in the quarter it qualified.',
+         'Owner: the project owner.']),
+    'new_customers': ('New customers (qualified)',
+        ['Counted (all required): ① not deleted ② name / address / type complete ③ ≥1 contact ④ ≥1 follow-up.',
+         'Attribution: by first-qualified time, stamped once and never recomputed. Owner: the customer owner.']),
+    'customer_activity_rate': ('Customer activity rate (level · snapshot)',
+        ['Measure: share of your non-deleted customers in "highly active / active / normal"; maintained by a daily batch.',
+         'Nature: snapshot — reflects the current level, independent of the quarter window.']),
+    'project_activity_rate': ('Project activity rate (level · snapshot)',
+        ['Measure: among your projects not in signed / paused / lost, the share followed up within the last 20 days.']),
+    'fail_rate': ('Personal loss rate (reverse · level)',
+        ['Measure: share of your projects lost this year mainly due to personal factors.',
+         'Direction: lower is better — actual ≤ target scores full.']),
+}
+
 
 def _criteria_for(raw_items, lang):
     out = []
+    src = METRIC_CRITERIA_EN if lang == 'en' else None
     for it in raw_items:
         code = it.get('code')
+        if src and code in src:
+            name, lines = src[code]
+            out.append({'name': name, 'lines': lines})
+            continue
         spec = METRIC_CRITERIA.get(code)
         if spec and 'zh' in spec:
             name, lines = spec['zh']
