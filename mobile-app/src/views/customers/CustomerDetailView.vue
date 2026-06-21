@@ -149,7 +149,19 @@ onMounted(() => { load(); loadSharing() })
     <NavBar :back-label="t('common.customer')" @back="router.back()"
       @more="router.push(`/customers/${route.params.id}/edit`)">
       <template #right>
-        <span style="font-size: 15px; color: var(--color-accent); font-weight: 500;">{{ t('common.edit') }}</span>
+        <span class="inline-flex items-center gap-1.5">
+          <span v-if="canShare" @click.stop="showSharePicker = true"
+            :aria-label="t('common.share')" class="relative inline-flex items-center p-1 active:opacity-60">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+              <path d="M18 8a3 3 0 100-6 3 3 0 000 6zM6 15a3 3 0 100-6 3 3 0 000 6zM18 22a3 3 0 100-6 3 3 0 000 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4"
+                stroke="var(--color-ink-2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span v-if="shareSelected.length"
+              class="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 rounded-full inline-flex items-center justify-center text-[9px] font-bold text-white"
+              style="background: var(--color-accent);">{{ shareSelected.length }}</span>
+          </span>
+          <span style="font-size: 15px; color: var(--color-accent); font-weight: 500;">{{ t('common.edit') }}</span>
+        </span>
       </template>
     </NavBar>
 
@@ -207,18 +219,6 @@ onMounted(() => { load(); loadSharing() })
             <path d="M9 2v14M2 9h14" stroke="var(--color-ink-2)" stroke-width="2" stroke-linecap="round" />
           </svg>
           <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">{{ t('customer.followUp') }}</span>
-        </button>
-        <button v-if="canShare" @click="showSharePicker = true" type="button"
-          :aria-label="t('common.share')"
-          class="h-12 w-12 rounded-2xl flex items-center justify-center active:opacity-70 shrink-0 relative"
-          style="background: var(--color-card); border: 1px solid var(--color-divider);">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="pointer-events: none;">
-            <path d="M18 8a3 3 0 100-6 3 3 0 000 6zM6 15a3 3 0 100-6 3 3 0 000 6zM18 22a3 3 0 100-6 3 3 0 000 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4"
-              stroke="var(--color-ink-2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <span v-if="shareSelected.length"
-            class="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full inline-flex items-center justify-center text-[10px] font-bold text-white"
-            style="background: var(--color-accent);">{{ shareSelected.length }}</span>
         </button>
       </div>
 
