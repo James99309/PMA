@@ -3085,6 +3085,7 @@ def at_person_performance():
                       for m in PerformanceMetricsDefinition.query.filter(
                           PerformanceMetricsDefinition.metric_code.in_(_MANUAL)).all()]
 
+    from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
     return render_template('user/at_person_performance.html',
                            users_data=users_data,
                            companies=companies,
@@ -3093,6 +3094,7 @@ def at_person_performance():
                            manual_metrics=manual_metrics,
                            current_year=datetime.now().year,
                            approver_mode=(not _has_cfg),  # 审批人进入:仅审批,隐藏切换/其他 tab
+                           currency_symbol=get_currency_symbol(get_default_currency()),  # 结算金额按实例币种显示
                            can_edit=current_user.has_permission('config_management', 'edit'))
 
 

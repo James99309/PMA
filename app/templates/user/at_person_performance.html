@@ -522,7 +522,8 @@
       </div>
     </span>`;
   }
-  const fmtY = v => v == null ? '—' : '¥' + Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+  const SETTLE_SYMBOL = {{ currency_symbol|tojson }};   // 实例币种符号(¥ / $)
+  const fmtY = v => v == null ? '—' : SETTLE_SYMBOL + Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
 
   window.stSubmit = function (q) {
