@@ -36362,3 +36362,145 @@ msgstr "Skills Store"
 
 msgid "新窗口打开"
 msgstr "Open in new window"
+
+
+msgid " · 部门年度 {amt}"
+msgstr " · Dept annual {amt}"
+
+msgid "{d} 个模块有改动,保存后共 {n} 个模块为个人覆盖"
+msgstr "{d} module(s) changed; {n} module(s) will be personal overrides after saving"
+
+msgid "{n} 个模块已覆盖"
+msgstr "{n} module(s) overridden"
+
+msgid "{n} 处改动(未保存)"
+msgstr "{n} change(s) (unsaved)"
+
+msgid "{y} 年"
+msgstr "{y}"
+
+msgid "ⓘ 点亮 = 该同事名下的数据对所选用户可见(基于 Affiliation 数据归属授权);保存为整包替换,未点亮即移除授权;不能授权自己;部门负责人 ↔ 本部门成员的关系在部门/负责人变更时由系统自动重建,手工增删的非部门关系不受影响。"
+msgstr "ⓘ Highlighted = that colleague's data becomes visible to the selected user (via Affiliation data-access authorization); saved as a full replacement, un-highlighting removes the authorization; you cannot authorize yourself; manager ↔ department-member relationships are rebuilt automatically when the department/manager changes, manual non-department relationships are unaffected."
+
+msgid "ⓘ 覆盖以模块为单位:模块被覆盖后,角色默认对该模块完全失效(包括「全不勾」=显式禁止);「↺ 继承」删除该模块覆盖并立即生效(页面其他未保存修改会一并丢弃);矩阵与「配置管理 · 权限配置」共用同一组件;「功能页签」(模块内部页签可见性)为角色级配置、无个人覆盖,请在 配置管理 → 权限配置 中调整。"
+msgstr "ⓘ Overrides apply per module: once a module is overridden, its role default is fully replaced (including 'none checked' = explicitly denied); '↺ Inherit' removes the module override and takes effect immediately (other unsaved changes are discarded); the matrix shares the same component as 'Config · Permissions'; 'Feature tabs' (in-module tab visibility) are role-level config with no personal override — adjust them in Config → Permissions."
+
+msgid "ⓘ 顶部实时显示「部门待分配」(部门总额 − 同部门所有成员已分配,含本人当前输入);部门单列明细的行下灰字显示该明细的部门预算与当前可分配;输入超过上限会被直接截断到可分配额(个人年度 ≤ 部门待分配,明细 ≤ 该明细可分配,且细分合计 ≤ 个人年度);货币:"
+msgstr "ⓘ The top bar shows 'Department allocatable' in real time (department total − all members' allocations, including your current input); for department-itemized items a grey line below shows that item's department budget and current allocatable; inputs over the cap are truncated to the allocatable amount (personal annual ≤ department allocatable, item ≤ item allocatable, sub-item total ≤ personal annual); Currency: "
+
+msgid "「{dept}」{year} 年尚未设置部门预算,无法配置个人预算。"
+msgstr "Department '{dept}' has no budget set for {year}; personal budget cannot be configured."
+
+msgid "「{name}」超出部门该明细可用上限 {amt}"
+msgstr "'{name}' exceeds the department's available cap for this item by {amt}"
+
+msgid "个人年度超出部门可分配 {amt}"
+msgstr "Personal annual exceeds department allocatable by {amt}"
+
+msgid "个人机动余量 {amt}"
+msgstr "Personal flexible balance {amt}"
+
+msgid "个人权限加载失败"
+msgstr "Failed to load personal permissions"
+
+msgid "个人预算从部门预算盘子中分配:年度总额不能超过部门待分配额度;部门已单列的明细个人强制保留,且不超过部门该明细的可用上限;表格与部门预算页共用同一组件。"
+msgstr "Personal budget is allocated from the department budget pool: the annual total cannot exceed the department's allocatable amount; items already itemized at department level are kept and cannot exceed that item's available cap; the table shares the same component as the department budget page."
+
+msgid "为该公司的此部门设置年度预算。"
+msgstr "to set the annual budget for this department."
+
+msgid "从账户详情进入,已锁定到该用户;配置他人请从侧栏进入个人配置"
+msgstr "Opened from account detail and locked to this user; to configure others, enter Personal Config from the sidebar"
+
+msgid "全部继承角色默认"
+msgstr "All inherit role defaults"
+
+msgid "删除该模块的个人覆盖,恢复为角色默认?(立即生效;页面其他未保存修改将丢弃)"
+msgstr "Remove this module's personal override and restore the role default? (Takes effect immediately; other unsaved changes will be discarded)"
+
+msgid "可查看 {n} 人的数据"
+msgstr "Can view data of {n} colleague(s)"
+
+msgid "已恢复继承"
+msgstr "Inheritance restored"
+
+msgid "已恢复角色默认"
+msgstr "Restored to role defaults"
+
+msgid "归属关系 · 个人"
+msgstr "Data Access · Personal"
+
+msgid "当前公司暂无在职人员"
+msgstr "No active staff in the current company"
+
+msgid "恢复继承"
+msgstr "Restore inheritance"
+
+msgid "无匹配人员"
+msgstr "No matching staff"
+
+msgid "显示有效权限(个人覆盖 > 角色默认);权限按「整模块」覆盖——改动某模块的任意项,该模块整行写入个人覆盖,未动的模块保持继承角色默认;行尾「↺ 继承」删除该模块覆盖。"
+msgstr "Shows effective permissions (personal override > role default); permissions override by whole module — changing any item writes the whole module as a personal override, untouched modules keep inheriting role defaults; '↺ Inherit' at the row end removes that module's override."
+
+msgid "未归属公司"
+msgstr "No company"
+
+msgid "权限覆盖 · 个人"
+msgstr "Permission Override · Personal"
+
+msgid "没有需要保存的变更"
+msgstr "No changes to save"
+
+msgid "清除 {name} 的全部个人权限覆盖,所有模块恢复为继承角色默认。"
+msgstr "Clear all personal permission overrides for {name}; all modules revert to role defaults."
+
+msgid "清除全部覆盖"
+msgstr "Clear all overrides"
+
+msgid "确认保存该人员的归属授权?"
+msgstr "Save this user's data-access authorizations?"
+
+msgid "确认保存该人员的权限覆盖?"
+msgstr "Save this user's permission overrides?"
+
+msgid "确认保存该人员的费用预算?"
+msgstr "Save this user's expense budget?"
+
+msgid "筛选人员 / 部门…"
+msgstr "Filter by name / department…"
+
+msgid "细分科目(来自报销;带「锁」= 部门已单列,强制保留)"
+msgstr "Sub-categories (from expenses; 🔒 = itemized at department level, kept)"
+
+msgid "细分超出个人总额 {amt}"
+msgstr "Sub-items exceed personal total by {amt}"
+
+msgid "角色默认加载失败"
+msgstr "Failed to load role defaults"
+
+msgid "该公司暂无在职人员"
+msgstr "No active staff in this company"
+
+msgid "该用户未设置角色,无法计算继承基线"
+msgstr "This user has no role set; cannot compute the inheritance baseline"
+
+msgid "请先到"
+msgstr "Please go to"
+
+msgid "请选择人员…"
+msgstr "Please select a person…"
+
+msgid "费用预算 · 个人"
+msgstr "Expense Budget · Personal"
+
+msgid "选择人员"
+msgstr "Select person"
+
+msgid "部门待分配 {amt} · "
+msgstr "Dept allocatable {amt} · "
+
+msgid "配置管理 → 部门预算"
+msgstr "Config → Department Budget"
+
+msgid "配置该用户可以查看哪些同事的数据(数据归属授权):点亮的人,其名下客户/项目/报价等数据对该用户可见;保存为整包替换。部门负责人对本部门成员的关系由系统自动维护,部门变更时会自动重建。"
+msgstr "Configure whose data this user can view (data-access authorization): for each highlighted person, their customers/projects/quotations etc. become visible to this user; saved as a full replacement. Manager ↔ member relationships are maintained automatically and rebuilt when departments change."
