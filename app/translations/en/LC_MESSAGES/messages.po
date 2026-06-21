@@ -36504,3 +36504,151 @@ msgstr "Config → Department Budget"
 
 msgid "配置该用户可以查看哪些同事的数据(数据归属授权):点亮的人,其名下客户/项目/报价等数据对该用户可见;保存为整包替换。部门负责人对本部门成员的关系由系统自动维护,部门变更时会自动重建。"
 msgstr "Configure whose data this user can view (data-access authorization): for each highlighted person, their customers/projects/quotations etc. become visible to this user; saved as a full replacement. Manager ↔ member relationships are maintained automatically and rebuilt when departments change."
+
+
+msgid " · 本人绩效由上级录入(只读)"
+msgstr " · Own performance is entered by your manager (read-only)"
+
+msgid "{label}尚未开始,只能录入已开始的期间"
+msgstr "{label} has not started; only started periods can be entered"
+
+msgid "{m} 月"
+msgstr "Month {m}"
+
+msgid "{name} {q} 季度得分 {score} 分。发起后将提交「直属上级 → 总经理」审批;通过后按绩效基数×得分%折算写入薪资并锁定该季,确认发起?"
+msgstr "{name} scored {score} in Q{q}. Once initiated it is submitted for approval (direct manager → CEO); upon approval, performance pay = base × score% is written to salary and the quarter is locked. Confirm?"
+
+msgid "{name} · {year} 年 {label}"
+msgstr "{name} · {year} {label}"
+
+msgid "{name} 上传失败"
+msgstr "{name} upload failed"
+
+msgid "{n} 分"
+msgstr "{n} pts"
+
+msgid "{n} 项将写入个人覆盖(未保存)"
+msgstr "{n} item(s) will be saved as personal overrides (unsaved)"
+
+msgid "{q} 季度"
+msgstr "Q{q}"
+
+msgid "· 仅可审批本季绩效,其他配置已隐藏"
+msgstr "· You can only approve this quarter's performance; other settings are hidden"
+
+msgid "ⓘ 数据格显示「实际 / 目标」:实际值实时统计(绿=达标/橘=未达标,失败率类反向),未设目标只显示实际;名称旁带 ✎ 的为手工采集指标,点击录入月度实际值;改动目标格即转为个人覆盖(行首黄条,待保存),「↺ 继承」恢复角色默认。"
+msgstr "ⓘ Each cell shows 'actual / target': actuals update in real time (green = met / orange = not met; loss-rate items are reverse), items with no target show only the actual; items marked ✎ are manually collected — click to enter monthly actuals; editing a target cell turns it into a personal override (yellow bar at the row start, pending save); '↺ Inherit' restores the role default."
+
+msgid "「{role}」尚未定义绩效目标,无法配置个人覆盖。"
+msgstr "Role '{role}' has no performance targets defined; personal overrides cannot be configured."
+
+msgid "上传中:{name}…"
+msgstr "Uploading: {name}…"
+
+msgid "为该角色定义绩效目标。"
+msgstr "to define performance targets for this role."
+
+msgid "佐证材料"
+msgstr "Evidence"
+
+msgid "保存并关闭"
+msgstr "Save and close"
+
+msgid "值、备注、佐证材料均记录在后台"
+msgstr "value, note and evidence are all recorded"
+
+msgid "删除「{name}」的个人覆盖,恢复为角色默认?"
+msgstr "Remove the personal override for '{name}' and restore the role default?"
+
+msgid "删除佐证材料"
+msgstr "Delete evidence"
+
+msgid "删除该附件?此操作不可恢复。"
+msgstr "Delete this attachment? This cannot be undone."
+
+msgid "单位:{u}"
+msgstr "Unit: {u}"
+
+msgid "发起 {year}Q{q} 绩效结算"
+msgstr "Initiate {year} Q{q} performance settlement"
+
+msgid "发起失败,请重试"
+msgstr "Failed to initiate, please retry"
+
+msgid "发起结算"
+msgstr "Initiate settlement"
+
+msgid "备注 / 说明(拖拽右下角可拉伸)"
+msgstr "Note / description (drag the corner to resize)"
+
+msgid "季度绩效结算"
+msgstr "Quarterly performance settlement"
+
+msgid "完成情况、口径说明、佐证摘要…"
+msgstr "Completion, methodology, evidence summary…"
+
+msgid "审批模式"
+msgstr "Approval mode"
+
+msgid "已写入 {n} 项个人覆盖"
+msgstr "{n} personal override(s) saved"
+
+msgid "已发起"
+msgstr "Initiated"
+
+msgid "当前得分"
+msgstr "Current score"
+
+msgid "录入该季度的实际值"
+msgstr "enter the actual value for this quarter"
+
+msgid "录入该月的实际值"
+msgstr "enter the actual value for this month"
+
+msgid "折算"
+msgstr "Converted"
+
+msgid "按当季得分发起结算 → 直属上级 → 总经理;通过后折算绩效薪资写入薪资表并锁定该季"
+msgstr "Initiate by this quarter's score → direct manager → CEO; once approved, performance pay is written to the salary table and the quarter is locked"
+
+msgid "方案"
+msgstr "Scheme"
+
+msgid "显示有效目标(个人覆盖 > 角色默认);只有改动过的项目会写入个人覆盖,未动的保持继承;行尾出现「↺ 继承」即该项已自定义,点击确认后恢复角色默认。"
+msgstr "Shows effective targets (personal override > role default); only changed items are saved as personal overrides, untouched items keep inheriting; '↺ Inherit' at the row end means the item is customized — click and confirm to restore the role default."
+
+msgid "暂无佐证材料"
+msgstr "No evidence yet"
+
+msgid "未开始"
+msgstr "Not started"
+
+msgid "未结算"
+msgstr "Not settled"
+
+msgid "清除 {name} 在 {year} 年的全部个人目标覆盖,全部恢复为角色默认。"
+msgstr "Clear all personal target overrides for {name} in {year}; everything reverts to role defaults."
+
+msgid "确认保存该人员的绩效目标覆盖?"
+msgstr "Save this user's performance target overrides?"
+
+msgid "绩效目标 · 个人覆盖"
+msgstr "Performance Targets · Personal Override"
+
+msgid "考核取已填期间均值"
+msgstr "scored as the average of filled periods"
+
+msgid "考核按期间累加"
+msgstr "scored as the sum over periods"
+
+msgid "该季度暂无得分(无实际数据),无法发起结算"
+msgstr "No score for this quarter (no actual data); cannot initiate settlement"
+
+msgid "该角色"
+msgstr "this role"
+
+msgid "该角色考核项由岗位方案固定"
+msgstr "Assessment items for this role are fixed by the position scheme"
+
+msgid "配置管理 → 绩效配置"
+msgstr "Config → Performance"

@@ -1,8 +1,8 @@
 {% extends 'components/at_person_layout.html' %}
 {% set person_active = 'performance' %}
 
-{% block person_title %}绩效目标 · 个人覆盖{% endblock %}
-{% block person_desc %}显示有效目标(个人覆盖 > 角色默认);只有改动过的项目会写入个人覆盖,未动的保持继承;行尾出现「↺ 继承」即该项已自定义,点击确认后恢复角色默认。{% endblock %}
+{% block person_title %}{{ _('绩效目标 · 个人覆盖') }}{% endblock %}
+{% block person_desc %}{{ _('显示有效目标(个人覆盖 > 角色默认);只有改动过的项目会写入个人覆盖,未动的保持继承;行尾出现「↺ 继承」即该项已自定义,点击确认后恢复角色默认。') }}{% endblock %}
 
 {% block extra_head %}
 <script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
@@ -13,10 +13,10 @@
   {% if approver_mode %}
   {# 审批人进入:仅审批本季绩效,锁定人员/年份,隐藏切换与编辑 #}
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-    <span style="font-size:10.5px;padding:2px 9px;border-radius:4px;background:var(--warn-soft);color:var(--warn);">审批模式</span>
+    <span style="font-size:10.5px;padding:2px 9px;border-radius:4px;background:var(--warn-soft);color:var(--warn);">{{ _('审批模式') }}</span>
     <span id="ppUserName" style="font-size:15px;font-weight:600;color:var(--ink);">—</span>
     <span id="ppSub" class="at-dim" style="font-size:12px;"></span>
-    <span class="at-dim" style="font-size:11.5px;">· 仅可审批本季绩效,其他配置已隐藏</span>
+    <span class="at-dim" style="font-size:11.5px;">{{ _('· 仅可审批本季绩效,其他配置已隐藏') }}</span>
     <select id="ppYear" style="display:none;"></select>
     <div id="ppUserMenu" style="display:none;"></div>
     <span id="ppDirty" style="display:none;"></span>
@@ -33,12 +33,12 @@
         {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
       </select>
       {% else %}
-      <span>{{ (companies[0] if companies else user_company) or '未归属公司' }}</span>
+      <span>{{ (companies[0] if companies else user_company) or _('未归属公司') }}</span>
       {% endif %}
     </span>
     <div style="position:relative;">
       <button type="button" id="ppPickerBtn" class="cm-role-btn">
-        <span id="ppUserName">选择人员</span>
+        <span id="ppUserName">{{ _('选择人员') }}</span>
         <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
       </button>
       <div id="ppUserMenu" class="cm-role-menu" style="display:none;"></div>
@@ -54,19 +54,17 @@
   {% endif %}
 
   <div id="ppSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
-    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择人员…</div>
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">{{ _('请选择人员…') }}</div>
   </div>
   <div class="at-dim" style="font-size:11px;margin-top:8px;">
-    ⓘ 数据格显示「<b style="color:var(--success);">实际</b> / 目标」:实际值实时统计(绿=达标/橘=未达标,失败率类反向),
-    未设目标只显示实际;名称旁带 ✎ 的为手工采集指标,点击录入月度实际值;
-    改动目标格即转为个人覆盖(行首黄条,待保存),「↺ 继承」恢复角色默认。
+    {{ _('ⓘ 数据格显示「实际 / 目标」:实际值实时统计(绿=达标/橘=未达标,失败率类反向),未设目标只显示实际;名称旁带 ✎ 的为手工采集指标,点击录入月度实际值;改动目标格即转为个人覆盖(行首黄条,待保存),「↺ 继承」恢复角色默认。') }}
   </div>
 
   {# ── 季度绩效结算(HR 逐人发起 → 上级 → 总经理;通过折算绩效薪资并锁定) ── #}
   <div style="margin-top:22px;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-      <h2 class="at-serif" style="margin:0;font-size:16px;font-weight:600;">季度绩效结算</h2>
-      <span class="at-dim" style="font-size:11.5px;">按当季得分发起结算 → 直属上级 → 总经理;通过后折算绩效薪资写入薪资表并锁定该季</span>
+      <h2 class="at-serif" style="margin:0;font-size:16px;font-weight:600;">{{ _('季度绩效结算') }}</h2>
+      <span class="at-dim" style="font-size:11.5px;">{{ _('按当季得分发起结算 → 直属上级 → 总经理;通过后折算绩效薪资写入薪资表并锁定该季') }}</span>
     </div>
     <div id="stCards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;"></div>
   </div>
@@ -85,15 +83,15 @@
       <div id="meUnit" class="at-dim" style="font-size:11.5px;margin-bottom:12px;"></div>
       <div style="display:flex;gap:14px;align-items:flex-start;">
         <label style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--ink-3);width:130px;flex-shrink:0;">
-          实际值
+          {{ _('实际值') }}
           <input id="meVal" type="number" step="any" {{ '' if can_edit else 'disabled' }}
                  style="width:100%;box-sizing:border-box;height:32px;padding:0 9px;border:1px solid var(--line-2);
                         border-radius:6px;background:var(--bg-page);font:inherit;font-size:13px;color:var(--ink);outline:none;">
         </label>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--ink-3);flex:1;">
-          备注 / 说明(拖拽右下角可拉伸)
+          {{ _('备注 / 说明(拖拽右下角可拉伸)') }}
           <textarea id="meNote" rows="3" maxlength="500" {{ '' if can_edit else 'disabled' }}
-                    placeholder="完成情况、口径说明、佐证摘要…"
+                    placeholder="{{ _('完成情况、口径说明、佐证摘要…') }}"
                     style="width:100%;box-sizing:border-box;min-height:64px;resize:vertical;padding:7px 9px;
                            border:1px solid var(--line-2);border-radius:6px;background:var(--bg-page);
                            font:inherit;font-size:12.5px;color:var(--ink);outline:none;line-height:1.55;"></textarea>
@@ -102,12 +100,12 @@
       {# 佐证附件:即传即存,挂在当月录入记录上 #}
       <div style="margin-top:12px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <span style="font-size:11.5px;color:var(--ink-3);">佐证材料</span>
+          <span style="font-size:11.5px;color:var(--ink-3);">{{ _('佐证材料') }}</span>
           {% if can_edit %}
           <button type="button" onclick="document.getElementById('meFile').click()"
                   style="display:inline-flex;align-items:center;gap:4px;border:1px dashed var(--line-2);background:transparent;
                          border-radius:6px;padding:2px 9px;font:inherit;font-size:11.5px;color:var(--accent);cursor:pointer;">
-            <span class="material-symbols-outlined" style="font-size:14px;">upload_file</span>上传
+            <span class="material-symbols-outlined" style="font-size:14px;">upload_file</span>{{ _('上传') }}
           </button>
           <input type="file" id="meFile" multiple style="display:none;" onchange="meUpload(this.files);this.value='';">
           {% endif %}
@@ -118,11 +116,11 @@
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
         <button type="button" onclick="meClose()"
                 style="height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
-                       background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">关闭</button>
+                       background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;">{{ _('关闭') }}</button>
         {% if can_edit %}
         <button type="button" id="meSaveBtn" onclick="meSave()"
                 style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--ink);
-                       color:var(--bg-page);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;">保存并关闭</button>
+                       color:var(--bg-page);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;">{{ _('保存并关闭') }}</button>
         {% endif %}
       </div>
     </div>
@@ -132,6 +130,81 @@
 
 {% block scripts %}
 <script>
+  // i18n 文案(服务端按语言渲染;带 {x} 的为模板)
+  const I = {
+    selectPerson:    {{ _('选择人员')|tojson }},
+    noStaff:         {{ _('该公司暂无在职人员')|tojson }},
+    dirtyFmt:        {{ _('{n} 项将写入个人覆盖(未保存)')|tojson }},
+    revertTitle:     {{ _('恢复继承')|tojson }},
+    revertMsgFmt:    {{ _('删除「{name}」的个人覆盖,恢复为角色默认?')|tojson }},
+    cancel:          {{ _('取消')|tojson }},
+    reverted:        {{ _('已恢复继承')|tojson }},
+    opFail:          {{ _('操作失败')|tojson }},
+    opFailRetry:     {{ _('操作失败,请重试')|tojson }},
+    subFmt:          {{ _('{role} · {dept}')|tojson }},
+    selfReadonly:    {{ _(' · 本人绩效由上级录入(只读)')|tojson }},
+    loadFail:        {{ _('加载失败')|tojson }},
+    roleUndefinedFmt:{{ _('「{role}」尚未定义绩效目标,无法配置个人覆盖。')|tojson }},
+    roleFallback:    {{ _('该角色')|tojson }},
+    goto:            {{ _('请先到')|tojson }},
+    perfConfigLink:  {{ _('配置管理 → 绩效配置')|tojson }},
+    defineForRole:   {{ _('为该角色定义绩效目标。')|tojson }},
+    clearTitle:      {{ _('清除全部覆盖')|tojson }},
+    clearMsgFmt:     {{ _('清除 {name} 在 {year} 年的全部个人目标覆盖,全部恢复为角色默认。')|tojson }},
+    clear:           {{ _('清除')|tojson }},
+    roleReset:       {{ _('已恢复角色默认')|tojson }},
+    nothingToSave:   {{ _('没有需要保存的变更')|tojson }},
+    savedNFmt:       {{ _('已写入 {n} 项个人覆盖')|tojson }},
+    saveFail:        {{ _('保存失败')|tojson }},
+    saveFailRetry:   {{ _('保存失败,请重试')|tojson }},
+    saveConfirm:     {{ _('确认保存该人员的绩效目标覆盖?')|tojson }},
+    yearFmt:         {{ _('{y} 年')|tojson }},
+    stPending:       {{ _('待审批')|tojson }},
+    stApproved:      {{ _('已结算')|tojson }},
+    stRejected:      {{ _('已驳回')|tojson }},
+    stDraft:         {{ _('草稿')|tojson }},
+    scoreFmt:        {{ _('{n} 分')|tojson }},
+    notStarted:      {{ _('未开始')|tojson }},
+    scoreLbl:        {{ _('得分')|tojson }},
+    settledLbl:      {{ _('折算')|tojson }},
+    curScoreLbl:     {{ _('当前得分')|tojson }},
+    lockedDone:      {{ _('已锁定')|tojson }},
+    initiate:        {{ _('发起结算')|tojson }},
+    notSettled:      {{ _('未结算')|tojson }},
+    quarterFmt:      {{ _('{q} 季度')|tojson }},
+    monthFmt:        {{ _('{m} 月')|tojson }},
+    settleMetaTitle: {{ _('绩效结算')|tojson }},
+    settleTitleFmt:  {{ _('发起 {year}Q{q} 绩效结算')|tojson }},
+    settleMsgFmt:    {{ _('{name} {q} 季度得分 {score} 分。发起后将提交「直属上级 → 总经理」审批;通过后按绩效基数×得分%折算写入薪资并锁定该季,确认发起?')|tojson }},
+    noScore:         {{ _('该季度暂无得分(无实际数据),无法发起结算')|tojson }},
+    initiated:       {{ _('已发起')|tojson }},
+    initiateFail:    {{ _('发起失败')|tojson }},
+    initiateFailRetry:{{ _('发起失败,请重试')|tojson }},
+    notStartedOnlyFmt:{{ _('{label}尚未开始,只能录入已开始的期间')|tojson }},
+    meTitleFmt:      {{ _('{name} · {year} 年 {label}')|tojson }},
+    unitFmt:         {{ _('单位:{u}')|tojson }},
+    enterActualQ:    {{ _('录入该季度的实际值')|tojson }},
+    enterActualM:    {{ _('录入该月的实际值')|tojson }},
+    rateAvg:         {{ _('考核取已填期间均值')|tojson }},
+    sumAccum:        {{ _('考核按期间累加')|tojson }},
+    recordedNote:    {{ _('值、备注、佐证材料均记录在后台')|tojson }},
+    noAtt:           {{ _('暂无佐证材料')|tojson }},
+    saved:           {{ _('已保存')|tojson }},
+    uploadingFmt:    {{ _('上传中:{name}…')|tojson }},
+    uploadFailFmt:   {{ _('{name} 上传失败')|tojson }},
+    delAttTitle:     {{ _('删除佐证材料')|tojson }},
+    delAttMsg:       {{ _('删除该附件?此操作不可恢复。')|tojson }},
+    delAttAttr:      {{ _('删除附件')|tojson }},
+    del:             {{ _('删除')|tojson }},
+    delFail:         {{ _('删除失败')|tojson }},
+    delFailRetry:    {{ _('删除失败,请重试')|tojson }},
+    saving:          {{ _('保存中…')|tojson }},
+    saveAndClose:    {{ _('保存并关闭')|tojson }},
+    lockedTitle:     {{ _('从账户详情进入,已锁定到该用户;配置他人请从侧栏进入个人配置')|tojson }},
+    schemeBadge:     {{ _('方案')|tojson }},
+    schemeBadgeTip:  {{ _('该角色考核项由岗位方案固定')|tojson }},
+  };
+
   const USERS = {{ users_data | tojson }};
   const CAN_EDIT = {{ can_edit | tojson }};
   const CURRENT_USER_ID = {{ current_user.id }};
@@ -154,10 +227,10 @@
     if (list.length) ppSelect(list[0].id);
     else {
       _userId = null;
-      document.getElementById('ppUserName').textContent = '选择人员';
+      document.getElementById('ppUserName').textContent = I.selectPerson;
       document.getElementById('ppSub').textContent = '';
       document.getElementById('ppSheet').innerHTML =
-        '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">该公司暂无在职人员</div>';
+        '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">' + I.noStaff + '</div>';
     }
   };
 
@@ -176,13 +249,13 @@
     onManualEdit: (it, ctx) => meOpen(it, ctx),
     onChange: () => {
       const n = sheet.getDirty().length;
-      document.getElementById('ppDirty').textContent = n ? `${n} 项将写入个人覆盖(未保存)` : '';
+      document.getElementById('ppDirty').textContent = n ? I.dirtyFmt.replace('{n}', n) : '';
       if (guard) guard.markDirty();
     },
     onRevert: (it) => {
       ATConfirm.show({
-        title: '恢复继承', message: `删除「${it.item_name}」的个人覆盖,恢复为角色默认?`,
-        variant: 'accent', icon: 'history', confirmText: '恢复继承', cancelText: '取消',
+        title: I.revertTitle, message: I.revertMsgFmt.replace('{name}', it.item_name),
+        variant: 'accent', icon: 'history', confirmText: I.revertTitle, cancelText: I.cancel,
         onConfirm: async () => {
           try {
             const d = await (await fetch('/performance/config/api/users/targets/batch', {
@@ -191,9 +264,9 @@
               body: JSON.stringify({ user_ids: [_userId], year: parseInt(yearSel.value),
                                      items: [{ item_code: it.item_code, enabled: false }] }),
             })).json();
-            if (d.success) { ATToast.success('已恢复继承'); ppLoad(); }
-            else ATToast.error(d.message || '操作失败');
-          } catch (e) { ATToast.error('操作失败,请重试'); }
+            if (d.success) { ATToast.success(I.reverted); ppLoad(); }
+            else ATToast.error(d.message || I.opFail);
+          } catch (e) { ATToast.error(I.opFailRetry); }
         },
       });
     },
@@ -216,13 +289,13 @@
     getUsers: usersOf, activeId: () => _userId, onSelect: ppSelect,
     locked: () => (typeof _locked !== 'undefined' && _locked),   // 详情页锁定不可切换
     rowBadge: u => u.has_scheme
-      ? '<span title="该角色考核项由岗位方案固定" style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--warn-soft);color:var(--warn);">方案</span>'
+      ? `<span title="${I.schemeBadgeTip}" style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--warn-soft);color:var(--warn);">${I.schemeBadge}</span>`
       : '',
   });
 
   const yearSel = document.getElementById('ppYear');
   [CUR_YEAR - 1, CUR_YEAR, CUR_YEAR + 1].forEach(y => {
-    const o = document.createElement('option'); o.value = y; o.textContent = y + ' 年';
+    const o = document.createElement('option'); o.value = y; o.textContent = I.yearFmt.replace('{y}', y);
     if (y === CUR_YEAR) o.selected = true; yearSel.appendChild(o);
   });
 
@@ -231,14 +304,14 @@
     if (!_userId) return;
     const u = USERS.find(x => x.id === _userId);
     document.getElementById('ppUserName').textContent = u ? u.name : '';
-    document.getElementById('ppSub').textContent = u ? `${u.role_display} · ${u.department}` : '';
+    document.getElementById('ppSub').textContent = u ? I.subFmt.replace('{role}', u.role_display).replace('{dept}', u.department) : '';
     document.getElementById('ppDirty').textContent = '';
     // 防自评:看自己的绩效强制只读、隐藏编辑栏
     const _eb = document.getElementById('ppEditBar');
     if (_selfLock()) {
       if (guard) guard.exit();
       if (_eb) _eb.style.display = 'none';
-      document.getElementById('ppSub').textContent += ' · 本人绩效由上级录入(只读)';
+      document.getElementById('ppSub').textContent += I.selfReadonly;
     } else if (_eb) { _eb.style.display = ''; }
     try {
       const d = await (await fetch('/performance/config/api/users/targets/batch', {
@@ -246,15 +319,15 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ user_ids: [_userId], year: parseInt(yearSel.value) }),
       })).json();
-      if (!d.success) throw new Error(d.message || '加载失败');
+      if (!d.success) throw new Error(d.message || I.loadFail);
       // 角色未定义绩效(无 KPI 方案且无角色级目标)→ 不显示绩效表,引导去配置管理定义
       if (d.role_defined === false) {
-        const rd = u ? u.role_display : '该角色';
+        const rd = u ? u.role_display : I.roleFallback;
         document.getElementById('ppSheet').innerHTML =
           `<div style="padding:34px;text-align:center;font-size:12.5px;color:var(--ink-3);">
              <span class="material-symbols-outlined" style="font-size:30px;display:block;margin-bottom:8px;color:var(--ink-4);">flag</span>
-             「${esc(rd)}」尚未定义绩效目标,无法配置个人覆盖。<br>
-             请先到 <a href="/config-management/at/performance" style="color:var(--accent);pointer-events:auto;">配置管理 → 绩效配置</a> 为该角色定义绩效目标。
+             ${I.roleUndefinedFmt.replace('{role}', esc(rd))}<br>
+             ${I.goto} <a href="/config-management/at/performance" style="color:var(--accent);pointer-events:auto;">${I.perfConfigLink}</a> ${I.defineForRole}
            </div>`;
         document.getElementById('ppDirty').textContent = '';
         const sc = document.getElementById('stCards'); if (sc) sc.innerHTML = '';
@@ -275,16 +348,16 @@
     if (!_userId) return;
     const u = USERS.find(x => x.id === _userId);
     ATConfirm.show({
-      title: '清除全部覆盖',
-      message: `清除 ${u ? u.name : ''} 在 ${yearSel.value} 年的全部个人目标覆盖,全部恢复为角色默认。`,
-      variant: 'danger', icon: 'trash', confirmText: '清除', cancelText: '取消',
+      title: I.clearTitle,
+      message: I.clearMsgFmt.replace('{name}', u ? u.name : '').replace('{year}', yearSel.value),
+      variant: 'danger', icon: 'trash', confirmText: I.clear, cancelText: I.cancel,
       onConfirm: async () => {
         try {
           const d = await (await fetch(`/performance/config/api/user/${_userId}/targets/${yearSel.value}/clear`, {
             method: 'POST', headers: { 'X-CSRFToken': _csrf() } })).json();
-          if (d.success) { ATToast.success('已恢复角色默认'); ppLoad(); }
-          else ATToast.error(d.message || '操作失败');
-        } catch (e) { ATToast.error('操作失败,请重试'); }
+          if (d.success) { ATToast.success(I.roleReset); ppLoad(); }
+          else ATToast.error(d.message || I.opFail);
+        } catch (e) { ATToast.error(I.opFailRetry); }
       },
     });
   };
@@ -292,7 +365,7 @@
   // 保存:只提交变更行(未动的保持继承,不被误写成覆盖)
   async function ppSaveCore() {
     const dirty = sheet.getDirty();
-    if (!dirty.length) { ATToast.success('没有需要保存的变更'); return true; }
+    if (!dirty.length) { ATToast.success(I.nothingToSave); return true; }
     const items = dirty.map(it => {
       const isM = it.gran === 'M';
       const monthly = {};
@@ -322,9 +395,9 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
         body: JSON.stringify({ user_ids: [_userId], year: parseInt(yearSel.value), items }),
       })).json();
-      if (d.success) { ATToast.success(`已写入 ${items.length} 项个人覆盖`); ppLoad(); return true; }
-      ATToast.error(d.message || '保存失败'); return false;
-    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+      if (d.success) { ATToast.success(I.savedNFmt.replace('{n}', items.length)); ppLoad(); return true; }
+      ATToast.error(d.message || I.saveFail); return false;
+    } catch (e) { ATToast.error(I.saveFailRetry); return false; }
   }
 
   // 编辑模式守卫(仅非审批模式):默认只读,点「编辑」才改目标;保存确认;切换/离开提醒
@@ -333,7 +406,7 @@
       mount: 'ppEditBar', lockEl: 'ppSheet', canEdit: CAN_EDIT,
       onSave: ppSaveCore,
       onDiscard: function () { ppLoad(); },
-      saveConfirm: { message: '确认保存该人员的绩效目标覆盖?' },
+      saveConfirm: { message: I.saveConfirm },
     });
   }
 
@@ -351,7 +424,7 @@
 
   // ── 季度绩效结算面板 ──
   let _stStatus = {};   // { '1': {status, score, settled_amount, is_locked}, ... }
-  const _ST_LABEL = { pending: '待审批', approved: '已结算', rejected: '已驳回', draft: '草稿' };
+  const _ST_LABEL = { pending: I.stPending, approved: I.stApproved, rejected: I.stRejected, draft: I.stDraft };
   const _ST_TONE = { pending: 'var(--warn)', approved: 'var(--success)', rejected: 'var(--danger)', draft: 'var(--ink-3)' };
 
   async function stLoad() {
@@ -380,30 +453,30 @@
       const started = !future && q <= curQ;
       const st = _stStatus[String(q)];
       const score = scores.quarters[q - 1];
-      const scoreTxt = score == null ? '—' : score + ' 分';
+      const scoreTxt = score == null ? '—' : I.scoreFmt.replace('{n}', score);
       let body, foot;
       if (!started) {
-        body = '<span class="at-dim" style="font-size:11.5px;">未开始</span>';
+        body = `<span class="at-dim" style="font-size:11.5px;">${I.notStarted}</span>`;
         foot = '';
       } else if (st && st.status === 'approved') {
-        body = `<div style="font-size:12px;color:var(--ink-2);">得分 <b>${st.score}</b> · 折算 <b>${fmtY(st.settled_amount)}</b></div>`;
+        body = `<div style="font-size:12px;color:var(--ink-2);">${I.scoreLbl} <b>${st.score}</b> · ${I.settledLbl} <b>${fmtY(st.settled_amount)}</b></div>`;
         foot = `${stChip(st)}<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--success);">
-                  <span class="material-symbols-outlined" style="font-size:14px;">lock</span>已锁定</span>`;
+                  <span class="material-symbols-outlined" style="font-size:14px;">lock</span>${I.lockedDone}</span>`;
       } else if (st && st.status === 'pending') {
-        body = `<div style="font-size:12px;color:var(--ink-2);">得分 <b>${st.score}</b> · 折算 <b>${fmtY(st.settled_amount)}</b></div>`;
+        body = `<div style="font-size:12px;color:var(--ink-2);">${I.scoreLbl} <b>${st.score}</b> · ${I.settledLbl} <b>${fmtY(st.settled_amount)}</b></div>`;
         foot = stChip(st);
       } else {
-        body = `<div style="font-size:12px;color:var(--ink-2);">当前得分 <b>${scoreTxt}</b></div>`;
+        body = `<div style="font-size:12px;color:var(--ink-2);">${I.curScoreLbl} <b>${scoreTxt}</b></div>`;
         const btn = CAN_EDIT
           ? `<button type="button" onclick="stSubmit(${q})"
                 style="height:28px;padding:0 12px;border-radius:6px;border:0;background:var(--ink);
-                       color:var(--bg-page);font:inherit;font-size:12px;cursor:pointer;">发起结算</button>`
-          : '<span class="at-dim" style="font-size:11px;">未结算</span>';
+                       color:var(--bg-page);font:inherit;font-size:12px;cursor:pointer;">${I.initiate}</button>`
+          : `<span class="at-dim" style="font-size:11px;">${I.notSettled}</span>`;
         foot = (st && st.status === 'rejected') ? (stChip(st) + btn) : btn;
       }
       html += `<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--bg-elev);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <span style="font-size:13px;font-weight:600;">${q} 季度</span>
+          <span style="font-size:13px;font-weight:600;">${I.quarterFmt.replace('{q}', q)}</span>
         </div>
         <div style="margin-bottom:10px;">${body}</div>
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">${foot}</div>
@@ -432,7 +505,7 @@
     const lbl = _ST_LABEL[st.status] || st.status, tone = _ST_TONE[st.status];
     return `<span class="at-approval-wrap" data-at-approval data-object-type="perf_settlement"
               data-object-id="${st.id}" data-api-base="/performance/config/api/settlement-approval"
-              data-status="${st.status}" data-meta='{"title":"绩效结算"}' style="position:relative;display:inline-flex;">
+              data-status="${st.status}" data-meta='{"title":${JSON.stringify(I.settleMetaTitle)}}' style="position:relative;display:inline-flex;">
       <button type="button" data-at-approval-chip style="border:0;background:transparent;padding:0;margin:0;cursor:pointer;
               display:inline-flex;align-items:center;gap:3px;font:inherit;color:inherit;line-height:1;">
         <span style="font-size:10.5px;padding:2px 8px;border-radius:4px;color:${tone};background:var(--bg-sunk);">${lbl}</span>
@@ -443,7 +516,7 @@
            min-width:340px;max-width:420px;background:var(--bg-elev);border:1px solid var(--line);border-radius:8px;
            box-shadow:0 12px 32px rgba(0,0,0,0.12);overflow:hidden;font-size:13px;">
         <div data-at-approval-body style="max-height:60vh;overflow-y:auto;">
-          <div style="padding:32px 24px;text-align:center;color:var(--ink-4);font-size:12.5px;">加载中…</div></div>
+          <div style="padding:32px 24px;text-align:center;color:var(--ink-4);font-size:12.5px;">${I.saving}</div></div>
         <div data-at-approval-actions style="display:none;padding:10px 16px;border-top:1px solid var(--line);
              background:var(--bg-page);gap:6px;flex-wrap:wrap;justify-content:flex-end;"></div>
       </div>
@@ -456,7 +529,7 @@
     const u = USERS.find(x => x.id === _userId);
     const scores = sheet.getScores();
     const score = scores.quarters[q - 1];
-    if (score == null) { ATToast.error('该季度暂无得分(无实际数据),无法发起结算'); return; }
+    if (score == null) { ATToast.error(I.noScore); return; }
     // 快照:当前各项 code/name/weight + 该季实际(留痕)
     const acts = sheet.getActuals();
     const snapshot = sheet.getItems().filter(it => it.enabled !== false).map(it => ({
@@ -464,9 +537,9 @@
       actual: (acts[it.item_code] && acts[it.item_code].q) ? acts[it.item_code].q[q] : null,
     }));
     ATConfirm.show({
-      title: `发起 ${yearSel.value}Q${q} 绩效结算`,
-      message: `${u ? u.name : ''} ${q} 季度得分 ${score} 分。发起后将提交「直属上级 → 总经理」审批;通过后按绩效基数×得分%折算写入薪资并锁定该季,确认发起?`,
-      variant: 'accent', icon: 'send', confirmText: '发起结算', cancelText: '取消',
+      title: I.settleTitleFmt.replace('{year}', yearSel.value).replace('{q}', q),
+      message: I.settleMsgFmt.replace('{name}', u ? u.name : '').replace('{q}', q).replace('{score}', score),
+      variant: 'accent', icon: 'send', confirmText: I.initiate, cancelText: I.cancel,
       onConfirm: async () => {
         try {
           const d = await (await fetch(`/performance/config/api/user/${_userId}/settlement`, {
@@ -474,9 +547,9 @@
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
             body: JSON.stringify({ year: parseInt(yearSel.value), quarter: q, score, snapshot }),
           })).json();
-          if (d.success) { ATToast.success(d.message || '已发起'); stLoad(); }
-          else ATToast.error(d.message || '发起失败');
-        } catch (_) { ATToast.error('发起失败,请重试'); }
+          if (d.success) { ATToast.success(d.message || I.initiated); stLoad(); }
+          else ATToast.error(d.message || I.initiateFail);
+        } catch (_) { ATToast.error(I.initiateFailRetry); }
       },
     });
   };
@@ -492,24 +565,27 @@
     const curQ = Math.floor(now.getMonth() / 3) + 1;
     const kind = (ctx && ctx.kind) || 'q', idx = ctx ? ctx.idx : 0;
     let ptype, period, label;
-    if (kind === 'm') { ptype = 'monthly'; period = idx; label = `${idx} 月`; }
-    else if (kind === 'q') { ptype = 'quarterly'; period = idx; label = `${idx} 季度`; }
+    if (kind === 'm') { ptype = 'monthly'; period = idx; label = I.monthFmt.replace('{m}', idx); }
+    else if (kind === 'q') { ptype = 'quarterly'; period = idx; label = I.quarterFmt.replace('{q}', idx); }
     else {   // 年粒度格:录入当前季度(历史年份=4季度)
       ptype = 'quarterly';
       period = year < now.getFullYear() ? 4 : curQ;
-      label = `${period} 季度`;
+      label = I.quarterFmt.replace('{q}', period);
     }
     // 未开始的期间拦截(已开始即可录,不必等期间结束)
     const startM = ptype === 'monthly' ? period : (period - 1) * 3 + 1;
     if (year > now.getFullYear() || (year === now.getFullYear() && startM > now.getMonth() + 1)) {
-      ATToast.error(`${label}尚未开始,只能录入已开始的期间`);
+      ATToast.error(I.notStartedOnlyFmt.replace('{label}', label));
       return;
     }
     _meCode = it.item_code; _mePType = ptype; _mePeriod = period; _meEntry = null;
-    document.getElementById('meTitle').textContent = `${meta.name} · ${year} 年 ${label}`;
+    document.getElementById('meTitle').textContent =
+      I.meTitleFmt.replace('{name}', meta.name).replace('{year}', year).replace('{label}', label);
+    const unitPart = meta.unit ? I.unitFmt.replace('{u}', meta.unit) : '';
+    const enterPart = ptype === 'quarterly' ? I.enterActualQ : I.enterActualM;
+    const aggPart = meta.is_rate ? I.rateAvg : I.sumAccum;
     document.getElementById('meUnit').textContent =
-      `${meta.unit ? '单位:' + meta.unit + ';' : ''}录入该${ptype === 'quarterly' ? '季度' : '月'}的实际值` +
-      `;${meta.is_rate ? '考核取已填期间均值' : '考核按期间累加'};值、备注、佐证材料均记录在后台`;
+      [unitPart, enterPart, aggPart, I.recordedNote].filter(Boolean).join(' · ');
     try {
       const d = await (await fetch(`/config-management/api/manual-entries/${_userId}/${yearSel.value}`,
                                    { headers: { 'X-CSRFToken': _csrf() } })).json();
@@ -532,11 +608,11 @@
            style="color:var(--ink);text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
            title="${esc(a.filename)}">${esc(a.filename)}</a>
         <span class="at-dim" style="font-size:10.5px;flex-shrink:0;">${a.file_size ? Math.round(a.file_size / 1024) + ' KB' : ''}</span>
-        ${CAN_EDIT ? `<button type="button" onclick="meDelAtt(${a.id})" title="删除附件"
+        ${CAN_EDIT ? `<button type="button" onclick="meDelAtt(${a.id})" title="${I.delAttAttr}"
            style="border:0;background:transparent;cursor:pointer;color:var(--ink-4);display:inline-flex;padding:0;">
            <span class="material-symbols-outlined" style="font-size:15px;">close</span></button>` : ''}
       </div>`).join('')
-      : '<div class="at-dim" style="font-size:11px;">暂无佐证材料</div>';
+      : `<div class="at-dim" style="font-size:11px;">${I.noAtt}</div>`;
   }
 
   // 保存当前期间(值+备注);force=即使全空也建记录(附件需挂载点)
@@ -555,12 +631,12 @@
         body: JSON.stringify({ entries: [{ metric_code: _meCode, period_type: _mePType, period: _mePeriod,
                                            value: raw === '' ? null : (parseFloat(raw) || 0), note }] }),
       })).json();
-      if (!d.success) { ATToast.error(d.message || '保存失败'); return false; }
+      if (!d.success) { ATToast.error(d.message || I.saveFail); return false; }
       const saved = ((d.data && d.data.entries) || [])[0];
       if (saved) _meEntry = saved;
-      if (!silent) ATToast.success('已保存');
+      if (!silent) ATToast.success(I.saved);
       return true;
-    } catch (_) { ATToast.error('保存失败,请重试'); return false; }
+    } catch (_) { ATToast.error(I.saveFailRetry); return false; }
   }
 
   window.meUpload = async function (files) {
@@ -570,7 +646,7 @@
     if (!_meEntry) return;
     const busy = document.getElementById('meUpBusy');
     for (const f of files) {
-      busy.textContent = `上传中:${f.name}…`;
+      busy.textContent = I.uploadingFmt.replace('{name}', f.name);
       try {
         const fd = new FormData();
         fd.append('file', f);
@@ -579,8 +655,8 @@
           method: 'POST', headers: { 'X-CSRFToken': _csrf() }, body: fd,
         })).json();
         if (d.success) (_meEntry.attachments = _meEntry.attachments || []).push(d.data);
-        else ATToast.error(d.message || `${f.name} 上传失败`);
-      } catch (_) { ATToast.error(`${f.name} 上传失败`); }
+        else ATToast.error(d.message || I.uploadFailFmt.replace('{name}', f.name));
+      } catch (_) { ATToast.error(I.uploadFailFmt.replace('{name}', f.name)); }
     }
     busy.textContent = '';
     meRenderAtts();
@@ -588,8 +664,8 @@
 
   window.meDelAtt = function (attId) {
     ATConfirm.show({
-      title: '删除佐证材料', message: '删除该附件?此操作不可恢复。',
-      variant: 'danger', icon: 'delete', confirmText: '删除', cancelText: '取消',
+      title: I.delAttTitle, message: I.delAttMsg,
+      variant: 'danger', icon: 'delete', confirmText: I.del, cancelText: I.cancel,
       onConfirm: async () => {
         try {
           const d = await (await fetch(`/config-management/api/manual-entries/attachment/${attId}`, {
@@ -598,8 +674,8 @@
           if (d.success) {
             if (_meEntry) _meEntry.attachments = (_meEntry.attachments || []).filter(a => a.id !== attId);
             meRenderAtts();
-          } else ATToast.error(d.message || '删除失败');
-        } catch (_) { ATToast.error('删除失败,请重试'); }
+          } else ATToast.error(d.message || I.delFail);
+        } catch (_) { ATToast.error(I.delFailRetry); }
       },
     });
   };
@@ -613,9 +689,9 @@
 
   window.meSave = async function () {
     const btn = document.getElementById('meSaveBtn');
-    btn.disabled = true; btn.textContent = '保存中…';
+    btn.disabled = true; btn.textContent = I.saving;
     const ok = await meCommit(false);
-    btn.disabled = false; btn.textContent = '保存并关闭';
+    btn.disabled = false; btn.textContent = I.saveAndClose;
     if (ok) meClose();
   };
 
@@ -631,7 +707,7 @@
     const btn = document.querySelector('.cm-role-btn');
     if (btn) {
       btn.style.cursor = 'default';
-      btn.title = '从账户详情进入,已锁定到该用户;配置他人请从侧栏进入个人配置';
+      btn.title = I.lockedTitle;
       const ic = btn.querySelector('.material-symbols-outlined');
       if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
     }
