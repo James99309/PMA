@@ -149,7 +149,7 @@ class PerformanceDashboardService:
 
             # 技术培训(2026-06-14):se_training_count 改为"技术培训"任务完成数(按月),替代手工录入
             if configured_items and 'se_training_count' in configured_set:
-                from app.helpers.at_dashboard_helpers import _act_hr_task_count
+                from app.services.kpi_actual_service import _act_hr_task_count
                 from datetime import date as _date
                 _u = User.query.get(user_id)
                 for i in range(12):
@@ -163,7 +163,7 @@ class PerformanceDashboardService:
             # 统一复用 _KPI_ACTUAL_FNS 按月计算(单一来源),让本路径与 AT 看板口径一致
             _pm_auto_codes = {'pm_dev_rate', 'pm_quality_rate', 'pm_support_count', 'pm_new_launch'} & configured_set
             if configured_items and _pm_auto_codes:
-                from app.helpers.at_dashboard_helpers import _KPI_ACTUAL_FNS
+                from app.services.kpi_actual_service import _KPI_ACTUAL_FNS
                 from datetime import date as _date
                 _u = User.query.get(user_id)
                 for code in _pm_auto_codes:
@@ -202,6 +202,28 @@ class PerformanceDashboardService:
                         val = monthly_map.get(code, {}).get(month, 0) or quarterly_map.get(code, {}).get(quarter, 0)
                         if i < len(yearly_stats):
                             setattr(yearly_stats[i], f'{code}_actual', val)
+
+            # 全收口(2026-06-21):所有已配置且有合格采集器的指标,月度实际统一改走 _KPI_ACTUAL_FNS,
+            # 作为唯一后端事实源覆盖前面旧路径/批量结果——让绩效页月度趋势与「我的 KPI」卡、
+            # 个人配置实际值、季度得分(get_quarterly_scores)完全同源(含合格客户/项目过滤、币种换算)。
+            if not lite and configured_items:
+                from app.services.kpi_actual_service import _KPI_ACTUAL_FNS as _AFNS
+                from datetime import date as _date
+                _u_all = User.query.get(user_id)
+                if _u_all:
+                    for code in configured_set:
+                        fn = _AFNS.get(code)
+                        if not fn:
+                            continue
+                        for i in range(12):
+                            m = i + 1
+                            s = _date(year, m, 1)
+                            e = _date(year + 1, 1, 1) if m == 12 else _date(year, m + 1, 1)
+                            if i < len(yearly_stats):
+                                try:
+                                    setattr(yearly_stats[i], f'{code}_actual', fn(_u_all, s, e))
+                                except Exception:
+                                    pass
 
             # 从绩效目标配置获取目标数据（使用新的目标表）
             targets_dict = PerformanceDashboardService.get_user_kpi_targets(user_id, year)
@@ -2064,7 +2086,7 @@ class PerformanceDashboardService:
             # 修正实际值来源:用合格采集器(币种换算 + 合格客户/项目过滤)替代旧 goal_achievement,
             # 与「我的 KPI」卡同源;无采集器的指标回退旧值避免回归。
             from datetime import datetime as _dt
-            from app.helpers.at_dashboard_helpers import _KPI_ACTUAL_FNS as _ACTUAL_FNS
+            from app.services.kpi_actual_service import _KPI_ACTUAL_FNS as _ACTUAL_FNS
             _FN_ALIAS = {'sales_target': 'sales_amount'}
 
             result = {}
@@ -2082,6 +2104,10 @@ class PerformanceDashboardService:
                     is_avg = _is_avg_aggregated(_dtype)   # 率/评分类跨期取平均
 
                     # 汇总季度3个月:累加实际/目标 + 记录水平目标(首个非零)与有数据月数
+                    # 目标统一从 get_user_kpi_targets(targets_dict)取,与「我的 KPI」卡/个人配置同源,
+                    # 不再读 goal_achievement(后者缺 team/channel 指标,导致这些角色季度得分恒为 0)
+                    _tkey = PerformanceDashboardService._map_item_code_to_target_key(item.item_code) \
+                        or f'{metric_code}_target'
                     q_actual_sum = 0.0
                     q_target_sum = 0.0
                     level_target = 0.0
@@ -2089,7 +2115,7 @@ class PerformanceDashboardService:
                     for m_idx in range(start_month, min(start_month + 3, len(goal_achievement))):
                         md = goal_achievement[m_idx].get(metric_code, {})
                         a = md.get('actual', 0) or 0
-                        t = md.get('target', 0) or 0
+                        t = float((targets_dict.get(m_idx + 1) or {}).get(_tkey, 0) or 0)
                         q_actual_sum += a
                         q_target_sum += t
                         if a > 0:

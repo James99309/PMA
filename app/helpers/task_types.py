@@ -6,7 +6,7 @@
 - position(岗位):按角色过滤,完成/审核后自动进对应绩效指标
 
 新增岗位任务类型只需往 TASK_TYPES 加一行(code/label/组/适用角色/是否需审核)。
-KPI 计数见 app/helpers/at_dashboard_helpers.py 的 _act_hr_* / 各角色计数函数。
+KPI 计数见 app/services/kpi_actual_service.py 的 _act_hr_* / 各角色计数函数(全系统唯一采集源)。
 """
 
 # allow_link: 是否显示「关联项目/报价单」(业务类任务才需要;HR 内部事务不需要)
