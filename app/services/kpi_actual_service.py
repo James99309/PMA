@@ -44,7 +44,8 @@ def _act_implant(user, s, e):
 
 # ── 合格「新建客户/项目」统一口径(2026-06-21,个人/团队/渠道共用) ──
 def _qualified_customer_filters():
-    """合格新客户:名称/地址/公司类型齐全 + ≥1 联系人 + 客户下跟进(Action)≥2 条。"""
+    """合格新客户:名称/地址/公司类型齐全 + ≥1 联系人 + 客户下跟进(Action)≥1 条
+    (2026-06-21 标准下调:跟进从 ≥2 改为 ≥1,代表至少接触过客户一次即可)。"""
     from sqlalchemy import func
     from app import db
     from app.models.customer import Company, Contact
@@ -58,7 +59,7 @@ def _qualified_customer_filters():
         Company.company_name.isnot(None), func.trim(Company.company_name) != '',
         Company.address.isnot(None), func.trim(Company.address) != '',
         Company.company_type.isnot(None), func.trim(Company.company_type) != '',
-        contact_exists, action_cnt >= 2,
+        contact_exists, action_cnt >= 1,
     ]
 
 
