@@ -1677,6 +1677,123 @@ _KPI_VARIANT_FUNC = {
 }
 
 
+def _kpi_score_summary(user):
+    """绩效得分摘要(与绩效页 get_quarterly_scores 同源口径):
+      - 实际值走修正后的合格采集器 _KPI_ACTUAL_FNS(含币种换算/合格客户项目过滤),
+        保证与「我的 KPI」卡显示的数字一致。
+      - 计分语义复用单一事实源 scoring_modes(target/inverse/cumulative/tiered),
+        不自行实现,避免与绩效页口径漂移。
+      - quarter/month: 本季【预测】得分 —— 累加类(非率/非档位)按本季时间进度 f 外推到季末;
+        率类/档位取当前快照不外推。
+      - year: 已【参加考核】季度(有计入权重项的季)得分的【平均】;当前季用预测,过往季用实算。
+      - 封顶 100%;某季某项目标=0(或无权重/无采集器)→ 不计入该季加权;
+        整季无任何考核项 → 不计入年度平均;本季进度 <1/6 → 数据不足不预测。
+    无考核项 → None。"""
+    from datetime import date, datetime
+    try:
+        from app.services.performance_dashboard_service import PerformanceDashboardService as _P
+        from app.services.role_kpi_schemes import get_role_scheme
+        from app.models.performance_config import RolePerformanceTarget, UserPerformanceTarget
+        from app.helpers.scoring_modes import (
+            load_metric_meta, scoring_mode_of, is_avg_aggregated, tiered_achievement)
+    except Exception:
+        return None
+    year = date.today().year
+    try:
+        codes = _P._get_configured_performance_items(user.id, year) or []
+    except Exception:
+        codes = []
+    if not codes:
+        return None
+    # 权重:个人覆盖 > 角色覆盖 > 方案默认
+    wmap = {}
+    sch = get_role_scheme(user.role) if user.role else None
+    for it in (sch or []):
+        wmap[it['item_code']] = float(it.get('weight') or 0)
+    for t in RolePerformanceTarget.query.filter_by(role_code=user.role, year=year).all():
+        if getattr(t, 'weight', None) is not None:
+            wmap[t.item_code] = float(t.weight)
+    for t in UserPerformanceTarget.query.filter_by(user_id=user.id, year=year).all():
+        if getattr(t, 'weight_override', None) is not None:
+            wmap[t.item_code] = float(t.weight_override)
+    try:
+        tmap = _P.get_user_kpi_targets(user.id, year) or {}
+    except Exception:
+        tmap = {}
+    meta = load_metric_meta()
+    _ALIAS = {'sales_target': 'sales_amount'}
+    today = date.today()
+    cur_q = (today.month - 1) // 3 + 1
+
+    def _month_targets(code, q):
+        tkey = f'{code}_target'
+        return [float((tmap.get(m) or {}).get(tkey, 0) or 0)
+                for m in range((q - 1) * 3 + 1, (q - 1) * 3 + 4)]
+
+    qscores = {}
+    for q in range(1, 5):
+        sm = (q - 1) * 3 + 1
+        s = datetime(year, sm, 1)
+        e = datetime(year + 1, 1, 1) if q == 4 else datetime(year, sm + 3, 1)
+        if s.date() > today:
+            break
+        is_cur = (q == cur_q)
+        f = 1.0
+        if is_cur:
+            qdays = (e - s).days
+            elapsed = (datetime(today.year, today.month, today.day) - s).days + 1
+            f = max(elapsed / qdays, 1e-9) if qdays else 1.0
+        total_score = 0.0; total_weight = 0.0; assessed = False
+        for code in codes:
+            w = wmap.get(code, 0)
+            if not w:
+                continue
+            fn = _KPI_ACTUAL_FNS.get(_ALIAS.get(code, code))
+            if not fn:
+                continue
+            try:
+                A = float(fn(user, s, e) or 0)
+            except Exception:
+                A = 0.0
+            mode = scoring_mode_of(code, meta)
+            is_avg = is_avg_aggregated((meta.get(code) or {}).get('data_type'))
+            mts = _month_targets(code, q)
+            level_target = next((t for t in mts if t > 0), 0.0)
+            # 当季 run-rate 外推:仅累加类(非率/非档位)按时间进度放大到季末
+            if is_cur and f < 1 and not is_avg and mode != 'tiered':
+                A = A / f
+            if mode == 'tiered':
+                # 固定档位制(植入品质):无目标,权重恒计入;A 为均值水平
+                total_score += tiered_achievement(A) * w / 100.0
+                total_weight += w; assessed = True
+            elif mode == 'cumulative':
+                # 积分制:单项得分(level)× 累计,封顶权重;权重恒计入
+                per_unit = level_target if level_target > 0 else 1.0
+                total_score += min(A * per_unit, w)
+                total_weight += w; assessed = True
+            else:
+                # 目标制/反向:率类取水平目标,其余累加;无目标 → 整项剔除(不计权重)
+                q_target = level_target if is_avg else sum(mts)
+                if q_target <= 0:
+                    continue
+                if mode == 'inverse':
+                    ach = 100.0 if A <= q_target else min(q_target / A * 100.0, 100.0)
+                else:
+                    ach = min(A / q_target * 100.0, 100.0)   # 封顶 100%
+                total_score += ach * w / 100.0
+                total_weight += w; assessed = True
+        if not assessed:
+            qscores[q] = None                  # 该季不参加考核
+        elif is_cur and f < (1.0 / 6):
+            qscores[q] = None                  # 数据不足,不预测
+        else:
+            qscores[q] = round(total_score / total_weight * 100, 1) if total_weight > 0 else None
+    cur = qscores.get(cur_q)
+    done = [v for v in qscores.values() if v is not None]
+    year_avg = round(sum(done) / len(done), 1) if done else None
+    return {'month': cur, 'quarter': cur, 'year': year_avg}
+
+
 def _build_kpis(user, currency_symbol='¥', variant='default'):
     """返回 3 套粒度: month / quarter / year(前端 tab 切换),按 variant 分流指标集。"""
     from datetime import datetime
@@ -2405,6 +2522,7 @@ def build_dashboard(user, monthly_stats=None, year_total=None,
         'scope': scope,
         'todos': _build_todos(user) if 'todo' in cards else [],
         'kpis':  _build_kpis(user, db_currency_symbol, variant) if 'kpi' in cards else None,
+        'kpiScores': _kpi_score_summary(user) if 'kpi' in cards else None,
         'todayStats': _build_today_stats(user) if 'kpi' in cards else None,
         'worklog': _build_worklog(user) if 'worklog' in cards else None,
     }

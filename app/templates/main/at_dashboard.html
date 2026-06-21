@@ -194,6 +194,28 @@
           <div data-kpi-period="{{ period_key }}"
                style="display:{{ 'flex' if period_key == 'month' else 'none' }};flex-direction:column;gap:14px;
                       max-height:350px;overflow-y:auto;padding-right:14px;scrollbar-gutter:stable;">
+            {# 预测/平均绩效得分横幅(口径同绩效页:封顶100%,季用进度外推,年用已考核季均值)#}
+            {% if _kpi_items %}
+            {% set _score = (dash.kpiScores or {})[period_key] %}
+            {% set _score_lbl = _('年度平均得分') if period_key == 'year' else _('本季预测得分') %}
+            {% set _score_tone = 'var(--success)' if (_score is not none and _score >= 80)
+                                 else ('var(--warn)' if (_score is not none and _score >= 60) else 'var(--danger)') %}
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:10px;
+                        background:var(--bg-page);border:1px solid var(--line);">
+              <span class="material-symbols-outlined" style="font-size:20px;color:{{ _score_tone if _score is not none else 'var(--ink-4)' }};">{{ 'trending_up' if period_key != 'year' else 'bar_chart' }}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;color:var(--ink-2);font-weight:500;">{{ _score_lbl }}</div>
+                <div class="at-dim" style="font-size:10px;margin-top:1px;">
+                  {% if period_key == 'year' %}{{ _('已考核季度加权平均') }}{% else %}{{ _('按当前进度外推 · 加权 · 封顶100%') }}{% endif %}
+                </div>
+              </div>
+              {% if _score is not none %}
+              <span class="at-serif" style="font-size:24px;font-weight:600;color:{{ _score_tone }};letter-spacing:-0.01em;">{{ _score }}<span style="font-size:13px;font-weight:500;"> {{ _('分') }}</span></span>
+              {% else %}
+              <span class="at-dim" style="font-size:11px;font-style:italic;">{{ _('数据不足') }}</span>
+              {% endif %}
+            </div>
+            {% endif %}
             {% if not _kpi_items %}
             {# 新绩效配置框架下该用户无任何目标(角色默认+个人覆盖均空)#}
             <div style="padding:28px 12px;text-align:center;color:var(--ink-3);font-size:12.5px;">

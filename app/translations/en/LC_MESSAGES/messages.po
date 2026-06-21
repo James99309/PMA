@@ -36844,3 +36844,18 @@ msgstr "M%(m)s "
 
 msgid "%(y)s年 "
 msgstr "%(y)s "
+
+msgid "本季预测得分"
+msgstr "Projected Quarter Score"
+
+msgid "年度平均得分"
+msgstr "Annual Average Score"
+
+msgid "已考核季度加权平均"
+msgstr "Weighted average of assessed quarters"
+
+msgid "按当前进度外推 · 加权 · 封顶100%"
+msgstr "Run-rate projection · weighted · capped at 100%"
+
+msgid "数据不足"
+msgstr "Insufficient data"

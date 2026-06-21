@@ -2061,6 +2061,12 @@ class PerformanceDashboardService:
                 tiered_achievement as _tiered_achievement)
             _metric_meta = _load_meta()
 
+            # 修正实际值来源:用合格采集器(币种换算 + 合格客户/项目过滤)替代旧 goal_achievement,
+            # 与「我的 KPI」卡同源;无采集器的指标回退旧值避免回归。
+            from datetime import datetime as _dt
+            from app.helpers.at_dashboard_helpers import _KPI_ACTUAL_FNS as _ACTUAL_FNS
+            _FN_ALIAS = {'sales_target': 'sales_amount'}
+
             result = {}
             for quarter in range(1, 5):
                 start_month = (quarter - 1) * 3  # 0-indexed into goal_achievement list
@@ -2091,10 +2097,22 @@ class PerformanceDashboardService:
                         if t > 0 and level_target == 0:
                             level_target = t
 
+                    # 合格采集器修正实际(季度窗口聚合);无采集器→ c_actual=None 回退旧值
+                    _fn = _ACTUAL_FNS.get(_FN_ALIAS.get(item.item_code, metric_code))
+                    c_actual = None
+                    if _fn:
+                        _qs = _dt(year, start_month + 1, 1)
+                        _qe = _dt(year + 1, 1, 1) if quarter == 4 else _dt(year, start_month + 4, 1)
+                        try:
+                            c_actual = float(_fn(user, _qs, _qe) or 0)
+                        except Exception:
+                            c_actual = None
+
                     if mode == 'tiered':
                         # 固定档位制(植入品质):实际取季度均值(水平值),按及格/良好两线换算;
                         # 阈值写死,无目标,权重恒计入分母。
-                        q_actual = (q_actual_sum / months_with_data) if months_with_data > 0 else 0
+                        q_actual = c_actual if c_actual is not None else \
+                            ((q_actual_sum / months_with_data) if months_with_data > 0 else 0)
                         total_weight += weight
                         achievement_rate = round(_tiered_achievement(q_actual), 1)
                         weighted_score = achievement_rate * weight / 100
@@ -2102,17 +2120,20 @@ class PerformanceDashboardService:
                     elif mode == 'cumulative':
                         # 积分制:单项得分(水平值)× 实际累计,封顶权重;权重恒计入(不做=0分,不归一)
                         per_unit = level_target if level_target > 0 else 1.0
+                        _cum = c_actual if c_actual is not None else q_actual_sum
                         total_weight += weight
-                        weighted_score = min(q_actual_sum * per_unit, weight)
+                        weighted_score = min(_cum * per_unit, weight)
                         achievement_rate = round(weighted_score / weight * 100, 1) if weight > 0 else 0
-                        q_actual, q_target = q_actual_sum, per_unit
+                        q_actual, q_target = _cum, per_unit
                     else:
                         # 目标制/反向:率类取平均,其余累加;无目标→整项剔除(不计权重,与前端一致)
                         if is_avg:
-                            q_actual = (q_actual_sum / months_with_data) if months_with_data > 0 else 0
+                            q_actual = c_actual if c_actual is not None else \
+                                ((q_actual_sum / months_with_data) if months_with_data > 0 else 0)
                             q_target = level_target
                         else:
-                            q_actual, q_target = q_actual_sum, q_target_sum
+                            q_actual = c_actual if c_actual is not None else q_actual_sum
+                            q_target = q_target_sum
                         if q_target <= 0:
                             continue
                         total_weight += weight
