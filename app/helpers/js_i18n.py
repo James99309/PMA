@@ -21,8 +21,10 @@ _JS_FILES = [
     'at-file-manager-admin.js',
     'at-task-detail.js',
     'at-expense-form.js',
+    'at-target-sheet.js',
 ]
-_PAT = re.compile(r"""(?<![\w.$])t\(\s*(['"])(.*?)\1""")
+# 匹配 t('..') 与 _t('..')(带兜底前缀);均不被 \w/.$ 前导,避免命中 format( 等
+_PAT = re.compile(r"""(?<![\w.$])_?t\(\s*(['"])(.*?)\1""")
 
 
 def _has_cjk(s):

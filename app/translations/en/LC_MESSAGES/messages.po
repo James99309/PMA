@@ -36701,3 +36701,121 @@ msgstr "Migrating — please use the legacy config for now"
 
 msgid "部门预算"
 msgstr "Department Budget"
+
+
+msgid "(年→季→月)"
+msgstr " (Year→Quarter→Month)"
+
+msgid "{m}月"
+msgstr "M{m}"
+
+msgid "{q}季度"
+msgstr "Q{q}"
+
+msgid "单项得分"
+msgstr "Per-unit score"
+
+msgid "单项得分:每完成1个(按评价加权)得该分值,逐季累计封顶到权重;不做=0分"
+msgstr "Per-unit score: each completed item (weighted by rating) earns this value, accumulated by quarter capped at the weight; none = 0."
+
+msgid "固定 3/5/7"
+msgstr "Fixed 3/5/7"
+
+msgid "固定档位"
+msgstr "Fixed tiers"
+
+msgid "固定档位:阈值写死不可配,无需设目标(及格3/良好5/优秀7)"
+msgstr "Fixed tiers: thresholds are hard-coded and not configurable; no target needed (pass 3 / good 5 / excellent 7)."
+
+msgid "固定档位:阈值写死不可配——及格3→50% / 良好5→100% / 优秀7;取当期确认报价的植入品质均值换算"
+msgstr "Fixed tiers: hard-coded thresholds — pass 3→50% / good 5→100% / excellent 7; computed from the average implant quality of confirmed quotations in the period."
+
+msgid "均分"
+msgstr "even split"
+
+msgid "季"
+msgstr "Q"
+
+msgid "季/月"
+msgstr "Q/M"
+
+msgid "尚有 {n} 未分配到{p}度"
+msgstr "{n} still unallocated to the {p}"
+
+msgid "已按可分配上限截断为 {v}"
+msgstr "Truncated to the allocatable cap: {v}"
+
+msgid "年度"
+msgstr "Annual"
+
+msgid "年度盘子基准,固定 100%"
+msgstr "Annual pool baseline, fixed at 100%"
+
+msgid "年粒度:不按季/月管控节奏"
+msgstr "Annual granularity: no quarterly/monthly pacing"
+
+msgid "恢复继承:删除个人覆盖,恢复角色默认"
+msgstr "Restore inheritance: remove the personal override and revert to the role default"
+
+msgid "手工指标:点击录入{p}实际值"
+msgstr "Manual metric: click to enter the actual value for {p}"
+
+msgid "手工指标:点击录入实际值"
+msgstr "Manual metric: click to enter the actual value"
+
+msgid "手工采集指标:点击数据格上半部录入实际值"
+msgstr "Manually collected metric: click the upper part of a cell to enter the actual value"
+
+msgid "暂无考核项目"
+msgstr "No assessment items"
+
+msgid "本期确认报价的植入品质均值(只读)·及格3→50% / 良好5→100% / 优秀7"
+msgstr "Average implant quality of confirmed quotations in the period (read-only) · pass 3→50% / good 5→100% / excellent 7"
+
+msgid "权重余量不足:仅剩 {n}% 可分配"
+msgstr "Not enough weight room: only {n}% left to allocate"
+
+msgid "权重合计"
+msgstr "Total weight"
+
+msgid "权重合计(应为 100%)"
+msgstr "Total weight (should be 100%)"
+
+msgid "比率目标不能超过 100%"
+msgstr "Rate target cannot exceed 100%"
+
+msgid "水平"
+msgstr "level"
+
+msgid "点击切换粒度"
+msgstr "Click to switch granularity"
+
+msgid "目标未分摊到{p},按年度{m}推导;点击可填写显式目标"
+msgstr "Target not split to the {p}; derived from the annual by {m}; click to enter an explicit target"
+
+msgid "积分制:切换展示/计分粒度(年/季/月),单项得分不变"
+msgstr "Points mode: switch display/scoring granularity (year/quarter/month); the per-unit score is unchanged"
+
+msgid "积分制:年度列填「单项得分」,每完成1个累计计分,封顶权重"
+msgstr "Points mode: enter the 'per-unit score' in the Annual column; each completed item accumulates, capped at the weight"
+
+msgid "粒度"
+msgstr "Granularity"
+
+msgid "绩效得分 · 加权(达成率×权重,未设目标项不计入)"
+msgstr "Performance score · weighted (achievement × weight; items without a target are excluded)"
+
+msgid "考核项目"
+msgstr "Assessment item"
+
+msgid "该季度已结算锁定,不可修改"
+msgstr "This quarter is settled and locked; cannot be modified"
+
+msgid "该期完成数(自动累计)·得分=min(实际×单项得分, 权重)"
+msgstr "Completed count for the period (auto-accumulated) · score = min(actual × per-unit, weight)"
+
+msgid "超出可分配上限,已截为 {v}"
+msgstr "Exceeds the allocatable cap; truncated to {v}"
+
+msgid "超出年度余量,已截为 {v}"
+msgstr "Exceeds the annual room; truncated to {v}"

@@ -39,6 +39,9 @@
 (function (g) {
   'use strict';
 
+  // i18n: 复用 window.t(中→英,_js_i18n 注入);未注入时回退原文,确保任何页不报错
+  const _t = (g.t) ? g.t : (s => s);
+
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const r2 = v => Math.round(v * 100) / 100;
@@ -186,7 +189,7 @@
       if (!f || f.v == null) return '';
       return ` data-act="${Math.round(f.v)}" data-act-cls="${f.cls}"` +
              (f.hasT ? ' data-act-frac="1"' : '') +
-             (f.implied != null ? ` data-act-impl="${fmt(f.implied)}" title="目标未分摊到${kind === 'q' ? '季' : '月'},按年度${isRate(it) ? '水平' : '均分'}推导;点击可填写显式目标"` : '');
+             (f.implied != null ? ` data-act-impl="${fmt(f.implied)}" title="${_t('目标未分摊到{p},按年度{m}推导;点击可填写显式目标').replace('{p}', kind === 'q' ? _t('季') : _t('月')).replace('{m}', isRate(it) ? _t('水平') : _t('均分'))}"` : '');
     }
 
     const baseItem = () => cfg.weightBaseCode ? items.find(x => x.item_code === cfg.weightBaseCode) : null;
@@ -210,7 +213,7 @@
       if (cap != null && v > cap + 0.0001) {
         v = r2(cap);
         it.weight = base > 0 ? r2(v / base * 100) : it.weight;
-        g.ATToast && ATToast.error(`已按可分配上限截断为 ${v}`);
+        g.ATToast && ATToast.error(_t('已按可分配上限截断为 {v}').replace('{v}', v));
       }
       it.annual_target = v;
       resetSpread(it);
@@ -313,7 +316,7 @@
       if (field === 'annual') {
         const cap = annualCapOf(it);
         if (v != null && cap != null && v > cap + 0.0001) {
-          g.ATToast && ATToast.error(`超出可分配上限,已截为 ${r2(cap)}`);
+          g.ATToast && ATToast.error(_t('超出可分配上限,已截为 {v}').replace('{v}', r2(cap)));
           v = r2(cap);
         }
         it.annual_target = v;
@@ -336,7 +339,7 @@
         const others = weightSum() - (parseFloat(it.weight) || 0);
         const room = r2(100 - others);
         if (v != null && v > room + 0.0001) {
-          g.ATToast && ATToast.error(`权重余量不足:仅剩 ${room}% 可分配`);
+          g.ATToast && ATToast.error(_t('权重余量不足:仅剩 {n}% 可分配').replace('{n}', room));
           render(); return;
         }
         it.weight = v; markDirty(it);
@@ -346,7 +349,7 @@
         if (nv != null) {
           const cap = periodCap(it, field);
           if (nv > cap + 0.0001) {
-            g.ATToast && ATToast.error(isRate(it) ? '比率目标不能超过 100%' : `超出年度余量,已截为 ${cap}`);
+            g.ATToast && ATToast.error(isRate(it) ? _t('比率目标不能超过 100%') : _t('超出年度余量,已截为 {v}').replace('{v}', cap));
             nv = cap;
           }
         }
@@ -407,21 +410,21 @@
       const totalCols = 5 + periodCols + (personCol ? 1 : 0);
 
       let thead = `<tr>
-        <th rowspan="${monthMode ? 2 : 1}" style="width:190px;text-align:left;">${esc(cfg.nameLabel || '考核项目')}</th>
-        <th rowspan="${monthMode ? 2 : 1}" style="width:50px;">单位</th>
-        <th rowspan="${monthMode ? 2 : 1}" style="width:52px;">权重</th>
-        <th rowspan="${monthMode ? 2 : 1}" style="width:48px;">${granYear ? '粒度' : '季/月'}</th>
-        <th rowspan="${monthMode ? 2 : 1}" style="width:84px;">年度</th>
-        ${[1, 2, 3, 4].map(q => `<th ${monthMode ? 'colspan="3"' : ''}>${q}季度</th>`).join('')}
+        <th rowspan="${monthMode ? 2 : 1}" style="width:190px;text-align:left;">${esc(cfg.nameLabel || _t('考核项目'))}</th>
+        <th rowspan="${monthMode ? 2 : 1}" style="width:50px;">${_t('单位')}</th>
+        <th rowspan="${monthMode ? 2 : 1}" style="width:52px;">${_t('权重')}</th>
+        <th rowspan="${monthMode ? 2 : 1}" style="width:48px;">${granYear ? _t('粒度') : _t('季/月')}</th>
+        <th rowspan="${monthMode ? 2 : 1}" style="width:84px;">${_t('年度')}</th>
+        ${[1, 2, 3, 4].map(q => `<th ${monthMode ? 'colspan="3"' : ''}>${_t('{q}季度').replace('{q}', q)}</th>`).join('')}
         ${personCol ? `<th rowspan="${monthMode ? 2 : 1}" style="width:40px;"></th>` : ''}
       </tr>`;
       if (monthMode) {
-        thead += `<tr>${Array.from({ length: 12 }, (_, k) => `<th>${k + 1}月</th>`).join('')}</tr>`;
+        thead += `<tr>${Array.from({ length: 12 }, (_, k) => `<th>${_t('{m}月').replace('{m}', k + 1)}</th>`).join('')}</tr>`;
       }
 
       let tbody = '';
       if (!items.length) {
-        tbody = `<tr><td colspan="${totalCols}" class="at-dim" style="padding:26px;text-align:center;">暂无考核项目</td></tr>`;
+        tbody = `<tr><td colspan="${totalCols}" class="at-dim" style="padding:26px;text-align:center;">${_t('暂无考核项目')}</td></tr>`;
       }
       items.forEach((it, i) => {
         const annual = parseFloat(it.annual_target) || 0;
@@ -445,7 +448,7 @@
           const lk = fieldLocked(field);
           return `<td ${kind === 'q' && monthMode ? 'colspan="3"' : ''} class="${badCls}">
             <span class="me-act ${inf.cls}${frac ? ' me-frac' : ''}${lk ? ' ts-locked' : ''}" data-mecell="${i}|${kind}|${idx}"
-                  title="${lk ? '该季度已结算锁定,不可修改' : '手工指标:点击录入' + (kind === 'm' ? idx + '月' : idx + '季度') + '实际值'}">${inf.v != null ? Math.round(inf.v) : ''}</span>
+                  title="${lk ? _t('该季度已结算锁定,不可修改') : _t('手工指标:点击录入{p}实际值').replace('{p}', kind === 'm' ? _t('{m}月').replace('{m}', idx) : _t('{q}季度').replace('{q}', idx))}">${inf.v != null ? Math.round(inf.v) : ''}</span>
             <span class="me-tgt${lk ? ' ts-locked' : ''}" ${lk ? '' : ceAttr} data-i="${i}" data-f="${field}"${inf.implied != null ? ` data-impl="${fmt(inf.implied)}"` : ''}>${fmt(target)}</span>
           </td>`;
         };
@@ -457,7 +460,7 @@
             const v = k === 'y' ? a.y : ((a[k] || {})[idx]);
             return v != null ? (Math.round(v * 10) / 10) : '—';
           };
-          const _ttl = '本期确认报价的植入品质均值(只读)·及格3→50% / 良好5→100% / 优秀7';
+          const _ttl = _t('本期确认报价的植入品质均值(只读)·及格3→50% / 良好5→100% / 优秀7');
           if (it.gran === 'Y') {
             cells = `<td colspan="${periodCols}" class="at-dim" style="text-align:center;" title="${_ttl}">${_av('y', 0)}</td>`;
           } else if (isM) {
@@ -472,7 +475,7 @@
             const v = k === 'y' ? a.y : ((a[k] || {})[idx]);
             return v != null ? Math.round(v) : '—';
           };
-          const _ttl = '该期完成数(自动累计)·得分=min(实际×单项得分, 权重)';
+          const _ttl = _t('该期完成数(自动累计)·得分=min(实际×单项得分, 权重)');
           if (it.gran === 'Y') {
             cells = `<td colspan="${periodCols}" class="at-dim" style="text-align:center;" title="${_ttl}">${_av('y', 0)}</td>`;
           } else if (isM) {
@@ -484,25 +487,25 @@
           // 年粒度:数据区合并一格,只回显年度数(年度列编辑);手工行点击弹录入
           cells = `<td colspan="${periodCols}" class="at-dim" data-y="${i}"${actAttr(it, 'y', 0, it.annual_target)}${isManual ? ` data-mecell="${i}|y|0"` : ''}
                        style="text-align:center;${isManual ? 'cursor:pointer;' : ''}"
-                       title="${isManual ? '手工指标:点击录入实际值' : '年粒度:不按季/月管控节奏'}">${fmt(it.annual_target)}</td>`;
+                       title="${isManual ? _t('手工指标:点击录入实际值') : _t('年粒度:不按季/月管控节奏')}">${fmt(it.annual_target)}</td>`;
         } else if (isM) {
           for (let m = 1; m <= 12; m++) {
             const lk = fieldLocked('m' + m);
             cells += isManual ? meCell('m', m, 'm' + m, it.monthly_targets[String(m)])
-              : `<td ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="该季度已结算锁定,不可修改"' : ''} data-i="${i}" data-f="m${m}"${actAttr(it, 'm', m, it.monthly_targets[String(m)])}>${fmt(it.monthly_targets[String(m)])}</td>`;
+              : `<td ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="' + _t('该季度已结算锁定,不可修改') + '"' : ''} data-i="${i}" data-f="m${m}"${actAttr(it, 'm', m, it.monthly_targets[String(m)])}>${fmt(it.monthly_targets[String(m)])}</td>`;
           }
         } else {
           // 月表头模式下季考行跨 3 列;纯季模式一格一列
           for (let q = 1; q <= 4; q++) {
             const lk = fieldLocked('q' + q);
             cells += isManual ? meCell('q', q, 'q' + q, it['q' + q + '_target'])
-              : `<td ${monthMode ? 'colspan="3"' : ''} ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="该季度已结算锁定,不可修改"' : ''} data-i="${i}" data-f="q${q}"${actAttr(it, 'q', q, it['q' + q + '_target'])}>${fmt(it['q' + q + '_target'])}</td>`;
+              : `<td ${monthMode ? 'colspan="3"' : ''} ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="' + _t('该季度已结算锁定,不可修改') + '"' : ''} data-i="${i}" data-f="q${q}"${actAttr(it, 'q', q, it['q' + q + '_target'])}>${fmt(it['q' + q + '_target'])}</td>`;
           }
         }
 
         const isBase = cfg.weightBaseCode && it.item_code === cfg.weightBaseCode;
         const weightCell = isBase
-          ? `<td title="年度盘子基准,固定 100%"><span style="font-weight:600;color:var(--ink);">100%</span></td>`
+          ? `<td title="${_t('年度盘子基准,固定 100%')}"><span style="font-weight:600;color:var(--ink);">100%</span></td>`
           : weightEditable
           ? `<td contenteditable spellcheck="false" style="color:var(--accent);font-weight:600;" data-i="${i}" data-f="weight">${it.weight != null ? it.weight + '%' : ''}</td>`
           : `<td>${it.weight != null ? `<span style="color:var(--accent);font-weight:600;">${it.weight}%</span>` : '<span class="at-dim">—</span>'}</td>`;
@@ -510,7 +513,7 @@
         // person:已覆盖或有未保存变更 → 行尾恢复继承图标(出现即表示该项已自定义)
         const revertCell = personCol
           ? `<td>${(canEdit && (it.overridden || it._dirty))
-              ? `<button type="button" class="at-revert-btn" data-revert="${i}" title="恢复继承:删除个人覆盖,恢复角色默认"><span class="material-symbols-outlined" style="font-size:16px;">history</span></button>` : ''}</td>`
+              ? `<button type="button" class="at-revert-btn" data-revert="${i}" title="${_t('恢复继承:删除个人覆盖,恢复角色默认')}"><span class="material-symbols-outlined" style="font-size:16px;">history</span></button>` : ''}</td>`
           : '';
 
         // 非方案角色(role 模式且未锁定):保留启用勾选,决定该角色考核哪些项
@@ -527,23 +530,23 @@
               ${it.indent ? '<span style="color:var(--ink-4);flex-shrink:0;">└</span>' : ''}
               ${chk}
               <span style="font-weight:${it.strong ? 600 : 500};${it.strong ? 'font-size:13px;' : ''}color:var(--ink);overflow:hidden;text-overflow:ellipsis;" title="${esc(it.item_name)}">${esc(it.item_name)}</span>
-              ${isManual ? `<span class="material-symbols-outlined" title="手工采集指标:点击数据格上半部录入实际值"
+              ${isManual ? `<span class="material-symbols-outlined" title="${_t('手工采集指标:点击数据格上半部录入实际值')}"
                   style="font-size:13px;color:var(--ink-4);flex-shrink:0;cursor:help;">stylus_note</span>` : ''}
-              ${isCumulative(it) ? `<span style="flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:6px;background:var(--bg-sunk,#eef);color:var(--ink-3,#667);" title="积分制:年度列填「单项得分」,每完成1个累计计分,封顶权重">单项得分</span>` : ''}
-              ${_tier ? `<span style="flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:6px;background:var(--bg-sunk,#eef);color:var(--ink-3,#667);" title="固定档位:阈值写死不可配——及格3→50% / 良好5→100% / 优秀7;取当期确认报价的植入品质均值换算">固定档位</span>` : ''}
+              ${isCumulative(it) ? `<span style="flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:6px;background:var(--bg-sunk,#eef);color:var(--ink-3,#667);" title="${_t('积分制:年度列填「单项得分」,每完成1个累计计分,封顶权重')}">${_t('单项得分')}</span>` : ''}
+              ${_tier ? `<span style="flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:6px;background:var(--bg-sunk,#eef);color:var(--ink-3,#667);" title="${_t('固定档位:阈值写死不可配——及格3→50% / 良好5→100% / 优秀7;取当期确认报价的植入品质均值换算')}">${_t('固定档位')}</span>` : ''}
             </div>
             ${(cfg.showDesc && it.description) ? `<div class="at-dim" style="font-size:10.5px;margin-top:2px;line-height:1.4;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${esc(it.description)}">${esc(it.description)}</div>` : ''}
           </td>
           <td class="at-dim" style="font-size:11.5px;">${esc(it.unit || '—')}</td>
           ${weightCell}
           <td>${canEdit
-            ? `<button type="button" class="cm-gran-btn" data-gran="${i}" title="${isCumulative(it) ? '积分制:切换展示/计分粒度(年/季/月),单项得分不变' : '点击切换粒度' + (granYear ? '(年→季→月)' : '')}">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</button>`
-            : `<span class="at-dim" style="font-size:11.5px;">${it.gran === 'Y' ? '年' : (isM ? '月' : '季')}</span>`}</td>
+            ? `<button type="button" class="cm-gran-btn" data-gran="${i}" title="${isCumulative(it) ? _t('积分制:切换展示/计分粒度(年/季/月),单项得分不变') : _t('点击切换粒度') + (granYear ? _t('(年→季→月)') : '')}">${it.gran === 'Y' ? _t('年') : (isM ? _t('月') : _t('季'))}</button>`
+            : `<span class="at-dim" style="font-size:11.5px;">${it.gran === 'Y' ? _t('年') : (isM ? _t('月') : _t('季'))}</span>`}</td>
           ${_tier
-            ? `<td class="at-dim" style="text-align:center;font-size:11px;" title="固定档位:阈值写死不可配,无需设目标(及格3/良好5/优秀7)">固定 3/5/7</td>`
+            ? `<td class="at-dim" style="text-align:center;font-size:11px;" title="${_t('固定档位:阈值写死不可配,无需设目标(及格3/良好5/优秀7)')}">${_t('固定 3/5/7')}</td>`
             : `<td ${ceAttr} data-i="${i}" data-f="annual"${(it.gran === 'Y' || isCumulative(it)) ? '' : actAttr(it, 'y', 0, it.annual_target)}
               style="font-weight:500;${underAlloc ? 'color:var(--ink-4);' : ''}"
-              title="${isCumulative(it) ? '单项得分:每完成1个(按评价加权)得该分值,逐季累计封顶到权重;不做=0分' : (underAlloc ? '尚有 ' + r2(annual - sum) + ' 未分配到' + (isM ? '月' : '季') + '度' : '')}">${fmt(it.annual_target)}</td>`}
+              title="${isCumulative(it) ? _t('单项得分:每完成1个(按评价加权)得该分值,逐季累计封顶到权重;不做=0分') : (underAlloc ? _t('尚有 {n} 未分配到{p}度').replace('{n}', r2(annual - sum)).replace('{p}', isM ? _t('月') : _t('季')) : '')}">${fmt(it.annual_target)}</td>`}
           ${cells}
           ${revertCell}
         </tr>`;
@@ -555,19 +558,19 @@
         const _sc = v => {
           if (v == null) return '<span class="at-dim">—</span>';
           const c = v >= 80 ? 'var(--success)' : (v >= 60 ? 'var(--warn)' : 'var(--danger)');
-          return `<span style="font-weight:600;color:${c};">${fmt(v)}</span><span class="at-dim" style="font-size:10px;"> 分</span>`;
+          return `<span style="font-weight:600;color:${c};">${fmt(v)}</span><span class="at-dim" style="font-size:10px;"> ${_t('分')}</span>`;
         };
         // 权重合计:应为 100%,偏离标橙
         const wsTotal = weightSum();
         const wsColor = Math.abs(wsTotal - 100) < 0.01 ? 'var(--success)' : 'var(--warn)';
         const wsCell = weightEditable
-          ? `<td style="text-align:center;font-weight:600;color:${wsColor};" title="权重合计(应为 100%)">${fmt(wsTotal)}%</td>`
+          ? `<td style="text-align:center;font-weight:600;color:${wsColor};" title="${_t('权重合计(应为 100%)')}">${fmt(wsTotal)}%</td>`
           : '<td></td>';
         let qCells = '';
         for (let q = 1; q <= 4; q++) {
           qCells += `<td ${monthMode ? 'colspan="3"' : ''} style="text-align:center;">${showScore ? _sc(periodScore('q', q)) : ''}</td>`;
         }
-        const label = showScore ? '绩效得分 · 加权(达成率×权重,未设目标项不计入)' : '权重合计';
+        const label = showScore ? _t('绩效得分 · 加权(达成率×权重,未设目标项不计入)') : _t('权重合计');
         tfoot = `<tfoot><tr style="background:var(--bg-sunk);border-top:2px solid var(--line);">
           <td colspan="2" class="cm-name" style="font-weight:600;">${label}</td>
           ${wsCell}
@@ -594,7 +597,7 @@
           const [i, kind, idx] = td.dataset.mecell.split('|');
           const lk = kind === 'm' ? lockedQ.has(Math.ceil(parseInt(idx) / 3))
                    : kind === 'q' ? lockedQ.has(parseInt(idx)) : false;
-          if (lk) { g.ATToast && ATToast.error('该季度已结算锁定,不可修改'); return; }
+          if (lk) { g.ATToast && ATToast.error(_t('该季度已结算锁定,不可修改')); return; }
           cfg.onManualEdit && cfg.onManualEdit(items[parseInt(i)], { kind, idx: parseInt(idx) });
         }));
       el.querySelectorAll('[data-enable]').forEach(c =>
