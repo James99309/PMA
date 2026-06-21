@@ -136,9 +136,10 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
 .rfoot { position: running(rfoot); }
 @media print {
   body { background: #fff; padding: 0; margin: 0; }
-  /* 每个 .page = 一个区块,从新页开始;高度随内容流动,不再裁切 */
+  /* 每个 .page = 一个区块,从新页开始;高度随内容流动,不再裁切;
+     宽度改 auto 填满 @page 内容区(否则 210mm 塞进 166mm → 右侧被裁) */
   .page {
-    box-shadow: none; margin: 0; padding: 0;
+    box-shadow: none; margin: 0; padding: 0; width: auto;
     min-height: 0; height: auto; overflow: visible; display: block;
   }
   .page-body { overflow: visible; padding-bottom: 0; }
@@ -158,7 +159,7 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
   }
   /* 封面整页满铺:首页无页边距与页眉脚 */
   @page cover { margin: 0; @top-left { content: none; } @bottom-left { content: none; } @bottom-right { content: none; } }
-  .page.cover-page { page: cover; padding: 24mm 22mm; }
+  .page.cover-page { page: cover; padding: 24mm 22mm; width: 210mm; }
 }
 /* running 页眉/页脚外观 */
 .rhead { align-items: center; gap: 3mm; border-bottom: 1px solid var(--rule);

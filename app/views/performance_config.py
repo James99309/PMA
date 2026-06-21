@@ -2808,7 +2808,8 @@ def export_quarter_report(user_id, year, quarter):
         pdf = HTML(string=html, base_url=current_app.static_folder).write_pdf(font_config=FontConfiguration())
         resp = make_response(pdf)
         resp.headers['Content-Type'] = 'application/pdf'
-        fname = f"绩效评估_{ctx['user_name']}_{year}Q{quarter}.pdf"
+        _pfx = 'Performance_Review' if ctx['lang'] == 'en' else '绩效评估'
+        fname = f"{_pfx}_{ctx['user_name']}_{year}Q{quarter}.pdf"
         from urllib.parse import quote
         resp.headers['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(fname)}"
         return resp
