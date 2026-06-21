@@ -2802,6 +2802,8 @@ def api_user_actuals(user_id, year):
             return jsonify({'success': True, 'data': {}})
 
         from app.helpers.at_dashboard_helpers import _KPI_ACTUAL_FNS
+        from config import Config
+        _DIVISOR = float(Config.AMOUNT_DIVISOR)       # 基础币种→显示单位(CN万=10000 / SG千=1000)
         _ALIAS = {'sales_target': 'sales_amount'}     # 定义表 code → 看板 code
         _AMOUNT = {
             'sales_target', 'implant_amount',
@@ -2817,7 +2819,7 @@ def api_user_actuals(user_id, year):
             fn = _KPI_ACTUAL_FNS.get(_ALIAS.get(code, code))
             if not fn:
                 continue
-            scale = 10000.0 if code in _AMOUNT else 1.0
+            scale = _DIVISOR if code in _AMOUNT else 1.0   # 金额按实例进制(CN万/SG千)折算,与目标/单位一致
             row = {'m': {}, 'q': {}, 'y': None}
             for m in range(1, 13):
                 s = datetime(year, m, 1)
