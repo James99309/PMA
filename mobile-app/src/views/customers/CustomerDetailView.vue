@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getCustomer, addCustomerNote, addContact } from '@/api/customers'
+import { getCustomer, addCustomerNote, addContact, getCustomerSharing, updateCustomerSharing } from '@/api/customers'
 import client      from '@/api/client'
 import NavBar      from '@/components/common/NavBar.vue'
 import Section     from '@/components/common/Section.vue'
@@ -10,6 +10,7 @@ import StageDot    from '@/components/common/StageDot.vue'
 import Avatar      from '@/components/common/Avatar.vue'
 import FilledField from '@/components/common/FilledField.vue'
 import NoteSheet   from '@/components/common/NoteSheet.vue'
+import MultiPersonPickerSheet from '@/components/common/MultiPersonPickerSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -102,7 +103,40 @@ function openProject(id) {
   router.push(`/projects/${id}`)
 }
 
-onMounted(load)
+// ─── Sharing (reuses web SharingService via mobile API + common picker) ───
+const canShare = ref(false)
+const shareOptions = ref([])
+const shareSelected = ref([])
+const showSharePicker = ref(false)
+const shareToast = ref('')
+async function loadSharing() {
+  try {
+    const res = await getCustomerSharing(route.params.id)
+    const d = res.data?.data || {}
+    canShare.value = !!d.can_edit
+    shareOptions.value = d.options || []
+    shareSelected.value = d.selected || []
+  } catch {
+    canShare.value = false
+  }
+}
+async function onShareSelected(ids) {
+  const prev = shareSelected.value
+  shareSelected.value = ids
+  try {
+    const res = await updateCustomerSharing(route.params.id, ids)
+    shareSelected.value = res.data?.data?.selected || ids
+    shareToast.value = ids.length
+      ? t('customer.shareSavedN', { n: ids.length })
+      : t('customer.shareCleared')
+    setTimeout(() => { shareToast.value = '' }, 1800)
+  } catch (e) {
+    shareSelected.value = prev
+    alert(e.response?.data?.message || t('customer.shareFail'))
+  }
+}
+
+onMounted(() => { load(); loadSharing() })
 </script>
 
 <template>
@@ -170,6 +204,17 @@ onMounted(load)
             <path d="M9 2v14M2 9h14" stroke="var(--color-ink-2)" stroke-width="2" stroke-linecap="round" />
           </svg>
           <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">{{ t('customer.followUp') }}</span>
+        </button>
+        <button v-if="canShare" @click="showSharePicker = true" type="button"
+          class="h-12 px-3.5 rounded-2xl flex items-center gap-1.5 active:opacity-70 shrink-0"
+          style="background: var(--color-card); border: 1px solid var(--color-divider);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="pointer-events: none;">
+            <path d="M18 8a3 3 0 100-6 3 3 0 000 6zM6 15a3 3 0 100-6 3 3 0 000 6zM18 22a3 3 0 100-6 3 3 0 000 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4"
+              stroke="var(--color-ink-2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">
+            {{ shareSelected.length ? t('customer.sharedN', { n: shareSelected.length }) : t('customer.share') }}
+          </span>
         </button>
       </div>
 
@@ -481,6 +526,25 @@ onMounted(load)
             @click.stop="closeCardImage">×</button>
           <img :src="viewingCardFullUrl" class="block"
             style="max-width: 95vw; max-height: 80vh; object-fit: contain;" />
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Customer sharing: reuse the common multi-person picker -->
+    <MultiPersonPickerSheet
+      v-model="showSharePicker"
+      :title="t('customer.shareTitle')"
+      :options="shareOptions"
+      :selected="shareSelected"
+      @update:selected="onShareSelected" />
+
+    <!-- Sharing-saved toast -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="shareToast" class="fixed left-1/2 z-[60]"
+          style="bottom: 90px; transform: translateX(-50%); background: rgba(20,20,20,0.88);
+                 color: #fff; font-size: 13px; padding: 9px 16px; border-radius: 999px; white-space: nowrap;">
+          {{ shareToast }}
         </div>
       </Transition>
     </Teleport>
