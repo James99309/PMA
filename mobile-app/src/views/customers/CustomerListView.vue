@@ -368,8 +368,8 @@ onMounted(() => {
                 <Highlight :text="c.name" :query="search.trim()" />
               </div>
               <div class="text-[15px] font-semibold tabular whitespace-nowrap">
-                <template v-if="c.value > 0">
-                  {{ t('project.amountWan', { amount: c.value.toFixed(2) }) }}
+                <template v-if="c.value_display">
+                  {{ c.value_display }}
                 </template>
                 <span v-else class="text-[13px]" style="color: var(--color-ink-3);">—</span>
               </div>

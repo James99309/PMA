@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuthStore } from '@/stores/auth'
 import { getCustomer, addCustomerNote, addContact } from '@/api/customers'
 import client      from '@/api/client'
 import NavBar      from '@/components/common/NavBar.vue'
@@ -15,8 +14,6 @@ import NoteSheet   from '@/components/common/NoteSheet.vue'
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const auth = useAuthStore()
-const curSymbol = computed(() => auth.regionId === 'sg' ? '$' : '¥')
 const company = ref(null)
 const loading = ref(true)
 
@@ -153,7 +150,7 @@ onMounted(load)
         <div class="mt-6 flex items-baseline gap-2">
           <span class="font-serif font-medium tabular"
             style="font-size: 44px; color: var(--color-ink);">
-            {{ curSymbol }}{{ (company.value ?? 0).toFixed(2) }}
+            {{ company.value_display || '—' }}
           </span>
           <span class="text-[14px]" style="color: var(--color-ink-3);">{{ t('customer.cumulativeValue') }}</span>
         </div>
@@ -226,8 +223,8 @@ onMounted(load)
               <div class="mt-1"><StageDot :tone="p.tone" :label="p.stage_label" /></div>
             </div>
             <div class="text-[14px] font-semibold tabular whitespace-nowrap">
-              <template v-if="p.amount > 0">
-                {{ t('project.amountWan', { amount: p.amount.toFixed(2) }) }}
+              <template v-if="p.amount_display">
+                {{ p.amount_display }}
               </template>
               <span v-else class="text-[13px]" style="color: var(--color-ink-3);">—</span>
             </div>

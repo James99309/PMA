@@ -4,8 +4,9 @@
   与 ReceiptCaptureView 共享同一套 capture/crop/preview UI
 -->
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import DocumentScanFlow from '@/components/common/DocumentScanFlow.vue'
 import OcrProcessingAnimation from '@/components/common/OcrProcessingAnimation.vue'
 import { useCardScanStore } from '@/stores/cardScan'
@@ -13,19 +14,23 @@ import { scanBusinessCard } from '@/api/customers'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const scanStore = useCardScanStore()
 
 const processing = ref(false)
 const error = ref('')
 
-// 名片识别字段揭示动画 (与 OCR 实际返回字段对齐)
-const ocrFields = [
-  { label: '姓名',     val: '识别中...', confident: true },
-  { label: '公司',     val: '识别中...', confident: true },
-  { label: '职务',     val: '识别中...', confident: true },
-  { label: '电话',     val: '识别中...', confident: true },
-  { label: '邮箱',     val: '识别中...', confident: false },
-]
+// Field-reveal animation rows (aligned with the OCR-returned fields)
+const ocrFields = computed(() => {
+  const v = t('cardScan.capRecognizing')
+  return [
+    { label: t('cardScan.capFName'),     val: v, confident: true },
+    { label: t('cardScan.capFCompany'),  val: v, confident: true },
+    { label: t('cardScan.capFPosition'), val: v, confident: true },
+    { label: t('cardScan.capFPhone'),    val: v, confident: true },
+    { label: t('cardScan.capFEmail'),    val: v, confident: false },
+  ]
+})
 
 onMounted(() => {
   scanStore.clear()
@@ -52,7 +57,7 @@ async function uploadAndOCR(blob, dataUrl) {
     const res = await scanBusinessCard(blob, `business_card_${Date.now()}.jpg`)
     const data = res.data?.data
     if (!res.data?.success || !data?.fields) {
-      error.value = res.data?.message || '识别失败'
+      error.value = res.data?.message || t('cardScan.capScanFail')
       processing.value = false
       return
     }
@@ -64,7 +69,7 @@ async function uploadAndOCR(blob, dataUrl) {
     })
     router.replace('/customers/scan/confirm')
   } catch (e) {
-    error.value = `请求失败: ${e?.message || e}`
+    error.value = t('cardScan.capRequestFailFmt', { err: e?.message || e })
     processing.value = false
   }
 }
@@ -76,8 +81,8 @@ async function uploadAndOCR(blob, dataUrl) {
     <div v-if="processing" class="h-full" style="background: var(--color-ex-bg, #F7F5F2);">
       <OcrProcessingAnimation
         :card-count="1"
-        title="正在识别名片"
-        subtitle="通常 2-5 秒"
+        :title="t('cardScan.capScanTitle')"
+        :subtitle="t('cardScan.capScanSubtitle')"
         :fields="ocrFields"
         :error="error"
         @retry="processing = false; error = ''"
@@ -88,9 +93,9 @@ async function uploadAndOCR(blob, dataUrl) {
     <DocumentScanFlow
       v-else
       :allow-multi="false"
-      capture-tip="把名片放在桌面平整位置, 设备保持稳定 1-2 秒等聚焦, 系统会自动捕捉, 也可以手动按白色快门"
-      preview-tip="看清楚名片再识别"
-      primary-label="AI 识别"
+      :capture-tip="t('cardScan.capCaptureTip')"
+      :preview-tip="t('cardScan.capPreviewTip')"
+      :primary-label="t('cardScan.capPrimaryLabel')"
       @done="onDone"
       @cancel="$router.back()"
     />
