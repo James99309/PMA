@@ -84,12 +84,17 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 
   const COMPANIES = {{ companies | tojson }};
+  // 跨 tab 记忆所选公司/人员(个人配置 4 tab 共用同一 key;?user= 锁定时不读取)
+  const _PCKEY = { co: 'at_pcfg_company', uid: 'at_pcfg_user' };
+  const _lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const _lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   let _userId = null, _overridden = {}, guard = null;
   let _company = COMPANIES[0] || '';
+  { const c = _lsGet(_PCKEY.co); if (c && COMPANIES.includes(c)) _company = c; }
   const usersOf = () => USERS.filter(u => u.company === _company);
 
   window.ppCompanyChange = function (c) {
-    _company = c;
+    _company = c; _lsSet(_PCKEY.co, c);
     const list = usersOf();
     if (list.length) ppSelect(list[0].id);
     else {
@@ -130,7 +135,7 @@
   });
 
   // ── 人员下拉:公用组件(搜索+部门分组),替代原内联实现 ──
-  window.ppSelect = function (id) { guard.attempt(function () { _userId = id; ppLoad(); }); };
+  window.ppSelect = function (id) { guard.attempt(function () { _userId = id; _lsSet(_PCKEY.uid, id); ppLoad(); }); };
   window.ppCompanyGuarded = function (sel) {
     guard.attempt(function () { ppCompanyChange(sel.value); }, function () { sel.value = _company; });
   };
@@ -255,6 +260,12 @@
     if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
     ppSelect(_pre.id);
   }
-  else if (usersOf().length) ppSelect(usersOf()[0].id);
+  else {
+    const list = usersOf();
+    const su = parseInt(_lsGet(_PCKEY.uid));
+    const pick = list.find(u => u.id === su) ? su : (list[0] && list[0].id);
+    const _cs = document.getElementById('ppCompany'); if (_cs && !_cs.disabled) _cs.value = _company;
+    if (pick != null) ppSelect(pick);
+  }
 </script>
 {% endblock %}

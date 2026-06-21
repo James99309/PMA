@@ -107,6 +107,7 @@
   window.cmSelectRole = function (role) {
     guard.attempt(function () {
       _roleCode = role;
+      try { localStorage.setItem('at_rcfg_role', role); } catch (e) {}   // 跨 tab 记忆所选角色
       document.getElementById('cmRoleMenu').style.display = 'none';
       cmLoad();
     });
@@ -182,6 +183,9 @@
     saveConfirm: { message: I.saveConfirm },
   });
 
-  if (ROLES.length) cmSelectRole(ROLES[0].role);
+  if (ROLES.length) {
+    let _sr = null; try { _sr = localStorage.getItem('at_rcfg_role'); } catch (e) {}
+    cmSelectRole(ROLES.some(r => r.role === _sr) ? _sr : ROLES[0].role);
+  }
 </script>
 {% endblock %}

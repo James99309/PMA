@@ -96,12 +96,17 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','"':'&quot;','>':'&gt;'})[c]);
   const _money = n => CURRENCY_SYMBOL + Number(n).toLocaleString('en-US');
 
+  // 跨 tab 记忆所选公司/人员(个人配置 4 tab 共用同一 key)
+  const _PCKEY = { co: 'at_pcfg_company', uid: 'at_pcfg_user' };
+  const _lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const _lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   let _userId = null, _noDeptBudget = false, guard = null;
   let _company = COMPANIES[0] || '';
+  { const c = _lsGet(_PCKEY.co); if (c && COMPANIES.includes(c)) _company = c; }
   const usersOf = () => USERS.filter(u => u.company === _company);
 
   window.pbCompanyChange = function (c) {
-    _company = c;
+    _company = c; _lsSet(_PCKEY.co, c);
     const list = usersOf();
     if (list.length) pbSelect(list[0].id);
     else {
@@ -163,7 +168,7 @@
 
   window.pbSelect = function (id) {
     guard.attempt(function () {
-      _userId = id;
+      _userId = id; _lsSet(_PCKEY.uid, id);
       document.getElementById('pbUserMenu').style.display = 'none';
       pbLoad();
     });
@@ -251,7 +256,13 @@
     if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
     pbSelect(_pre.id);
   }
-  else if (usersOf().length) pbSelect(usersOf()[0].id);
+  else if (usersOf().length) {
+    const list = usersOf();
+    const su = parseInt(_lsGet(_PCKEY.uid));
+    const pick = list.find(u => u.id === su) ? su : list[0].id;
+    const _cs = document.getElementById('pbCompany'); if (_cs && !_cs.disabled) _cs.value = _company;
+    pbSelect(pick);
+  }
   else document.getElementById('pbSheet').innerHTML =
     '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">' + I.noStaffCur + '</div>';
 </script>

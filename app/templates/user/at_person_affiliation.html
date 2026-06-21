@@ -84,14 +84,19 @@
   const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 
+  // 跨 tab 记忆所选公司/人员(个人配置 4 tab 共用同一 key)
+  const _PCKEY = { co: 'at_pcfg_company', uid: 'at_pcfg_user' };
+  const _lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const _lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   let _userId = null, guard = null;  // 被配置者(viewer)
   let _selected = new Set();         // 已点亮的 owner ids
   let _loaded = new Set();           // 加载时的集合(算 dirty)
   let _company = COMPANIES[0] || '';
+  { const c = _lsGet(_PCKEY.co); if (c && COMPANIES.includes(c)) _company = c; }
   const usersOf = () => USERS.filter(u => u.company === _company);
 
   window.afCompanyChange = function (c) {
-    _company = c;
+    _company = c; _lsSet(_PCKEY.co, c);
     const list = usersOf();
     if (list.length) afSelect(list[0].id);
     else {
@@ -111,7 +116,7 @@
 
   window.afSelect = function (id) {
     guard.attempt(function () {
-      _userId = id;
+      _userId = id; _lsSet(_PCKEY.uid, id);
       document.getElementById('afUserMenu').style.display = 'none';
       afLoad();
     });
@@ -212,6 +217,12 @@
     if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
     afSelect(_pre.id);
   }
-  else if (usersOf().length) afSelect(usersOf()[0].id);
+  else {
+    const list = usersOf();
+    const su = parseInt(_lsGet(_PCKEY.uid));
+    const pick = list.find(u => u.id === su) ? su : (list[0] && list[0].id);
+    const _cs = document.getElementById('afCompany'); if (_cs && !_cs.disabled) _cs.value = _company;
+    if (pick != null) afSelect(pick);
+  }
 </script>
 {% endblock %}
