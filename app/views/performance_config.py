@@ -1455,6 +1455,10 @@ def get_preset_performance_items():
     amount_unit = unit_config['amount_unit']
     count_unit = unit_config['count_unit']
     lang = unit_config['lang']
+    # 金额单位带货币符号,明确币种+量级: CN ¥万 / SG $M(去掉 CNY 的"元"冗余)
+    _sym = unit_config['symbol']
+    _mag = '万' if unit_config['currency'] == 'CNY' else amount_unit
+    amount_unit_disp = f"{_sym}{_mag}"
 
     # 从数据库获取所有激活的绩效指标
     metrics = PerformanceMetricsDefinition.query.filter_by(is_active=True).all()
@@ -1501,7 +1505,7 @@ def get_preset_performance_items():
     for m in metrics:
         # 根据数据类型选择单位
         if m.data_type == 'amount':
-            unit = amount_unit
+            unit = amount_unit_disp   # 带货币符号(¥万 / $M)
         elif m.data_type == 'count':
             unit = count_unit
         elif m.data_type == 'percentage':
