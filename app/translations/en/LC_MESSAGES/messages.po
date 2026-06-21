@@ -36652,3 +36652,52 @@ msgstr "Assessment items for this role are fixed by the position scheme"
 
 msgid "配置管理 → 绩效配置"
 msgstr "Config → Performance"
+
+
+msgid "{n}人"
+msgstr "{n}"
+
+msgid "ⓘ 填年度后自动均分到季/月,可在周期间调剂,合计封顶不超年度;比率类(%)为水平目标;权重可改,余量为 0 时只能调低/挪移;点「季/月」切换粒度(任一行月考时才展开月份表头)。"
+msgstr "ⓘ Enter the annual target and it is split evenly across quarters/months, adjustable between periods, capped at the annual total; rate (%) items are level targets; weights are editable — when the remaining room is 0 you can only lower or shift; click 'Q/M' to switch granularity (month headers appear only when any row is assessed monthly)."
+
+msgid "旧版配置管理 →"
+msgstr "Legacy config →"
+
+msgid "权重余量 {n}%"
+msgstr "Weight room {n}%"
+
+msgid "权重余量为负,请调整后再保存"
+msgstr "Weight room is negative, please adjust before saving"
+
+msgid "流程配置"
+msgstr "Workflows"
+
+msgid "确认保存该角色的绩效目标?"
+msgstr "Save this role's performance targets?"
+
+msgid "绩效配置 · 角色目标"
+msgstr "Performance · Role Targets"
+
+msgid "考核项与权重由岗位方案固定;此处设置角色默认目标,成员自动继承,个别差异在「个人配置」覆盖。"
+msgstr "Assessment items and weights are fixed by the position scheme; here you set the role default targets, members inherit automatically, and individual differences are overridden in Personal Config."
+
+msgid "考核项由岗位方案固定"
+msgstr "Assessment items are fixed by the position scheme"
+
+msgid "薪资审批"
+msgstr "Salary Approval"
+
+msgid "角色默认目标 · {n} 名成员继承"
+msgstr "Role default targets · inherited by {n} member(s)"
+
+msgid "角色默认目标已保存"
+msgstr "Role default targets saved"
+
+msgid "请选择角色…"
+msgstr "Please select a role…"
+
+msgid "迁移中,暂在旧版配置管理操作"
+msgstr "Migrating — please use the legacy config for now"
+
+msgid "部门预算"
+msgstr "Department Budget"

@@ -1,8 +1,8 @@
 {% extends 'components/at_config_layout.html' %}
 {% set cfg_active = 'performance' %}
 
-{% block config_title %}绩效配置 · 角色目标{% endblock %}
-{% block config_desc %}考核项与权重由岗位方案固定;此处设置角色默认目标,成员自动继承,个别差异在「个人配置」覆盖。{% endblock %}
+{% block config_title %}{{ _('绩效配置 · 角色目标') }}{% endblock %}
+{% block config_desc %}{{ _('考核项与权重由岗位方案固定;此处设置角色默认目标,成员自动继承,个别差异在「个人配置」覆盖。') }}{% endblock %}
 
 {% block extra_head %}
 <script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
@@ -12,7 +12,7 @@
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
     <div style="position:relative;">
       <button type="button" class="cm-role-btn" onclick="cmToggleRoleMenu(event)">
-        <span id="cmRoleName">选择角色</span>
+        <span id="cmRoleName">{{ _('选择角色') }}</span>
         <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
       </button>
       <div id="cmRoleMenu" class="cm-role-menu" style="display:none;"></div>
@@ -27,16 +27,31 @@
   </div>
 
   <div id="cmSheet" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);min-height:240px;padding:1px;">
-    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">请选择角色…</div>
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">{{ _('请选择角色…') }}</div>
   </div>
   <div class="at-dim" style="font-size:11px;margin-top:8px;">
-    ⓘ 填年度后自动均分到季/月,可在周期间调剂,合计封顶不超年度;比率类(%)为水平目标;
-    权重可改,余量为 0 时只能调低/挪移;点「季/月」切换粒度(任一行月考时才展开月份表头)。
+    {{ _('ⓘ 填年度后自动均分到季/月,可在周期间调剂,合计封顶不超年度;比率类(%)为水平目标;权重可改,余量为 0 时只能调低/挪移;点「季/月」切换粒度(任一行月考时才展开月份表头)。') }}
   </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+  const I = {
+    weightRoomFmt: {{ _('权重余量 {n}%')|tojson }},
+    schemeBadge:   {{ _('方案')|tojson }},
+    schemeTip:     {{ _('考核项由岗位方案固定')|tojson }},
+    peopleFmt:     {{ _('{n}人')|tojson }},
+    yearFmt:       {{ _('{y} 年')|tojson }},
+    selectRole:    {{ _('选择角色')|tojson }},
+    roleSubFmt:    {{ _('角色默认目标 · {n} 名成员继承')|tojson }},
+    loadFail:      {{ _('加载失败')|tojson }},
+    weightNeg:     {{ _('权重余量为负,请调整后再保存')|tojson }},
+    savedRole:     {{ _('角色默认目标已保存')|tojson }},
+    saveFail:      {{ _('保存失败')|tojson }},
+    saveFailRetry: {{ _('保存失败,请重试')|tojson }},
+    saveConfirm:   {{ _('确认保存该角色的绩效目标?')|tojson }},
+  };
+
   const ROLES = {{ roles_data | tojson }};
   const CAN_EDIT = {{ can_edit | tojson }};
   const CUR_YEAR = {{ current_year }};
@@ -58,7 +73,7 @@
   function updateWeightRoom() {
     const room = Math.round((100 - sheet.weightSum()) * 10) / 10;
     const wEl = document.getElementById('cmWeightSum');
-    wEl.textContent = `权重余量 ${room}%`;
+    wEl.textContent = I.weightRoomFmt.replace('{n}', room);
     wEl.style.color = room === 0 ? 'var(--success)' : (room < 0 ? 'var(--danger)' : 'var(--ink-3)');
   }
 
@@ -67,8 +82,8 @@
       <div class="cm-role-item${r.role === _roleCode ? ' active' : ''}" onclick="cmSelectRole('${r.role}')">
         <span class="material-symbols-outlined" style="color:var(--accent);">badge</span>
         <span style="flex:1;">${esc(r.display)}</span>
-        ${r.has_scheme ? '<span title="考核项由岗位方案固定" style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--warn-soft);color:var(--warn);">方案</span>' : ''}
-        <span class="at-dim at-mono" style="font-size:10.5px;">${r.count}人</span>
+        ${r.has_scheme ? `<span title="${I.schemeTip}" style="padding:1px 6px;border-radius:3px;font-size:10px;background:var(--warn-soft);color:var(--warn);">${I.schemeBadge}</span>` : ''}
+        <span class="at-dim at-mono" style="font-size:10.5px;">${I.peopleFmt.replace('{n}', r.count)}</span>
       </div>`).join('');
   }
   window.cmToggleRoleMenu = function (e) {
@@ -85,7 +100,7 @@
 
   const yearSel = document.getElementById('cmYear');
   [CUR_YEAR - 1, CUR_YEAR, CUR_YEAR + 1].forEach(y => {
-    const o = document.createElement('option'); o.value = y; o.textContent = y + ' 年';
+    const o = document.createElement('option'); o.value = y; o.textContent = I.yearFmt.replace('{y}', y);
     if (y === CUR_YEAR) o.selected = true; yearSel.appendChild(o);
   });
 
@@ -107,11 +122,11 @@
     if (!_roleCode) return;
     const r = ROLES.find(x => x.role === _roleCode);
     document.getElementById('cmRoleName').textContent = r ? r.display : _roleCode;
-    document.getElementById('cmPanelSub').textContent = `角色默认目标 · ${r ? r.count : 0} 名成员继承`;
+    document.getElementById('cmPanelSub').textContent = I.roleSubFmt.replace('{n}', r ? r.count : 0);
     try {
       const d = await (await fetch(`/performance/config/api/role/${_roleCode}/targets/${yearSel.value}`,
                                    { headers: { 'X-CSRFToken': _csrf() } })).json();
-      if (!d.success) throw new Error(d.message || '加载失败');
+      if (!d.success) throw new Error(d.message || I.loadFail);
       sheet.setItems(d.data.items || []);
       updateWeightRoom();
     } catch (e) {
@@ -123,7 +138,7 @@
   async function cmSaveCore() {
     if (!_roleCode) return false;
     if (sheet.weightSum() > 100.0001) {
-      ATToast.error(`权重余量为负,请调整后再保存`);
+      ATToast.error(I.weightNeg);
       return false;
     }
     const items = sheet.getItems().map(it => {
@@ -155,16 +170,16 @@
         body: JSON.stringify({ items }),
       });
       const d = await r.json();
-      if (d.success) { ATToast.success('角色默认目标已保存'); cmLoad(); return true; }
-      ATToast.error(d.message || '保存失败'); return false;
-    } catch (e) { ATToast.error('保存失败,请重试'); return false; }
+      if (d.success) { ATToast.success(I.savedRole); cmLoad(); return true; }
+      ATToast.error(d.message || I.saveFail); return false;
+    } catch (e) { ATToast.error(I.saveFailRetry); return false; }
   }
 
   const guard = AtEditMode.init({
     mount: 'cmEditBar', lockEl: 'cmSheet', canEdit: CAN_EDIT,
     onSave: cmSaveCore,
     onDiscard: function () { cmLoad(); },
-    saveConfirm: { message: '确认保存该角色的绩效目标?' },
+    saveConfirm: { message: I.saveConfirm },
   });
 
   if (ROLES.length) cmSelectRole(ROLES[0].role);

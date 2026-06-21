@@ -19,26 +19,26 @@
 {# tab 由 config_management 模块功能开关控制(权限矩阵·白名单) #}
 {% set _config_tabs = [] %}
 {% if current_user.has_feature('config_management', 'cm_permission') %}
-  {% set _config_tabs = _config_tabs + [('permissions', '权限配置', url_for('config_management.at_permissions'))] %}
+  {% set _config_tabs = _config_tabs + [('permissions', _('权限配置'), url_for('config_management.at_permissions'))] %}
 {% endif %}
 {% if current_user.has_feature('config_management', 'cm_budget') %}
-  {% set _config_tabs = _config_tabs + [('expense', '部门预算', url_for('config_management.at_expense'))] %}
+  {% set _config_tabs = _config_tabs + [('expense', _('部门预算'), url_for('config_management.at_expense'))] %}
 {% endif %}
 {% if current_user.has_feature('config_management', 'cm_performance') %}
-  {% set _config_tabs = _config_tabs + [('performance', '绩效配置', url_for('config_management.at_performance'))] %}
+  {% set _config_tabs = _config_tabs + [('performance', _('绩效配置'), url_for('config_management.at_performance'))] %}
 {% endif %}
 {% if current_user.has_feature('config_management', 'cm_flow') %}
-  {% set _config_tabs = _config_tabs + [('flows', '流程配置', url_for('config_management.at_flows'))] %}
+  {% set _config_tabs = _config_tabs + [('flows', _('流程配置'), url_for('config_management.at_flows'))] %}
 {% endif %}
 {% if current_user.has_feature('config_management', 'cm_salary') %}
-  {% set _config_tabs = _config_tabs + [('salary', '薪资配置', url_for('config_management.at_salary_structure'))] %}
+  {% set _config_tabs = _config_tabs + [('salary', _('薪资配置'), url_for('config_management.at_salary_structure'))] %}
 {% endif %}
 {% if current_user.has_feature('config_management', 'cm_salary_run') %}
-  {% set _config_tabs = _config_tabs + [('salary_approval', '薪资审批', url_for('config_management.at_salary_approval'))] %}
+  {% set _config_tabs = _config_tabs + [('salary_approval', _('薪资审批'), url_for('config_management.at_salary_approval'))] %}
 {% endif %}
 {% set _config_tabs = _config_tabs + [
-  ('metrics',     '指标管理', none),
-  ('global',      '全局配置', none),
+  ('metrics',     _('指标管理'), none),
+  ('global',      _('全局配置'), none),
 ] %}
 {# 划界决策(2026-06-12):
    - 预算配置按「部门」维度(总额+动态细分,细分科目限报销 EXPENSE_CATEGORIES),不做角色级
@@ -52,7 +52,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{% block page_title %}{{ self.config_title() }}{% endblock %} · 配置管理</title>
+<title>{% block page_title %}{{ self.config_title() }}{% endblock %} · {{ _('配置管理') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 {# Material Symbols(配置页通用图标) #}
 <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -117,10 +117,10 @@
 <header style="background:var(--bg-elev);position:sticky;top:0;z-index:30;">
   <div style="max-width:1500px;margin:0 auto;width:100%;box-sizing:border-box;padding:14px 32px 6px;
               display:flex;align-items:center;gap:8px;">
-    <span style="font-size:13px;color:var(--ink);">配置管理</span>
+    <span style="font-size:13px;color:var(--ink);">{{ _('配置管理') }}</span>
     <div style="flex:1;"></div>
     <a href="{{ url_for('config_management.index') }}"
-       class="at-dim" style="font-size:12px;text-decoration:none;">旧版配置管理 →</a>
+       class="at-dim" style="font-size:12px;text-decoration:none;">{{ _('旧版配置管理 →') }}</a>
   </div>
   {# ── 配置域 tab 导航(随 header 吸顶) ── #}
   <nav class="cfg-tabs" style="max-width:1500px;margin:0 auto;padding:0 32px;box-sizing:border-box;">
@@ -128,7 +128,7 @@
       {% if url %}
         <a class="cfg-tab{{ ' on' if key == _active }}" href="{{ url }}">{{ label }}</a>
       {% else %}
-        <span class="cfg-tab off" title="迁移中,暂在旧版配置管理操作">{{ label }}</span>
+        <span class="cfg-tab off" title="{{ _('迁移中,暂在旧版配置管理操作') }}">{{ label }}</span>
       {% endif %}
     {% endfor %}
   </nav>
