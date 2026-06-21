@@ -14,6 +14,20 @@ from flask import url_for
 from flask_babel import gettext as _t
 
 
+def _sum_money(query, amount_col, currency_col):
+    """金额按各记录币种换算到本实例默认币种后求和(公共组件 MultiCurrencyAggregationService)。
+    CN 同币种=无操作;SG 多币种(USD/MYR/...)→ 统一换算到 USD,使与 USD 目标可比。
+    query: 已 filter/join、未聚合的 SQLAlchemy Query。"""
+    from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
+    return float(MultiCurrencyAggregationService.sum_converted(query, amount_col, currency_col) or 0)
+
+
+def _conv_money(amount, from_currency):
+    """单笔金额换算到本实例默认币种(裸 SQL 采集器按币种分组后逐档调用)。"""
+    from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
+    return float(MultiCurrencyAggregationService.convert_single(amount or 0, from_currency) or 0)
+
+
 def _fmt_user(u):
     if not u:
         return '—'
@@ -456,20 +470,22 @@ def _kpi_one_period(user, start, end, prev_start, prev_end, label_prefix,
     from app.models.customer import Company
     from app.models.project import Project
 
-    # 销售额:PricingOrder 审批通过(created_by 限定)
+    # 销售额:PricingOrder 审批通过(created_by 限定),跨币种换算到本实例币种
     def _sales(s, e):
-        return db.session.query(func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0)).filter(
+        q = db.session.query(PricingOrder).filter(
             PricingOrder.status == 'approved',
             PricingOrder.created_by == user.id,
             PricingOrder.approved_at >= s, PricingOrder.approved_at < e,
-        ).scalar() or 0
+        )
+        return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
 
-    # 植入额:Quotation.implant_total_amount(owner_id 归属)
+    # 植入额:Quotation.implant_total_amount(owner_id 归属),跨币种换算
     def _implant(s, e):
-        return db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0)).filter(
+        q = db.session.query(Quotation).filter(
             Quotation.owner_id == user.id,
             Quotation.created_at >= s, Quotation.created_at < e,
-        ).scalar() or 0
+        )
+        return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
     # 新项目:owner_id 归属
     def _projects(s, e):
@@ -763,20 +779,20 @@ _KPI_TONES = ['var(--accent)', 'var(--success)', 'var(--info)', 'var(--warn)']
 
 # metric_code → 实际值窗口查询;未注册的指标(快照/未定义口径)actual 显示 0 灰显
 def _act_sales(user, s, e):
-    from sqlalchemy import func
     from app import db
     from app.models.pricing_order import PricingOrder
-    return float(db.session.query(func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0)).filter(
+    q = db.session.query(PricingOrder).filter(
         PricingOrder.status == 'approved', PricingOrder.created_by == user.id,
-        PricingOrder.approved_at >= s, PricingOrder.approved_at < e).scalar() or 0)
+        PricingOrder.approved_at >= s, PricingOrder.approved_at < e)
+    return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
 
 def _act_implant(user, s, e):
-    from sqlalchemy import func
     from app import db
     from app.models.quotation import Quotation
-    return float(db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0)).filter(
+    q = db.session.query(Quotation).filter(
         Quotation.owner_id == user.id,
-        Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0)
+        Quotation.created_at >= s, Quotation.created_at < e)
+    return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
 def _act_new_projects(user, s, e):
     from sqlalchemy import func
@@ -812,11 +828,12 @@ def _act_pm_implant(user, s, e):
     cat_ids = [c.id for c in getattr(user, 'managed_categories', [])]
     if not cat_ids:
         return 0
-    return float(db.session.query(func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0)).join(
+    q = db.session.query(QuotationDetail).join(
         Quotation, Quotation.id == QuotationDetail.quotation_id).join(
         Product, Product.product_mn == QuotationDetail.product_mn).filter(
         Product.category_id.in_(cat_ids),
-        Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0)
+        Quotation.created_at >= s, Quotation.created_at < e)
+    return _sum_money(q, QuotationDetail.implant_subtotal, Quotation.currency)
 
 # SE 五项:一次 SQL 出全窗口(口径照抄 performance_service SE CTE)
 _SE_WINDOW_SQL = """
@@ -886,20 +903,28 @@ _SE_WINDOW_SQL = """
         ) qs
     ),
     im AS (
-        SELECT COALESCE(SUM(qd.quantity * qd.market_price), 0) AS amt
-        FROM quotation_details qd
-        JOIN quotations q ON qd.quotation_id = q.id
-        JOIN se_projects sp ON q.project_id = sp.project_id
-        JOIN products p ON qd.product_mn = p.product_mn
-        WHERE p.is_vendor_product = true AND q.created_at >= :s AND q.created_at < :e
+        -- 按币种分组(植入额),供 Python 换算到本实例币种
+        SELECT COALESCE(jsonb_object_agg(cur, amt), '{}'::jsonb) AS by_cur FROM (
+            SELECT q.currency AS cur, SUM(qd.quantity * qd.market_price) AS amt
+            FROM quotation_details qd
+            JOIN quotations q ON qd.quotation_id = q.id
+            JOIN se_projects sp ON q.project_id = sp.project_id
+            JOIN products p ON qd.product_mn = p.product_mn
+            WHERE p.is_vendor_product = true AND q.created_at >= :s AND q.created_at < :e
+            GROUP BY q.currency
+        ) t
     ),
     sa AS (
-        SELECT COALESCE(SUM(po.pricing_total_amount), 0) AS amt
-        FROM pricing_orders po
-        JOIN se_projects sp ON po.project_id = sp.project_id
-        WHERE po.status = 'approved' AND po.approved_at >= :s AND po.approved_at < :e
+        -- 按币种分组(批价额)
+        SELECT COALESCE(jsonb_object_agg(cur, amt), '{}'::jsonb) AS by_cur FROM (
+            SELECT po.currency AS cur, SUM(po.pricing_total_amount) AS amt
+            FROM pricing_orders po
+            JOIN se_projects sp ON po.project_id = sp.project_id
+            WHERE po.status = 'approved' AND po.approved_at >= :s AND po.approved_at < :e
+            GROUP BY po.currency
+        ) t
     )
-    SELECT c.cnt, spt.sup AS sup, ql.quality, im.amt AS implant, sa.amt AS sales
+    SELECT c.cnt, spt.sup AS sup, ql.quality, im.by_cur AS implant, sa.by_cur AS sales
     FROM c, spt, ql, im, sa
 """
 
@@ -910,12 +935,17 @@ def _se_window(user, s, e, _cache={}):
     if key not in _cache:
         r = db.session.execute(text(_SE_WINDOW_SQL), {'uid': user.id, 's': s, 'e': e}).fetchone()
         _cache.clear() if len(_cache) > 64 else None
+        import json as _json
+        def _cmap(v):
+            """{币种:金额} jsonb → 换算到本实例币种后合计(CN 同币种=无操作;SG→USD)。"""
+            d = v if isinstance(v, dict) else (_json.loads(v) if v else {})
+            return sum(_conv_money(amt, cur) for cur, amt in d.items())
         _cache[key] = {
             'se_confirm_count': int(r.cnt or 0),
             'se_sales_support': int(r.sup or 0),
             'se_confirm_quality': round(float(r.quality or 0), 2),  # 植入品质(推荐系数加权均值)
-            'se_implant_amount': float(r.implant or 0),
-            'se_sales_amount': float(r.sales or 0),
+            'se_implant_amount': _cmap(r.implant),
+            'se_sales_amount': _cmap(r.sales),
         }
     return _cache[key]
 
@@ -1052,14 +1082,16 @@ def _act_pm_sales(user, s, e):
             LEFT JOIN users u_cat_mgr ON pc.manager_id = u_cat_mgr.id
             WHERE p.is_vendor_product = true
         )
-        SELECT COALESCE(SUM(pod.total_price), 0) AS amt
+        SELECT po.currency AS cur, COALESCE(SUM(pod.total_price), 0) AS amt
         FROM pricing_order_details pod
         JOIN pricing_orders po ON pod.pricing_order_id = po.id
         JOIN product_pm pp ON pod.product_mn = pp.product_mn
         WHERE pp.pm_id = :uid AND po.status = 'approved'
           AND po.approved_at >= :s AND po.approved_at < :e
-    """), {'uid': user.id, 's': s, 'e': e}).fetchone()
-    return float(r.amt or 0)
+        GROUP BY po.currency
+    """), {'uid': user.id, 's': s, 'e': e}).fetchall()
+    # 跨币种换算到本实例币种(CN 同币种=无操作;SG MYR→USD)
+    return sum(_conv_money(row.amt, row.cur) for row in r)
 
 _KPI_ACTUAL_FNS['pm_sales_amount'] = _act_pm_sales
 
@@ -1112,22 +1144,22 @@ def _dept_member_ids(user):
 
 
 def _act_team_sales(user, s, e):
-    from sqlalchemy import func
     from app import db
     from app.models.pricing_order import PricingOrder
-    return float(db.session.query(func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0)).filter(
+    q = db.session.query(PricingOrder).filter(
         PricingOrder.status == 'approved',
         PricingOrder.created_by.in_(_dept_member_ids(user)),
-        PricingOrder.approved_at >= s, PricingOrder.approved_at < e).scalar() or 0)
+        PricingOrder.approved_at >= s, PricingOrder.approved_at < e)
+    return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
 
 
 def _act_team_implant(user, s, e):
-    from sqlalchemy import func
     from app import db
     from app.models.quotation import Quotation
-    return float(db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0)).filter(
+    q = db.session.query(Quotation).filter(
         Quotation.owner_id.in_(_dept_member_ids(user)),
-        Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0)
+        Quotation.created_at >= s, Quotation.created_at < e)
+    return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
 
 def _act_team_new_projects(user, s, e):
@@ -1215,26 +1247,26 @@ def _channel_project_filter():
 
 
 def _act_channel_sales(user, s, e):
-    from sqlalchemy import func
     from app import db
     from app.models.pricing_order import PricingOrder
     from app.models.project import Project
-    return float(db.session.query(func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0))
-                 .join(Project, Project.id == PricingOrder.project_id)
-                 .filter(*_channel_project_filter(),
-                         PricingOrder.status == 'approved',
-                         PricingOrder.approved_at >= s, PricingOrder.approved_at < e).scalar() or 0)
+    q = (db.session.query(PricingOrder)
+         .join(Project, Project.id == PricingOrder.project_id)
+         .filter(*_channel_project_filter(),
+                 PricingOrder.status == 'approved',
+                 PricingOrder.approved_at >= s, PricingOrder.approved_at < e))
+    return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
 
 
 def _act_channel_implant(user, s, e):
-    from sqlalchemy import func
     from app import db
     from app.models.quotation import Quotation
     from app.models.project import Project
-    return float(db.session.query(func.coalesce(func.sum(Quotation.implant_total_amount), 0))
-                 .join(Project, Project.id == Quotation.project_id)
-                 .filter(*_channel_project_filter(),
-                         Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0)
+    q = (db.session.query(Quotation)
+         .join(Project, Project.id == Quotation.project_id)
+         .filter(*_channel_project_filter(),
+                 Quotation.created_at >= s, Quotation.created_at < e))
+    return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
 
 def _act_channel_new_projects(user, s, e):
