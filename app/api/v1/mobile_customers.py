@@ -757,6 +757,75 @@ def mobile_customer_archive(company_id):
         return api_response(success=False, code=500, message='归档失败')
 
 
+# ─── 客户共享: 复用 web SharingService(get_shareable_users / 权限 / set_shared_users) ───
+@api_v1_bp.route('/mobile/customers/<int:company_id>/sharing', methods=['GET'])
+@jwt_required()
+def mobile_customer_sharing_get(company_id):
+    """返回共享设置: can_edit / 候选用户 options / 已选 selected。
+    与 web AT 共享 modal 同数据源(get_shareable_users + shared_with_users)。"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first()
+    if not company:
+        return api_response(success=False, code=404, message="客户不存在")
+    if not can_view_company(user, company):
+        return api_response(success=False, code=403, message="无权访问此客户")
+
+    from app.utils.access_control import can_edit_company_sharing
+    can_edit = can_edit_company_sharing(user, company)
+
+    options = []
+    if can_edit:
+        from app.utils.sharing import get_shareable_users
+        for u in get_shareable_users(user, 'customer').all():
+            options.append({
+                'id': u.id,
+                'name': u.real_name or u.username,
+                'department': u.department or '',
+            })
+
+    return api_response(success=True, data={
+        'can_edit': can_edit,
+        'options': options,
+        'selected': company.shared_user_ids or [],
+    })
+
+
+@api_v1_bp.route('/mobile/customers/<int:company_id>/sharing', methods=['POST'])
+@jwt_required()
+def mobile_customer_sharing_save(company_id):
+    """保存共享名单 {shared_with_users:[id,...]}。复用 set_shared_users。"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first()
+    if not company:
+        return api_response(success=False, code=404, message="客户不存在")
+
+    from app.utils.access_control import can_edit_company_sharing
+    if not can_edit_company_sharing(user, company):
+        return api_response(success=False, code=403, message="无权编辑此客户的共享设置")
+
+    data = request.get_json() or {}
+    ids = [int(x) for x in (data.get('shared_with_users') or []) if str(x).isdigit()]
+    try:
+        company.set_shared_users(ids)
+        if hasattr(company, 'share_enabled'):
+            company.share_enabled = bool(ids)
+        db.session.commit()
+        return api_response(success=True, message='共享设置已更新',
+                            data={'selected': company.shared_user_ids or []})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"mobile customer sharing save error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message='保存失败')
+
+
 # ─── 拍名片自动录入: 上传图 + Claude vision OCR ─────────────────
 @api_v1_bp.route('/mobile/customers/scan-business-card', methods=['POST'])
 @jwt_required()
