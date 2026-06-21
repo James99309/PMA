@@ -10,7 +10,7 @@ import StageDot    from '@/components/common/StageDot.vue'
 import Avatar      from '@/components/common/Avatar.vue'
 import FilledField from '@/components/common/FilledField.vue'
 import NoteSheet   from '@/components/common/NoteSheet.vue'
-import MultiPersonPickerSheet from '@/components/common/MultiPersonPickerSheet.vue'
+import OrgTreePickerSheet from '@/components/common/OrgTreePickerSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -105,7 +105,8 @@ function openProject(id) {
 
 // ─── Sharing (reuses web SharingService via mobile API + common picker) ───
 const canShare = ref(false)
-const shareOptions = ref([])
+const shareTree = ref([])
+const shareHome = ref({})
 const shareSelected = ref([])
 const showSharePicker = ref(false)
 const shareToast = ref('')
@@ -114,7 +115,8 @@ async function loadSharing() {
     const res = await getCustomerSharing(route.params.id)
     const d = res.data?.data || {}
     canShare.value = !!d.can_edit
-    shareOptions.value = d.options || []
+    shareTree.value = d.tree || []
+    shareHome.value = d.home || {}
     shareSelected.value = d.selected || []
   } catch {
     canShare.value = false
@@ -206,15 +208,16 @@ onMounted(() => { load(); loadSharing() })
           <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">{{ t('customer.followUp') }}</span>
         </button>
         <button v-if="canShare" @click="showSharePicker = true" type="button"
-          class="h-12 px-3.5 rounded-2xl flex items-center gap-1.5 active:opacity-70 shrink-0"
+          :aria-label="t('customer.share')"
+          class="h-12 w-12 rounded-2xl flex items-center justify-center active:opacity-70 shrink-0 relative"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="pointer-events: none;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="pointer-events: none;">
             <path d="M18 8a3 3 0 100-6 3 3 0 000 6zM6 15a3 3 0 100-6 3 3 0 000 6zM18 22a3 3 0 100-6 3 3 0 000 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4"
               stroke="var(--color-ink-2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
-          <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">
-            {{ shareSelected.length ? t('customer.sharedN', { n: shareSelected.length }) : t('customer.share') }}
-          </span>
+          <span v-if="shareSelected.length"
+            class="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full inline-flex items-center justify-center text-[10px] font-bold text-white"
+            style="background: var(--color-accent);">{{ shareSelected.length }}</span>
         </button>
       </div>
 
@@ -530,11 +533,12 @@ onMounted(() => { load(); loadSharing() })
       </Transition>
     </Teleport>
 
-    <!-- Customer sharing: reuse the common multi-person picker -->
-    <MultiPersonPickerSheet
+    <!-- Customer sharing: reuse the common 3-level org tree picker (same source as web) -->
+    <OrgTreePickerSheet
       v-model="showSharePicker"
       :title="t('customer.shareTitle')"
-      :options="shareOptions"
+      :tree="shareTree"
+      :home="shareHome"
       :selected="shareSelected"
       @update:selected="onShareSelected" />
 
