@@ -193,7 +193,7 @@
           {% set _kpi_items = _kpis[period_key] %}
           <div data-kpi-period="{{ period_key }}"
                style="display:{{ 'flex' if period_key == 'month' else 'none' }};flex-direction:column;gap:14px;
-                      max-height:350px;overflow-y:auto;padding-right:4px;">
+                      max-height:350px;overflow-y:auto;padding-right:14px;scrollbar-gutter:stable;">
             {% if not _kpi_items %}
             {# 新绩效配置框架下该用户无任何目标(角色默认+个人覆盖均空)#}
             <div style="padding:28px 12px;text-align:center;color:var(--ink-3);font-size:12.5px;">
@@ -217,9 +217,9 @@
             {# 货币 unit(¥/$/MYR/€ 等):前缀;非货币(' 个'/' 户'/' 单'/' 人'/'%'/' 分'/' 次'):后缀 #}
             {% set _is_money = it.data.unit not in [' 个', ' 户', ' 单', ' 人', '%', ' 分', ' 次'] %}
             {% set _display = (it.data.unit ~ '{:,.0f}'.format(it.data.value)) if _is_money
-                              else (it.data.value|string ~ it.data.unit) %}
+                              else (it.data.value|string ~ _(it.data.unit)) %}
             {% set _of = (it.data.unit ~ '{:,.0f}'.format(it.data.target)) if _is_money
-                         else (it.data.target|string ~ it.data.unit) %}
+                         else (it.data.target|string ~ _(it.data.unit)) %}
             {# 无目标时:进度条灰、不显示分母 / %、加"未设目标"提示 #}
             {% set _bar_color = it.tone if _scored else 'var(--line-2)' %}
             {% set _bar_width = pct if _scored else 100 %}

@@ -36819,3 +36819,28 @@ msgstr "Exceeds the allocatable cap; truncated to {v}"
 
 msgid "超出年度余量,已截为 {v}"
 msgstr "Exceeds the annual room; truncated to {v}"
+
+
+msgid " 户"
+msgstr " accts"
+
+msgid " 单"
+msgstr " orders"
+
+msgid " 人"
+msgstr " ppl"
+
+msgid " 分"
+msgstr " pts"
+
+msgid " 次"
+msgstr " times"
+
+msgid "持平"
+msgstr "Flat"
+
+msgid "%(m)s月"
+msgstr "M%(m)s "
+
+msgid "%(y)s年 "
+msgstr "%(y)s "
