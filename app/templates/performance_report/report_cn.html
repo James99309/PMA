@@ -148,6 +148,7 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
   @page {
     size: A4;
     margin: 24mm 22mm 16mm;
+    background: #FDFAF8;   /* 整页米色底,与内容区一致(否则页边距露白) */
     @top-left { content: element(rhead); width: 100%; vertical-align: bottom; }
     @bottom-left { content: element(rfoot); width: 100%; vertical-align: top; }
     @bottom-right {
@@ -157,7 +158,7 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
     }
   }
   /* 封面整页满铺:首页无页边距与页眉脚 */
-  @page cover { margin: 0; @top-left { content: none; } @bottom-left { content: none; } @bottom-right { content: none; } }
+  @page cover { margin: 0; background: #FDFAF8; @top-left { content: none; } @bottom-left { content: none; } @bottom-right { content: none; } }
   .page.cover-page { page: cover; padding: 24mm 22mm; width: 210mm; }
 }
 /* running 页眉/页脚外观 */

@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8" /><title>QuarterlyPerformance
-      Review · CN</title>
+<html lang="en"><head><meta charset="utf-8" /><title>Quarterly Performance Report · SG</title>
 <style>
 /* =====================================================================
    editorial-word-doc · base.css
@@ -130,754 +129,1058 @@ body {
 hr.rule      { border: 0; border-top: 1px solid var(--rule); margin: 6mm 0; }
 hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
 
-/* ---------- print (流式分页:内容自动跨页,@page running 页眉页脚每页重复) ---------- */
-.rhead, .rfoot { display: none; }        /* 正常流隐藏,仅作 running 源 */
+/* ---------- print ---------- */
+.rhead, .rfoot { display: none; }
 .rhead { position: running(rhead); }
 .rfoot { position: running(rfoot); }
 @media print {
   body { background: #fff; padding: 0; margin: 0; }
-  /* 每个 .page = 一个区块,从新页开始;高度随内容流动,不再裁切;
-     宽度改 auto 填满 @page 内容区(否则 210mm 塞进 166mm → 右侧被裁) */
-  .page {
-    box-shadow: none; margin: 0; padding: 0; width: auto;
-    min-height: 0; height: auto; overflow: visible; display: block;
-  }
+  .page { box-shadow: none; margin: 0; padding: 0; width: auto;
+          min-height: 0; height: auto; overflow: visible; display: block; }
   .page-body { overflow: visible; padding-bottom: 0; }
-  /* 内联的每页页眉/页脚停用,改由 @page running 统一供给(避免逐页重复/错位) */
-  .page > .page-header, .page > .page-footer { display: none; }
+  .page > .page-head, .page > .page-foot { display: none; }
   .rhead, .rfoot { display: flex; }
   @page {
-    size: A4;
-    margin: 24mm 22mm 16mm;
+    size: A4; margin: 22mm 18mm 15mm; background: #FDFAF8;
     @top-left { content: element(rhead); width: 100%; vertical-align: bottom; }
     @bottom-left { content: element(rfoot); width: 100%; vertical-align: top; }
-    @bottom-right {
-      content: counter(page) " / " counter(pages);
+    @bottom-right { content: "P. " counter(page) " / " counter(pages);
       font-family: var(--mono); font-size: 8pt; color: var(--ink-3);
-      vertical-align: top; padding-top: 1mm;
-    }
+      vertical-align: top; padding-top: 1mm; }
   }
-  /* 封面整页满铺:首页无页边距与页眉脚 */
-  @page cover { margin: 0; @top-left { content: none; } @bottom-left { content: none; } @bottom-right { content: none; } }
-  .page.cover-page { page: cover; padding: 24mm 22mm; width: 210mm; }
+  @page cover { margin: 0; background: #FDFAF8; @top-left{content:none} @bottom-left{content:none} @bottom-right{content:none} }
+  .page.cover-page { page: cover; padding: 18mm; width: 210mm; }
 }
-/* running 页眉/页脚外观 */
-.rhead { align-items: center; gap: 3mm; border-bottom: 1px solid var(--rule);
-         padding-bottom: 2mm; width: 100%; }
-.rhead .logo-img { height: 6.5mm; width: auto; }
-.rhead .crumb { font-family: var(--mono); font-size: 7.5pt; letter-spacing: .04em;
-                color: var(--ink-3); text-transform: uppercase; }
-.rfoot { font-size: 7.5pt; color: var(--ink-3); border-top: 1px solid var(--rule);
-         padding-top: 2mm; width: 100%; }
+.rhead { align-items: center; gap: 3mm; border-bottom: 1px solid var(--rule); padding-bottom: 2mm; width: 100%; }
+.rhead .logo-img { height: 6mm; width: auto; }
+.rhead .crumb { font-family: var(--mono); font-size: 7.5pt; letter-spacing: .04em; color: var(--ink-3); }
+.rfoot { font-size: 7.5pt; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 2mm; width: 100%; }
 .rfoot .mono { font-family: var(--mono); }
 
 /* =====================================================================
-   editorial-word-doc · cn.css
-   Chinese A4 word-style document. Pair with base.css.
+   editorial-word-doc · en.css
+   English A4 word-style document. Pair with base.css.
 
    Type system
-     Display (h1, h2, h3): Noto Serif CJK SC 500 + Songti SC fallback
-     Body:                 Noto Sans CJK SC 400 + PingFang SC fallback
-     Mono labels/freq:     Geist Mono
+     Display (h1, h2, h3, italic emphasis): Instrument Serif 400
+     Body:                                  Geist 300/400/500
+     Mono labels/freq/captions:             Geist Mono 400/500
 
    Page rhythm
-     Margins: 24mm top, 22mm sides — generous, "paper-like".
-     Body: 11pt / 1.75 line-height (CJK characters need looser leading).
-     Heavier section headlines (28pt) — Chinese reads as a block, not a line.
+     Margins: 18mm — tighter than CN; English copy is denser per cm².
+     Body: 10pt / 1.55, justify + hyphens (English typesetting tradition).
+     section-bar replaces big standalone h2 — one row: number + h2 + tag.
+     Italic-serif takes the place of CN's color-emphasis em rule.
+
+   Includes advanced doc components:
+     · cmp-tbl    — before/after comparison matrix (with .group rows + pills)
+     · spectrum   — band allocation chart (left%/width% positioned bands)
+     · duty       — dual-row duty-cycle timeline
+     · channels-row, tstrip, tot-row, inline-steps
    ===================================================================== */
 
 :root {
-  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
-  --sans: "Inter Tight", "Geist", -apple-system, system-ui, sans-serif;
+  --serif: "Instrument Serif", "Times New Roman", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
 }
 
 body {
   font-family: var(--sans);
-  font-size: 11pt;
-  line-height: 1.75;
-  color: var(--ink);
+  font-size: 10pt;
+  line-height: 1.55;
+  font-weight: 400;
+  color: var(--ink-2);
 }
 
-.page { padding: 24mm 22mm; }
+.page { padding: 18mm 18mm 16mm; }
 
-/* ---------- running header / footer ---------- */
-.page-header {
+/* ---------- header / footer ---------- */
+.page-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding-bottom: 4mm;
-  margin-bottom: 10mm;
+  padding-bottom: 3mm;
   border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;   /* never compressed — must always render */
+  margin-bottom: 8mm;
 }
-.page-header .logo-img { height: 9mm; width: auto; display: block; }
-.page-header .crumb {
+.page-head .logo-img { height: 7mm; width: auto; display: block; }
+.page-head .crumb {
   font-family: var(--mono);
-  font-size: 8pt;
-  letter-spacing: 0.16em;
+  font-size: 7.5pt;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--gray-500);
   text-align: right;
+  line-height: 1.4;
 }
-.page-header .crumb .ttl {
-  color: var(--ink-2);
+.page-head .crumb .ttl {
+  display: block;
   font-family: var(--serif);
-  font-size: 10pt;
-  letter-spacing: 0.04em;
+  font-size: 11pt;
+  letter-spacing: 0;
   text-transform: none;
+  color: var(--ink-2);
+  font-weight: 400;
 }
-.page-header .crumb .ver { color: var(--teal); }
+.page-head .crumb .ver { color: var(--teal); }
 
-.page-footer {
-  /* Flex-pinned to bottom of .page (which is `display:flex; flex-direction:column`).
-     margin-top:auto pushes the footer to the bottom of the flex column, while
-     KEEPING the footer in document flow — so main content above it is naturally
-     bounded and cannot overflow into the footer area. Previously this was
-     position:absolute + bottom:14mm, which let dense pages (long TOC, long
-     params tables) flow under the footer and overlap visually.
-
-     flex-shrink: 0 ensures the footer is never compressed/clipped when main
-     content overflows — instead, main content gets clipped first via .page's
-     overflow:hidden. Footer ALWAYS renders. */
+.page-foot {
   margin-top: auto;
-  padding-top: 4mm;
+  padding-top: 3mm;
   border-top: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-.page-footer .row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 12mm;
-}
-.page-footer .contact {
-  font-family: var(--sans);
-  font-size: 8pt;
+  font-size: 7.75pt;
   color: var(--gray-500);
-  letter-spacing: 0.02em;
   line-height: 1.5;
+  letter-spacing: 0.01em;
 }
-.page-footer .contact .mono { font-family: var(--mono); }
-.page-footer .contact .web  { color: var(--teal-deep); }
-.page-footer .pageno {
+.page-foot .mono { font-family: var(--mono); }
+.page-foot .web  { color: var(--teal-deep); font-family: var(--mono); }
+.page-foot .pageno {
   font-family: var(--mono);
-  font-size: 9pt;
+  font-size: 8pt;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--gray-500);
   white-space: nowrap;
 }
-.page-footer .pageno .now { color: var(--ink-2); font-weight: 500; }
+.page-foot .pageno .now { color: var(--ink-2); font-weight: 500; }
 
-/* ---------- typography ---------- */
-h1, h2, h3, h4 {
+/* ---------- type ---------- */
+h1, h2, h3, h4, h5 {
   font-family: var(--serif);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ink);
   margin: 0;
 }
 
-.eyebrow {
+.section-bar {
+  display: flex; align-items: baseline; gap: 4mm;
+  /* flex */
+  align-items: baseline;
+  gap: 6mm;
+  margin: 7mm 0 4mm;
+}
+.section-bar:first-of-type { margin-top: 0; }
+.section-bar .n { flex: 0 0 14mm;
   font-family: var(--mono);
-  font-size: 9pt;
+  font-size: 11pt;
+  color: var(--teal);
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+.section-bar h2 { flex: 1 1 auto;
+  font-family: var(--serif);
+  font-size: 22pt;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  line-height: 1.05;
+  font-weight: 400;
+}
+.section-bar h2 em { font-style: italic; color: var(--teal-deep); }
+.section-bar .tag { margin-left: auto;
+  font-family: var(--mono);
+  font-size: 7.5pt;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--gray-500);
-  margin-bottom: 6mm;
-}
-.eyebrow .num {
-  color: var(--teal);
-  margin-right: 10px;
-  font-weight: 500;
-}
-
-h2.section {
-  font-size: 28pt;
-  line-height: 1.15;
-  letter-spacing: -0.01em;
-  margin-bottom: 4mm;
-}
-h2.section em {
-  font-style: normal;
-  color: var(--teal-deep);
 }
 
 h3.sub {
   font-family: var(--serif);
-  font-size: 16pt;
-  line-height: 1.3;
-  margin: 8mm 0 4mm;
+  font-size: 13pt;
+  font-weight: 400;
   color: var(--ink-2);
+  margin: 5mm 0 1.5mm;
+  display: flex;
+  align-items: baseline;
+  gap: 3mm;
+  letter-spacing: 0.005em;
 }
 h3.sub::before {
   content: "";
-  display: inline-block;
-  width: 12px; height: 2px;
+  flex: 0 0 auto;
+  width: 8px; height: 2px;
   background: var(--teal);
-  vertical-align: middle;
-  margin-right: 12px;
-  position: relative; top: -3px;
+  align-self: center;
 }
-
-h4.minor {
+h3.sub .en {
   font-family: var(--mono);
-  font-size: 9.5pt;
-  letter-spacing: 0.16em;
+  font-size: 7pt;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  font-weight: 500;
-  color: var(--teal-deep);
-  margin: 6mm 0 2mm;
+  color: var(--gray-500);
+  margin-left: auto;
+  font-weight: 400;
 }
 
-p { margin: 0 0 4mm; color: var(--gray-700); text-wrap: pretty; }
-p.lead {
-  font-size: 13pt;
-  line-height: 1.65;
+h4.run-in {
+  display: inline;
+  font-family: var(--serif);
+  font-size: 11.5pt;
+  font-style: italic;
+  font-weight: 400;
   color: var(--ink-2);
-  margin-bottom: 6mm;
+  margin-right: 5pt;
+  letter-spacing: 0.005em;
 }
 
-ul, ol { margin: 0 0 4mm; padding-left: 0; list-style: none; }
-ul li, ol li {
-  position: relative;
-  padding-left: 24px;
-  margin-bottom: 2mm;
+p {
+  margin: 0 0 2mm;
+  color: var(--ink-2);
+  text-wrap: pretty;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+p.compact { margin-bottom: 1.5mm; }
+p.note {
+  font-size: 9.25pt;
   color: var(--gray-700);
-  line-height: 1.7;
+  border-left: 2px solid var(--teal);
+  padding: 1.5mm 0 1.5mm 4mm;
+  margin: 2mm 0;
+  background: var(--teal-tint);
+  text-align: left;
+  hyphens: none;
 }
-ul li::before {
-  content: "";
-  position: absolute;
-  left: 4px; top: 0.65em;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--teal);
-}
-ol { counter-reset: step; }
-ol li { counter-increment: step; }
-ol li::before {
-  content: counter(step, decimal-leading-zero);
-  position: absolute;
-  left: 0; top: 0;
+p.note .lk {
   font-family: var(--mono);
-  font-size: 9pt;
-  color: var(--teal);
-  letter-spacing: 0.04em;
+  font-size: 7.25pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+  margin-right: 5pt;
+  font-weight: 500;
+}
+
+strong { color: var(--ink); font-weight: 600; }
+em.italic-serif {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink);
+  font-size: 1.05em;
 }
 
 /* ---------- inline tokens ---------- */
 .tk {
   font-family: var(--mono);
-  font-size: 9.5pt;
+  font-size: 8.5pt;
   background: var(--paper);
   border: 1px solid var(--rule);
-  border-radius: 3px;
-  padding: 1px 6px;
+  border-radius: 2px;
+  padding: 0 4px;
   color: var(--ink-2);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   white-space: nowrap;
 }
-.tk-teal {
+.tk-t {
   font-family: var(--mono);
-  font-size: 9.5pt;
+  font-size: 8.5pt;
   background: var(--teal-tint);
   border: 1px solid var(--teal);
-  border-radius: 3px;
-  padding: 1px 6px;
+  border-radius: 2px;
+  padding: 0 4px;
   color: var(--teal-deep);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   white-space: nowrap;
 }
 
+/* ---------- compact lists ---------- */
+ol.cmp, ul.cmp {
+  margin: 1mm 0 2mm;
+  padding: 0;
+  list-style: none;
+  counter-reset: it;
+}
+ol.cmp li, ul.cmp li {
+  position: relative;
+  padding-left: 9mm;
+  margin-bottom: 1.75mm;
+  line-height: 1.55;
+  font-size: 10pt;
+  text-align: justify;
+  hyphens: auto;
+}
+ol.cmp li { counter-increment: it; }
+ol.cmp li::before {
+  content: counter(it, decimal-leading-zero);
+  position: absolute;
+  left: 0; top: 0;
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.04em;
+  color: var(--teal);
+  width: 7mm;
+}
+ul.cmp li::before {
+  content: "";
+  position: absolute;
+  left: 2mm; top: 0.65em;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+ol.cmp li b, ul.cmp li b {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 11pt;
+  color: var(--ink);
+  margin-right: 3pt;
+  letter-spacing: 0.005em;
+}
+
+/* ---------- inline run-in step list ---------- */
+.inline-steps { margin: 1mm 0 3mm; }
+.inline-steps .step {
+  padding: 1.75mm 0;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: 7mm 1fr;
+  gap: 3mm;
+  font-size: 10pt;
+  line-height: 1.55;
+}
+.inline-steps .step:first-child { border-top: none; padding-top: 0.5mm; }
+.inline-steps .step .n {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.04em;
+  color: var(--teal);
+  padding-top: 1.5pt;
+}
+.inline-steps .step .ttl {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 11pt;
+  color: var(--ink);
+  margin-right: 4pt;
+  letter-spacing: 0.005em;
+}
+
+/* ---------- params table ---------- */
+table.params {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+  margin: 2mm 0;
+}
+table.params th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  font-weight: 500;
+  padding: 1.5mm 3mm 1.5mm 0;
+  border-bottom: 1.5px solid var(--ink-2);
+  vertical-align: bottom;
+}
+table.params td {
+  padding: 1.8mm 3mm 1.8mm 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-2);
+  vertical-align: top;
+}
+table.params td .freq { font-family: var(--mono); font-size: 9.5pt; color: var(--ink); }
+table.params tr.data td       { color: var(--teal-deep); }
+table.params tr.data td .freq { color: var(--teal-deep); }
+table.params td .lbl {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.05em;
+}
+
+table.kv {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+  margin: 1mm 0 2mm;
+}
+table.kv td {
+  padding: 1.75mm 3mm 1.75mm 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+table.kv td.k {
+  font-family: var(--mono);
+  font-size: 8pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  width: 38mm;
+}
+table.kv td.k .full {
+  display: block;
+  font-size: 6.5pt;
+  letter-spacing: 0.16em;
+  color: var(--gray-300);
+  margin-top: 0.5mm;
+}
+
 /* ---------- cover ---------- */
-.cover {
-  min-height: calc(297mm - 48mm);
+.cover { display: flex; flex-direction: column; height: 100%; }
+.cover .brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 5mm;
+  border-bottom: 1px solid var(--rule);
+}
+.cover .brand .logo-img { height: 18mm; width: auto; }
+.cover .brand .meta {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  text-align: right;
+  line-height: 1.6;
+}
+.cover .brand .meta .v {
+  display: block;
+  color: var(--teal);
+  font-size: 9.5pt;
+  margin-top: 0.5mm;
+}
+
+.cover .body {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 14mm;
 }
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.brand-mark .logo-img { height: 22mm; width: auto; display: block; }
-.brand-mark .meta {
+.cover .eb {
   font-family: var(--mono);
   font-size: 9pt;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 6mm;
+  font-weight: 500;
+}
+.cover h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 56pt;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 4mm;
+}
+.cover h1 em { font-style: italic; color: var(--teal-deep); }
+.cover .sub {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 17pt;
+  color: var(--gray-700);
+  letter-spacing: 0;
+  margin-bottom: 7mm;
+  line-height: 1.3;
+}
+.cover .abstract {
+  font-size: 11pt;
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 150mm;
+  text-align: justify;
+  hyphens: auto;
+}
+.cover .abstract strong { color: var(--ink); font-weight: 600; }
+.cover .abstract .lead {
+  font-family: var(--mono);
+  font-size: 8.25pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+  margin-right: 6pt;
+  font-weight: 500;
+}
+
+.cover .info-row {
+  display: flex;
+  gap: 6mm;
+  padding: 5mm 0;
+  border-top: 2px solid var(--ink-2);
+  border-bottom: 1px solid var(--rule);
+}
+.cover .info-row > div { flex: 1 1 0; min-width: 0; }
+.cover .info-row .k {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 1.5mm;
+}
+.cover .info-row .v {
+  font-family: var(--serif);
+  font-size: 13pt;
+  color: var(--ink-2);
+  line-height: 1.2;
+}
+.cover .info-row .v.italic { font-style: italic; }
+
+.cover .company {
+  display: flex;
+  gap: 8mm;
+  padding-top: 5mm;
+}
+.cover .company .col { flex: 1 1 0; min-width: 0; }
+.cover .company .col .ev {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.32em;
+  color: var(--teal);
+  font-weight: 500;
+  margin-bottom: 1.5mm;
+}
+.cover .company .col .name {
+  font-family: var(--serif);
+  font-size: 13pt;
+  color: var(--ink-2);
+  line-height: 1.35;
+  letter-spacing: 0.005em;
+}
+.cover .company .col.right .ln {
+  display: flex;
+  gap: 3mm;
+  font-size: 9pt;
+  margin-bottom: 1mm;
+  line-height: 1.5;
+}
+.cover .company .col.right .ln .v { flex: 1 1 0; min-width: 0; }
+.cover .company .col.right .ln .k { flex: 0 0 16mm;
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+.cover .company .col.right .ln .v.mono { font-family: var(--mono); color: var(--ink-2); }
+.cover .company .col.right .ln .v.web  { font-family: var(--mono); color: var(--teal-deep); }
+
+/* ---------- channels-row mini ---------- */
+.channels-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4mm;
+  margin: 2mm 0 3mm;
+}
+.ch-box {
+  padding: 3mm 4mm;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 9pt;
+  background: var(--paper);
+}
+.ch-box.teal { background: var(--teal-tint); border-color: var(--teal); }
+.ch-box .l {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 1mm;
+}
+.ch-box.teal .l { color: var(--teal-deep); }
+.ch-box .t {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 14pt;
+  color: var(--ink-2);
+  margin-bottom: 1mm;
+  letter-spacing: 0.005em;
+}
+.ch-box.teal .t { color: var(--teal-deep); }
+.ch-box .m {
+  font-family: var(--mono);
+  font-size: 8pt;
+  color: var(--gray-700);
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+}
+.ch-box.teal .m { color: var(--teal-deep); }
+
+/* ---------- timing strip compact ---------- */
+.tstrip {
+  display: grid;
+  grid-template-columns: 1.4fr auto 1fr auto 1.4fr;
+  align-items: stretch;
+  gap: 2mm;
+  margin: 2mm 0;
+}
+.tstrip .b {
+  padding: 2.75mm 3mm;
+  border-radius: 3px;
+  font-size: 9pt;
+  line-height: 1.3;
+}
+.tstrip .b.v { background: var(--teal-tint); border: 1px solid var(--teal); }
+.tstrip .b.d { background: var(--paper);     border: 1px solid var(--gray-500); }
+.tstrip .b .k {
+  font-family: var(--mono);
+  font-size: 7pt;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 0.5mm;
+}
+.tstrip .b.v .k { color: var(--teal-deep); }
+.tstrip .b .v {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12pt;
+  color: var(--ink-2);
+  font-weight: 400;
+  letter-spacing: 0.005em;
+}
+.tstrip .b.v .v { color: var(--teal-deep); }
+.tstrip .arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11pt; color: var(--gray-300);
+}
+
+/* ---------- TOT row ---------- */
+.tot-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm;
+  margin: 2mm 0;
+}
+.tot-cell {
+  padding: 3.5mm 5mm;
+  border-radius: 3px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+}
+.tot-cell.t { background: var(--teal-tint); border-color: var(--teal); }
+.tot-cell .k {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 1mm;
+}
+.tot-cell.t .k { color: var(--teal-deep); }
+.tot-cell .v { display: flex; align-items: baseline; gap: 2.5mm; }
+.tot-cell .v .n {
+  font-family: var(--serif);
+  font-size: 32pt;
+  line-height: 1;
+  color: var(--ink-2);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+.tot-cell.t .v .n { color: var(--teal-deep); }
+.tot-cell .v .u {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.18em;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+.tot-cell.t .v .u { color: var(--teal-deep); }
+.tot-cell .d {
+  font-size: 8.75pt;
+  color: var(--gray-700);
+  margin-top: 1.5mm;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.colophon {
+  margin-top: 10mm;
+  padding-top: 4mm;
+  border-top: 1px solid var(--ink-2);
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  text-align: center;
+}
+
+/* ---------- comparison table (before / after) ---------- */
+table.cmp-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+  margin: 2mm 0 3mm;
+  table-layout: fixed;
+}
+table.cmp-tbl thead th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  font-weight: 500;
+  padding: 2mm 4mm 2mm 0;
+  border-bottom: 1.5px solid var(--ink-2);
+  vertical-align: bottom;
+}
+table.cmp-tbl thead th .sub {
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13pt;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+  margin-top: 1.2mm;
+  font-weight: 400;
+}
+table.cmp-tbl thead th.teal-h           { color: var(--teal-deep); }
+table.cmp-tbl thead th.teal-h .sub      { color: var(--teal-deep); }
+table.cmp-tbl tr.group td {
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--teal);
+  padding: 3mm 0 1mm;
+  border-bottom: none;
+  font-weight: 500;
+}
+table.cmp-tbl tbody td {
+  padding: 1.65mm 4mm 1.65mm 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+table.cmp-tbl tbody td.k       { color: var(--gray-700); font-size: 9.5pt; }
+table.cmp-tbl tbody td.before  { color: var(--gray-700); }
+table.cmp-tbl tbody td.after   { color: var(--ink); font-weight: 500; }
+
+.pill {
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 1px 6px 1.5px;
+  border-radius: 2px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.pill.warn { background: var(--warn-bg);   border: 1px solid var(--warn-bd); color: var(--warn-fg); }
+.pill.good { background: var(--teal-tint); border: 1px solid var(--teal);    color: var(--teal-deep); }
+
+/* ---------- analysis chart frame ---------- */
+.chart-frame {
+  margin: 3mm 0 4mm;
+  padding: 4mm 0 2mm;
+  border-top: 1px solid var(--rule);
+}
+.chart-cap {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6mm;
+}
+.chart-cap .ttl {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13pt;
+  color: var(--ink-2);
+}
+.chart-cap .axis {
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  padding-left: 8mm;
+}
+.chart-foot {
+  font-size: 8.5pt;
+  color: var(--gray-700);
+  margin-top: 3mm;
+  text-align: left;
+  line-height: 1.5;
+  hyphens: none;
+}
+.chart-foot .legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4pt;
+  margin-right: 14pt;
+  font-family: var(--mono);
+  font-size: 7.25pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gray-700);
+}
+.chart-foot .legend .sw {
+  display: inline-block;
+  width: 12px; height: 8px;
+  border-radius: 1px;
+  vertical-align: middle;
+}
+.chart-foot .legend .sw.voice { background: rgba(0,166,196,0.18); border: 1px solid var(--teal); }
+.chart-foot .legend .sw.data  { background: var(--teal);          border: 1px solid var(--teal-deep); }
+
+/* ---------- spectrum chart ---------- */
+.spectrum { position: relative; height: 26mm; margin: 0; }
+.spectrum .scale {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 6mm;
+  border-top: 1px solid var(--ink-2);
+}
+.spectrum .scale .tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+  padding-top: 3mm;
+}
+.spectrum .scale .tick::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 50%;
+  width: 1px; height: 1.8mm;
+  background: var(--gray-300);
+}
+.spectrum .band {
+  position: absolute;
+  height: 10mm;
+  bottom: 8mm;
+  border-radius: 2px;
+}
+.spectrum .band.voice { background: rgba(0,166,196,0.15); border: 1px solid var(--teal); }
+.spectrum .band.data  { background: var(--teal);          border: 1px solid var(--teal-deep); }
+.spectrum .band .lbl {
+  position: absolute;
+  bottom: 100%; left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  margin-bottom: 1.5mm;
+  font-family: var(--mono);
+  font-size: 7pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+  text-align: center;
+}
+.spectrum .band .lbl strong {
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 11pt;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  margin-top: 0.5mm;
+}
+
+/* ---------- duty cycle chart ---------- */
+.duty-rows { margin: 0; }
+.duty {
+  display: grid;
+  grid-template-columns: 20mm 1fr;
+  gap: 4mm;
+  align-items: center;
+  margin: 1.75mm 0;
+}
+.duty .rowlabel {
+  font-family: var(--mono);
+  font-size: 7.5pt;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--gray-500);
   text-align: right;
 }
-.brand-mark .meta .v {
-  color: var(--teal);
+.duty .rowlabel .freq {
   display: block;
-  margin-top: 1mm;
-  font-size: 10pt;
-}
-
-.cover-eyebrow {
-  font-family: var(--mono);
-  font-size: 10pt;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--teal);
-  margin-bottom: 10mm;
-}
-.cover-title {
-  font-family: var(--serif);
-  font-weight: 500;
-  font-size: 48pt;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-}
-.cover-title em {
-  font-style: normal;
-  color: var(--teal-deep);
-}
-.cover-sub {
-  font-family: var(--serif);
-  font-size: 16pt;
-  color: var(--gray-700);
-  margin-top: 6mm;
-  letter-spacing: 0.04em;
-}
-
-.cover-info {
-  display: flex;            /* WeasyPrint grid 支持不全 → 用 flex 四等分 */
-  gap: 8mm;
-  padding-top: 8mm;
-  border-top: 2px solid var(--ink-2);
-}
-.cover-info .item { flex: 1 1 0; min-width: 0; }
-.cover-info .item .k {
-  font-family: var(--mono);
-  font-size: 8pt;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--gray-500);
-  margin-bottom: 2mm;
-}
-.cover-info .item .v {
-  font-family: var(--serif);
-  font-size: 13pt;
-  color: var(--ink-2);
-  line-height: 1.4;
-}
-
-.company-block {
-  display: flex;
-  gap: 10mm;
-  padding-top: 6mm;
-  border-top: 1px solid var(--rule);
-  margin-top: 8mm;
-}
-.company-block .col { flex: 1 1 0; min-width: 0; }
-.company-block .col .ev {
-  font-family: var(--mono);
-  font-size: 9pt;
-  letter-spacing: 0.3em;
-  color: var(--teal);
-  font-weight: 600;
-  margin-bottom: 2mm;
-}
-.company-block .col .name {
-  font-family: var(--serif);
-  font-size: 13pt;
-  color: var(--ink-2);
-  line-height: 1.4;
-}
-.company-block .col.right .line {
-  display: flex;
-  gap: 4mm;
-  font-size: 10pt;
-  color: var(--gray-700);
-  align-items: baseline;
-  margin-bottom: 2mm;
-  line-height: 1.55;
-}
-.company-block .col.right .line .v { flex: 1 1 0; min-width: 0; }
-.company-block .col.right .line .k {
-  flex: 0 0 14mm;
-  font-family: var(--mono);
-  font-size: 8pt;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--gray-500);
-  padding-top: 1pt;
-}
-.company-block .col.right .line .v      { color: var(--ink-2); }
-.company-block .col.right .line .v.mono { font-family: var(--mono); }
-.company-block .col.right .line .v.web  { color: var(--teal-deep); font-family: var(--mono); }
-
-/* ---------- TOC ---------- */
-.toc { margin-top: 4mm; }
-.toc-row {
-  display: grid;
-  grid-template-columns: 60px 1fr auto;
-  align-items: baseline;
-  gap: 12px;
-  padding: 5mm 0;
-  border-bottom: 1px solid var(--rule);
-}
-.toc-row:first-child { border-top: 2px solid var(--ink-2); }
-.toc-row .n { font-family: var(--mono); font-size: 10pt; color: var(--teal); letter-spacing: 0.04em; }
-.toc-row .t { font-family: var(--serif); font-size: 14pt; color: var(--ink-2); }
-.toc-row .t small {
-  font-family: var(--sans);
-  font-size: 10pt;
-  color: var(--gray-500);
-  margin-left: 12px;
-  letter-spacing: 0.02em;
-}
-.toc-row .p { font-family: var(--mono); font-size: 9pt; color: var(--gray-500); letter-spacing: 0.12em; }
-
-/* ---------- callout ---------- */
-.callout {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-left: 3px solid var(--teal);
-  padding: 6mm 8mm;
-  margin: 5mm 0;
-}
-.callout .k {
-  font-family: var(--mono);
-  font-size: 8.5pt;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--teal-deep);
-  margin-bottom: 2mm;
-}
-.callout p { margin-bottom: 0; color: var(--ink-2); }
-
-/* ---------- tables ---------- */
-table.params {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 4mm 0;
-  font-size: 10.5pt;
-}
-table.params th {
-  text-align: left;
-  font-family: var(--mono);
-  font-size: 8.5pt;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--gray-500);
-  font-weight: 500;
-  padding: 3mm 4mm 3mm 0;
-  border-bottom: 2px solid var(--ink-2);
-  vertical-align: bottom;
-}
-table.params td {
-  padding: 4mm 4mm 4mm 0;
-  border-bottom: 1px solid var(--rule);
-  color: var(--ink-2);
-  vertical-align: top;
-}
-table.params td .freq {
-  font-family: var(--mono);
-  font-size: 11pt;
-  color: var(--ink);
-  letter-spacing: 0.02em;
-}
-table.params tr.data td        { color: var(--teal-deep); }
-table.params tr.data td .freq  { color: var(--teal-deep); }
-table.params td.label {
-  font-family: var(--mono);
-  font-size: 9.5pt;
-  letter-spacing: 0.06em;
-}
-
-table.kv-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 10.5pt;
-  margin-bottom: 4mm;
-}
-table.kv-table td {
-  padding: 2.6mm 4mm 2.6mm 0;
-  border-bottom: 1px solid var(--rule);
-  vertical-align: top;
-  color: var(--ink-2);
-}
-table.kv-table td.k {
-  font-family: var(--mono);
-  font-size: 9pt;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--gray-500);
-  width: 36mm;
-}
-
-/* ---------- columns ---------- */
-.cols-2 { display: grid; grid-template-columns: 1fr 1fr;        gap: 8mm; }
-.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; }
-
-/* ---------- channel card ---------- */
-.ch-card {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  padding: 6mm 7mm;
-}
-.ch-card.teal { background: var(--teal-tint); border-color: var(--teal); }
-.ch-card .label {
-  font-family: var(--mono);
-  font-size: 8.5pt;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--teal-deep);
-  margin-bottom: 2mm;
-}
-.ch-card.gray .label { color: var(--gray-500); }
-.ch-card h4 {
-  font-family: var(--serif);
-  font-size: 16pt;
-  color: var(--ink-2);
-  margin: 0 0 3mm;
-  line-height: 1.2;
-}
-.ch-card.teal h4 { color: var(--teal-deep); }
-.ch-card .body { font-size: 10pt; color: var(--gray-700); line-height: 1.6; margin-bottom: 3mm; }
-.ch-card .mono-row {
-  font-family: var(--mono);
-  font-size: 8.5pt;
-  color: var(--gray-500);
-  letter-spacing: 0.1em;
-  padding-top: 3mm;
-  border-top: 1px solid var(--rule);
-}
-.ch-card.teal .mono-row { color: var(--teal-deep); border-top-color: var(--teal); }
-
-/* ---------- timing strip ---------- */
-.timing {
-  display: grid;
-  grid-template-columns: 2fr auto 1fr auto 2fr;
-  align-items: stretch;
-  gap: 3mm;
-  margin: 4mm 0;
-}
-.timing .block {
-  padding: 4mm;
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 1mm;
-}
-.timing .block.voice { background: var(--teal-tint2); border: 1.5px solid var(--teal); }
-.timing .block.data  { background: var(--paper);     border: 1.5px solid var(--gray-500); }
-.timing .block .k {
-  font-family: var(--mono);
-  font-size: 8pt;
-  letter-spacing: 0.16em;
-  color: var(--gray-500);
-}
-.timing .block.voice .k { color: var(--teal-deep); }
-.timing .block .v {
-  font-family: var(--serif);
-  font-size: 13pt;
-  color: var(--ink-2);
-  line-height: 1.2;
-}
-.timing .arrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 6.5pt;
   color: var(--gray-300);
-  font-family: var(--mono);
-  font-size: 14pt;
+  letter-spacing: 0.12em;
+  margin-top: 0.5mm;
 }
-
-/* ---------- big metric number ---------- */
-.metric { display: flex; align-items: baseline; gap: 5mm; }
-.metric .n {
+.duty .bar {
+  position: relative;
+  height: 7mm;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.duty .bar .seg { position: absolute; top: 0; bottom: 0; }
+.duty .bar .seg.voice { background: rgba(0,166,196,0.18); }
+.duty .bar .seg.data  { background: var(--teal); }
+.duty .bar .seg-lbl {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   font-family: var(--mono);
-  font-weight: 500;
-  font-size: 46pt;
-  line-height: 1;
+  font-size: 7pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--teal-deep);
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
 }
-.metric .u {
-  font-family: var(--serif);
-  font-size: 18pt;
-  color: var(--ink-2);
-}
-
-/* ---------- step block ---------- */
-.steps-block { border-top: 2px solid var(--ink-2); }
-.steps-block .step {
+.duty .bar .seg-lbl.on-data  { left: 11%; color: var(--teal-deep); }
+.duty .bar .seg-lbl.on-voice { left: 50%; transform: translate(-50%, -50%); color: var(--teal-deep); }
+.duty-axis {
   display: grid;
-  grid-template-columns: 22mm 1fr;
+  grid-template-columns: 20mm 1fr;
   gap: 4mm;
-  padding: 5mm 0;
-  border-bottom: 1px solid var(--rule);
+  margin-top: 1mm;
 }
-.steps-block .step .n {
+.duty-axis .ticks {
+  position: relative;
+  height: 5mm;
+  border-top: 1px solid var(--ink-2);
+}
+.duty-axis .ticks span {
+  position: absolute;
+  top: 0;
   font-family: var(--mono);
-  font-size: 11pt;
-  color: var(--teal);
-  padding-top: 1mm;
+  font-size: 7pt;
   letter-spacing: 0.04em;
+  color: var(--gray-500);
+  transform: translateX(-50%);
+  padding-top: 2.5mm;
 }
-.steps-block .step .ttl {
-  font-family: var(--serif);
-  font-size: 14pt;
-  color: var(--ink-2);
-  margin-bottom: 1mm;
-  line-height: 1.3;
-}
-.steps-block .step .desc {
-  font-size: 10pt;
-  color: var(--gray-700);
-  line-height: 1.65;
+.duty-axis .ticks span::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 50%;
+  width: 1px; height: 1.8mm;
+  background: var(--gray-300);
 }
 
-
-/* ===== compact overrides · dense performance report (cover untouched) ===== */
-body { font-size: 10pt; line-height: 1.55; }
-.eyebrow { margin-bottom: 2mm; }
-h2.section { font-size: 19pt; line-height: 1.15; margin: 1mm 0 3mm; }
-p.lead { font-size: 11pt; line-height: 1.5; margin: 0 0 3mm; }
-h3.sub { margin: 4mm 0 1.5mm; font-size: 11.5pt; }
-ul, ol { margin: 2mm 0; }
-ul li, ol li { margin-bottom: 1.2mm; line-height: 1.5; }
-table.params th, table.params td, table.kv-table td { padding-top: 1.8mm; padding-bottom: 1.8mm; }
-.callout { padding: 4mm 5mm; margin: 4mm 0; }
-.page-footer { padding-top: 2mm; }
+table.kv-table{width:100%;border-collapse:collapse;font-size:10.5pt;margin-bottom:4mm}
+table.kv-table td{padding:2.4mm 4mm 2.4mm 0;border-bottom:1px solid var(--rule);vertical-align:top;color:var(--ink-2)}
+table.kv-table td.k{font-family:var(--mono);font-size:8.5pt;letter-spacing:.12em;text-transform:uppercase;color:var(--gray-500);width:42mm}
 </style></head><body>
-<!-- running 页眉/页脚源(正常流隐藏,@page 拉入每页) -->
-<div class="rhead">
-  <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC" class="logo-img" />
-  <span class="crumb">Quarterly Performance Report &nbsp;·&nbsp; {{ user_name }} &nbsp;·&nbsp; {{ year }} Q{{ quarter }}</span>
-</div>
-<div class="rfoot">
-  Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; <span class="mono">www.evertacsolutions.com</span>
-</div>
-
-<!-- ===== PAGE 1 · 封面 ===== -->
+<div class="rhead"><img src="img/perf_report/evertac-solutions.png" alt="EVERTAC" class="logo-img" /><span class="crumb">Quarterly Performance Report &nbsp;·&nbsp; {{ user_name }} &nbsp;·&nbsp; {{ year }} Q{{ quarter }}</span></div>
+<div class="rfoot">Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; <span class="mono">www.evertacsolutions.com</span></div>
+<!-- ===== PAGE 1 · COVER ===== -->
 <div class="page cover-page">
   <div class="cover">
-    <div>
-      <div class="brand-mark">
-        <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC · 和源通信" class="logo-img" />
-        <div class="meta">
-          <span>Quarterly Performance Report · PERFORMANCE REVIEW</span>
-          <span class="v">{{ year }} · Q{{ quarter }}</span>
-        </div>
+    <div class="brand">
+      <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
+      <div class="meta">
+        <span>Quarterly Performance Review</span>
+        <span class="v">{{ year }} Q{{ quarter }}</span>
       </div>
     </div>
 
-    <div>
-      <div class="cover-eyebrow">PERFORMANCE REVIEW · INDIVIDUAL</div>
-      <div class="cover-title">
-        Quarterly<br />
-        <em>Performance
-      Review</em>
-      </div>
-      <div class="cover-sub">{{ user_name }} · {{ role_name }} · {{ dept_name }}</div>
-    </div>
+    <div class="body">
+      <div>
+        <div class="eb">Performance Review · Individual</div>
+        <h1>Quarterly Performance Report</h1>
+        <div class="sub">{{ user_name }} · {{ role_name }} · {{ dept_name }}</div>
 
-    <div>
-      <div class="cover-info">
-        <div class="item"><div class="k">Name</div><div class="v">{{ user_name }}</div></div>
-        <div class="item"><div class="k">Period</div><div class="v">{{ year }} Q{{ quarter }}</div></div>
-        <div class="item"><div class="k">Score</div><div class="v">{{ total_score }} / 100</div></div>
-        <div class="item"><div class="k">Settlement</div><div class="v">{{ settlement_status }}</div></div>
+        <p class="abstract">
+          <span class="lead">Summary —</span> This report sets out the quarterly performance assessment for <strong>{{ user_name }}</strong> for <strong>{{ year }} Q{{ quarter }}</strong> ({{ q_start }} – {{ q_end }}). The weighted score is <strong>{{ total_score }} / 100</strong> (assessed weight {{ assessed_weight }}%). Each item scores as <em>achievement × weight</em> (achievement capped at 100%); items with no target are excluded from the weighted base. All figures are auto-collected by the PMA system under one unified definition; amounts are shown in <strong>{{ currency }} / {{ amount_unit }}</strong> (SG default $ / K).
+        </p>
       </div>
 
-      <div class="company-block">
-        <div class="col">
-          <div class="ev">EVERTAC</div>
-          <div class="name">Evertac Solutions<br />Singapore Pte. Ltd.</div>
+      <div>
+        <div class="info-row">
+          <div><div class="k">Employee</div><div class="v">{{ user_name }}</div></div>
+          <div><div class="k">Period</div><div class="v italic">{{ year }} Q{{ quarter }}</div></div>
+          <div><div class="k">Score</div><div class="v">{{ total_score }} / 100</div></div>
+          <div><div class="k">Settlement</div><div class="v italic">{{ settlement_status }}</div></div>
         </div>
-        <div class="col right">
-          <div class="line"><div class="k">Address</div><div class="v">18 Boon Lay Way, #03-117<br />Tradehub 21, Singapore 609966</div></div>
-          <div class="line"><div class="k">Tel</div><div class="v mono">+65 6568 1543</div></div>
-          <div class="line"><div class="k">Web</div><div class="v web">www.evertacsolutions.com</div></div>
+
+        <div class="company">
+          <div class="col">
+            <div class="ev">EVERTAC SOLUTIONS</div>
+            <div class="name">Evertac Solutions Singapore Pte. Ltd.</div>
+          </div>
+          <div class="col right">
+            <div class="ln"><div class="k">Address</div><div class="v">18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966</div></div>
+            <div class="ln"><div class="k">Tel</div><div class="v mono">+65 6568 1543</div></div>
+            <div class="ln"><div class="k">Web</div><div class="v web">www.evertacsolutions.com</div></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ===== PAGE 2 · 一 基本信息 · 二 综合评分 ===== -->
+<!-- ===== PAGE 2 · §1 PROFILE · §2 SCORE ===== -->
 <div class="page">
-  <div class="page-header">
-    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC" class="logo-img" />
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
     <div class="crumb">
-      <div><span class="ttl">QuarterlyPerformance
-      Review</span></div>
-      <div>{{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span></div>
+      <span class="ttl">Quarterly Performance Report</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
     </div>
   </div>
 
-  <div class="eyebrow"><span class="num">01</span>PROFILE</div>
-  <h2 class="section">Subject &amp; Period.</h2>
-  <table class="kv-table" style="margin-top:5mm">
+  <div class="section-bar"><div class="n">01</div><h2>Profile &amp; Period</h2><div class="tag">Profile</div></div>
+  <table class="kv-table" style="margin-top:4mm">
     <tr><td class="k">Name</td><td>{{ user_name }}</td></tr>
-    <tr><td class="k">Role / Dept</td><td>{{ role_name }} · {{ dept_name }}</td></tr>
+    <tr><td class="k">Role / Department</td><td>{{ role_name }} · {{ dept_name }}</td></tr>
     <tr><td class="k">Company</td><td>{{ company_name }}</td></tr>
-    <tr><td class="k">Period</td><td>{{ year }} · Q{{ quarter }} ({{ q_start }} – {{ q_end }})</td></tr>
-    <tr><td class="k">Currency / Unit</td><td>{{ currency }} / {{ amount_unit }}</td></tr>
-    <tr><td class="k">Generated</td><td>{{ generated_at }}</td></tr>
-    <tr><td class="k">Settlement</td><td>{{ settlement_status }}</td></tr>
+    <tr><td class="k">Assessment period</td><td>{{ year }} Q{{ quarter }} ({{ q_start }} – {{ q_end }})</td></tr>
+    <tr><td class="k">Currency / unit</td><td>{{ currency }} / {{ amount_unit }} (SG default $ / K)</td></tr>
+    <tr><td class="k">Generated at</td><td>{{ generated_at }}</td></tr>
+    <tr><td class="k">Settlement status</td><td>{{ settlement_status }}</td></tr>
   </table>
 
-  <div class="eyebrow" style="margin-top:12mm"><span class="num">02</span>SCORE</div>
-  <div class="callout">
-    <div class="k">Weighted Score</div>
-    <p><strong style="color:var(--ink-2); font-size:13pt">{{ total_score }}</strong> &nbsp;/ 100 &nbsp; (assessed weight {{ assessed_weight }}%).</p>
-  </div>
-
-  <h3 class="sub" style="margin-top:8mm">Scoring Rules</h3>
-  <ul>
-    <li>Item score = achievement × weight, <strong style="color:var(--ink-2)">achievement capped at 100%</strong>; total = sum of item scores.</li>
-    <li>Items with a 0 / unset target are not assessed this quarter — excluded from weighting (shown as “—”).</li>
-    <li>Reverse indicators (e.g. loss rate): full marks when actual ≤ target.</li>
-    <li>Tiered indicators (e.g. implant quality): no target — pass 3 → 50% / good 5 → 100%.</li>
+  <div class="section-bar" style="margin-top:8mm"><div class="n">02</div><h2>Overall Score</h2><div class="tag">Score</div></div>
+  <p class="note">
+    <span class="lk">Weighted score</span>
+    <strong>{{ total_score }} / 100</strong> &nbsp;— assessed-item weights total {{ assessed_weight }}%.
+  </p>
+  <h3 class="sub">Scoring rules <span class="en">Method</span></h3>
+  <ul class="cmp">
+    <li><b>Item score = achievement × weight</b>, with achievement capped at 100%; total = sum of item scores.</li>
+    <li><b>No / zero target = not assessed this quarter</b> — excluded from the weighted base (shown as "—").</li>
+    <li><b>Reverse indicators</b> (e.g. loss rate): full marks when actual ≤ target.</li>
+    <li><b>Fixed-tier indicators</b> (e.g. implant quality): pass 3 → 50% / good 5 → 100%.</li>
   </ul>
 
-  <div class="page-footer">
-    <div class="row">
-      <div class="contact">
-        和源通信(上海)股份有限公司 &nbsp;·&nbsp; 上海市普陀区武南路 88 号金环广场 1102 室<br />
-        电话 <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; 网址 <span class="mono web">www.evertacsolutions.com</span>
-      </div>
-      <div class="pageno">综合评分 &nbsp;·&nbsp; <span class="now">02 / 08</span></div>
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
     </div>
+    <div class="pageno">P. <span class="now">02</span> / 08</div>
   </div>
 </div>
 
-<!-- ===== PAGE 3 · 三 考核明细 ===== -->
+<!-- ===== PAGE 3 · §3 BREAKDOWN ===== -->
 <div class="page">
-  <div class="page-header">
-    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC" class="logo-img" />
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
     <div class="crumb">
-      <div><span class="ttl">QuarterlyPerformance
-      Review</span></div>
-      <div>{{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span></div>
+      <span class="ttl">Quarterly Performance Report</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
     </div>
   </div>
 
-  <div class="eyebrow"><span class="num">03</span>BREAKDOWN</div>
-  <h2 class="section" style="margin:0 0 3mm">Item Scores.</h2>
-  <p class="lead">Weight, target, achievement and weighted score per item — auto-collected by PMA.</p>
+  <div class="section-bar"><div class="n">03</div><h2>Assessment Breakdown</h2><div class="tag">Breakdown</div></div>
+  <p>Weight, quarterly target, actual, achievement and weighted score per item; data is auto-collected and aggregated by the PMA system.</p>
 
   <table class="params" style="margin-top:3mm">
     <thead>
       <tr>
-        <th style="width:5%">#</th>
-        <th style="width:27%">Item</th>
-        <th style="width:10%">Weight</th>
-        <th style="width:16%">Target</th>
-        <th style="width:14%">Actual</th>
-        <th style="width:13%">Achiev.</th>
-        <th style="width:15%">Weighted</th>
+        <th style="width:5%">#</th><th style="width:27%">Assessment item</th><th style="width:10%">Weight</th>
+        <th style="width:16%">Target</th><th style="width:14%">Actual</th><th style="width:13%">Achiev.</th><th style="width:15%">Weighted</th>
       </tr>
     </thead>
     <tbody>
@@ -887,187 +1190,163 @@ table.params th, table.params td, table.kv-table td { padding-top: 1.8mm; paddin
       <tr class="data"><td></td><td>Total</td><td>—</td><td></td><td></td><td></td><td>{{ total_score }}</td></tr>
     </tbody>
   </table>
-  <p class="compact" style="display:none">
-    Amounts in base currency ({{ currency }}); achievement capped at 100%; reverse indicators full when actual ≤ target. Evidence in Appendix A.
+  <p class="compact" style="font-size:8.5pt; color:var(--gray-500); margin-top:3mm">
+    Amounts shown in base currency ({{ currency }}); achievement capped at 100%; reverse indicators score full marks when actual ≤ target. Line-level evidence in Appendix A.
   </p>
 
-  <div class="page-footer">
-    <div class="row">
-      <div class="contact">
-        和源通信(上海)股份有限公司 &nbsp;·&nbsp; 上海市普陀区武南路 88 号金环广场 1102 室<br />
-        电话 <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; 网址 <span class="mono web">www.evertacsolutions.com</span>
-      </div>
-      <div class="pageno">考核明细 &nbsp;·&nbsp; <span class="now">03 / 08</span></div>
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
     </div>
+    <div class="pageno">P. <span class="now">03</span> / 08</div>
   </div>
 </div>
 
-<!-- ===== 四 考核标准与纳入口径(按本人考核项动态) ===== -->
+<!-- ===== §4 CRITERIA(按本人考核项动态) ===== -->
 <div class="page">
-  <div class="eyebrow"><span class="num">04</span>CRITERIA</div>
-  <h2 class="section">What Counts, How.</h2>
-  <p class="lead">How each metric is counted, measured and time-attributed — so the score is auditable. Line-level evidence in Appendix A.</p>
+  <div class="section-bar"><div class="n">04</div><h2>Assessment Criteria</h2><div class="tag">Criteria</div></div>
+  <p>How each metric is counted, measured and time-attributed, so the score is auditable. Line-level evidence is in Appendix A.</p>
 
   {% for c in criteria %}
-  <h3 class="sub"{% if not loop.first %} style="margin-top:6mm"{% else %} style="margin-top:7mm"{% endif %}>{{ loop.index }} · {{ c.name }}</h3>
-  <ul>
+  <h3 class="sub"{% if not loop.first %} style="margin-top:6mm"{% endif %}>{{ loop.index }} · {{ c.name }}</h3>
+  <ul class="cmp">
     {% for line in c.lines %}<li>{{ line }}</li>{% endfor %}
   </ul>
   {% endfor %}
 
-  <div class="callout" style="margin-top:8mm">
-    <div class="k">Single Source of Truth</div>
-    <p>Targets are set per role in PMA; actuals are auto-collected under one unified definition (kpi_actual_service), identical to the “My KPI” dashboard and the performance page.</p>
-  </div>
+  <p class="note" style="margin-top:8mm">
+    <span class="lk">Single source of truth</span>
+    Targets are set per role in the PMA system; actuals are auto-collected under one unified definition (kpi_actual_service), identical to the "My KPI" dashboard and the performance page.
+  </p>
 </div>
 
-<!-- ===== PAGE 6 · 五 改进意见 · 六 确认签批 ===== -->
+<!-- ===== PAGE 6 · §5 IMPROVEMENT · §6 SIGN-OFF ===== -->
 <div class="page">
-  <div class="page-header">
-    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC" class="logo-img" />
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
     <div class="crumb">
-      <div><span class="ttl">QuarterlyPerformance
-      Review</span></div>
-      <div>{{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span></div>
+      <span class="ttl">Quarterly Performance Report</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
     </div>
   </div>
 
-  <div class="eyebrow"><span class="num">05</span>IMPROVEMENT</div>
-  <h2 class="section">Focus for Next Quarter.</h2>
-  <p class="lead">Auto-flagged for items below target (achievement &lt; 100%); {{ reviewer }} may add notes.</p>
-  <ol style="margin-top:5mm">
+  <div class="section-bar"><div class="n">05</div><h2>Improvement Notes</h2><div class="tag">Improvement</div></div>
+  <p>The system flags under-target items (achievement &lt; 100%); {{ reviewer }} may add notes.</p>
+  <ol class="cmp" style="margin-top:3mm">
     {% for imp in improvements %}<li>{{ imp }}</li>{% endfor %}
   </ol>
-  <div class="callout" style="margin-top:6mm">
-    <div class="k">Manager Comment</div>
-    <p>{{ manager_comment }}</p>
-  </div>
+  <p class="note">
+    <span class="lk">Manager's comment</span>
+    {{ manager_comment }}
+  </p>
 
-  <div class="eyebrow" style="margin-top:12mm"><span class="num">06</span>SIGN-OFF</div>
-  <table class="params" style="margin-top:5mm">
-    <thead><tr><th style="width:22%">Stage</th><th style="width:28%">Name</th><th style="width:30%">Comment</th><th style="width:20%">Date</th></tr></thead>
+  <div class="section-bar" style="margin-top:10mm"><div class="n">06</div><h2>Sign-off</h2><div class="tag">Execution</div></div>
+  <table class="params" style="margin-top:3mm">
+    <thead><tr><th style="width:24%">Stage</th><th style="width:28%">Name</th><th style="width:30%">Comment</th><th style="width:18%">Date</th></tr></thead>
     <tbody>
-      <tr><td>Self</td><td>{{ user_name }}</td><td></td><td></td></tr>
-      <tr><td>Manager</td><td>{{ manager_name }}</td><td></td><td></td></tr>
-      <tr><td>CEO</td><td>{{ ceo_name }}</td><td></td><td></td></tr>
+      <tr><td>Employee</td><td>{{ user_name }}</td><td></td><td></td></tr>
+      <tr><td>Line manager</td><td>{{ manager_name }}</td><td></td><td></td></tr>
+      <tr><td>General manager</td><td>{{ ceo_name }}</td><td></td><td></td></tr>
     </tbody>
   </table>
 
-  <div class="page-footer">
-    <div class="row">
-      <div class="contact">
-        和源通信(上海)股份有限公司 &nbsp;·&nbsp; 上海市普陀区武南路 88 号金环广场 1102 室<br />
-        电话 <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; 网址 <span class="mono web">www.evertacsolutions.com</span>
-      </div>
-      <div class="pageno">签批 &nbsp;·&nbsp; <span class="now">06 / 08</span></div>
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
     </div>
+    <div class="pageno">P. <span class="now">06</span> / 08</div>
   </div>
 </div>
 
-<!-- ===== PAGE 7 · 附录A (A.1-A.3) ===== -->
+<!-- ===== PAGE 7 · APPENDIX A (A.1-A.3) ===== -->
 <div class="page">
-  <div class="page-header">
-    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC" class="logo-img" />
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
     <div class="crumb">
-      <div><span class="ttl">Appendix A · Evidence</span></div>
-      <div>{{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span></div>
+      <span class="ttl">Appendix A · Evidence Detail</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
     </div>
   </div>
 
-  <div class="eyebrow"><span class="num">A</span>APPENDIX</div>
-  <h2 class="section">Line by Line.</h2>
-  <p class="lead">Per-record detail behind each actual value, for audit.</p>
+  <div class="section-bar"><div class="n">A</div><h2>Evidence Detail</h2><div class="tag">Appendix</div></div>
+  <p>Line-by-line detail behind each "actual", for audit and traceability.</p>
 
-  <h3 class="sub" style="margin-top:6mm">A.1 · Qualified New Customers ({{ evidence.new_customers|length }})</h3>
+  <h3 class="sub">A.1 · New customers (qualified {{ evidence.new_customers|length }})</h3>
   <table class="params">
-    <thead><tr><th style="width:34%">Customer</th><th style="width:20%">Type</th><th style="width:14%">Contacts</th><th style="width:14%">Follow-ups</th><th style="width:18%">First Qualified</th></tr></thead>
+    <thead><tr><th style="width:34%">Customer</th><th style="width:20%">Type</th><th style="width:14%">Contacts</th><th style="width:14%">Follow-ups</th><th style="width:18%">Qualified at</th></tr></thead>
     <tbody>
-      {% for c in evidence.new_customers %}
-      <tr><td>{{ c.name }}</td><td>{{ c.type }}</td><td>{{ c.contacts }}</td><td>{{ c.actions }}</td><td>{{ c.qualified_at }}</td></tr>
-      {% else %}
-      <tr><td colspan="5" style="text-align:center;color:var(--ink-3)">No qualified new customers this quarter</td></tr>
-      {% endfor %}
+      {% for c in evidence.new_customers %}<tr><td>{{ c.name }}</td><td>{{ c.type }}</td><td>{{ c.contacts }}</td><td>{{ c.actions }}</td><td>{{ c.qualified_at }}</td></tr>
+      {% else %}<tr><td colspan="5" style="text-align:center;color:var(--gray-500)">No qualified new customers this quarter</td></tr>{% endfor %}
     </tbody>
   </table>
 
-  <h3 class="sub" style="margin-top:7mm">A.2 · Qualified New Projects ({{ evidence.new_projects|length }})</h3>
+  <h3 class="sub" style="margin-top:6mm">A.2 · New projects (qualified {{ evidence.new_projects|length }})</h3>
   <table class="params">
-    <thead><tr><th style="width:26%">Project</th><th style="width:18%">Auth. No.</th><th style="width:18%">Customer</th><th style="width:10%">Follow-ups</th><th style="width:10%">Quotes</th><th style="width:18%">First Qualified</th></tr></thead>
+    <thead><tr><th style="width:26%">Project</th><th style="width:18%">Auth. no.</th><th style="width:18%">Customer</th><th style="width:10%">Follows</th><th style="width:10%">Quotes</th><th style="width:18%">Qualified at</th></tr></thead>
     <tbody>
-      {% for p in evidence.new_projects %}
-      <tr><td>{{ p.name }}</td><td>{{ p.auth_code }}</td><td>{{ p.customer }}</td><td>{{ p.actions }}</td><td>{{ p.quotations }}</td><td>{{ p.qualified_at }}</td></tr>
-      {% else %}
-      <tr><td colspan="6" style="text-align:center;color:var(--ink-3)">No qualified new projects this quarter</td></tr>
-      {% endfor %}
+      {% for pr in evidence.new_projects %}<tr><td>{{ pr.name }}</td><td>{{ pr.auth_code }}</td><td>{{ pr.customer }}</td><td>{{ pr.actions }}</td><td>{{ pr.quotations }}</td><td>{{ pr.qualified_at }}</td></tr>
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--gray-500)">No qualified new projects this quarter</td></tr>{% endfor %}
     </tbody>
   </table>
 
-  <h3 class="sub" style="margin-top:7mm">A.3 · Sales · Approved Pricing Orders</h3>
+  <h3 class="sub" style="margin-top:6mm">A.3 · Sales · pricing orders</h3>
   <table class="params">
-    <thead><tr><th style="width:20%">Order No.</th><th style="width:24%">Customer</th><th style="width:16%">Amount</th><th style="width:10%">Cur.</th><th style="width:16%">In {{ currency }}</th><th style="width:14%">Approved</th></tr></thead>
+    <thead><tr><th style="width:20%">PO no.</th><th style="width:24%">Customer</th><th style="width:16%">Amount</th><th style="width:10%">Cur.</th><th style="width:16%">Conv. ({{ currency }})</th><th style="width:14%">Approved</th></tr></thead>
     <tbody>
-      {% for o in evidence.sales_orders %}
-      <tr><td>{{ o.no }}</td><td>{{ o.customer if o.customer else '—' }}</td><td>{{ '{:,.0f}'.format(o.amount) }}</td><td>{{ o.cur }}</td><td>{{ o.converted }}</td><td>{{ o.approved_at }}</td></tr>
-      {% else %}
-      <tr><td colspan="6" style="text-align:center;color:var(--ink-3)">No approved pricing orders this quarter</td></tr>
-      {% endfor %}
+      {% for o in evidence.sales_orders %}<tr><td>{{ o.no }}</td><td>{{ o.customer if o.customer else '—' }}</td><td>{{ '{:,.0f}'.format(o.amount) }}</td><td>{{ o.cur }}</td><td>{{ o.converted }}</td><td>{{ o.approved_at }}</td></tr>
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--gray-500)">No approved pricing orders this quarter</td></tr>{% endfor %}
     </tbody>
   </table>
 
-  <div class="page-footer">
-    <div class="row">
-      <div class="contact">
-        和源通信(上海)股份有限公司 &nbsp;·&nbsp; 上海市普陀区武南路 88 号金环广场 1102 室<br />
-        电话 <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; 网址 <span class="mono web">www.evertacsolutions.com</span>
-      </div>
-      <div class="pageno">附录 A &nbsp;·&nbsp; <span class="now">07 / 08</span></div>
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
     </div>
+    <div class="pageno">P. <span class="now">07</span> / 08</div>
   </div>
 </div>
 
-<!-- ===== PAGE 8 · 附录A (A.4-A.5) ===== -->
+<!-- ===== PAGE 8 · APPENDIX A (A.4-A.5) ===== -->
 <div class="page">
-  <div class="page-header">
-    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC" class="logo-img" />
+  <div class="page-head">
+    <img src="img/perf_report/evertac-solutions.png" alt="EVERTAC Solutions" class="logo-img" />
     <div class="crumb">
-      <div><span class="ttl">Appendix A · Evidence</span></div>
-      <div>{{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span></div>
+      <span class="ttl">Appendix A · Evidence Detail</span>
+      {{ user_name }} &nbsp;·&nbsp; <span class="ver">{{ year }} Q{{ quarter }}</span>
     </div>
   </div>
 
-  <h3 class="sub">A.4 · Implant · Quotation Detail</h3>
+  <h3 class="sub">A.4 · Implant value · quotation detail</h3>
   <table class="params">
-    <thead><tr><th style="width:18%">Quotation</th><th style="width:22%">Project</th><th style="width:24%">Product (MN)</th><th style="width:14%">Implant</th><th style="width:10%">Cur.</th><th style="width:12%">Conv.</th></tr></thead>
+    <thead><tr><th style="width:18%">Quote no.</th><th style="width:22%">Project</th><th style="width:24%">Implant product (MN)</th><th style="width:14%">Implant</th><th style="width:10%">Cur.</th><th style="width:12%">Conv.</th></tr></thead>
     <tbody>
-      {% for d in evidence.implant_details %}
-      <tr><td>{{ d.no }}</td><td>{{ d.project }}</td><td>{{ d.product_mn }}</td><td>{{ d.implant }}</td><td>{{ d.cur }}</td><td>{{ d.converted }}</td></tr>
-      {% else %}
-      <tr><td colspan="6" style="text-align:center;color:var(--ink-3)">See quotation system for implant detail</td></tr>
-      {% endfor %}
+      {% for d in evidence.implant_details %}<tr><td>{{ d.no }}</td><td>{{ d.project }}</td><td>{{ d.product_mn }}</td><td>{{ d.implant }}</td><td>{{ d.cur }}</td><td>{{ d.converted }}</td></tr>
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--gray-500)">See quotation system for implant detail</td></tr>{% endfor %}
     </tbody>
   </table>
 
-  <h3 class="sub" style="margin-top:8mm">A.5 · Activity · Numerator / Denominator</h3>
+  <h3 class="sub" style="margin-top:8mm">A.5 · Activity rate · numerator / denominator</h3>
   <table class="params">
-    <thead><tr><th style="width:34%">Metric</th><th style="width:24%">Numerator (active)</th><th style="width:24%">Denominator (total)</th><th style="width:18%">Rate</th></tr></thead>
+    <thead><tr><th style="width:28%">Metric</th><th style="width:30%">Numerator (active / ≤20d)</th><th style="width:30%">Denominator (owned / ongoing)</th><th style="width:12%">Rate</th></tr></thead>
     <tbody>
       <tr><td>Customer activity rate</td><td>{{ evidence.activity.customer.num }}</td><td>{{ evidence.activity.customer.den }}</td><td>{{ evidence.activity.customer.rate }}%</td></tr>
     </tbody>
   </table>
 
-  <div class="callout" style="margin-top:10mm">
-    <div class="k">Data Statement</div>
-    <p>Generated by the PMA performance system under one unified definition (kpi_actual_service); data is identical to the “My KPI” dashboard and the performance page.</p>
-  </div>
+  <p class="note" style="margin-top:10mm">
+    <span class="lk">Data statement</span>
+    This report is auto-generated by the PMA performance system under one unified definition (kpi_actual_service), identical to the "My KPI" dashboard and the performance page. Placeholders <span class="tk">…</span> are filled at export with the employee's actual quarter data.
+  </p>
 
-  <div class="page-footer">
-    <div class="row">
-      <div class="contact">
-        和源通信(上海)股份有限公司 &nbsp;·&nbsp; 上海市普陀区武南路 88 号金环广场 1102 室<br />
-        电话 <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; 网址 <span class="mono web">www.evertacsolutions.com</span>
-      </div>
-      <div class="pageno">附录 A &nbsp;·&nbsp; <span class="now">08 / 08</span></div>
+  <div class="page-foot">
+    <div>
+      Evertac Solutions Singapore Pte. Ltd. &nbsp;·&nbsp; 18 Boon Lay Way, #03-117, Tradehub 21, Singapore 609966<br />
+      Tel <span class="mono">+65 6568 1543</span> &nbsp;·&nbsp; Web <span class="web">www.evertacsolutions.com</span>
     </div>
+    <div class="pageno">P. <span class="now">08</span> / 08</div>
   </div>
 </div>
 
