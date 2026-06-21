@@ -777,19 +777,20 @@ def mobile_customer_sharing_get(company_id):
     from app.utils.access_control import can_edit_company_sharing
     can_edit = can_edit_company_sharing(user, company)
 
-    options = []
+    # 树状候选(公司→部门→账户)直接复用 web 同一函数 get_shareable_users_tree,两端同源
+    tree = []
     if can_edit:
-        from app.utils.sharing import get_shareable_users
-        for u in get_shareable_users(user, 'customer').all():
-            options.append({
-                'id': u.id,
-                'name': u.real_name or u.username,
-                'department': u.department or '',
-            })
+        from app.utils.sharing import get_shareable_users_tree
+        tree = get_shareable_users_tree(user, 'customer')
 
     return api_response(success=True, data={
         'can_edit': can_edit,
-        'options': options,
+        'tree': tree,
+        # 当前用户的公司/部门,供前端默认定位到自己所在层
+        'home': {
+            'company_name': user.company_name or '',
+            'department': user.department or '',
+        },
         'selected': company.shared_user_ids or [],
     })
 
