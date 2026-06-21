@@ -82,6 +82,129 @@ def _qualified_project_filters():
     ]
 
 
+def _collect_affected(session):
+    """在 before_flush 阶段(new/dirty 仍完整)收集受影响的 company_id/project_id;
+    新建的 Company/Project 此时尚无 id → 暂存对象引用,留待 after_commit 取 id。
+    结果累加进 session.info(同一事务多次 flush 累计)。"""
+    from app.models.customer import Company, Contact
+    from app.models.action import Action
+    from app.models.project import Project
+    from app.models.quotation import Quotation
+    from app.models.project_customer_association import ProjectCustomerAssociation as _PCA
+    cids = session.info.setdefault('_qa_c', set())
+    pids = session.info.setdefault('_qa_p', set())
+    objs = session.info.setdefault('_qa_objs', [])
+    for obj in list(session.new) + list(session.dirty):
+        if isinstance(obj, Company):
+            if obj.id:
+                cids.add(obj.id)
+            else:
+                objs.append(obj)   # 新建,flush 后才有 id
+        elif isinstance(obj, Project):
+            if obj.id:
+                pids.add(obj.id)
+            else:
+                objs.append(obj)
+        elif isinstance(obj, Contact):
+            if getattr(obj, 'company_id', None): cids.add(obj.company_id)
+        elif isinstance(obj, Action):
+            if getattr(obj, 'company_id', None): cids.add(obj.company_id)
+            if getattr(obj, 'project_id', None): pids.add(obj.project_id)
+        elif isinstance(obj, Quotation):
+            if getattr(obj, 'project_id', None): pids.add(obj.project_id)
+        elif isinstance(obj, _PCA):
+            if getattr(obj, 'project_id', None): pids.add(obj.project_id)
+
+
+def _stamp_now_for(company_ids, project_ids):
+    """对【受影响 + 现已达标 + 未盖戳】的客户/项目,写 qualified_at = now()(实时,真实达标时刻);
+    定向到指定 id,仅写 NULL 的。条件口径同合格过滤(含项目≥1报价单)。
+    用独立连接 db.engine.begin()(自带新事务):因本函数在 after_commit 内调用,
+    此时原 session 处于 committed 态不能再发 SQL;独立连接也与 session 事件无关,天然无递归。"""
+    from app import db
+    from sqlalchemy import text, bindparam
+    from datetime import datetime
+    now = datetime.now()
+    cust_stmt = text("""
+        UPDATE companies c SET qualified_at = :now
+        WHERE c.id IN :ids AND c.qualified_at IS NULL AND c.is_deleted = false
+          AND c.company_name IS NOT NULL AND btrim(c.company_name) <> ''
+          AND c.address      IS NOT NULL AND btrim(c.address)      <> ''
+          AND c.company_type IS NOT NULL AND btrim(c.company_type) <> ''
+          AND EXISTS (SELECT 1 FROM contacts ct WHERE ct.company_id=c.id)
+          AND (SELECT count(*) FROM actions a WHERE a.company_id=c.id) >= 1
+    """).bindparams(bindparam('ids', expanding=True))
+    proj_stmt = text("""
+        UPDATE projects p SET qualified_at = :now
+        WHERE p.id IN :ids AND p.qualified_at IS NULL AND p.is_deleted = false
+          AND p.authorization_code IS NOT NULL AND btrim(p.authorization_code) <> ''
+          AND EXISTS (SELECT 1 FROM actions a   WHERE a.project_id=p.id)
+          AND EXISTS (SELECT 1 FROM project_customer_associations pca WHERE pca.project_id=p.id)
+          AND EXISTS (SELECT 1 FROM quotations q WHERE q.project_id=p.id)
+    """).bindparams(bindparam('ids', expanding=True))
+    with db.engine.begin() as conn:
+        if company_ids:
+            conn.execute(cust_stmt, {'now': now, 'ids': list(company_ids)})
+        if project_ids:
+            conn.execute(proj_stmt, {'now': now, 'ids': list(project_ids)})
+
+
+_listeners_registered = False
+
+
+def register_qualified_at_listeners():
+    """注册会话事件:任意提交若触及 客户/联系人/跟进/项目/报价单/项目关联,
+    提交后即对受影响记录实时判定并盖戳 qualified_at(真实达标时刻)。集中一处,不动业务代码。
+    幂等注册;失败只记日志不影响主流程。每小时定时任务仍作兜底。"""
+    global _listeners_registered
+    if _listeners_registered:
+        return
+    import logging
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session
+    _log = logging.getLogger(__name__)
+
+    @event.listens_for(Session, 'before_flush')
+    def _qa_collect(session, ctx, instances):
+        try:
+            _collect_affected(session)
+        except Exception:
+            pass
+
+    @event.listens_for(Session, 'after_commit')
+    def _qa_after_commit(session):
+        from app.models.customer import Company
+        from app.models.project import Project
+        cids = session.info.pop('_qa_c', None) or set()
+        pids = session.info.pop('_qa_p', None) or set()
+        for o in (session.info.pop('_qa_objs', None) or []):
+            try:
+                if isinstance(o, Company) and o.id:
+                    cids.add(o.id)
+                elif isinstance(o, Project) and o.id:
+                    pids.add(o.id)
+            except Exception:
+                pass
+        if not cids and not pids:
+            return
+        if session.info.get('_qa_busy'):   # 防自身盖戳 commit 递归
+            return
+        try:
+            session.info['_qa_busy'] = True
+            _stamp_now_for(cids, pids)
+        except Exception as e:
+            _log.warning(f"实时达标盖戳失败(兜底任务会补): {e}")
+            try:
+                from app import db
+                db.session.rollback()
+            except Exception:
+                pass
+        finally:
+            session.info.pop('_qa_busy', None)
+
+    _listeners_registered = True
+
+
 def stamp_qualified_at():
     """给【已达标但未盖戳】的客户/项目写入 qualified_at = 推导的首次达标时刻,幂等(只动 NULL),
     永不重算已盖戳记录(达标后即便资料被删也保留 → 过去月份不变)。

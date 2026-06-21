@@ -1326,6 +1326,14 @@ def create_app(config_class=Config):
             except Exception as e:
                 app.logger.error(f"启动客户活跃度定时任务时出错: {str(e)}")
 
+        # 注册合格新客户/项目「达标时间」实时盖戳监听(集中式会话事件;每小时任务作兜底)
+        try:
+            from app.services.kpi_actual_service import register_qualified_at_listeners
+            register_qualified_at_listeners()
+            app.logger.info("达标时间实时盖戳监听已注册")
+        except Exception as e:
+            app.logger.error(f"注册达标盖戳监听时出错: {str(e)}")
+
         # 同步积分行为注册表到数据库
         try:
             from app.services.points_service import sync_registry_to_db
