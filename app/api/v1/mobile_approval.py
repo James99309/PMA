@@ -12,7 +12,12 @@ logger = logging.getLogger(__name__)
 OBJECT_TYPE_LABEL = {
     'project': '项目', 'quotation': '报价单', 'expense': '报销单',
     'pricing_order': '批价单', 'purchase_order': '采购单',
+    # 项目子审批(object_id 即项目 id) → 归到「项目」, 具体动作由 current_step_name 体现
+    'project_win_lock': '项目', 'project_hold': '项目',
 }
+
+# 视作项目处理的 object_type(名称取项目名 / 摘要走项目分支)
+_PROJECT_FAMILY = ('project', 'project_win_lock', 'project_hold')
 
 
 def _get_pending_instances_for_user(user_id):
@@ -86,7 +91,7 @@ def _get_object_summary(object_type, object_id):
                 'amount': float(e.total_amount or 0),
                 'currency': e.currency or 'CNY',
             }
-        if object_type == 'project':
+        if object_type in _PROJECT_FAMILY:
             from app.models.project import Project
             from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS, PROJECT_TYPE_LABELS
             p = Project.query.get(object_id)
@@ -144,10 +149,10 @@ def _get_object_summary(object_type, object_id):
 
 def _get_object_name(object_type, object_id):
     try:
-        if object_type == 'project':
+        if object_type in _PROJECT_FAMILY:
             from app.models.project import Project
             obj = Project.query.get(object_id)
-            return obj.project_name if obj else f'项目#{object_id}'  # bug: 之前用 obj.name (Project 没这个属性) → 落到通用 fallback 'project#id'
+            return obj.project_name if obj else f'项目#{object_id}'  # 含 win_lock/hold 子审批,object_id 即项目 id
         if object_type == 'quotation':
             from app.models.quotation import Quotation
             obj = Quotation.query.get(object_id)
