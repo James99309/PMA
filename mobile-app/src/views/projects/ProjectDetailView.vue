@@ -3,7 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getProject, addProjectNote } from '@/api/projects'
+import { getSharing, updateSharing } from '@/api/sharing'
 import { searchUsers, createConversation } from '@/api/chat'
+import OrgTreePickerSheet from '@/components/common/OrgTreePickerSheet.vue'
 import client from '@/api/client'
 import ExFlowSheet from '@/components/expense/ExFlowSheet.vue'
 import ExConfirmSheet from '@/components/expense/ExConfirmSheet.vue'
@@ -471,6 +473,41 @@ async function submitAuthRequest() {
 function callPhone(phone) { if (phone) window.open(`tel:${phone}`) }
 function openQuotation(id) { router.push(`/quotations/${id}`) }
 
+// ─── Sharing (generic endpoint + common OrgTreePickerSheet, same as customer) ───
+const canShare = ref(false)
+const shareTree = ref([])
+const shareHome = ref({})
+const shareSelected = ref([])
+const showSharePicker = ref(false)
+const shareToast = ref('')
+async function loadSharing() {
+  try {
+    const res = await getSharing('project', route.params.id)
+    const d = res.data?.data || {}
+    canShare.value = !!d.can_edit
+    shareTree.value = d.tree || []
+    shareHome.value = d.home || {}
+    shareSelected.value = d.selected || []
+  } catch {
+    canShare.value = false
+  }
+}
+async function onShareSelected(ids) {
+  const prev = shareSelected.value
+  shareSelected.value = ids
+  try {
+    const res = await updateSharing('project', route.params.id, ids)
+    shareSelected.value = res.data?.data?.selected || ids
+    shareToast.value = ids.length
+      ? t('common.shareSavedN', { n: ids.length })
+      : t('common.shareCleared')
+    setTimeout(() => { shareToast.value = '' }, 1800)
+  } catch (e) {
+    shareSelected.value = prev
+    alert(e.response?.data?.message || t('common.shareFail'))
+  }
+}
+
 function formatDelivery(iso) {
   if (!iso) return ''
   const [y, m, d] = iso.split('-')
@@ -484,6 +521,7 @@ function contactInitial(name) {
 onMounted(() => {
   dictStore.ensure('project_stage')
   load()
+  loadSharing()
 })
 </script>
 
@@ -501,10 +539,22 @@ onMounted(() => {
         </svg>
         <span class="text-[15px]">{{ t('common.backProjects') }}</span>
       </button>
-      <button v-if="project?.can_edit"
-        @click="router.push(`/projects/${project.id}/edit`)"
-        class="active:opacity-60 px-2"
-        style="font-size: 15px; font-weight: 500; color: var(--color-accent);">{{ t('common.edit') }}</button>
+      <div class="flex items-center gap-1">
+        <button v-if="canShare" @click="showSharePicker = true" type="button"
+          :aria-label="t('common.share')" class="active:opacity-60 p-2 relative">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M18 8a3 3 0 100-6 3 3 0 000 6zM6 15a3 3 0 100-6 3 3 0 000 6zM18 22a3 3 0 100-6 3 3 0 000 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4"
+              stroke="var(--color-ink-2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span v-if="shareSelected.length"
+            class="absolute top-0 right-0 min-w-[15px] h-[15px] px-1 rounded-full inline-flex items-center justify-center text-[9px] font-bold text-white"
+            style="background: var(--color-accent);">{{ shareSelected.length }}</span>
+        </button>
+        <button v-if="project?.can_edit"
+          @click="router.push(`/projects/${project.id}/edit`)"
+          class="active:opacity-60 px-2"
+          style="font-size: 15px; font-weight: 500; color: var(--color-accent);">{{ t('common.edit') }}</button>
+      </div>
     </div>
 
     <div v-if="loading" class="flex justify-center items-center flex-1">
@@ -1113,6 +1163,26 @@ onMounted(() => {
       :submitting="recalling"
       @confirm="confirmRecall"
     />
+
+    <!-- Project sharing: same generic endpoint + common 3-level org tree picker -->
+    <OrgTreePickerSheet
+      v-model="showSharePicker"
+      :title="t('common.shareTitle')"
+      :tree="shareTree"
+      :home="shareHome"
+      :selected="shareSelected"
+      @update:selected="onShareSelected" />
+
+    <!-- Sharing-saved toast -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="shareToast" class="fixed left-1/2 z-[60]"
+          style="bottom: 90px; transform: translateX(-50%); background: rgba(20,20,20,0.88);
+                 color: #fff; font-size: 13px; padding: 9px 16px; border-radius: 999px; white-space: nowrap;">
+          {{ shareToast }}
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 

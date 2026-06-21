@@ -2,7 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getCustomer, addCustomerNote, addContact, getCustomerSharing, updateCustomerSharing } from '@/api/customers'
+import { getCustomer, addCustomerNote, addContact } from '@/api/customers'
+import { getSharing, updateSharing } from '@/api/sharing'
 import client      from '@/api/client'
 import NavBar      from '@/components/common/NavBar.vue'
 import Section     from '@/components/common/Section.vue'
@@ -112,7 +113,7 @@ const showSharePicker = ref(false)
 const shareToast = ref('')
 async function loadSharing() {
   try {
-    const res = await getCustomerSharing(route.params.id)
+    const res = await getSharing('customer', route.params.id)
     const d = res.data?.data || {}
     canShare.value = !!d.can_edit
     shareTree.value = d.tree || []
@@ -126,15 +127,15 @@ async function onShareSelected(ids) {
   const prev = shareSelected.value
   shareSelected.value = ids
   try {
-    const res = await updateCustomerSharing(route.params.id, ids)
+    const res = await updateSharing('customer', route.params.id, ids)
     shareSelected.value = res.data?.data?.selected || ids
     shareToast.value = ids.length
-      ? t('customer.shareSavedN', { n: ids.length })
-      : t('customer.shareCleared')
+      ? t('common.shareSavedN', { n: ids.length })
+      : t('common.shareCleared')
     setTimeout(() => { shareToast.value = '' }, 1800)
   } catch (e) {
     shareSelected.value = prev
-    alert(e.response?.data?.message || t('customer.shareFail'))
+    alert(e.response?.data?.message || t('common.shareFail'))
   }
 }
 
@@ -208,7 +209,7 @@ onMounted(() => { load(); loadSharing() })
           <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">{{ t('customer.followUp') }}</span>
         </button>
         <button v-if="canShare" @click="showSharePicker = true" type="button"
-          :aria-label="t('customer.share')"
+          :aria-label="t('common.share')"
           class="h-12 w-12 rounded-2xl flex items-center justify-center active:opacity-70 shrink-0 relative"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="pointer-events: none;">
@@ -536,7 +537,7 @@ onMounted(() => { load(); loadSharing() })
     <!-- Customer sharing: reuse the common 3-level org tree picker (same source as web) -->
     <OrgTreePickerSheet
       v-model="showSharePicker"
-      :title="t('customer.shareTitle')"
+      :title="t('common.shareTitle')"
       :tree="shareTree"
       :home="shareHome"
       :selected="shareSelected"

@@ -8,13 +8,7 @@ export const getCustomerOwners = () =>
 
 export const getCustomer = id =>
   client.get(`/mobile/customers/${id}`)
-
-// Sharing (reuses web SharingService: candidate users + current selection)
-export const getCustomerSharing = id =>
-  client.get(`/mobile/customers/${id}/sharing`)
-
-export const updateCustomerSharing = (id, sharedWithUsers) =>
-  client.post(`/mobile/customers/${id}/sharing`, { shared_with_users: sharedWithUsers })
+// Sharing moved to generic @/api/sharing (getSharing/updateSharing)
 
 export const addCustomerNote = (id, content) =>
   client.post(`/mobile/customers/${id}/notes`, { content })
