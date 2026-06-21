@@ -228,9 +228,9 @@ class PerformanceDashboardService:
                         # 优先级: 1.月度配置 2.年度平摊
                         # 注意：薪资配置中目标单位是万元，需转换为元以匹配 PerformanceService
                         if str(month) in monthly_targets_config and monthly_targets_config[str(month)]:
-                            monthly_target = float(monthly_targets_config[str(month)]) * 10000  # 万元→元
+                            monthly_target = float(monthly_targets_config[str(month)]) * Config.AMOUNT_DIVISOR  # 显示单位→基础币种(CN万 / SG千)
                         else:
-                            monthly_target = (annual_target / 12 * 10000) if annual_target else 0  # 万元→元
+                            monthly_target = (annual_target / 12 * Config.AMOUNT_DIVISOR) if annual_target else 0  # 显示单位→基础币种
 
                         targets_dict[month] = {
                             'sales_amount_target': monthly_target,  # 元
@@ -1663,9 +1663,9 @@ class PerformanceDashboardService:
             if not target_key:
                 continue
 
-            # 金额类目标存储单位为万元，需要 * 10000 转为元
+            # 金额类目标存储单位为显示单位(CN万 / SG千),需 × 进制转为基础币种
             is_amount = item_code in amount_item_codes
-            multiplier = 10000 if is_amount else 1
+            multiplier = Config.AMOUNT_DIVISOR if is_amount else 1
 
             annual = float(_eff(item_code, 'annual_target_override', 'annual_target') or 0)
             enable_m = bool(_eff(item_code, 'enable_monthly_override', 'enable_monthly'))
@@ -1942,12 +1942,12 @@ class PerformanceDashboardService:
             if not team_perf or team_perf.get('team_target', 0) <= 0:
                 return None
 
-            # 转换为与summary相同的格式（元）
-            # team_achievement 和 team_target 原单位是万元，需乘10000转为元
+            # 转换为与summary相同的格式（基础币种）
+            # team_achievement / team_target 原单位是显示单位(CN万 / SG千),× 进制转基础币种
             team_summary = {
                 'sales_amount': {
-                    'actual': team_perf['team_achievement'] * 10000,
-                    'target': team_perf['team_target'] * 10000,
+                    'actual': team_perf['team_achievement'] * Config.AMOUNT_DIVISOR,
+                    'target': team_perf['team_target'] * Config.AMOUNT_DIVISOR,
                     'rate': round(team_perf['team_completion_rate'] * 100, 1),
                     'status': 'success' if team_perf['team_completion_rate'] >= 1 else (
                         'warning' if team_perf['team_completion_rate'] >= 0.8 else 'danger'

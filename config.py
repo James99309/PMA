@@ -78,8 +78,8 @@ class Config:
         # OVS 数据库 → 美元
         DEFAULT_CURRENCY = 'USD'
         CURRENCY_SYMBOL = '$'
-        AMOUNT_UNIT = 'M'              # million
-        AMOUNT_DIVISOR = 1000000       # 除以100万
+        AMOUNT_UNIT = 'K'              # thousand(2026-06-21 由 M 改 K,适配实际美金量级)
+        AMOUNT_DIVISOR = 1000          # 除以1千
         COUNT_UNIT = 'pcs'
     else:
         # SP8D 或本地数据库 → 人民币
