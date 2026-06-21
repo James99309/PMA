@@ -795,22 +795,44 @@ def _act_implant(user, s, e):
     return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
 def _act_new_projects(user, s, e):
+    """合格新项目(2026-06-21 口径):我名下(owner_id)本期新建,且
+    报备通过(有授权编号) + 至少 1 条跟进记录 + 有关联客户。"""
     from sqlalchemy import func
     from app import db
     from app.models.project import Project
+    from app.models.action import Action
+    from app.models.project_customer_association import ProjectCustomerAssociation as _PCA
+    act_exists = db.session.query(Action.id).filter(Action.project_id == Project.id).exists()
+    cust_exists = db.session.query(_PCA.id).filter(_PCA.project_id == Project.id).exists()
     return db.session.query(func.count(Project.id)).filter(
         Project.owner_id == user.id,
-        Project.created_at >= s, Project.created_at < e).scalar() or 0
+        Project.is_deleted == False,
+        Project.created_at >= s, Project.created_at < e,
+        Project.authorization_code.isnot(None), func.trim(Project.authorization_code) != '',
+        act_exists, cust_exists,
+    ).scalar() or 0
 
 def _act_new_customers(user, s, e):
-    # 新增客户 = 我名下(owner_id)本期新建的公司,不过滤类型
-    # (companies 表无 created_by 列;旧口径 company_type=='customer' 在库里无此值恒为 0)
+    """合格新客户(2026-06-21 口径):我名下(owner_id)本期新建,且资料完整——
+    公司名称/地址/公司类型齐全 + 至少 1 个联系人 + 客户下跟进记录 ≥ 2 条。"""
     from sqlalchemy import func
     from app import db
-    from app.models.customer import Company
+    from app.models.customer import Company, Contact
+    from app.models.action import Action
+    contact_exists = db.session.query(Contact.id).filter(Contact.company_id == Company.id).exists()
+    action_cnt = (db.session.query(func.count(Action.id))
+                  .filter(Action.company_id == Company.id)
+                  .correlate(Company).scalar_subquery())
     return db.session.query(func.count(Company.id)).filter(
         Company.owner_id == user.id,
-        Company.created_at >= s, Company.created_at < e).scalar() or 0
+        Company.is_deleted == False,
+        Company.created_at >= s, Company.created_at < e,
+        Company.company_name.isnot(None), func.trim(Company.company_name) != '',
+        Company.address.isnot(None), func.trim(Company.address) != '',
+        Company.company_type.isnot(None), func.trim(Company.company_type) != '',
+        contact_exists,
+        action_cnt >= 2,
+    ).scalar() or 0
 
 def _act_quotation_count(user, s, e):
     from sqlalchemy import func
