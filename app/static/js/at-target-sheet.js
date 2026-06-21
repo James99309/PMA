@@ -46,6 +46,8 @@
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const r2 = v => Math.round(v * 100) / 100;
   const fmt = v => (v == null || v === '') ? '' : (Math.round(v * 100) / 100);
+  // 目标查看态:0 等同未设(null)→ 显示「—」,直观表达"该期不设目标=不参加考核"(编辑态仍用 fmt 可填)
+  const fmtTgt = v => (v == null || v === '' || parseFloat(v) === 0) ? '—' : fmt(v);
   const isRate = it => (it.unit === '%');
   // 积分制:单项得分(水平值)× 实际累计,封顶权重;无目标拆分,锁定为「单项」
   const isCumulative = it => (it.scoring_mode === 'cumulative');
@@ -103,6 +105,8 @@
   g.ATTargetSheet = function (cfg) {
     const el = typeof cfg.container === 'string' ? document.getElementById(cfg.container) : cfg.container;
     const canEdit = !!cfg.canEdit;
+    let editing = false;   // 当前是否处于编辑态(由 AtEditMode onEnter/onExit 驱动);
+                           // 只读态下目标 0/空显示「—」,编辑态下用 fmt 可填
     const mode = cfg.mode || 'role';
     const weightEditable = !!cfg.weightEditable && canEdit;
     const granYear = !!cfg.granYear;
@@ -487,19 +491,19 @@
           // 年粒度:数据区合并一格,只回显年度数(年度列编辑);手工行点击弹录入
           cells = `<td colspan="${periodCols}" class="at-dim" data-y="${i}"${actAttr(it, 'y', 0, it.annual_target)}${isManual ? ` data-mecell="${i}|y|0"` : ''}
                        style="text-align:center;${isManual ? 'cursor:pointer;' : ''}"
-                       title="${isManual ? _t('手工指标:点击录入实际值') : _t('年粒度:不按季/月管控节奏')}">${fmt(it.annual_target)}</td>`;
+                       title="${isManual ? _t('手工指标:点击录入实际值') : _t('年粒度:不按季/月管控节奏')}">${(canEdit && editing) ? fmt(it.annual_target) : fmtTgt(it.annual_target)}</td>`;
         } else if (isM) {
           for (let m = 1; m <= 12; m++) {
             const lk = fieldLocked('m' + m);
             cells += isManual ? meCell('m', m, 'm' + m, it.monthly_targets[String(m)])
-              : `<td ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="' + _t('该季度已结算锁定,不可修改') + '"' : ''} data-i="${i}" data-f="m${m}"${actAttr(it, 'm', m, it.monthly_targets[String(m)])}>${fmt(it.monthly_targets[String(m)])}</td>`;
+              : `<td ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="' + _t('该季度已结算锁定,不可修改') + '"' : ''} data-i="${i}" data-f="m${m}"${actAttr(it, 'm', m, it.monthly_targets[String(m)])}>${(canEdit && editing) ? fmt(it.monthly_targets[String(m)]) : fmtTgt(it.monthly_targets[String(m)])}</td>`;
           }
         } else {
           // 月表头模式下季考行跨 3 列;纯季模式一格一列
           for (let q = 1; q <= 4; q++) {
             const lk = fieldLocked('q' + q);
             cells += isManual ? meCell('q', q, 'q' + q, it['q' + q + '_target'])
-              : `<td ${monthMode ? 'colspan="3"' : ''} ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="' + _t('该季度已结算锁定,不可修改') + '"' : ''} data-i="${i}" data-f="q${q}"${actAttr(it, 'q', q, it['q' + q + '_target'])}>${fmt(it['q' + q + '_target'])}</td>`;
+              : `<td ${monthMode ? 'colspan="3"' : ''} ${lk ? '' : ceAttr} class="${badCls}${lk ? ' ts-locked' : ''}"${lk ? ' title="' + _t('该季度已结算锁定,不可修改') + '"' : ''} data-i="${i}" data-f="q${q}"${actAttr(it, 'q', q, it['q' + q + '_target'])}>${(canEdit && editing) ? fmt(it['q' + q + '_target']) : fmtTgt(it['q' + q + '_target'])}</td>`;
           }
         }
 
@@ -626,6 +630,8 @@
       },
       setActuals(map) { actuals = map || {}; render(); },
       setLocks(quarters) { lockedQ = new Set((quarters || []).map(Number)); render(); },
+      // 由 AtEditMode onEnter/onExit 调用:切换编辑态并重渲(只读态目标 0/空显示「—」)
+      setEditing(v) { editing = !!v; render(); },
       getActuals: () => actuals,
       // 各期加权得分(供季度结算发起取数):{year, quarters:[Q1..Q4]}
       getScores: () => ({ year: periodScore('y', 0), quarters: [1, 2, 3, 4].map(q => periodScore('q', q)) }),

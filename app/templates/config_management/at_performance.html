@@ -178,6 +178,8 @@
 
   const guard = AtEditMode.init({
     mount: 'cmEditBar', lockEl: 'cmSheet', canEdit: CAN_EDIT,
+    onEnter: function () { sheet.setEditing(true); },   // 编辑态:目标格用 fmt 可填
+    onExit: function () { sheet.setEditing(false); },   // 只读态:目标 0/空显示「—」
     onSave: cmSaveCore,
     onDiscard: function () { cmLoad(); },
     saveConfirm: { message: I.saveConfirm },

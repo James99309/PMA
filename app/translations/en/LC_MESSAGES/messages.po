@@ -36859,3 +36859,6 @@ msgstr "Run-rate projection · weighted · capped at 100%"
 
 msgid "数据不足"
 msgstr "Insufficient data"
+
+msgid "本季未设目标,不参加考核"
+msgstr "No target this quarter — not assessed"
