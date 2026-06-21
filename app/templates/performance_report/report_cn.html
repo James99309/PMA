@@ -134,13 +134,15 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
 .rhead { position: running(rhead); }
 .rfoot { position: running(rfoot); }
 @media print {
-  body { background: #fff; padding: 0; margin: 0; }
+  body { background: #FDFAF8; padding: 0; margin: 0; }
   /* 每个 .page = 一个区块,从新页开始;高度随内容流动,不再裁切;
      宽度改 auto 填满 @page 内容区(否则 210mm 塞进 166mm → 右侧被裁) */
   .page {
     box-shadow: none; margin: 0; padding: 0; width: auto;
     min-height: 0; height: auto; overflow: visible; display: block;
+    page-break-after: auto;
   }
+  .eyebrow { break-after: avoid; }   /* 章节标题不落单在页底 */
   .page-body { overflow: visible; padding-bottom: 0; }
   /* 内联的每页页眉/页脚停用,改由 @page running 统一供给(避免逐页重复/错位) */
   .page > .page-header, .page > .page-footer { display: none; }
@@ -154,12 +156,12 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
     @bottom-right {
       content: counter(page) " / " counter(pages);
       font-family: var(--mono); font-size: 8pt; color: var(--ink-3);
-      vertical-align: top; padding-top: 1mm;
+      vertical-align: top; padding-top: 1mm; white-space: nowrap;
     }
   }
   /* 封面整页满铺:首页无页边距与页眉脚 */
   @page cover { margin: 0; background: #FDFAF8; @top-left { content: none; } @bottom-left { content: none; } @bottom-right { content: none; } }
-  .page.cover-page { page: cover; padding: 24mm 22mm; width: 210mm; }
+  .page.cover-page { page: cover; padding: 24mm 22mm; width: 210mm; page-break-after: always; }
 }
 /* running 页眉/页脚外观 */
 .rhead { align-items: center; gap: 3mm; border-bottom: 1px solid var(--rule);
@@ -194,8 +196,8 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
 
 body {
   font-family: var(--sans);
-  font-size: 11pt;
-  line-height: 1.75;
+  font-size: 10pt;
+  line-height: 1.6;
   color: var(--ink);
 }
 
@@ -293,7 +295,7 @@ h1, h2, h3, h4 {
 }
 
 h2.section {
-  font-size: 28pt;
+  font-size: 21pt;
   line-height: 1.15;
   letter-spacing: -0.01em;
   margin-bottom: 4mm;

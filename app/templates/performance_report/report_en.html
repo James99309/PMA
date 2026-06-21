@@ -134,9 +134,11 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
 .rhead { position: running(rhead); }
 .rfoot { position: running(rfoot); }
 @media print {
-  body { background: #fff; padding: 0; margin: 0; }
+  body { background: #FDFAF8; padding: 0; margin: 0; }
   .page { box-shadow: none; margin: 0; padding: 0; width: auto;
-          min-height: 0; height: auto; overflow: visible; display: block; }
+          min-height: 0; height: auto; overflow: visible; display: block;
+          page-break-after: auto; }
+  .section-bar { break-after: avoid; }
   .page-body { overflow: visible; padding-bottom: 0; }
   .page > .page-head, .page > .page-foot { display: none; }
   .rhead, .rfoot { display: flex; }
@@ -146,10 +148,10 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
     @bottom-left { content: element(rfoot); width: 100%; vertical-align: top; }
     @bottom-right { content: "P. " counter(page) " / " counter(pages);
       font-family: var(--mono); font-size: 8pt; color: var(--ink-3);
-      vertical-align: top; padding-top: 1mm; }
+      vertical-align: top; padding-top: 1mm; white-space: nowrap; }
   }
-  @page cover { margin: 0; background: #FDFAF8; @top-left{content:none} @bottom-left{content:none} @bottom-right{content:none} }
-  .page.cover-page { page: cover; padding: 18mm; width: 210mm; }
+  @page cover { margin: 16mm; background: #FDFAF8; @top-left{content:none} @bottom-left{content:none} @bottom-right{content:none} }
+  .page.cover-page { page: cover; padding: 0; width: auto; page-break-after: always; }
 }
 .rhead { align-items: center; gap: 3mm; border-bottom: 1px solid var(--rule); padding-bottom: 2mm; width: 100%; }
 .rhead .logo-img { height: 6mm; width: auto; }
