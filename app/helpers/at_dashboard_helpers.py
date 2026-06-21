@@ -1711,21 +1711,28 @@ def _build_funnel(user, scope_filter=None):
 
     cutoff = datetime.now() - timedelta(days=365)
 
-    # 我的项目按 stage 分组 + 关联报价植入额聚合
-    q = db.session.query(
+    # 项目数按 stage 分组(distinct 项目)
+    cq = db.session.query(
         Project.current_stage,
         func.count(Project.id.distinct()).label('cnt'),
-        func.coalesce(func.sum(Quotation.implant_total_amount), 0).label('amt'),
-    ).outerjoin(
-        Quotation, Quotation.project_id == Project.id
-    ).filter(
-        Project.created_at >= cutoff,
-    )
+    ).filter(Project.created_at >= cutoff)
     if scope_filter is not None:
-        q = q.filter(scope_filter)
-    rows = q.group_by(Project.current_stage).all()
+        cq = cq.filter(scope_filter)
+    count_rows = cq.group_by(Project.current_stage).all()
 
-    stage_data = {r.current_stage: {'count': int(r.cnt or 0), 'amount': float(r.amt or 0)} for r in rows}
+    # 关联报价植入额按 stage 分组 + 跨币种换算到本实例币种(公共组件,CN 无操作/SG→USD)
+    from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
+    aq = (db.session.query(Project)
+          .outerjoin(Quotation, Quotation.project_id == Project.id)
+          .filter(Project.created_at >= cutoff))
+    if scope_filter is not None:
+        aq = aq.filter(scope_filter)
+    amt_map = MultiCurrencyAggregationService.sum_converted_by_group(
+        aq, Quotation.implant_total_amount, Quotation.currency, Project.current_stage)
+
+    stage_data = {r.current_stage: {'count': int(r.cnt or 0),
+                                    'amount': float(amt_map.get(r.current_stage, 0.0))}
+                  for r in count_rows}
 
     # 锁定成功(锁单预判)按阶段计数 — 同 scope,签约阶段已自动解除不会出现
     lq = db.session.query(Project.current_stage, func.count(Project.id)).filter(
