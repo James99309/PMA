@@ -794,27 +794,9 @@ def _act_implant(user, s, e):
         Quotation.created_at >= s, Quotation.created_at < e)
     return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
-def _act_new_projects(user, s, e):
-    """合格新项目(2026-06-21 口径):我名下(owner_id)本期新建,且
-    报备通过(有授权编号) + 至少 1 条跟进记录 + 有关联客户。"""
-    from sqlalchemy import func
-    from app import db
-    from app.models.project import Project
-    from app.models.action import Action
-    from app.models.project_customer_association import ProjectCustomerAssociation as _PCA
-    act_exists = db.session.query(Action.id).filter(Action.project_id == Project.id).exists()
-    cust_exists = db.session.query(_PCA.id).filter(_PCA.project_id == Project.id).exists()
-    return db.session.query(func.count(Project.id)).filter(
-        Project.owner_id == user.id,
-        Project.is_deleted == False,
-        Project.created_at >= s, Project.created_at < e,
-        Project.authorization_code.isnot(None), func.trim(Project.authorization_code) != '',
-        act_exists, cust_exists,
-    ).scalar() or 0
-
-def _act_new_customers(user, s, e):
-    """合格新客户(2026-06-21 口径):我名下(owner_id)本期新建,且资料完整——
-    公司名称/地址/公司类型齐全 + 至少 1 个联系人 + 客户下跟进记录 ≥ 2 条。"""
+# ── 合格「新建客户/项目」统一口径(2026-06-21,个人/团队/渠道共用) ──
+def _qualified_customer_filters():
+    """合格新客户:名称/地址/公司类型齐全 + ≥1 联系人 + 客户下跟进(Action)≥2 条。"""
     from sqlalchemy import func
     from app import db
     from app.models.customer import Company, Contact
@@ -823,15 +805,51 @@ def _act_new_customers(user, s, e):
     action_cnt = (db.session.query(func.count(Action.id))
                   .filter(Action.company_id == Company.id)
                   .correlate(Company).scalar_subquery())
-    return db.session.query(func.count(Company.id)).filter(
-        Company.owner_id == user.id,
+    return [
         Company.is_deleted == False,
-        Company.created_at >= s, Company.created_at < e,
         Company.company_name.isnot(None), func.trim(Company.company_name) != '',
         Company.address.isnot(None), func.trim(Company.address) != '',
         Company.company_type.isnot(None), func.trim(Company.company_type) != '',
-        contact_exists,
-        action_cnt >= 2,
+        contact_exists, action_cnt >= 2,
+    ]
+
+
+def _qualified_project_filters():
+    """合格新项目:报备通过(有授权编号) + ≥1 跟进记录 + 有关联客户。"""
+    from app import db
+    from sqlalchemy import func
+    from app.models.project import Project
+    from app.models.action import Action
+    from app.models.project_customer_association import ProjectCustomerAssociation as _PCA
+    act_exists = db.session.query(Action.id).filter(Action.project_id == Project.id).exists()
+    cust_exists = db.session.query(_PCA.id).filter(_PCA.project_id == Project.id).exists()
+    return [
+        Project.is_deleted == False,
+        Project.authorization_code.isnot(None), func.trim(Project.authorization_code) != '',
+        act_exists, cust_exists,
+    ]
+
+
+def _act_new_projects(user, s, e):
+    """合格新项目(我名下 owner_id 本期新建)。"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.project import Project
+    return db.session.query(func.count(Project.id)).filter(
+        Project.owner_id == user.id,
+        Project.created_at >= s, Project.created_at < e,
+        *_qualified_project_filters(),
+    ).scalar() or 0
+
+def _act_new_customers(user, s, e):
+    """合格新客户(我名下 owner_id 本期新建)。"""
+    from sqlalchemy import func
+    from app import db
+    from app.models.customer import Company
+    return db.session.query(func.count(Company.id)).filter(
+        Company.owner_id == user.id,
+        Company.created_at >= s, Company.created_at < e,
+        *_qualified_customer_filters(),
     ).scalar() or 0
 
 def _act_quotation_count(user, s, e):
@@ -1190,7 +1208,9 @@ def _act_team_new_projects(user, s, e):
     from app.models.project import Project
     return db.session.query(func.count(Project.id)).filter(
         Project.owner_id.in_(_dept_member_ids(user)),
-        Project.created_at >= s, Project.created_at < e).scalar() or 0
+        Project.created_at >= s, Project.created_at < e,
+        *_qualified_project_filters(),
+    ).scalar() or 0
 
 
 def _act_team_new_customers(user, s, e):
@@ -1199,7 +1219,9 @@ def _act_team_new_customers(user, s, e):
     from app.models.customer import Company
     return db.session.query(func.count(Company.id)).filter(
         Company.owner_id.in_(_dept_member_ids(user)),
-        Company.created_at >= s, Company.created_at < e).scalar() or 0
+        Company.created_at >= s, Company.created_at < e,
+        *_qualified_customer_filters(),
+    ).scalar() or 0
 
 
 def _act_team_customer_activity(user, s, e):
@@ -1297,7 +1319,9 @@ def _act_channel_new_projects(user, s, e):
     from app.models.project import Project
     return db.session.query(func.count(Project.id)).filter(
         *_channel_project_filter(),
-        Project.created_at >= s, Project.created_at < e).scalar() or 0
+        Project.created_at >= s, Project.created_at < e,
+        *_qualified_project_filters(),
+    ).scalar() or 0
 
 
 def _dealer_user_ids():
@@ -1312,8 +1336,10 @@ def _act_channel_new_customers(user, s, e):
     from app import db
     from app.models.customer import Company
     return db.session.query(func.count(Company.id)).filter(
-        Company.is_deleted == False, Company.owner_id.in_(_dealer_user_ids()),
-        Company.created_at >= s, Company.created_at < e).scalar() or 0
+        Company.owner_id.in_(_dealer_user_ids()),
+        Company.created_at >= s, Company.created_at < e,
+        *_qualified_customer_filters(),
+    ).scalar() or 0
 
 
 def _act_channel_customer_activity(user, s, e):
