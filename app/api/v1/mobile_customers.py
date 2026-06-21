@@ -8,6 +8,9 @@ from app.models.customer import Company, Contact
 from app.models.project import Project
 from app.models.project_customer_association import ProjectCustomerAssociation
 from app.utils.access_control import get_viewable_data, can_view_company
+from app.utils.dictionary_helpers import format_money
+from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
+from config import Config
 from app import db
 import logging
 
@@ -63,12 +66,12 @@ def _status_label(key):
 
 
 def _source_label(key):
-    """source 字段映射到中文（复用 PMA 主系统字典）"""
+    """source 字段按请求语言映射 label（复用 PMA 主系统字典, zh/en）"""
     if not key:
         return ''
     try:
         from app.utils.dictionary_helpers import report_source_label
-        return report_source_label(key)
+        return report_source_label(key, _lang())
     except Exception:
         return key
 
@@ -173,22 +176,26 @@ def mobile_customer_list():
     company_ids = [c.id for c in pagination.items]
     proj_stats = {}  # company_id -> {value: float, open: int}
     if company_ids:
+        base_cur = Config.DEFAULT_CURRENCY
         rows = (
             db.session.query(
                 ProjectCustomerAssociation.company_id,
                 Project.current_stage,
                 Project.quotation_customer,
+                Project.quotation_currency,
             )
             .join(Project, Project.id == ProjectCustomerAssociation.project_id)
             .filter(ProjectCustomerAssociation.company_id.in_(company_ids))
             .filter(Project.is_deleted == False)
             .all()
         )
-        for cid, stage, amt in rows:
+        for cid, stage, amt, curr in rows:
             stat = proj_stats.setdefault(cid, {'value': 0.0, 'open': 0})
             # 累计价值：所有非失败/搁置项目都计入（含已签 + 在跟）
+            # 跨币种用现成汇率换算到本实例默认币种(与 web 项目列表 sum_converted 同口径)
             if stage not in ('lost', 'paused'):
-                stat['value'] += (amt or 0)
+                stat['value'] += MultiCurrencyAggregationService.convert_single(
+                    amt or 0, curr or base_cur, base_cur)
             if stage not in ('signed', 'lost', 'paused'):
                 stat['open'] += 1
 
@@ -201,7 +208,8 @@ def mobile_customer_list():
             'primary_contact_name': primary.name if primary else '',
             'primary_contact_phone': primary.phone if primary else '',
             'status':       _status_label(c.status),
-            'value':        round(stat['value'] / 10000, 2),
+            'value':        round(stat['value'] / 10000, 2),  # legacy 万(排序/兼容)
+            'value_display': format_money(stat['value'], Config.DEFAULT_CURRENCY) if stat['value'] else '',
             'open_count':   stat['open'],
             'last_touch':   _relative_date(c.updated_at.date() if c.updated_at else None),
             'company_type': c.company_type,
@@ -280,22 +288,30 @@ def mobile_customer_detail(company_id):
     lost_count = sum(1 for p in all_projects if p.current_stage == 'lost')
     total_count = len(all_projects)
 
-    # 累计客户价值 = 所有"在飞"项目 quotation_customer 求和（万元）
+    # 累计客户价值 = 所有"在飞"项目 quotation_customer 求和
     # 不含 lost/paused —— 但已签约 + 任何在跟项目都计入（反映客户业务总量+潜在价值）
+    # 跨币种用现成汇率换算到本实例默认币种(与 web 项目列表 sum_converted 同口径)
+    base_cur = Config.DEFAULT_CURRENCY
     value_raw = sum(
-        (p.quotation_customer or 0)
+        MultiCurrencyAggregationService.convert_single(
+            p.quotation_customer or 0,
+            getattr(p, 'quotation_currency', base_cur) or base_cur,
+            base_cur)
         for p in all_projects
         if p.current_stage not in ('lost', 'paused')
     )
     value_wan = round(value_raw / 10000, 2)
+    value_display = format_money(value_raw, base_cur) if value_raw else ''
 
     projects_payload = []
     for p in all_projects[:10]:
         amt_raw = p.quotation_customer or 0
+        p_cur = getattr(p, 'quotation_currency', base_cur) or base_cur
         projects_payload.append({
             'id': p.id,
             'name': p.project_name,
-            'amount': round(amt_raw / 10000, 2) if amt_raw else 0,
+            'amount': round(amt_raw / 10000, 2) if amt_raw else 0,  # legacy 万
+            'amount_display': format_money(amt_raw, p_cur) if amt_raw else '',
             'stage': p.current_stage or 'discover',
             'stage_label': _STAGE_LABEL.get(p.current_stage, p.current_stage or '—'),
             'tone': _STAGE_TONE.get(p.current_stage, 'discover'),
@@ -313,7 +329,8 @@ def mobile_customer_detail(company_id):
         'status':        _status_label(company.status),
         'owner_name':    company.owner.real_name or company.owner.username if company.owner else '',
         'last_touch':    _relative_date(last_action_date),
-        'value':         value_wan,
+        'value':         value_wan,  # legacy 万(兼容)
+        'value_display': value_display,
         'open_count':    open_count,
         'won_count':     won_count,
         'lost_count':    lost_count,
