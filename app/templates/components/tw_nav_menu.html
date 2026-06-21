@@ -36,6 +36,12 @@ Tailwind 共享导航菜单组件
     <span class="{% if active_page == 'dashboard' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('仪表盘') }}</span>
 </a>
 
+<!-- Skills 商店：内嵌团队私有 marketplace（所有登录用户可见） -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'skills_marketplace' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('skills_marketplace.marketplace_page') }}">
+    <span class="material-symbols-outlined {% if active_page == 'skills_marketplace' %}fill text-primary{% else %}text-slate-600 dark:text-slate-400{% endif %}">storefront</span>
+    <span class="{% if active_page == 'skills_marketplace' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('Skills 商店') }}</span>
+</a>
+
 
 <!-- 会议纪要：所有用户可见（列表 query 按 owner/invited/admin 自动过滤） -->
 <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'meeting_minutes' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('meeting.minutes_list') }}">

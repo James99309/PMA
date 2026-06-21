@@ -36356,3 +36356,9 @@ msgstr "Invalid feedback type."
 #~ msgid "请输入名称"
 #~ msgstr "Please enter a name"
 
+
+msgid "Skills 商店"
+msgstr "Skills Store"
+
+msgid "新窗口打开"
+msgstr "Open in new window"

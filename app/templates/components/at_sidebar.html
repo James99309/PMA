@@ -109,6 +109,9 @@
         {# ── 顶级:仪表盘(单一顶级入口,其余分组化) ── #}
         {{ _top_link(url_for('main.index'),               'grid',  _('仪表盘'),    'dashboard',       active_key) }}
 
+        {# ── 顶级:Skills 商店(内嵌团队 marketplace,所有登录用户可见) ── #}
+        {{ _top_link(url_for('skills_marketplace.marketplace_page'), 'cart', _('Skills 商店'), 'skills_marketplace', active_key) }}
+
         {# ── 业务管理组 ── #}
         {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') or has_permission('expense', 'view') %}
         {% set grp = 'business' %}

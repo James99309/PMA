@@ -538,6 +538,10 @@ def create_app(config_class=Config):
     app.register_blueprint(knowledge_wiki_bp)
     csrf.exempt(knowledge_wiki_bp)
 
+    # 团队 Skills 商店（内嵌 Cowork marketplace，不搬动本体）
+    from app.views.skills_marketplace import skills_marketplace_bp
+    app.register_blueprint(skills_marketplace_bp)
+
     # 注册资源池蓝图
     from app.routes.resource_pool import resource_pool_bp
     app.register_blueprint(resource_pool_bp)

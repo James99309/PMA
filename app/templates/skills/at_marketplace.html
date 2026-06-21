@@ -1,0 +1,65 @@
+{#
+  Skills 商店 — 内嵌团队 Cowork marketplace。
+  用 AT 页面壳(body.at-page + at_sidebar + AT 顶栏),与其它 at_list 页一致，
+  不走 render_tw_layout(那是老 TW 头 + 全局面板)。主区为满高 iframe。
+#}
+{% from 'components/at_base.html' import at_icon %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ _('Skills 商店') }} · PMA</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+</head>
+<body class="at-page">
+
+<div style="display:flex;height:100vh;overflow:hidden;">
+{{ at_sidebar(active_key='skills_marketplace') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;">
+
+  <!-- AT 顶栏:返回 + 标题 + 新窗口 + 暗色 -->
+  <header style="border-bottom:1px solid var(--line);background:var(--bg-elev);flex-shrink:0;">
+    <div style="width:100%;box-sizing:border-box;padding:14px 32px;
+                display:flex;align-items:center;gap:10px;">
+      <a href="{{ url_for('main.index') }}"
+         style="display:inline-flex;align-items:center;gap:6px;font-size:13px;
+                color:var(--ink-3);text-decoration:none;">
+        {{ at_icon('back', 16) }} <span>{{ _('返回') }}</span>
+      </a>
+      <span style="color:var(--line-2);">·</span>
+      {{ at_icon('cart', 16) }}
+      <span class="at-serif" style="font-size:15px;font-weight:500;color:var(--ink);">{{ _('Skills 商店') }}</span>
+      <div style="flex:1;"></div>
+      <a href="{{ marketplace_url }}" target="_blank" rel="noopener"
+         style="display:inline-flex;align-items:center;gap:5px;font-size:12px;
+                color:var(--ink-3);text-decoration:none;">
+        <span>{{ _('新窗口打开') }}</span> {{ at_icon('arrowRt', 13) }}
+      </a>
+      <button onclick="ATPrefs.toggleDark()"
+              style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+                     background:var(--bg-elev);font-size:12px;color:var(--ink-2);
+                     display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+        {{ at_icon('moon', 13) }} {{ _('暗色') }}
+      </button>
+    </div>
+  </header>
+
+  <!-- 内嵌团队私有 marketplace 站点(托管在 Mac Mini，不搬动本体) -->
+  <main style="flex:1;min-height:0;display:flex;">
+    <iframe src="{{ marketplace_url }}"
+            style="flex:1;width:100%;height:100%;border:0;"
+            title="{{ _('Skills 商店') }}"
+            referrerpolicy="no-referrer"></iframe>
+  </main>
+
+</div>
+</div>
+</body>
+</html>
