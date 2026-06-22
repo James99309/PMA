@@ -282,8 +282,48 @@ def get_daily_activities(user_id, target_date):
 
 # ===== 权限矩阵(自 get_items 忠实搬运,鉴权无关) =====
 
+def _worklog_viewable_ids(user):
+    """worklog「可查看日历的账户」ID 集合 —— 全模块单一来源。
+
+    统一复用通用 access_control 的级别口径(与 customer/project/quotation 等一致),
+    不再自写部门/公司查询:
+      - level 取 worklog 模块(user.get_permission_level('worklog'))
+      - system/admin/ceo → 全员
+      - company  → get_company_user_ids(同公司 + 归属)
+      - department→ get_department_user_ids(同部门+公司 + 归属)
+      - 任意级别都并入 get_personal_viewable_user_ids(本人 + 归属 + 管辖部门成员),
+        保证部门负责人即便 worklog 权限低也能看到其管辖部门(修复部门负责人看不到/点不开的不一致)
+    """
+    from app.utils import access_control as ac
+    level = user.get_permission_level('worklog')
+    if is_admin_or_ceo(user) or level == 'system':
+        return {row[0] for row in User.query.with_entities(User.id).all()}
+    if level == 'company':
+        ids = set(ac.get_company_user_ids(user))
+    elif level == 'department':
+        ids = set(ac.get_department_user_ids(user))
+    else:
+        ids = set()
+    # 本人 + 数据归属下属 + 管辖部门成员(部门负责人兜底,任意级别都生效)
+    ids |= set(ac.get_personal_viewable_user_ids(user))
+    return ids
+
+
+def manageable_user_ids(user):
+    """user 作为「管理者」可管辖的成员(用于团队日志/管理入口的「我的团队」)。
+
+    = 数据归属下属 + 管辖部门成员,不含本人、不含平级同事。复用通用
+    get_personal_viewable_user_ids(本人+归属+管辖部门)去掉本人即得 —— 与「查看」
+    口径区分:查看含平级部门同事,管理只含真正下辖的人。
+    """
+    from app.utils import access_control as ac
+    ids = set(ac.get_personal_viewable_user_ids(user))
+    ids.discard(user.id)
+    return ids
+
+
 def can_view_user(user, owner_id):
-    """user 能否查看 owner_id 的工作日历(忠实搬 get_items 权限矩阵)
+    """user 能否查看 owner_id 的工作日历(收口到 _worklog_viewable_ids 单一口径)
 
     - 目标用户不存在 → 抛 WorklogUserNotFound(调用方映射 404)
     - 有权 → True;无权 → False(调用方映射 403)
@@ -291,33 +331,7 @@ def can_view_user(user, owner_id):
     target_user = User.query.get(owner_id)
     if not target_user:
         raise WorklogUserNotFound()
-
-    # 获取 worklog 模块权限级别
-    worklog_permission = user.get_permission_level('worklog')
-
-    # 判断是否有权查看目标用户
-    can_view_target = False
-
-    if is_admin_or_ceo(user) or worklog_permission == 'system':
-        # 管理员/CEO 或 system 级权限：可查看所有人
-        can_view_target = True
-    elif worklog_permission == 'company':
-        # company 级权限：可查看同公司用户
-        can_view_target = target_user.company_name == user.company_name
-    elif worklog_permission == 'department' or user.is_department_manager:
-        # department 级权限或部门负责人：可查看同部门/管理部门的用户
-        managed_depts = Department.query.filter_by(manager_id=user.id).all()
-        managed_dept_names = [d.name for d in managed_depts]
-        if user.department and user.department not in managed_dept_names:
-            managed_dept_names.append(user.department)
-        can_view_target = target_user.department in managed_dept_names
-
-    # 检查是否是数据归属下属
-    if not can_view_target:
-        subordinate_ids = get_subordinate_user_ids(user)
-        can_view_target = owner_id in subordinate_ids
-
-    return can_view_target
+    return owner_id in _worklog_viewable_ids(user)
 
 
 # ===== 日期范围解析(供 web / mobile 共用,消除默认逻辑漂移) =====
@@ -603,42 +617,12 @@ def get_day(user, target_date, owner_id=None):
 
 
 def list_viewable_account_ids(user):
-    """user 可查看工作日历的账户 id 集合(含本人)。
+    """user 可查看工作日历的账户 id 集合(含本人) —— can_view_user 的集合版,同一口径。
 
-    can_view_user 权限矩阵的「集合化」版本(单一来源,逐条与 can_view_user 等价):
-    供 mobile accounts 端点 / C2 ScopeSheet 列举可切换账户用。
-    注意:与 can_view_user 一样,company/department 维度忠实保留原比较口径
-    (department 维度不叠加 company 约束),不额外过滤 is_active(避免 User._is_active 查询陷阱)。
+    供 mobile accounts 端点 / C2 ScopeSheet 列举可切换账户用。收口到
+    _worklog_viewable_ids(复用通用 access_control 级别口径,department 维度叠加 company)。
     """
-    ids = set(get_subordinate_user_ids(user))
-    ids.add(user.id)
-
-    worklog_permission = user.get_permission_level('worklog')
-
-    if is_admin_or_ceo(user) or worklog_permission == 'system':
-        # 管理员/CEO 或 system:可查看所有人
-        ids |= {row[0] for row in User.query.with_entities(User.id).all()}
-    elif worklog_permission == 'company':
-        # company:同公司
-        ids |= {
-            row[0] for row in User.query.with_entities(User.id).filter(
-                User.company_name == user.company_name
-            ).all()
-        }
-    elif worklog_permission == 'department' or user.is_department_manager:
-        # department / 部门负责人:管辖部门 + 本部门(忠实 can_view_user,不叠加 company)
-        managed_depts = Department.query.filter_by(manager_id=user.id).all()
-        managed_dept_names = [d.name for d in managed_depts]
-        if user.department and user.department not in managed_dept_names:
-            managed_dept_names.append(user.department)
-        if managed_dept_names:
-            ids |= {
-                row[0] for row in User.query.with_entities(User.id).filter(
-                    User.department.in_(managed_dept_names)
-                ).all()
-            }
-
-    return ids
+    return _worklog_viewable_ids(user)
 
 
 # ===== 写侧(C3,忠实抽取 worklog.py 写路由,保留行为与副作用顺序) =====

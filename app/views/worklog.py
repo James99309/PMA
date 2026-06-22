@@ -33,6 +33,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 # 反向 import 保持向后兼容(app/views/main.py 等仍 from app.views.worklog import get_subordinate_user_ids)
 from app.services.worklog_service import (  # noqa: F401
     get_subordinate_user_ids,
+    manageable_user_ids,
     get_daily_activities,
     get_leader_ids,
 )
@@ -139,10 +140,9 @@ def calendar():
         ]}
     ]
 
-    # 检查是否有下属（用于显示团队日志按钮）
-    # 有下属的用户可以查看团队日志
-    subordinate_ids = get_subordinate_user_ids(current_user)
-    has_manage_permission = len(subordinate_ids) > 0 or current_user.role in ['admin', 'ceo']
+    # 团队日志按钮:有「可管理成员」(数据归属下属 + 管辖部门成员)的用户可见
+    # 用 MANAGE 口径(含部门负责人),与团队日志接口一致;不再只看数据归属下属
+    has_manage_permission = len(manageable_user_ids(current_user)) > 0 or current_user.role in ['admin', 'ceo']
 
     # 获取用户可访问的项目列表（限制数量避免过大）
     projects_query = get_viewable_data(Project, current_user, [Project.is_active == True])
@@ -1240,8 +1240,8 @@ def preview_worklog_attachment(log_date, index):
 @login_required
 def get_team_logs():
     """获取下属日志列表"""
-    # 检查是否有下属或管理员权限
-    subordinate_ids = get_subordinate_user_ids(current_user)
+    # 检查是否有「可管理成员」(数据归属下属 + 管辖部门成员)或管理员权限
+    subordinate_ids = manageable_user_ids(current_user)
     if not subordinate_ids and current_user.role not in ['admin', 'ceo']:
         return jsonify({'success': False, 'message': _('无权查看团队日志')}), 403
 
@@ -1337,26 +1337,20 @@ def can_view_worklog(user, worklog):
     if worklog.owner_id == user.id:
         return True
 
-    # 管理员/CEO 可以查看所有
-    if user.role in ['admin', 'ceo']:
-        return True
-
     # 被@提及的用户可以查看
     # 注意：mentioned_users 存储的是字符串ID，需要同时检查整数和字符串
     if worklog.mentioned_users:
         if user.id in worklog.mentioned_users or str(user.id) in worklog.mentioned_users:
             return True
 
-    # 部门负责人可以查看本部门成员日志
-    if user.is_department_manager:
-        log_owner = User.query.get(worklog.owner_id)
-        if log_owner and log_owner.department == user.department and log_owner.company_name == user.company_name:
+    # 与日历查看口径一致:能看其工作日历(本人/admin/ceo/system/company/department/下属)
+    # 即能看其日报。收口到 can_view_user 单一来源,不再单独判 admin/部门负责人/下属。
+    from app.services import worklog_service
+    try:
+        if worklog_service.can_view_user(user, worklog.owner_id):
             return True
-
-    # 可以查看下属的日志
-    subordinate_ids = get_subordinate_user_ids(user)
-    if worklog.owner_id in subordinate_ids:
-        return True
+    except worklog_service.WorklogUserNotFound:
+        pass
 
     # 收到过该日志相关消息的用户可以查看（如日志提交通知）
     # 通过 sender_id（日志作者）和 log_date（存储在 extra_data 中）匹配

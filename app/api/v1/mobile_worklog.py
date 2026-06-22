@@ -372,7 +372,8 @@ def mobile_worklog_accounts():
         return api_response(success=False, code=401, message='用户不存在')
 
     viewable = ws.list_viewable_account_ids(user)
-    sub_ids = set(ws.get_subordinate_user_ids(user)) & viewable
+    # 「我的团队」分组用 MANAGE 口径(归属下属 + 管辖部门成员),与 web 团队日志一致
+    sub_ids = set(ws.manageable_user_ids(user)) & viewable
     us = {u.id: u for u in User.query.filter(User.id.in_(list(viewable))).all()}
     monday, sunday = _week_bounds()
 
