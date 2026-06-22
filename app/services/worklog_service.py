@@ -677,16 +677,19 @@ def _hours_between(start_time, end_time):
 
 
 def can_view_item(user, work_item):
-    """忠实 can_view_work_item:本人 / admin·ceo / 下属 / 被共享。"""
+    """与日历列表/账户口径一致:能看 owner 的日历即能看其工作项。
+
+    本人 / 被共享 / can_view_user(owner)。后者已覆盖
+    admin·ceo·system·company·department·下属 全部级别(与 list_viewable_account_ids
+    同一权限矩阵),修复「列表看得到、点详情 403」的部门级不一致。"""
     if work_item.owner_id == user.id:
-        return True
-    if user.role in ['admin', 'ceo']:
-        return True
-    if work_item.owner_id in get_subordinate_user_ids(user):
         return True
     if work_item.shared_with_users and user.id in work_item.shared_with_users:
         return True
-    return False
+    try:
+        return can_view_user(user, work_item.owner_id)
+    except WorklogUserNotFound:
+        return False
 
 
 def get_item_detail(user, item_id):

@@ -81,6 +81,12 @@
            white-space:nowrap;position:sticky;top:0;z-index:2;
            background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
 {% endfor %}
+{% if has_permission('product_code', 'delete') %}
+<th style="text-align:right;padding:14px 16px;font-size:11px;font-weight:500;
+           color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
+           white-space:nowrap;position:sticky;top:0;z-index:2;width:64px;
+           background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ _('操作') }}</th>
+{% endif %}
 {% endblock %}
 
 {% block trows %}
@@ -112,10 +118,24 @@
       {{ t.updated_at.strftime('%Y-%m-%d') if t.updated_at else '—' }}
     </span>
   </td>
+  {% if has_permission('product_code', 'delete') %}
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <button type="button"
+            onclick="event.stopPropagation();atDeleteTemplate({{ t.id }}, '{{ t.model|e }}')"
+            title="{{ _('删除') }}"
+            style="width:28px;height:28px;border-radius:5px;border:0;background:0;cursor:pointer;
+                   color:var(--ink-4);display:inline-flex;align-items:center;justify-content:center;
+                   transition:color 120ms,background 120ms;"
+            onmouseover="this.style.color='var(--danger,#dc2626)';this.style.background='var(--bg-elev-2)';"
+            onmouseout="this.style.color='var(--ink-4)';this.style.background='transparent';">
+      {{ at_icon('trash', 15) }}
+    </button>
+  </td>
+  {% endif %}
 </tr>
 {% else %}
 <tr>
-  <td colspan="6" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+  <td colspan="{{ 7 if has_permission('product_code', 'delete') else 6 }}" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
     {{ _('没有规格模板') }}
   </td>
 </tr>
@@ -123,3 +143,41 @@
 {% endblock %}
 
 {% block pagination %}{% endblock %}
+
+{% block scripts %}
+{% if has_permission('product_code', 'delete') %}
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script>
+(function(){
+  var API_BASE = '{{ url_for("spec_template.list_templates") }}api';
+  var CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+  window.atDeleteTemplate = function(id, model){
+    ATConfirm.show({
+      title: '{{ _("删除规格模板") }}',
+      message: '{{ _("确定要删除规格模板") }} "' + model + '"？{{ _("此操作不可恢复。") }}',
+      variant: 'danger',
+      confirmText: '{{ _("删除") }}',
+      onConfirm: async function(){
+        try {
+          var res = await fetch(API_BASE + '/' + id, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': CSRF }
+          });
+          var result = await res.json();
+          if (result.success){
+            if (window.atToast) atToast(result.message || '{{ _("删除成功") }}', 'success');
+            setTimeout(function(){ location.reload(); }, 400);
+          } else {
+            if (window.atToast) atToast(result.message || '{{ _("删除失败") }}', 'error');
+          }
+        } catch(e){
+          if (window.atToast) atToast('{{ _("删除失败") }}', 'error');
+        }
+      }
+    });
+  };
+})();
+</script>
+{% endif %}
+{% endblock %}

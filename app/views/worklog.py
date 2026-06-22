@@ -62,21 +62,9 @@ def can_manage_work_item(user, work_item):
 
 
 def can_view_work_item(user, work_item):
-    """检查用户是否可以查看工作项"""
-    # 自己的工作项
-    if work_item.owner_id == user.id:
-        return True
-    # 管理员可以查看所有
-    if user.role in ['admin', 'ceo']:
-        return True
-    # 可以查看下属的工作项
-    subordinate_ids = get_subordinate_user_ids(user)
-    if work_item.owner_id in subordinate_ids:
-        return True
-    # 共享给当前用户的工作项
-    if work_item.shared_with_users and user.id in work_item.shared_with_users:
-        return True
-    return False
+    """检查用户是否可以查看工作项(委托 service 单一来源,口径含部门/公司级)。"""
+    from app.services import worklog_service
+    return worklog_service.can_view_item(user, work_item)
 
 
 # get_leader_ids 已迁入 app/services/worklog_service.py(文件顶部反向 import)
