@@ -906,11 +906,12 @@ def _kpi_score_summary(user):
         保证与「我的 KPI」卡显示的数字一致。
       - 计分语义复用单一事实源 scoring_modes(target/inverse/cumulative/tiered),
         不自行实现,避免与绩效页口径漂移。
-      - quarter/month: 本季【预测】得分 —— 累加类(非率/非档位)按本季时间进度 f 外推到季末;
-        率类/档位取当前快照不外推。
-      - year: 已【参加考核】季度(有计入权重项的季)得分的【平均】;当前季用预测,过往季用实算。
+      - quarter/month: 本季【实算】得分 —— 累加类取当季至今真实累计(不外推),
+        率类/档位取当前快照;让当事人看到当前真实达成距离。
+      - year: 仅【已结束】季度(有计入权重项的季)得分的【平均】;排除进行中当季
+        (避免季中部分实算拉低年度均值)。
       - 封顶 100%;某季某项目标=0(或无权重/无采集器)→ 不计入该季加权;
-        整季无任何考核项 → 不计入年度平均;本季进度 <1/6 → 数据不足不预测。
+        整季无任何考核项 → 不计入年度平均。
     无考核项 → None。"""
     from datetime import date, datetime
     try:
@@ -983,9 +984,8 @@ def _kpi_score_summary(user):
             is_avg = is_avg_aggregated((meta.get(code) or {}).get('data_type'))
             mts = _month_targets(code, q)
             level_target = next((t for t in mts if t > 0), 0.0)
-            # 当季 run-rate 外推:仅累加类(非率/非档位)按时间进度放大到季末
-            if is_cur and f < 1 and not is_avg and mode != 'tiered':
-                A = A / f
+            # 实算口径:取当季至今真实累计,不做 run-rate 外推
+            # (让当事人看到当前真实达成距离;率类本就取当前快照)
             if mode == 'tiered':
                 # 固定档位制(植入品质):无目标,权重恒计入;A 为均值水平
                 total_score += tiered_achievement(A) * w / 100.0
@@ -1008,12 +1008,11 @@ def _kpi_score_summary(user):
                 total_weight += w; assessed = True
         if not assessed:
             qscores[q] = None                  # 该季不参加考核
-        elif is_cur and f < (1.0 / 6):
-            qscores[q] = None                  # 数据不足,不预测
         else:
             qscores[q] = round(total_score / total_weight * 100, 1) if total_weight > 0 else None
     cur = qscores.get(cur_q)
-    done = [v for v in qscores.values() if v is not None]
+    # 本年:仅平均【已结束】季度(排除进行中当季,避免季中部分实算拉低年度均值)
+    done = [v for qq, v in qscores.items() if v is not None and qq != cur_q]
     year_avg = round(sum(done) / len(done), 1) if done else None
     return {'month': cur, 'quarter': cur, 'year': year_avg}
 
