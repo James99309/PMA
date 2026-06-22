@@ -110,6 +110,8 @@ def _build_todos(user):
         'project_win_lock': lambda i: f'/project/{i}/at_view#approval-project_win_lock',
         'quotation':       lambda i: f'/quotation/{i}/at_view#approval',
         'purchase_order':  lambda i: f'/purchase-order/{i}#approval',
+        'pricing_order':   lambda i: f'/pricing_order/{i}/excel-edit',   # 批价单详情(批价编辑页),原缺失致点击不跳
+        'sales_order':     lambda i: f'/sales-order/{i}',                # 客户订单详情
         'dealer_apply':    None,   # 占位:下面按实例跳审批中心
     }
     try:
@@ -121,7 +123,8 @@ def _build_todos(user):
             obj_label = obj_label_map.get(ai.object_type, ai.object_type)
             submitter = User.query.get(ai.created_by) if ai.created_by else None
             url_builder = at_url_map.get(ai.object_type)
-            route_url = url_builder(ai.object_id) if url_builder else '#'
+            # 兜底:未配专属详情的类型(薪资/客户/未来新增)一律进通用 AT 审批详情,杜绝死链('#')
+            route_url = url_builder(ai.object_id) if url_builder else f'/approval/at-detail/{ai.id}'
             if ai.object_type in ('dealer_apply',):
                 # 渠道身份审批:跳通用 AT 审批详情(流程图+审批操作)
                 route_url = f'/approval/at-detail/{ai.id}'

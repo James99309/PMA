@@ -108,7 +108,7 @@
           {# 报备审批 chip dropdown — 点击查看审批流程 / 操作 #}
           {{ at_approval_dropdown(
                 object_type='project', object_id=project.id,
-                status=(project.authorization_status or 'draft'),
+                status=(project.status or 'draft'),
                 status_scope='approval',
                 api_base='/project/api/approval',
                 meta={
