@@ -122,13 +122,119 @@ def build_report_context(user_id, year, quarter, lang='zh'):
         'assessed_weight': round(total_weight),
         'criteria': _criteria_for(raw_items, lang),
         'evidence': _build_evidence(user, s, e, sym, divisor, amt_unit),
+        'diagnostics': None,   # 下方填充
         'improvements': improvements,
+        'ai_analysis': None,   # 下方填充(AI 解读;无 key 回退规则版)
         'manager_name': _manager_name(user),
         'ceo_name': '',
         'reviewer': '主管' if lang == 'zh' else 'the reviewer',
         'manager_comment': '',
     }
+    # 诊断明细(表格用) + AI 分析(基于诊断数据,无 key 回退规则版)
+    ctx['diagnostics'] = _build_diagnostics(user, s, e, [it.get('code') for it in raw_items], lang)
+    ctx['ai_analysis'] = _ai_analysis(ctx, lang)
     return ctx
+
+
+def _ai_analysis(ctx, lang):
+    """基于诊断明细让 AI 写"为何分低 + 怎么改"分析段(数字来自代码,AI 只解读)。
+    无 ANTHROPIC_API_KEY 或调用失败 → 回退规则版要点。返回段落列表。"""
+    L = (lambda zh, en: en if lang == 'en' else zh)
+    items = ctx.get('items') or []
+    diag = ctx.get('diagnostics') or {}
+    under = [it for it in items
+             if it.get('rate') not in ('满分', 'Full') and str(it.get('rate', '')).rstrip('%').replace('.', '', 1).isdigit()
+             and float(str(it['rate']).rstrip('%')) < 100]
+
+    # —— 规则版要点(回退/兜底) ——
+    def _rule():
+        out = []
+        nc = diag.get('new_customers')
+        if nc and nc['total'] > nc['qualified']:
+            bad = nc['total'] - nc['qualified']
+            out.append(L('新增客户：本季建档 %d 个，仅 %d 个合格；%d 个不合格——补齐联系人与跟进记录即可计入。'
+                         % (nc['total'], nc['qualified'], bad),
+                         'New customers: %d created, only %d qualified; %d short — add contacts and follow-ups to count.'
+                         % (nc['total'], nc['qualified'], bad)))
+        npj = diag.get('new_projects')
+        if npj and npj['total'] > npj['qualified']:
+            bad = npj['total'] - npj['qualified']
+            out.append(L('新增项目：本季 %d 个，仅 %d 个合格；%d 个缺报备/跟进/关联客户/报价单。'
+                         % (npj['total'], npj['qualified'], bad),
+                         'New projects: %d this quarter, only %d qualified; %d missing approval/follow-up/customer/quotation.'
+                         % (npj['total'], npj['qualified'], bad)))
+        pa = diag.get('project_activity')
+        if pa and pa['stale']:
+            out.append(L('项目活跃度：在跟 %d 个，%d 个超 20 天未跟进，建议优先回访。'
+                         % (pa['total'], pa['stale']),
+                         'Project activity: %d ongoing, %d untouched >20 days — prioritise re-engagement.'
+                         % (pa['total'], pa['stale'])))
+        ca = diag.get('customer_activity')
+        if ca and ca['total']:
+            inactive = ca['total'] - ca['active']
+            if inactive:
+                out.append(L('客户活跃度：名下 %d 个客户中 %d 个不活跃(待跟进/沉睡/流失)，激活可提升活跃率。'
+                             % (ca['total'], inactive),
+                             'Customer activity: %d of %d customers inactive — re-activating lifts the rate.'
+                             % (inactive, ca['total'])))
+        if not out:
+            out.append(L('各考核项均达标，保持当前节奏。', 'All items met target — keep up the pace.'))
+        return out
+
+    if not under:
+        return _rule()
+
+    # —— AI 版 ——
+    try:
+        import os, json
+        if not os.environ.get('ANTHROPIC_API_KEY'):
+            return _rule()
+        from app.services.claude_vision_ocr import get_client
+        # 精简喂给 AI 的事实(只给诊断结论,不给原始库)
+        facts = {'score': ctx.get('total_score'),
+                 'under_target': [{'name': it['name'], 'target': it['target'], 'actual': it['actual'], 'rate': it['rate']} for it in under],
+                 'diagnostics': _diag_brief(diag)}
+        sys_zh = ('你是绩效分析助理。基于给定的【真实诊断数据】解读该季度为何未达标、缺口在哪、如何改进。'
+                  '严格只用提供的数字，不得编造或臆测其它数据。输出 3-5 条中文要点，每条一句话，聚焦"哪项缺什么、怎么补"，'
+                  '务实、对人不苛刻。只输出 JSON 数组(字符串列表)，不要额外文字。')
+        sys_en = ('You are a performance-analysis assistant. Using ONLY the given real diagnostic data, explain why targets '
+                  'were missed, where the gaps are, and how to improve. Never invent numbers. Output 3-5 concise English bullet '
+                  'points, each one sentence, focused on "which item lacks what, how to fix". Output ONLY a JSON array of strings.')
+        msg = get_client().messages.create(
+            model=os.environ.get('PERF_ANALYSIS_MODEL', 'claude-haiku-4-5-20251001'),
+            max_tokens=600,
+            system=(sys_en if lang == 'en' else sys_zh),
+            messages=[{'role': 'user', 'content': json.dumps(facts, ensure_ascii=False)}],
+        )
+        raw = (msg.content[0].text if msg.content else '').strip()
+        raw = raw.strip('`').lstrip('json').strip()
+        arr = json.loads(raw)
+        pts = [str(x).strip() for x in arr if str(x).strip()]
+        return pts[:5] if pts else _rule()
+    except Exception:
+        return _rule()
+
+
+def _diag_brief(diag):
+    """把诊断明细压成 AI 可读的精简结构(含不合格记录的缺失原因,便于 AI 解读)。"""
+    out = {}
+    if diag.get('new_customers'):
+        nc = diag['new_customers']
+        out['new_customers'] = {'total': nc['total'], 'qualified': nc['qualified'],
+                                'unqualified_reasons': [r['missing'] for r in nc['rows'] if not r['qualified']][:15]}
+    if diag.get('new_projects'):
+        npj = diag['new_projects']
+        out['new_projects'] = {'total': npj['total'], 'qualified': npj['qualified'],
+                               'unqualified_reasons': [r['missing'] for r in npj['rows'] if not r['qualified']][:15]}
+    if diag.get('customer_activity'):
+        ca = diag['customer_activity']
+        out['customer_activity'] = {'total': ca['total'], 'active': ca['active'],
+                                    'distribution': {x['label']: x['count'] for x in ca['dist']}}
+    if diag.get('project_activity'):
+        pa = diag['project_activity']
+        out['project_activity'] = {'ongoing': pa['total'], 'stale_over_20d': pa['stale'],
+                                   'most_stale': [(r['name'], r['days']) for r in pa['rows'][:8]]}
+    return out
 
 
 def _metric_name(code, fallback, lang):
@@ -248,6 +354,111 @@ def _criteria_for(raw_items, lang):
             name, lines = spec['zh']
             out.append({'name': name, 'lines': lines})
     return out
+
+
+_STATUS_LABEL = {
+    'highly_active': ('高度活跃', 'Highly active'), 'active': ('活跃', 'Active'),
+    'normal': ('正常', 'Normal'), 'to_follow': ('待跟进', 'To follow'),
+    'pending': ('待跟进', 'To follow'), 'dormant': ('沉睡', 'Dormant'),
+    'sleeping': ('沉睡', 'Dormant'), 'lost': ('流失', 'Churned'), 'churned': ('流失', 'Churned'),
+    'inactive': ('不活跃', 'Inactive'),
+}
+_ACTIVE_STATUSES = ('highly_active', 'active', 'normal')
+
+
+def _build_diagnostics(user, s, e, codes, lang):
+    """诊断明细:对关键未达标项查"全量记录 + 合格判定 + 缺啥",既供报告表格也喂 AI。
+    数字全部代码直查(准),AI 只在其上做解读。"""
+    from app import db
+    from sqlalchemy import func
+    codes = set(codes or [])
+    diag = {}
+    L = (lambda zh, en: en if lang == 'en' else zh)
+
+    # 新增客户诊断:本季 created_at 落入的、本人名下客户,逐条判定合格与缺失
+    if 'new_customers' in codes:
+        from app.models.customer import Company, Contact
+        from app.models.action import Action
+        rows = db.session.query(Company).filter(
+            Company.owner_id == user.id, Company.is_deleted == False,
+            Company.created_at >= s, Company.created_at < e).all()
+        items = []
+        for c in rows:
+            nc = db.session.query(func.count(Contact.id)).filter(Contact.company_id == c.id).scalar() or 0
+            na = db.session.query(func.count(Action.id)).filter(Action.company_id == c.id).scalar() or 0
+            info_ok = bool((c.company_name or '').strip() and (c.address or '').strip() and (c.company_type or '').strip())
+            miss = []
+            if not info_ok: miss.append(L('资料不全', 'incomplete info'))
+            if nc < 1: miss.append(L('缺联系人', 'no contact'))
+            if na < 1: miss.append(L('缺跟进', 'no follow-up'))
+            items.append({'name': c.company_name or L('(未命名)', '(unnamed)'),
+                          'info_ok': info_ok, 'contacts': nc, 'actions': na,
+                          'qualified': not miss, 'missing': '、'.join(miss) if miss else L('合格', 'qualified')})
+        diag['new_customers'] = {
+            'total': len(items), 'qualified': sum(1 for x in items if x['qualified']), 'rows': items}
+
+    # 新增项目诊断
+    if 'new_projects' in codes:
+        from app.models.project import Project
+        from app.models.action import Action
+        from app.models.quotation import Quotation
+        from app.models.project_customer_association import ProjectCustomerAssociation as _PCA
+        rows = db.session.query(Project).filter(
+            Project.owner_id == user.id, Project.is_deleted == False,
+            Project.created_at >= s, Project.created_at < e).all()
+        items = []
+        for p in rows:
+            na = db.session.query(func.count(Action.id)).filter(Action.project_id == p.id).scalar() or 0
+            nq = db.session.query(func.count(Quotation.id)).filter(Quotation.project_id == p.id).scalar() or 0
+            nassoc = db.session.query(func.count(_PCA.id)).filter(_PCA.project_id == p.id).scalar() or 0
+            auth_ok = bool((p.authorization_code or '').strip())
+            miss = []
+            if not auth_ok: miss.append(L('未报备通过', 'not approved'))
+            if na < 1: miss.append(L('缺跟进', 'no follow-up'))
+            if nassoc < 1: miss.append(L('无关联客户', 'no linked customer'))
+            if nq < 1: miss.append(L('缺报价单', 'no quotation'))
+            items.append({'name': p.project_name or L('(未命名)', '(unnamed)'),
+                          'auth_ok': auth_ok, 'actions': na, 'assoc': nassoc, 'quotes': nq,
+                          'qualified': not miss, 'missing': '、'.join(miss) if miss else L('合格', 'qualified')})
+        diag['new_projects'] = {
+            'total': len(items), 'qualified': sum(1 for x in items if x['qualified']), 'rows': items}
+
+    # 客户活跃度分布(快照)
+    if 'customer_activity_rate' in codes:
+        from app.models.customer import Company
+        rows = dict(db.session.query(Company.status, func.count(Company.id))
+                    .filter(Company.owner_id == user.id, Company.is_deleted == False)
+                    .group_by(Company.status).all())
+        total = sum(rows.values())
+        dist = [{'label': _STATUS_LABEL.get(k, (k, k))[1 if lang == 'en' else 0],
+                 'count': v, 'active': k in _ACTIVE_STATUSES}
+                for k, v in sorted(rows.items(), key=lambda x: -x[1])]
+        diag['customer_activity'] = {'total': total, 'active': sum(v for k, v in rows.items() if k in _ACTIVE_STATUSES), 'dist': dist}
+
+    # 项目活跃度:在跟项目最近跟进距今天数(>20天为不活跃)
+    if 'project_activity_rate' in codes:
+        from app.models.project import Project
+        from app.models.action import Action
+        from sqlalchemy import or_
+        _EXCL = ('signed', 'paused', 'lost')
+        projs = Project.query.filter(
+            Project.is_deleted == False, ~Project.current_stage.in_(_EXCL),
+            or_(Project.owner_id == user.id, Project.vendor_sales_manager_id == user.id)).all()
+        last = dict(db.session.query(Action.project_id, func.max(Action.date))
+                    .filter(Action.project_id.in_([p.id for p in projs] or [0]))
+                    .group_by(Action.project_id).all()) if projs else {}
+        today = date.today()
+        stale = []
+        for p in projs:
+            d = last.get(p.id)
+            days = (today - d).days if d else None
+            if days is None or days > 20:
+                stale.append({'name': p.project_name or L('(未命名)', '(unnamed)'),
+                              'days': days if days is not None else L('从无跟进', 'never')})
+        stale.sort(key=lambda x: (x['days'] if isinstance(x['days'], int) else 99999), reverse=True)
+        diag['project_activity'] = {'total': len(projs), 'stale': len(stale), 'rows': stale}
+
+    return diag
 
 
 def _build_evidence(user, s, e, sym, divisor, amt_unit):

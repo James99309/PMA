@@ -930,12 +930,13 @@ table.params th, table.params td, table.kv-table td { padding-top: 1.8mm; paddin
     </div>
   </div>
 
-  <div class="eyebrow"><span class="num">05</span>改进意见 · IMPROVEMENT</div>
-  <h2 class="section">下一季的发力点。</h2>
-  <p class="lead">系统按未达标项（达成率 &lt; 100%）自动提示，{{ reviewer }} 可补充。</p>
+  <div class="eyebrow"><span class="num">05</span>分析与改进 · ANALYSIS</div>
+  <h2 class="section">为何如此、如何改进。</h2>
+  <p class="lead">基于附录的诊断明细，逐项说明缺口所在与改进方向（{{ reviewer }} 可补充）。</p>
   <ol style="margin-top:5mm">
-    {% for imp in improvements %}<li>{{ imp }}</li>{% endfor %}
+    {% for imp in (ai_analysis or improvements) %}<li>{{ imp }}</li>{% endfor %}
   </ol>
+  <p class="at-dim" style="font-size:8.5pt;color:var(--gray-500);margin-top:3mm">ⓘ 本节由 AI 基于系统真实诊断数据生成，仅供参考；数字均来自系统采集，结论以主管复核为准。</p>
   <div class="callout" style="margin-top:6mm">
     <div class="k">主管综合评语</div>
     <p>{{ manager_comment }}</p>
@@ -976,26 +977,28 @@ table.params th, table.params td, table.kv-table td { padding-top: 1.8mm; paddin
   <h2 class="section">逐条可追溯。</h2>
   <p class="lead">列出各「实际值」背后的逐条明细，供复核追溯。</p>
 
-  <h3 class="sub" style="margin-top:6mm">A.1 · 新增客户清单（合格 {{ evidence.new_customers|length }} 个）</h3>
+  {% set dc = diagnostics.new_customers %}
+  <h3 class="sub" style="margin-top:6mm">A.1 · 新增客户诊断（建档 {{ dc.total if dc else 0 }} · 合格 {{ dc.qualified if dc else 0 }}）</h3>
   <table class="params">
-    <thead><tr><th style="width:34%">客户名称</th><th style="width:20%">公司类型</th><th style="width:14%">联系人数</th><th style="width:14%">跟进数</th><th style="width:18%">首次达标时间</th></tr></thead>
+    <thead><tr><th style="width:36%">客户名称</th><th style="width:14%">资料齐全</th><th style="width:13%">联系人数</th><th style="width:13%">跟进数</th><th style="width:24%">判定 / 缺失</th></tr></thead>
     <tbody>
-      {% for c in evidence.new_customers %}
-      <tr><td>{{ c.name }}</td><td>{{ c.type }}</td><td>{{ c.contacts }}</td><td>{{ c.actions }}</td><td>{{ c.qualified_at }}</td></tr>
+      {% for c in (dc.rows if dc else []) %}
+      <tr><td>{{ c.name }}</td><td>{{ '✓' if c.info_ok else '✗' }}</td><td>{{ c.contacts }}</td><td>{{ c.actions }}</td><td style="color:{{ 'var(--success)' if c.qualified else 'var(--danger)' }}">{{ c.missing }}</td></tr>
       {% else %}
-      <tr><td colspan="5" style="text-align:center;color:var(--ink-3)">本季无合格新增客户</td></tr>
+      <tr><td colspan="5" style="text-align:center;color:var(--ink-3)">本季无新增客户</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <h3 class="sub" style="margin-top:7mm">A.2 · 新增项目清单（合格 {{ evidence.new_projects|length }} 个）</h3>
+  {% set dp = diagnostics.new_projects %}
+  <h3 class="sub" style="margin-top:7mm">A.2 · 新增项目诊断（建档 {{ dp.total if dp else 0 }} · 合格 {{ dp.qualified if dp else 0 }}）</h3>
   <table class="params">
-    <thead><tr><th style="width:26%">项目名称</th><th style="width:18%">授权编号</th><th style="width:18%">关联客户</th><th style="width:10%">跟进数</th><th style="width:10%">报价单数</th><th style="width:18%">首次达标时间</th></tr></thead>
+    <thead><tr><th style="width:30%">项目名称</th><th style="width:10%">报备</th><th style="width:9%">跟进</th><th style="width:11%">关联客户</th><th style="width:9%">报价</th><th style="width:21%">判定 / 缺失</th></tr></thead>
     <tbody>
-      {% for p in evidence.new_projects %}
-      <tr><td>{{ p.name }}</td><td>{{ p.auth_code }}</td><td>{{ p.customer }}</td><td>{{ p.actions }}</td><td>{{ p.quotations }}</td><td>{{ p.qualified_at }}</td></tr>
+      {% for p in (dp.rows if dp else []) %}
+      <tr><td>{{ p.name }}</td><td>{{ '✓' if p.auth_ok else '✗' }}</td><td>{{ p.actions }}</td><td>{{ p.assoc }}</td><td>{{ p.quotes }}</td><td style="color:{{ 'var(--success)' if p.qualified else 'var(--danger)' }}">{{ p.missing }}</td></tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center;color:var(--ink-3)">本季无合格新增项目</td></tr>
+      <tr><td colspan="6" style="text-align:center;color:var(--ink-3)">本季无新增项目</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -1045,13 +1048,30 @@ table.params th, table.params td, table.kv-table td { padding-top: 1.8mm; paddin
     </tbody>
   </table>
 
-  <h3 class="sub" style="margin-top:8mm">A.5 · 活跃率 · 分子分母</h3>
+  {% set da = diagnostics.customer_activity %}
+  <h3 class="sub" style="margin-top:8mm">A.5 · 客户活跃度分布（共 {{ da.total if da else 0 }} 户 · 活跃 {{ da.active if da else 0 }}）</h3>
   <table class="params">
-    <thead><tr><th style="width:34%">指标</th><th style="width:24%">分子（活跃）</th><th style="width:24%">分母（名下总数）</th><th style="width:18%">比率</th></tr></thead>
+    <thead><tr><th style="width:50%">状态</th><th style="width:25%">客户数</th><th style="width:25%">计为活跃</th></tr></thead>
     <tbody>
-      <tr><td>客户活跃率</td><td>{{ evidence.activity.customer.num }}</td><td>{{ evidence.activity.customer.den }}</td><td>{{ evidence.activity.customer.rate }}%</td></tr>
+      {% for x in (da.dist if da else []) %}
+      <tr><td>{{ x.label }}</td><td>{{ x.count }}</td><td style="color:{{ 'var(--success)' if x.active else 'var(--ink-3)' }}">{{ '✓' if x.active else '—' }}</td></tr>
+      {% endfor %}
     </tbody>
   </table>
+
+  {% set dpa = diagnostics.project_activity %}
+  {% if dpa and dpa.stale %}
+  <h3 class="sub" style="margin-top:7mm">A.6 · 超 20 天未跟进项目（在跟 {{ dpa.total }} · 停滞 {{ dpa.stale }}）</h3>
+  <table class="params">
+    <thead><tr><th style="width:70%">项目名称</th><th style="width:30%">距上次跟进</th></tr></thead>
+    <tbody>
+      {% for r in dpa.rows[:12] %}
+      <tr><td>{{ r.name }}</td><td>{{ r.days }}{{ ' 天' if r.days is number }}</td></tr>
+      {% endfor %}
+      {% if dpa.rows|length > 12 %}<tr><td colspan="2" style="color:var(--ink-3)">…… 其余 {{ dpa.rows|length - 12 }} 个</td></tr>{% endif %}
+    </tbody>
+  </table>
+  {% endif %}
 
   <div class="callout" style="margin-top:10mm">
     <div class="k">数据声明</div>

@@ -1233,11 +1233,12 @@ table.kv-table td.k{font-family:var(--mono);font-size:8.5pt;letter-spacing:.12em
     </div>
   </div>
 
-  <div class="section-bar"><div class="n">05</div><h2>Improvement Notes</h2><div class="tag">Improvement</div></div>
-  <p>The system flags under-target items (achievement &lt; 100%); {{ reviewer }} may add notes.</p>
+  <div class="section-bar"><div class="n">05</div><h2>Analysis &amp; Improvement</h2><div class="tag">Analysis</div></div>
+  <p>Based on the diagnostic detail in Appendix A — where the gaps are and how to close them ({{ reviewer }} may add notes).</p>
   <ol class="cmp" style="margin-top:3mm">
-    {% for imp in improvements %}<li>{{ imp }}</li>{% endfor %}
+    {% for imp in (ai_analysis or improvements) %}<li>{{ imp }}</li>{% endfor %}
   </ol>
+  <p style="font-size:8.25pt;color:var(--gray-500);margin-top:3mm">ⓘ This section is AI-generated from the system's real diagnostic data, for reference; all figures come from system collection — conclusions are subject to manager review.</p>
   <p class="note">
     <span class="lk">Manager's comment</span>
     {{ manager_comment }}
@@ -1275,21 +1276,23 @@ table.kv-table td.k{font-family:var(--mono);font-size:8.5pt;letter-spacing:.12em
   <div class="section-bar"><div class="n">A</div><h2>Evidence Detail</h2><div class="tag">Appendix</div></div>
   <p>Line-by-line detail behind each "actual", for audit and traceability.</p>
 
-  <h3 class="sub">A.1 · New customers (qualified {{ evidence.new_customers|length }})</h3>
+  {% set dc = diagnostics.new_customers %}
+  <h3 class="sub">A.1 · New customers diagnostic (created {{ dc.total if dc else 0 }} · qualified {{ dc.qualified if dc else 0 }})</h3>
   <table class="params">
-    <thead><tr><th style="width:34%">Customer</th><th style="width:20%">Type</th><th style="width:14%">Contacts</th><th style="width:14%">Follow-ups</th><th style="width:18%">Qualified at</th></tr></thead>
+    <thead><tr><th style="width:36%">Customer</th><th style="width:14%">Info OK</th><th style="width:13%">Contacts</th><th style="width:13%">Follow-ups</th><th style="width:24%">Verdict / missing</th></tr></thead>
     <tbody>
-      {% for c in evidence.new_customers %}<tr><td>{{ c.name }}</td><td>{{ c.type }}</td><td>{{ c.contacts }}</td><td>{{ c.actions }}</td><td>{{ c.qualified_at }}</td></tr>
-      {% else %}<tr><td colspan="5" style="text-align:center;color:var(--gray-500)">No qualified new customers this quarter</td></tr>{% endfor %}
+      {% for c in (dc.rows if dc else []) %}<tr><td>{{ c.name }}</td><td>{{ '✓' if c.info_ok else '✗' }}</td><td>{{ c.contacts }}</td><td>{{ c.actions }}</td><td style="color:{{ 'var(--teal-deep)' if c.qualified else 'var(--warn-fg)' }}">{{ c.missing }}</td></tr>
+      {% else %}<tr><td colspan="5" style="text-align:center;color:var(--gray-500)">No new customers this quarter</td></tr>{% endfor %}
     </tbody>
   </table>
 
-  <h3 class="sub" style="margin-top:6mm">A.2 · New projects (qualified {{ evidence.new_projects|length }})</h3>
+  {% set dp = diagnostics.new_projects %}
+  <h3 class="sub" style="margin-top:6mm">A.2 · New projects diagnostic (created {{ dp.total if dp else 0 }} · qualified {{ dp.qualified if dp else 0 }})</h3>
   <table class="params">
-    <thead><tr><th style="width:26%">Project</th><th style="width:18%">Auth. no.</th><th style="width:18%">Customer</th><th style="width:10%">Follows</th><th style="width:10%">Quotes</th><th style="width:18%">Qualified at</th></tr></thead>
+    <thead><tr><th style="width:30%">Project</th><th style="width:10%">Reg.</th><th style="width:9%">Follow</th><th style="width:11%">Customer</th><th style="width:9%">Quote</th><th style="width:21%">Verdict / missing</th></tr></thead>
     <tbody>
-      {% for pr in evidence.new_projects %}<tr><td>{{ pr.name }}</td><td>{{ pr.auth_code }}</td><td>{{ pr.customer }}</td><td>{{ pr.actions }}</td><td>{{ pr.quotations }}</td><td>{{ pr.qualified_at }}</td></tr>
-      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--gray-500)">No qualified new projects this quarter</td></tr>{% endfor %}
+      {% for pr in (dp.rows if dp else []) %}<tr><td>{{ pr.name }}</td><td>{{ '✓' if pr.auth_ok else '✗' }}</td><td>{{ pr.actions }}</td><td>{{ pr.assoc }}</td><td>{{ pr.quotes }}</td><td style="color:{{ 'var(--teal-deep)' if pr.qualified else 'var(--warn-fg)' }}">{{ pr.missing }}</td></tr>
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--gray-500)">No new projects this quarter</td></tr>{% endfor %}
     </tbody>
   </table>
 
@@ -1330,13 +1333,26 @@ table.kv-table td.k{font-family:var(--mono);font-size:8.5pt;letter-spacing:.12em
     </tbody>
   </table>
 
-  <h3 class="sub" style="margin-top:8mm">A.5 · Activity rate · numerator / denominator</h3>
+  {% set da = diagnostics.customer_activity %}
+  <h3 class="sub" style="margin-top:8mm">A.5 · Customer activity distribution (total {{ da.total if da else 0 }} · active {{ da.active if da else 0 }})</h3>
   <table class="params">
-    <thead><tr><th style="width:28%">Metric</th><th style="width:30%">Numerator (active / ≤20d)</th><th style="width:30%">Denominator (owned / ongoing)</th><th style="width:12%">Rate</th></tr></thead>
+    <thead><tr><th style="width:50%">Status</th><th style="width:25%">Customers</th><th style="width:25%">Counts as active</th></tr></thead>
     <tbody>
-      <tr><td>Customer activity rate</td><td>{{ evidence.activity.customer.num }}</td><td>{{ evidence.activity.customer.den }}</td><td>{{ evidence.activity.customer.rate }}%</td></tr>
+      {% for x in (da.dist if da else []) %}<tr><td>{{ x.label }}</td><td>{{ x.count }}</td><td style="color:{{ 'var(--teal-deep)' if x.active else 'var(--gray-500)' }}">{{ '✓' if x.active else '—' }}</td></tr>{% endfor %}
     </tbody>
   </table>
+
+  {% set dpa = diagnostics.project_activity %}
+  {% if dpa and dpa.stale %}
+  <h3 class="sub" style="margin-top:7mm">A.6 · Projects untouched &gt;20 days (ongoing {{ dpa.total }} · stale {{ dpa.stale }})</h3>
+  <table class="params">
+    <thead><tr><th style="width:70%">Project</th><th style="width:30%">Since last follow-up</th></tr></thead>
+    <tbody>
+      {% for r in dpa.rows[:12] %}<tr><td>{{ r.name }}</td><td>{{ r.days }}{{ ' d' if r.days is number }}</td></tr>{% endfor %}
+      {% if dpa.rows|length > 12 %}<tr><td colspan="2" style="color:var(--gray-500)">… and {{ dpa.rows|length - 12 }} more</td></tr>{% endif %}
+    </tbody>
+  </table>
+  {% endif %}
 
   <p class="note" style="margin-top:10mm">
     <span class="lk">Data statement</span>
