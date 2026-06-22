@@ -4537,9 +4537,9 @@ def request_project_hold(project_id):
         if not project_obj:
             return jsonify({'success': False, 'message': '项目不存在或无权限访问'}), 404
 
-        # 仅 owner 或 admin 可发起
-        if project_obj.owner_id != current_user.id and current_user.role != 'admin':
-            return jsonify({'success': False, 'message': '只有项目负责人或管理员可发起失败/搁置审核'}), 403
+        # 发起权限与「成功锁定」对齐(单一口径):项目负责人 / 厂商销售负责人 / 项目负责人的部门经理 / admin
+        if not _can_win_lock(project_obj, current_user):
+            return jsonify({'success': False, 'message': '只有项目负责人/厂商销售负责人/部门经理/管理员可发起失败/搁置审核'}), 403
 
         data = request.get_json(silent=True) or {}
         target = data.get('target')
