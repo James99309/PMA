@@ -2118,8 +2118,9 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
                 latest_quotation.approved_stages
             )
 
-            if not has_approval:
-                return {'error': f'报价单 {latest_quotation.quotation_number} 尚未完成审核，无法推进到签约阶段。请先完成报价单审核流程。'}
+            # 签约口径=批价单终审:不再卡报价单 approval_status(批价单是报价单下游,已审批通过即代表商务认可)。
+            # 原「报价单未审核」拦截已移除——只要批价单已通过即可进签约(下方仍校验批价单 + 授权编号)。
+            _ = has_approval  # 计算保留但不拦截
             
             # 检查是否已存在批价单且已审批通过
             existing_pricing_order = PricingOrder.query.filter_by(
