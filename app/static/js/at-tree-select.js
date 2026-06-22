@@ -48,8 +48,7 @@
       .at-tsel-cbx.partial { border-color:var(--accent); }
       .at-tsel-cbx.partial::after { content:'';width:8px;height:2px;background:var(--accent);border-radius:1px; }
       .at-tsel-cbx svg { width:11px;height:11px; }
-      .at-tsel-disabled .at-tsel-row { cursor:default;opacity:.55; }
-      .at-tsel-disabled .at-tsel-row:hover { background:transparent; }
+      .at-tsel-ro .at-tsel-cbx { opacity:.45; }  /* 只读态:复选框置灰提示不可勾,行仍可展开/收起 */
       .at-tsel-co > .at-tsel-row { font-weight:600;color:var(--ink); }
       .at-tsel-dept { margin-left:18px; }
       .at-tsel-dept > .at-tsel-row { color:var(--ink-2); }
@@ -68,7 +67,7 @@
   function init(opts) {
     const el = typeof opts.container === 'string' ? document.getElementById(opts.container) : opts.container;
     if (!el) return null;
-    const canEdit = opts.canEdit !== false;
+    let canEdit = opts.canEdit !== false;
     const onChange = typeof opts.onChange === 'function' ? opts.onChange : function () {};
     const companyFirst = opts.companyFirst || '';
     let items = [];
@@ -161,7 +160,7 @@
       const bar = `<div class="at-tsel-bar"><span>${_t('已选')} <b style="color:var(--accent)">${selected.size}</b></span>`
         + (canEdit ? `<a data-act="all">${_t('全选')}</a><a data-act="none">${_t('清空')}</a>` : '')
         + `<span style="flex:1"></span><span>${_t('可选')} ${visTotal}</span></div>`;
-      el.innerHTML = `<div class="at-tsel ${canEdit ? '' : 'at-tsel-disabled'}">${bar}<div class="at-tsel-body">${parts.join('') || `<div class="at-tsel-empty">${_t('无匹配人员')}</div>`}</div></div>`;
+      el.innerHTML = `<div class="at-tsel${canEdit ? '' : ' at-tsel-ro'}">${bar}<div class="at-tsel-body">${parts.join('') || `<div class="at-tsel-empty">${_t('无匹配人员')}</div>`}</div></div>`;
     }
 
     function toggleIds(ids, on) {
@@ -232,6 +231,7 @@
       setSelected(ids) { selected = new Set((ids || []).map(Number)); render(); },
       setItems(newItems) { items = newItems || []; buildTree(); render(); },
       setExclude(ids) { opts.excludeIds = ids || []; buildTree(); render(); },
+      setCanEdit(v) { canEdit = v !== false; render(); },
       render,
     };
   }

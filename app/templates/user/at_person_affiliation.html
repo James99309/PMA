@@ -141,12 +141,13 @@
     if (!tsel) {
       tsel = ATTreeSelect.init({
         container: 'afPanel', items: ownerItems(), selected: [..._selected],
-        canEdit: CAN_EDIT, excludeIds: [_userId], searchInput: 'afSearch', companyFirst: _company,
+        canEdit: !!(guard && guard.isEditing()), excludeIds: [_userId], searchInput: 'afSearch', companyFirst: _company,
         onChange: function (set) { _selected = set; if (guard) guard.markDirty(); updateHints(); },
       });
     } else {
       tsel.setExclude([_userId]);
       tsel.setSelected([..._selected]);
+      tsel.setCanEdit(!!(guard && guard.isEditing()));
     }
     updateHints();
   }
@@ -190,9 +191,11 @@
   }
 
   guard = AtEditMode.init({
-    mount: 'afEditBar', lockEl: 'afPanel', canEdit: CAN_EDIT,
+    mount: 'afEditBar', canEdit: CAN_EDIT,   // 不锁 afPanel:树的展开/收起在只读态也要可用
     onSave: afSaveCore,
     onDiscard: function () { afLoad(); },
+    onEnter: function () { if (tsel) tsel.setCanEdit(true); },   // 进编辑→可勾选
+    onExit: function () { if (tsel) tsel.setCanEdit(false); },   // 退编辑→只读(仍可展开)
     saveConfirm: { message: I.saveConfirm },
   });
 
