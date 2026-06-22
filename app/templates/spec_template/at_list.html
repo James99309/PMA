@@ -45,32 +45,29 @@
 {% endblock %}
 
 {% block filter_row %}
-{% if category_filter %}
-{% for cat in category_tree if cat.name == category_filter %}
-{% if cat.subcategories %}
-<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-  <a href="{{ url_for('spec_template.at_list_view', search=search, category=category_filter) }}"
-     style="display:inline-flex;align-items:center;padding:3px 11px;border-radius:5px;font-size:12px;font-weight:500;text-decoration:none;
-            {% if not subcategory_filter %}background:var(--ink-2);color:var(--bg);{% else %}background:transparent;color:var(--ink-3);border:1px solid var(--line-soft);{% endif %}">
-    {{ _('全部子分类') }}
-  </a>
-  {% for sub in cat.subcategories %}
-  <a href="{{ url_for('spec_template.at_list_view', search=search, category=category_filter, subcategory=sub) }}"
-     style="display:inline-flex;align-items:center;padding:3px 11px;border-radius:5px;font-size:12px;font-weight:500;text-decoration:none;
-            {% if subcategory_filter == sub %}background:var(--ink-2);color:var(--bg);{% else %}background:transparent;color:var(--ink-3);border:1px solid var(--line-soft);{% endif %}">
-    {{ sub }}
-  </a>
+{# 搜索框(左) + 子分类二级切换(右,复用 .at-seg 分段组件,与仪表盘一致) #}
+<div style="display:flex;gap:12px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <form method="get" action="{{ url_for('spec_template.at_list_view') }}"
+        style="display:flex;gap:10px;align-items:center;margin:0;">
+    {{ at_input(name='search', value=search, placeholder=_('搜索模板名 / 型号…'), icon_l='search', width='320px') }}
+    {% if category_filter %}<input type="hidden" name="category" value="{{ category_filter }}">{% endif %}
+    {% if subcategory_filter %}<input type="hidden" name="subcategory" value="{{ subcategory_filter }}">{% endif %}
+  </form>
+  {% if category_filter %}
+  {% for cat in category_tree if cat.name == category_filter %}
+  {% if cat.subcategories %}
+  <div class="at-seg" style="margin-left:auto;">
+    <button type="button" class="{{ 'on' if not subcategory_filter else '' }}"
+            onclick="location.href='{{ url_for('spec_template.at_list_view', search=search, category=category_filter) }}'">{{ _('全部子分类') }}</button>
+    {% for sub in cat.subcategories %}
+    <button type="button" class="{{ 'on' if subcategory_filter == sub else '' }}"
+            onclick="location.href='{{ url_for('spec_template.at_list_view', search=search, category=category_filter, subcategory=sub) }}'">{{ sub }}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% endfor %}
+  {% endif %}
 </div>
-{% endif %}
-{% endfor %}
-{% endif %}
-<form method="get" action="{{ url_for('spec_template.at_list_view') }}"
-      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
-  {{ at_input(name='search', value=search, placeholder=_('搜索模板名 / 型号…'), icon_l='search', width='320px') }}
-  {% if category_filter %}<input type="hidden" name="category" value="{{ category_filter }}">{% endif %}
-  {% if subcategory_filter %}<input type="hidden" name="subcategory" value="{{ subcategory_filter }}">{% endif %}
-</form>
 {% endblock %}
 
 {% block thead %}
