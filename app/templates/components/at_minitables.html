@@ -34,7 +34,7 @@
       <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink);">{{ p.project_name }}</td>
       <td>{{ at_status_pill(p.current_stage or 'discover', scope='project') }}</td>
       <td style="color:var(--ink-3);">{{ (p.owner.real_name or p.owner.username) if p.owner else '—' }}</td>
-      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.0f}'.format(p.quotation_customer or 0) }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">{{ get_currency_symbol(p.quotation_currency or get_default_currency()) }}{{ '{:,.0f}'.format(p.quotation_customer or 0) }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -61,7 +61,7 @@
       </td>
       {% endif %}
       <td>{{ at_status_pill(q.confirmation_badge_status or 'none', scope='quotation') }}</td>
-      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.0f}'.format(q.amount or 0) }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">{{ get_currency_symbol(q.currency or get_default_currency()) }}{{ '{:,.0f}'.format(q.amount or 0) }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -88,7 +88,7 @@
       </td>
       {% endif %}
       <td>{{ at_status_pill(o.status, scope='pricing_order') }}</td>
-      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.2f}'.format(o.pricing_total_amount or 0) }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">{{ get_currency_symbol(o.currency or get_default_currency()) }}{{ '{:,.2f}'.format(o.pricing_total_amount or 0) }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -108,7 +108,7 @@
       <td class="at-mono" style="font-weight:500;color:var(--ink);">{{ o.order_number }}</td>
       <td>{{ at_status_pill(o.status or 'draft', scope='sales_order') }}</td>
       <td style="color:var(--ink-3);">{{ (o.owner.real_name or o.owner.username) if o.owner else '—' }}</td>
-      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.0f}'.format(o.total_amount or 0) }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">{{ get_currency_symbol(o.currency or get_default_currency()) }}{{ '{:,.0f}'.format(o.total_amount or 0) }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -128,7 +128,7 @@
       <td class="at-mono" style="font-weight:500;color:var(--ink);">{{ o.order_number }}</td>
       <td>{{ at_status_pill(o.status, scope='purchase_order') }}</td>
       <td class="at-mono" style="color:var(--ink-3);">{{ o.required_date.strftime('%m-%d') if o.required_date else '—' }}</td>
-      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.0f}'.format(o.total_amount or 0) }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">{{ get_currency_symbol(o.currency or get_default_currency()) }}{{ '{:,.0f}'.format(o.total_amount or 0) }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -148,7 +148,7 @@
       <td class="at-mono" style="font-weight:500;color:var(--ink);">{{ e.expense_number }}</td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-3);">{{ e.title }}</td>
       <td>{{ at_status_pill(e.status, scope='expense') }}</td>
-      <td style="text-align:right;color:var(--ink-2);" class="at-mono">¥{{ '{:,.2f}'.format(e.total_amount or 0) }}</td>
+      <td style="text-align:right;color:var(--ink-2);" class="at-mono">{{ get_currency_symbol(e.currency or get_default_currency()) }}{{ '{:,.2f}'.format(e.total_amount or 0) }}</td>
     </tr>
     {% endfor %}
   </tbody>

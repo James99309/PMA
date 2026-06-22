@@ -149,7 +149,7 @@
                           display:flex;align-items:center;justify-content:space-between;gap:10px;">
                 <span class="at-mono" style="font-size:11px;color:var(--ink-3);">{{ locked_quotation.number if locked_quotation else _('报价单已删除') }}</span>
                 <span class="at-mono at-tab-num" style="font-size:12.5px;font-weight:600;color:var(--warn);">
-                  {{ ('$' if (locked_quotation and locked_quotation.currency == 'USD') else '¥') }}{{ '{:,.2f}'.format(project.win_locked_amount or (locked_quotation.amount if locked_quotation else 0)) }}</span>
+                  {{ get_currency_symbol((locked_quotation.currency if locked_quotation else project.quotation_currency) or get_default_currency()) }}{{ '{:,.2f}'.format(project.win_locked_amount or (locked_quotation.amount if locked_quotation else 0)) }}</span>
               </div>
               {% endif %}
               <div class="at-dim" style="font-size:11px;margin-top:9px;">
@@ -711,7 +711,8 @@
       if (!sel || sel.tagName !== 'SELECT') return;
       const opt = sel.options[sel.selectedIndex];
       const amt = parseFloat(opt.dataset.amount) || 0;
-      const sym = opt.dataset.cur === 'USD' ? '$' : '¥';
+      const sym = opt.dataset.sym
+        || ({CNY:'¥',USD:'$',SGD:'S$',MYR:'RM',HKD:'HK$',TWD:'NT$',IDR:'Rp',THB:'฿',VND:'₫'})[opt.dataset.cur] || '';
       document.getElementById('wlAmount').textContent =
         sym + amt.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     };
@@ -1128,7 +1129,7 @@ window.atOpenProjectShare = function () {
                    border:1px solid var(--line-2);border-radius:7px;font:inherit;font-size:13px;
                    color:var(--ink);outline:none;">
       {% for q in lock_quotations %}
-      <option value="{{ q.id }}" data-amount="{{ q.amount }}" data-cur="{{ q.currency }}">
+      <option value="{{ q.id }}" data-amount="{{ q.amount }}" data-cur="{{ q.currency }}" data-sym="{{ get_currency_symbol(q.currency or get_default_currency()) }}">
         {{ q.number }} · {{ get_currency_symbol(q.currency or get_default_currency()) }}{{ '{:,.2f}'.format(q.amount) }}</option>
       {% endfor %}
     </select>
