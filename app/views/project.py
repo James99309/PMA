@@ -443,9 +443,10 @@ def at_view_project(project_id):
     _hold_inst = get_pending_hold_instance(project_id)
     hold_pending = _hold_inst is not None
     hold_target = (_hold_inst.template_snapshot or {}).get('hold_target') if _hold_inst else None
-    # 仅 owner / admin、当前为正常阶段、且无进行中 hold 时,可发起申请
+    # 发起权限与后端 request_project_hold / 成功锁定对齐(_can_win_lock):
+    # 项目负责人 / 厂商销售负责人 / 项目负责人的部门经理 / admin;正常阶段且无进行中 hold
     can_request_hold = (
-        (p.owner_id == current_user.id or current_user.role == 'admin')
+        _can_win_lock(p, current_user)
         and not _abnormal
         and not hold_pending
     )
