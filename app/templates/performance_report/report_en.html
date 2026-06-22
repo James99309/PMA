@@ -137,8 +137,7 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
   body { background: #FDFAF8; padding: 0; margin: 0; }
   .page { box-shadow: none; margin: 0; padding: 0; width: auto;
           min-height: 0; height: auto; overflow: visible; display: block;
-          page-break-after: auto; }
-  .section-bar { break-after: avoid; }
+          page-break-after: always; }   /* 每个区块(大标题)独占一页 */
   .page-body { overflow: visible; padding-bottom: 0; }
   .page > .page-head, .page > .page-foot { display: none; }
   .rhead, .rfoot { display: flex; }
@@ -153,9 +152,9 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
   @page cover { margin: 16mm; background: #FDFAF8; @top-left{content:none} @bottom-left{content:none} @bottom-right{content:none} }
   .page.cover-page { page: cover; padding: 0; width: auto; page-break-after: always; }
 }
-.rhead { align-items: center; gap: 3mm; border-bottom: 1px solid var(--rule); padding-bottom: 2mm; width: 100%; }
+.rhead { align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); padding-bottom: 2mm; width: 100%; }
 .rhead .logo-img { height: 6mm; width: auto; }
-.rhead .crumb { font-family: var(--mono); font-size: 7.5pt; letter-spacing: .04em; color: var(--ink-3); }
+.rhead .crumb { font-family: var(--mono); font-size: 7.5pt; letter-spacing: .04em; color: var(--ink-3); text-align: right; }
 .rfoot { font-size: 7.5pt; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 2mm; width: 100%; }
 .rfoot .mono { font-family: var(--mono); }
 
@@ -637,6 +636,7 @@ table.kv td.k .full {
   padding-top: 5mm;
 }
 .cover .company .col { flex: 1 1 0; min-width: 0; }
+.cover .company .col.right { flex: 1.35 1 0; }   /* 右列(地址)更宽,避免地址挤到边/孤行 */
 .cover .company .col .ev {
   font-family: var(--mono);
   font-size: 8.5pt;
@@ -655,7 +655,7 @@ table.kv td.k .full {
 .cover .company .col.right .ln {
   display: flex;
   gap: 3mm;
-  font-size: 9pt;
+  font-size: 8.25pt;
   margin-bottom: 1mm;
   line-height: 1.5;
 }

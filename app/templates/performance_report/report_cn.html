@@ -140,9 +140,8 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
   .page {
     box-shadow: none; margin: 0; padding: 0; width: auto;
     min-height: 0; height: auto; overflow: visible; display: block;
-    page-break-after: auto;
+    page-break-after: always;   /* 每个区块(大标题)独占一页,避免上下文串页 */
   }
-  .eyebrow { break-after: avoid; }   /* 章节标题不落单在页底 */
   .page-body { overflow: visible; padding-bottom: 0; }
   /* 内联的每页页眉/页脚停用,改由 @page running 统一供给(避免逐页重复/错位) */
   .page > .page-header, .page > .page-footer { display: none; }
@@ -164,11 +163,11 @@ hr.rule-dark { border: 0; border-top: 2px solid var(--ink-2); margin: 4mm 0; }
   .page.cover-page { page: cover; padding: 24mm 22mm; width: 210mm; page-break-after: always; }
 }
 /* running 页眉/页脚外观 */
-.rhead { align-items: center; gap: 3mm; border-bottom: 1px solid var(--rule);
+.rhead { align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule);
          padding-bottom: 2mm; width: 100%; }
 .rhead .logo-img { height: 6.5mm; width: auto; }
 .rhead .crumb { font-family: var(--mono); font-size: 7.5pt; letter-spacing: .04em;
-                color: var(--ink-3); text-transform: uppercase; }
+                color: var(--ink-3); text-transform: uppercase; text-align: right; }
 .rfoot { font-size: 7.5pt; color: var(--ink-3); border-top: 1px solid var(--rule);
          padding-top: 2mm; width: 100%; }
 .rfoot .mono { font-family: var(--mono); }
