@@ -161,15 +161,6 @@
         <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
       </span>
       {% endif %}
-      {# 编辑基本信息(权限对齐产品模块:has_permission('product','edit')) #}
-      {% if has_permission('product', 'edit') %}
-      <button onclick="atOpenEditBasic()"
-              style="display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 10px;
-                     border:1px solid var(--line-2);border-radius:6px;background:var(--bg-elev);
-                     font-size:12px;color:var(--ink-2);cursor:pointer;transition:background 100ms;">
-        <span class="material-symbols-outlined" style="font-size:14px;">edit</span>{{ _('编辑基本信息') }}
-      </button>
-      {% endif %}
       {# 删除 #}
       {% if can_delete %}
       <button onclick="atDeleteProduct()"
@@ -190,7 +181,8 @@
     {# 中栏:tab 容器 #}
     <section>
       {# Card 1:概览(独立卡)#}
-      {% call at_detail_section(_('概览'), body_padding='default') %}
+      {% set _ov_edit %}{% if has_permission('product', 'edit') %}<button type="button" onclick="atOpenEditBasic()" style="display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 10px;border:1px solid var(--line-2);border-radius:6px;background:var(--bg-elev);font-size:12px;color:var(--ink-2);cursor:pointer;"><span class="material-symbols-outlined" style="font-size:14px;">edit</span>{{ _('编辑基本信息') }}</button>{% endif %}{% endset %}
+      {% call at_detail_section(_('概览'), body_padding='default', action_html=_ov_edit) %}
         {{ at_product_overview(product, effective_image=effective_image, can_edit=can_edit) }}
       {% endcall %}
 

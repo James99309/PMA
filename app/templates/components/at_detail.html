@@ -65,7 +65,7 @@
 #}
 {% macro at_detail_section(title, count=none, has_more=false,
                            create_url=none, create_label=_('+ 新建'),
-                           body_padding='none') %}
+                           body_padding='none', action_html='') %}
 <section class="at-section">
   <header class="at-section-h">
     <h3 class="at-section-title">{{ title }}</h3>
@@ -78,6 +78,7 @@
     {% if create_url %}
       {{ at_btn(create_label, variant='ghost', size='sm', tag='a', href=create_url) }}
     {% endif %}
+    {% if action_html %}{{ action_html|safe }}{% endif %}
   </header>
   <div class="at-section-body" style="{{ 'padding:0;' if body_padding == 'none' else '' }}">
     {{ caller() }}
