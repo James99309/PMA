@@ -1155,7 +1155,29 @@ def can_edit_data(model_obj, user):
 
         # personal级别：已在基本权限保障中处理，这里返回False
         return False
-    
+
+    # 联系人特殊处理：归属 customer 模块，按 customer 权限级别控制
+    if model_name == 'Contact':
+        # 基本权限保障 - 自己创建的联系人始终可编辑
+        if _has_basic_edit_permission(model_obj, user):
+            return True
+
+        # 需有 customer 模块编辑权限(用于编辑他人数据)
+        if not user.has_permission('customer', 'edit'):
+            return False
+
+        permission_level = user.get_permission_level('customer')
+        if permission_level == 'system':
+            return True
+        data_owner = User.query.get(model_obj.owner_id)
+        if permission_level == 'company' and user.company_name:
+            return bool(data_owner and data_owner.company_name == user.company_name)
+        if permission_level == 'department' and user.department and user.company_name:
+            return bool(data_owner and data_owner.department == user.department and
+                        data_owner.company_name == user.company_name)
+        # personal级别：仅自己创建(上方已处理)
+        return False
+
     # 报价单特殊处理：基于权限级别的编辑权限控制
     if model_name == 'Quotation':
         # 🆕 基本权限保障 - 用户始终可以编辑自己创建的报价单
@@ -1696,10 +1718,12 @@ def can_view_pricing_order(user, pricing_order):
 def can_edit_company_info(user, company):
     """
     判断是否可以编辑客户基本信息
+
+    收口到通用 can_edit_data(认 customer 模块 system/company/department 级别),
+    再保留「数据归属下属的客户可编辑」。修复:company/department 级用户(如商务助理)
+    对同事客户看不到编辑按钮的不一致(按钮闸门曾绕开级别判断)。
     """
-    if user.role == 'admin':
-        return True
-    if user.id == company.owner_id:
+    if can_edit_data(company, user):
         return True
 
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
@@ -1786,10 +1810,12 @@ def can_view_contact(user, contact):
 def can_edit_contact(user, contact):
     """
     检查用户是否有权限编辑指定的联系人
+
+    收口到通用 can_edit_data(Contact 分支,认 customer 模块 system/company/department 级别),
+    再保留「数据归属下属的联系人可编辑」。修复:company/department 级用户(如商务助理)
+    改不了同事联系人的不一致。共享联系人仍只读。
     """
-    if user.role == 'admin':
-        return True
-    if user.id == contact.owner_id:
+    if can_edit_data(contact, user):
         return True
 
     # 判断是否通过归属关系获得编辑权限
@@ -1798,7 +1824,6 @@ def can_edit_contact(user, contact):
         return True
 
     # 共享联系人只能查看，不能编辑
-    # 只有联系人创建者、管理员或通过归属关系授权的用户才能编辑
     return False
 
 def can_delete_contact(user, contact):
