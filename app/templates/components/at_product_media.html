@@ -90,12 +90,7 @@
           <div class="at-pm-field-label">{{ _('计量单位') }}</div>
           <div class="at-pm-field-value">{{ product.unit or '—' }}</div>
         </div>
-        <div class="at-pm-field">
-          <div class="at-pm-field-label">{{ _('零售价') }}</div>
-          <div class="at-pm-field-value">
-            {% if product.unit_price %}{{ product.currency or '' }} {{ product.unit_price }}{% else %}—{% endif %}
-          </div>
-        </div>
+        {# 零售价已移除:产品定价以「地区面价」为准 #}
       </div>
     </div>
 

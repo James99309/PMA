@@ -420,13 +420,9 @@
           <input name="unit" type="text" value="{{ product.unit or '' }}" style="{{ _ei }}"
                  onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'"></div>
       </div>
-      <div style="display:grid;grid-template-columns:100px 1fr;gap:12px;margin-bottom:14px;">
-        <div><label style="{{ _lb }}">{{ _('货币') }}</label>
-          <input name="currency" type="text" readonly value="{{ product.currency or 'CNY' }}" style="{{ _ro }}"></div>
-        <div><label style="{{ _lb }}">{{ _('标准价格') }}</label>
-          <input name="retail_price" type="number" step="0.01" min="0" value="{{ product.retail_price or '' }}" style="{{ _ei }}"
-                 onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'"></div>
-      </div>
+      {# 货币/零售价不在此编辑(产品定价以「地区面价」为准),隐藏保留原值避免保存时被清空 #}
+      <input type="hidden" name="currency" value="{{ product.currency or 'CNY' }}">
+      <input type="hidden" name="retail_price" value="{{ product.retail_price or '' }}">
       <div style="margin-bottom:14px;">
         <label style="{{ _lb }}">{{ _('状态') }}</label>
         <select name="status" style="{{ _ei }}cursor:pointer;">
