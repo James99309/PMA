@@ -2613,6 +2613,9 @@ def api_update_config_values(config_id):
         if template_item_id:
             values_map[template_item_id] = value_data
 
+    # 用户显式传入的项(save_all 注入占位之前):仅这些项在清空时才删除残留行
+    explicit_ids = set(values_map.keys())
+
     # 如果 save_all=true，获取模板的所有规格项
     if save_all:
         template = config.template
@@ -2646,7 +2649,11 @@ def api_update_config_values(config_id):
                 db.session.add(new_cv)
             # 记录需要检查编码映射的项
             items_to_update_options[template_item_id] = value
-        # 如果连默认值都没有，就不保存
+        elif existing_cv and template_item_id in explicit_ids:
+            # 用户显式清空该配置值(去掉指标引用)→ 删除残留行,
+            # 否则 len(item.config_values)>0 仍判定"已引用",规格在"添加"弹窗被锁无法移除
+            db.session.delete(existing_cv)
+        # 如果连默认值都没有(且非显式清空),就不保存
 
     # 验证编码映射（从规格字典查找，不再自行生成）并同步 options 缓存
     for template_item_id, value in items_to_update_options.items():
