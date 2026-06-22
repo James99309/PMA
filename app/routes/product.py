@@ -930,16 +930,33 @@ def at_list_view():
     # 产品状态可见性：由 content_filters 按角色/个人配置过滤(tab 计数与列表都受限)
     base = _apply_product_status_filter(Product.query, current_user)
 
+    # 分类 seg：状态可见范围内、有产品的分类(搜索框右侧切换,与规格模板一致)
+    from app.models.product_code import ProductCategory
+    used_cat_ids = [r[0] for r in base.with_entities(Product.category_id)
+                    .filter(Product.category_id.isnot(None)).distinct().all()]
+    categories = ProductCategory.query.filter(ProductCategory.id.in_(used_cat_ids))\
+        .order_by(ProductCategory.display_order, ProductCategory.id).all() if used_cat_ids else []
+
+    # 分类筛选(独立于状态 tab)
+    category_filter = request.args.get('category', '').strip()
+    cat_scoped = base
+    if category_filter:
+        try:
+            cat_scoped = base.filter(Product.category_id == int(category_filter))
+        except ValueError:
+            category_filter = ''
+
     TAB_STATUS_MAP = {
         'active':       'active',
         'upcoming':     'upcoming',
         'discontinued': 'discontinued',
     }
-    tab_counts = {'all': base.count()}
+    # tab 计数反映当前选中分类
+    tab_counts = {'all': cat_scoped.count()}
     for k, v in TAB_STATUS_MAP.items():
-        tab_counts[k] = base.filter(Product.status == v).count()
+        tab_counts[k] = cat_scoped.filter(Product.status == v).count()
 
-    q = base
+    q = cat_scoped
     if tab in TAB_STATUS_MAP:
         q = q.filter(Product.status == TAB_STATUS_MAP[tab])
 
@@ -991,6 +1008,8 @@ def at_list_view():
                            tab_counts=tab_counts,
                            current_tab=tab,
                            search=search,
+                           categories=categories,
+                           category_filter=category_filter,
                            default_brand=default_brand,
                            category_units=category_units,
                            allowed_statuses=_allowed_product_statuses(current_user),

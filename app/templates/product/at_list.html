@@ -35,7 +35,7 @@
 {# 状态 tab 仅在该状态对当前用户可见时显示(content_filters 配置);全部 tab 始终显示 #}
 {% if t.k == 'all' or t.k in (allowed_statuses or ['active']) %}
 {% set active = (current_tab == t.k) %}
-<a href="{{ url_for('product.at_list_view', tab=t.k, search=search) }}"
+<a href="{{ url_for('product.at_list_view', tab=t.k, search=search, category=category_filter or none) }}"
    style="padding:16px 18px;display:flex;align-items:baseline;gap:10px;
           position:relative;text-decoration:none;
           color:{{ 'var(--ink)' if active else 'var(--ink-3)' }};
@@ -50,11 +50,25 @@
 {% endblock %}
 
 {% block filter_row %}
-<form method="get" action="{{ url_for('product.at_list_view') }}"
-      style="display:flex;gap:10px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
-  <input type="hidden" name="tab" value="{{ current_tab }}">
-  {{ at_input(name='search', value=search, placeholder=_('搜索产品 MN / 型号 / 名称…'), icon_l='search', width='360px') }}
-</form>
+{# 搜索框(左) + 分类切换(右,复用 .at-seg 分段组件,与规格模板/仪表盘一致) #}
+<div style="display:flex;gap:12px;margin-bottom:18px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <form method="get" action="{{ url_for('product.at_list_view') }}"
+        style="display:flex;gap:10px;align-items:center;margin:0;">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    {% if category_filter %}<input type="hidden" name="category" value="{{ category_filter }}">{% endif %}
+    {{ at_input(name='search', value=search, placeholder=_('搜索产品 MN / 型号 / 名称…'), icon_l='search', width='360px') }}
+  </form>
+  {% if categories %}
+  <div class="at-seg" style="margin-left:auto;">
+    <button type="button" class="{{ 'on' if not category_filter else '' }}"
+            onclick="location.href='{{ url_for('product.at_list_view', tab=current_tab, search=search) }}'">{{ _('全部分类') }}</button>
+    {% for cat in categories %}
+    <button type="button" class="{{ 'on' if category_filter == cat.id|string else '' }}"
+            onclick="location.href='{{ url_for('product.at_list_view', tab=current_tab, search=search, category=cat.id) }}'">{% if get_current_language() == 'en' %}{{ cat.name_en or cat.name }}{% else %}{{ cat.name }}{% endif %}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
 {% endblock %}
 
 {% block thead %}
