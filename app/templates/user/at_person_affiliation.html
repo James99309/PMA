@@ -48,7 +48,7 @@
     <span id="afSub" class="at-dim" style="font-size:12px;"></span>
     <span id="afDirty" style="font-size:12px;color:var(--warn);"></span>
     <div style="flex:1;"></div>
-    <input id="afSearch" class="af-search" type="text" placeholder="{{ _('筛选人员 / 部门…') }}" oninput="renderOwners()">
+    <input id="afSearch" class="af-search" type="text" placeholder="{{ _('搜索公司 / 部门 / 人员…') }}">
     <div id="afEditBar"></div>
   </div>
 
@@ -61,6 +61,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/at-tree-select.js') }}"></script>
 <script>
   // i18n 文案(服务端按语言渲染;带 {x} 的为模板)
   const I = {
@@ -125,38 +126,30 @@
     guard.attempt(function () { afCompanyChange(sel.value); }, function () { sel.value = _company; });
   };
 
-  // ── owner 候选 chips(全集按 公司·部门 分组;排除 viewer 自己) ──
-  function renderOwners() {
+  // ── owner 候选:公司▸部门▸账户 树形多选(通用组件 ATTreeSelect;跨公司全集,排除 viewer 自己) ──
+  let tsel = null;
+  function ownerItems() {
+    return CANDS.map(u => ({
+      id: u.id, name: u.name, company: u.company, department: u.department,
+      role_display: u.role_display,
+      badgeHtml: u.is_dept_manager
+        ? ' <span class="material-symbols-outlined" style="font-size:13px;vertical-align:-2px;color:var(--ink-4);">supervisor_account</span>' : '',
+    }));
+  }
+  function mountTree() {
     if (!_userId) return;
-    const term = (document.getElementById('afSearch').value || '').trim().toLowerCase();
-    const cands = CANDS.filter(u => u.id !== _userId && u.company === _company && (!term ||
-      (u.name + ' ' + u.department + ' ' + u.company).toLowerCase().includes(term)));
-    const groups = {};
-    cands.forEach(u => {
-      const g = (u.company && u.company !== _company ? u.company + ' · ' : '') + u.department;
-      (groups[g] = groups[g] || []).push(u);
-    });
-    let html = '';
-    Object.keys(groups).forEach(g => {
-      html += `<div class="af-group"><div class="af-group-label">${esc(g)}</div><div class="af-chips">`
-        + groups[g].map(u => `
-          <button type="button" class="af-chip${_selected.has(u.id) ? ' on' : ''}" ${CAN_EDIT ? '' : 'disabled'}
-                  onclick="afToggleOwner(${u.id})" title="${esc(u.role_display)}">
-            ${u.is_dept_manager ? '<span class="material-symbols-outlined" style="font-size:13px;">supervisor_account</span>' : ''}
-            ${esc(u.name)}
-          </button>`).join('')
-        + '</div></div>';
-    });
-    document.getElementById('afPanel').innerHTML = html ||
-      '<div class="at-dim" style="padding:18px;text-align:center;font-size:12.5px;">' + I.noMatch + '</div>';
+    if (!tsel) {
+      tsel = ATTreeSelect.init({
+        container: 'afPanel', items: ownerItems(), selected: [..._selected],
+        canEdit: CAN_EDIT, excludeIds: [_userId], searchInput: 'afSearch', companyFirst: _company,
+        onChange: function (set) { _selected = set; if (guard) guard.markDirty(); updateHints(); },
+      });
+    } else {
+      tsel.setExclude([_userId]);
+      tsel.setSelected([..._selected]);
+    }
     updateHints();
   }
-
-  window.afToggleOwner = function (id) {
-    if (_selected.has(id)) _selected.delete(id); else _selected.add(id);
-    if (guard) guard.markDirty();
-    renderOwners();
-  };
 
   function updateHints() {
     document.getElementById('afSub').textContent = _userId
@@ -176,7 +169,7 @@
       if (!d.success) throw new Error(d.message || I.loadFail);
       _selected = new Set((d.data || []).map(x => x.user_id));
       _loaded = new Set(_selected);
-      renderOwners();
+      mountTree();
     } catch (e) {
       document.getElementById('afPanel').innerHTML =
         `<div style="padding:18px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
