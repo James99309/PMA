@@ -74,7 +74,7 @@
     let items = [];
     let selected = new Set();
     let exclude = new Set();
-    const collapsed = new Set();   // 折叠的节点 key('c'+ci / 'c'+ci+'d'+di)
+    let openCo = null, openDept = null;   // 手风琴:同级只展开一个;默认全收起
     let term = '';
     let tree = [];                 // [{company, depts:[{dept, users:[item]}]}]
 
@@ -120,28 +120,28 @@
         const coIds = new Set();
         vd.forEach(x => x.vu.forEach(u => coIds.add(Number(u.id))));
         visTotal += coIds.size;
-        const coCollapsed = !term && collapsed.has('c' + ci);
+        const coOpen = term ? true : (openCo === ci);
         const coSel = [...coIds].filter(id => selected.has(id)).length;
         parts.push(`<div class="at-tsel-node at-tsel-co">
           <div class="at-tsel-row" data-ci="${ci}">
-            <span class="at-tsel-chev ${coCollapsed ? 'collapsed' : ''}" data-toggle="1">${CHEV}</span>
+            <span class="at-tsel-chev ${coOpen ? '' : 'collapsed'}">${CHEV}</span>
             ${cbxHtml(cbxState(coIds))}
             <span class="at-tsel-name">${esc(co.company)}</span>
             <span class="at-tsel-count">${coSel}/${coIds.size}</span>
           </div>`);
-        if (!coCollapsed) {
+        if (coOpen) {
           vd.forEach(({ d, di, vu }) => {
-            const dCollapsed = !term && collapsed.has('c' + ci + 'd' + di);
+            const dOpen = term ? true : (openCo === ci && openDept === di);
             const dIds = new Set(vu.map(u => Number(u.id)));
             const dSel = [...dIds].filter(id => selected.has(id)).length;
             parts.push(`<div class="at-tsel-node at-tsel-dept">
               <div class="at-tsel-row" data-ci="${ci}" data-di="${di}">
-                <span class="at-tsel-chev ${dCollapsed ? 'collapsed' : ''}" data-toggle="1">${CHEV}</span>
+                <span class="at-tsel-chev ${dOpen ? '' : 'collapsed'}">${CHEV}</span>
                 ${cbxHtml(cbxState(dIds))}
                 <span class="at-tsel-name">${esc(d.dept)}</span>
                 <span class="at-tsel-count">${dSel}/${dIds.size}</span>
               </div>`);
-            if (!dCollapsed) {
+            if (dOpen) {
               vu.forEach(u => {
                 const id = Number(u.id);
                 parts.push(`<div class="at-tsel-node at-tsel-user">
@@ -178,26 +178,42 @@
       }
       const row = e.target.closest('.at-tsel-row');
       if (!row) return;
-      const ci = row.dataset.ci, di = row.dataset.di, uid = row.dataset.uid;
-      // 点 chevron → 折叠/展开(搜索态下不折叠)
-      if (e.target.closest('[data-toggle]') && !term && uid == null) {
-        const key = di != null ? 'c' + ci + 'd' + di : 'c' + ci;
-        collapsed.has(key) ? collapsed.delete(key) : collapsed.add(key); render(); return;
-      }
-      if (!canEdit) return;
+      const ci = row.dataset.ci != null ? Number(row.dataset.ci) : null;
+      const di = row.dataset.di != null ? Number(row.dataset.di) : null;
+      const uid = row.dataset.uid;
+      const onCbx = !!e.target.closest('.at-tsel-cbx');
+
+      // 用户行:整行=勾选
       if (uid != null) {
+        if (!canEdit) return;
         const id = Number(uid);
         selected.has(id) ? selected.delete(id) : selected.add(id);
-        onChange(new Set(selected)); render();
-      } else if (di != null) {
-        const d = tree[ci] && tree[ci].depts[di]; if (!d) return;
-        const ids = new Set(visUsers(d).map(u => Number(u.id)));
-        toggleIds(ids, cbxState(ids) !== 'on');
-      } else if (ci != null) {
-        const co = tree[ci]; if (!co) return;
-        const ids = new Set(); co.depts.forEach(d => visUsers(d).forEach(u => ids.add(Number(u.id))));
-        toggleIds(ids, cbxState(ids) !== 'on');
+        onChange(new Set(selected)); render(); return;
       }
+      // 公司/部门行:点复选框=全选其下;点其它区域=手风琴展开/收起
+      if (onCbx) {
+        if (!canEdit) return;
+        if (di != null) {
+          const d = tree[ci] && tree[ci].depts[di]; if (!d) return;
+          const ids = new Set(visUsers(d).map(u => Number(u.id)));
+          toggleIds(ids, cbxState(ids) !== 'on');
+        } else if (ci != null) {
+          const co = tree[ci]; if (!co) return;
+          const ids = new Set(); co.depts.forEach(d => visUsers(d).forEach(u => ids.add(Number(u.id))));
+          toggleIds(ids, cbxState(ids) !== 'on');
+        }
+        return;
+      }
+      // 手风琴:同级只开一个;搜索态下全展开、不收折
+      if (term) return;
+      if (di != null) {
+        if (openCo === ci && openDept === di) openDept = null;
+        else { openCo = ci; openDept = di; }
+      } else if (ci != null) {
+        if (openCo === ci) { openCo = null; openDept = null; }
+        else { openCo = ci; openDept = null; }
+      }
+      render();
     });
 
     if (opts.searchInput) {
