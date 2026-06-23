@@ -71,7 +71,7 @@
                 border: `1.5px solid ${CAL.accent}`, fontSize: '13px', color: CAL.ink4,
                 lineHeight: 1.65 }">{{ t('calendar.notesLogPh') }}</div>
           </div>
-          <FullscreenTextEditor v-model="editorOpen" :value="notes"
+          <FullscreenTextEditor v-model="editorOpen" :value="notes" rich
             :title="t('calendar.supplementary')" :placeholder="t('calendar.notesLogPh')"
             @save="v => { notes = v }" />
 

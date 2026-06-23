@@ -11,6 +11,7 @@ export default {
     uploading: 'Uploading…',
     fromGallery: 'Choose from Library',
     takePhoto: 'Take Photo',
+    minimize: 'Minimize',
     shareTitle: 'Share with colleagues',
     shareSavedN: 'Shared with {n}',
     shareCleared: 'Sharing removed',

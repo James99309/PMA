@@ -12,6 +12,7 @@ export default {
     uploading: '上传中…',
     fromGallery: '从相册选择',
     takePhoto: '拍照',
+    minimize: '缩小',
     shareTitle: '共享给同事',
     shareSavedN: '已共享给 {n} 人',
     shareCleared: '已取消共享',

@@ -169,13 +169,19 @@ src/components/common/FilledField.vue	// 对齐 customer-screens.jsx FilledField
 src/components/common/FilledField.vue	accent:      { type: Boolean, default: false },  // value 用 accent 色（如 A 类）
 src/components/common/FilledField.vue	big:         { type: Boolean, default: false },  // 公司名等：衬线 17px
 src/components/common/FilterGroup.vue	// 对齐 customer-screens.jsx FilterGroup
-src/components/common/FullscreenTextEditor.vue	<!-- web 回退:文件选择 -->
-src/components/common/FullscreenTextEditor.vue	<!-- 工具条:插入图片 -->
-src/components/common/FullscreenTextEditor.vue	FullscreenTextEditor - 全屏富文本编辑器(便签/描述/日报正文)。
-src/components/common/FullscreenTextEditor.vue	contenteditable 富文本:支持内联图片(相册/拍照插入,上传后内联显示)。
-src/components/common/FullscreenTextEditor.vue	} catch (e) { /* 静默:网络错误 */ }
-src/components/common/FullscreenTextEditor.vue	内容以 HTML 存储(props.value 进/出均为 HTML;旧纯文本/Markdown 自动兼容)。
-src/components/common/FullscreenTextEditor.vue	对外接口不变:v-model=open / value / title / placeholder / saveLabel;emit save(html)。
+src/components/common/FullscreenTextEditor.vue	// 即时把(本地)图片插到光标处,后台上传后再把 src 换成服务器地址
+src/components/common/FullscreenTextEditor.vue	// 即时显示(capacitor 本地 URI),同时拿 blob 供后台上传
+src/components/common/FullscreenTextEditor.vue	<!-- plain: textarea(原行为) -->
+src/components/common/FullscreenTextEditor.vue	<!-- 富文本工具条:插入图片 -->
+src/components/common/FullscreenTextEditor.vue	FullscreenTextEditor - 全屏长文编辑器(便签/描述/日报正文/评论)。
+src/components/common/FullscreenTextEditor.vue	let pending = []   // 后台上传 promise
+src/components/common/FullscreenTextEditor.vue	rich: { type: Boolean, default: false },   // true=富文本(图片);false=纯文本
+src/components/common/FullscreenTextEditor.vue	· rich=true:contenteditable 富文本,支持内联图片(相册/拍照,即时显示+后台上传),
+src/components/common/FullscreenTextEditor.vue	· 默认(plain):纯文本 textarea(原行为,所有旧调用方不变)。
+src/components/common/FullscreenTextEditor.vue	两种模式:
+src/components/common/FullscreenTextEditor.vue	内容以 HTML 存(旧纯文本/Markdown 兼容);"保存"按钮显示为「缩小」(仅收起,
+src/components/common/FullscreenTextEditor.vue	内容留在表单,随业务对象创建/提交时一起保存)。
+src/components/common/FullscreenTextEditor.vue	对外:v-model=open / value / title / placeholder / saveLabel / rich;emit save(text|html)。
 src/components/common/Highlight.vue	// 对齐 customer-screens.jsx Highlight：accentBg 底 + accent 文字
 src/components/common/ImageCrop4Corners.vue	//   1. 加载图原始尺寸到 imgEl
 src/components/common/ImageCrop4Corners.vue	//   2. 在覆盖层显示 4 个圆形 handle, 默认收缩到图四角内 8% (引导用户对准名片)

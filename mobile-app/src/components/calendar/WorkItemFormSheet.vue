@@ -121,7 +121,7 @@
               border: `1px solid ${CAL.divider}`, fontSize: '13px', lineHeight: 1.6,
               color: CAL.ink4 }">{{ t('calendar.notesPh') }}</div>
           </div>
-          <FullscreenTextEditor v-model="notesEditorOpen" :value="form.description || ''"
+          <FullscreenTextEditor v-model="notesEditorOpen" :value="form.description || ''" rich
             :title="t('calendar.secNotes')" :placeholder="t('calendar.notesPh')"
             @save="v => { form.description = v }" />
         </div>

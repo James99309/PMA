@@ -153,7 +153,7 @@
           fontSize: '13px', lineHeight: 1.6, fontFamily: TK.sans, boxSizing: 'border-box',
           color: TK.ink4 }">{{ t('task.fDescPh') }}</div>
     </div>
-    <FullscreenTextEditor v-model="descEditorOpen" :value="form.description || ''"
+    <FullscreenTextEditor v-model="descEditorOpen" :value="form.description || ''" rich
       :title="t('task.secDescription')" :placeholder="t('task.fDescPh')"
       @save="v => { form.description = v }" />
 
