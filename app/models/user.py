@@ -53,6 +53,9 @@ class User(db.Model, UserMixin):
     quotation_letterhead = db.Column(db.JSON, nullable=True)  # {logo_url, line1, line2, line3}
     quotation_signature = db.Column(db.JSON, nullable=True)   # {left, right}
 
+    # 个人档案(用工资料)— HR 专属;元数据列表,每项 {filename,url,size,doc_type,uploaded_at,uploaded_by,uploaded_by_name}
+    hr_documents = db.Column(db.JSON, nullable=True)
+
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间

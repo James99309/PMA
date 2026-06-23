@@ -2738,8 +2738,8 @@ def can_access_person_tab(user_id, feature_id, need_edit=False):
     # 防自评/自定薪:非 admin 不能"编辑"自己的绩效/薪资(录入人须 ≠ 被考核人;查看不限)
     if need_edit and user_id == u.id and feature_id in ('pc_performance', 'pc_salary'):
         return False
-    # HRBP 隔离(固定):hr_manager 的绩效/薪资只能访问自己负责部门的人
-    if feature_id in ('pc_performance', 'pc_salary'):
+    # HRBP 隔离(固定):hr_manager 的绩效/薪资/个人档案只能访问自己负责部门的人
+    if feature_id in ('pc_performance', 'pc_salary', 'pc_hr_docs'):
         from app.helpers.hrbp_helpers import is_hrbp, in_hrbp_scope
         if is_hrbp(u):
             from app.models.user import User as _U2

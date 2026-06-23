@@ -2993,6 +2993,7 @@ _PERSON_TAB_ORDER = [
     ('pc_performance', 'user.at_person_performance'),
     ('pc_salary', 'user.at_person_salary'),
     ('pc_ai', 'user.at_person_ai'),
+    ('pc_hr_docs', 'user.at_person_documents'),
 ]
 
 
@@ -3437,6 +3438,159 @@ def at_person_salary():
                            currency_symbol=get_currency_symbol(get_default_currency()),
                            current_year=datetime.now().year,
                            can_edit=True)
+
+
+# ── AT 个人配置 · 个人档案(用工资料)— HR 专属:按类型上传 PDF + 预览 ──
+
+HR_DOC_TYPES = ['劳动合同', '绩效协议', '招聘资料', '奖励通知', '其他']
+
+
+def _hr_doc_list(user):
+    """读某人的档案列表(JSON 列;兼容历史 str)。"""
+    raw = getattr(user, 'hr_documents', None)
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except (ValueError, TypeError):
+            return []
+    return list(raw)
+
+
+def _hr_dedup_name(name, existing):
+    """文件名追加上传日期以区分,同日重名再到秒级。"""
+    if '.' in name:
+        base, ext = name.rsplit('.', 1)
+    else:
+        base, ext = name, ''
+    date = datetime.now().strftime('%Y%m%d')
+    cand = f"{base}_{date}.{ext}" if ext else f"{base}_{date}"
+    if cand not in existing:
+        return cand
+    ts = datetime.now().strftime('%Y%m%d%H%M%S')
+    return f"{base}_{ts}.{ext}" if ext else f"{base}_{ts}"
+
+
+@user_bp.route('/at-config/hr-docs')
+@login_required
+def at_person_documents():
+    """AT 个人配置 · 个人档案(用工资料):HR 专属,按类型上传 PDF,可预览。"""
+    if not _person_tab_allowed('pc_hr_docs'):
+        from flask import abort
+        abort(403)
+    is_admin = current_user.role == 'admin'
+    q = User.query.filter(User._is_active.is_(True))
+    if not is_admin:
+        q = q.filter(User.company_name == (current_user.company_name or ''))
+    users = q.order_by(User.company_name, User.department, User.real_name).all()
+    # HRBP 隔离:hr_manager 选人列表只列自己负责部门的成员
+    from app.helpers.hrbp_helpers import is_hrbp, hrbp_scope_user_ids
+    if is_hrbp(current_user):
+        _scope = hrbp_scope_user_ids(current_user)
+        users = [u for u in users if u.id in _scope]
+    else:
+        users = [u for u in users if current_user.can_view_person(u, 'person_config')]
+    users_data = [{
+        'id': u.id,
+        'name': u.real_name or u.username,
+        'role': u.role or '',
+        'role_display': get_role_display_name(u.role) if u.role else '',
+        'department': u.department or '未分组',
+        'company': u.company_name or '',
+    } for u in users]
+    my_company = current_user.company_name or ''
+    companies = sorted({u['company'] for u in users_data if u['company']},
+                       key=lambda c: (c != my_company, c))
+    return render_template('user/at_person_documents.html',
+                           users_data=users_data,
+                           companies=companies,
+                           user_company=my_company,
+                           is_admin=is_admin,
+                           doc_types=HR_DOC_TYPES,
+                           can_edit=True)
+
+
+@user_bp.route('/api/hr-docs/<int:user_id>')
+@login_required
+def api_get_hr_docs(user_id):
+    """列某员工的个人档案(HR 专属)。"""
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_hr_docs'):
+        return jsonify({'success': False, 'message': '您没有权限查看该员工档案'}), 403
+    tgt = User.query.get_or_404(user_id)
+    return jsonify({'success': True, 'data': _hr_doc_list(tgt)})
+
+
+@user_bp.route('/api/hr-docs/<int:user_id>/upload', methods=['POST'])
+@login_required
+def api_upload_hr_doc(user_id):
+    """上传员工档案(仅 PDF + 指定类型,HR 专属)。"""
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_hr_docs', need_edit=True):
+        return jsonify({'success': False, 'message': '您没有权限上传该员工档案'}), 403
+    tgt = User.query.get_or_404(user_id)
+
+    doc_type = (request.form.get('doc_type') or '').strip()
+    if doc_type not in HR_DOC_TYPES:
+        return jsonify({'success': False, 'message': '请选择资料类型'}), 400
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': '未选择文件'}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext != 'pdf':
+        return jsonify({'success': False, 'message': '仅支持 PDF 文件'}), 400
+
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > 20 * 1024 * 1024:
+        return jsonify({'success': False, 'message': '文件超过 20MB 上限'}), 400
+
+    docs = _hr_doc_list(tgt)
+    filename = _hr_dedup_name(file.filename, [d.get('filename') for d in docs])
+
+    try:
+        from app.utils.smart_storage_manager import get_smart_storage
+        storage = get_smart_storage()
+        result = storage.upload_file(
+            object_id=tgt.id, file=file, filename=filename,
+            file_type='pdf', bucket_type='hr', business_type='user_hr')
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'上传失败: {e}'}), 500
+    if not (result and result.get('url')):
+        return jsonify({'success': False, 'message': '上传失败,存储未返回地址'}), 500
+
+    docs.append({
+        'filename': filename,
+        'url': result.get('url'),
+        'size': size,
+        'doc_type': doc_type,
+        'uploaded_at': datetime.now().isoformat(),
+        'uploaded_by': getattr(current_user, 'id', None),
+        'uploaded_by_name': getattr(current_user, 'real_name', None) or getattr(current_user, 'username', None),
+    })
+    tgt.hr_documents = docs
+    db.session.commit()
+    return jsonify({'success': True, 'message': '上传成功', 'data': docs[-1]})
+
+
+@user_bp.route('/api/hr-docs/<int:user_id>/delete/<int:index>', methods=['POST', 'DELETE'])
+@login_required
+def api_delete_hr_doc(user_id, index):
+    """删除员工档案(HR 专属)。"""
+    from app.views.performance_config import can_access_person_tab
+    if not can_access_person_tab(user_id, 'pc_hr_docs', need_edit=True):
+        return jsonify({'success': False, 'message': '您没有权限删除该员工档案'}), 403
+    tgt = User.query.get_or_404(user_id)
+    docs = _hr_doc_list(tgt)
+    if not (0 <= index < len(docs)):
+        return jsonify({'success': False, 'message': '档案不存在'}), 404
+    docs.pop(index)
+    tgt.hr_documents = docs if docs else None
+    db.session.commit()
+    return jsonify({'success': True, 'message': '已删除'})
 
 
 @user_bp.route('/api/person-salary/<int:user_id>/<int:year>')

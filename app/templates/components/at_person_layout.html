@@ -32,6 +32,9 @@
 {% if current_user.has_feature('person_config', 'pc_ai') %}
   {% set _person_tabs = _person_tabs + [('ai', 'AI 代理', url_for('user.at_person_ai'))] %}
 {% endif %}
+{% if current_user.has_feature('person_config', 'pc_hr_docs') %}
+  {% set _person_tabs = _person_tabs + [('hr_docs', '个人档案', url_for('user.at_person_documents'))] %}
+{% endif %}
 {% set _active = person_active | default('') %}
 <!DOCTYPE html>
 <html lang="zh">

@@ -1,0 +1,263 @@
+{% extends 'components/at_person_layout.html' %}
+{% from 'components/at_file_preview.html' import at_file_preview_modal %}
+{% set person_active = 'hr_docs' %}
+
+{% block person_title %}{{ _('个人档案 · 用工资料') }}{% endblock %}
+{% block person_desc %}{{ _('员工用工资料(劳动合同/绩效协议/招聘资料/奖励通知等)归档,仅 HR 可见可管。仅支持 PDF,可在线预览。') }}{% endblock %}
+
+{% block extra_head %}
+<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+<style>
+  .hd-up { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 14px;
+           background:var(--bg-elev); border:1px solid var(--line); border-radius:10px; margin-bottom:14px; }
+  .hd-sel { height:32px; padding:0 10px; background:var(--bg-page); border:1px solid var(--line-2);
+            border-radius:7px; font:inherit; font-size:13px; color:var(--ink); outline:none; }
+  .hd-file-btn { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; cursor:pointer;
+                 border:1px solid var(--line-2); border-radius:7px; background:var(--bg-page);
+                 font-size:12.5px; color:var(--ink-2); }
+  .hd-file-btn:hover { background:var(--bg-hover); }
+  .hd-row { display:flex; align-items:center; gap:12px; padding:11px 14px;
+            border-bottom:1px solid var(--line-soft); }
+  .hd-row:last-child { border-bottom:0; }
+  .hd-badge { flex-shrink:0; font-size:11px; padding:2px 9px; border-radius:20px;
+              background:var(--accent-tint); color:var(--accent); font-weight:500; }
+  .hd-act { width:30px; height:30px; border-radius:6px; border:0; background:0; cursor:pointer;
+            color:var(--ink-4); display:inline-flex; align-items:center; justify-content:center; }
+  .hd-act:hover { background:var(--bg-elev-2); color:var(--ink); }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;
+                 background:var(--bg-sunk);font-size:12px;color:var(--ink-2);">
+      <span class="material-symbols-outlined" style="font-size:15px;color:var(--ink-3);">domain</span>
+      {% if is_admin and companies|length > 1 %}
+      <select id="hdCompany" onchange="hdCompanyChange(this.value)"
+              style="border:0;background:transparent;font:inherit;font-size:12px;color:var(--ink);outline:none;cursor:pointer;">
+        {% for c in companies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <span>{{ (companies[0] if companies else user_company) or _('未归属公司') }}</span>
+      {% endif %}
+    </span>
+    <div style="position:relative;">
+      <button type="button" id="hdPickerBtn" class="cm-role-btn">
+        <span id="hdUserName">{{ _('选择人员') }}</span>
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--ink-3);">expand_more</span>
+      </button>
+      <div id="hdUserMenu" class="cm-role-menu" style="display:none;"></div>
+    </div>
+    <span id="hdSub" class="at-dim" style="font-size:12px;"></span>
+  </div>
+
+  {# 上传栏 #}
+  <div class="hd-up" id="hdUploadBar" style="display:none;">
+    <span style="font-size:12px;color:var(--ink-3);">{{ _('档案类型') }}</span>
+    <select id="hdType" class="hd-sel">
+      {% for t in doc_types %}<option value="{{ t }}">{{ _(t) }}</option>{% endfor %}
+    </select>
+    <label class="hd-file-btn">
+      <span class="material-symbols-outlined" style="font-size:16px;">upload_file</span>
+      <span id="hdFileName">{{ _('选择 PDF') }}</span>
+      <input type="file" id="hdFile" accept="application/pdf,.pdf" style="display:none;" onchange="hdFilePick(this)">
+    </label>
+    <button type="button" id="hdUploadBtn" class="cm-role-btn" onclick="hdUpload()"
+            style="opacity:0.4;pointer-events:none;">{{ _('上传') }}</button>
+  </div>
+
+  <div id="hdList" style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+       overflow:auto;max-height:calc(100vh - 260px);min-height:200px;">
+    <div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">{{ _('请选择人员…') }}</div>
+  </div>
+
+  {{ at_file_preview_modal() }}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const I = {
+    selectPerson: {{ _('选择人员')|tojson }},
+    noStaff:      {{ _('该公司暂无在职人员')|tojson }},
+    empty:        {{ _('暂无用工资料')|tojson }},
+    loadFail:     {{ _('加载失败')|tojson }},
+    uploaded:     {{ _('上传成功')|tojson }},
+    uploadFail:   {{ _('上传失败')|tojson }},
+    pickFile:     {{ _('选择 PDF')|tojson }},
+    onlyPdf:      {{ _('仅支持 PDF 文件')|tojson }},
+    delConfirm:   {{ _('确定删除该资料?此操作不可恢复。')|tojson }},
+    deleted:      {{ _('已删除')|tojson }},
+    delFail:      {{ _('删除失败')|tojson }},
+    by:           {{ _('上传者')|tojson }},
+    preview:      {{ _('预览')|tojson }},
+    del:          {{ _('删除档案')|tojson }},
+    lockedTitle:  {{ _('从账户详情进入,已锁定到该用户;管理他人请从侧栏进入个人配置')|tojson }},
+  };
+  const TYPE_LABELS = { {% for t in doc_types %}{{ t|tojson }}: {{ _(t)|tojson }}{{ ',' if not loop.last else '' }}{% endfor %} };
+  const USERS = {{ users_data | tojson }};
+  const COMPANIES = {{ companies | tojson }};
+  const CAN_EDIT = {{ can_edit | tojson }};
+  const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','"':'&quot;','>':'&gt;'})[c]);
+  const fmtSize = b => { b = Number(b)||0; return b < 1024 ? b+' B' : b < 1048576 ? (b/1024).toFixed(0)+' KB' : (b/1048576).toFixed(1)+' MB'; };
+
+  // 跨 tab 记忆所选公司/人员(与其他个人配置 tab 共用 key)
+  const _PCKEY = { co: 'at_pcfg_company', uid: 'at_pcfg_user' };
+  const _lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const _lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  let _userId = null, _docs = [], _pendingFile = null;
+  let _company = COMPANIES[0] || '';
+  { const c = _lsGet(_PCKEY.co); if (c && COMPANIES.includes(c)) _company = c; }
+  const usersOf = () => USERS.filter(u => u.company === _company);
+
+  window.hdCompanyChange = function (c) {
+    _company = c; _lsSet(_PCKEY.co, c);
+    const list = usersOf();
+    if (list.length) hdSelect(list[0].id);
+    else {
+      _userId = null;
+      document.getElementById('hdUserName').textContent = I.selectPerson;
+      document.getElementById('hdSub').textContent = '';
+      document.getElementById('hdUploadBar').style.display = 'none';
+      document.getElementById('hdList').innerHTML =
+        '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">' + I.noStaff + '</div>';
+    }
+  };
+
+  AtPersonPicker.init({
+    button: 'hdPickerBtn', menu: 'hdUserMenu',
+    getUsers: usersOf, activeId: () => _userId, onSelect: id => hdSelect(id),
+    locked: () => _locked,
+  });
+
+  window.hdSelect = function (id) {
+    _userId = id; _lsSet(_PCKEY.uid, id);
+    document.getElementById('hdUserMenu').style.display = 'none';
+    const u = USERS.find(x => x.id === id);
+    document.getElementById('hdUserName').textContent = u ? u.name : '';
+    document.getElementById('hdSub').textContent = u ? (u.role_display + ' · ' + u.department) : '';
+    document.getElementById('hdUploadBar').style.display = (CAN_EDIT && !!u) ? 'flex' : 'none';
+    hdLoad();
+  };
+
+  window.hdLoad = async function () {
+    if (!_userId) return;
+    const box = document.getElementById('hdList');
+    box.innerHTML = '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">…</div>';
+    try {
+      const d = await (await fetch(`/user/api/hr-docs/${_userId}`, { headers: { 'X-CSRFToken': _csrf() } })).json();
+      if (!d.success) throw new Error(d.message || I.loadFail);
+      _docs = d.data || [];
+      hdRender();
+    } catch (e) {
+      box.innerHTML = `<div style="padding:24px;text-align:center;color:var(--danger);font-size:12.5px;">${esc(e.message)}</div>`;
+    }
+  };
+
+  function hdRender() {
+    const box = document.getElementById('hdList');
+    if (!_docs.length) {
+      box.innerHTML = '<div class="at-dim" style="padding:30px;text-align:center;font-size:12.5px;">' + I.empty + '</div>';
+      return;
+    }
+    box.innerHTML = _docs.map((d, i) => {
+      const tlabel = TYPE_LABELS[d.doc_type] || d.doc_type || '';
+      const dt = (d.uploaded_at || '').replace('T', ' ').slice(0, 16);
+      const meta = [dt, d.uploaded_by_name ? (I.by + ': ' + d.uploaded_by_name) : '', d.size ? fmtSize(d.size) : '']
+                   .filter(Boolean).join(' · ');
+      return `<div class="hd-row">
+        <span class="hd-badge">${esc(tlabel)}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(d.filename)}">${esc(d.filename)}</div>
+          <div class="at-dim" style="font-size:10.5px;">${esc(meta)}</div>
+        </div>
+        <button class="hd-act" title="${esc(I.preview)}" onclick="hdPreview(${i})">
+          <span class="material-symbols-outlined" style="font-size:18px;">visibility</span></button>
+        ${CAN_EDIT ? `<button class="hd-act" title="${esc(I.del)}" onclick="hdDelete(${i})">
+          <span class="material-symbols-outlined" style="font-size:18px;">delete</span></button>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  window.hdPreview = function (i) {
+    const d = _docs[i]; if (!d) return;
+    const tlabel = TYPE_LABELS[d.doc_type] || d.doc_type || '';
+    ATFilePreview.open(tlabel, [{ name: d.filename, url: d.url, size: d.size, type: 'pdf', uploaded_at: d.uploaded_at }]);
+  };
+
+  window.hdFilePick = function (inp) {
+    const f = inp.files && inp.files[0];
+    if (!f) { _pendingFile = null; return; }
+    if (!/\.pdf$/i.test(f.name)) { ATToast.error(I.onlyPdf); inp.value = ''; _pendingFile = null; return; }
+    _pendingFile = f;
+    document.getElementById('hdFileName').textContent = f.name;
+    const b = document.getElementById('hdUploadBtn');
+    b.style.opacity = '1'; b.style.pointerEvents = 'auto';
+  };
+
+  window.hdUpload = async function () {
+    if (!_userId || !_pendingFile) return;
+    const b = document.getElementById('hdUploadBtn');
+    b.style.opacity = '0.4'; b.style.pointerEvents = 'none';
+    const fd = new FormData();
+    fd.append('file', _pendingFile);
+    fd.append('doc_type', document.getElementById('hdType').value);
+    try {
+      const d = await (await fetch(`/user/api/hr-docs/${_userId}/upload`, {
+        method: 'POST', headers: { 'X-CSRFToken': _csrf() }, body: fd,
+      })).json();
+      if (!d.success) throw new Error(d.message || I.uploadFail);
+      ATToast.success(d.message || I.uploaded);
+      _pendingFile = null;
+      document.getElementById('hdFile').value = '';
+      document.getElementById('hdFileName').textContent = I.pickFile;
+      hdLoad();
+    } catch (e) {
+      ATToast.error(e.message || I.uploadFail);
+      b.style.opacity = '1'; b.style.pointerEvents = 'auto';
+    }
+  };
+
+  window.hdDelete = function (i) {
+    const d = _docs[i]; if (!d) return;
+    ATConfirm.show({
+      title: {{ _('删除档案')|tojson }}, message: I.delConfirm, variant: 'danger',
+      confirmText: {{ _('删除档案')|tojson }},
+      onConfirm: async function () {
+        try {
+          const r = await (await fetch(`/user/api/hr-docs/${_userId}/delete/${i}`, {
+            method: 'POST', headers: { 'X-CSRFToken': _csrf() },
+          })).json();
+          if (!r.success) throw new Error(r.message || I.delFail);
+          ATToast.success(r.message || I.deleted);
+          hdLoad();
+        } catch (e) { ATToast.error(e.message || I.delFail); }
+      },
+    });
+  };
+
+  // ?user= 预选(账户详情跳入):锁定该用户
+  const _pre = USERS.find(u => u.id === parseInt(new URLSearchParams(location.search).get('user')));
+  const _locked = !!_pre;
+  if (_pre) {
+    _company = _pre.company || _company;
+    const cs = document.getElementById('hdCompany'); if (cs) { cs.value = _company; cs.disabled = true; }
+    const btn = document.querySelector('.cm-role-btn');
+    if (btn) {
+      btn.style.cursor = 'default'; btn.title = I.lockedTitle;
+      const ic = btn.querySelector('.material-symbols-outlined');
+      if (ic) { ic.textContent = 'lock'; ic.style.fontSize = '15px'; }
+    }
+    hdSelect(_pre.id);
+  } else if (usersOf().length) {
+    const list = usersOf();
+    const su = parseInt(_lsGet(_PCKEY.uid));
+    const pick = list.find(u => u.id === su) ? su : list[0].id;
+    const _cs = document.getElementById('hdCompany'); if (_cs && !_cs.disabled) _cs.value = _company;
+    hdSelect(pick);
+  } else {
+    document.getElementById('hdList').innerHTML =
+      '<div class="at-dim" style="padding:26px;text-align:center;font-size:12.5px;">' + I.noStaff + '</div>';
+  }
+</script>
+{% endblock %}
