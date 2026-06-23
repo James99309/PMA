@@ -16,6 +16,7 @@ _JS_FILES = [
     'at-ai-research.js',
     'at-file-preview.js',
     'at-worklog-calendar.js',
+    'at-rich-note.js',
     'at-comments.js',
     'at-file-manager.js',
     'at-file-manager-admin.js',

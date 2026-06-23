@@ -24,6 +24,14 @@
   var attachCanDelete = true;                  // 附件是否可删除(仅本人编辑态)
   var logDatesSub = {}, logDatesDraft = {};    // 有日报的日期集合(已提交/草稿) → 日历日记图标
   var customerPicker, projectPicker, titleCtl, startTimeCtl, endTimeCtl, startDateCtl, endDateCtl, peopleCtl, logDateCtl;
+  var wiDescNote = null, logNote = null;   // 富文本便签控制器(全屏+插图)
+
+  // 富文本编辑器:从 textarea 重载内容 + 切换只读(查看态图片照样内联显示)
+  function rnToggle(note, textareaId, viewId, readonly) {
+    if (!note) return;
+    note.refresh();             // 从 textarea.value 载入编辑器(外部刚设过值)
+    note.setReadonly(readonly);
+  }
   var WK = ['一', '二', '三', '四', '五', '六', '日'];                                  // 周一→周日(表头);init 按语言切换
   var WKFULL = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];               // getDay() 索引;init 按语言切换
   var WK_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -334,6 +342,8 @@
     $('wiSaveBtn').style.display = '';
     $('wiCard').classList.remove('wi-view', 'wi-contrib');
     $('wiDesc').readOnly = false;
+    rnToggle(wiDescNote, 'wiDesc', 'wiDescView', false);
+    $('wiDesc').readOnly = false;
     contribMode = false;
     attachCanDelete = true;
     var _addBtn = $('wiAttachAddBtn'); if (_addBtn) _addBtn.style.display = '';
@@ -452,6 +462,7 @@
                        ((it.end_date || it.planned_date) + 'T23:59');
           if (new Date() > new Date(endStr)) wiCompletePromptId = it.id;
         }
+        rnToggle(wiDescNote, 'wiDesc', 'wiDescView', $('wiDesc').readOnly);
         openModal();
       })
       .catch(function () { toast(t('加载失败'), 'error'); });
@@ -732,6 +743,7 @@
       $('logSaveBtn').style.display = ''; $('logSubmitBtn').style.display = '';
       $('logReadonlyNote').style.display = 'none';
     }
+    rnToggle(logNote, 'logNotes', 'logNotesView', logReadonly);
   }
   g.openLog = function (dateISO, ownerId) {
     curLogDate = dateISO;
@@ -787,6 +799,7 @@
         if (d.success) {
           var cur = $('logNotes').value.trim();
           $('logNotes').value = cur ? (cur + '\n\n' + d.draft) : d.draft;
+          if (logNote) logNote.refresh();   // 同步到富文本编辑器
         } else toast(d.message || t('AI 生成失败'), 'error');
       })
       .catch(function () { btn.disabled = false; if (span) span.textContent = old; toast(t('AI 生成失败'), 'error'); });
@@ -850,6 +863,11 @@
     }
     // 关联人员多选
     if (g.AtPeopleSelect) peopleCtl = AtPeopleSelect.init('wiParticipants');
+    // 富文本便签:工作描述 + 日报正文 → 全屏编辑 + 插入图片(Markdown);两处复用同组件
+    if (g.ATRichNote) {
+      wiDescNote = ATRichNote.enhance('wiDesc', { uploadUrl: '/worklog/api/upload-image', title: t('工作描述') });
+      logNote = ATRichNote.enhance('logNotes', { uploadUrl: '/worklog/api/upload-image', title: t('工作描述') });
+    }
     // 全天勾选 → 控制时间输入显隐
     $('wiAllDay').addEventListener('change', function () {
       toggleAllDay(this.checked);

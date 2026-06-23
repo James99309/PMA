@@ -36916,3 +36916,12 @@ msgstr "Delete document"
 
 msgid "请选择资料类型"
 msgstr "Please select document type"
+
+msgid "插入图片"
+msgstr "Insert image"
+
+msgid "退出全屏"
+msgstr "Exit fullscreen"
+
+msgid "仅支持图片"
+msgstr "Images only"
