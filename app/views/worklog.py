@@ -882,7 +882,10 @@ def upload_worklog_inline_image():
             object_id=current_user.id, file=file, filename=safe,
             file_type='image', bucket_type='invoice', business_type='worklog_note')
         if result and result.get('url'):
-            return jsonify({'success': True, 'data': {'url': result.get('url'), 'filename': file.filename}})
+            u = result.get('url')
+            if u.startswith('/'):   # 相对 → 绝对(便于移动端跨 origin 加载同一内容)
+                u = request.host_url.rstrip('/') + u
+            return jsonify({'success': True, 'data': {'url': u, 'filename': file.filename}})
         return jsonify({'success': False, 'message': _('上传失败')}), 500
     except Exception as e:
         logger.error(f"内嵌图片上传失败: {e}")
