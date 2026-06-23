@@ -724,7 +724,8 @@
     if ($('expAttributeToSelf').checked) {
       fd.append('attribute_to_self', '1');
     } else {
-      // 代他人报销:必须选归属人
+      // 代他人报销:必须显式发 attribute_to_self='0',否则后端默认按'1'(本人)处理 → 归属人被改回申请人自己
+      fd.append('attribute_to_self', '0');
       var _attr = $('expAttributedToId');
       fd.append('attributed_to_id', (_attr && _attr.value) || '');
     }
