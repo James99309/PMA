@@ -11,7 +11,8 @@
   <Teleport to="body">
     <transition name="fte">
       <div v-if="open" class="fixed inset-0 z-50"
-        :style="{ background: '#F7F5F2', display: 'flex', flexDirection: 'column' }">
+        :style="{ background: '#F7F5F2', display: 'flex', flexDirection: 'column',
+          paddingBottom: 'var(--kb-height, 0px)', transition: 'padding-bottom 0.22s cubic-bezier(.25,.46,.45,.94)' }">
         <div class="status-pad" />
         <div :style="{ height: '52px', display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', padding: '0 16px',
@@ -111,6 +112,13 @@ function insertLocalThenUpload(localUrl, file) {
   try { ok = document.execCommand('insertHTML', false, html) } catch (e) { ok = false }
   if (!ok && ed.value) ed.value.insertAdjacentHTML('beforeend', html)
   saveSel()
+  // 把刚插入的图滚入可视区(键盘上方),光标焦点不被键盘挡住
+  setTimeout(() => {
+    try {
+      const sp = ed.value && ed.value.querySelector(`img[data-uid="${uid}"]`)
+      ;(sp && (sp.closest('.arn-img') || sp))?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    } catch (e) {}
+  }, 40)
   const p = uploadWorklogImage(file).then(res => {
     const url = res?.data?.data?.url
     const img = ed.value && ed.value.querySelector(`img[data-uid="${uid}"]`)
