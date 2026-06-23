@@ -421,6 +421,38 @@ def _wuser():
     return u, None
 
 
+@api_v1_bp.route('/mobile/worklog/upload-image', methods=['POST'])
+@jwt_required()
+def mobile_worklog_upload_image():
+    """内嵌图片上传(工作描述/日报正文「插入图片」用),返回 url 供富文本引用。
+    与 web /worklog/api/upload-image 同口径,仅鉴权为移动端 JWT。"""
+    user, err = _wuser()
+    if err:
+        return err
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return api_response(success=False, code=400, message='未选择文件')
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif'}:
+        return api_response(success=False, code=400, message='仅支持图片:PNG、JPG、GIF、WEBP、HEIC')
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > 5 * 1024 * 1024:
+        return api_response(success=False, code=400, message='图片大小超过5MB限制')
+    try:
+        from app.utils.smart_storage_manager import get_smart_storage
+        safe = f"img_{user.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+        result = get_smart_storage().upload_file(
+            object_id=user.id, file=file, filename=safe,
+            file_type='image', bucket_type='invoice', business_type='worklog_note')
+        if result and result.get('url'):
+            return api_response(data={'url': result.get('url'), 'filename': file.filename})
+        return api_response(success=False, code=500, message='上传失败')
+    except Exception as e:
+        return api_response(success=False, code=500, message=f'上传失败: {e}')
+
+
 @api_v1_bp.route('/mobile/worklog/items', methods=['POST'])
 @jwt_required()
 def mobile_worklog_create():
