@@ -447,7 +447,10 @@ def mobile_worklog_upload_image():
             object_id=user.id, file=file, filename=safe,
             file_type='image', bucket_type='invoice', business_type='worklog_note')
         if result and result.get('url'):
-            return api_response(data={'url': result.get('url'), 'filename': file.filename})
+            u = result.get('url')
+            if u.startswith('/'):   # 相对 → 绝对(移动端 origin 非 NAS,需绝对地址才能加载)
+                u = request.host_url.rstrip('/') + u
+            return api_response(data={'url': u, 'filename': file.filename})
         return api_response(success=False, code=500, message='上传失败')
     except Exception as e:
         return api_response(success=False, code=500, message=f'上传失败: {e}')
