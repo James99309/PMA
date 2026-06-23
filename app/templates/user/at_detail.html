@@ -115,6 +115,7 @@
             (_('绩效目标'), 'flag',                   url_for('user.at_person_performance', user=u.id),  'pc_performance'),
             (_('薪资配置'), 'payments',               url_for('user.at_person_salary', user=u.id),       'pc_salary'),
             (_('AI 代理'), 'smart_toy',               url_for('user.at_person_ai', user=u.id),           'pc_ai'),
+            (_('个人档案'), 'folder_shared',          url_for('user.at_person_documents', user=u.id),    'pc_hr_docs'),
           ] %}
           {% for label, icon, url, fid in _cfg_links %}
             {% set _ok = (pc_tabs or {}).get(fid) %}

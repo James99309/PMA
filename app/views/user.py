@@ -3378,6 +3378,7 @@ def at_user_detail(user_id):
         'pc_performance': current_user.has_feature('person_config', 'pc_performance'),
         'pc_salary': current_user.has_feature('person_config', 'pc_salary'),
         'pc_ai': current_user.has_feature('person_config', 'pc_ai'),
+        'pc_hr_docs': current_user.has_feature('person_config', 'pc_hr_docs'),
     }
     return render_template('user/at_detail.html',
                            u=info,
