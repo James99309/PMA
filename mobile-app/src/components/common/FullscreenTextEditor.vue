@@ -102,7 +102,8 @@ function saveSel() {
 // 即时把(本地)图片插到光标处,后台上传后再把 src 换成服务器地址
 function insertLocalThenUpload(localUrl, file) {
   const uid = 'u' + Date.now() + Math.floor((performance.now() % 1000))
-  const html = `<span class="arn-img" contenteditable="false"><img data-uid="${uid}" src="${localUrl}"></span>&nbsp;`
+  // 默认中等尺寸(不占满),宽度写进 HTML 以便各端一致显示
+  const html = `<span class="arn-img" contenteditable="false" style="width:62%"><img data-uid="${uid}" src="${localUrl}"></span>&nbsp;`
   ed.value && ed.value.focus()
   const sel = window.getSelection()
   if (savedRange && sel) { sel.removeAllRanges(); sel.addRange(savedRange) }

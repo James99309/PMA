@@ -62,8 +62,10 @@
           </div>
           <div :style="{ margin: '0 16px' }" @click="editorOpen = true">
             <div v-if="notes" class="rich-preview" v-html="rich(notes)"
+              @click.stop="editorOpen = true"
               :style="{ width: '100%', boxSizing: 'border-box', minHeight: '100px',
-                maxHeight: '16em', overflow: 'hidden', padding: '14px', background: CAL.card,
+                maxHeight: '18em', overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+                padding: '14px', background: CAL.card,
                 borderRadius: '12px', border: `1.5px solid ${CAL.accent}`, fontSize: '13px',
                 color: CAL.ink, lineHeight: 1.65 }"></div>
             <div v-else :style="{ width: '100%', boxSizing: 'border-box', minHeight: '100px',

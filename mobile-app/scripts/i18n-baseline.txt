@@ -171,6 +171,7 @@ src/components/common/FilledField.vue	big:         { type: Boolean, default: fal
 src/components/common/FilterGroup.vue	// 对齐 customer-screens.jsx FilterGroup
 src/components/common/FullscreenTextEditor.vue	// 即时把(本地)图片插到光标处,后台上传后再把 src 换成服务器地址
 src/components/common/FullscreenTextEditor.vue	// 即时显示(capacitor 本地 URI),同时拿 blob 供后台上传
+src/components/common/FullscreenTextEditor.vue	// 默认中等尺寸(不占满),宽度写进 HTML 以便各端一致显示
 src/components/common/FullscreenTextEditor.vue	<!-- plain: textarea(原行为) -->
 src/components/common/FullscreenTextEditor.vue	<!-- 富文本工具条:插入图片 -->
 src/components/common/FullscreenTextEditor.vue	FullscreenTextEditor - 全屏长文编辑器(便签/描述/日报正文/评论)。

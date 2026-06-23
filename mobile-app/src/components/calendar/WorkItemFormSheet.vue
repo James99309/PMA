@@ -112,10 +112,12 @@
           <div :style="secWrap">{{ t('calendar.secNotes') }}</div>
           <div :style="{ margin: '0 16px' }" @click="notesEditorOpen = true">
             <div v-if="form.description" class="rich-preview" v-html="rich(form.description)"
+              @click.stop="notesEditorOpen = true"
               :style="{ width: '100%', boxSizing: 'border-box', minHeight: '90px',
-              maxHeight: '14em', padding: '14px', background: CAL.card, borderRadius: '12px',
+              maxHeight: '16em', padding: '14px', background: CAL.card, borderRadius: '12px',
               border: `1px solid ${CAL.divider}`, fontSize: '13px', lineHeight: 1.6,
-              wordBreak: 'break-word', overflow: 'hidden', color: CAL.ink }"></div>
+              wordBreak: 'break-word', overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+              color: CAL.ink }"></div>
             <div v-else :style="{ width: '100%', boxSizing: 'border-box', minHeight: '90px',
               padding: '14px', background: CAL.card, borderRadius: '12px',
               border: `1px solid ${CAL.divider}`, fontSize: '13px', lineHeight: 1.6,
