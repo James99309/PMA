@@ -260,7 +260,10 @@
       var dow = d.getDay(); if (dow === 0 || dow === 6) cls += ' weekend';
       var evs = eventsByDate[di] || [];
       var chips = '';
-      var cap = (viewMode === 'week') ? evs.length : 5;
+      // 该天有右下角日报图标时,事件最多显示 4 条,最后一行留给"+N 更多",
+      // 避免事件铺到底把右下角日报图标盖住导致点不到。
+      var hasLog = !!(logDatesSub[di] || logDatesDraft[di]);
+      var cap = (viewMode === 'week') ? evs.length : (hasLog ? 4 : 5);
       evs.slice(0, cap).forEach(function (e) { chips += chipHtml(e); });
       if (evs.length > cap) chips += '<div class="cal-more">+' + (evs.length - cap) + ' ' + t('更多') + '</div>';
       html += '<div class="' + cls + '" data-date="' + di + '"><span class="cal-daynum">' + d.getDate() + '</span>' + holidayHtml(di) + logMarkHtml(di) + chips + '</div>';
