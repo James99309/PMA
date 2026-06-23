@@ -71,7 +71,8 @@
       <div :style="{ background: TK.card, padding: '14px 20px', fontSize: '13.5px',
         color: TK.ink2, lineHeight: 1.65, borderTop: `1px solid ${TK.dividerSoft}`,
         borderBottom: `1px solid ${TK.dividerSoft}` }">
-        {{ d.description || t('task.noDescription') }}
+        <div v-if="d.description" class="rich-preview" v-html="rich(d.description)"></div>
+        <template v-else>{{ t('task.noDescription') }}</template>
       </div>
 
       <!-- links -->
@@ -553,6 +554,7 @@ import { getTask, changeTaskStatus, addTaskReply, reviewTask,
   resubmitReview, markTaskNotifsRead } from '@/api/tasks'
 import { getAttributedCandidates } from '@/api/expense'
 import client from '@/api/client'
+import { renderRich } from '@/utils/richNote'
 import { useAuthStore } from '@/stores/auth'
 import PersonPickerSheet from '@/components/common/PersonPickerSheet.vue'
 import MultiPersonPickerSheet from '@/components/common/MultiPersonPickerSheet.vue'
@@ -561,6 +563,7 @@ import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const rich = renderRich
 const auth = useAuthStore()
 
 const fileInput = ref(null)
@@ -895,3 +898,9 @@ onMounted(async () => {
   } catch (e) { /* noop */ }
 })
 </script>
+
+<style scoped>
+.rich-preview { white-space: pre-wrap; word-break: break-word; }
+.rich-preview :deep(img) { max-width: 100%; height: auto; display: block; border-radius: 8px; margin: 4px 0; }
+.rich-preview :deep(.arn-img) { display: inline-block; max-width: 100%; }
+</style>

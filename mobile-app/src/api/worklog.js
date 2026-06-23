@@ -19,6 +19,15 @@ export const getWorklogMonth = (params = {}) =>
 export const getWorklogAccounts = () =>
   client.get('/mobile/worklog/accounts')
 
+// 内嵌图片上传(工作描述/日报正文「插入图片」),返回 { url }
+export function uploadWorklogImage(file, filename = null) {
+  const fd = new FormData()
+  fd.append('file', file, filename || file.name || `img_${Date.now()}.jpg`)
+  return client.post('/mobile/worklog/upload-image', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
 // ── write side (C3): single source = backend worklog_service ──
 export const createWorklogItem = payload =>
   client.post('/mobile/worklog/items', payload)

@@ -60,13 +60,16 @@
               :style="{ fontSize: '12px', color: CAL.accent, fontWeight: 600,
                 textTransform: 'none', letterSpacing: '0' }">⤢ {{ t('calendar.expand') }}</span>
           </div>
-          <div :style="{ margin: '0 16px' }">
-            <textarea v-model="notes" :placeholder="t('calendar.notesLogPh')"
-              @click="editorOpen = true" readonly
+          <div :style="{ margin: '0 16px' }" @click="editorOpen = true">
+            <div v-if="notes" class="rich-preview" v-html="rich(notes)"
               :style="{ width: '100%', boxSizing: 'border-box', minHeight: '100px',
+                maxHeight: '16em', overflow: 'hidden', padding: '14px', background: CAL.card,
+                borderRadius: '12px', border: `1.5px solid ${CAL.accent}`, fontSize: '13px',
+                color: CAL.ink, lineHeight: 1.65 }"></div>
+            <div v-else :style="{ width: '100%', boxSizing: 'border-box', minHeight: '100px',
                 padding: '14px', background: CAL.card, borderRadius: '12px',
-                border: `1.5px solid ${CAL.accent}`, fontSize: '13px', color: CAL.ink,
-                lineHeight: 1.65, outline: 'none', resize: 'none' }" />
+                border: `1.5px solid ${CAL.accent}`, fontSize: '13px', color: CAL.ink4,
+                lineHeight: 1.65 }">{{ t('calendar.notesLogPh') }}</div>
           </div>
           <FullscreenTextEditor v-model="editorOpen" :value="notes"
             :title="t('calendar.supplementary')" :placeholder="t('calendar.notesLogPh')"
@@ -86,8 +89,10 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { updateWorklogDayDraft, submitWorklogDay } from '@/api/worklog'
 import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
+import { renderRich } from '@/utils/richNote'
 
 const { t } = useI18n()
+const rich = renderRich
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   date: { type: String, default: '' },     // iso 'YYYY-MM-DD'
@@ -165,4 +170,7 @@ async function close() {
 <style scoped>
 .dls-enter-active, .dls-leave-active { transition: opacity .2s; }
 .dls-enter-from, .dls-leave-to { opacity: 0; }
+.rich-preview { white-space: pre-wrap; word-break: break-word; }
+.rich-preview :deep(img) { max-width: 100%; height: auto; display: block; border-radius: 8px; margin: 4px 0; }
+.rich-preview :deep(.arn-img) { display: inline-block; max-width: 100%; }
 </style>

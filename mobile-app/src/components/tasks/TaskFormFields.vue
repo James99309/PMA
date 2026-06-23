@@ -140,12 +140,18 @@
     <div :style="{ margin: '0 16px 14px' }">
       <!-- tap → global full-screen editor (keyboard never covers it) -->
       <div @click="descEditorOpen = true" class="active:opacity-70"
-        :style="{ width: '100%', minHeight: '5.4em', maxHeight: '11em', padding: '14px',
+        :class="{ 'rich-preview': !!form.description }"
+        v-html="form.description ? rich(form.description) : ''"
+        v-if="form.description"
+        :style="{ width: '100%', minHeight: '5.4em', maxHeight: '14em', padding: '14px',
           background: TK.card, borderRadius: '12px', border: `1px solid ${TK.divider}`,
           fontSize: '13px', lineHeight: 1.6, fontFamily: TK.sans, boxSizing: 'border-box',
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
-          color: form.description ? TK.ink : TK.ink4 }">
-        {{ form.description || t('task.fDescPh') }}</div>
+          wordBreak: 'break-word', overflow: 'hidden', color: TK.ink }"></div>
+      <div v-else @click="descEditorOpen = true" class="active:opacity-70"
+        :style="{ width: '100%', minHeight: '5.4em', padding: '14px',
+          background: TK.card, borderRadius: '12px', border: `1px solid ${TK.divider}`,
+          fontSize: '13px', lineHeight: 1.6, fontFamily: TK.sans, boxSizing: 'border-box',
+          color: TK.ink4 }">{{ t('task.fDescPh') }}</div>
     </div>
     <FullscreenTextEditor v-model="descEditorOpen" :value="form.description || ''"
       :title="t('task.secDescription')" :placeholder="t('task.fDescPh')"
@@ -179,6 +185,8 @@ import PickerSheet from '@/components/common/PickerSheet.vue'
 import MultiPersonPickerSheet from '@/components/common/MultiPersonPickerSheet.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
 import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
+import { renderRich } from '@/utils/richNote'
+const rich = renderRich
 
 const props = defineProps({
   form:   { type: Object, required: true },
@@ -291,3 +299,9 @@ async function delExisting(a) {
   } catch (err) { /* noop */ }
 }
 </script>
+
+<style scoped>
+.rich-preview { white-space: pre-wrap; word-break: break-word; }
+.rich-preview :deep(img) { max-width: 100%; height: auto; display: block; border-radius: 8px; margin: 4px 0; }
+.rich-preview :deep(.arn-img) { display: inline-block; max-width: 100%; }
+</style>

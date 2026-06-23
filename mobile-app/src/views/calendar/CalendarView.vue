@@ -165,9 +165,9 @@
             <div :style="{ fontSize: '14px', fontWeight: 600, marginTop: '4px', lineHeight: 1.35,
               textDecoration: (it.status === 'cancelled' || it.is_invalidated) ? 'line-through' : 'none' }">
               {{ it.title }}</div>
-            <div v-if="it.description" :style="{ fontSize: '11.5px', color: CAL.ink3,
+            <div v-if="plain(it.description)" :style="{ fontSize: '11.5px', color: CAL.ink3,
               marginTop: '3px', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box',
-              '-webkit-line-clamp': 2, '-webkit-box-orient': 'vertical' }">{{ it.description }}</div>
+              '-webkit-line-clamp': 2, '-webkit-box-orient': 'vertical' }">{{ plain(it.description) }}</div>
             <div :style="{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px',
               fontSize: '10.5px', color: CAL.ink3, flexWrap: 'wrap' }">
               <span v-if="itemHours(it) != null"
@@ -260,9 +260,9 @@
             </div>
             <template v-if="logNotes">
               <div :style="sectionLabelStyle">{{ t('calendar.supplementary') }}</div>
-              <div :style="{ fontSize: '12.5px', color: CAL.ink2, lineHeight: 1.55,
-                paddingBottom: '12px', borderBottom: `1px solid ${CAL.dividerSoft}`,
-                marginBottom: '10px' }">{{ logNotes }}</div>
+              <div class="rich-preview" v-html="rich(logNotes)" :style="{ fontSize: '12.5px',
+                color: CAL.ink2, lineHeight: 1.55, paddingBottom: '12px',
+                borderBottom: `1px solid ${CAL.dividerSoft}`, marginBottom: '10px' }"></div>
             </template>
             <template v-if="quality.issues_detail && quality.issues_detail.length">
               <div :style="sectionLabelStyle">{{ t('calendar.improvements') }}</div>
@@ -298,6 +298,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getWorklogMonth, getWorklogDay } from '@/api/worklog'
+import { renderRich } from '@/utils/richNote'
 import CalendarScopeSheet from '@/components/calendar/CalendarScopeSheet.vue'
 import CalendarMonthSheet from '@/components/calendar/CalendarMonthSheet.vue'
 import WorkItemDetailSheet from '@/components/calendar/WorkItemDetailSheet.vue'
@@ -308,6 +309,10 @@ import { deleteWorklogItem } from '@/api/worklog'
 
 const router = useRouter()
 const { t } = useI18n()
+const rich = renderRich
+// 列表行预览:去标签取纯文本(列表里不内联图片)
+const plain = s => String(s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()
 
 // Design calendar-base palette (presentational, not global tokens)
 const CAL = {
@@ -556,3 +561,9 @@ async function swipeDelete(it) {
 
 onMounted(() => { loadMonth(); loadDay() })
 </script>
+
+<style scoped>
+.rich-preview { white-space: pre-wrap; word-break: break-word; }
+.rich-preview :deep(img) { max-width: 100%; height: auto; display: block; border-radius: 8px; margin: 4px 0; }
+.rich-preview :deep(.arn-img) { display: inline-block; max-width: 100%; }
+</style>

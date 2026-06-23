@@ -47,6 +47,7 @@ src/api/expense.js	// 必须区域感知: client.defaults.baseURL 由 setCurrent
 src/api/expense.js	// 把后端返回的 invoice_image 相对 URL 转成可被 <img> 直接 src 的全 URL
 src/api/expense.js	// 报销模块 API client — 对应后端 mobile_expense.py
 src/api/expense.js	// 错误页当图片渲染就是乱码), 与 client.js 拦截器同口径。
+src/api/worklog.js	// 内嵌图片上传(工作描述/日报正文「插入图片」),返回 { url }
 src/components/CreateFormPage.vue	<!-- 滚动内容 -->
 src/components/CreateFormPage.vue	<!-- 顶部导航（AppShell 已处理 safe-area-top，这里只需 44px） -->
 src/components/CreateFormPage.vue	<button @click="emit('back')" class="text-blue-500 text-sm py-1 pr-3">取消</button>
@@ -168,6 +169,13 @@ src/components/common/FilledField.vue	// 对齐 customer-screens.jsx FilledField
 src/components/common/FilledField.vue	accent:      { type: Boolean, default: false },  // value 用 accent 色（如 A 类）
 src/components/common/FilledField.vue	big:         { type: Boolean, default: false },  // 公司名等：衬线 17px
 src/components/common/FilterGroup.vue	// 对齐 customer-screens.jsx FilterGroup
+src/components/common/FullscreenTextEditor.vue	<!-- web 回退:文件选择 -->
+src/components/common/FullscreenTextEditor.vue	<!-- 工具条:插入图片 -->
+src/components/common/FullscreenTextEditor.vue	FullscreenTextEditor - 全屏富文本编辑器(便签/描述/日报正文)。
+src/components/common/FullscreenTextEditor.vue	contenteditable 富文本:支持内联图片(相册/拍照插入,上传后内联显示)。
+src/components/common/FullscreenTextEditor.vue	} catch (e) { /* 静默:网络错误 */ }
+src/components/common/FullscreenTextEditor.vue	内容以 HTML 存储(props.value 进/出均为 HTML;旧纯文本/Markdown 自动兼容)。
+src/components/common/FullscreenTextEditor.vue	对外接口不变:v-model=open / value / title / placeholder / saveLabel;emit save(html)。
 src/components/common/Highlight.vue	// 对齐 customer-screens.jsx Highlight：accentBg 底 + accent 文字
 src/components/common/ImageCrop4Corners.vue	//   1. 加载图原始尺寸到 imgEl
 src/components/common/ImageCrop4Corners.vue	//   2. 在覆盖层显示 4 个圆形 handle, 默认收缩到图四角内 8% (引导用户对准名片)
@@ -713,6 +721,14 @@ src/utils/push.js	console.log('[push] 非 native 平台, 跳过')
 src/utils/push.js	console.warn('[push] 上报 token 失败:', e?.message)
 src/utils/push.js	console.warn('[push] 初始化失败:', e?.message || e)
 src/utils/push.js	console.warn('[push] 用户拒绝通知权限')
+src/utils/richNote.js	// 仅保留白名单中的 style 子属性(尺寸/对象适配),其余丢弃
+src/utils/richNote.js	// 判空(去标签后无文字且无图片)
+src/utils/richNote.js	// 富文本便签渲染/清洗 —— 与 web at-rich-note 同口径(内容存 HTML;旧纯文本/Markdown 兼容)。
+src/utils/richNote.js	// 显示/编辑器初始化用:任意内容 → 安全 HTML
+src/utils/richNote.js	// 用于:日报正文 / 工作项描述 的「显示」与「编辑器初始化」。无第三方库。
+src/utils/richNote.js	// 纯文本/Markdown 子集 → HTML
+src/utils/richNote.js	child.remove() // 注释等
+src/utils/richNote.js	if (name === 'class' && tag === 'SPAN') return            // 允许 arn-img class
 src/views/AppShell.vue	// Capacitor WebView 下 router.go(0) 是 no-op, 必须 location.reload 真刷新
 src/views/AppShell.vue	// away 时全局顶部琥珀条; 登录页等不显示
 src/views/AppShell.vue	// label 用 i18n key, 渲染时 $t 取
@@ -820,23 +836,11 @@ src/views/auth/LoginView.vue	<!-- 表单 -->
 src/views/auth/LoginView.vue	<!-- 装饰用散落像素 (上右角) -->
 src/views/auth/LoginView.vue	<!-- 账号 -->
 src/views/auth/LoginView.vue	<!-- 错误提示 -->
+src/views/calendar/CalendarView.vue	// 列表行预览:去标签取纯文本(列表里不内联图片)
 src/views/customers/CardScanCaptureView.vue	// 名片是单张
-src/views/customers/CardScanCaptureView.vue	// 名片识别字段揭示动画 (与 OCR 实际返回字段对齐)
 src/views/customers/CardScanCaptureView.vue	<!-- OCR 进行中: 复用通用 OCR 动画 (单卡 + 字段揭示, 替代黑屏 spinner) -->
 src/views/customers/CardScanCaptureView.vue	<!-- 扫描流(VisionKit / Camera fallback) -->
 src/views/customers/CardScanCaptureView.vue	CardScanCaptureView · 名片扫描 - 复用 DocumentScanFlow 公用组件
-src/views/customers/CardScanCaptureView.vue	capture-tip="把名片放在桌面平整位置, 设备保持稳定 1-2 秒等聚焦, 系统会自动捕捉, 也可以手动按白色快门"
-src/views/customers/CardScanCaptureView.vue	error.value = `请求失败: ${e?.message || e}`
-src/views/customers/CardScanCaptureView.vue	error.value = res.data?.message || '识别失败'
-src/views/customers/CardScanCaptureView.vue	preview-tip="看清楚名片再识别"
-src/views/customers/CardScanCaptureView.vue	primary-label="AI 识别"
-src/views/customers/CardScanCaptureView.vue	subtitle="通常 2-5 秒"
-src/views/customers/CardScanCaptureView.vue	title="正在识别名片"
-src/views/customers/CardScanCaptureView.vue	{ label: '公司',     val: '识别中...', confident: true },
-src/views/customers/CardScanCaptureView.vue	{ label: '姓名',     val: '识别中...', confident: true },
-src/views/customers/CardScanCaptureView.vue	{ label: '电话',     val: '识别中...', confident: true },
-src/views/customers/CardScanCaptureView.vue	{ label: '职务',     val: '识别中...', confident: true },
-src/views/customers/CardScanCaptureView.vue	{ label: '邮箱',     val: '识别中...', confident: false },
 src/views/customers/CardScanCaptureView.vue	与 ReceiptCaptureView 共享同一套 capture/crop/preview UI
 src/views/customers/CardScanCaptureView.vue	本视图只负责: 接收 done 事件 → 调 OCR API → 跳到 confirm 页
 src/views/customers/CardScanConfirmView.vue	// 1) 创建客户
@@ -1040,7 +1044,6 @@ src/views/expense/ExpenseEditView.vue	// ── 拍发票 ───────�
 src/views/expense/ExpenseEditView.vue	// ── 明细 CRUD(本地) ──────────────────────────
 src/views/expense/ExpenseEditView.vue	// ── 添加明细 4 选项分发 ──────────────────────────
 src/views/expense/ExpenseEditView.vue	// ⚠️ iOS WKWebView: input.click() 必须在用户手势同步周期内触发, 不能先 await
-src/views/expense/ExpenseEditView.vue	// 不留在列表(软删 is_deleted)。从列表打开的旧草稿不受影响。
 src/views/expense/ExpenseEditView.vue	// 仅作初始值, 创建/编辑时可点头部货币行改 form.currency。
 src/views/expense/ExpenseEditView.vue	// 从文件选(可 PDF+图片混合多张). 弹原生文件选择器
 src/views/expense/ExpenseEditView.vue	// 从相册选(可多张). 每张走 OCR 识别流, 复用 processing → confirm 链路
@@ -1067,7 +1070,6 @@ src/views/expense/ExpenseEditView.vue	// 返回本页时优先用本地暂存恢
 src/views/expense/ExpenseEditView.vue	// 选"我自己" → 清空 attributed_to_id
 src/views/expense/ExpenseEditView.vue	// 静默失败, 标题保持空, 不打扰用户
 src/views/expense/ExpenseEditView.vue	// 顶栏右上"保存": 保存草稿 + 返回. 客户/项目缺失时仅保存为不完整草稿(不提交流程)
-src/views/expense/ExpenseEditView.vue	// 顶栏左上"取消": 若本次会话自动建了草稿且未主动保存/提交 → 删掉它,
 src/views/expense/ExpenseEditView.vue	// 默认货币: 用户结算货币 → 当前区域默认 (cn=CNY, sg=SGD)。
 src/views/expense/ExpenseEditView.vue	<!-- Nav 表头: 取消(左) / 标题(中) / 保存草稿(右) — 底部 CTA 只留"提交审批" -->
 src/views/expense/ExpenseEditView.vue	<!-- ─── 明细区域(以下与有无明细无关, 始终显示) ─── -->
@@ -1077,7 +1079,6 @@ src/views/expense/ExpenseEditView.vue	<!-- 关联客户 / 项目 (no_link=false 
 src/views/expense/ExpenseEditView.vue	<!-- 多张发票数量角标 -->
 src/views/expense/ExpenseEditView.vue	<!-- 实际发票缩略图; 加载失败 fallback 文字 -->
 src/views/expense/ExpenseEditView.vue	<!-- 客户/项目 picker -->
-src/views/expense/ExpenseEditView.vue	<!-- 底部 CTA: 保存草稿。 提交审批移到详情页 (存草稿后 detail.control.can_submit
 src/views/expense/ExpenseEditView.vue	<!-- 归属人 (默认自己; 选其他人会插入"归属人审批"节点) -->
 src/views/expense/ExpenseEditView.vue	<!-- 归属人 picker sheet (FilterSheet 风格的头像 chip) -->
 src/views/expense/ExpenseEditView.vue	<!-- 报销主题 -->
@@ -1105,9 +1106,7 @@ src/views/expense/ExpenseEditView.vue	if (form.value.title.trim()) return  // �
 src/views/expense/ExpenseEditView.vue	store.clearCompose(editingId.value)  // 提交完成, 暂存作废
 src/views/expense/ExpenseEditView.vue	triggerAutoTitle()  // fire-and-forget AI 生成标题
 src/views/expense/ExpenseEditView.vue	triggerAutoTitle()  // 描述更新可能影响标题, 重新触发 AI
-src/views/expense/ExpenseEditView.vue	try { await expApi.deleteExpense(editingId.value) } catch (e) { /* 删失败也不挡返回 */ }
 src/views/expense/ExpenseEditView.vue	合并 design_handoff:
-src/views/expense/ExpenseEditView.vue	才出现), 编辑态不提交流程 -->
 src/views/expense/ExpenseEditView.vue	根据 lines.length 切换 sub-title 和明细区域(空态卡 / 列表态)
 src/views/expense/ExpenseListView.vue	- PageHead: 季度小字 + 32px 标题 + FAB; 共 N 单 · ¥X 待审批
 src/views/expense/ExpenseListView.vue	- SortRow (最近/金额/状态)
@@ -1125,7 +1124,6 @@ src/views/expense/ExpenseListView.vue	<!-- 标题 + 金额 -->
 src/views/expense/ExpenseListView.vue	<!-- 状态快速筛选 sheet -->
 src/views/expense/ExpenseListView.vue	ExpenseListView · 报销列表
 src/views/expense/ExpenseListView.vue	对齐 ProjectListView/CustomerListView 标准布局:
-src/views/expense/ReceiptCaptureView.vue	// 重置队列(每次拍发票 = 新一批)
 src/views/expense/ReceiptCaptureView.vue	ReceiptCaptureView · 拍发票 - 复用 DocumentScanFlow 公用组件
 src/views/expense/ReceiptCaptureView.vue	capture-tip="把发票放在桌面平整位置, 设备保持稳定 1-2 秒等聚焦, 系统会自动捕捉并校正纸面"
 src/views/expense/ReceiptCaptureView.vue	multi-primary-format="用这张 · 共 {n} 张 · 开始识别"
@@ -1146,11 +1144,9 @@ src/views/expense/ReceiptConfirmView.vue	// 保留原文件名(含正确扩展�
 src/views/expense/ReceiptConfirmView.vue	// 全部处理完
 src/views/expense/ReceiptConfirmView.vue	// 全部处理完则清队列 + 跳 edit
 src/views/expense/ReceiptConfirmView.vue	// 只需要 currency 字段, 用 cache 即可; force=true 会跟保存后的 fetch 形成竞态
-src/views/expense/ReceiptConfirmView.vue	// 合并模式: 累加金额到 mergeable[0] 对应的 detail
 src/views/expense/ReceiptConfirmView.vue	// 启用全局键盘 offset 跟踪 + 点击空白处自动收键盘 (iOS 中文输入法没有 Done 按钮, 必须靠这个退出)
 src/views/expense/ReceiptConfirmView.vue	// 图片: 内嵌 overlay
 src/views/expense/ReceiptConfirmView.vue	// 已处理数 = saved + skipped (用于显示 + 决定底部主按钮文案)
-src/views/expense/ReceiptConfirmView.vue	// 当前及之前的同 category + 同 currency 的 receipts
 src/views/expense/ReceiptConfirmView.vue	// 拍照路径 receipt.filename undefined → 落回 invoice-N.jpg (拍照永远是 jpeg)
 src/views/expense/ReceiptConfirmView.vue	// 是否所有(其他)receipt 都已处理 — 此时按钮变"保存全部"
 src/views/expense/ReceiptConfirmView.vue	// 智能跳转 — 跳到下一张未处理的(saved=false 且 skipped=false)
@@ -1202,21 +1198,14 @@ src/views/expense/ReceiptProcessingView.vue	// 根据 blob.type 决定 filename 
 src/views/expense/ReceiptProcessingView.vue	// 顺序上传所有发票, 取得 OCR 结果
 src/views/expense/ReceiptProcessingView.vue	ReceiptProcessingView · OCR 识别中
 src/views/expense/ReceiptProcessingView.vue	严格对齐 design_handoff/expense-receipt.jsx::ExReceiptProcessing (L116-164)
-src/views/messages/AiChatView.vue	'主要联系人 李华（采购部经理）对你信任度高',
-src/views/messages/AiChatView.vue	'名下进行中 3 个项目，其中 1 个已到「招标中」',
-src/views/messages/AiChatView.vue	'是老客户，过往合作 2 个签约项目',
 src/views/messages/AiChatView.vue	// AI 一对一对话 —— 严格对齐 ai-chat.jsx AIOneOnOne (line 148-223)
 src/views/messages/AiChatView.vue	// AI 流式回复
-src/views/messages/AiChatView.vue	// Mock 回复内容（不同 query 显示不同内容）
-src/views/messages/AiChatView.vue	// SUGGEST_TAGS_1 是 demo seed 提示, 暂保留中文(只在没有 backend mock 时显示)
 src/views/messages/AiChatView.vue	// 后端把 conversation_id 回传，存下来，后续消息复用同一个会话
 src/views/messages/AiChatView.vue	// 在 thinking 气泡里累加 streamed content（用临时 body 'streaming' + streamText）
 src/views/messages/AiChatView.vue	// 替换初始 demo 消息为真历史
 src/views/messages/AiChatView.vue	// 现有 AI 会话 id（从 ChatListView 跳过来时带 query.id；否则首次发消息时由后端创建）
 src/views/messages/AiChatView.vue	// 真接 SSE：POST /api/v1/mobile/chat/ai/stream
-src/views/messages/AiChatView.vue	// 设计稿初始 demo 对话（line 169-194）
 src/views/messages/AiChatView.vue	// 进入页面时拉历史（如果有 conversationId）
-src/views/messages/AiChatView.vue	// 默认
 src/views/messages/AiChatView.vue	<!-- AI 工具状态 -->
 src/views/messages/AiChatView.vue	<!-- mock 分析回复（保留为兜底，后端不到时可手动触发）-->
 src/views/messages/AiChatView.vue	<!-- 对比客户 -->
@@ -1224,25 +1213,10 @@ src/views/messages/AiChatView.vue	<!-- 引用项目卡 -->
 src/views/messages/AiChatView.vue	<!-- 快速指令 chip 行 -->
 src/views/messages/AiChatView.vue	<!-- 操作行 -->
 src/views/messages/AiChatView.vue	<!-- 真后端流式输出 -->
-src/views/messages/AiChatView.vue	<!-- 第一轮回复后的建议追问 chip -->
 src/views/messages/AiChatView.vue	<!-- 起草回复 -->
 src/views/messages/AiChatView.vue	<!-- 输入框行 -->
 src/views/messages/AiChatView.vue	<!-- 错误 -->
-src/views/messages/AiChatView.vue	cardLead: '名下项目中，「宝山节能改造项目」最值得重点跟进：',
-src/views/messages/AiChatView.vue	const SUGGEST_TAGS_1 = ['这个项目下一步该做什么？', '帮我起草约见短信', '其他客户对比一下']
-src/views/messages/AiChatView.vue	footer: '数据来源：6 个名下项目 · 12 条跟进记录 · 上次拜访 04 · 22',
-src/views/messages/AiChatView.vue	if (query.includes('对比')) {
-src/views/messages/AiChatView.vue	if (query.includes('约见') || query.includes('短信')) {
-src/views/messages/AiChatView.vue	intro: '结合我看到的数据，宝山节能整体赢率较高（约 72%），主要原因有三点：',
-src/views/messages/AiChatView.vue	label: '建议回复 · 已结合客户偏好与历史互动',
-src/views/messages/AiChatView.vue	refCard: { name: '宝山节能改造项目', stage: '招标中', amount: '42.50' },
 src/views/messages/AiChatView.vue	streamMsg.thinking = false  // 流开始就不再显示 ... 转圈
-src/views/messages/AiChatView.vue	text: '李经理您好，关于您说的方案，我希望本周能登门拜访 30 分钟，把更新版当面对一遍，您看周三或周四下午方便吗？',
-src/views/messages/AiChatView.vue	title: '已为你对比 3 家客户（按累计价值倒序）',
-src/views/messages/AiChatView.vue	{ id: 1, kind: 'user', time: '14:21', text: '帮我分析一下宝山节能这个客户的赢率怎么样？最近的项目有几个有戏？' },
-src/views/messages/AiChatView.vue	{ name: '上海宝山节能科技', value: '380.50 万', tag: 'A 类活跃' },
-src/views/messages/AiChatView.vue	{ name: '南京数据港集团', value: '256.00 万', tag: 'A 类活跃' },
-src/views/messages/AiChatView.vue	{ name: '深圳明远半导体', value: '620.00 万', tag: 'A 类活跃' },
 src/views/messages/BroadcastView.vue	// Mock 公告列表（实际由后端 announcement 表提供）
 src/views/messages/BroadcastView.vue	// 公司广播详情 —— 设计稿无此屏，按 Plan A 风格新建
 src/views/messages/BroadcastView.vue	// 顶部 Hero：广播频道名 + 订阅者数；下方按时间倒序的公告列表
@@ -1571,13 +1545,11 @@ src/views/projects/ProjectDetailView.vue	// 已存在 instance(stale UI) — 静
 src/views/projects/ProjectDetailView.vue	// 拼出 STAGES_ALL：字典 displayLabel(按 locale 切 zh/en) + 前端 desc/pct
 src/views/projects/ProjectDetailView.vue	// 没有讨论群时（null）→ 走 "创建讨论群" 流程，不显示输入框和消息预览
 src/views/projects/ProjectDetailView.vue	// 真实讨论群 id 来自后端 project.discussion_conversation_id
-src/views/projects/ProjectDetailView.vue	// 货币按数据区切: SP8D=¥...万 / OVS=$...K (与 i18n locale 无关)
 src/views/projects/ProjectDetailView.vue	// 阶段赢率（前端，不进字典）。描述走 i18n: project.stageDesc.<key>
 src/views/projects/ProjectDetailView.vue	// 项目成员（来自后端 owner + shared_with_users）
 src/views/projects/ProjectDetailView.vue	// 项目讨论卡片：真实数据驱动，无 mock 种子
 src/views/projects/ProjectDetailView.vue	:style="{ color: m.from === '我' ? 'var(--color-accent)' : 'var(--color-ink-2)' }">{{ m.from }}</span>
 src/views/projects/ProjectDetailView.vue	<!-- @ 提及选择器（向上弹出） -->
-src/views/projects/ProjectDetailView.vue	<!-- Amount — 货币按数据区切 ¥...万 / $...K -->
 src/views/projects/ProjectDetailView.vue	<!-- CTA row — 推进按钮 + 跟进按钮 -->
 src/views/projects/ProjectDetailView.vue	<!-- Header — 对齐 ADetail line 289-295 (返回 ink-2 不是 accent) -->
 src/views/projects/ProjectDetailView.vue	<!-- Hero — 严格对齐 screens.jsx ADetail line 297-315 (无白底卡片) -->
@@ -1616,7 +1588,6 @@ src/views/projects/ProjectDetailView.vue	active:        '#1E40AF',  // 深蓝
 src/views/projects/ProjectDetailView.vue	alert(`创建失败：${e.message || e}`)
 src/views/projects/ProjectDetailView.vue	churned:       '#4B5563',  // 深灰
 src/views/projects/ProjectDetailView.vue	confirm-label="确认召回"
-src/views/projects/ProjectDetailView.vue	const amountUnit = computed(() => auth.regionId === 'sg' ? 'K' : '万')
 src/views/projects/ProjectDetailView.vue	dormant:       '#C2410C',  // 深橙
 src/views/projects/ProjectDetailView.vue	eyebrow="召回"
 src/views/projects/ProjectDetailView.vue	flowLoadError.value = '未找到流程数据（此项目可能由旧入口创建）'
@@ -1643,7 +1614,6 @@ src/views/projects/ProjectEditView.vue	// 任何字段变化标记 dirty
 src/views/projects/ProjectEditView.vue	// 厂商销售
 src/views/projects/ProjectEditView.vue	// 必填检查（项目名 + 厂商销售）
 src/views/projects/ProjectEditView.vue	// 适配 PersonPickerSheet 的 options 格式
-src/views/projects/ProjectEditView.vue	// 键盘弹起时把聚焦输入滚进可视区 + 抬起底部(同 ProjectCreateView)
 src/views/projects/ProjectEditView.vue	<!-- 厂商销售（必填，未填高亮）-->
 src/views/projects/ProjectEditView.vue	<!-- 基本信息 -->
 src/views/projects/ProjectEditView.vue	<!-- 备注/详细 -->

@@ -111,12 +111,15 @@
           <!-- notes -->
           <div :style="secWrap">{{ t('calendar.secNotes') }}</div>
           <div :style="{ margin: '0 16px' }" @click="notesEditorOpen = true">
-            <div :style="{ width: '100%', boxSizing: 'border-box', minHeight: '90px',
-              maxHeight: '11em', padding: '14px', background: CAL.card, borderRadius: '12px',
+            <div v-if="form.description" class="rich-preview" v-html="rich(form.description)"
+              :style="{ width: '100%', boxSizing: 'border-box', minHeight: '90px',
+              maxHeight: '14em', padding: '14px', background: CAL.card, borderRadius: '12px',
               border: `1px solid ${CAL.divider}`, fontSize: '13px', lineHeight: 1.6,
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflow: 'hidden',
-              color: form.description ? CAL.ink : CAL.ink4 }">
-              {{ form.description || t('calendar.notesPh') }}</div>
+              wordBreak: 'break-word', overflow: 'hidden', color: CAL.ink }"></div>
+            <div v-else :style="{ width: '100%', boxSizing: 'border-box', minHeight: '90px',
+              padding: '14px', background: CAL.card, borderRadius: '12px',
+              border: `1px solid ${CAL.divider}`, fontSize: '13px', lineHeight: 1.6,
+              color: CAL.ink4 }">{{ t('calendar.notesPh') }}</div>
           </div>
           <FullscreenTextEditor v-model="notesEditorOpen" :value="form.description || ''"
             :title="t('calendar.secNotes')" :placeholder="t('calendar.notesPh')"
@@ -144,8 +147,10 @@ import { createWorklogItem, updateWorklogItem } from '@/api/worklog'
 import WorkItemTypePickerSheet from './WorkItemTypePickerSheet.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
 import FullscreenTextEditor from '@/components/common/FullscreenTextEditor.vue'
+import { renderRich } from '@/utils/richNote'
 
 const { t } = useI18n()
+const rich = renderRich
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   item: { type: Object, default: null },        // edit target (null = create)
@@ -302,4 +307,7 @@ function close() { open.value = false }
 <style scoped>
 .wfs-enter-active, .wfs-leave-active { transition: opacity .2s; }
 .wfs-enter-from, .wfs-leave-to { opacity: 0; }
+.rich-preview { white-space: pre-wrap; }
+.rich-preview :deep(img) { max-width: 100%; height: auto; display: block; border-radius: 8px; margin: 4px 0; }
+.rich-preview :deep(.arn-img) { display: inline-block; max-width: 100%; }
 </style>

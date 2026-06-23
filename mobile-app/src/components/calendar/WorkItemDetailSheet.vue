@@ -68,11 +68,13 @@
 
             <template v-if="it.description || it.execution_notes">
               <div :style="secLab">{{ t('calendar.secNotes') }}</div>
-              <div :style="{ background: CAL.card, borderRadius: '10px',
+              <div class="rich-preview" :style="{ background: CAL.card, borderRadius: '10px',
                 border: `1px solid ${CAL.divider}`, padding: '12px 14px',
-                fontSize: '13px', color: CAL.ink2, lineHeight: 1.65,
-                whiteSpace: 'pre-wrap' }">{{ it.description || '' }}<template
-                v-if="it.execution_notes">{{ it.description ? '\n\n' : '' }}{{ it.execution_notes }}</template></div>
+                fontSize: '13px', color: CAL.ink2, lineHeight: 1.65 }">
+                <div v-if="it.description" v-html="rich(it.description)"></div>
+                <div v-if="it.execution_notes" v-html="rich(it.execution_notes)"
+                  :style="{ marginTop: it.description ? '10px' : '0' }"></div>
+              </div>
             </template>
             <div style="height: 14px;" />
           </div>
@@ -105,8 +107,10 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { completeWorklogItem, cancelWorklogItem, deleteWorklogItem } from '@/api/worklog'
+import { renderRich } from '@/utils/richNote'
 
 const { t } = useI18n()
+const rich = renderRich
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   item: { type: Object, default: null },
@@ -203,4 +207,7 @@ function onDelete() {
 <style scoped>
 .wds-enter-active, .wds-leave-active { transition: opacity .2s; }
 .wds-enter-from, .wds-leave-to { opacity: 0; }
+.rich-preview { white-space: pre-wrap; word-break: break-word; }
+.rich-preview :deep(img) { max-width: 100%; height: auto; display: block; border-radius: 8px; margin: 4px 0; }
+.rich-preview :deep(.arn-img) { display: inline-block; max-width: 100%; }
 </style>
