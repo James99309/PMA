@@ -334,6 +334,7 @@
       <label class="wi-label">{{ _('描述(可选)') }}</label>
       <textarea id="wiDesc" rows="4" class="wi-inp" style="height:auto;min-height:96px;max-height:480px;padding:8px 11px;line-height:1.5;resize:vertical;overflow:auto;"
                 oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,480)+'px';"></textarea>
+      <div id="wiDescView" class="arn-view" style="display:none;"></div>
     </div>
 
     {# 附件 #}
@@ -398,6 +399,7 @@
     </div>
     <textarea id="logNotes" rows="14" class="wi-inp" style="resize:vertical;line-height:1.6;min-height:300px;"
               placeholder="{{ _('总结当天工作,或点「AI 梳理草稿」自动生成后再修改…') }}"></textarea>
+    <div id="logNotesView" class="arn-view" style="display:none;min-height:120px;"></div>
 
     {# 当天工作项(只读上下文) #}
     <div id="logItems" class="log-items"></div>
@@ -454,6 +456,7 @@
 {{ at_file_preview_modal() }}
 <script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-comments.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-rich-note.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-worklog-calendar.js') }}"></script>
 </body>
 </html>

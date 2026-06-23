@@ -858,6 +858,37 @@ def upload_workitem_attachment(item_id):
         return jsonify({'success': False, 'message': f'{_("上传失败")}: {str(e)}'}), 500
 
 
+@worklog.route('/api/upload-image', methods=['POST'])
+@login_required
+def upload_worklog_inline_image():
+    """通用内嵌图片上传:供工作描述/日报正文「插入图片」用,返回 url 供 Markdown 引用。
+    不挂任何对象(新建态也可用),仅落存储。"""
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': _('未选择文件')}), 400
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif'}:
+        return jsonify({'success': False, 'message': _('仅支持图片:PNG、JPG、GIF、WEBP、HEIC')}), 400
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > 5 * 1024 * 1024:
+        return jsonify({'success': False, 'message': _('图片大小超过5MB限制')}), 400
+    try:
+        from app.utils.smart_storage_manager import get_smart_storage
+        from datetime import datetime as _dt
+        safe = f"img_{current_user.id}_{_dt.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+        result = get_smart_storage().upload_file(
+            object_id=current_user.id, file=file, filename=safe,
+            file_type='image', bucket_type='invoice', business_type='worklog_note')
+        if result and result.get('url'):
+            return jsonify({'success': True, 'data': {'url': result.get('url'), 'filename': file.filename}})
+        return jsonify({'success': False, 'message': _('上传失败')}), 500
+    except Exception as e:
+        logger.error(f"内嵌图片上传失败: {e}")
+        return jsonify({'success': False, 'message': f'{_("上传失败")}: {str(e)}'}), 500
+
+
 @worklog.route('/api/items/<int:item_id>/delete-attachment/<int:index>', methods=['DELETE', 'POST'])
 @login_required
 def delete_workitem_attachment(item_id, index):
