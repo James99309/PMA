@@ -35,7 +35,9 @@
         var av = document.createElement('div'); av.className = 'wc-av'; av.textContent = nm.charAt(0); av.title = nm;
         av.style.background = avColor(nm); av.style.color = '#fff';
         var bubble = document.createElement('div'); bubble.className = 'wc-bubble';
-        var text = document.createElement('div'); text.className = 'wc-text'; text.textContent = c.content;
+        var text = document.createElement('div'); text.className = 'wc-text';
+        if (window.ATRichNote) { text.classList.add('arn-view'); text.innerHTML = ATRichNote.render(c.content); }
+        else text.textContent = c.content;
         var foot = document.createElement('div'); foot.className = 'wc-foot';
         foot.innerHTML = '<span class="wc-time">' + esc(c.created_at || '') + '</span>';
         if (c.can_delete) {
@@ -70,7 +72,9 @@
       var av = document.createElement('div'); av.className = 'wc-av'; av.textContent = nm.charAt(0); av.title = nm;
       av.style.background = avColor(nm); av.style.color = '#fff';
       var bubble = document.createElement('div'); bubble.className = 'wc-bubble';
-      var text = document.createElement('div'); text.className = 'wc-text'; text.textContent = content;
+      var text = document.createElement('div'); text.className = 'wc-text';
+      if (window.ATRichNote) { text.classList.add('arn-view'); text.innerHTML = ATRichNote.render(content); }
+      else text.textContent = content;
       bubble.appendChild(text); row.appendChild(av); row.appendChild(bubble); box.appendChild(row);
       box.scrollTop = box.scrollHeight;
     }
@@ -82,6 +86,7 @@
       cfg.sendEl.disabled = true;
       appendOptimistic(content);          // 立即上屏
       cfg.inputEl.value = '';
+      if (cfg.inputEl._arnCtl) cfg.inputEl._arnCtl.refresh();   // 富文本编辑器同步清空
       fetch(cfg.threadUrl(key), {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
         body: JSON.stringify({ content: content })

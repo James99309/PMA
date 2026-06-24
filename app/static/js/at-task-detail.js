@@ -274,7 +274,7 @@
       h += '<div style="display:grid;grid-template-columns:24px 1fr;gap:10px;position:relative;padding-bottom:' + (last ? 0 : 16) + 'px;">';
       if (!last) h += '<div style="position:absolute;left:11.5px;top:24px;bottom:-4px;width:1px;background:var(--line-2);"></div>';
       h += '<div style="width:24px;height:24px;border-radius:50%;z-index:1;background:' + (first ? color : 'var(--bg-page)') + ';border:' + (first ? '0' : '1.5px solid ' + color) + ';color:' + (first ? '#fff' : color) + ';display:flex;align-items:center;justify-content:center;' + (first ? 'box-shadow:0 0 0 4px ' + color + '22;' : '') + '">' + svg('edit', 11) + '</div>';
-      h += '<div style="padding-top:2px;min-width:0;"><div style="font-size:12.5px;color:' + (first ? 'var(--ink)' : 'var(--ink-2)') + ';line-height:1.5;word-break:break-word;white-space:pre-wrap;">' + esc(r.content) + '</div>'
+      h += '<div style="padding-top:2px;min-width:0;"><div class="arn-view" style="font-size:12.5px;color:' + (first ? 'var(--ink)' : 'var(--ink-2)') + ';line-height:1.5;word-break:break-word;white-space:pre-wrap;">' + (window.ATRichNote ? ATRichNote.render(r.content) : esc(r.content)) + '</div>'
         + '<div class="at-dim" style="font-size:11px;margin-top:3px;display:flex;align-items:center;gap:5px;"><span>' + esc(r.author_name || '') + '</span><span style="color:var(--ink-4);">·</span><span class="at-mono at-tab-num">' + fdt(r.created_at) + '</span></div></div></div>';
     });
     return h;
@@ -500,6 +500,8 @@
     if (!window.AtComments) return;
     var listEl = document.getElementById(listId), inputEl = document.getElementById(inputId), sendEl = document.getElementById(sendId);
     if (!listEl || !inputEl || !sendEl) return;
+    // 富文本:评论/进展支持插图 + 全屏(发送走按钮,回车=换行)
+    if (window.ATRichNote && !inputEl.disabled) ATRichNote.enhance(inputEl, { uploadUrl: '/worklog/api/upload-image' });
     var c = AtComments.bind({
       listEl: listEl, inputEl: inputEl, sendEl: sendEl, currentUserId: UID,
       currentUserName: uname(UID),
