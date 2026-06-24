@@ -421,6 +421,35 @@ def get_approver_by_type(approver_type, approver_user_id, context_user=None, pro
     return None
 
 
+def _expense_next_level_bump(approver, approval_instance):
+    """CN 报销专属规则: 上级审批若落到营销总监(sales_director),上提到总经理(CEO)。
+
+    覆盖用户需求(2026-06-24「郭小会下面的人的报销也走ceo,郭小会也走ceo」):
+      - 销售部下属提交报销 → next_level 算出的上级是营销总监 → 本规则上提到 CEO
+      - 营销总监本人提交报销 → next_level 本就回退到 CEO(此处不触发,结果已是 CEO)
+
+    仅 object_type=='expense' 且 CN(PMA_DB_TYPE=sp8d) 生效:
+      - 不影响项目/报价等其它审批(它们 object_type 不同) → 「其它不变」
+      - 不影响 SG(SG 亦有 sales_director,但这是 CN 专属策略,故按区域限定)
+    """
+    import os
+    if not approver or getattr(approver, 'role', None) != 'sales_director':
+        return approver
+    if not approval_instance or getattr(approval_instance, 'object_type', None) != 'expense':
+        return approver
+    db_type = (os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE') or 'sp8d').lower()
+    if db_type != 'sp8d':
+        return approver
+    ceo = (User.query.filter_by(company_name=approver.company_name, role='ceo')
+                     .filter(User.id != approver.id).first()
+           or User.query.filter_by(role='ceo').filter(User.id != approver.id).first())
+    if ceo:
+        current_app.logger.info(
+            f"[CN报销] 上级审批人为营销总监 {approver.username}, 按规则上提到总经理 {ceo.username}")
+        return ceo
+    return approver
+
+
 def get_step_actual_approver(step, approval_instance):
     """获取审批步骤的实际审批人
 
@@ -488,11 +517,11 @@ def get_step_actual_approver(step, approval_instance):
             if context_user_for_next_level:
                 current_app.logger.info(f"使用归属人 {context_user_for_next_level.username} 计算上级审批人")
                 result = get_next_level_approver(context_user_for_next_level)
-                return result
+                return _expense_next_level_bump(result, approval_instance)
             else:
                 current_app.logger.warning(f"步骤 context_user_id={step_context_user_id} 对应的用户不存在，回退到发起人")
         result = get_next_level_approver(context_user)
-        return result
+        return _expense_next_level_bump(result, approval_instance)
     elif approver_type == 'auto' or action_type == 'authorization':
         # 自动选择：基于项目类型确定（主要用于授权）
         if project_type:
