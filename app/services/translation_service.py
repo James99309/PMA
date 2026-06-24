@@ -109,6 +109,11 @@ def normalize_region_text(text):
     """
     if not text or not str(text).strip():
         return text
+    # 富文本/HTML 内容(评论/日报/描述里的内联图片等)不做 AI 翻译归一:
+    # 翻译模型会把 HTML+图片URL 当成对话来回应("我看不到图片…"),导致内容被损坏。
+    import re as _re
+    if _re.search(r'<(img|span|div|p|br|a|ul|ol|li|strong|em|b|i|h[1-6])[\s>/]', str(text), _re.I):
+        return text
     try:
         return translate_to(str(text).strip(), normalize_lang_for_region())
     except Exception as e:
