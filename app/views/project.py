@@ -631,13 +631,14 @@ def at_list_view():
     for k, stages in TAB_STAGE_MAP.items():
         tab_counts[k] = base.filter(Project.current_stage.in_(stages)).count()
     # 锁定成功(锁单预判)tab:跨阶段标记,签约自动解除
-    tab_counts['win_locked'] = base.filter(Project.win_locked.is_(True)).count()
+    # 锁定成功:win_locked 且未签约(签约后锁单预判已兑现,与列表 🏆 徽章口径一致)
+    tab_counts['win_locked'] = base.filter(Project.win_locked.is_(True), Project.current_stage != 'signed').count()
 
     q = base
     if tab in TAB_STAGE_MAP:
         q = q.filter(Project.current_stage.in_(TAB_STAGE_MAP[tab]))
     elif tab == 'win_locked':
-        q = q.filter(Project.win_locked.is_(True))
+        q = q.filter(Project.win_locked.is_(True), Project.current_stage != 'signed')
     else:  # 全部:排除 搁置/失败/签约
         q = q.filter(_all_filter)
 
