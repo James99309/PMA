@@ -41,10 +41,10 @@
       'box-shadow:0 0 0 1px var(--line-soft);transition:opacity 100ms,color 100ms,background 100ms;}' +
       '.arn-icon:hover{opacity:1;background:var(--bg-elev-2);color:var(--ink);}' +
       '.arn-icon .material-symbols-outlined{font-size:17px;}' +
-      // 内联可拉伸图片:span 提供原生 resize 拖角
-      '.arn-img{display:inline-block;position:relative;resize:both;overflow:hidden;max-width:100%;' +
-      'line-height:0;vertical-align:top;border-radius:8px;margin:4px 0;min-width:48px;min-height:32px;}' +
-      '.arn-img>img{width:100%;height:100%;display:block;object-fit:fill;}' +
+      // 内联可拉伸图片:仅横向拖拽改宽,高度按比例自动(锁定长宽比,不变形)
+      '.arn-img{display:inline-block;position:relative;resize:horizontal;overflow:hidden;max-width:100%;' +
+      'line-height:0;vertical-align:top;border-radius:8px;margin:4px 0;min-width:64px;}' +
+      '.arn-img>img{width:100%;height:auto;display:block;}' +
       '.arn-editor[contenteditable="false"] .arn-img{resize:none;}' +
       // 全屏
       '.arn-fs{position:fixed;inset:0;z-index:3000;display:none;flex-direction:column;background:var(--bg-page);padding:18px 22px;}' +
@@ -61,10 +61,44 @@
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   }
 
-  // 旧内容(纯文本/Markdown)→ HTML;已是 HTML 则原样返回
+  // HTML 白名单清洗(评论等多人可见内容防 XSS;只放行图文基本标签)
+  var _ALLOWED = { B:1, I:1, U:1, EM:1, STRONG:1, A:1, BR:1, P:1, DIV:1, SPAN:1, IMG:1, UL:1, OL:1, LI:1 };
+  function _safeStyle(style) {
+    var out = [];
+    String(style || '').split(';').forEach(function (d) {
+      var i = d.indexOf(':'); if (i < 0) return;
+      var k = d.slice(0, i).trim().toLowerCase(), v = d.slice(i + 1).trim();
+      if (['width', 'height', 'max-width', 'object-fit', 'display', 'resize', 'overflow', 'border-radius', 'vertical-align', 'line-height'].indexOf(k) >= 0
+          && !/url\s*\(|expression|javascript:/i.test(v)) out.push(k + ':' + v);
+    });
+    return out.join(';');
+  }
+  function _sanNode(node) {
+    Array.prototype.slice.call(node.childNodes).forEach(function (ch) {
+      if (ch.nodeType === 1) {
+        if (!_ALLOWED[ch.tagName]) { while (ch.firstChild) node.insertBefore(ch.firstChild, ch); node.removeChild(ch); return; }
+        Array.prototype.slice.call(ch.attributes).forEach(function (a) {
+          var n = a.name.toLowerCase();
+          if (n === 'class' || n === 'contenteditable' || n === 'alt' || n === 'target' || n === 'rel') return;
+          if (n === 'style') { var s = _safeStyle(a.value); if (s) ch.setAttribute('style', s); else ch.removeAttribute('style'); return; }
+          if (n === 'href' || n === 'src') { if (/^\s*javascript:/i.test(a.value)) ch.removeAttribute(a.name); return; }
+          ch.removeAttribute(a.name);
+        });
+        if (ch.tagName === 'A') { ch.setAttribute('target', '_blank'); ch.setAttribute('rel', 'noopener'); }
+        _sanNode(ch);
+      } else if (ch.nodeType !== 3) { node.removeChild(ch); }
+    });
+    return node;
+  }
+  function sanitize(html) {
+    try { var doc = new DOMParser().parseFromString('<div>' + (html || '') + '</div>', 'text/html'); return _sanNode(doc.body.firstChild).innerHTML; }
+    catch (e) { return esc(html); }
+  }
+
+  // 旧内容(纯文本/Markdown)→ HTML;已是 HTML 则清洗后返回
   function render(text) {
     text = text || '';
-    if (looksHtml(text)) return text;
+    if (looksHtml(text)) return sanitize(text);
     var s = esc(text);
     s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (_m, alt, url) {
       return '<span class="arn-img" contenteditable="false"><img src="' + url + '" alt="' + alt + '"></span>';
@@ -145,8 +179,8 @@
     fs = document.createElement('div'); fs.className = 'arn-fs';
     fs.innerHTML =
       '<div class="arn-fs-head"><span class="arn-fs-title"></span><div style="display:flex;gap:8px;">' +
-      '<button type="button" class="arn-btn" data-fsimg><span class="material-symbols-outlined">attach_file</span>' + esc(t('插入图片')) + '</button>' +
-      '<button type="button" class="arn-btn" data-fsclose><span class="material-symbols-outlined">close_fullscreen</span>' + esc(t('退出全屏')) + '</button>' +
+      '<button type="button" class="arn-btn" data-fsimg><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>' + esc(t('插入图片')) + '</button>' +
+      '<button type="button" class="arn-btn" data-fsclose><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6H3"/><path d="M15 21v-6h6"/><path d="M3 9l6-6"/><path d="M21 15l-6 6"/></svg>' + esc(t('退出全屏')) + '</button>' +
       '</div></div><div class="arn-editor" contenteditable="true"></div>';
     document.body.appendChild(fs);
     fsEditor = fs.querySelector('.arn-editor');
@@ -180,6 +214,8 @@
     var minH = (el.style && el.style.minHeight) || '';
 
     var wrap = document.createElement('div'); wrap.className = 'arn-wrap';
+    // flex 行内的 composer(评论/进展):wrap 需 flex:1 占满;块级父元素忽略 flex,安全
+    wrap.style.flex = '1'; wrap.style.minWidth = '0';
     el.parentNode.insertBefore(wrap, el);
     wrap.appendChild(el);
     el.style.display = 'none';   // 原 textarea 隐藏,仅作值载体
@@ -194,8 +230,8 @@
 
     var tools = document.createElement('div'); tools.className = 'arn-tools';
     tools.innerHTML =
-      '<button type="button" class="arn-icon" data-arn-img title="' + esc(t('插入图片')) + '"><span class="material-symbols-outlined">attach_file</span></button>' +
-      '<button type="button" class="arn-icon" data-arn-fs title="' + esc(t('全屏')) + '"><span class="material-symbols-outlined">open_in_full</span></button>';
+      '<button type="button" class="arn-icon" data-arn-img title="' + esc(t('插入图片')) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>' +
+      '<button type="button" class="arn-icon" data-arn-fs title="' + esc(t('全屏')) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-6 6"/><path d="M3 21l6-6"/></svg></button>';
     wrap.appendChild(tools);
 
     var ctl = {
