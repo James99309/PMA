@@ -50,6 +50,27 @@
               return '<option value="' + it.code + '">' + it.label + '</option>';
             }).join('');
         });
+
+        // 项目类型按创建人角色锁定:
+        //   创建态 — 销售/渠道/服务类角色强制选定其类型并禁用;其他角色可自由选
+        //   编辑态 — 仅 admin/business_admin 可改,其余禁用(保持原值)
+        var typeSel = $(p + 'type');
+        var typeHint = $(p + 'typeLock');
+        if (typeSel) {
+          var locked = false;
+          if (mode === 'create' && res.forced_project_type) {
+            typeSel.value = res.forced_project_type;
+            locked = true;
+          } else if (mode === 'edit' && res.can_edit_project_type === false) {
+            locked = true;
+          }
+          if (locked) {
+            typeSel.disabled = true;
+            typeSel.style.opacity = '0.6';
+            typeSel.style.cursor = 'not-allowed';
+            if (typeHint) typeHint.style.display = '';
+          }
+        }
       })
       .catch(function () { if (g.ATToast) ATToast.error('选项加载失败'); });
 
