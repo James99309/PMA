@@ -513,7 +513,7 @@ _KPI_ACTUAL_FNS = {
     'se_confirm_quality': _act_se('se_confirm_quality'),
     'se_implant_amount':  _act_se('se_implant_amount'),
     'se_sales_amount':    _act_se('se_sales_amount'),
-    'se_training_count':  lambda u, s, e: _act_hr_task_count(u, s, e, 'se_tech_training'),  # 技术培训:任务完成计数
+    'se_training_count':  lambda u, s, e: _act_task_count_approved(u, s, e, 'se_tech_training'),  # 技术培训:审核通过任务计数(每条记1)
     'se_content_output':  _act_manual('se_content_output'),
     'se_response_rate':   _act_manual('se_response_rate', agg='avg'),
     'se_satisfaction':    _act_manual('se_satisfaction', agg='avg'),
@@ -915,6 +915,21 @@ def _act_hr_task_count(user, s, e, _task_type):
         Task.assignee_id == user.id,
         Task.task_type == _task_type,
         Task.status == 'completed',
+        Task.is_deleted == False,
+        Task.completed_at.isnot(None),
+        Task.completed_at >= s,
+        Task.completed_at < e,
+    ).count()
+
+
+def _act_task_count_approved(user, s, e, _task_type):
+    """通用:本人(assignee)完成且审核通过的某类任务计数(每条记1,不加权)。
+    与 _act_hr_task_count(完成即计)不同:要求 review_status='approved' 才计入。"""
+    from app.models.task import Task
+    return Task.query.filter(
+        Task.assignee_id == user.id,
+        Task.task_type == _task_type,
+        Task.review_status == 'approved',
         Task.is_deleted == False,
         Task.completed_at.isnot(None),
         Task.completed_at >= s,

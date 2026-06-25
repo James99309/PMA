@@ -21,7 +21,7 @@ TASK_TYPES = [
     # 岗位 · 解决方案经理
     #   技术培训:完成计数进绩效 se_training_count(纯内部,不关联项目)
     #   项目支持:关联项目/报价单可见(allow_link),SE 配合销售的项目侧任务
-    {'code': 'se_tech_training',    'label': '技术培训', 'group': 'position', 'group_label': '方案', 'roles': ['solution_manager'], 'require_review': False, 'allow_link': False},
+    {'code': 'se_tech_training',    'label': '技术培训', 'group': 'position', 'group_label': '方案', 'roles': ['solution_manager'], 'require_review': True, 'allow_link': False},
     {'code': 'se_project_support', 'label': '项目支持', 'group': 'position', 'group_label': '方案', 'roles': ['solution_manager'], 'require_review': False, 'allow_link': True},
     # 岗位 · 产品经理 —— 研发/质量需审核通过才计入绩效,上市支持完成即计
     {'code': 'pm_rd',             'label': '研发任务', 'group': 'position', 'group_label': '产品', 'roles': ['product_manager'], 'require_review': True,  'allow_link': False},
