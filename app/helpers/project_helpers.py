@@ -138,5 +138,62 @@ def is_project_editable(project_id, user_id=None):
     # 检查项目是否存在授权编号（有授权编号的项目不允许修改某些字段）
     if project.authorization_code:
         return True, "项目已授权，某些字段不可修改"
-    
-    return True, None 
+
+    return True, None
+
+
+# =============================================================================
+# 项目类型按创建人角色锁定 (2026-06-24)
+# 规则:
+#   - 销售/渠道/服务三类角色建项目时, project_type 由角色决定且本人不可选/不可改;
+#   - 其他角色(产品经理/方案经理/市场等)建项目时可自由选择类型;
+#   - 管理员与商务助理始终可自由选择/修改类型(覆盖锁定),且为唯一可在编辑期改类型的角色。
+# project_type 字典(sales_focus 销售 / channel_follow 渠道 / business_opportunity 服务)
+# 在 CN/SG 完全一致, 角色码也通用, 故逻辑全通用、无需按区域分叉;
+# SG 没有 dealer/customer_sales/service_manager 用户, 对应分支自然不触发。
+# =============================================================================
+
+# 角色 -> 强制项目类型 (project_type 字典 key)
+ROLE_FORCED_PROJECT_TYPE = {
+    'sales_manager':   'sales_focus',           # 区域销售 → 销售
+    'sales_director':  'sales_focus',           # 营销总监 → 销售
+    'channel_manager': 'channel_follow',        # 渠道销售 → 渠道
+    'dealer':          'channel_follow',        # 代理商 → 渠道 (SG 无此角色)
+    'customer_sales':  'business_opportunity',  # 客户销售 → 服务 (SG 无此角色)
+    'service_manager': 'business_opportunity',  # 服务经理 → 服务 (SG 无此角色)
+}
+
+# 始终可自由选择/修改项目类型的角色(覆盖锁定)
+PROJECT_TYPE_OVERRIDE_ROLES = {'admin', 'business_admin'}
+
+
+def _role_of(user):
+    return (getattr(user, 'role', None) or '').strip()
+
+
+def forced_project_type_for(user):
+    """返回该用户被强制锁定的项目类型; None 表示可自由选择。
+    admin / business_admin 永远可选(返回 None)。"""
+    role = _role_of(user)
+    if role in PROJECT_TYPE_OVERRIDE_ROLES:
+        return None
+    return ROLE_FORCED_PROJECT_TYPE.get(role)
+
+
+def can_edit_project_type(user):
+    """项目建立后能否修改 project_type —— 仅管理员与商务助理。"""
+    return _role_of(user) in PROJECT_TYPE_OVERRIDE_ROLES
+
+
+def resolve_create_project_type(user, submitted):
+    """创建项目时确定最终 project_type。
+    锁定角色 → 忽略提交值并返回强制类型;
+    其他角色 / admin / business_admin → 返回提交值原样(合法性由调用方校验)。"""
+    forced = forced_project_type_for(user)
+    return forced if forced is not None else submitted
+
+
+def resolve_update_project_type(user, current_value, submitted):
+    """更新项目时确定最终 project_type。
+    仅 admin / business_admin 可改; 其他人一律保持原值。"""
+    return submitted if can_edit_project_type(user) else current_value 

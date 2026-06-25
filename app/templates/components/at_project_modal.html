@@ -102,6 +102,7 @@
         <select id="{{ _form_prefix }}type" data-field-code="project_type" style="{{ _inp }}">
           <option value="">{{ _('请选择项目类型') }}</option>
         </select>
+        <small id="{{ _form_prefix }}typeLock" style="display:none;font-size:11px;color:var(--ink-4);margin-top:4px;">{{ _('项目类型由角色决定，仅管理员或商务助理可修改') }}</small>
       {% endcall %}
       {% call at_field(_('项目行业'), required=true) %}
         <select id="{{ _form_prefix }}industry" data-field-code="industry" style="{{ _inp }}">

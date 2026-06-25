@@ -811,7 +811,7 @@ def add_project():
                 reverse_lookup = {v['zh']: k for k, v in PROJECT_TYPE_LABELS.items()}
                 project_type = reverse_lookup.get(project_type, None)
             # 如果 project_type 是合法英文 key，则保留原样
-            
+
             # 不再自动生成授权编号，授权编号必须通过申请流程获得
             authorization_code = None
             
@@ -961,12 +961,17 @@ def api_project_form_options():
             elif isinstance(o, (list, tuple)) and len(o) >= 2:
                 out.append({'code': o[0], 'label': o[1]})
         return out
+    from app.helpers.project_helpers import forced_project_type_for, can_edit_project_type
     return jsonify({
         'success': True,
         'project_types':       _norm(get_project_type_options()),
         'industries':          _norm(get_industry_options()),
         'report_sources':      _norm(get_report_source_options()),
         'product_situations':  _norm(get_product_situation_options()),
+        # 项目类型按角色锁定: 创建态锁定角色的强制类型(null=可自由选);
+        # 编辑态是否可改类型(仅 admin/business_admin)
+        'forced_project_type':  forced_project_type_for(current_user),
+        'can_edit_project_type': can_edit_project_type(current_user),
     })
 
 
@@ -996,13 +1001,16 @@ def api_at_create_project():
 
     # 项目类型:接受英文 key,也兼容中文 label 反查(对齐 add_project)
     project_type = (data.get('project_type') or '').strip()
+    if project_type and project_type not in PROJECT_TYPE_LABELS:
+        reverse_lookup = {v['zh']: k for k, v in PROJECT_TYPE_LABELS.items()}
+        project_type = reverse_lookup.get(project_type) or ''
+    # 角色锁定: 锁定角色强制按角色定类型(忽略前端传值,即便为空也强制填上)
+    from app.helpers.project_helpers import resolve_create_project_type
+    project_type = resolve_create_project_type(current_user, project_type)
     if not project_type:
         return jsonify({'success': False, 'message': '项目类型不能为空'}), 400
     if project_type not in PROJECT_TYPE_LABELS:
-        reverse_lookup = {v['zh']: k for k, v in PROJECT_TYPE_LABELS.items()}
-        project_type = reverse_lookup.get(project_type)
-        if not project_type:
-            return jsonify({'success': False, 'message': '项目类型无效'}), 400
+        return jsonify({'success': False, 'message': '项目类型无效'}), 400
 
     report_source = (data.get('report_source') or '').strip() or None
 
@@ -1196,13 +1204,16 @@ def api_at_update_project(project_id):
         return jsonify({'success': False, 'message': '项目描述不能为空'}), 400
 
     project_type = (data.get('project_type') or '').strip()
+    if project_type and project_type not in PROJECT_TYPE_LABELS:
+        reverse_lookup = {v['zh']: k for k, v in PROJECT_TYPE_LABELS.items()}
+        project_type = reverse_lookup.get(project_type) or ''
+    # 编辑期类型修改权: 仅 admin/business_admin 可改, 其余忽略前端值保持原类型
+    from app.helpers.project_helpers import resolve_update_project_type
+    project_type = resolve_update_project_type(current_user, p.project_type, project_type)
     if not project_type:
         return jsonify({'success': False, 'message': '项目类型不能为空'}), 400
     if project_type not in PROJECT_TYPE_LABELS:
-        reverse_lookup = {v['zh']: k for k, v in PROJECT_TYPE_LABELS.items()}
-        project_type = reverse_lookup.get(project_type)
-        if not project_type:
-            return jsonify({'success': False, 'message': '项目类型无效'}), 400
+        return jsonify({'success': False, 'message': '项目类型无效'}), 400
 
     delivery_forecast = None
     df_str = (data.get('delivery_forecast') or '').strip()
@@ -1334,7 +1345,7 @@ def edit_project(project_id):
             
             # 更新项目类型 - 只接受英文键
             new_project_type = request.form.get('project_type', 'normal')
-            
+
             # 验证项目类型有效性
             if new_project_type not in ['normal', 'channel_follow', 'sales_focus', 'sales_key', 'business_opportunity']:
                 new_project_type = 'normal'
