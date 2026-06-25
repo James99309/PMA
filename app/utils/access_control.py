@@ -1071,6 +1071,23 @@ def can_edit_data(model_obj, user):
     # 注：财务总监等角色的编辑权限通过权限配置系统控制
     # 如需限制某角色不能编辑特定模块，在权限配置中设置 can_edit=False
 
+    # 账户(User)编辑：基于 user_management 模块权限,非数据归属机制。
+    # 账户没有 owner_id/created_by 归属字段,若落到通用归属判断,任何非创建者(如 HR)都会被拒,
+    # 导致有 user_management:edit 的 HR 改不了账户(试用期等)。此处按权限级别放行,
+    # 与 get_viewable_data(User) 同口径(system 全部 / company 同企业 / department 同部门 / personal 仅自己)。
+    if model_name == 'User':
+        if not user.has_permission('user_management', 'edit'):
+            return False
+        level = user.get_permission_level('user_management')
+        if level == 'system':
+            return True
+        if level == 'company' and user.company_name:
+            return model_obj.company_name == user.company_name
+        if level == 'department' and user.department and user.company_name:
+            return (model_obj.department == user.department
+                    and model_obj.company_name == user.company_name)
+        return model_obj.id == user.id   # personal:仅自己
+
     # 产品经理：基于权限系统进行编辑权限控制
     if user_role in ['product_manager', 'product']:
         if model_name == 'Project':
