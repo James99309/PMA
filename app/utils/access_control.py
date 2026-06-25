@@ -312,6 +312,13 @@ def apply_content_filters(query, model_class, module_name, user):
             if not isinstance(allowed_values, list):
                 continue
 
+            # 仅对「当前模块已定义的可配置维度」生效;存储里的历史遗留键(如 customer 的
+            # status,早期是维度后从 UI 配置移除)一律忽略,不再误过滤 —— 否则即便是 system
+            # 级用户也会被一个 UI 设不了的孤儿键悄悄裁剪数据(如 ceo 看不全经销商/分销商)。
+            if filter_key not in module_filter_options:
+                logger.debug(f"{module_name}.{filter_key} 非当前可配置维度(历史遗留键) → 跳过")
+                continue
+
             # 空列表 = 该维度「不限」(不过滤,全开),不再全关
             if not allowed_values:
                 logger.debug(f"{module_name}.{filter_key} 为空列表 → 视为不限,跳过该维度过滤")
