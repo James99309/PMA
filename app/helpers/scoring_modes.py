@@ -82,3 +82,17 @@ def scoring_mode_of(code, meta=None):
 def is_avg_aggregated(data_type):
     """跨期取平均(水平值)而非累加:率类/评分类。"""
     return data_type in ('percentage', 'score')
+
+
+# 水平/对齐型计数指标(2026-06-26):
+# 这些是"广度/快照型"去重计数,目标是一个水平值——每期(月/季)目标都等于年度目标,
+# 不做 /12、/4 摊分;实际值由 collector 按当期窗口去重计算。
+# 典型:销售配合广度(se_sales_support)=本期配合过的不同销售数,年度8 即每季度都期望达到 8。
+# 注意:与"流量型"计数(如技术培训次数 se_training_count,全年累计)不同,后者仍按期摊分。
+LEVEL_TARGET_CODES = {'se_sales_support'}
+
+
+def is_level_target(code, data_type):
+    """该指标的目标是否为"水平值"(每期目标=年度值,不摊分):
+    率/评分类(data_type) 或 显式登记的水平型计数(LEVEL_TARGET_CODES)。"""
+    return is_avg_aggregated(data_type) or code in LEVEL_TARGET_CODES

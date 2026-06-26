@@ -1694,7 +1694,10 @@ class PerformanceDashboardService:
             monthly_map = _eff(item_code, 'monthly_targets_override', 'monthly_targets') or {}
             enable_q = bool(_eff(item_code, 'enable_quarterly_override', 'enable_quarterly'))
 
-            is_rate = item_code in rate_item_codes
+            # 水平目标:率/评分类(rate_item_codes) + 水平型计数(LEVEL_TARGET_CODES,如配合广度)
+            # —— 每期目标=年度值,不做 /12、/3 摊分
+            from app.helpers.scoring_modes import LEVEL_TARGET_CODES
+            is_rate = item_code in rate_item_codes or item_code in LEVEL_TARGET_CODES
 
             for month in range(1, 13):
                 monthly_val = 0
@@ -2080,7 +2083,8 @@ class PerformanceDashboardService:
             from app.helpers.scoring_modes import (
                 load_metric_meta as _load_meta, scoring_mode_of as _scoring_mode_of,
                 is_avg_aggregated as _is_avg_aggregated,
-                tiered_achievement as _tiered_achievement)
+                tiered_achievement as _tiered_achievement,
+                LEVEL_TARGET_CODES as _LEVEL_TARGET_CODES)
             _metric_meta = _load_meta()
 
             # 修正实际值来源:用合格采集器(币种换算 + 合格客户/项目过滤)替代旧 goal_achievement,
@@ -2153,13 +2157,15 @@ class PerformanceDashboardService:
                         q_actual, q_target = _cum, per_unit
                     else:
                         # 目标制/反向:率类取平均,其余累加;无目标→整项剔除(不计权重,与前端一致)
+                        # 目标口径:水平型(率/评分 + 水平计数如配合广度)取 level_target(季=年,不摊分),
+                        # 其余取 q_target_sum(3月累加=年/4)。实际值优先用 collector 的当期窗口值。
+                        use_level = is_avg or (item.item_code in _LEVEL_TARGET_CODES)
                         if is_avg:
                             q_actual = c_actual if c_actual is not None else \
                                 ((q_actual_sum / months_with_data) if months_with_data > 0 else 0)
-                            q_target = level_target
                         else:
                             q_actual = c_actual if c_actual is not None else q_actual_sum
-                            q_target = q_target_sum
+                        q_target = level_target if use_level else q_target_sum
                         if q_target <= 0:
                             continue
                         total_weight += weight
