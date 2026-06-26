@@ -253,7 +253,7 @@
         <td title="{{ d.product_name or '' }}">
           <div style="font-weight:500;font-size:13px;color:var(--ink);line-height:1.4;
                       display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">
-            {{ d.product_name or '—' }}{% if d.is_reconfirm_change %} <span style="display:inline-block;vertical-align:middle;font-size:10px;line-height:1.4;padding:1px 6px;border-radius:4px;background:#f59e0b;color:#fff;font-weight:500;">{{ _('新增/替换') }}</span>{% endif %}
+            {{ d.product_name or '—' }}
           </div>
         </td>
         <td class="at-mono" title="{{ d.product_model or '' }}">
