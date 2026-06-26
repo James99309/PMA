@@ -245,14 +245,15 @@
           data-quantity="{{ d.quantity or 0 }}"
           data-discount-rate="{{ '{:.2f}'.format((d.discount or 1) * 100) }}"
           {% if (d.product_mn or '').startswith('TEMP_') or not d.market_price %}data-is-temp="1"{% endif %}
-          style="cursor:default;">
+          {% if d.is_reconfirm_change %}data-reconfirm-change="1"{% endif %}
+          style="cursor:default;{% if d.is_reconfirm_change %}background:rgba(245,158,11,0.14);{% endif %}">
         <td class="at-mono at-tab-num" style="text-align:center;color:var(--ink-4);font-size:11px;">
           {{ '{:02d}'.format(idx.value) }}
         </td>
         <td title="{{ d.product_name or '' }}">
           <div style="font-weight:500;font-size:13px;color:var(--ink);line-height:1.4;
                       display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">
-            {{ d.product_name or '—' }}
+            {{ d.product_name or '—' }}{% if d.is_reconfirm_change %} <span style="display:inline-block;vertical-align:middle;font-size:10px;line-height:1.4;padding:1px 6px;border-radius:4px;background:#f59e0b;color:#fff;font-weight:500;">{{ _('新增/替换') }}</span>{% endif %}
           </div>
         </td>
         <td class="at-mono" title="{{ d.product_model or '' }}">
@@ -382,7 +383,8 @@
           data-unit-price="{{ d.unit_price or 0 }}"
           data-quantity="{{ d.quantity or 0 }}"
           data-discount-rate="{{ '{:.2f}'.format((d.discount or 1) * 100) }}"
-          style="cursor:default;">
+          {% if d.is_reconfirm_change %}data-reconfirm-change="1"{% endif %}
+          style="cursor:default;{% if d.is_reconfirm_change %}background:rgba(245,158,11,0.14);{% endif %}">
         <td style="text-align:center;font-weight:600;color:var(--ink);">{{ idx.value }}</td>
         <td title="{{ d.product_name or '' }}"><div style="font-weight:500;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">{{ d.product_name or '—' }}</div></td>
         <td title="{{ d.product_model or '' }}"><div style="color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">{{ d.product_model or '—' }}</div></td>
