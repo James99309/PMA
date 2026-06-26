@@ -1485,6 +1485,28 @@ def list_pricing_orders():
                          now_year=datetime.now().year)
 
 
+def _get_pending_pricing_order_ids_for_user(user_id):
+    """返回当前用户是「当前审批步骤实际审批人」的批价单 ID 列表(用于「待我审批」tab)。
+    审批人未必是单子的创建人/归属人,故不能用数据归属查询(_build_pricing_order_query),
+    需直接基于待审批实例 + 动态审批人判定 —— 复用审批中心同一套 get_step_actual_approver 逻辑,
+    保证「待我审批」tab 与审批中心待办口径完全一致。"""
+    from app.models.approval import ApprovalInstance, ApprovalStatus
+    from app.helpers.approval_helpers import get_step_actual_approver
+    ids = []
+    insts = ApprovalInstance.query.filter(
+        ApprovalInstance.status == ApprovalStatus.PENDING,
+        ApprovalInstance.object_type == 'pricing_order',
+    ).all()
+    for inst in insts:
+        csi = inst.get_current_step_info()
+        if not csi:
+            continue
+        approver = get_step_actual_approver(csi, inst)
+        if approver and approver.id == user_id:
+            ids.append(inst.object_id)
+    return ids
+
+
 @pricing_order_bp.route('/at_list')
 @login_required
 def at_list_view():
@@ -1515,13 +1537,23 @@ def at_list_view():
         'approved': 'approved',
         'rejected': 'rejected',
     }
-    tab_counts = {'all': base.count()}
+
+    # 「待我审批」:当前用户是当前审批步骤实际审批人的批价单(与数据归属无关)
+    _my_pending_ids = _get_pending_pricing_order_ids_for_user(current_user.id)
+    mine_base = PricingOrder.query.filter(PricingOrder.id.in_(_my_pending_ids or [-1]))
+    if _owner_ids_sel:
+        mine_base = mine_base.filter(PricingOrder.created_by.in_(_owner_ids_sel))
+
+    tab_counts = {'all': base.count(), 'mine': mine_base.count()}
     for k, v in TAB_STATUS_MAP.items():
         tab_counts[k] = base.filter(PricingOrder.status == v).count()
 
-    q = base
-    if tab in TAB_STATUS_MAP:
-        q = q.filter(PricingOrder.status == TAB_STATUS_MAP[tab])
+    if tab == 'mine':
+        q = mine_base
+    else:
+        q = base
+        if tab in TAB_STATUS_MAP:
+            q = q.filter(PricingOrder.status == TAB_STATUS_MAP[tab])
 
     if search:
         like = f'%{search}%'

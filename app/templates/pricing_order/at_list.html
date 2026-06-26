@@ -64,11 +64,12 @@
 
 {% block tabs %}
 {% set _tabs = [
-  {'k':'all',      'l':_('全部'),   'c':tab_counts.all},
-  {'k':'draft',    'l':_('草稿'),   'c':tab_counts.draft},
-  {'k':'pending',  'l':_('审批中'), 'c':tab_counts.pending},
-  {'k':'approved', 'l':_('已批准'), 'c':tab_counts.approved},
-  {'k':'rejected', 'l':_('已驳回'), 'c':tab_counts.rejected}
+  {'k':'all',      'l':_('全部'),     'c':tab_counts.all},
+  {'k':'mine',     'l':_('待我审批'), 'c':tab_counts.mine},
+  {'k':'draft',    'l':_('草稿'),     'c':tab_counts.draft},
+  {'k':'pending',  'l':_('审批中'),   'c':tab_counts.pending},
+  {'k':'approved', 'l':_('已批准'),   'c':tab_counts.approved},
+  {'k':'rejected', 'l':_('已驳回'),   'c':tab_counts.rejected}
 ] %}
 {% for t in _tabs %}
 {% set active = (current_tab == t.k) %}
