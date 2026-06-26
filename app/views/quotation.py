@@ -894,6 +894,14 @@ def at_view_quotation(id):
                 'time': format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
                 'user': display_name, 'old': None, 'new': None,
             }
+        elif h.field_name == 'detail_deleted':
+            # 再确认时删除的产品:old_value = "产品名 ×数量"
+            _entry = {
+                'op': 'DELETE',
+                'title': _('删除产品') + '：' + (h.old_value or ''),
+                'time': format_datetime_local(h.created_at, '%Y-%m-%d %H:%M') if h.created_at else '',
+                'user': display_name, 'old': None, 'new': None,
+            }
         else:
             label = _CH_FIELD_LABEL.get(h.field_name, h.field_name) if h.field_name else _CH_OP_LABEL.get(h.operation_type, h.operation_type)
             _entry = {
@@ -3638,7 +3646,18 @@ def get_quotation_history(id):
         # 过滤 + 翻译
         filtered_data = []
         for h in history:
-            if h.field_name in ALLOWED_FIELDS:
+            if h.field_name == 'detail_deleted':
+                # 再确认时删除的产品:old_value = "产品名 ×数量",走删除线展示,description 仅作标题
+                filtered_data.append({
+                    'id': h.id,
+                    'field_name': _('删除产品'),
+                    'old_value': h.old_value,
+                    'new_value': '',
+                    'user_name': h.user_name,
+                    'created_at': h.created_at.strftime('%m-%d %H:%M') if h.created_at else '',
+                    'description': _('删除产品')
+                })
+            elif h.field_name in ALLOWED_FIELDS:
                 # 获取中文msgid，然后用_()翻译
                 field_label = FIELD_LABEL.get(h.field_name, h.field_name)
                 desc_label = DESC_LABEL.get(h.description, h.description) if h.description else field_label
@@ -3694,6 +3713,20 @@ def save_quotation(id):
         old_amount = quotation.amount or 0
         old_details_count = len(quotation.details) if quotation.details else 0
         old_product_signature = quotation.calculate_product_signature()
+
+        # 再确认变更高亮:保存会"删旧建新"明细,故在此(清空前)按 MN 留存旧行
+        # {mn: {name, qty, flag}},用于重建后给"自上次确认以来新增/替换的行"打标 + 删除写历史。
+        # 仅当报价单已(再)确认过才有意义。
+        _was_confirmed = quotation.confirmation_badge_status in ('confirmed', 'reconfirm')
+        _old_detail_map = {}
+        if _was_confirmed:
+            for _d in quotation.details:
+                if _d.product_mn and _d.row_type != 'section':
+                    _old_detail_map[_d.product_mn] = {
+                        'name': _d.product_name or _d.product_mn,
+                        'qty': _d.quantity or 0,
+                        'flag': bool(getattr(_d, 'is_reconfirm_change', False)),
+                    }
 
         # 使用 request.get_json() 获取JSON数据
         data = request.get_json()
@@ -3883,6 +3916,31 @@ def save_quotation(id):
                                     description='confirm_reconfirm', ip_address=request.remote_addr)
                             except Exception:
                                 pass
+
+                    # 再确认变更高亮:对已(再)确认报价,标记自上次确认以来"新增/替换(MN变化)"的行;
+                    # 删除的产品(旧集有、新集无)写入变更历史(产品名 ×数量)。仅产品(MN)增删换计入。
+                    if _was_confirmed and old_product_signature and new_product_signature != old_product_signature:
+                        new_mn_set = set()
+                        for _d in quotation.details:
+                            if _d.product_mn and _d.row_type != 'section':
+                                new_mn_set.add(_d.product_mn)
+                                # 新增(不在旧集) 或 旧行本就带标记(粘性,始终对齐到上次确认)
+                                if (_d.product_mn not in _old_detail_map) or _old_detail_map[_d.product_mn]['flag']:
+                                    _d.is_reconfirm_change = True
+                        try:
+                            from app.models.change_log import ChangeLog
+                            for _mn, _info in _old_detail_map.items():
+                                if _mn not in new_mn_set:
+                                    ChangeLog.log_update(
+                                        module_name='quotation', table_name='quotations',
+                                        record_id=quotation.id, field_name='detail_deleted',
+                                        old_value=f"{_info['name']} ×{_info['qty']}", new_value='',
+                                        user_id=current_user.id,
+                                        user_name=(current_user.real_name or current_user.username),
+                                        description='detail_deleted', ip_address=request.remote_addr)
+                        except Exception:
+                            pass
+
                     quotation.product_signature = new_product_signature
                     db.session.commit()
                 except Exception as sig_err:

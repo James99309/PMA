@@ -345,6 +345,10 @@ class Quotation(db.Model):
         self.confirmed_at = datetime.now()
         # 更新签名以匹配当前产品明细
         self.product_signature = self.calculate_product_signature()
+        # (再)确认通过 → 清除所有明细行的"再确认变更"高亮标记(基线对齐到当前确认态)
+        for _d in self.details:
+            if getattr(_d, 'is_reconfirm_change', False):
+                _d.is_reconfirm_change = False
     
     def clear_confirmation_badge(self):
         """清除确认徽章"""
@@ -477,6 +481,11 @@ class QuotationDetail(db.Model):
     # 货币字段
     currency = db.Column(db.String(10), default='CNY')  # 货币类型
     item_note = db.Column(db.Text, nullable=True, comment='明细行备注')
+
+    # 再确认变更标记(2026-06-26):已确认报价单被改动后,本行是自上次确认以来"新增/替换(MN变化)"
+    # 的行 → reconfirm 期间在明细表加深底色;重新确认(set_confirmation_badge)时统一清除。
+    # 删除的行不在此体现,而是保存时写入变更历史。
+    is_reconfirm_change = db.Column(db.Boolean, default=False, nullable=True)
 
     # 行类型 + 排序（Excel-like 编辑器）
     row_type = db.Column(db.String(16), default='product', nullable=False)  # 'product' / 'section'

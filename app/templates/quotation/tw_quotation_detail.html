@@ -306,9 +306,10 @@
                     {% if not detail.parent_item_id %}
                         {% set main_product_index.value = main_product_index.value + 1 %}
                         {# 主产品行：序号→产品名称→型号→规格→品牌→数量→单位→单价→总价→产品编码 #}
-                        <tr class="table-row-hover transition-colors">
+                        {# 再确认变更高亮:自上次确认以来新增/替换(MN变化)的行加深底色 #}
+                        <tr class="table-row-hover transition-colors{% if detail.is_reconfirm_change %} bg-amber-100/70 dark:bg-amber-900/25{% endif %}">
                             <td class="p-3 whitespace-nowrap text-center text-sm font-bold text-slate-700 dark:text-slate-300">{{ main_product_index.value }}</td>
-                            <td class="p-3 whitespace-nowrap text-sm font-medium text-slate-700 dark:text-slate-300 overflow-hidden text-ellipsis" title="{{ detail.product_name or '' }}">{{ detail.product_name or '-' }}</td>
+                            <td class="p-3 whitespace-nowrap text-sm font-medium text-slate-700 dark:text-slate-300 overflow-hidden text-ellipsis" title="{{ detail.product_name or '' }}">{{ detail.product_name or '-' }}{% if detail.is_reconfirm_change %} <span class="inline-block align-middle text-[10px] px-1.5 py-0.5 rounded bg-amber-500 text-white font-normal">{{ _('新增/替换') }}</span>{% endif %}</td>
                             <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 overflow-hidden text-ellipsis" title="{{ detail.product_model or '' }}">{{ detail.product_model or '-' }}</td>
                             <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 overflow-hidden text-ellipsis" title="{{ detail.product_desc or '' }}">{{ detail.product_desc or '-' }}</td>
                             <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">{{ detail.brand or '-' }}</td>
