@@ -67,6 +67,7 @@
     mode: 'role',
     weightEditable: true,
     showDesc: true,
+    levelCodes: ['se_sales_support'],  // 水平/对齐型计数:年度=每季度目标,不均分(销售配合广度)
     onChange: function () { updateWeightRoom(); if (guard) guard.markDirty(); },
   });
 

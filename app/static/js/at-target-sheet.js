@@ -113,6 +113,10 @@
     const showActuals = !!cfg.showActuals;
     const manualCodes = cfg.manualCodes || [];
     const inverseCodes = cfg.inverseCodes || [];
+    // 水平/对齐型目标:率类(%) + 显式登记的水平型计数(levelCodes,如销售配合广度)——
+    // 年度目标=每期(季/月)目标,不做均分;与后端 scoring_modes.LEVEL_TARGET_CODES 一致。
+    const levelCodes = cfg.levelCodes || [];
+    const isLevel = it => isRate(it) || levelCodes.includes(it.item_code);
     let items = [];
     let actuals = {};   // {item_code:{m:{},q:{},y}}
     let lockedQ = new Set();   // 已结算锁定的季度(1..4):该季目标格只读、手工实际不可录
@@ -153,7 +157,7 @@
         let t = kind === 'y' ? parseFloat(it.annual_target) : parseFloat(it['q' + idx + '_target']);
         if (isNaN(t) && kind === 'q') {
           const ann = parseFloat(it.annual_target);
-          if (!isNaN(ann) && ann > 0) t = isRate(it) ? ann : r2(ann / 4);
+          if (!isNaN(ann) && ann > 0) t = isLevel(it) ? ann : r2(ann / 4);
         }
         if (isNaN(t) || t <= 0) return;   // 目标制无目标 → 不计入(剔除归一)
         const rate = (sm === 'inverse' || inverseCodes.includes(it.item_code))
@@ -176,7 +180,7 @@
       if (isNaN(t) && kind !== 'y') {
         const annual = parseFloat(it.annual_target);
         if (!isNaN(annual) && annual > 0) {
-          implied = isRate(it) ? annual : r2(annual / (kind === 'q' ? 4 : 12));
+          implied = isLevel(it) ? annual : r2(annual / (kind === 'q' ? 4 : 12));
           t = implied;
         }
       }
@@ -193,7 +197,7 @@
       if (!f || f.v == null) return '';
       return ` data-act="${Math.round(f.v)}" data-act-cls="${f.cls}"` +
              (f.hasT ? ' data-act-frac="1"' : '') +
-             (f.implied != null ? ` data-act-impl="${fmt(f.implied)}" title="${_t('目标未分摊到{p},按年度{m}推导;点击可填写显式目标').replace('{p}', kind === 'q' ? _t('季') : _t('月')).replace('{m}', isRate(it) ? _t('水平') : _t('均分'))}"` : '');
+             (f.implied != null ? ` data-act-impl="${fmt(f.implied)}" title="${_t('目标未分摊到{p},按年度{m}推导;点击可填写显式目标').replace('{p}', kind === 'q' ? _t('季') : _t('月')).replace('{m}', isLevel(it) ? _t('水平') : _t('均分'))}"` : '');
     }
 
     const baseItem = () => cfg.weightBaseCode ? items.find(x => x.item_code === cfg.weightBaseCode) : null;
@@ -238,7 +242,7 @@
     function prefill(it) {
       const annual = parseFloat(it.annual_target);
       if (isNaN(annual) || annual <= 0) return;
-      if (isRate(it)) {
+      if (isLevel(it)) {
         if (it.gran === 'M') { if (!hasM(it)) for (let m = 1; m <= 12; m++) it.monthly_targets[String(m)] = annual; }
         else { if (!hasQ(it)) for (let q = 1; q <= 4; q++) it['q' + q + '_target'] = annual; }
         return;
@@ -287,7 +291,7 @@
         render(); fire();
         return;
       }
-      const rate = isRate(it);
+      const rate = isLevel(it);
       if (gNew === 'M' && hasQ(it)) {
         for (let q = 1; q <= 4; q++) {
           const v = parseFloat(it['q' + q + '_target']);
@@ -433,7 +437,7 @@
       items.forEach((it, i) => {
         const annual = parseFloat(it.annual_target) || 0;
         const isM = it.gran === 'M';
-        const rate = isRate(it);
+        const rate = isLevel(it);
         const sum = isM ? mSum(it) : qSum(it);
         const filled = isM ? hasM(it) : hasQ(it);
         const _cum = isCumulative(it);

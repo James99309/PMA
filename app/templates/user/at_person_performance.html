@@ -256,6 +256,7 @@
     showScore: true,
     manualCodes: MANUAL.map(m => m.code),
     inverseCodes: ['fail_rate', 'team_fail_rate', 'channel_fail_rate'],
+    levelCodes: ['se_sales_support'],  // 水平/对齐型计数:年度=每季度目标,不均分(销售配合广度)
     onManualEdit: (it, ctx) => meOpen(it, ctx),
     onChange: () => {
       const n = sheet.getDirty().length;
