@@ -3996,40 +3996,9 @@ def save_quotation(id):
                     ip_address=request.remote_addr
                 )
 
-            # 记录明细数量变更（使用键名，读取时翻译）
-            if old_details_count != new_details_count:
-                ChangeLog.log_update(
-                    module_name='quotation',
-                    table_name='quotations',
-                    record_id=quotation.id,
-                    field_name='details_count',
-                    old_value=str(old_details_count),
-                    new_value=str(new_details_count),
-                    user_id=current_user.id,
-                    user_name=user_name,
-                    description='details_count_changed',
-                    ip_address=request.remote_addr
-                )
-
-            # 记录产品配置变更(包含 qty / unit_price / 备注 等行内字段)
-            # product_signature 涵盖产品+型号+数量+单价,任意改动都会变化
-            try:
-                _new_sig = quotation.calculate_product_signature() if hasattr(quotation, 'calculate_product_signature') else None
-            except Exception:
-                _new_sig = None
-            if _new_sig and old_product_signature and _new_sig != old_product_signature:
-                ChangeLog.log_update(
-                    module_name='quotation',
-                    table_name='quotations',
-                    record_id=quotation.id,
-                    field_name='details',
-                    old_value=old_product_signature,
-                    new_value=_new_sig,
-                    user_id=current_user.id,
-                    user_name=user_name,
-                    description='details_changed',
-                    ip_address=request.remote_addr
-                )
+            # 去泛化(2026-06-26):不再写"明细数量"(details_count)与"修改了产品配置"(details)
+            # 两条泛化历史 —— 产品删除已有具体"删除产品 X×N"条目、新增靠明细行高亮、价格走
+            # "报价金额"条目,泛化条目对用户冗余。仅保留金额 + 删除产品 + 再确认。
 
             db.session.commit()
             current_app.logger.info(f"报价单 {quotation.id} 变更历史已记录")
