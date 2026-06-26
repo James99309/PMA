@@ -345,14 +345,16 @@ class ApprovalStep(db.Model):
         """获取目标对象的字段值"""
 
         # 特殊处理：批价单的 project_type 字段
+        # 优先取报价单的 project_type;为空时回退到关联项目的 project_type。
+        # (历史数据中部分批价单的 quotation.project_type 为空,值只落在 project 上;
+        #  若直接返回空值,执行条件评估会把空值判为 False 而误跳过步骤 —— 故空值必须回退。
+        #  这样也与第②步分支(用 project.project_type)的取值口径保持一致。)
         if field == 'project_type' and hasattr(target_object, 'quotation'):
-            if target_object.quotation and hasattr(target_object.quotation, 'project_type'):
-                result = target_object.quotation.project_type
-                return result
-            elif hasattr(target_object, 'project') and target_object.project and hasattr(target_object.project, 'project_type'):
-                # 后备方案：如果没有报价单，从关联项目获取
-                result = target_object.project.project_type
-                return result
+            quo_pt = getattr(target_object.quotation, 'project_type', None) if target_object.quotation else None
+            if quo_pt:
+                return quo_pt
+            if hasattr(target_object, 'project') and target_object.project and hasattr(target_object.project, 'project_type'):
+                return target_object.project.project_type
         
         try:
             # 支持点分隔的嵌套字段访问，如 project.project_type
