@@ -135,7 +135,10 @@
         <h3 class="at-section-title">{{ _('批价明细') }}</h3>
         <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ pricing_order.pricing_details|length }}</span>
         <div style="flex:1;"></div>
-        <button type="button" class="po-quote-toggle" onclick="poToggleQuote(this)" title="{{ _('显示/隐藏 报价单价 + 报价合计 列') }}">
+        <button type="button" onclick="poToggleQuote(this)" title="{{ _('显示/隐藏 报价单价 + 报价合计 列') }}"
+                style="height:32px;padding:0 10px;border-radius:6px;border:1px solid var(--line);
+                       background:var(--bg-elev);color:var(--ink-3);font-size:12px;cursor:pointer;
+                       display:inline-flex;align-items:center;gap:5px;">
           {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
         </button>
       </header>
@@ -143,7 +146,8 @@
         <div style="overflow-x:auto;">
           {{ render_pricing_order_details_table(pricing_order.pricing_details, entity='pricing',
               currency_symbol=currency_symbol, can_edit=false, tbody_id='pricingTbody',
-              total_amount=pricing_order.pricing_total_amount or 0, quote_map=pricing_quote) }}
+              total_amount=pricing_order.pricing_total_amount or 0, quote_map=pricing_quote,
+              grouped=grouped_pricing) }}
         </div>
       </div>
     </section>
@@ -173,7 +177,10 @@
         <h3 class="at-section-title">{{ _('结算明细') }}</h3>
         <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ pricing_order.settlement_details|length }}</span>
         <div style="flex:1;"></div>
-        <button type="button" class="po-quote-toggle" onclick="poToggleQuote(this)" title="{{ _('显示/隐藏 报价单价 + 报价合计 列') }}">
+        <button type="button" onclick="poToggleQuote(this)" title="{{ _('显示/隐藏 报价单价 + 报价合计 列') }}"
+                style="height:32px;padding:0 10px;border-radius:6px;border:1px solid var(--line);
+                       background:var(--bg-elev);color:var(--ink-3);font-size:12px;cursor:pointer;
+                       display:inline-flex;align-items:center;gap:5px;">
           {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
         </button>
       </header>
@@ -181,7 +188,8 @@
         <div style="overflow-x:auto;">
           {{ render_pricing_order_details_table(pricing_order.settlement_details, entity='settlement',
               currency_symbol=currency_symbol, can_edit=false, tbody_id='settlementTbody',
-              total_amount=pricing_order.settlement_total_amount or 0, quote_map=settlement_quote) }}
+              total_amount=pricing_order.settlement_total_amount or 0, quote_map=settlement_quote,
+              grouped=grouped_settlement) }}
         </div>
       </div>
     </section>

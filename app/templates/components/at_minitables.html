@@ -641,6 +641,11 @@
   .po-dt .po-foot-lbl{text-align:right;color:var(--ink-3);font-weight:500;font-size:13px;}
   .po-dt .po-foot-sum{text-align:right;font-family:var(--font-serif);font-size:17px;color:var(--ink);}
   .po-dt .po-empty{text-align:center;color:var(--ink-4);padding:40px 0;}
+  /* 分类分组头(同报价单按分类排序) */
+  .po-dt .po-grp > td{background:var(--bg-sunk);padding:9px 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .po-dt .po-grp-label{font-size:12.5px;font-weight:600;color:var(--ink);}
+  .po-dt .po-grp-cnt{font-size:10.5px;color:var(--ink-4);}
+  .po-dt .po-grp-sub{font-size:11.5px;color:var(--ink-3);}
   .po-dt .at-mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
   /* 可编辑单元格(编辑态启用;view 态隐藏 input,显示 .show-val) */
   .po-dt .cell-input{display:none;width:100%;height:26px;border:1.5px solid var(--accent);background:var(--bg-page);
@@ -683,74 +688,95 @@
    单元格类名(cell-mn/cell-brand/cell-model/cell-qty/cell-market/cell-discount/
    cell-price/cell-subtotal/cell-note 及 settle 变体)与 tw_edit 一致,便于复用 JS。
    ────────────────────────────────────────────────────────────────── #}
-{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0, quote_map={}) %}
+{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0, quote_map={}, grouped=none) %}
 {% set is_settle = (entity == 'settlement') %}
 {% set price_cls = 'cell-settle-price' if is_settle else 'cell-price' %}
 {% set disc_cls = 'cell-settle-discount' if is_settle else 'cell-discount' %}
 {% set sub_cls = 'cell-settle-subtotal' if is_settle else 'cell-subtotal' %}
 {% set note_cls = 'cell-settle-note' if is_settle else 'cell-note' %}
+{% set ncols = 14 if is_settle else 15 %}
+{# 行序列:分组(按产品分类,同报价单)时插入分组头,否则平铺 #}
+{% set seq = [] %}
+{% if grouped %}
+  {% for g in grouped %}{% set _ = seq.append(('grp', g)) %}{% for d in g['items'] %}{% set _ = seq.append(('row', d)) %}{% endfor %}{% endfor %}
+{% else %}
+  {% for d in details %}{% set _ = seq.append(('row', d)) %}{% endfor %}
+{% endif %}
 <table class="po-dt" id="{{ tbody_id }}Table">
   <thead>
     <tr>
       <th style="width:40px">#</th>
       <th>{{ _('产品编码') }}</th>
       <th>{{ _('品牌') }}</th>
-      <th>{{ _('型号规格') }}</th>
-      <th class="r" style="width:64px">{{ _('数量') }}</th>
-      <th class="r" style="width:110px">{{ _('市场价') }}</th>
-      <th class="r" style="width:78px">{{ _('结算折扣') if is_settle else _('折扣') }}%</th>
-      <th class="r" style="width:120px">{{ _('结算价') if is_settle else _('批价') }}</th>
-      <th class="r" style="width:130px">{{ _('小计') }}</th>
-      <th class="r po-col-quote" style="width:110px">{{ _('报价单价') }}</th>
-      <th class="r po-col-quote" style="width:130px">{{ _('报价合计') }}</th>
-      <th style="width:120px">{{ _('备注') }}</th>
+      <th>{{ _('产品名称') }}</th>
+      <th>{{ _('型号') }}</th>
+      <th>{{ _('规格') }}</th>
+      <th class="r" style="width:62px">{{ _('数量') }}</th>
+      <th class="r" style="width:100px">{{ _('市场价') }}</th>
+      <th class="r" style="width:72px">{{ _('结算折扣') if is_settle else _('折扣') }}%</th>
+      <th class="r" style="width:110px">{{ _('结算价') if is_settle else _('批价') }}</th>
+      <th class="r" style="width:120px">{{ _('小计') }}</th>
+      <th class="r po-col-quote" style="width:100px">{{ _('报价单价') }}</th>
+      <th class="r po-col-quote" style="width:120px">{{ _('报价合计') }}</th>
+      <th style="width:110px">{{ _('备注') }}</th>
       {% if not is_settle %}<th class="c po-del-col" style="width:40px"></th>{% endif %}
     </tr>
   </thead>
   <tbody id="{{ tbody_id }}">
     {% set ns = namespace(i=0) %}
-    {% for d in details %}
-    {% set ns.i = ns.i + 1 %}
-    {% set disc_pct = '%.1f'|format((d.discount_rate or 0) * 100) %}
-    {% set q = quote_map.get(d.id) %}
-    <tr class="product-row" data-id="{{ d.id }}"{% if is_settle and d.pricing_detail_id %} data-pricing-detail-id="{{ d.pricing_detail_id }}"{% endif %}>
-      <td class="po-sn">{{ '%02d'|format(ns.i) }}</td>
-      {# 产品编码(批价可编辑;结算继承只读) #}
-      {{ po_edit_cell(d.product_mn or '—', d.product_mn or '', 'cell-mn', can_edit and not is_settle, align='', mono=true, text_input=true, dim=is_settle) }}
-      {# 品牌 #}
-      {{ po_edit_cell(d.brand or '—', d.brand or '', 'cell-brand', can_edit and not is_settle, align='', mono=false, text_input=true, dim=is_settle) }}
-      {# 型号规格(只读展示) #}
-      <td class="po-name">
-        <div>{{ d.product_name }}</div>
-        {% if d.product_model %}<div class="po-sub">{{ d.product_model }}</div>{% endif %}
-        {% if d.product_desc %}<div class="po-sub">{{ d.product_desc }}</div>{% endif %}
-        <input type="hidden" class="cell-model" value="{{ d.product_name }}{% if d.product_model %} {{ d.product_model }}{% endif %}">
-      </td>
-      {# 数量 #}
-      {{ po_edit_cell(d.quantity, d.quantity, 'cell-qty', can_edit and not is_settle, align='r', mono=true, num=true, dim=is_settle) }}
-      {# 市场价 #}
-      {{ po_edit_cell('{:,.2f}'.format(d.market_price or 0), '{:,.2f}'.format(d.market_price or 0), 'cell-market', can_edit and not is_settle, align='r', mono=true, text_input=true, dim=is_settle) }}
-      {# 折扣%(批价/结算各自可编辑) #}
-      {{ po_edit_cell(disc_pct, disc_pct, disc_cls, can_edit, align='r', mono=true, num=true) }}
-      {# 批价/结算价 #}
-      {{ po_edit_cell('{:,.2f}'.format(d.unit_price or 0), '%.2f'|format(d.unit_price or 0), price_cls, can_edit, align='r', mono=true, text_input=true) }}
-      {# 小计 #}
-      <td class="r po-total at-mono {{ sub_cls }}">{{ currency_symbol }}{{ '{:,.2f}'.format(d.total_price or 0) }}</td>
-      {# 报价单价(默认隐藏,点击表头切换显示) #}
-      <td class="r po-col-quote at-mono po-quote">{% if q %}{{ '{:,.2f}'.format(q.unit or 0) }}{% else %}—{% endif %}</td>
-      {# 报价合计(默认隐藏) #}
-      <td class="r po-col-quote at-mono po-quote">{% if q %}{{ currency_symbol }}{{ '{:,.2f}'.format(q.total or 0) }}{% else %}—{% endif %}</td>
-      {# 备注 #}
-      {{ po_edit_cell(d.item_note or '—', d.item_note or '', note_cls, can_edit, align='', mono=false, text_input=true, dim=true, placeholder=_('备注')) }}
-      {% if not is_settle %}<td class="c po-del-col"><button type="button" class="po-delbtn" title="{{ _('删除') }}">✕</button></td>{% endif %}
-    </tr>
+    {% for kind, obj in seq %}
+      {% if kind == 'grp' %}
+      <tr class="po-grp"><td colspan="{{ ncols }}">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="po-grp-label">{{ obj['label'] }}</span>
+          <span class="po-grp-cnt at-mono">{{ obj['count'] }} {{ _('项') }}</span>
+          <span style="flex:1"></span>
+          <span class="po-grp-sub at-mono">{{ _('小计') }} {{ currency_symbol }}{{ '{:,.2f}'.format(obj['subtotal'] or 0) }}</span>
+        </div>
+      </td></tr>
+      {% else %}
+      {% set d = obj %}
+      {% set ns.i = ns.i + 1 %}
+      {% set disc_pct = '%.1f'|format((d.discount_rate or 0) * 100) %}
+      {% set q = quote_map.get(d.id) %}
+      <tr class="product-row" data-id="{{ d.id }}"{% if is_settle and d.pricing_detail_id %} data-pricing-detail-id="{{ d.pricing_detail_id }}"{% endif %}>
+        <td class="po-sn">{{ '%02d'|format(ns.i) }}</td>
+        {# 产品编码(批价可编辑;结算继承只读) #}
+        {{ po_edit_cell(d.product_mn or '—', d.product_mn or '', 'cell-mn', can_edit and not is_settle, align='', mono=true, text_input=true, dim=is_settle) }}
+        {# 品牌 #}
+        {{ po_edit_cell(d.brand or '—', d.brand or '', 'cell-brand', can_edit and not is_settle, align='', mono=false, text_input=true, dim=is_settle) }}
+        {# 产品名称(只读;含 cell-model 隐藏域供 JS) #}
+        <td class="po-name"><div>{{ d.product_name or '—' }}</div>
+          <input type="hidden" class="cell-model" value="{{ d.product_name }}{% if d.product_model %} {{ d.product_model }}{% endif %}"></td>
+        {# 型号 #}
+        <td class="at-mono" style="color:var(--ink-2);font-size:12px;">{{ d.product_model or '—' }}</td>
+        {# 规格 #}
+        <td style="color:var(--ink-3);font-size:12px;">{{ d.product_desc or '—' }}</td>
+        {# 数量 #}
+        {{ po_edit_cell(d.quantity, d.quantity, 'cell-qty', can_edit and not is_settle, align='r', mono=true, num=true, dim=is_settle) }}
+        {# 市场价 #}
+        {{ po_edit_cell('{:,.2f}'.format(d.market_price or 0), '{:,.2f}'.format(d.market_price or 0), 'cell-market', can_edit and not is_settle, align='r', mono=true, text_input=true, dim=is_settle) }}
+        {# 折扣% #}
+        {{ po_edit_cell(disc_pct, disc_pct, disc_cls, can_edit, align='r', mono=true, num=true) }}
+        {# 批价/结算价 #}
+        {{ po_edit_cell('{:,.2f}'.format(d.unit_price or 0), '%.2f'|format(d.unit_price or 0), price_cls, can_edit, align='r', mono=true, text_input=true) }}
+        {# 小计 #}
+        <td class="r po-total at-mono {{ sub_cls }}">{{ currency_symbol }}{{ '{:,.2f}'.format(d.total_price or 0) }}</td>
+        {# 报价单价/报价合计(默认隐藏) #}
+        <td class="r po-col-quote at-mono po-quote">{% if q %}{{ '{:,.2f}'.format(q.unit or 0) }}{% else %}—{% endif %}</td>
+        <td class="r po-col-quote at-mono po-quote">{% if q %}{{ currency_symbol }}{{ '{:,.2f}'.format(q.total or 0) }}{% else %}—{% endif %}</td>
+        {# 备注 #}
+        {{ po_edit_cell(d.item_note or '—', d.item_note or '', note_cls, can_edit, align='', mono=false, text_input=true, dim=true, placeholder=_('备注')) }}
+        {% if not is_settle %}<td class="c po-del-col"><button type="button" class="po-delbtn" title="{{ _('删除') }}">✕</button></td>{% endif %}
+      </tr>
+      {% endif %}
     {% else %}
-    <tr><td colspan="{{ 12 if is_settle else 13 }}" class="po-empty">{{ _('暂无明细') }}</td></tr>
+    <tr><td colspan="{{ ncols }}" class="po-empty">{{ _('暂无明细') }}</td></tr>
     {% endfor %}
   </tbody>
   <tfoot>
     <tr>
-      <td colspan="8" class="po-foot-lbl">{{ _('结算总额') if is_settle else _('批价总额') }}</td>
+      <td colspan="10" class="po-foot-lbl">{{ _('结算总额') if is_settle else _('批价总额') }}</td>
       <td class="r po-foot-sum at-mono" id="{{ tbody_id }}Total">{{ currency_symbol }}{{ '{:,.2f}'.format(total_amount or 0) }}</td>
       <td class="po-col-quote"></td><td class="po-col-quote"></td>
       <td></td>{% if not is_settle %}<td class="po-del-col"></td>{% endif %}

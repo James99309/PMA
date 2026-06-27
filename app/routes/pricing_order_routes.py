@@ -423,6 +423,32 @@ def at_edit_pricing_order(order_id):
             if qd:
                 settlement_quote[s.id] = {'unit': qd.unit_price or 0, 'total': qd.total_price or 0}
 
+        # 按产品分类分组(同报价单:product_mn → Product.category,按 ProductCategory.display_order 排序)
+        from app import db as _db
+        from app.models.product import Product as _Product
+        from app.models.product_code import ProductCategory as _ProductCategory
+        _all_mns = list({d.product_mn for d in pricing_order.pricing_details if d.product_mn}
+                        | {s.product_mn for s in pricing_order.settlement_details if s.product_mn})
+        _cat_map = {}
+        if _all_mns:
+            _rows = _db.session.query(_Product.product_mn, _ProductCategory.name, _Product.category
+                    ).outerjoin(_ProductCategory, _ProductCategory.id == _Product.category_id
+                    ).filter(_Product.product_mn.in_(_all_mns)).all()
+            _cat_map = {r[0]: (r[1] or r[2] or '') for r in _rows}
+        _cat_order = {row[0]: row[1] for row in _db.session.query(_ProductCategory.name, _ProductCategory.display_order).all()}
+        def _group_details(items):
+            gd = {}
+            for d in items:
+                cat = (_cat_map.get(d.product_mn) or '').strip() or '自定义产品'
+                gd.setdefault(cat, []).append(d)
+            groups = [{'label': c, 'items': its, 'count': len(its),
+                       'subtotal': sum((x.total_price or 0) for x in its)} for c, its in gd.items()]
+            groups.sort(key=lambda g: (1 if g['label'] == '自定义产品' else 0,
+                                       _cat_order.get(g['label'], 999), g['label']))
+            return groups
+        grouped_pricing = _group_details(pricing_order.pricing_details)
+        grouped_settlement = _group_details(pricing_order.settlement_details)
+
         from app.utils.dictionary_helpers import get_currency_symbol
         currency_symbol = get_currency_symbol(pricing_order.currency or 'CNY')
 
@@ -450,6 +476,8 @@ def at_edit_pricing_order(order_id):
             quote_total=quote_total,
             pricing_quote=pricing_quote,
             settlement_quote=settlement_quote,
+            grouped_pricing=grouped_pricing,
+            grouped_settlement=grouped_settlement,
             back_url=back_url,
         )
     except Exception as e:
