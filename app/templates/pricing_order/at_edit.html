@@ -16,12 +16,12 @@
 {{ at_detail_styles() }}
 {{ at_details_table_styles() }}
 <style>
-  /* 批价/结算 tab(批价单特有:双实体) */
+  /* 批价/结算 tab(批价单特有:双实体) — 样式同 AT 列表页 tab */
   .po-tabbar{display:flex;border-bottom:1px solid var(--line);margin:0 0 24px;}
-  .po-tabbar button{padding:12px 20px;font-size:14px;color:var(--ink-3);border:0;border-bottom:2px solid transparent;
-    margin-bottom:-1px;cursor:pointer;display:flex;align-items:center;gap:8px;background:none;}
-  .po-tabbar button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600;}
-  .po-tabbar button .cnt{font-size:11px;color:var(--ink-4);font-family:var(--font-mono);}
+  .po-tabbar button{padding:16px 18px;font-size:13px;font-weight:400;color:var(--ink-3);background:none;border:0;
+    border-bottom:1.5px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap;transition:color 120ms;}
+  .po-tabbar button:hover{color:var(--ink-2);}
+  .po-tabbar button.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:500;}
   .po-tabpane{display:none;} .po-tabpane.on{display:block;}
   .po-quote-toggle{height:32px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg-elev);
     color:var(--ink-3);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
@@ -94,11 +94,9 @@
 
   <!-- ══ Tab(批价单特有双实体) ══ -->
   <div class="po-tabbar" id="poTabbar">
-    <button class="on" data-tab="pricing" onclick="poSetTab('pricing')">{{ _('批价单') }}
-      <span class="cnt">{{ currency_symbol }}{{ '{:,.0f}'.format(pricing_order.pricing_total_amount or 0) }}</span></button>
+    <button class="on" data-tab="pricing" onclick="poSetTab('pricing')">{{ _('批价单') }}</button>
     {% if can_view_settlement %}
-    <button data-tab="settlement" onclick="poSetTab('settlement')">{{ _('结算单') }}
-      <span class="cnt">{{ currency_symbol }}{{ '{:,.0f}'.format(pricing_order.settlement_total_amount or 0) }}</span></button>
+    <button data-tab="settlement" onclick="poSetTab('settlement')">{{ _('结算单') }}</button>
     {% endif %}
   </div>
 
