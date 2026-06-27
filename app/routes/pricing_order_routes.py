@@ -484,6 +484,7 @@ def at_edit_pricing_order(order_id):
             can_view_settlement=can_view_settlement,
             can_edit_basic_info=can_edit_basic_info,
             vendor_company_name=vendor_company_name,
+            is_vendor_user=current_user.is_vendor_user(),
             target_settle_company=target_settle_company,
             dealers=dealers,
             distributors=distributors,
