@@ -35,6 +35,9 @@
   [data-mode="view"] .po-edit-only{display:none !important;}
   [data-mode="edit"] .po-view-only{display:none !important;}
   [data-mode="edit"] .po-edit-only{display:inline-flex !important;}
+  /* 编辑态显示删除列(批价单只能删行,不能加行) */
+  [data-mode="edit"] .po-del-col{display:table-cell;}
+  [data-mode="edit"] .po-dt .po-delbtn:hover{color:var(--danger);}
   /* 基本信息 视图/编辑 块切换 */
   .po-edit-block{display:none;}
   [data-mode="edit"] .po-edit-block{display:block;}
@@ -327,6 +330,14 @@ function poCancelEdit(){ location.reload(); }
       if(priceI && priceI!==document.activeElement) priceI.value=p.toFixed(2);
       if(subEl) subEl.textContent=PO_CUR+_poFmt(p*qty);
     }
+    recalc();
+  });
+  // 删行(批价单只能删,不能加;保存后后端联动删除结算行)
+  tb.addEventListener('click', function(e){
+    var del=e.target.closest('.po-delbtn'); if(!del) return;
+    var row=del.closest('tr.product-row'); if(!row) return;
+    if(!confirm('{{ _("确定删除该明细行?保存后生效。") }}')) return;
+    row.remove();
     recalc();
   });
 })();
