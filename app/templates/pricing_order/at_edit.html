@@ -60,6 +60,8 @@
   .po-cb-item:hover{background:var(--bg-hover);}
   .po-cb-item.po-cb-special{color:var(--accent);font-weight:500;}
   body.at-page .po-num-in{width:120px;height:34px;box-sizing:border-box;padding:0 11px;border:1px solid var(--line-2);border-radius:7px;background:var(--bg-page);font:inherit;font-size:13px;color:var(--ink);text-align:right;outline:none;}
+  body.at-page .po-notes-ta{width:100%;box-sizing:border-box;min-height:64px;resize:vertical;padding:8px 10px;border:1px solid var(--line-2);border-radius:7px;background:var(--bg-page);font:inherit;font-size:13px;line-height:1.5;color:var(--ink);outline:none;}
+  body.at-page .po-notes-ta:focus{border-color:var(--accent);}
 </style>
 </head>
 <body class="at-page">
@@ -282,6 +284,17 @@
         </div>
       </div>
     </section>
+
+    {# 批价单整单备注 #}
+    <section class="at-section">
+      <header class="at-section-h"><h3 class="at-section-title">{{ _('批价单备注') }}</h3></header>
+      <div class="at-section-body">
+        <div class="po-view-block" style="font-size:13px;color:var(--ink-2);white-space:pre-wrap;min-height:20px;">{{ pricing_order.notes or '—' }}</div>
+        {% if po_editable %}
+        <textarea class="po-edit-block po-notes-ta" id="poPricingNotes" placeholder="{{ _('批价单备注…') }}">{{ pricing_order.notes or '' }}</textarea>
+        {% endif %}
+      </div>
+    </section>
   </div>
 
   <!-- ═══ 结算单 TAB ═══ -->
@@ -339,6 +352,18 @@
               total_amount=pricing_order.settlement_total_amount or 0, quote_map=settlement_quote,
               grouped=grouped_settlement, quote_total=settle_quote_total) }}
         </div>
+      </div>
+    </section>
+
+    {# 结算单整单备注 #}
+    {% set _so = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else none %}
+    <section class="at-section">
+      <header class="at-section-h"><h3 class="at-section-title">{{ _('结算单备注') }}</h3></header>
+      <div class="at-section-body">
+        <div class="po-view-block" style="font-size:13px;color:var(--ink-2);white-space:pre-wrap;min-height:20px;">{{ (_so.notes if _so else '') or '—' }}</div>
+        {% if po_editable %}
+        <textarea class="po-edit-block po-notes-ta" id="poSettleNotes" placeholder="{{ _('结算单备注…') }}">{{ (_so.notes if _so else '') or '' }}</textarea>
+        {% endif %}
       </div>
     </section>
   </div>
@@ -565,6 +590,11 @@ async function poSaveAll(btn){
       var r2=await fetch('/pricing_order/'+PO_ORDER_ID+'/save_pricing_details',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({details:rows})});
       var d2=await r2.json();
       if(!d2.success){ alert('明细保存失败: '+(d2.message||'未知错误')); if(btn) btn.disabled=false; return; }
+      // 整单备注(批价+结算,update_notes 需 can_edit_pricing;两个值都发,避免互相清空)
+      var pn=document.getElementById('poPricingNotes'), sn=document.getElementById('poSettleNotes');
+      if(pn||sn){
+        await fetch('/pricing_order/'+PO_ORDER_ID+'/update_notes',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({notes: pn?pn.value:'', settlement_notes: sn?sn.value:''})});
+      }
     }
     // 3. 结算折扣(仅有权时;只发结算行折扣,后端 discount_rate 为小数)
     if(PO_CAN_EDIT_SETTLE){
