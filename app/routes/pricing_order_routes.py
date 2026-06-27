@@ -1082,6 +1082,11 @@ def get_pricing_order_approval_flow(order_id):
         
         # 查找审批实例（包括已召回的实例）
         approval_instance = get_object_approval_instance('pricing_order', order_id)
+
+        # 召回后回到草稿:不展示已召回旧实例的历史流程,按"未提交"处理
+        # (重提会 start_approval_process 新建实例,从初审重新开始 —— 即"返回最初")
+        if approval_instance and pricing_order.status == 'draft':
+            approval_instance = None
         
         # 🔍 调试：打印找到的审批实例信息
         if approval_instance:
