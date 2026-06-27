@@ -665,6 +665,8 @@
   .po-col-quote{display:none;}
   /* 报价单价/合计用绿色,突出与批价的差异 */
   .po-dt .po-quote{color:var(--success);font-weight:500;}
+  /* 报价单价后的差距率 (报价-批价)/报价:灰色 */
+  .po-dt .po-diff{color:var(--ink-4);font-weight:400;margin-left:6px;}
   .po-dt.show-quote .po-col-quote{display:table-cell;}
   .po-quote-toggle{font-size:11.5px;color:var(--accent);border:1px solid var(--accent-soft);background:var(--accent-tint);
     border-radius:6px;padding:4px 10px;cursor:pointer;}
@@ -772,8 +774,8 @@
         {{ po_edit_cell('{:,.2f}'.format(d.unit_price or 0), '%.2f'|format(d.unit_price or 0), price_cls, can_edit, align='r', mono=true, text_input=true) }}
         {# 小计 #}
         <td class="r po-total at-mono {{ sub_cls }}">{{ currency_symbol }}{{ '{:,.2f}'.format(d.total_price or 0) }}</td>
-        {# 报价单价/报价合计(默认隐藏) #}
-        <td class="r po-col-quote at-mono po-quote">{% if q %}{{ '{:,.2f}'.format(q.unit or 0) }}{% else %}—{% endif %}</td>
+        {# 报价单价(默认隐藏);后接灰色差距率 (报价-批价)/报价 #}
+        <td class="r po-col-quote at-mono po-quote">{% if q %}{{ '{:,.2f}'.format(q.unit or 0) }}{% if q.unit %}<span class="po-diff">{{ '%.0f'|format((q.unit - (d.unit_price or 0)) / q.unit * 100) }}%</span>{% endif %}{% else %}—{% endif %}</td>
         <td class="r po-col-quote at-mono po-quote">{% if q %}{{ currency_symbol }}{{ '{:,.2f}'.format(q.total or 0) }}{% else %}—{% endif %}</td>
         {# 备注 #}
         {{ po_edit_cell(d.item_note or '—', d.item_note or '', note_cls, can_edit, align='', mono=false, text_input=true, dim=true, placeholder=_('备注')) }}

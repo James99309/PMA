@@ -106,6 +106,8 @@
   <div class="po-tabpane on" data-pane="pricing">
 
     {# 四分隔区域 #}
+    {% set _p_gp = quote_total - (pricing_order.pricing_total_amount or 0) %}
+    {% set _p_gpr = (_p_gp / quote_total * 100) if quote_total else 0 %}
     {{ at_summary_strip([
         {'label': _('批价总额'), 'value': currency_symbol ~ '{:,.0f}'.format(pricing_order.pricing_total_amount or 0),
          'sub': (pricing_order.pricing_details|length)|string ~ ' ' ~ _('项'), 'strong': true},
@@ -113,8 +115,8 @@
          'sub': _('来自关联报价')},
         {'label': _('总折扣率'), 'value': '%.1f'|format(pricing_order.pricing_discount_percentage) ~ '%',
          'sub': _('批价 / 市场价')},
-        {'label': _('毛利'), 'value': currency_symbol ~ '{:,.0f}'.format(quote_total - (pricing_order.pricing_total_amount or 0)),
-         'sub': _('报价 - 批价')},
+        {'label': _('毛利'), 'value': currency_symbol ~ '{:,.0f}'.format(_p_gp) ~ '  ' ~ '%.1f'|format(_p_gpr) ~ '%',
+         'sub': _('毛利率') ~ ' · ' ~ _('报价 - 批价')},
     ]) }}
 
     {# 基本信息选卡 #}
