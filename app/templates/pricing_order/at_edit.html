@@ -115,7 +115,8 @@
          'sub': _('来自关联报价')},
         {'label': _('总折扣率'), 'value': '%.1f'|format(pricing_order.pricing_discount_percentage) ~ '%',
          'sub': _('批价 / 市场价')},
-        {'label': _('毛利'), 'value': currency_symbol ~ '{:,.0f}'.format(_p_gp) ~ '  ' ~ '%.1f'|format(_p_gpr) ~ '%',
+        {'label': _('毛利'),
+         'value_safe': currency_symbol ~ '{:,.0f}'.format(_p_gp) ~ '<span style="font-size:0.5em;color:var(--ink-3);font-weight:400;margin-left:8px;">' ~ '%.1f'|format(_p_gpr) ~ '%</span>',
          'sub': _('毛利率') ~ ' · ' ~ _('报价 - 批价')},
     ]) }}
 
