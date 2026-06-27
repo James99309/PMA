@@ -89,6 +89,8 @@
   {% set po_any_editable = po_editable or po_editable_settle %}
   {# 整单删除:草稿/驳回 且 创建人或 admin/ceo(对接后端 /delete) #}
   {% set po_deletable = pricing_order.status in ['draft','rejected'] and (pricing_order.created_by == current_user.id or current_user.role in ['admin','ceo']) %}
+  {# 提交审批:草稿/驳回 且 创建人或 admin #}
+  {% set po_submittable = pricing_order.status in ['draft','rejected'] and (pricing_order.created_by == current_user.id or current_user.role == 'admin') %}
 
   {# ── Hero ── 对齐报价单 QuoteHero #}
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px;">
@@ -156,6 +158,12 @@
                      background:transparent;color:var(--danger);font-size:12px;font-weight:500;
                      display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
         {{ at_icon('trash', 12) }}{{ _('删除') }}</button>
+      {% endif %}
+      {% if po_submittable %}
+      <button type="button" class="po-view-only" onclick="poSubmitApproval(this)"
+              style="height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--success);
+                     color:#fff;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+        {{ at_icon('check', 12) }}{{ _('提交审批') }}</button>
       {% endif %}
     </div>
   </div>
@@ -331,6 +339,23 @@ function _poFmt(n){ return Number(n||0).toLocaleString('zh-CN',{minimumFractionD
 function poEnterEdit(){ document.querySelector('main').dataset.mode='edit'; }
 function poCancelEdit(){ location.reload(); }
 var PO_BACK_URL = {{ back_url|tojson }};
+function poSubmitApproval(btn){
+  var doSubmit=async function(){
+    if(btn) btn.disabled=true;
+    try{
+      var csrf=(document.querySelector('meta[name=csrf-token]')||{}).content||'';
+      var r=await fetch('/pricing_order/api/approval/'+PO_ORDER_ID+'/submit',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({})});
+      var d=await r.json();
+      if(d.success){ location.reload(); }
+      else { if(window.ATToast) ATToast.error(d.message||'{{ _("提交失败") }}'); else alert(d.message||'提交失败'); if(btn) btn.disabled=false; }
+    }catch(err){ if(window.ATToast) ATToast.error('{{ _("请求失败") }}'); else alert('请求失败'); if(btn) btn.disabled=false; }
+  };
+  if(!window.ATConfirm){ doSubmit(); return; }
+  ATConfirm.show({
+    title:'{{ _("提交审批") }}', message:'{{ _("提交后将进入审批流程,审批中可召回。确认提交?") }}',
+    icon:'info', confirmText:'{{ _("提交") }}', cancelText:'{{ _("取消") }}', onConfirm: doSubmit
+  });
+}
 function poDeleteOrder(btn){
   if(!window.ATConfirm){ return; }
   ATConfirm.show({
