@@ -308,6 +308,17 @@
         <h3 class="at-section-title">{{ _('结算明细') }}</h3>
         <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ pricing_order.settlement_details|length }}</span>
         <div style="flex:1;"></div>
+        {% if po_editable_settle %}
+        <span class="po-edit-only" style="display:none;align-items:center;gap:6px;height:32px;padding:0 10px;
+                     border-radius:6px;background:var(--accent-tint);border:1px solid var(--accent-soft);">
+          <span style="font-size:11.5px;color:var(--accent);font-weight:500;">{{ _('总折扣率') }}</span>
+          <input type="number" step="0.1" min="0" id="poSettleTotalDiscount"
+                 value="{{ '%.1f'|format(pricing_order.settlement_discount_percentage) }}"
+                 onchange="poApplySettleTotalDiscount(this.value)"
+                 style="width:64px;height:22px;text-align:right;border:0;background:transparent;color:var(--accent);font-weight:600;font-size:12px;font-family:var(--font-mono);outline:none;">
+          <span style="color:var(--accent);font-size:11.5px;">%</span>
+        </span>
+        {% endif %}
         <button type="button" onclick="poToggleQuote(this)" title="{{ _('显示/隐藏 报价单价 + 报价合计 列') }}"
                 style="height:32px;padding:0 10px;border-radius:6px;border:1px solid var(--line);
                        background:var(--bg-elev);color:var(--ink-3);font-size:12px;cursor:pointer;
@@ -472,22 +483,26 @@ document.addEventListener('DOMContentLoaded',function(){
   if((document.getElementById('dealerHidden')||{}).value==='__direct__') poSetDistDisabled(true);
 });
 
-/* 总折扣率:全局应用到所有批价行 */
-function poApplyTotalDiscount(pct){
+/* 总折扣率全局应用 —— 批价/结算共用一个函数(DRY);
+   cfg: {tbody, disc, price, sub, total};价格为 input 则写 value,为只读 span 则写 textContent */
+function poApplyTotal(cfg, pct){
   var p=parseFloat(pct)||0;
-  var tb=document.getElementById('pricingTbody'); if(!tb) return;
+  var tb=document.getElementById(cfg.tbody); if(!tb) return;
   tb.querySelectorAll('tr.product-row').forEach(function(tr){
-    var market=_poNum((tr.querySelector('.cell-market')||{}).value);
-    var qty=parseInt((tr.querySelector('.cell-qty')||{}).value)||0;
-    var discI=tr.querySelector('.cell-discount'), priceI=tr.querySelector('.cell-price'), subEl=tr.querySelector('.cell-subtotal');
+    var mEl=tr.querySelector('.cell-market'), qEl=tr.querySelector('.cell-qty');
+    var market=_poNum(mEl?(mEl.value||mEl.textContent):0);
+    var qty=parseInt(qEl?(qEl.value||qEl.textContent):0)||0;
+    var discI=tr.querySelector(cfg.disc), priceEl=tr.querySelector(cfg.price), subEl=tr.querySelector(cfg.sub);
     if(discI) discI.value=p.toFixed(2);
     var price=market*p/100;
-    if(priceI) priceI.value=price.toFixed(2);
+    if(priceEl){ if(priceEl.tagName==='INPUT') priceEl.value=price.toFixed(2); else priceEl.textContent=_poFmt(price); }
     if(subEl) subEl.textContent=PO_CUR+_poFmt(price*qty);
   });
-  var t=0; tb.querySelectorAll('.cell-subtotal').forEach(function(el){t+=_poNum(el.textContent);});
-  var f=document.getElementById('pricingTbodyTotal'); if(f) f.textContent=PO_CUR+_poFmt(t);
+  var t=0; tb.querySelectorAll(cfg.sub).forEach(function(el){ t+=_poNum(el.textContent); });
+  var f=document.getElementById(cfg.total); if(f) f.textContent=PO_CUR+_poFmt(t);
 }
+function poApplyTotalDiscount(pct){ poApplyTotal({tbody:'pricingTbody',disc:'.cell-discount',price:'.cell-price',sub:'.cell-subtotal',total:'pricingTbodyTotal'}, pct); }
+function poApplySettleTotalDiscount(pct){ poApplyTotal({tbody:'settlementTbody',disc:'.cell-settle-discount',price:'.cell-settle-price',sub:'.cell-settle-subtotal',total:'settlementTbodyTotal'}, pct); }
 
 /* 结算折扣实时计算(结算只调折扣:折扣→结算价+小计+结算总额) */
 (function(){
