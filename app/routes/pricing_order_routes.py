@@ -378,6 +378,13 @@ def at_edit_pricing_order(order_id):
 
         vendor_company_name = PricingOrderService.get_vendor_company_name()
 
+        # 经销商/分销商可选列表(编辑态 combobox 用;同 excel_edit)
+        from app.utils.access_control import get_viewable_data
+        dealers = get_viewable_data(Company, current_user, [
+            Company.company_type.in_(['经销商', 'dealer', '分销商', 'distributor'])]).all()
+        distributors = get_viewable_data(Company, current_user, [
+            Company.company_type.in_(['分销商', 'distributor'])]).all()
+
         # 结算目标公司(同 excel_edit 业务规则)
         target_settle_company = None
         if pricing_order.is_direct_contract:
@@ -471,6 +478,8 @@ def at_edit_pricing_order(order_id):
             can_edit_basic_info=can_edit_basic_info,
             vendor_company_name=vendor_company_name,
             target_settle_company=target_settle_company,
+            dealers=dealers,
+            distributors=distributors,
             currency_symbol=currency_symbol,
             gp=gp, gm=gm, market_total=market_total,
             quote_total=quote_total,
