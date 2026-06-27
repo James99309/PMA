@@ -628,7 +628,7 @@
    单元格类名(cell-mn/cell-brand/cell-model/cell-qty/cell-market/cell-discount/
    cell-price/cell-subtotal/cell-note 及 settle 变体)与 tw_edit 一致,便于复用 JS。
    ────────────────────────────────────────────────────────────────── #}
-{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0) %}
+{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0, quote_map={}) %}
 {% set is_settle = (entity == 'settlement') %}
 {% set price_cls = 'cell-settle-price' if is_settle else 'cell-price' %}
 {% set disc_cls = 'cell-settle-discount' if is_settle else 'cell-discount' %}
@@ -646,6 +646,8 @@
       <th class="r" style="width:78px">{{ _('结算折扣') if is_settle else _('折扣') }}%</th>
       <th class="r" style="width:120px">{{ _('结算价') if is_settle else _('批价') }}</th>
       <th class="r" style="width:130px">{{ _('小计') }}</th>
+      <th class="r po-col-quote" style="width:110px">{{ _('报价单价') }}</th>
+      <th class="r po-col-quote" style="width:130px">{{ _('报价合计') }}</th>
       <th style="width:120px">{{ _('备注') }}</th>
       {% if not is_settle %}<th class="c po-del-col" style="width:40px"></th>{% endif %}
     </tr>
@@ -655,6 +657,7 @@
     {% for d in details %}
     {% set ns.i = ns.i + 1 %}
     {% set disc_pct = '%.1f'|format((d.discount_rate or 0) * 100) %}
+    {% set q = quote_map.get(d.id) %}
     <tr class="product-row" data-id="{{ d.id }}"{% if is_settle and d.pricing_detail_id %} data-pricing-detail-id="{{ d.pricing_detail_id }}"{% endif %}>
       <td class="po-sn">{{ '%02d'|format(ns.i) }}</td>
       {# 产品编码 #}
@@ -708,6 +711,10 @@
       </td>
       {# 小计 #}
       <td class="r po-total at-mono {{ sub_cls }}">{{ currency_symbol }}{{ '{:,.2f}'.format(d.total_price or 0) }}</td>
+      {# 报价单价(默认隐藏,点击表头切换显示) #}
+      <td class="r po-col-quote at-mono po-quote">{% if q %}{{ '{:,.2f}'.format(q.unit or 0) }}{% else %}—{% endif %}</td>
+      {# 报价合计(默认隐藏) #}
+      <td class="r po-col-quote at-mono po-quote">{% if q %}{{ currency_symbol }}{{ '{:,.2f}'.format(q.total or 0) }}{% else %}—{% endif %}</td>
       {# 备注 #}
       <td>
         {% if can_edit %}
@@ -718,13 +725,14 @@
       {% if not is_settle %}<td class="c po-del-col"><button type="button" class="po-delbtn" title="{{ _('删除') }}">✕</button></td>{% endif %}
     </tr>
     {% else %}
-    <tr><td colspan="{{ 10 if is_settle else 11 }}" class="po-empty">{{ _('暂无明细') }}</td></tr>
+    <tr><td colspan="{{ 12 if is_settle else 13 }}" class="po-empty">{{ _('暂无明细') }}</td></tr>
     {% endfor %}
   </tbody>
   <tfoot>
     <tr>
       <td colspan="8" class="po-foot-lbl">{{ _('结算总额') if is_settle else _('批价总额') }}</td>
       <td class="r po-foot-sum at-mono" id="{{ tbody_id }}Total">{{ currency_symbol }}{{ '{:,.2f}'.format(total_amount or 0) }}</td>
+      <td class="po-col-quote"></td><td class="po-col-quote"></td>
       <td></td>{% if not is_settle %}<td class="po-del-col"></td>{% endif %}
     </tr>
   </tfoot>

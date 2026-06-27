@@ -397,6 +397,32 @@ def at_edit_pricing_order(order_id):
         gm = (gp / pricing_total * 100) if pricing_total > 0 else 0
         market_total = sum((d.market_price or 0) * (d.quantity or 0) for d in pricing_order.pricing_details)
 
+        # 报价单价/报价合计:来自来源报价单明细(source_quotation_detail_id)
+        from app.models.quotation import QuotationDetail
+        q_ids = set()
+        for d in pricing_order.pricing_details:
+            if d.source_quotation_detail_id:
+                q_ids.add(d.source_quotation_detail_id)
+        for s in pricing_order.settlement_details:
+            pd = s.pricing_detail
+            if pd and pd.source_quotation_detail_id:
+                q_ids.add(pd.source_quotation_detail_id)
+        qd_map = {}
+        if q_ids:
+            for qd in QuotationDetail.query.filter(QuotationDetail.id.in_(q_ids)).all():
+                qd_map[qd.id] = qd
+        pricing_quote, settlement_quote, quote_total = {}, {}, 0.0
+        for d in pricing_order.pricing_details:
+            qd = qd_map.get(d.source_quotation_detail_id)
+            if qd:
+                pricing_quote[d.id] = {'unit': qd.unit_price or 0, 'total': qd.total_price or 0}
+                quote_total += (qd.total_price or 0)
+        for s in pricing_order.settlement_details:
+            pd = s.pricing_detail
+            qd = qd_map.get(pd.source_quotation_detail_id) if pd else None
+            if qd:
+                settlement_quote[s.id] = {'unit': qd.unit_price or 0, 'total': qd.total_price or 0}
+
         from app.utils.dictionary_helpers import get_currency_symbol
         currency_symbol = get_currency_symbol(pricing_order.currency or 'CNY')
 
@@ -421,6 +447,9 @@ def at_edit_pricing_order(order_id):
             target_settle_company=target_settle_company,
             currency_symbol=currency_symbol,
             gp=gp, gm=gm, market_total=market_total,
+            quote_total=quote_total,
+            pricing_quote=pricing_quote,
+            settlement_quote=settlement_quote,
             back_url=back_url,
         )
     except Exception as e:
