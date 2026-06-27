@@ -29,6 +29,12 @@
     color:var(--ink-3);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
   .po-quote-toggle:hover{background:var(--bg-hover);}
   .po-phase{font-size:11.5px;color:var(--warn);background:var(--warn-soft);padding:7px 14px;border-radius:7px;margin-bottom:18px;text-align:center;}
+  /* 查看/编辑 切换 */
+  [data-mode="edit"] .po-dt .cell-input{display:inline-block;}
+  [data-mode="edit"] .po-dt .show-val{display:none;}
+  [data-mode="view"] .po-edit-only{display:none !important;}
+  [data-mode="edit"] .po-view-only{display:none !important;}
+  [data-mode="edit"] .po-edit-only{display:inline-flex !important;}
 </style>
 </head>
 <body class="at-page">
@@ -102,6 +108,9 @@
     {% endif %}
   </div>
 
+  {# 审批通过(approved)不可编辑;草稿/审批中按权限可编辑 #}
+  {% set po_editable = can_edit_pricing and pricing_order.status != 'approved' %}
+
   <!-- ═══ 批价单 TAB ═══ -->
   <div class="po-tabpane on" data-pane="pricing">
 
@@ -144,11 +153,27 @@
                        display:inline-flex;align-items:center;gap:5px;">
           {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
         </button>
+        {% if po_editable %}
+        <button type="button" class="po-view-only" onclick="poEnterEdit()"
+                style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                       background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;
+                       display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+          {{ at_icon('pen', 12) }}{{ _('编辑') }}</button>
+        <span class="po-edit-only" style="display:none;gap:6px;align-items:center;">
+          <button type="button" onclick="poCancelEdit()"
+                  style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);
+                         background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;cursor:pointer;">{{ _('取消') }}</button>
+          <button type="button" onclick="poSavePricing(this)"
+                  style="height:32px;padding:0 14px;border-radius:6px;border:0;
+                         background:var(--accent);color:#fff;font-size:12px;font-weight:500;cursor:pointer;
+                         display:inline-flex;align-items:center;gap:5px;">{{ at_icon('check', 12) }}{{ _('保存') }}</button>
+        </span>
+        {% endif %}
       </header>
       <div class="at-section-body" style="padding:0;">
         <div style="overflow-x:auto;">
           {{ render_pricing_order_details_table(pricing_order.pricing_details, entity='pricing',
-              currency_symbol=currency_symbol, can_edit=false, tbody_id='pricingTbody',
+              currency_symbol=currency_symbol, can_edit=po_editable, tbody_id='pricingTbody',
               total_amount=pricing_order.pricing_total_amount or 0, quote_map=pricing_quote,
               grouped=grouped_pricing) }}
         </div>
@@ -214,6 +239,72 @@ function poToggleQuote(btn){
   var on = tbl.classList.toggle('show-quote');
   var lbl = btn.querySelector('[data-toggle-label]');
   if(lbl) lbl.textContent = on ? '{{ _("隐藏报价") }}' : '{{ _("显示报价") }}';
+}
+
+/* ── 阶段2a:批价明细行内编辑 ── */
+var PO_ORDER_ID = {{ pricing_order.id }};
+var PO_CUR = "{{ currency_symbol }}";
+function _poNum(v){ return parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''))||0; }
+function _poFmt(n){ return Number(n||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function poEnterEdit(){ document.querySelector('main').dataset.mode='edit'; }
+function poCancelEdit(){ location.reload(); }
+
+(function(){
+  var tb=document.getElementById('pricingTbody');
+  if(!tb) return;
+  function recalc(){
+    var t=0;
+    tb.querySelectorAll('.cell-subtotal').forEach(function(el){ t+=_poNum(el.textContent); });
+    var f=document.getElementById('pricingTbodyTotal');
+    if(f) f.textContent=PO_CUR+_poFmt(t);
+  }
+  tb.addEventListener('input', function(e){
+    var row=e.target.closest('tr.product-row'); if(!row) return;
+    if(!e.target.matches('.cell-market,.cell-discount,.cell-qty,.cell-price')) return;
+    var market=_poNum(row.querySelector('.cell-market')&&row.querySelector('.cell-market').value);
+    var qty=parseInt(row.querySelector('.cell-qty')&&row.querySelector('.cell-qty').value)||0;
+    var discI=row.querySelector('.cell-discount'), priceI=row.querySelector('.cell-price');
+    var subEl=row.querySelector('.cell-subtotal');
+    if(e.target.matches('.cell-price')){
+      var price=_poNum(e.target.value);
+      if(market>0 && discI && discI!==document.activeElement) discI.value=(price/market*100).toFixed(2);
+      if(subEl) subEl.textContent=PO_CUR+_poFmt(price*qty);
+    } else {
+      var disc=parseFloat(discI&&discI.value)||0;
+      var p=market*disc/100;
+      if(priceI && priceI!==document.activeElement) priceI.value=p.toFixed(2);
+      if(subEl) subEl.textContent=PO_CUR+_poFmt(p*qty);
+    }
+    recalc();
+  });
+})();
+
+async function poSavePricing(btn){
+  var tb=document.getElementById('pricingTbody');
+  function v(tr,c){ var el=tr.querySelector(c); return el?el.value:''; }
+  var rows=[].slice.call(tb.querySelectorAll('tr.product-row')).map(function(tr){
+    return {
+      id: tr.dataset.id||null,
+      product_name: v(tr,'.cell-model'),
+      product_mn: v(tr,'.cell-mn'),
+      brand: v(tr,'.cell-brand'),
+      item_note: v(tr,'.cell-note'),
+      market_price: _poNum(v(tr,'.cell-market')),
+      quantity: parseInt(v(tr,'.cell-qty'))||1,
+      discount_rate: parseFloat(v(tr,'.cell-discount'))||0
+    };
+  });
+  if(btn){ btn.disabled=true; }
+  try{
+    var csrf=(document.querySelector('meta[name=csrf-token]')||{}).content||'';
+    var r=await fetch('/pricing_order/'+PO_ORDER_ID+'/save_pricing_details',{
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrf},
+      body:JSON.stringify({details:rows})
+    });
+    var d=await r.json();
+    if(d.success){ location.reload(); }
+    else { alert('保存失败: '+(d.message||'未知错误')); if(btn) btn.disabled=false; }
+  }catch(err){ alert('请求失败: '+err.message); if(btn) btn.disabled=false; }
 }
 </script>
 </body>

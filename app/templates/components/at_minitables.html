@@ -759,7 +759,8 @@
         {{ po_edit_cell(d.brand or '—', d.brand or '', 'cell-brand', can_edit and not is_settle, align='', mono=false, text_input=true, dim=is_settle, cls='po-nowrap') }}
         {# 产品名称(只读;最多2行;含 cell-model 隐藏域供 JS) #}
         <td class="po-name"><div class="po-clamp2">{{ d.product_name or '—' }}</div>
-          <input type="hidden" class="cell-model" value="{{ d.product_name }}{% if d.product_model %} {{ d.product_model }}{% endif %}"></td>
+          {# cell-model 仅存 product_name(保存只回写 name;model/desc 后端保留),避免损坏 #}
+          <input type="hidden" class="cell-model" value="{{ d.product_name or '' }}"></td>
         {# 型号(不换行,省略号) #}
         <td class="po-model at-mono">{{ d.product_model or '—' }}</td>
         {# 规格(最多2行,超出截断) #}
