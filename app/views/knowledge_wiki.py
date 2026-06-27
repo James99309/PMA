@@ -21,10 +21,12 @@ Blueprint: knowledge_wiki_bp  url_prefix: ''  (前端页面和 /api/wiki/* 混�
     - 其他登录用户：只读 + query
 """
 import logging
+import os
 import threading
 
 from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort
 from flask_login import current_user, login_required
+from werkzeug.utils import secure_filename
 
 from app import db
 from app.models.file_manager import FileLibrary, UserFileRef
@@ -93,6 +95,54 @@ def wiki_page():
         is_dept_manager=getattr(current_user, 'is_department_manager', False),
         current_user_id=current_user.id,
     )
+
+
+# ══════════════════════════════════════════════════════════════════
+# AT 版知识库 —— 互动课程(自包含 HTML 课件)
+# ──────────────────────────────────────────────────────────────────
+# 第 1 步:AT 格式落地页 + 课程卡片,点击在新标签页播放自包含 HTML。
+# 课件文件不入 git(15M 自包含 SPA),放在 app/course_assets/<key>.html,
+# 由 play_course 路由读取下发;部署时单独投放 / 后续走 NAS WebDAV。
+# 课程清单先内联(forward-compatible:加一条即多一门课),后续再 DB 化。
+# ══════════════════════════════════════════════════════════════════
+
+COURSE_ASSETS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'course_assets'
+)
+
+INTERACTIVE_COURSES = [
+    {
+        'key': 'evertac-pnr2100',
+        'title': 'EVERTAC 香港展会 Pitch',
+        'subtitle': 'PNR2100 · 互动演示',
+        'desc': '香港展会产品路演互动页,可逐页浏览与交互。',
+        'accent': '#1A0E3D',
+    },
+]
+
+
+@knowledge_wiki_bp.route('/wiki/at')
+@login_required
+def at_wiki_page():
+    """AT 版知识库落地页 —— 互动课程卡片墙。"""
+    return render_template(
+        'knowledge/at_wiki.html',
+        courses=INTERACTIVE_COURSES,
+    )
+
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>')
+@login_required
+def play_course(course_key):
+    """把自包含课件 HTML 作为独立整页下发(登录用户可见)。"""
+    safe_key = secure_filename(course_key)
+    if not safe_key:
+        abort(404)
+    path = os.path.join(COURSE_ASSETS_DIR, safe_key + '.html')
+    if not os.path.isfile(path):
+        logger.warning('互动课程文件缺失: %s', path)
+        abort(404)
+    return send_file(path, mimetype='text/html')
 
 
 # ══════════════════════════════════════════════════════════════════
