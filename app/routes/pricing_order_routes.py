@@ -1296,6 +1296,11 @@ def get_pricing_order_approval_flow(order_id):
             flow_status = 'pending'
         
         
+        # 召回/重提权限(供审批下拉显示对应按钮):创建人或 admin
+        _creator_or_admin = (pricing_order.created_by == current_user.id) or (current_user.role == 'admin')
+        can_recall = (flow_status == 'pending') and _creator_or_admin
+        can_resubmit = (flow_status in ('rejected', 'recalled')) and _creator_or_admin
+
         return jsonify({
             'success': True,
             'approval_flow': {
@@ -1307,6 +1312,8 @@ def get_pricing_order_approval_flow(order_id):
                 'current_step': approval_instance.current_step,
                 'current_stage': current_stage,
                 'can_approve': can_approve,
+                'can_recall': can_recall,
+                'can_resubmit': can_resubmit,
                 'stages': flow_data,  # 重命名为stages以匹配前端期望
                 'flow_data': flow_data  # 保留原字段名作为兼容
             }
