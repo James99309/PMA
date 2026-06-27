@@ -16,12 +16,14 @@
 {{ at_detail_styles() }}
 {{ at_details_table_styles() }}
 <style>
-  /* 批价/结算 tab(批价单特有:双实体) — 样式同 AT 列表页 tab */
-  .po-tabbar{display:flex;border-bottom:1px solid var(--line);margin:0 0 24px;}
-  .po-tabbar button{padding:16px 18px;font-size:13px;font-weight:400;color:var(--ink-3);background:none;border:0;
+  /* 批价/结算 tab(批价单特有:双实体) — 样式同 AT 列表页 tab。
+     注意:用 body.at-page 前缀压过 at-theme.css 的 `body.at-page button{padding:0}` 重置,
+     否则 button 内边距被清零、两个 tab 会挤在一起(列表用 <a> 不受影响)。 */
+  body.at-page .po-tabbar{display:flex;border-bottom:1px solid var(--line);margin:0 0 24px;}
+  body.at-page .po-tabbar button{padding:16px 18px;font-size:13px;font-weight:400;color:var(--ink-3);background:none;border:0;
     border-bottom:1.5px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap;transition:color 120ms;}
-  .po-tabbar button:hover{color:var(--ink-2);}
-  .po-tabbar button.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:500;}
+  body.at-page .po-tabbar button:hover{color:var(--ink-2);}
+  body.at-page .po-tabbar button.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:500;}
   .po-tabpane{display:none;} .po-tabpane.on{display:block;}
   .po-quote-toggle{height:32px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg-elev);
     color:var(--ink-3);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
