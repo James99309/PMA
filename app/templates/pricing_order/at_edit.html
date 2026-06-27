@@ -83,6 +83,8 @@
   {# 结算只能调折扣(不改产品/不删行) #}
   {% set po_editable_settle = can_edit_settlement and pricing_order.status != 'approved' %}
   {% set po_any_editable = po_editable or po_editable_settle %}
+  {# 整单删除:草稿/驳回 且 创建人或 admin/ceo(对接后端 /delete) #}
+  {% set po_deletable = pricing_order.status in ['draft','rejected'] and (pricing_order.created_by == current_user.id or current_user.role in ['admin','ceo']) %}
 
   {# ── Hero ── 对齐报价单 QuoteHero #}
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px;">
@@ -132,6 +134,13 @@
                        color:#fff;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
           {{ at_icon('check', 12) }}{{ _('保存') }}</button>
       </span>
+      {% endif %}
+      {% if po_deletable %}
+      <button type="button" class="po-view-only" onclick="poDeleteOrder(this)"
+              style="height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--danger-soft);
+                     background:transparent;color:var(--danger);font-size:12px;font-weight:500;
+                     display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+        {{ at_icon('trash', 12) }}{{ _('删除') }}</button>
       {% endif %}
     </div>
   </div>
@@ -306,6 +315,18 @@ function _poNum(v){ return parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,
 function _poFmt(n){ return Number(n||0).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function poEnterEdit(){ document.querySelector('main').dataset.mode='edit'; }
 function poCancelEdit(){ location.reload(); }
+var PO_BACK_URL = {{ back_url|tojson }};
+async function poDeleteOrder(btn){
+  if(!confirm('{{ _("确定删除该批价单?此操作不可恢复(关联结算单一并删除)。") }}')) return;
+  if(btn) btn.disabled=true;
+  try{
+    var csrf=(document.querySelector('meta[name=csrf-token]')||{}).content||'';
+    var r=await fetch('/pricing_order/'+PO_ORDER_ID+'/delete',{method:'DELETE',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({})});
+    var d=await r.json();
+    if(d.success){ window.location.href=PO_BACK_URL; }
+    else { alert('删除失败: '+(d.message||'未知错误')); if(btn) btn.disabled=false; }
+  }catch(err){ alert('请求失败: '+err.message); if(btn) btn.disabled=false; }
+}
 
 (function(){
   var tb=document.getElementById('pricingTbody');
