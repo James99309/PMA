@@ -685,7 +685,7 @@
     <span class="show-val {{ 'at-mono' if mono else '' }}">{{ display }}</span>
     <input {% if num %}type="number" step="any"{% endif %} class="cell-input {{ 'text' if text_input else '' }} {{ input_cls }}" value="{{ raw }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}>
   {%- else -%}
-    <span class="{{ 'at-mono' if mono else '' }} {{ 'po-ro' if dim else '' }}">{{ display }}</span>
+    <span class="{{ 'at-mono' if mono else '' }} {{ 'po-ro' if dim else '' }} {{ input_cls }}">{{ display }}</span>
   {%- endif -%}
 </td>
 {% endmacro %}
@@ -771,15 +771,15 @@
         {{ po_edit_cell('{:,.2f}'.format(d.market_price or 0), '{:,.2f}'.format(d.market_price or 0), 'cell-market', can_edit and not is_settle, align='r', mono=true, text_input=true, dim=is_settle) }}
         {# 折扣% #}
         {{ po_edit_cell(disc_pct, disc_pct, disc_cls, can_edit, align='r', mono=true, num=true) }}
-        {# 批价/结算价 #}
-        {{ po_edit_cell('{:,.2f}'.format(d.unit_price or 0), '%.2f'|format(d.unit_price or 0), price_cls, can_edit, align='r', mono=true, text_input=true) }}
+        {# 批价价(可编辑)/结算价(结算只读,由折扣算) #}
+        {{ po_edit_cell('{:,.2f}'.format(d.unit_price or 0), '%.2f'|format(d.unit_price or 0), price_cls, (can_edit and not is_settle), align='r', mono=true, text_input=true) }}
         {# 小计 #}
         <td class="r po-total at-mono {{ sub_cls }}">{{ currency_symbol }}{{ '{:,.2f}'.format(d.total_price or 0) }}</td>
         {# 报价单价(默认隐藏);后接灰色差距率 (报价-批价)/报价 #}
         <td class="r po-col-quote at-mono po-quote">{% if q %}{{ '{:,.2f}'.format(q.unit or 0) }}{% if q.unit %}<span class="po-diff">{{ '%.0f'|format((q.unit - (d.unit_price or 0)) / q.unit * 100) }}%</span>{% endif %}{% else %}—{% endif %}</td>
         <td class="r po-col-quote at-mono po-quote">{% if q %}{{ currency_symbol }}{{ '{:,.2f}'.format(q.total or 0) }}{% else %}—{% endif %}</td>
-        {# 备注 #}
-        {{ po_edit_cell(d.item_note or '—', d.item_note or '', note_cls, can_edit, align='', mono=false, text_input=true, dim=true, placeholder=_('备注')) }}
+        {# 备注(批价可编辑;结算只读) #}
+        {{ po_edit_cell(d.item_note or '—', d.item_note or '', note_cls, (can_edit and not is_settle), align='', mono=false, text_input=true, dim=true, placeholder=_('备注')) }}
         {% if not is_settle %}<td class="c po-del-col"><button type="button" class="po-delbtn" title="{{ _('删除') }}">✕</button></td>{% endif %}
       </tr>
       {% endif %}

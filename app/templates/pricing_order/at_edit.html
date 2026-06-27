@@ -80,6 +80,9 @@
 
   {# 审批通过(approved)不可编辑;草稿/审批中按权限可编辑 #}
   {% set po_editable = can_edit_pricing and pricing_order.status != 'approved' %}
+  {# 结算只能调折扣(不改产品/不删行) #}
+  {% set po_editable_settle = can_edit_settlement and pricing_order.status != 'approved' %}
+  {% set po_any_editable = po_editable or po_editable_settle %}
 
   {# ── Hero ── 对齐报价单 QuoteHero #}
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px;">
@@ -114,7 +117,7 @@
     </div>
     <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
       {{ at_btn(_('返回'), variant='ghost', icon_l='back', tag='a', href=back_url) }}
-      {% if po_editable %}
+      {% if po_any_editable %}
       <button type="button" class="po-view-only" onclick="poEnterEdit()"
               style="height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
                      background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;
@@ -270,7 +273,7 @@
       <div class="at-section-body" style="padding:0;">
         <div style="overflow-x:auto;">
           {{ render_pricing_order_details_table(pricing_order.settlement_details, entity='settlement',
-              currency_symbol=currency_symbol, can_edit=false, tbody_id='settlementTbody',
+              currency_symbol=currency_symbol, can_edit=po_editable_settle, tbody_id='settlementTbody',
               total_amount=pricing_order.settlement_total_amount or 0, quote_map=settlement_quote,
               grouped=grouped_settlement) }}
         </div>
@@ -385,36 +388,73 @@ function poApplyTotalDiscount(pct){
   var f=document.getElementById('pricingTbodyTotal'); if(f) f.textContent=PO_CUR+_poFmt(t);
 }
 
-/* 统一保存:基本信息(仅当可编辑基本信息时) + 明细 */
+/* 结算折扣实时计算(结算只调折扣:折扣→结算价+小计+结算总额) */
+(function(){
+  var tb=document.getElementById('settlementTbody'); if(!tb) return;
+  function recalc(){
+    var t=0; tb.querySelectorAll('.cell-settle-subtotal').forEach(function(el){ t+=_poNum(el.textContent); });
+    var f=document.getElementById('settlementTbodyTotal'); if(f) f.textContent=PO_CUR+_poFmt(t);
+  }
+  tb.addEventListener('input', function(e){
+    if(!e.target.matches('.cell-settle-discount')) return;
+    var row=e.target.closest('tr.product-row'); if(!row) return;
+    var mEl=row.querySelector('.cell-market'), qEl=row.querySelector('.cell-qty');
+    var market=_poNum(mEl?(mEl.value||mEl.textContent):0);
+    var qty=parseInt(qEl?(qEl.value||qEl.textContent):0)||0;
+    var disc=parseFloat(e.target.value)||0, price=market*disc/100;
+    var pEl=row.querySelector('.cell-settle-price'); if(pEl) pEl.textContent=_poFmt(price);
+    var sEl=row.querySelector('.cell-settle-subtotal'); if(sEl) sEl.textContent=PO_CUR+_poFmt(price*qty);
+    recalc();
+  });
+})();
+
+/* 统一保存:基本信息 + 批价明细 + 结算折扣(各自按权限保存,避免无权时 403 中断) */
 var PO_CAN_EDIT_BASIC = {{ 'true' if can_edit_basic_info else 'false' }};
+var PO_CAN_EDIT_PRICING = {{ 'true' if po_editable else 'false' }};
+var PO_CAN_EDIT_SETTLE = {{ 'true' if po_editable_settle else 'false' }};
 async function poSaveAll(btn){
   var csrf=(document.querySelector('meta[name=csrf-token]')||{}).content||'';
-  var tb=document.getElementById('pricingTbody');
   function v(tr,c){ var el=tr.querySelector(c); return el?el.value:''; }
-  var rows=[].slice.call(tb.querySelectorAll('tr.product-row')).map(function(tr){
-    return { id: tr.dataset.id||null, product_name: v(tr,'.cell-model'), product_mn: v(tr,'.cell-mn'),
-      brand: v(tr,'.cell-brand'), item_note: v(tr,'.cell-note'), market_price: _poNum(v(tr,'.cell-market')),
-      quantity: parseInt(v(tr,'.cell-qty'))||1, discount_rate: parseFloat(v(tr,'.cell-discount'))||0 };
-  });
   if(btn) btn.disabled=true;
   try{
-    // 基本信息仅在有权限时保存(审批中等情况 can_edit_basic_info=False,跳过避免 403)
+    // 1. 基本信息(仅有权时;带当前直签/提货防被清)
     if(PO_CAN_EDIT_BASIC){
       var dh=document.getElementById('dealerHidden'), xh=document.getElementById('distributorHidden');
       var basic={
         is_direct_contract: {{ 'true' if pricing_order.is_direct_contract else 'false' }},
         is_factory_pickup: {{ 'true' if pricing_order.is_factory_pickup else 'false' }},
-        dealer_id: (dh && dh.value) || null,
-        distributor_id: (xh && xh.value) || null
+        dealer_id: (dh && dh.value) || null, distributor_id: (xh && xh.value) || null
       };
       var r1=await fetch('/pricing_order/'+PO_ORDER_ID+'/update_basic_info',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(basic)});
       var d1=await r1.json();
       if(!d1.success){ alert('基本信息保存失败: '+(d1.message||'')); if(btn) btn.disabled=false; return; }
     }
-    var r2=await fetch('/pricing_order/'+PO_ORDER_ID+'/save_pricing_details',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({details:rows})});
-    var d2=await r2.json();
-    if(d2.success){ location.reload(); }
-    else { alert('明细保存失败: '+(d2.message||'未知错误')); if(btn) btn.disabled=false; }
+    // 2. 批价明细(仅有权时)
+    if(PO_CAN_EDIT_PRICING){
+      var ptb=document.getElementById('pricingTbody');
+      var rows=[].slice.call(ptb.querySelectorAll('tr.product-row')).map(function(tr){
+        return { id: tr.dataset.id||null, product_name: v(tr,'.cell-model'), product_mn: v(tr,'.cell-mn'),
+          brand: v(tr,'.cell-brand'), item_note: v(tr,'.cell-note'), market_price: _poNum(v(tr,'.cell-market')),
+          quantity: parseInt(v(tr,'.cell-qty'))||1, discount_rate: parseFloat(v(tr,'.cell-discount'))||0 };
+      });
+      var r2=await fetch('/pricing_order/'+PO_ORDER_ID+'/save_pricing_details',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({details:rows})});
+      var d2=await r2.json();
+      if(!d2.success){ alert('明细保存失败: '+(d2.message||'未知错误')); if(btn) btn.disabled=false; return; }
+    }
+    // 3. 结算折扣(仅有权时;只发结算行折扣,后端 discount_rate 为小数)
+    if(PO_CAN_EDIT_SETTLE){
+      var stb=document.getElementById('settlementTbody');
+      var srows=[].slice.call(stb.querySelectorAll('tr.product-row'));
+      for(var i=0;i<srows.length;i++){
+        var tr=srows[i]; if(!tr.dataset.id) continue;
+        var dEl=tr.querySelector('.cell-settle-discount'); if(!dEl) continue;
+        var pct=parseFloat(dEl.value)||0;
+        var rs=await fetch('/pricing_order/'+PO_ORDER_ID+'/update_settlement_detail',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({detail_id:parseInt(tr.dataset.id), discount_rate: pct/100})});
+        var ds=await rs.json();
+        if(!ds.success){ alert('结算保存失败: '+(ds.message||'')); if(btn) btn.disabled=false; return; }
+      }
+    }
+    location.reload();
   }catch(err){ alert('请求失败: '+err.message); if(btn) btn.disabled=false; }
 }
 </script>
