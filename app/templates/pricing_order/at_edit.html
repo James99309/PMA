@@ -269,6 +269,9 @@
                        display:inline-flex;align-items:center;gap:5px;">
           {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
         </button>
+        <a class="po-view-only" href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='pricing') }}?include_notes=1" target="_blank"
+           style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px;text-decoration:none;">
+          {{ at_icon('download', 12) }}{{ _('打印批价单') }}</a>
       </header>
       <div class="at-section-body" style="padding:0;">
         <div style="overflow-x:auto;">
@@ -325,6 +328,9 @@
                        display:inline-flex;align-items:center;gap:5px;">
           {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
         </button>
+        <a class="po-view-only" href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='settlement') }}?include_notes=1" target="_blank"
+           style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px;text-decoration:none;">
+          {{ at_icon('download', 12) }}{{ _('打印结算单') }}</a>
       </header>
       <div class="at-section-body" style="padding:0;">
         <div style="overflow-x:auto;">
