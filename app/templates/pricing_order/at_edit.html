@@ -113,8 +113,8 @@
          'sub': _('来自关联报价')},
         {'label': _('总折扣率'), 'value': '%.1f'|format(pricing_order.pricing_discount_percentage) ~ '%',
          'sub': _('批价 / 市场价')},
-        {'label': _('市场价合计'), 'value': currency_symbol ~ '{:,.0f}'.format(market_total),
-         'sub': pricing_order.currency or 'CNY'},
+        {'label': _('毛利'), 'value': currency_symbol ~ '{:,.0f}'.format(quote_total - (pricing_order.pricing_total_amount or 0)),
+         'sub': _('报价 - 批价')},
     ]) }}
 
     {# 基本信息选卡 #}
