@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 {{ at_detail_styles() }}
 {{ at_details_table_styles() }}
 <style>
@@ -316,16 +318,22 @@ function _poFmt(n){ return Number(n||0).toLocaleString('zh-CN',{minimumFractionD
 function poEnterEdit(){ document.querySelector('main').dataset.mode='edit'; }
 function poCancelEdit(){ location.reload(); }
 var PO_BACK_URL = {{ back_url|tojson }};
-async function poDeleteOrder(btn){
-  if(!confirm('{{ _("确定删除该批价单?此操作不可恢复(关联结算单一并删除)。") }}')) return;
-  if(btn) btn.disabled=true;
-  try{
-    var csrf=(document.querySelector('meta[name=csrf-token]')||{}).content||'';
-    var r=await fetch('/pricing_order/'+PO_ORDER_ID+'/delete',{method:'DELETE',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({})});
-    var d=await r.json();
-    if(d.success){ window.location.href=PO_BACK_URL; }
-    else { alert('删除失败: '+(d.message||'未知错误')); if(btn) btn.disabled=false; }
-  }catch(err){ alert('请求失败: '+err.message); if(btn) btn.disabled=false; }
+function poDeleteOrder(btn){
+  if(!window.ATConfirm){ return; }
+  ATConfirm.show({
+    title: '{{ _("删除批价单") }}',
+    message: '{{ _("此操作不可恢复,确认删除当前批价单及其关联结算单?") }}',
+    variant: 'danger', icon: 'warn', confirmText: '{{ _("删除") }}', cancelText: '{{ _("取消") }}',
+    onConfirm: async function(){
+      try{
+        var csrf=(document.querySelector('meta[name=csrf-token]')||{}).content||'';
+        var r=await fetch('/pricing_order/'+PO_ORDER_ID+'/delete',{method:'DELETE',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({})});
+        var d=await r.json();
+        if(d.success){ window.location.href=PO_BACK_URL; }
+        else { if(window.ATToast) ATToast.error(d.message||'{{ _("删除失败") }}'); else alert(d.message||'删除失败'); }
+      }catch(err){ if(window.ATToast) ATToast.error('{{ _("请求失败") }}'); else alert('请求失败'); }
+    }
+  });
 }
 
 (function(){
@@ -360,9 +368,13 @@ async function poDeleteOrder(btn){
   tb.addEventListener('click', function(e){
     var del=e.target.closest('.po-delbtn'); if(!del) return;
     var row=del.closest('tr.product-row'); if(!row) return;
-    if(!confirm('{{ _("确定删除该明细行?保存后生效。") }}')) return;
-    row.remove();
-    recalc();
+    var doDel=function(){ row.remove(); recalc(); };
+    if(!window.ATConfirm){ doDel(); return; }
+    ATConfirm.show({
+      title:'{{ _("删除明细行") }}', message:'{{ _("确定删除该明细行?保存后生效。") }}',
+      variant:'danger', icon:'warn', confirmText:'{{ _("删除") }}', cancelText:'{{ _("取消") }}',
+      onConfirm: doDel
+    });
   });
 })();
 
