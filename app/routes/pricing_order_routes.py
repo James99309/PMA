@@ -1296,10 +1296,10 @@ def get_pricing_order_approval_flow(order_id):
             flow_status = 'pending'
         
         
-        # 召回/重提权限(供审批下拉显示对应按钮):创建人或 admin
-        _creator_or_admin = (pricing_order.created_by == current_user.id) or (current_user.role == 'admin')
-        can_recall = (flow_status == 'pending') and _creator_or_admin
-        can_resubmit = (flow_status in ('rejected', 'recalled')) and _creator_or_admin
+        # 召回/重提权限:直接用通用审批 helper(与报价单等其他模块一致,不在本模块重复实现)
+        from app.helpers.approval_helpers import can_recall_approval, can_resubmit_approval
+        can_recall = can_recall_approval('pricing_order', order_id, current_user.id)
+        can_resubmit = can_resubmit_approval('pricing_order', order_id, current_user.id)
 
         return jsonify({
             'success': True,
