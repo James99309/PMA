@@ -1,0 +1,170 @@
+{#
+  互动课程播放页(PMA 外壳)
+  ─────────────────────────────────────────────────────────────
+  顶栏:返回知识库 + 课程标题 + 「说明」开关
+  主体:iframe 内嵌自包含课件 SPA(/wiki/play/<key>/asset)
+  下方:逐页备注面板(默认展开,可折叠)——
+        备注取自课件每页的 data-speaker-notes,随翻页同步;
+        deck 用 location.hash 记当前页,外壳监听 iframe 的 hash 即可联动,
+        也能用 上一步/下一步 反向驱动 deck(设 iframe hash)。
+#}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ course.title }} · {{ _('互动课程') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+  html, body { height:100%; margin:0; }
+  .cp-wrap { display:flex; flex-direction:column; height:100vh; background:var(--bg-page); }
+
+  /* 顶栏 */
+  .cp-bar { flex-shrink:0; display:flex; align-items:center; gap:14px;
+            padding:10px 18px; background:var(--bg-elev); border-bottom:1px solid var(--line); }
+  .cp-back { display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+             color:var(--ink-2); font-size:13px; padding:6px 12px; border-radius:8px;
+             border:1px solid var(--line); background:var(--bg-page); white-space:nowrap; }
+  .cp-back:hover { background:var(--bg-hover); color:var(--ink); }
+  .cp-title { display:flex; flex-direction:column; min-width:0; flex:1; }
+  .cp-title .t { font-family:var(--font-serif); font-size:15px; font-weight:600; color:var(--ink);
+                 line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cp-title .s { font-size:11.5px; color:var(--accent); font-weight:500; }
+  .cp-btn { display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;
+            color:var(--ink-2); padding:6px 12px; border-radius:8px; border:1px solid var(--line);
+            background:var(--bg-page); white-space:nowrap; }
+  .cp-btn:hover { background:var(--bg-hover); color:var(--ink); }
+  .cp-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .cp-btn .material-symbols-outlined { font-size:18px; }
+
+  /* 课件 */
+  .cp-frame { flex:1; min-height:0; border:0; width:100%; display:block; background:#fff; }
+
+  /* 逐页备注(底部) */
+  .cp-notes { flex-shrink:0; background:var(--bg-elev); border-bottom:1px solid var(--line);
+              display:flex; flex-direction:column; max-height:38vh; }
+  .cp-notes.hidden { display:none; }
+  .cp-notes-head { flex-shrink:0; display:flex; align-items:center; gap:10px;
+                   padding:9px 18px; }
+  .cp-page-label { font-family:var(--font-serif); font-size:13.5px; font-weight:600;
+                   color:var(--ink); flex:1; min-width:0; white-space:nowrap;
+                   overflow:hidden; text-overflow:ellipsis; }
+  .cp-page-num { font-size:12px; color:var(--ink-3); font-variant-numeric:tabular-nums;
+                 min-width:46px; text-align:center; }
+  .cp-notes-body { padding:12px 18px 16px; overflow-y:auto; font-size:14px; line-height:1.75;
+                   color:var(--ink); white-space:pre-wrap; }
+  .cp-notes-empty { color:var(--ink-3); font-size:13px; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+</style>
+</head>
+<body class="at-page">
+<div class="cp-wrap">
+
+  <div class="cp-bar">
+    <a class="cp-back" href="{{ url_for('knowledge_wiki.at_wiki_page') }}">
+      <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span>
+      {{ _('返回知识库') }}
+    </a>
+    <div class="cp-title">
+      <span class="t">{{ course.title }}</span>
+      <span class="s">{{ course.subtitle }}</span>
+    </div>
+    <button type="button" class="cp-btn" id="cpNotesToggle" onclick="cpToggleNotes()">
+      <span class="material-symbols-outlined" id="cpNotesIcon">expand_less</span>
+      <span>{{ _('说明') }}</span>
+    </button>
+  </div>
+
+  <div class="cp-notes" id="cpNotes">
+    <div class="cp-notes-head">
+      <button type="button" class="cp-btn" id="cpPrev" onclick="cpGo(-1)" title="{{ _('上一页') }}">
+        <span class="material-symbols-outlined">chevron_left</span>{{ _('上一步') }}
+      </button>
+      <span class="cp-page-num" id="cpPageNum">–</span>
+      <button type="button" class="cp-btn" id="cpNext" onclick="cpGo(1)" title="{{ _('下一页') }}">
+        {{ _('下一步') }}<span class="material-symbols-outlined">chevron_right</span>
+      </button>
+      <span class="cp-page-label" id="cpPageLabel"></span>
+    </div>
+    <div class="cp-notes-body" id="cpNotesBody"></div>
+  </div>
+
+  <iframe class="cp-frame" id="cpFrame"
+          src="{{ url_for('knowledge_wiki.course_asset', course_key=course.key) }}"
+          title="{{ course.title }}"></iframe>
+
+</div>
+
+<script>
+  // 每页备注(取自课件 data-speaker-notes,服务端解析)
+  var CP_PAGES = {{ pages|tojson }};
+  var cpFrame = document.getElementById('cpFrame');
+  var cpCur = 0;            // 当前页(1-based),0=未知
+  var cpTotal = CP_PAGES.length;
+
+  function cpReadHash() {
+    // 读 iframe 当前 hash(#N)→ 页码;同源可读,加载初期可能抛错
+    try {
+      var h = cpFrame.contentWindow.location.hash || '';
+      var m = h.match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : 0;
+    } catch (e) { return 0; }
+  }
+
+  function cpRender(idx) {
+    var num = document.getElementById('cpPageNum');
+    var label = document.getElementById('cpPageLabel');
+    var body = document.getElementById('cpNotesBody');
+    if (!cpTotal) {
+      num.textContent = '';
+      label.textContent = '';
+      body.innerHTML = '<span class="cp-notes-empty">{{ _('本课件未内置逐页说明') }}</span>';
+      document.getElementById('cpPrev').disabled = true;
+      document.getElementById('cpNext').disabled = true;
+      return;
+    }
+    if (idx < 1) idx = 1;
+    if (idx > cpTotal) idx = cpTotal;
+    cpCur = idx;
+    var p = CP_PAGES[idx - 1] || {};
+    num.textContent = idx + ' / ' + cpTotal;
+    label.textContent = p.label || '';
+    body.textContent = p.notes || '';
+    document.getElementById('cpPrev').disabled = (idx <= 1);
+    document.getElementById('cpNext').disabled = (idx >= cpTotal);
+  }
+
+  function cpSyncFromFrame() {
+    var idx = cpReadHash();
+    if (idx && idx !== cpCur) cpRender(idx);
+    else if (!cpCur) cpRender(1);   // 初始兜底
+  }
+
+  // 上一步/下一步:设 iframe hash 驱动 deck,deck 翻页后再由轮询同步备注
+  function cpGo(delta) {
+    var next = (cpCur || 1) + delta;
+    if (next < 1) next = 1;
+    if (cpTotal && next > cpTotal) next = cpTotal;
+    try { cpFrame.contentWindow.location.hash = '#' + next; } catch (e) {}
+    cpRender(next);
+  }
+
+  function cpToggleNotes() {
+    var panel = document.getElementById('cpNotes');
+    var icon = document.getElementById('cpNotesIcon');
+    var willHide = !panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', willHide);
+    icon.textContent = willHide ? 'expand_more' : 'expand_less';
+  }
+
+  // 监听 deck 自身翻页(hash 变化)+ 轮询兜底(初始 #1 及焦点在 iframe 内时)
+  cpFrame.addEventListener('load', function () {
+    try { cpFrame.contentWindow.addEventListener('hashchange', cpSyncFromFrame); } catch (e) {}
+  });
+  setInterval(cpSyncFromFrame, 300);
+  cpRender(cpTotal ? 1 : 0);
+</script>
+</body>
+</html>

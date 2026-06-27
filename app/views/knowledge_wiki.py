@@ -20,8 +20,11 @@ Blueprint: knowledge_wiki_bp  url_prefix: ''  (前端页面和 /api/wiki/* 混�
     - admin/ceo: 全部
     - 其他登录用户：只读 + query
 """
+import html as _html
+import json
 import logging
 import os
+import re
 import threading
 
 from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort
@@ -120,6 +123,62 @@ INTERACTIVE_COURSES = [
     },
 ]
 
+# 每门课的"逐页备注"缓存:{course_key: [{label, notes}, ...]}
+# 备注就写在课件 HTML 里(deck 格式:每个 <section> 的 data-speaker-notes),
+# 翻页时播放页据此把对应页的备注同步到下方面板。解析一次后缓存。
+_COURSE_PAGES_CACHE = {}
+
+
+def _parse_course_pages(abs_path):
+    """从自包含课件 HTML 解析每页 {label, notes}(有序)。
+
+    课件是 bundler 打包格式:真实 DOM 存在 <script type="__bundler/template"> 里,
+    内容是一段 JSON 字符串;解码后每页是 <section data-label data-speaker-notes>。
+    """
+    try:
+        with open(abs_path, 'r', encoding='utf-8', errors='replace') as f:
+            data = f.read()
+    except OSError:
+        return []
+    m = re.search(r'<script type="__bundler/template"[^>]*>(.*?)</script>', data, re.S)
+    if not m:
+        return []
+    raw = m.group(1).strip()
+    try:
+        tpl = json.loads(raw) if raw[:1] == '"' else raw
+    except ValueError:
+        tpl = raw
+    labels = re.findall(r'data-label="([^"]*)"', tpl)
+    notes = re.findall(r'data-speaker-notes="([^"]*)"', tpl)
+    pages = []
+    for i, note in enumerate(notes):
+        pages.append({
+            'label': _html.unescape(labels[i]) if i < len(labels) else '',
+            'notes': _html.unescape(note),
+        })
+    return pages
+
+
+def _get_course_pages(course_key, abs_path):
+    if course_key not in _COURSE_PAGES_CACHE:
+        _COURSE_PAGES_CACHE[course_key] = _parse_course_pages(abs_path)
+    return _COURSE_PAGES_CACHE[course_key]
+
+
+def _find_course(course_key):
+    """按 key 找课程定义 + 校验课件文件存在;返回 (course, abs_path) 或 (None, None)。"""
+    safe_key = secure_filename(course_key)
+    if not safe_key:
+        return None, None
+    course = next((c for c in INTERACTIVE_COURSES if c['key'] == safe_key), None)
+    if not course:
+        return None, None
+    path = os.path.join(COURSE_ASSETS_DIR, safe_key + '.html')
+    if not os.path.isfile(path):
+        logger.warning('互动课程文件缺失: %s', path)
+        return None, None
+    return course, path
+
 
 @knowledge_wiki_bp.route('/wiki/at')
 @login_required
@@ -134,13 +193,20 @@ def at_wiki_page():
 @knowledge_wiki_bp.route('/wiki/play/<course_key>')
 @login_required
 def play_course(course_key):
-    """把自包含课件 HTML 作为独立整页下发(登录用户可见)。"""
-    safe_key = secure_filename(course_key)
-    if not safe_key:
+    """课程播放页 —— PMA 外壳(返回 + 逐页同步备注)+ 内嵌课件 iframe。"""
+    course, path = _find_course(course_key)
+    if not course:
         abort(404)
-    path = os.path.join(COURSE_ASSETS_DIR, safe_key + '.html')
-    if not os.path.isfile(path):
-        logger.warning('互动课程文件缺失: %s', path)
+    pages = _get_course_pages(course['key'], path)
+    return render_template('knowledge/at_course_player.html', course=course, pages=pages)
+
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>/asset')
+@login_required
+def course_asset(course_key):
+    """把自包含课件 HTML 作为 iframe 源整页下发(登录用户可见)。"""
+    course, path = _find_course(course_key)
+    if not course:
         abort(404)
     return send_file(path, mimetype='text/html')
 
