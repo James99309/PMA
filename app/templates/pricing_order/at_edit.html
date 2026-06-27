@@ -1,3 +1,6 @@
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn %}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_detail.html' import at_detail_styles, at_info_panel, at_summary_strip %}
 {% from 'components/at_minitables.html' import render_pricing_order_details_table, at_details_table_styles %}
 <!DOCTYPE html>
 <html lang="zh" data-theme="light" data-density="standard">
@@ -9,82 +12,87 @@
 <title>{{ pricing_order.order_number }} · {{ _('批价单') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+{{ at_detail_styles() }}
+{{ at_details_table_styles() }}
 <style>
-  .po-wrap{max-width:1180px;margin:0 auto;padding:24px 32px 80px;}
-  /* Hero */
-  .po-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:6px;}
-  .po-hero h1{font-family:var(--font-serif);font-weight:500;font-size:28px;margin:0 0 6px;letter-spacing:-0.01em;}
-  .po-hero .sub{font-size:13px;color:var(--ink-3);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  .po-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:14px;font-size:12px;font-weight:500;}
-  .po-pill .dot{width:6px;height:6px;border-radius:50%;}
-  .po-pill.draft{background:var(--bg-sunk);color:var(--ink-3);} .po-pill.draft .dot{background:var(--ink-3);}
-  .po-pill.pending{background:var(--warn-soft);color:var(--warn);} .po-pill.pending .dot{background:var(--warn);}
-  .po-pill.approved{background:var(--success-soft);color:var(--success);} .po-pill.approved .dot{background:var(--success);}
-  .po-pill.rejected{background:var(--danger-soft);color:var(--danger);} .po-pill.rejected .dot{background:var(--danger);}
-  .po-direct{font-size:11px;padding:2px 8px;border-radius:6px;background:var(--accent-tint);color:var(--accent);border:1px solid var(--accent-soft);}
-  .po-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;}
-  .po-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:500;
-    border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);white-space:nowrap;transition:all 120ms;cursor:pointer;}
-  .po-btn:hover{background:var(--bg-hover);}
-  .po-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;} .po-btn.primary:hover{background:var(--accent-2);}
-  /* Tabs */
-  .po-tabbar{display:flex;border-bottom:1px solid var(--line);margin:18px 0 24px;}
-  .po-tabbar button{padding:13px 22px;font-size:14px;color:var(--ink-3);border-bottom:2px solid transparent;
-    margin-bottom:-1px;cursor:pointer;display:flex;align-items:center;gap:9px;background:none;border-top:0;border-left:0;border-right:0;}
+  /* 批价/结算 tab(批价单特有:双实体) */
+  .po-tabbar{display:flex;border-bottom:1px solid var(--line);margin:0 0 24px;}
+  .po-tabbar button{padding:12px 20px;font-size:14px;color:var(--ink-3);border:0;border-bottom:2px solid transparent;
+    margin-bottom:-1px;cursor:pointer;display:flex;align-items:center;gap:8px;background:none;}
   .po-tabbar button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600;}
   .po-tabbar button .cnt{font-size:11px;color:var(--ink-4);font-family:var(--font-mono);}
-  /* Section */
-  .po-sec{background:var(--bg-elev);border:1px solid var(--line);border-radius:var(--radius-lg);margin-bottom:20px;overflow:hidden;}
-  .po-sec-h{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-bottom:1px solid var(--line-soft);}
-  .po-sec-h .t{font-size:12px;font-weight:600;letter-spacing:0.06em;color:var(--ink-3);}
-  .po-sec-b{padding:18px 20px;}
-  /* Info grid */
-  .po-info{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 28px;}
-  .po-info .k{font-size:11px;color:var(--ink-4);letter-spacing:0.04em;margin-bottom:3px;}
-  .po-info .v{font-size:14px;color:var(--ink);}
-  .po-info .v.mono{font-family:var(--font-mono);}
-  /* KPI */
-  .po-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-soft);
-    border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:20px;}
-  .po-kpi .cell{background:var(--bg-elev);padding:16px 20px;}
-  .po-kpi .lbl{font-size:11px;color:var(--ink-4);letter-spacing:0.04em;margin-bottom:6px;}
-  .po-kpi .num{font-family:var(--font-serif);font-size:23px;font-weight:500;color:var(--ink);}
-  .po-kpi .num.accent{color:var(--accent);} .po-kpi .num.success{color:var(--success);}
-  .po-kpi .sub{font-size:11px;color:var(--ink-3);margin-top:2px;}
-  /* 明细表样式已抽到组件 at_details_table_styles() — 见 head 调用 */
-  .po-note{font-size:12px;color:var(--ink-3);padding-top:10px;}
   .po-tabpane{display:none;} .po-tabpane.on{display:block;}
+  .po-quote-toggle{height:32px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg-elev);
+    color:var(--ink-3);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
+  .po-quote-toggle:hover{background:var(--bg-hover);}
   .po-phase{font-size:11.5px;color:var(--warn);background:var(--warn-soft);padding:7px 14px;border-radius:7px;margin-bottom:18px;text-align:center;}
 </style>
-{{ at_details_table_styles() }}
 </head>
 <body class="at-page">
-<div class="po-wrap">
 
-  <div class="po-phase">⚠️ 新版 AT 批价单页(阶段1:查看)。编辑/审批/打印逐步迁移中,需要编辑请用「Excel 编辑器」。</div>
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='pricing_order') }}
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
 
-  <!-- Hero -->
-  <div class="po-hero">
-    <div>
-      <h1>{{ pricing_order.order_number }}</h1>
-      <div class="sub">
-        {% set pill = {'draft':'draft','pending':'pending','approved':'approved','rejected':'rejected'}.get(pricing_order.status,'draft') %}
-        {% set plbl = {'draft':_('草稿'),'pending':_('审批中'),'approved':_('已批准'),'rejected':_('已拒绝')}.get(pricing_order.status, pricing_order.status) %}
-        <span class="po-pill {{ pill }}"><span class="dot"></span>{{ plbl }}</span>
-        {% if pricing_order.is_direct_contract %}<span class="po-direct">{{ _('厂商直签') }}</span>{% endif %}
-        {% if pricing_order.project %}<span>{{ pricing_order.project.project_name }}</span>{% endif %}
-        <span class="at-dim">·</span>
-        <span class="at-muted">{{ _('创建人') }} {{ (pricing_order.creator.real_name or pricing_order.creator.username) if pricing_order.creator else '—' }}
-          · {{ pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '' }}</span>
+<header style="border-bottom:1px solid var(--line);background:var(--bg-elev);position:sticky;top:0;z-index:30;">
+  <div style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:14px 32px;display:flex;align-items:center;gap:8px;">
+    <a href="#" style="font-size:13px;color:var(--ink-3);">{{ _('业务管理') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <a href="{{ url_for('pricing_order.at_list_view') }}" style="font-size:13px;color:var(--ink-3);">{{ _('批价管理') }}</a>
+    <span style="color:var(--ink-4);">{{ at_icon('chev', 12) }}</span>
+    <span class="at-mono" style="font-size:13px;color:var(--ink);">{{ pricing_order.order_number }}</span>
+    <div style="flex:1;"></div>
+    <button onclick="ATPrefs.toggleDark()" style="height:28px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;
+            background:var(--bg-elev);font-size:12px;color:var(--ink-2);display:inline-flex;align-items:center;gap:4px;">
+      {{ at_icon('moon', 13) }} {{ _('暗色') }}
+    </button>
+  </div>
+</header>
+
+<main data-mode="view" style="width:100%;box-sizing:border-box;max-width:1400px;margin:0 auto;padding:32px 40px 80px;min-width:0;">
+
+  <div class="po-phase">⚠️ {{ _('新版 AT 批价单页(阶段1:查看)。编辑/审批/打印逐步迁移中,需要编辑请用「Excel 编辑器」。') }}</div>
+
+  {# ── Hero ── 对齐报价单 QuoteHero #}
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px;">
+    <div style="flex:1;min-width:0;">
+      <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span>PRICING ORDER · {{ pricing_order.currency or 'CNY' }}</span>
+        {% if pricing_order.project %}
+        <span style="color:var(--ink-4);">·</span>
+        <a href="{{ url_for('project.at_view_project', project_id=pricing_order.project.id) }}"
+           style="color:var(--accent);text-decoration:none;font-size:11px;letter-spacing:0.05em;text-transform:none;font-weight:500;">
+          ← {{ _('返回') }} {{ pricing_order.project.project_name }}</a>
+        {% endif %}
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+        <h1 class="at-serif at-mono" style="margin:0;font-size:40px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;
+            font-family:var(--font-mono);font-variant-numeric:tabular-nums;flex:0 1 auto;min-width:0;max-width:min(100%,720px);overflow-wrap:anywhere;">
+          {{ pricing_order.order_number }}</h1>
+        {{ at_status_pill(pricing_order.status, scope='pricing_order') }}
+        {% if pricing_order.is_direct_contract %}{{ at_pill(_('厂商直签'), tone='warn') }}{% endif %}
+      </div>
+      <div style="margin-top:12px;color:var(--ink-3);font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;">
+        {% if pricing_order.quotation %}
+        <span><span class="at-dim">{{ _('关联报价') }}</span> <span class="at-mono" style="color:var(--ink-2);">{{ pricing_order.quotation.quotation_number }}</span></span>
+        <span style="color:var(--line-2);">|</span>
+        {% endif %}
+        {% if pricing_order.creator %}
+        <span><span class="at-dim">{{ _('创建人') }}</span> <span style="color:var(--ink-2);">{{ pricing_order.creator.real_name or pricing_order.creator.username }}</span></span>
+        <span style="color:var(--line-2);">|</span>
+        {% endif %}
+        {% if pricing_order.created_at %}<span class="at-dim at-mono">{{ _('创建') }} {{ pricing_order.created_at.strftime('%Y-%m-%d') }}</span>{% endif %}
       </div>
     </div>
-    <div class="po-actions">
-      <a class="po-btn" href="{{ url_for('pricing_order.excel_edit_pricing_order', order_id=pricing_order.id) }}">✎ {{ _('Excel 编辑器') }}</a>
-      <a class="po-btn" href="{{ back_url }}">← {{ _('返回') }}</a>
+    <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+      {{ at_btn(_('返回'), variant='ghost', icon_l='back', tag='a', href=back_url) }}
+      {{ at_btn(_('Excel 编辑器'), variant='ghost', icon_l='pen', tag='a',
+                href=url_for('pricing_order.excel_edit_pricing_order', order_id=pricing_order.id)) }}
     </div>
   </div>
 
-  <!-- Tabs -->
+  <!-- ══ Tab(批价单特有双实体) ══ -->
   <div class="po-tabbar" id="poTabbar">
     <button class="on" data-tab="pricing" onclick="poSetTab('pricing')">{{ _('批价单') }}
       <span class="cnt">{{ currency_symbol }}{{ '{:,.0f}'.format(pricing_order.pricing_total_amount or 0) }}</span></button>
@@ -96,86 +104,105 @@
 
   <!-- ═══ 批价单 TAB ═══ -->
   <div class="po-tabpane on" data-pane="pricing">
-    <div class="po-sec">
-      <div class="po-sec-h"><span class="t">{{ _('批价单 · 基本信息') }}</span></div>
-      <div class="po-sec-b">
-        <div class="po-info">
-          <div><div class="k">{{ _('关联项目') }}</div><div class="v">{{ pricing_order.project.project_name if pricing_order.project else '—' }}</div></div>
-          <div><div class="k">{{ _('经销商') }}</div><div class="v">
-            {% if pricing_order.is_direct_contract %}{{ vendor_company_name }}（{{ _('厂商直签') }}）
-            {% elif pricing_order.dealer %}{{ pricing_order.dealer.company_name }}{% else %}—{% endif %}</div></div>
-          <div><div class="k">{{ _('分销商') }}</div><div class="v">
-            {% if pricing_order.is_factory_pickup %}{{ vendor_company_name }}（{{ _('厂商直提') }}）
-            {% elif pricing_order.distributor %}{{ pricing_order.distributor.company_name }}{% else %}—{% endif %}</div></div>
-          <div><div class="k">{{ _('关联报价') }}</div><div class="v mono">{{ pricing_order.quotation.quotation_number if pricing_order.quotation else '—' }}</div></div>
-          <div><div class="k">{{ _('货币') }}</div><div class="v">{{ pricing_order.currency }}</div></div>
-          <div><div class="k">{{ _('批价日期') }}</div><div class="v mono">{{ pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '—' }}</div></div>
+
+    {# 四分隔区域 #}
+    {{ at_summary_strip([
+        {'label': _('批价总额'), 'value': currency_symbol ~ '{:,.0f}'.format(pricing_order.pricing_total_amount or 0),
+         'sub': (pricing_order.pricing_details|length)|string ~ ' ' ~ _('项'), 'strong': true},
+        {'label': _('报价合计'), 'value': currency_symbol ~ '{:,.0f}'.format(quote_total),
+         'sub': _('来自关联报价')},
+        {'label': _('总折扣率'), 'value': '%.1f'|format(pricing_order.pricing_discount_percentage) ~ '%',
+         'sub': _('批价 / 市场价')},
+        {'label': _('市场价合计'), 'value': currency_symbol ~ '{:,.0f}'.format(market_total),
+         'sub': pricing_order.currency or 'CNY'},
+    ]) }}
+
+    {# 基本信息选卡 #}
+    {{ at_info_panel(_('基本信息'), [
+        (_('批价单号'), pricing_order.order_number, 'at-mono'),
+        (_('关联项目'), pricing_order.project.project_name if pricing_order.project else '—'),
+        (_('经销商'), (vendor_company_name ~ '（' ~ _('厂商直签') ~ '）') if pricing_order.is_direct_contract else (pricing_order.dealer.company_name if pricing_order.dealer else '—')),
+        (_('分销商'), (vendor_company_name ~ '（' ~ _('厂商直提') ~ '）') if pricing_order.is_factory_pickup else (pricing_order.distributor.company_name if pricing_order.distributor else '—')),
+        (_('关联报价'), pricing_order.quotation.quotation_number if pricing_order.quotation else '—', 'at-mono'),
+        (_('货币'), pricing_order.currency or 'CNY'),
+        (_('批价日期'), pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '—', 'at-mono'),
+        (_('创建人'), (pricing_order.creator.real_name or pricing_order.creator.username) if pricing_order.creator else '—'),
+    ], columns=4) }}
+
+    {# 产品明细(at-section,显示报价按键同报价单显示折扣) #}
+    <section class="at-section">
+      <header class="at-section-h">
+        <h3 class="at-section-title">{{ _('批价明细') }}</h3>
+        <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ pricing_order.pricing_details|length }}</span>
+        <div style="flex:1;"></div>
+        <button type="button" class="po-quote-toggle" onclick="poToggleQuote(this)" title="{{ _('显示/隐藏 报价单价 + 报价合计 列') }}">
+          {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
+        </button>
+      </header>
+      <div class="at-section-body" style="padding:0;">
+        <div style="overflow-x:auto;">
+          {{ render_pricing_order_details_table(pricing_order.pricing_details, entity='pricing',
+              currency_symbol=currency_symbol, can_edit=false, tbody_id='pricingTbody',
+              total_amount=pricing_order.pricing_total_amount or 0, quote_map=pricing_quote) }}
         </div>
       </div>
-    </div>
-
-    <div class="po-kpi">
-      <div class="cell"><div class="lbl">{{ _('批价总额') }}</div><div class="num accent">{{ currency_symbol }}{{ '{:,.2f}'.format(pricing_order.pricing_total_amount or 0) }}</div></div>
-      <div class="cell"><div class="lbl">{{ _('总折扣率') }}</div><div class="num">{{ '%.1f'|format(pricing_order.pricing_discount_percentage) }}%</div></div>
-      <div class="cell"><div class="lbl">{{ _('报价合计') }}</div><div class="num">{{ currency_symbol }}{{ '{:,.2f}'.format(quote_total) }}</div></div>
-      <div class="cell"><div class="lbl">{{ _('明细行数') }}</div><div class="num">{{ pricing_order.pricing_details|length }}</div><div class="sub">{{ _('行') }}</div></div>
-    </div>
-
-    <div class="po-sec">
-      <div class="po-sec-h"><span class="t">{{ _('批价明细') }}</span>
-        <button type="button" class="po-quote-toggle" onclick="poToggleQuote(this)">{{ _('显示报价') }}</button></div>
-      <div class="po-sec-b">
-        {{ render_pricing_order_details_table(pricing_order.pricing_details, entity='pricing',
-            currency_symbol=currency_symbol, can_edit=false, tbody_id='pricingTbody',
-            total_amount=pricing_order.pricing_total_amount or 0, quote_map=pricing_quote) }}
-      </div>
-    </div>
+    </section>
   </div>
 
   <!-- ═══ 结算单 TAB ═══ -->
   {% if can_view_settlement %}
   <div class="po-tabpane" data-pane="settlement">
-    <div class="po-sec">
-      <div class="po-sec-h"><span class="t">{{ _('结算单 · 基本信息') }}</span></div>
-      <div class="po-sec-b">
-        <div class="po-info">
-          <div><div class="k">{{ _('结算公司') }}</div><div class="v">{{ target_settle_company.company_name if target_settle_company else '—' }}</div></div>
-          <div><div class="k">{{ _('结算日期') }}</div><div class="v mono">{{ pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '—' }}</div></div>
-          <div><div class="k">{{ _('货币') }}</div><div class="v">{{ pricing_order.currency }}</div></div>
+
+    {{ at_summary_strip([
+        {'label': _('结算总额'), 'value': currency_symbol ~ '{:,.0f}'.format(pricing_order.settlement_total_amount or 0),
+         'sub': (pricing_order.settlement_details|length)|string ~ ' ' ~ _('项'), 'strong': true},
+        {'label': _('结算折扣率'), 'value': '%.1f'|format(pricing_order.settlement_discount_percentage) ~ '%',
+         'sub': _('结算价 / 市场价')},
+        {'label': _('毛利'), 'value': currency_symbol ~ '{:,.0f}'.format(gp)},
+        {'label': _('毛利率'), 'value': '%.1f'|format(gm) ~ '%'},
+    ]) }}
+
+    {{ at_info_panel(_('结算基本信息'), [
+        (_('结算公司'), target_settle_company.company_name if target_settle_company else '—'),
+        (_('结算日期'), pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '—', 'at-mono'),
+        (_('货币'), pricing_order.currency or 'CNY'),
+    ], columns=4) }}
+
+    <section class="at-section">
+      <header class="at-section-h">
+        <h3 class="at-section-title">{{ _('结算明细') }}</h3>
+        <span class="at-mono at-tab-num" style="font-size:11px;color:var(--ink-4);">{{ pricing_order.settlement_details|length }}</span>
+        <div style="flex:1;"></div>
+        <button type="button" class="po-quote-toggle" onclick="poToggleQuote(this)" title="{{ _('显示/隐藏 报价单价 + 报价合计 列') }}">
+          {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
+        </button>
+      </header>
+      <div class="at-section-body" style="padding:0;">
+        <div style="overflow-x:auto;">
+          {{ render_pricing_order_details_table(pricing_order.settlement_details, entity='settlement',
+              currency_symbol=currency_symbol, can_edit=false, tbody_id='settlementTbody',
+              total_amount=pricing_order.settlement_total_amount or 0, quote_map=settlement_quote) }}
         </div>
       </div>
-    </div>
-
-    <div class="po-kpi">
-      <div class="cell"><div class="lbl">{{ _('结算总额') }}</div><div class="num accent">{{ currency_symbol }}{{ '{:,.2f}'.format(pricing_order.settlement_total_amount or 0) }}</div></div>
-      <div class="cell"><div class="lbl">{{ _('结算折扣率') }}</div><div class="num">{{ '%.1f'|format(pricing_order.settlement_discount_percentage) }}%</div></div>
-      <div class="cell"><div class="lbl">{{ _('毛利') }}</div><div class="num success">{{ currency_symbol }}{{ '{:,.2f}'.format(gp) }}</div></div>
-      <div class="cell"><div class="lbl">{{ _('毛利率') }}</div><div class="num success">{{ '%.1f'|format(gm) }}%</div></div>
-    </div>
-
-    <div class="po-sec">
-      <div class="po-sec-h"><span class="t">{{ _('结算明细') }}</span>
-        <button type="button" class="po-quote-toggle" onclick="poToggleQuote(this)">{{ _('显示报价') }}</button></div>
-      <div class="po-sec-b">
-        {{ render_pricing_order_details_table(pricing_order.settlement_details, entity='settlement',
-            currency_symbol=currency_symbol, can_edit=false, tbody_id='settlementTbody',
-            total_amount=pricing_order.settlement_total_amount or 0, quote_map=settlement_quote) }}
-      </div>
-    </div>
+    </section>
   </div>
   {% endif %}
 
+</main>
 </div>
+</div>
+
 <script>
 function poSetTab(t){
   document.querySelectorAll('#poTabbar button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
   document.querySelectorAll('.po-tabpane').forEach(p=>p.classList.toggle('on',p.dataset.pane===t));
 }
 function poToggleQuote(btn){
-  var tbl = btn.closest('.po-sec').querySelector('.po-dt');
+  var tbl = btn.closest('.at-section').querySelector('.po-dt');
   if(!tbl) return;
   var on = tbl.classList.toggle('show-quote');
-  btn.textContent = on ? '隐藏报价' : '显示报价';
+  var lbl = btn.querySelector('[data-toggle-label]');
+  if(lbl) lbl.textContent = on ? '{{ _("隐藏报价") }}' : '{{ _("显示报价") }}';
 }
 </script>
 </body>
