@@ -1306,7 +1306,7 @@ class PricingOrderService:
             
         if pricing_order.status in ['draft', 'rejected']:
             # 草稿状态或被拒绝状态：创建人可编辑
-            return pricing_order.created_by == current_user.id
+            return pricing_order.created_by == current_user.id or current_user.role == 'admin'
         elif pricing_order.status == 'pending':
             # 审批中：检查是否为当前审批人 + 是否有定价字段的编辑权限
             is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
@@ -1629,7 +1629,7 @@ class PricingOrderService:
             
         if pricing_order.status in ['draft', 'rejected']:
             # 草稿状态或被拒绝状态：创建人可编辑数量
-            return pricing_order.created_by == current_user.id
+            return pricing_order.created_by == current_user.id or current_user.role == 'admin'
         elif pricing_order.status == 'pending':
             # 审批中：检查是否为当前审批人 + 是否有数量字段的编辑权限
             is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
@@ -1675,7 +1675,7 @@ class PricingOrderService:
             
         if pricing_order.status in ['draft', 'rejected']:
             # 草稿状态或被拒绝状态：创建人可编辑
-            return pricing_order.created_by == current_user.id
+            return pricing_order.created_by == current_user.id or current_user.role == 'admin'
         elif pricing_order.status == 'pending':
             # 审批中：检查是否为当前审批人 + 是否有折扣价格字段的编辑权限
             is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
@@ -1720,9 +1720,9 @@ class PricingOrderService:
             return False
             
         if pricing_order.status in ['draft', 'rejected']:
-            # 草稿状态或被拒绝状态：创建人可编辑
+            # 草稿状态或被拒绝状态：创建人可编辑(admin 亦可)
             is_creator = pricing_order.created_by == current_user.id
-            return is_creator
+            return is_creator or current_user.role == 'admin'
         elif pricing_order.status == 'pending':
             # 审批中：检查是否为当前审批人 + 是否有基本信息字段的编辑权限
             is_current_approver = PricingOrderService._is_current_approver_v2(pricing_order, current_user)
