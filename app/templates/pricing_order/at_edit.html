@@ -1,4 +1,5 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn %}
+{% from 'components/at_approval_dropdown.html' import at_approval_dropdown %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% from 'components/at_detail.html' import at_detail_styles, at_info_panel, at_summary_strip %}
 {% from 'components/at_minitables.html' import render_pricing_order_details_table, at_details_table_styles %}
@@ -15,6 +16,7 @@
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
 {{ at_detail_styles() }}
 {{ at_details_table_styles() }}
 <style>
@@ -104,7 +106,18 @@
         <h1 class="at-serif at-mono" style="margin:0;font-size:40px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;
             font-family:var(--font-mono);font-variant-numeric:tabular-nums;flex:0 1 auto;min-width:0;max-width:min(100%,720px);overflow-wrap:anywhere;">
           {{ pricing_order.order_number }}</h1>
-        {{ at_status_pill(pricing_order.status, scope='pricing_order') }}
+        {{ at_approval_dropdown(
+              object_type='pricing_order', object_id=pricing_order.id,
+              status=pricing_order.status, status_scope='pricing_order',
+              api_base='/pricing_order/api/approval',
+              meta={
+                'currency_sym': currency_symbol,
+                'total_amount': pricing_order.pricing_total_amount or 0,
+                'customer_name': (pricing_order.dealer.company_name if pricing_order.dealer else (pricing_order.distributor.company_name if pricing_order.distributor else '')),
+                'project_name': pricing_order.project.project_name if pricing_order.project else '',
+                'line_count': pricing_order.pricing_details|length,
+                'title': pricing_order.order_number or ''
+              }) }}
         {% if pricing_order.is_direct_contract %}{{ at_pill(_('厂商直签'), tone='warn') }}{% endif %}
       </div>
       <div style="margin-top:12px;color:var(--ink-3);font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;">
