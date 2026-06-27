@@ -194,7 +194,7 @@ class PricingOrderApprovalWrapper:
     def get_detail_url(self):
         """获取详情页URL"""
         from flask import url_for
-        return url_for('pricing_order.excel_edit_pricing_order', order_id=self.pricing_order.id)
+        return url_for('pricing_order.at_edit_pricing_order', order_id=self.pricing_order.id)
 
     @property
     def object_id(self):
@@ -2045,7 +2045,7 @@ def get_approval_object_url(instance):
     elif object_type == 'customer':
         return url_for('customer.view_company', company_id=object_id)
     elif object_type == 'pricing_order':
-        return url_for('pricing_order.excel_edit_pricing_order', order_id=object_id)
+        return url_for('pricing_order.at_edit_pricing_order', order_id=object_id)
     elif object_type == 'purchase_order':
         return url_for('purchase_order.at_detail_view', order_id=object_id)
     elif object_type == 'expense':

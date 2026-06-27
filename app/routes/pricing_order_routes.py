@@ -242,7 +242,7 @@ def start_pricing_process(project_id):
 @login_required
 def edit_pricing_order(order_id):
     """批价单详情/编辑页（Bootstrap 旧模板已迁移到 Tailwind，统一跳转到 excel-edit）"""
-    return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
+    return redirect(url_for('pricing_order.at_edit_pricing_order', order_id=order_id))
 
 
 @pricing_order_bp.route('/<int:order_id>/excel-edit')
@@ -2827,7 +2827,7 @@ def export_pdf(order_id, pdf_type):
                     result = word_generator.generate_settlement_order_pdf(pricing_order, include_notes=include_notes)
                 else:
                     flash('无效的PDF类型', 'danger')
-                    return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
+                    return redirect(url_for('pricing_order.at_edit_pricing_order', order_id=order_id))
 
             except Exception as word_error:
                 logger.warning(f"Word模板生成PDF失败，回退到HTML模板: {str(word_error)}")
@@ -2843,7 +2843,7 @@ def export_pdf(order_id, pdf_type):
                 result = pdf_generator.generate_settlement_order_pdf(pricing_order, include_notes=include_notes)
             else:
                 flash('无效的PDF类型', 'danger')
-                return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
+                return redirect(url_for('pricing_order.at_edit_pricing_order', order_id=order_id))
 
         # 返回PDF文件
         pdf_io = BytesIO(result['content'])
@@ -2859,7 +2859,7 @@ def export_pdf(order_id, pdf_type):
     except Exception as e:
         logger.error(f"导出PDF失败: {str(e)}")
         flash(f'PDF导出失败: {str(e)}', 'danger')
-        return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
+        return redirect(url_for('pricing_order.at_edit_pricing_order', order_id=order_id))
 
 
 @pricing_order_bp.route('/<int:order_id>/export_word/<doc_type>')
@@ -2897,7 +2897,7 @@ def export_word(order_id, doc_type):
             result = word_generator.generate_settlement_order_word_v2(pricing_order, include_notes=include_notes)
         else:
             flash('无效的文档类型', 'danger')
-            return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
+            return redirect(url_for('pricing_order.at_edit_pricing_order', order_id=order_id))
 
         logger.info(f"[Word导出] ✅ 生成成功: {result['filename']}, 大小: {len(result['content'])} 字节")
 
@@ -2917,7 +2917,7 @@ def export_word(order_id, doc_type):
         logger.error(f"[Word导出] ❌ 导出失败: {str(e)}")
         logger.error(f"[Word导出] 详细错误: {traceback.format_exc()}")
         flash(f'Word导出失败: {str(e)}', 'danger')
-        return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
+        return redirect(url_for('pricing_order.at_edit_pricing_order', order_id=order_id))
 
 
 @pricing_order_bp.route('/<int:order_id>/admin_rollback', methods=['POST'])

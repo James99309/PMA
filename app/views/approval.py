@@ -622,7 +622,7 @@ def detail(instance_id):
         try:
             pricing_order_id = int(instance_id.split('_')[1])
             # 重定向到批价单详情页面
-            return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=pricing_order_id))
+            return redirect(url_for('pricing_order.at_edit_pricing_order', order_id=pricing_order_id))
         except (ValueError, IndexError):
             flash(_('无效的批价单审批ID'), 'danger')
             return redirect(url_for('approval.center'))

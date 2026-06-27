@@ -110,7 +110,7 @@ def _build_todos(user):
         'project_win_lock': lambda i: f'/project/{i}/at_view#approval-project_win_lock',
         'quotation':       lambda i: f'/quotation/{i}/at_view#approval',
         'purchase_order':  lambda i: f'/purchase-order/{i}#approval',
-        'pricing_order':   lambda i: f'/pricing_order/{i}/excel-edit',   # 批价单详情(批价编辑页),原缺失致点击不跳
+        'pricing_order':   lambda i: f'/pricing_order/{i}/at-edit',   # 批价单详情(批价编辑页),原缺失致点击不跳
         'sales_order':     lambda i: f'/sales-order/{i}',                # 客户订单详情
         'dealer_apply':    None,   # 占位:下面按实例跳审批中心
     }
