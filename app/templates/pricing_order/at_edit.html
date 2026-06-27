@@ -1,0 +1,195 @@
+{% from 'components/at_minitables.html' import render_pricing_order_details_table %}
+<!DOCTYPE html>
+<html lang="zh" data-theme="light" data-density="standard">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ pricing_order.order_number }} · {{ _('批价单') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<style>
+  .po-wrap{max-width:1180px;margin:0 auto;padding:24px 32px 80px;}
+  /* Hero */
+  .po-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:6px;}
+  .po-hero h1{font-family:var(--font-serif);font-weight:500;font-size:28px;margin:0 0 6px;letter-spacing:-0.01em;}
+  .po-hero .sub{font-size:13px;color:var(--ink-3);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .po-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:14px;font-size:12px;font-weight:500;}
+  .po-pill .dot{width:6px;height:6px;border-radius:50%;}
+  .po-pill.draft{background:var(--bg-sunk);color:var(--ink-3);} .po-pill.draft .dot{background:var(--ink-3);}
+  .po-pill.pending{background:var(--warn-soft);color:var(--warn);} .po-pill.pending .dot{background:var(--warn);}
+  .po-pill.approved{background:var(--success-soft);color:var(--success);} .po-pill.approved .dot{background:var(--success);}
+  .po-pill.rejected{background:var(--danger-soft);color:var(--danger);} .po-pill.rejected .dot{background:var(--danger);}
+  .po-direct{font-size:11px;padding:2px 8px;border-radius:6px;background:var(--accent-tint);color:var(--accent);border:1px solid var(--accent-soft);}
+  .po-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;}
+  .po-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:500;
+    border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);white-space:nowrap;transition:all 120ms;cursor:pointer;}
+  .po-btn:hover{background:var(--bg-hover);}
+  .po-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;} .po-btn.primary:hover{background:var(--accent-2);}
+  /* Tabs */
+  .po-tabbar{display:flex;border-bottom:1px solid var(--line);margin:18px 0 24px;}
+  .po-tabbar button{padding:13px 22px;font-size:14px;color:var(--ink-3);border-bottom:2px solid transparent;
+    margin-bottom:-1px;cursor:pointer;display:flex;align-items:center;gap:9px;background:none;border-top:0;border-left:0;border-right:0;}
+  .po-tabbar button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600;}
+  .po-tabbar button .cnt{font-size:11px;color:var(--ink-4);font-family:var(--font-mono);}
+  /* Section */
+  .po-sec{background:var(--bg-elev);border:1px solid var(--line);border-radius:var(--radius-lg);margin-bottom:20px;overflow:hidden;}
+  .po-sec-h{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-bottom:1px solid var(--line-soft);}
+  .po-sec-h .t{font-size:12px;font-weight:600;letter-spacing:0.06em;color:var(--ink-3);}
+  .po-sec-b{padding:18px 20px;}
+  /* Info grid */
+  .po-info{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 28px;}
+  .po-info .k{font-size:11px;color:var(--ink-4);letter-spacing:0.04em;margin-bottom:3px;}
+  .po-info .v{font-size:14px;color:var(--ink);}
+  .po-info .v.mono{font-family:var(--font-mono);}
+  /* KPI */
+  .po-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-soft);
+    border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:20px;}
+  .po-kpi .cell{background:var(--bg-elev);padding:16px 20px;}
+  .po-kpi .lbl{font-size:11px;color:var(--ink-4);letter-spacing:0.04em;margin-bottom:6px;}
+  .po-kpi .num{font-family:var(--font-serif);font-size:23px;font-weight:500;color:var(--ink);}
+  .po-kpi .num.accent{color:var(--accent);} .po-kpi .num.success{color:var(--success);}
+  .po-kpi .sub{font-size:11px;color:var(--ink-3);margin-top:2px;}
+  /* Details table(配合宏) */
+  .po-dt{width:100%;border-collapse:separate;border-spacing:0;}
+  .po-dt thead th{font-size:10.5px;font-weight:600;letter-spacing:0.06em;color:var(--ink-4);text-align:left;
+    padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--bg-elev);}
+  .po-dt thead th.r{text-align:right;} .po-dt thead th.c{text-align:center;}
+  .po-dt tbody td{padding:0 10px;height:46px;border-bottom:1px solid var(--line-soft);font-size:13px;color:var(--ink-2);vertical-align:middle;}
+  .po-dt tbody td.r{text-align:right;} .po-dt tbody td.c{text-align:center;}
+  .po-dt tbody tr:hover td{background:var(--bg-hover);}
+  .po-dt .po-sn{color:var(--ink-4);font-family:var(--font-mono);font-size:12px;}
+  .po-dt .po-name{color:var(--ink);font-weight:500;padding-top:6px;padding-bottom:6px;}
+  .po-dt .po-name .po-sub{color:var(--ink-3);font-weight:400;font-size:11.5px;margin-top:1px;}
+  .po-dt .po-total{font-family:var(--font-serif);font-size:15px;color:var(--ink);}
+  .po-dt .po-muted{color:var(--ink-3);} .po-dt .po-ro{color:var(--ink-3);}
+  .po-dt tfoot td{padding:12px 10px;border-top:2px solid var(--line);}
+  .po-dt .po-foot-lbl{text-align:right;color:var(--ink-3);font-weight:500;font-size:13px;}
+  .po-dt .po-foot-sum{text-align:right;font-family:var(--font-serif);font-size:17px;color:var(--ink);}
+  .po-dt .po-empty{text-align:center;color:var(--ink-4);padding:40px 0;}
+  .po-dt .at-mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+  /* 可编辑单元格(阶段2启用;view 态隐藏) */
+  .cell-input{display:none;width:100%;height:26px;border:1.5px solid var(--accent);background:var(--bg-page);border-radius:4px;
+    padding:0 6px;font-size:12.5px;color:var(--ink);font-family:var(--font-mono);font-variant-numeric:tabular-nums;outline:none;}
+  .cell-input.text{font-family:var(--font-sans);text-align:left;}
+  .po-del-col{display:none;} .po-delbtn{color:var(--ink-4);font-size:15px;}
+  .po-note{font-size:12px;color:var(--ink-3);padding-top:10px;}
+  .po-tabpane{display:none;} .po-tabpane.on{display:block;}
+  .po-phase{font-size:11.5px;color:var(--warn);background:var(--warn-soft);padding:7px 14px;border-radius:7px;margin-bottom:18px;text-align:center;}
+</style>
+</head>
+<body class="at-page">
+<div class="po-wrap">
+
+  <div class="po-phase">⚠️ 新版 AT 批价单页(阶段1:查看)。编辑/审批/打印逐步迁移中,需要编辑请用「Excel 编辑器」。</div>
+
+  <!-- Hero -->
+  <div class="po-hero">
+    <div>
+      <h1>{{ pricing_order.order_number }}</h1>
+      <div class="sub">
+        {% set pill = {'draft':'draft','pending':'pending','approved':'approved','rejected':'rejected'}.get(pricing_order.status,'draft') %}
+        {% set plbl = {'draft':_('草稿'),'pending':_('审批中'),'approved':_('已批准'),'rejected':_('已拒绝')}.get(pricing_order.status, pricing_order.status) %}
+        <span class="po-pill {{ pill }}"><span class="dot"></span>{{ plbl }}</span>
+        {% if pricing_order.is_direct_contract %}<span class="po-direct">{{ _('厂商直签') }}</span>{% endif %}
+        {% if pricing_order.project %}<span>{{ pricing_order.project.project_name }}</span>{% endif %}
+        <span class="at-dim">·</span>
+        <span class="at-muted">{{ _('创建人') }} {{ (pricing_order.creator.real_name or pricing_order.creator.username) if pricing_order.creator else '—' }}
+          · {{ pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '' }}</span>
+      </div>
+    </div>
+    <div class="po-actions">
+      <a class="po-btn" href="{{ url_for('pricing_order.excel_edit_pricing_order', order_id=pricing_order.id) }}">✎ {{ _('Excel 编辑器') }}</a>
+      <a class="po-btn" href="{{ back_url }}">← {{ _('返回') }}</a>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="po-tabbar" id="poTabbar">
+    <button class="on" data-tab="pricing" onclick="poSetTab('pricing')">{{ _('批价单') }}
+      <span class="cnt">{{ currency_symbol }}{{ '{:,.0f}'.format(pricing_order.pricing_total_amount or 0) }}</span></button>
+    {% if can_view_settlement %}
+    <button data-tab="settlement" onclick="poSetTab('settlement')">{{ _('结算单') }}
+      <span class="cnt">{{ currency_symbol }}{{ '{:,.0f}'.format(pricing_order.settlement_total_amount or 0) }}</span></button>
+    {% endif %}
+  </div>
+
+  <!-- ═══ 批价单 TAB ═══ -->
+  <div class="po-tabpane on" data-pane="pricing">
+    <div class="po-sec">
+      <div class="po-sec-h"><span class="t">{{ _('批价单 · 基本信息') }}</span></div>
+      <div class="po-sec-b">
+        <div class="po-info">
+          <div><div class="k">{{ _('关联项目') }}</div><div class="v">{{ pricing_order.project.project_name if pricing_order.project else '—' }}</div></div>
+          <div><div class="k">{{ _('经销商') }}</div><div class="v">
+            {% if pricing_order.is_direct_contract %}{{ vendor_company_name }}（{{ _('厂商直签') }}）
+            {% elif pricing_order.dealer %}{{ pricing_order.dealer.company_name }}{% else %}—{% endif %}</div></div>
+          <div><div class="k">{{ _('分销商') }}</div><div class="v">
+            {% if pricing_order.is_factory_pickup %}{{ vendor_company_name }}（{{ _('厂商直提') }}）
+            {% elif pricing_order.distributor %}{{ pricing_order.distributor.company_name }}{% else %}—{% endif %}</div></div>
+          <div><div class="k">{{ _('关联报价') }}</div><div class="v mono">{{ pricing_order.quotation.quotation_number if pricing_order.quotation else '—' }}</div></div>
+          <div><div class="k">{{ _('货币') }}</div><div class="v">{{ pricing_order.currency }}</div></div>
+          <div><div class="k">{{ _('批价日期') }}</div><div class="v mono">{{ pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '—' }}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="po-kpi">
+      <div class="cell"><div class="lbl">{{ _('批价总额') }}</div><div class="num accent">{{ currency_symbol }}{{ '{:,.2f}'.format(pricing_order.pricing_total_amount or 0) }}</div></div>
+      <div class="cell"><div class="lbl">{{ _('总折扣率') }}</div><div class="num">{{ '%.1f'|format(pricing_order.pricing_discount_percentage) }}%</div></div>
+      <div class="cell"><div class="lbl">{{ _('市场价合计') }}</div><div class="num">{{ currency_symbol }}{{ '{:,.2f}'.format(market_total) }}</div></div>
+      <div class="cell"><div class="lbl">{{ _('明细行数') }}</div><div class="num">{{ pricing_order.pricing_details|length }}</div><div class="sub">{{ _('行') }}</div></div>
+    </div>
+
+    <div class="po-sec">
+      <div class="po-sec-h"><span class="t">{{ _('批价明细') }}</span></div>
+      <div class="po-sec-b">
+        {{ render_pricing_order_details_table(pricing_order.pricing_details, entity='pricing',
+            currency_symbol=currency_symbol, can_edit=false, tbody_id='pricingTbody',
+            total_amount=pricing_order.pricing_total_amount or 0) }}
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 结算单 TAB ═══ -->
+  {% if can_view_settlement %}
+  <div class="po-tabpane" data-pane="settlement">
+    <div class="po-sec">
+      <div class="po-sec-h"><span class="t">{{ _('结算单 · 基本信息') }}</span></div>
+      <div class="po-sec-b">
+        <div class="po-info">
+          <div><div class="k">{{ _('结算公司') }}</div><div class="v">{{ target_settle_company.company_name if target_settle_company else '—' }}</div></div>
+          <div><div class="k">{{ _('结算日期') }}</div><div class="v mono">{{ pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '—' }}</div></div>
+          <div><div class="k">{{ _('货币') }}</div><div class="v">{{ pricing_order.currency }}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="po-kpi">
+      <div class="cell"><div class="lbl">{{ _('结算总额') }}</div><div class="num accent">{{ currency_symbol }}{{ '{:,.2f}'.format(pricing_order.settlement_total_amount or 0) }}</div></div>
+      <div class="cell"><div class="lbl">{{ _('结算折扣率') }}</div><div class="num">{{ '%.1f'|format(pricing_order.settlement_discount_percentage) }}%</div></div>
+      <div class="cell"><div class="lbl">{{ _('毛利') }}</div><div class="num success">{{ currency_symbol }}{{ '{:,.2f}'.format(gp) }}</div></div>
+      <div class="cell"><div class="lbl">{{ _('毛利率') }}</div><div class="num success">{{ '%.1f'|format(gm) }}%</div></div>
+    </div>
+
+    <div class="po-sec">
+      <div class="po-sec-h"><span class="t">{{ _('结算明细') }}</span></div>
+      <div class="po-sec-b">
+        {{ render_pricing_order_details_table(pricing_order.settlement_details, entity='settlement',
+            currency_symbol=currency_symbol, can_edit=false, tbody_id='settlementTbody',
+            total_amount=pricing_order.settlement_total_amount or 0) }}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+<script>
+function poSetTab(t){
+  document.querySelectorAll('#poTabbar button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  document.querySelectorAll('.po-tabpane').forEach(p=>p.classList.toggle('on',p.dataset.pane===t));
+}
+</script>
+</body>
+</html>

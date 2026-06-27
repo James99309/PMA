@@ -360,6 +360,75 @@ def excel_edit_pricing_order(order_id):
         return redirect(url_for('project.list_projects'))
 
 
+@pricing_order_bp.route('/<int:order_id>/at-edit')
+@login_required
+def at_edit_pricing_order(order_id):
+    """批价单 AT 风格查看/编辑页(替换 excel-edit 的新版,阶段化上线)。
+    阶段1:AT 外壳 + 批价/结算双 tab + 基本信息选区 + 毛利KPI选区 + 明细表(只读视图)。
+    复用 excel_edit 同一套权限/数据逻辑。"""
+    try:
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+        if not PricingOrderService.can_view_pricing_order(pricing_order, current_user):
+            flash('您没有权限查看该批价单', 'danger')
+            return redirect(url_for('pricing_order.at_list_view'))
+
+        (can_edit_pricing, can_edit_settlement, _,
+         _, _, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
+        can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
+
+        vendor_company_name = PricingOrderService.get_vendor_company_name()
+
+        # 结算目标公司(同 excel_edit 业务规则)
+        target_settle_company = None
+        if pricing_order.is_direct_contract:
+            from types import SimpleNamespace
+            from app.models.dictionary import Dictionary
+            vd = Dictionary.query.filter_by(type='company', is_vendor=True, is_active=True
+                 ).order_by(Dictionary.sort_order).first()
+            if vd:
+                target_settle_company = SimpleNamespace(id=None, company_name=vd.value)
+        else:
+            target_settle_company = pricing_order.distributor or pricing_order.dealer
+
+        # 毛利 KPI + 市场价合计
+        pricing_total = float(pricing_order.pricing_total_amount or 0)
+        settlement_total = float(pricing_order.settlement_total_amount or 0)
+        gp = pricing_total - settlement_total
+        gm = (gp / pricing_total * 100) if pricing_total > 0 else 0
+        market_total = sum((d.market_price or 0) * (d.quantity or 0) for d in pricing_order.pricing_details)
+
+        from app.utils.dictionary_helpers import get_currency_symbol
+        currency_symbol = get_currency_symbol(pricing_order.currency or 'CNY')
+
+        # 返回目标(同 excel_edit)
+        referrer = request.referrer or ''
+        qid = pricing_order.quotation_id
+        if qid and url_for('quotation.at_view_quotation', id=qid) in referrer:
+            back_url = url_for('quotation.at_view_quotation', id=qid)
+        elif qid and url_for('quotation.view_quotation', id=qid) in referrer:
+            back_url = url_for('quotation.view_quotation', id=qid)
+        else:
+            back_url = url_for('pricing_order.at_list_view')
+
+        return render_template(
+            'pricing_order/at_edit.html',
+            pricing_order=pricing_order,
+            can_edit_pricing=can_edit_pricing,
+            can_edit_settlement=can_edit_settlement,
+            can_view_settlement=can_view_settlement,
+            can_edit_basic_info=can_edit_basic_info,
+            vendor_company_name=vendor_company_name,
+            target_settle_company=target_settle_company,
+            currency_symbol=currency_symbol,
+            gp=gp, gm=gm, market_total=market_total,
+            back_url=back_url,
+        )
+    except Exception as e:
+        logger.error(f"访问批价单 AT 编辑页失败: {str(e)}")
+        flash(f'访问失败: {str(e)}', 'danger')
+        return redirect(url_for('pricing_order.at_list_view'))
+
+
 @pricing_order_bp.route('/<int:order_id>/update_basic_info', methods=['POST'])
 @login_required
 def update_basic_info(order_id):

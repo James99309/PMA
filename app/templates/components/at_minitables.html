@@ -617,3 +617,116 @@
   {%- elif key == 'expense' -%}            {{ render_expense_minitable(items) }}
   {%- endif -%}
 {% endmacro %}
+
+
+{# ══════════════════════════════════════════════════════════════════
+   批价单/结算单 明细表(AT 风) — 复用 AT 设计系统视觉,承载批价单双实体
+   entity: 'pricing'(批价) | 'settlement'(结算)
+   details: PricingOrderDetail / SettlementOrderDetail 列表
+   can_edit: 该实体当前用户是否可编辑(双权限:can_edit_pricing / can_edit_settlement)
+   tbody_id: 'pricingTbody' | 'settlementTbody'(与现有编辑 JS 对齐)
+   单元格类名(cell-mn/cell-brand/cell-model/cell-qty/cell-market/cell-discount/
+   cell-price/cell-subtotal/cell-note 及 settle 变体)与 tw_edit 一致,便于复用 JS。
+   ────────────────────────────────────────────────────────────────── #}
+{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0) %}
+{% set is_settle = (entity == 'settlement') %}
+{% set price_cls = 'cell-settle-price' if is_settle else 'cell-price' %}
+{% set disc_cls = 'cell-settle-discount' if is_settle else 'cell-discount' %}
+{% set sub_cls = 'cell-settle-subtotal' if is_settle else 'cell-subtotal' %}
+{% set note_cls = 'cell-settle-note' if is_settle else 'cell-note' %}
+<table class="po-dt" id="{{ tbody_id }}Table">
+  <thead>
+    <tr>
+      <th style="width:40px">#</th>
+      <th>{{ _('产品编码') }}</th>
+      <th>{{ _('品牌') }}</th>
+      <th>{{ _('型号规格') }}</th>
+      <th class="r" style="width:64px">{{ _('数量') }}</th>
+      <th class="r" style="width:110px">{{ _('市场价') }}</th>
+      <th class="r" style="width:78px">{{ _('结算折扣') if is_settle else _('折扣') }}%</th>
+      <th class="r" style="width:120px">{{ _('结算价') if is_settle else _('批价') }}</th>
+      <th class="r" style="width:130px">{{ _('小计') }}</th>
+      <th style="width:120px">{{ _('备注') }}</th>
+      {% if not is_settle %}<th class="c po-del-col" style="width:40px"></th>{% endif %}
+    </tr>
+  </thead>
+  <tbody id="{{ tbody_id }}">
+    {% set ns = namespace(i=0) %}
+    {% for d in details %}
+    {% set ns.i = ns.i + 1 %}
+    {% set disc_pct = '%.1f'|format((d.discount_rate or 0) * 100) %}
+    <tr class="product-row" data-id="{{ d.id }}"{% if is_settle and d.pricing_detail_id %} data-pricing-detail-id="{{ d.pricing_detail_id }}"{% endif %}>
+      <td class="po-sn">{{ '%02d'|format(ns.i) }}</td>
+      {# 产品编码 #}
+      <td>
+        {% if can_edit and not is_settle %}
+          <span class="show-val at-mono">{{ d.product_mn or '—' }}</span>
+          <input class="cell-input text cell-mn" value="{{ d.product_mn or '' }}">
+        {% else %}<span class="at-mono {{ 'po-ro' if is_settle }}">{{ d.product_mn or '—' }}</span>{% endif %}
+      </td>
+      {# 品牌 #}
+      <td>
+        {% if can_edit and not is_settle %}
+          <span class="show-val">{{ d.brand or '—' }}</span>
+          <input class="cell-input text cell-brand" value="{{ d.brand or '' }}">
+        {% else %}<span class="{{ 'po-ro' if is_settle }}">{{ d.brand or '—' }}</span>{% endif %}
+      </td>
+      {# 型号规格(只读展示) #}
+      <td class="po-name">
+        <div>{{ d.product_name }}</div>
+        {% if d.product_model %}<div class="po-sub">{{ d.product_model }}</div>{% endif %}
+        {% if d.product_desc %}<div class="po-sub">{{ d.product_desc }}</div>{% endif %}
+        <input type="hidden" class="cell-model" value="{{ d.product_name }}{% if d.product_model %} {{ d.product_model }}{% endif %}">
+      </td>
+      {# 数量 #}
+      <td class="r">
+        {% if can_edit and not is_settle %}
+          <span class="show-val at-mono">{{ d.quantity }}</span>
+          <input type="number" class="cell-input cell-qty" value="{{ d.quantity }}" min="1">
+        {% else %}<span class="at-mono {{ 'po-ro' if is_settle }}">{{ d.quantity }}</span>{% endif %}
+      </td>
+      {# 市场价 #}
+      <td class="r">
+        {% if can_edit and not is_settle %}
+          <span class="show-val at-mono">{{ '{:,.2f}'.format(d.market_price or 0) }}</span>
+          <input class="cell-input cell-market" value="{{ '{:,.2f}'.format(d.market_price or 0) }}">
+        {% else %}<span class="at-mono {{ 'po-ro' if is_settle }}">{{ '{:,.2f}'.format(d.market_price or 0) }}</span>{% endif %}
+      </td>
+      {# 折扣% #}
+      <td class="r">
+        {% if can_edit %}
+          <span class="show-val at-mono">{{ disc_pct }}</span>
+          <input type="number" class="cell-input {{ disc_cls }}" value="{{ disc_pct }}" step="0.1">
+        {% else %}<span class="at-mono">{{ disc_pct }}</span>{% endif %}
+      </td>
+      {# 批价/结算价 #}
+      <td class="r">
+        {% if can_edit %}
+          <span class="show-val at-mono">{{ '{:,.2f}'.format(d.unit_price or 0) }}</span>
+          <input class="cell-input {{ price_cls }}" value="{{ '%.2f'|format(d.unit_price or 0) }}">
+        {% else %}<span class="at-mono">{{ '{:,.2f}'.format(d.unit_price or 0) }}</span>{% endif %}
+      </td>
+      {# 小计 #}
+      <td class="r po-total at-mono {{ sub_cls }}">{{ currency_symbol }}{{ '{:,.2f}'.format(d.total_price or 0) }}</td>
+      {# 备注 #}
+      <td>
+        {% if can_edit %}
+          <span class="show-val po-muted">{{ d.item_note or '—' }}</span>
+          <input class="cell-input text {{ note_cls }}" value="{{ d.item_note or '' }}" placeholder="{{ _('备注') }}">
+        {% else %}<span class="po-muted">{{ d.item_note or '—' }}</span>{% endif %}
+      </td>
+      {% if not is_settle %}<td class="c po-del-col"><button type="button" class="po-delbtn" title="{{ _('删除') }}">✕</button></td>{% endif %}
+    </tr>
+    {% else %}
+    <tr><td colspan="{{ 10 if is_settle else 11 }}" class="po-empty">{{ _('暂无明细') }}</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="8" class="po-foot-lbl">{{ _('结算总额') if is_settle else _('批价总额') }}</td>
+      <td class="r po-foot-sum at-mono" id="{{ tbody_id }}Total">{{ currency_symbol }}{{ '{:,.2f}'.format(total_amount or 0) }}</td>
+      <td></td>{% if not is_settle %}<td class="po-del-col"></td>{% endif %}
+    </tr>
+  </tfoot>
+</table>
+{% endmacro %}
