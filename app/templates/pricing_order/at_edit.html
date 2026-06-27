@@ -288,10 +288,13 @@
     {{ at_summary_strip([
         {'label': _('结算总额'), 'value': currency_symbol ~ '{:,.0f}'.format(pricing_order.settlement_total_amount or 0),
          'sub': (pricing_order.settlement_details|length)|string ~ ' ' ~ _('项'), 'strong': true},
+        {'label': _('批价总额'), 'value': currency_symbol ~ '{:,.0f}'.format(pricing_order.pricing_total_amount or 0),
+         'sub': _('来自批价单')},
         {'label': _('结算折扣率'), 'value': '%.1f'|format(pricing_order.settlement_discount_percentage) ~ '%',
          'sub': _('结算价 / 市场价')},
-        {'label': _('毛利'), 'value': currency_symbol ~ '{:,.0f}'.format(gp)},
-        {'label': _('毛利率'), 'value': '%.1f'|format(gm) ~ '%'},
+        {'label': _('毛利'),
+         'value_safe': currency_symbol ~ '{:,.0f}'.format(gp) ~ '<span style="font-size:0.5em;color:var(--ink-3);font-weight:400;margin-left:8px;">' ~ '%.1f'|format(gm) ~ '%</span>',
+         'sub': _('毛利率') ~ ' · ' ~ _('批价 - 结算')},
     ]) }}
 
     {{ at_info_panel(_('结算基本信息'), [
