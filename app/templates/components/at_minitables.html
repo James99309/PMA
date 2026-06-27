@@ -625,7 +625,11 @@
    ────────────────────────────────────────────────────────────────── #}
 {% macro at_details_table_styles() %}
 <style>
-  .po-dt{width:100%;border-collapse:separate;border-spacing:0;}
+  .po-dt{width:100%;min-width:1480px;border-collapse:separate;border-spacing:0;}
+  /* 规格列:最多 2 行,超出截断(同报价单) */
+  .po-dt .po-spec{max-width:300px;}
+  .po-dt .po-spec > div{font-size:12px;color:var(--ink-3);line-height:1.5;display:-webkit-box;
+    -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
   .po-dt thead th{font-size:10.5px;font-weight:600;letter-spacing:0.06em;color:var(--ink-4);text-align:left;
     padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--bg-elev);}
   .po-dt thead th.r{text-align:right;} .po-dt thead th.c{text-align:center;}
@@ -750,8 +754,8 @@
           <input type="hidden" class="cell-model" value="{{ d.product_name }}{% if d.product_model %} {{ d.product_model }}{% endif %}"></td>
         {# 型号 #}
         <td class="at-mono" style="color:var(--ink-2);font-size:12px;">{{ d.product_model or '—' }}</td>
-        {# 规格 #}
-        <td style="color:var(--ink-3);font-size:12px;">{{ d.product_desc or '—' }}</td>
+        {# 规格(最多2行,超出截断) #}
+        <td class="po-spec"><div title="{{ d.product_desc or '' }}">{{ d.product_desc or '—' }}</div></td>
         {# 数量 #}
         {{ po_edit_cell(d.quantity, d.quantity, 'cell-qty', can_edit and not is_settle, align='r', mono=true, num=true, dim=is_settle) }}
         {# 市场价 #}
