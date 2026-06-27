@@ -620,6 +620,61 @@
 
 
 {# ══════════════════════════════════════════════════════════════════
+   明细表样式(单一来源) — 批价/结算明细表共用;页面只需调用一次本宏。
+   抽自页面内联样式,使组件自包含、样式不再散落在各页。
+   ────────────────────────────────────────────────────────────────── #}
+{% macro at_details_table_styles() %}
+<style>
+  .po-dt{width:100%;border-collapse:separate;border-spacing:0;}
+  .po-dt thead th{font-size:10.5px;font-weight:600;letter-spacing:0.06em;color:var(--ink-4);text-align:left;
+    padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--bg-elev);}
+  .po-dt thead th.r{text-align:right;} .po-dt thead th.c{text-align:center;}
+  .po-dt tbody td{padding:0 10px;height:46px;border-bottom:1px solid var(--line-soft);font-size:13px;color:var(--ink-2);vertical-align:middle;}
+  .po-dt tbody td.r{text-align:right;} .po-dt tbody td.c{text-align:center;}
+  .po-dt tbody tr:hover td{background:var(--bg-hover);}
+  .po-dt .po-sn{color:var(--ink-4);font-family:var(--font-mono);font-size:12px;}
+  .po-dt .po-name{color:var(--ink);font-weight:500;padding-top:6px;padding-bottom:6px;}
+  .po-dt .po-name .po-sub{color:var(--ink-3);font-weight:400;font-size:11.5px;margin-top:1px;}
+  .po-dt .po-total{font-family:var(--font-serif);font-size:15px;color:var(--ink);}
+  .po-dt .po-muted{color:var(--ink-3);} .po-dt .po-ro{color:var(--ink-3);}
+  .po-dt tfoot td{padding:12px 10px;border-top:2px solid var(--line);}
+  .po-dt .po-foot-lbl{text-align:right;color:var(--ink-3);font-weight:500;font-size:13px;}
+  .po-dt .po-foot-sum{text-align:right;font-family:var(--font-serif);font-size:17px;color:var(--ink);}
+  .po-dt .po-empty{text-align:center;color:var(--ink-4);padding:40px 0;}
+  .po-dt .at-mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+  /* 可编辑单元格(编辑态启用;view 态隐藏 input,显示 .show-val) */
+  .po-dt .cell-input{display:none;width:100%;height:26px;border:1.5px solid var(--accent);background:var(--bg-page);
+    border-radius:4px;padding:0 6px;font-size:12.5px;color:var(--ink);font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums;outline:none;}
+  .po-dt .cell-input.text{font-family:var(--font-sans);text-align:left;}
+  .po-del-col{display:none;} .po-dt .po-delbtn{color:var(--ink-4);font-size:15px;background:none;border:0;cursor:pointer;}
+  /* 报价单价/报价合计列:默认隐藏,点表头切换(同报价单隐藏折扣机制) */
+  .po-col-quote{display:none;}
+  .po-dt.show-quote .po-col-quote{display:table-cell;}
+  .po-quote-toggle{font-size:11.5px;color:var(--accent);border:1px solid var(--accent-soft);background:var(--accent-tint);
+    border-radius:6px;padding:4px 10px;cursor:pointer;}
+  .po-quote-toggle:hover{background:var(--accent-soft);}
+</style>
+{% endmacro %}
+
+
+{# 可编辑单元格(单一来源) — 批价/结算明细共用的单元格渲染层。
+   editable=true → 渲染 .show-val(查看) + .cell-input(编辑,默认隐藏);
+   editable=false → 只读文本(dim=true 时灰显,用于结算继承批价的列)。
+   align: 'r' 右对齐 / '' 左对齐;mono: 等宽数字;num: number 输入;text_input: 文本输入(非等宽)。 #}
+{% macro po_edit_cell(display, raw, input_cls, editable, align='r', mono=true, num=false, text_input=false, dim=false, placeholder='') %}
+<td class="{{ align }}">
+  {%- if editable -%}
+    <span class="show-val {{ 'at-mono' if mono else '' }}">{{ display }}</span>
+    <input {% if num %}type="number" step="any"{% endif %} class="cell-input {{ 'text' if text_input else '' }} {{ input_cls }}" value="{{ raw }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}>
+  {%- else -%}
+    <span class="{{ 'at-mono' if mono else '' }} {{ 'po-ro' if dim else '' }}">{{ display }}</span>
+  {%- endif -%}
+</td>
+{% endmacro %}
+
+
+{# ══════════════════════════════════════════════════════════════════
    批价单/结算单 明细表(AT 风) — 复用 AT 设计系统视觉,承载批价单双实体
    entity: 'pricing'(批价) | 'settlement'(结算)
    details: PricingOrderDetail / SettlementOrderDetail 列表
@@ -660,20 +715,10 @@
     {% set q = quote_map.get(d.id) %}
     <tr class="product-row" data-id="{{ d.id }}"{% if is_settle and d.pricing_detail_id %} data-pricing-detail-id="{{ d.pricing_detail_id }}"{% endif %}>
       <td class="po-sn">{{ '%02d'|format(ns.i) }}</td>
-      {# 产品编码 #}
-      <td>
-        {% if can_edit and not is_settle %}
-          <span class="show-val at-mono">{{ d.product_mn or '—' }}</span>
-          <input class="cell-input text cell-mn" value="{{ d.product_mn or '' }}">
-        {% else %}<span class="at-mono {{ 'po-ro' if is_settle }}">{{ d.product_mn or '—' }}</span>{% endif %}
-      </td>
+      {# 产品编码(批价可编辑;结算继承只读) #}
+      {{ po_edit_cell(d.product_mn or '—', d.product_mn or '', 'cell-mn', can_edit and not is_settle, align='', mono=true, text_input=true, dim=is_settle) }}
       {# 品牌 #}
-      <td>
-        {% if can_edit and not is_settle %}
-          <span class="show-val">{{ d.brand or '—' }}</span>
-          <input class="cell-input text cell-brand" value="{{ d.brand or '' }}">
-        {% else %}<span class="{{ 'po-ro' if is_settle }}">{{ d.brand or '—' }}</span>{% endif %}
-      </td>
+      {{ po_edit_cell(d.brand or '—', d.brand or '', 'cell-brand', can_edit and not is_settle, align='', mono=false, text_input=true, dim=is_settle) }}
       {# 型号规格(只读展示) #}
       <td class="po-name">
         <div>{{ d.product_name }}</div>
@@ -682,33 +727,13 @@
         <input type="hidden" class="cell-model" value="{{ d.product_name }}{% if d.product_model %} {{ d.product_model }}{% endif %}">
       </td>
       {# 数量 #}
-      <td class="r">
-        {% if can_edit and not is_settle %}
-          <span class="show-val at-mono">{{ d.quantity }}</span>
-          <input type="number" class="cell-input cell-qty" value="{{ d.quantity }}" min="1">
-        {% else %}<span class="at-mono {{ 'po-ro' if is_settle }}">{{ d.quantity }}</span>{% endif %}
-      </td>
+      {{ po_edit_cell(d.quantity, d.quantity, 'cell-qty', can_edit and not is_settle, align='r', mono=true, num=true, dim=is_settle) }}
       {# 市场价 #}
-      <td class="r">
-        {% if can_edit and not is_settle %}
-          <span class="show-val at-mono">{{ '{:,.2f}'.format(d.market_price or 0) }}</span>
-          <input class="cell-input cell-market" value="{{ '{:,.2f}'.format(d.market_price or 0) }}">
-        {% else %}<span class="at-mono {{ 'po-ro' if is_settle }}">{{ '{:,.2f}'.format(d.market_price or 0) }}</span>{% endif %}
-      </td>
-      {# 折扣% #}
-      <td class="r">
-        {% if can_edit %}
-          <span class="show-val at-mono">{{ disc_pct }}</span>
-          <input type="number" class="cell-input {{ disc_cls }}" value="{{ disc_pct }}" step="0.1">
-        {% else %}<span class="at-mono">{{ disc_pct }}</span>{% endif %}
-      </td>
+      {{ po_edit_cell('{:,.2f}'.format(d.market_price or 0), '{:,.2f}'.format(d.market_price or 0), 'cell-market', can_edit and not is_settle, align='r', mono=true, text_input=true, dim=is_settle) }}
+      {# 折扣%(批价/结算各自可编辑) #}
+      {{ po_edit_cell(disc_pct, disc_pct, disc_cls, can_edit, align='r', mono=true, num=true) }}
       {# 批价/结算价 #}
-      <td class="r">
-        {% if can_edit %}
-          <span class="show-val at-mono">{{ '{:,.2f}'.format(d.unit_price or 0) }}</span>
-          <input class="cell-input {{ price_cls }}" value="{{ '%.2f'|format(d.unit_price or 0) }}">
-        {% else %}<span class="at-mono">{{ '{:,.2f}'.format(d.unit_price or 0) }}</span>{% endif %}
-      </td>
+      {{ po_edit_cell('{:,.2f}'.format(d.unit_price or 0), '%.2f'|format(d.unit_price or 0), price_cls, can_edit, align='r', mono=true, text_input=true) }}
       {# 小计 #}
       <td class="r po-total at-mono {{ sub_cls }}">{{ currency_symbol }}{{ '{:,.2f}'.format(d.total_price or 0) }}</td>
       {# 报价单价(默认隐藏,点击表头切换显示) #}
@@ -716,12 +741,7 @@
       {# 报价合计(默认隐藏) #}
       <td class="r po-col-quote at-mono po-quote">{% if q %}{{ currency_symbol }}{{ '{:,.2f}'.format(q.total or 0) }}{% else %}—{% endif %}</td>
       {# 备注 #}
-      <td>
-        {% if can_edit %}
-          <span class="show-val po-muted">{{ d.item_note or '—' }}</span>
-          <input class="cell-input text {{ note_cls }}" value="{{ d.item_note or '' }}" placeholder="{{ _('备注') }}">
-        {% else %}<span class="po-muted">{{ d.item_note or '—' }}</span>{% endif %}
-      </td>
+      {{ po_edit_cell(d.item_note or '—', d.item_note or '', note_cls, can_edit, align='', mono=false, text_input=true, dim=true, placeholder=_('备注')) }}
       {% if not is_settle %}<td class="c po-del-col"><button type="button" class="po-delbtn" title="{{ _('删除') }}">✕</button></td>{% endif %}
     </tr>
     {% else %}

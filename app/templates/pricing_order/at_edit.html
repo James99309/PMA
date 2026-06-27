@@ -1,4 +1,4 @@
-{% from 'components/at_minitables.html' import render_pricing_order_details_table %}
+{% from 'components/at_minitables.html' import render_pricing_order_details_table, at_details_table_styles %}
 <!DOCTYPE html>
 <html lang="zh" data-theme="light" data-density="standard">
 <head>
@@ -51,39 +51,12 @@
   .po-kpi .num{font-family:var(--font-serif);font-size:23px;font-weight:500;color:var(--ink);}
   .po-kpi .num.accent{color:var(--accent);} .po-kpi .num.success{color:var(--success);}
   .po-kpi .sub{font-size:11px;color:var(--ink-3);margin-top:2px;}
-  /* Details table(配合宏) */
-  .po-dt{width:100%;border-collapse:separate;border-spacing:0;}
-  .po-dt thead th{font-size:10.5px;font-weight:600;letter-spacing:0.06em;color:var(--ink-4);text-align:left;
-    padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--bg-elev);}
-  .po-dt thead th.r{text-align:right;} .po-dt thead th.c{text-align:center;}
-  .po-dt tbody td{padding:0 10px;height:46px;border-bottom:1px solid var(--line-soft);font-size:13px;color:var(--ink-2);vertical-align:middle;}
-  .po-dt tbody td.r{text-align:right;} .po-dt tbody td.c{text-align:center;}
-  .po-dt tbody tr:hover td{background:var(--bg-hover);}
-  .po-dt .po-sn{color:var(--ink-4);font-family:var(--font-mono);font-size:12px;}
-  .po-dt .po-name{color:var(--ink);font-weight:500;padding-top:6px;padding-bottom:6px;}
-  .po-dt .po-name .po-sub{color:var(--ink-3);font-weight:400;font-size:11.5px;margin-top:1px;}
-  .po-dt .po-total{font-family:var(--font-serif);font-size:15px;color:var(--ink);}
-  .po-dt .po-muted{color:var(--ink-3);} .po-dt .po-ro{color:var(--ink-3);}
-  .po-dt tfoot td{padding:12px 10px;border-top:2px solid var(--line);}
-  .po-dt .po-foot-lbl{text-align:right;color:var(--ink-3);font-weight:500;font-size:13px;}
-  .po-dt .po-foot-sum{text-align:right;font-family:var(--font-serif);font-size:17px;color:var(--ink);}
-  .po-dt .po-empty{text-align:center;color:var(--ink-4);padding:40px 0;}
-  .po-dt .at-mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
-  /* 可编辑单元格(阶段2启用;view 态隐藏) */
-  .cell-input{display:none;width:100%;height:26px;border:1.5px solid var(--accent);background:var(--bg-page);border-radius:4px;
-    padding:0 6px;font-size:12.5px;color:var(--ink);font-family:var(--font-mono);font-variant-numeric:tabular-nums;outline:none;}
-  .cell-input.text{font-family:var(--font-sans);text-align:left;}
-  .po-del-col{display:none;} .po-delbtn{color:var(--ink-4);font-size:15px;}
-  /* 报价单价/报价合计列:默认隐藏,点击切换显示(同报价单隐藏折扣机制) */
-  .po-col-quote{display:none;}
-  .po-dt.show-quote .po-col-quote{display:table-cell;}
-  .po-quote-toggle{font-size:11.5px;color:var(--accent);border:1px solid var(--accent-soft);background:var(--accent-tint);
-    border-radius:6px;padding:4px 10px;cursor:pointer;}
-  .po-quote-toggle:hover{background:var(--accent-soft);}
+  /* 明细表样式已抽到组件 at_details_table_styles() — 见 head 调用 */
   .po-note{font-size:12px;color:var(--ink-3);padding-top:10px;}
   .po-tabpane{display:none;} .po-tabpane.on{display:block;}
   .po-phase{font-size:11.5px;color:var(--warn);background:var(--warn-soft);padding:7px 14px;border-radius:7px;margin-bottom:18px;text-align:center;}
 </style>
+{{ at_details_table_styles() }}
 </head>
 <body class="at-page">
 <div class="po-wrap">
