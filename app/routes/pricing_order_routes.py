@@ -191,7 +191,7 @@ def start_pricing_process(project_id):
                 'success': True,
                 'pricing_order_id': existing_pending_order.id,
                 'message': f'该报价单已有未完成的批价单 {existing_pending_order.order_number}，将跳转到该批价单',
-                'redirect_url': url_for('pricing_order.excel_edit_pricing_order', order_id=existing_pending_order.id)
+                'redirect_url': url_for('pricing_order.at_edit_pricing_order', order_id=existing_pending_order.id)
             })
         
         # 创建新的批价单 - V2逻辑支持
@@ -227,7 +227,7 @@ def start_pricing_process(project_id):
         return jsonify({
             'success': True,
             'pricing_order_id': pricing_order.id,
-            'redirect_url': url_for('pricing_order.excel_edit_pricing_order', order_id=pricing_order.id)
+            'redirect_url': url_for('pricing_order.at_edit_pricing_order', order_id=pricing_order.id)
         })
         
     except Exception as e:

@@ -252,7 +252,7 @@
       {% if not is_new and quotation.id %}
         {% set _can_pricing = (quotation.confirmation_badge_status == 'confirmed') and quotation.project and (quotation.project.current_stage in ['quoted','signed']) %}
         {% if active_pricing_order %}
-        <a href="/pricing_order/{{ active_pricing_order.id }}/excel-edit" class="view-only"
+        <a href="/pricing_order/{{ active_pricing_order.id }}/at-edit" class="view-only"
            style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--accent);
                   background:var(--accent-tint);color:var(--accent);font-size:12px;font-weight:500;
                   display:inline-flex;align-items:center;gap:5px;cursor:pointer;text-decoration:none;">
@@ -1058,7 +1058,7 @@
         body: JSON.stringify({ quotation_id: QUOTATION_ID })
       }).then(r => r.json()).then(d => {
         if (d.success && d.redirect_url) { window.location.href = d.redirect_url; }
-        else if (d.success && d.pricing_order_id) { window.location.href = `/pricing_order/${d.pricing_order_id}/excel-edit`; }
+        else if (d.success && d.pricing_order_id) { window.location.href = `/pricing_order/${d.pricing_order_id}/at-edit`; }
         else { if (window.ATToast) ATToast.error(d.message || '{{ _("生成失败") }}'); if (btn) btn.disabled = false; }
       }).catch(() => { if (window.ATToast) ATToast.error('{{ _("生成失败") }}'); if (btn) btn.disabled = false; });
       {% endif %}
