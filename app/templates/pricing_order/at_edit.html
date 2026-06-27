@@ -103,12 +103,10 @@
     <div style="flex:1;min-width:0;">
       <div class="at-mono at-dim" style="font-size:11px;letter-spacing:0.15em;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span>PRICING ORDER · {{ pricing_order.currency or 'CNY' }}</span>
-        {% if pricing_order.project %}
         <span style="color:var(--ink-4);">·</span>
-        <a href="{{ url_for('project.at_view_project', project_id=pricing_order.project.id) }}"
+        <a href="{{ back_url }}"
            style="color:var(--accent);text-decoration:none;font-size:11px;letter-spacing:0.05em;text-transform:none;font-weight:500;">
-          ← {{ _('返回') }} {{ pricing_order.project.project_name }}</a>
-        {% endif %}
+          ← {{ _('返回') }}</a>
       </div>
       <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
         <h1 class="at-serif at-mono" style="margin:0;font-size:40px;font-weight:500;letter-spacing:-0.005em;line-height:1.1;
@@ -141,6 +139,16 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+      {% if pricing_order.status == 'approved' %}
+      <a href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='pricing') }}?include_notes=1" target="_blank"
+         style="height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px;text-decoration:none;">
+        {{ at_icon('download', 12) }}{{ _('打印批价单') }}</a>
+      {% if can_view_settlement %}
+      <a href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='settlement') }}?include_notes=1" target="_blank"
+         style="height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px;text-decoration:none;">
+        {{ at_icon('download', 12) }}{{ _('打印结算单') }}</a>
+      {% endif %}
+      {% endif %}
       {% if po_any_editable %}
       <button type="button" class="po-view-only" onclick="poEnterEdit()"
               style="height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
@@ -269,9 +277,6 @@
                        display:inline-flex;align-items:center;gap:5px;">
           {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
         </button>
-        <a class="po-view-only" href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='pricing') }}?include_notes=1" target="_blank"
-           style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px;text-decoration:none;">
-          {{ at_icon('download', 12) }}{{ _('打印批价单') }}</a>
       </header>
       <div class="at-section-body" style="padding:0;">
         <div style="overflow-x:auto;">
@@ -339,9 +344,6 @@
                        display:inline-flex;align-items:center;gap:5px;">
           {{ at_icon('check', 12) }}<span data-toggle-label>{{ _('显示报价') }}</span>
         </button>
-        <a class="po-view-only" href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='settlement') }}?include_notes=1" target="_blank"
-           style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px;text-decoration:none;">
-          {{ at_icon('download', 12) }}{{ _('打印结算单') }}</a>
       </header>
       <div class="at-section-body" style="padding:0;">
         <div style="overflow-x:auto;">
