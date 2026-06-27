@@ -705,7 +705,7 @@
    单元格类名(cell-mn/cell-brand/cell-model/cell-qty/cell-market/cell-discount/
    cell-price/cell-subtotal/cell-note 及 settle 变体)与 tw_edit 一致,便于复用 JS。
    ────────────────────────────────────────────────────────────────── #}
-{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0, quote_map={}, grouped=none) %}
+{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0, quote_map={}, grouped=none, quote_total=0) %}
 {% set is_settle = (entity == 'settlement') %}
 {% set price_cls = 'cell-settle-price' if is_settle else 'cell-price' %}
 {% set disc_cls = 'cell-settle-discount' if is_settle else 'cell-discount' %}
@@ -803,7 +803,8 @@
     <tr>
       <td colspan="10" class="po-foot-lbl">{{ _('结算总额') if is_settle else _('批价总额') }}</td>
       <td class="r po-foot-sum at-mono" id="{{ tbody_id }}Total">{{ currency_symbol }}{{ '{:,.2f}'.format(total_amount or 0) }}</td>
-      <td class="po-col-quote"></td><td class="po-col-quote"></td>
+      <td class="po-col-quote po-quote" style="text-align:right;font-weight:500;">{{ _('报价总额') }}</td>
+      <td class="po-col-quote po-quote at-mono" id="{{ tbody_id }}QuoteTotal" style="text-align:right;font-weight:600;font-size:14px;">{{ currency_symbol }}{{ '{:,.2f}'.format(quote_total or 0) }}</td>
       <td></td>{% if not is_settle %}<td class="po-del-col"></td>{% endif %}
     </tr>
   </tfoot>

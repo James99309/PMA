@@ -418,17 +418,24 @@ def at_edit_pricing_order(order_id):
         if q_ids:
             for qd in QuotationDetail.query.filter(QuotationDetail.id.in_(q_ids)).all():
                 qd_map[qd.id] = qd
-        pricing_quote, settlement_quote, quote_total = {}, {}, 0.0
+        # 报价合计按"当前批价/结算明细数量 × 报价单价"计算(数量可能与报价单不同)
+        pricing_quote, settlement_quote = {}, {}
+        quote_total, settle_quote_total = 0.0, 0.0
         for d in pricing_order.pricing_details:
             qd = qd_map.get(d.source_quotation_detail_id)
             if qd:
-                pricing_quote[d.id] = {'unit': qd.unit_price or 0, 'total': qd.total_price or 0}
-                quote_total += (qd.total_price or 0)
+                q_unit = qd.unit_price or 0
+                line = q_unit * (d.quantity or 0)
+                pricing_quote[d.id] = {'unit': q_unit, 'total': line}
+                quote_total += line
         for s in pricing_order.settlement_details:
             pd = s.pricing_detail
             qd = qd_map.get(pd.source_quotation_detail_id) if pd else None
             if qd:
-                settlement_quote[s.id] = {'unit': qd.unit_price or 0, 'total': qd.total_price or 0}
+                q_unit = qd.unit_price or 0
+                line = q_unit * (s.quantity or 0)
+                settlement_quote[s.id] = {'unit': q_unit, 'total': line}
+                settle_quote_total += line
 
         # 按产品分类分组(同报价单:product_mn → Product.category,按 ProductCategory.display_order 排序)
         from app import db as _db
@@ -483,6 +490,7 @@ def at_edit_pricing_order(order_id):
             currency_symbol=currency_symbol,
             gp=gp, gm=gm, market_total=market_total,
             quote_total=quote_total,
+            settle_quote_total=settle_quote_total,
             pricing_quote=pricing_quote,
             settlement_quote=settlement_quote,
             grouped_pricing=grouped_pricing,

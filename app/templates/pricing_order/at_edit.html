@@ -274,7 +274,7 @@
           {{ render_pricing_order_details_table(pricing_order.pricing_details, entity='pricing',
               currency_symbol=currency_symbol, can_edit=po_editable, tbody_id='pricingTbody',
               total_amount=pricing_order.pricing_total_amount or 0, quote_map=pricing_quote,
-              grouped=grouped_pricing) }}
+              grouped=grouped_pricing, quote_total=quote_total) }}
         </div>
       </div>
     </section>
@@ -316,7 +316,7 @@
           {{ render_pricing_order_details_table(pricing_order.settlement_details, entity='settlement',
               currency_symbol=currency_symbol, can_edit=po_editable_settle, tbody_id='settlementTbody',
               total_amount=pricing_order.settlement_total_amount or 0, quote_map=settlement_quote,
-              grouped=grouped_settlement) }}
+              grouped=grouped_settlement, quote_total=settle_quote_total) }}
         </div>
       </div>
     </section>
