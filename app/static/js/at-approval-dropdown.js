@@ -540,6 +540,17 @@
     if (!instanceId) { if (g.ATToast) ATToast.error(t('找不到审批实例 ID')); return; }
     if (!g.ATConfirm) { if (g.ATToast) ATToast.error(t('AT 弹窗组件未加载')); return; }
 
+    // 通用扩展点:approve 前的可选预审钩子(返回 Promise<bool>;false 则中止)。
+    // 页面可定义 window.atApprovalPreApprove 注入业务校验(如批价折扣超审批人下限提醒),组件本身不含具体业务逻辑。
+    if (action === 'approve' && typeof g.atApprovalPreApprove === 'function' && !root.__preApproveOk) {
+      Promise.resolve(g.atApprovalPreApprove(root, flow)).then(function (ok) {
+        if (!ok) return;
+        root.__preApproveOk = true;
+        try { approveDecision(root, action, flow); } finally { root.__preApproveOk = false; }
+      });
+      return;
+    }
+
     // 项目失败审核(lost)同意时的归因认定:
     //   首个业务审批步(部门经理/服务经理)→ 个人因素为主;末步(总经理)→ 团队管理失责
     //   说明:flow.stages 含一个前置"发起申请"合成节点(id==='initiator')须排除;

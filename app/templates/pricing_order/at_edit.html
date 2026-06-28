@@ -62,6 +62,10 @@
   body.at-page .po-num-in{width:120px;height:34px;box-sizing:border-box;padding:0 11px;border:1px solid var(--line-2);border-radius:7px;background:var(--bg-page);font:inherit;font-size:13px;color:var(--ink);text-align:right;outline:none;}
   body.at-page .po-notes-ta{width:100%;box-sizing:border-box;min-height:64px;resize:vertical;padding:8px 10px;border:1px solid var(--line-2);border-radius:7px;background:var(--bg-page);font:inherit;font-size:13px;line-height:1.5;color:var(--ink);outline:none;}
   body.at-page .po-notes-ta:focus{border-color:var(--accent);}
+  /* 折扣低于权限下限:标红(显示值 + 输入框) */
+  .po-dt td.po-over-limit .show-val,
+  .po-dt td.po-over-limit > span,
+  .po-dt td.po-over-limit input.cell-input{color:var(--danger)!important;font-weight:600;}
 </style>
 </head>
 <body class="at-page">
@@ -283,7 +287,7 @@
           {{ render_pricing_order_details_table(pricing_order.pricing_details, entity='pricing',
               currency_symbol=currency_symbol, can_edit=po_editable, tbody_id='pricingTbody',
               total_amount=pricing_order.pricing_total_amount or 0, quote_map=pricing_quote,
-              grouped=grouped_pricing, quote_total=quote_total) }}
+              grouped=grouped_pricing, quote_total=quote_total, vendor_mns=vendor_mns) }}
         </div>
       </div>
     </section>
@@ -350,7 +354,7 @@
           {{ render_pricing_order_details_table(pricing_order.settlement_details, entity='settlement',
               currency_symbol=currency_symbol, can_edit=po_editable_settle, tbody_id='settlementTbody',
               total_amount=pricing_order.settlement_total_amount or 0, quote_map=settlement_quote,
-              grouped=grouped_settlement, quote_total=settle_quote_total) }}
+              grouped=grouped_settlement, quote_total=settle_quote_total, vendor_mns=vendor_mns) }}
         </div>
       </div>
     </section>
@@ -406,6 +410,17 @@ function poSubmitApproval(btn){
     }catch(err){ if(window.ATToast) ATToast.error('{{ _("请求失败") }}'); else alert('请求失败'); if(btn) btn.disabled=false; }
   };
   if(!window.ATConfirm){ doSubmit(); return; }
+  // 发起前:检测低于权限折扣下限的明细(已标红),提醒确认已获邮件审批许可
+  var _over = (typeof poCollectOverLimit==='function') ? poCollectOverLimit() : 0;
+  if(_over>0){
+    ATConfirm.show({
+      title:'{{ _("折扣低于权限下限") }}',
+      message:'{{ _("检测到 N 项明细折扣低于您的折扣权限下限(已在表中标红)。请确认您已就这些折扣获得邮件审批许可,确认后将发起审批。") }}'.replace('N', _over),
+      variant:'danger', icon:'warn',
+      confirmText:'{{ _("已获许可,提交") }}', cancelText:'{{ _("取消") }}', onConfirm: doSubmit
+    });
+    return;
+  }
   ATConfirm.show({
     title:'{{ _("提交审批") }}', message:'{{ _("提交后将进入审批流程,审批中可召回。确认提交?") }}',
     icon:'info', confirmText:'{{ _("提交") }}', cancelText:'{{ _("取消") }}', onConfirm: doSubmit
@@ -471,6 +486,72 @@ function poDeleteOrder(btn){
   });
 })();
 
+/* ── 折扣低于权限下限:明细标红 + 发起前提醒(只检查明细单项) ── */
+/* 标红基准下限(百分比;0/null=无限制):可编辑该实体→当前用户自己下限;只读→申请者下限 */
+var PO_PRICING_LIMIT = {{ mark_pricing_limit if mark_pricing_limit else 'null' }};
+var PO_SETTLE_LIMIT = {{ mark_settle_limit if mark_settle_limit else 'null' }};
+function _poDiscInfo(row, cls){
+  if(!row) return null;
+  var inp=row.querySelector('input.'+cls);
+  var el=inp||row.querySelector('.'+cls);
+  if(!el) return null;
+  var v=parseFloat(String(inp?inp.value:el.textContent).replace(/[^0-9.\-]/g,''));
+  return {val:isNaN(v)?null:v, td:el.closest('td')};
+}
+function _poMarkRow(row, cls, limit){
+  if(!limit||limit<=0) return false;
+  var d=_poDiscInfo(row,cls); if(!d||d.val==null||!d.td) return false;
+  var over=d.val<limit; d.td.classList.toggle('po-over-limit',over); return over;
+}
+/* 仅厂商产品行参与折扣检查(data-vendor="1");非厂商/手工/查不到的明细跳过 */
+function poMarkOverLimit(){
+  document.querySelectorAll('#pricingTbody .product-row[data-vendor="1"]').forEach(function(r){ _poMarkRow(r,'cell-discount',PO_PRICING_LIMIT); });
+  document.querySelectorAll('#settlementTbody .product-row[data-vendor="1"]').forEach(function(r){ _poMarkRow(r,'cell-settle-discount',PO_SETTLE_LIMIT); });
+}
+function poCollectOverLimit(){
+  var n=0;
+  function scan(sel,cls,limit){ if(!limit||limit<=0) return;
+    document.querySelectorAll(sel+' .product-row[data-vendor="1"]').forEach(function(r){ var d=_poDiscInfo(r,cls); if(d&&d.val!=null&&d.val<limit) n++; }); }
+  scan('#pricingTbody','cell-discount',PO_PRICING_LIMIT);
+  scan('#settlementTbody','cell-settle-discount',PO_SETTLE_LIMIT);
+  return n;
+}
+document.addEventListener('input',function(e){
+  if(!e.target||!e.target.matches) return;
+  var row=e.target.closest('tr.product-row');
+  if(!row||row.getAttribute('data-vendor')!=='1') return;  // 仅厂商产品行
+  if(e.target.matches('input.cell-discount')) _poMarkRow(row,'cell-discount',PO_PRICING_LIMIT);
+  else if(e.target.matches('input.cell-settle-discount')) _poMarkRow(row,'cell-settle-discount',PO_SETTLE_LIMIT);
+});
+
+/* ── 审批人自己的下限:点"同意"前提醒压到其本人权限之外的厂商明细 ── */
+var PO_VIEWER_PRICING_LIMIT = {{ viewer_pricing_discount_limit if viewer_pricing_discount_limit else 'null' }};
+var PO_VIEWER_SETTLE_LIMIT = {{ viewer_settlement_discount_limit if viewer_settlement_discount_limit else 'null' }};
+function poCollectViewerOverLimit(){
+  var n=0;
+  function scan(sel,cls,limit){ if(!limit||limit<=0) return;
+    document.querySelectorAll(sel+' .product-row[data-vendor="1"]').forEach(function(r){ var d=_poDiscInfo(r,cls); if(d&&d.val!=null&&d.val<limit) n++; }); }
+  scan('#pricingTbody','cell-discount',PO_VIEWER_PRICING_LIMIT);
+  scan('#settlementTbody','cell-settle-discount',PO_VIEWER_SETTLE_LIMIT);
+  return n;
+}
+/* 通用审批组件 approve 前的预审钩子:返回 Promise<bool>(true 才继续通过) */
+window.atApprovalPreApprove = function(root, flow){
+  return new Promise(function(resolve){
+    // 仅批价单对象生效
+    if(!root || root.dataset.objectType !== 'pricing_order'){ resolve(true); return; }
+    var n = poCollectViewerOverLimit();
+    if(!n || !window.ATConfirm){ resolve(true); return; }
+    ATConfirm.show({
+      title:'{{ _("折扣低于您的权限下限") }}',
+      message:'{{ _("当前有 N 项厂商产品折扣低于您本人的折扣权限下限。请确认您已就这些折扣获得邮件审批许可,确认后再通过审批。") }}'.replace('N', n),
+      variant:'danger', icon:'warn',
+      confirmText:'{{ _("已获许可,继续") }}', cancelText:'{{ _("取消") }}',
+      onConfirm:function(){ resolve(true); }, onCancel:function(){ resolve(false); }
+    });
+  });
+};
+
 /* 经销商/分销商 combobox(含厂商直签/厂家提货特殊项) */
 var PO_VENDOR = {{ vendor_company_name|tojson }};
 var PO_IS_VENDOR_USER = {{ 'true' if is_vendor_user else 'false' }};
@@ -485,7 +566,7 @@ function poInitCombo(inputId,hiddenId,ddId,options,onChange){
   function render(q){
     var lq=(q||'').toLowerCase();
     var hits=q?options.filter(function(o){return o.text.toLowerCase().indexOf(lq)>=0;}):options;
-    dd.innerHTML=hits.length?hits.map(function(o){return '<div class="po-cb-item'+(o.special?' po-cb-special':'')+'" data-id="'+o.id+'" data-text="'+o.text.replace(/"/g,'&quot;')+'" data-disp="'+((o.disp||o.text).replace(/"/g,'&quot;'))+'">'+o.text+'</div>';}).join(''):'<div class="po-cb-item" style="color:var(--ink-4)">无匹配</div>';
+    dd.innerHTML=hits.length?hits.map(function(o){return '<div class="po-cb-item'+(o.special?' po-cb-special':'')+'" data-id="'+o.id+'" data-text="'+o.text.replace(/"/g,'&quot;')+'" data-disp="'+((o.disp||o.text).replace(/"/g,'&quot;'))+'">'+o.text+'</div>';}).join(''):'<div class="po-cb-item" style="color:var(--ink-4)">{{ _("无匹配") }}</div>';
     dd.style.display='block';
   }
   input.addEventListener('focus',function(){render(input.value);});
@@ -512,6 +593,8 @@ document.addEventListener('DOMContentLoaded',function(){
   poInitCombo('distributorInput','distributorHidden','distributorDD',PO_DIST_OPTS);
   // 初始:若已是厂商直签,禁用分销商
   if((document.getElementById('dealerHidden')||{}).value==='__direct__') poSetDistDisabled(true);
+  // 初始:标红低于权限折扣下限的明细
+  if(typeof poMarkOverLimit==='function') poMarkOverLimit();
 });
 
 /* 总折扣率全局应用 —— 批价/结算共用一个函数(DRY);
@@ -531,6 +614,8 @@ function poApplyTotal(cfg, pct){
   });
   var t=0; tb.querySelectorAll(cfg.sub).forEach(function(el){ t+=_poNum(el.textContent); });
   var f=document.getElementById(cfg.total); if(f) f.textContent=PO_CUR+_poFmt(t);
+  // 总折扣应用为程序改值(不触发 input 事件),手动重标红
+  if(typeof poMarkOverLimit==='function') poMarkOverLimit();
 }
 function poApplyTotalDiscount(pct){ poApplyTotal({tbody:'pricingTbody',disc:'.cell-discount',price:'.cell-price',sub:'.cell-subtotal',total:'pricingTbodyTotal'}, pct); }
 function poApplySettleTotalDiscount(pct){ poApplyTotal({tbody:'settlementTbody',disc:'.cell-settle-discount',price:'.cell-settle-price',sub:'.cell-settle-subtotal',total:'settlementTbodyTotal'}, pct); }
@@ -577,7 +662,7 @@ async function poSaveAll(btn){
       };
       var r1=await fetch('/pricing_order/'+PO_ORDER_ID+'/update_basic_info',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(basic)});
       var d1=await r1.json();
-      if(!d1.success){ alert('基本信息保存失败: '+(d1.message||'')); if(btn) btn.disabled=false; return; }
+      if(!d1.success){ alert('{{ _("基本信息保存失败") }}: '+(d1.message||'')); if(btn) btn.disabled=false; return; }
     }
     // 2. 批价明细(仅有权时)
     if(PO_CAN_EDIT_PRICING){
@@ -589,7 +674,7 @@ async function poSaveAll(btn){
       });
       var r2=await fetch('/pricing_order/'+PO_ORDER_ID+'/save_pricing_details',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({details:rows})});
       var d2=await r2.json();
-      if(!d2.success){ alert('明细保存失败: '+(d2.message||'未知错误')); if(btn) btn.disabled=false; return; }
+      if(!d2.success){ alert('{{ _("明细保存失败") }}: '+(d2.message||'{{ _("未知错误") }}')); if(btn) btn.disabled=false; return; }
       // 整单备注(批价+结算,update_notes 需 can_edit_pricing;两个值都发,避免互相清空)
       var pn=document.getElementById('poPricingNotes'), sn=document.getElementById('poSettleNotes');
       if(pn||sn){
@@ -606,11 +691,11 @@ async function poSaveAll(btn){
         var pct=parseFloat(dEl.value)||0;
         var rs=await fetch('/pricing_order/'+PO_ORDER_ID+'/update_settlement_detail',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({detail_id:parseInt(tr.dataset.id), discount_rate: pct/100})});
         var ds=await rs.json();
-        if(!ds.success){ alert('结算保存失败: '+(ds.message||'')); if(btn) btn.disabled=false; return; }
+        if(!ds.success){ alert('{{ _("结算保存失败") }}: '+(ds.message||'')); if(btn) btn.disabled=false; return; }
       }
     }
     location.reload();
-  }catch(err){ alert('请求失败: '+err.message); if(btn) btn.disabled=false; }
+  }catch(err){ alert('{{ _("请求失败") }}: '+err.message); if(btn) btn.disabled=false; }
 }
 </script>
 </body>

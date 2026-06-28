@@ -476,9 +476,42 @@ def at_edit_pricing_order(order_id):
         else:
             back_url = url_for('pricing_order.at_list_view')
 
+        # 折扣下限:始终按【申请者(创建人)】的权限下限标记低于下限的明细。
+        # 这样审批人看到的是"申请者压到其权限之外、需要审批放行的单项",而非审批人自己的下限。
+        # 0/None=无限制(如创建人是管理员)。
+        _disc_limits = DiscountPermissionService.get_user_discount_limits(pricing_order.created_by)
+        pricing_discount_limit = _disc_limits.get('pricing_discount_limit')
+        settlement_discount_limit = _disc_limits.get('settlement_discount_limit')
+
+        # 审批人(当前用户)自己的下限:审批人点"同意"前,按自己下限提醒压到其权限之外的厂商明细。
+        _viewer_limits = DiscountPermissionService.get_user_discount_limits(current_user)
+        viewer_pricing_discount_limit = _viewer_limits.get('pricing_discount_limit')
+        viewer_settlement_discount_limit = _viewer_limits.get('settlement_discount_limit')
+
+        # 标红基准:能编辑该实体的人按【自己】下限(避免在自身权限内被误标);
+        # 只读查看者按【申请者】下限(看到"压到申请者权限之外"的逃逸基线)。批价/结算分别判定。
+        _po_editable = can_edit_pricing and pricing_order.status != 'approved'
+        _po_editable_settle = can_edit_settlement and pricing_order.status != 'approved'
+        mark_pricing_limit = viewer_pricing_discount_limit if _po_editable else pricing_discount_limit
+        mark_settle_limit = viewer_settlement_discount_limit if _po_editable_settle else settlement_discount_limit
+
+        # 厂商产品 MN 集合:折扣检查仅针对厂商产品(非厂商/手工录入/查不到的明细一律跳过)
+        from app.models.product import Product
+        vendor_mns = set(
+            mn for (mn,) in Product.query.filter_by(is_vendor_product=True)
+            .with_entities(Product.product_mn).all() if mn
+        )
+
         return render_template(
             'pricing_order/at_edit.html',
             pricing_order=pricing_order,
+            pricing_discount_limit=pricing_discount_limit,
+            settlement_discount_limit=settlement_discount_limit,
+            viewer_pricing_discount_limit=viewer_pricing_discount_limit,
+            viewer_settlement_discount_limit=viewer_settlement_discount_limit,
+            mark_pricing_limit=mark_pricing_limit,
+            mark_settle_limit=mark_settle_limit,
+            vendor_mns=vendor_mns,
             can_edit_pricing=can_edit_pricing,
             can_edit_settlement=can_edit_settlement,
             can_view_settlement=can_view_settlement,
