@@ -99,10 +99,13 @@
   .kb-csub { font-size:11.5px; color:var(--accent); font-weight:500; }
   .kb-cdesc { font-size:12.5px; color:var(--ink-3); line-height:1.5; }
   /* 课程管理:按钮 / 表单 / 卡片悬停操作 */
-  .cm-btn { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500;
-            padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--bg-elev);
-            color:var(--ink-2); cursor:pointer; white-space:nowrap; }
+  /* 与 AT 标准按钮 at_btn 对齐:height 34 / radius 6 / ghost(line-2) / accent */
+  .cm-btn { display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 14px;
+            border-radius:6px; font-size:13px; font-weight:500; letter-spacing:.01em;
+            border:1px solid var(--line-2); background:transparent; color:var(--ink);
+            cursor:pointer; white-space:nowrap; transition:background 120ms, border-color 120ms; }
   .cm-btn:hover { background:var(--bg-hover); }
+  .cm-btn .material-symbols-outlined { font-size:16px; }
   .cm-btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
   .cm-btn-primary:hover { background:var(--accent); filter:brightness(1.06); }
   .cm-btn:disabled { opacity:.5; cursor:not-allowed; }
@@ -332,7 +335,7 @@
         </div>
         {% if is_admin %}
         <button class="cm-btn cm-btn-primary" @click="openUpload()">
-          <span class="material-symbols-outlined" style="font-size:17px;">upload_file</span>{{ _('上传课程') }}
+          <span class="material-symbols-outlined">upload_file</span>{{ _('上传课程') }}
         </button>
         {% endif %}
       </div>
@@ -395,16 +398,28 @@
               <label class="cm-field" style="width:110px;"><span>{{ _('封面底色') }}</span><input type="color" x-model="form.accent" class="cm-in" style="height:36px;padding:2px;"></label>
             </div>
             <template x-if="modal==='edit'">
-              <label class="cm-field"><span>{{ _('封面取第几页') }}</span><input type="number" min="1" x-model="form.cover_page" class="cm-in" style="width:90px;"></label>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <label class="cm-field"><span>{{ _('封面取第几页') }}</span>
+                  <input type="number" min="1" x-model="form.cover_page" class="cm-in" style="width:90px;"></label>
+                <label class="cm-field"><span>{{ _('替换课件 HTML(可选,会重新析出知识 + 缩略图)') }}</span>
+                  <input type="file" accept=".html" x-ref="editFile" class="cm-in"></label>
+              </div>
             </template>
             <div x-show="err" style="color:var(--danger,#C0392B);font-size:12.5px;" x-text="err"></div>
           </div>
-          <div style="padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;">
-            <button class="cm-btn" @click="modal=null">{{ _('取消') }}</button>
-            <button class="cm-btn cm-btn-primary" :disabled="busy" @click="modal==='upload' ? doUpload() : doEdit()">
-              <span x-show="!busy" x-text="modal==='upload' ? '{{ _('上传') }}' : '{{ _('保存') }}'"></span>
-              <span x-show="busy">{{ _('处理中…') }}</span>
+          <div style="padding:14px 20px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <button class="cm-btn" x-show="modal==='edit'" @click="delCourse(editId, form.title)"
+                    style="color:var(--danger,#C0392B);border-color:var(--danger-soft,#e6c4c0);">
+              <span class="material-symbols-outlined">delete</span>{{ _('删除课程') }}
             </button>
+            <span x-show="modal!=='edit'"></span>
+            <div style="display:flex;gap:10px;">
+              <button class="cm-btn" @click="modal=null">{{ _('取消') }}</button>
+              <button class="cm-btn cm-btn-primary" :disabled="busy" @click="modal==='upload' ? doUpload() : doEdit()">
+                <span x-show="!busy" x-text="modal==='upload' ? '{{ _('上传') }}' : '{{ _('保存') }}'"></span>
+                <span x-show="busy">{{ _('处理中…') }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -442,9 +457,12 @@
       },
       async doEdit() {
         this.busy=true; this.err='';
+        const fd=new FormData();
+        ['title','subtitle','desc','topic','accent','cover_page'].forEach(k=>fd.append(k, this.form[k]??''));
+        const f=this.$refs.editFile && this.$refs.editFile.files[0];
+        if(f) fd.append('file', f);
         try {
-          const r=await fetch('/wiki/courses/'+this.editId, {method:'PATCH', credentials:'same-origin',
-            headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.form)});
+          const r=await fetch('/wiki/courses/'+this.editId, {method:'POST', credentials:'same-origin', body:fd});
           const j=await r.json();
           if(!j.success) throw new Error(j.message||'保存失败');
           location.reload();

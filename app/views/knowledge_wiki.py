@@ -229,6 +229,30 @@ def course_thumb(course_key, page):
 
 # ── 课程管理(上传 / 编辑 / 生成缩略图 / 删除,仅管理员)──────────────
 
+def _bg_generate_thumbs(app_obj, cid, key, n_pages):
+    """后台线程:生成逐页缩略图并置 has_thumbs(best-effort,失败仅记日志)。"""
+    with app_obj.app_context():
+        try:
+            from app.services import course_thumbs
+            course_thumbs.generate_thumbnails(key, n_pages, COURSE_ASSETS_DIR)
+            row = InteractiveCourse.query.get(cid)
+            if row:
+                row.has_thumbs = True
+                db.session.commit()
+            logger.info('[course] 后台缩略图完成: %s (%d 页)', key, n_pages)
+        except Exception:
+            logger.exception('[course] 后台缩略图失败(服务端可能缺 Playwright): %s', key)
+
+
+def _kick_thumbs(cid, key, n_pages):
+    if n_pages > 0:
+        threading.Thread(
+            target=_bg_generate_thumbs,
+            args=(current_app._get_current_object(), cid, key, n_pages),
+            daemon=True,
+        ).start()
+
+
 @knowledge_wiki_bp.route('/wiki/courses', methods=['POST'])
 @login_required
 def create_course():
@@ -274,19 +298,23 @@ def create_course():
         except Exception:
             logger.exception('[course] 知识析出失败: %s', key)
 
-    return jsonify({'success': True, 'data': row.to_dict(),
-                    'page_count': len(pages),
-                    'message': f'已创建,解析 {len(pages)} 页' + ('(可点"生成缩略图")' if pages else '(无分页)')})
+    # 上传即后台生成缩略图(不用单独点)
+    _kick_thumbs(row.id, key, len(pages))
+
+    return jsonify({'success': True, 'data': row.to_dict(), 'page_count': len(pages),
+                    'message': (f'已创建,解析 {len(pages)} 页,缩略图后台生成中(稍后刷新可见)'
+                                if pages else '已创建(课件无分页,无知识析出/缩略图)')})
 
 
-@knowledge_wiki_bp.route('/wiki/courses/<int:cid>', methods=['PATCH'])
+@knowledge_wiki_bp.route('/wiki/courses/<int:cid>', methods=['PATCH', 'POST'])
 @login_required
 def update_course(cid):
-    """编辑课程元数据。"""
+    """编辑课程元数据;可选替换课件 HTML(multipart 带 file → 重解析+重析出+重生成缩略图)。"""
     if not _is_admin():
         return jsonify({'success': False, 'message': '仅管理员可编辑'}), 403
     row = InteractiveCourse.query.get_or_404(cid)
-    data = request.get_json(silent=True) or {}
+    is_multipart = 'multipart' in (request.content_type or '')
+    data = request.form if is_multipart else (request.get_json(silent=True) or {})
     for fld in ('title', 'subtitle', 'desc', 'topic', 'accent'):
         if fld in data:
             setattr(row, fld, (data.get(fld) or '').strip())
@@ -295,6 +323,29 @@ def update_course(cid):
             row.cover_page = max(1, int(data['cover_page']))
         except (TypeError, ValueError):
             pass
+
+    f = request.files.get('file')
+    if f and (f.filename or '').lower().endswith('.html'):
+        path = os.path.join(COURSE_ASSETS_DIR, row.key + '.html')
+        f.save(path)
+        _COURSE_PAGES_CACHE.pop(row.key, None)
+        pages = _parse_course_pages(path)
+        row.page_count = len(pages)
+        row.has_thumbs = False
+        if pages:
+            try:
+                from app.services import course_knowledge
+                art = course_knowledge.ingest_course_knowledge(
+                    row.to_dict(), pages, topic=row.topic,
+                    owner_id=row.owner_id or current_user.id, scope='company')
+                row.article_id = art.id
+            except Exception:
+                logger.exception('[course] 替换 HTML 后知识析出失败: %s', row.key)
+        db.session.commit()
+        _kick_thumbs(row.id, row.key, len(pages))
+        return jsonify({'success': True, 'data': row.to_dict(), 'replaced': True,
+                        'message': f'已替换课件,解析 {len(pages)} 页,缩略图后台重生成中'})
+
     db.session.commit()
     return jsonify({'success': True, 'data': row.to_dict()})
 
