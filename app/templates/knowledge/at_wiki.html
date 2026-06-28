@@ -10,6 +10,7 @@
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% from 'components/at_topbar.html' import at_topbar with context %}
 {% from 'components/at_base.html' import at_icon, at_tabs, at_segmented %}
+{% from 'components/at_purchase_order.html' import at_modal_shell, at_field %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_delete_confirm_modal, tw_confirm_modal_script %}
 <!DOCTYPE html>
 <html lang="zh">
@@ -25,6 +26,7 @@
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
@@ -86,8 +88,10 @@
   .kb-send:disabled { opacity:.5; cursor:not-allowed; }
 
   /* ── 互动课程卡片(沿用) ── */
-  .kb-grid { display:grid; gap:18px; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); padding:24px 0; }
-  .kb-card { background:var(--bg-elev); border:1px solid var(--line); border-radius:14px; overflow:hidden;
+  .kb-grid { display:grid; gap:18px; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+             padding:24px 0; align-items:stretch; }
+  .kb-card-wrap { display:flex; flex-direction:column; }
+  .kb-card { flex:1; background:var(--bg-elev); border:1px solid var(--line); border-radius:14px; overflow:hidden;
              display:flex; flex-direction:column; cursor:pointer; text-decoration:none;
              transition:box-shadow 140ms,transform 140ms,border-color 140ms; }
   .kb-card:hover { box-shadow:0 14px 34px rgba(0,0,0,.12); transform:translateY(-2px); border-color:var(--accent); }
@@ -95,29 +99,34 @@
   .kb-cover .kb-mark { font-family:var(--font-serif); color:#fff; font-weight:700; letter-spacing:3px; font-size:20px; }
   .kb-cover .kb-mark small { display:block; color:#00D8FE; font-weight:500; letter-spacing:4px; font-size:10px; margin-top:4px; }
   .kb-cbody { padding:14px 16px 16px; flex:1; display:flex; flex-direction:column; gap:6px; }
-  .kb-ctitle { font-family:var(--font-serif); font-size:16px; font-weight:600; color:var(--ink); line-height:1.25; }
-  .kb-csub { font-size:11.5px; color:var(--accent); font-weight:500; }
-  .kb-cdesc { font-size:12.5px; color:var(--ink-3); line-height:1.5; }
+  .kb-ctitle { font-family:var(--font-serif); font-size:16px; font-weight:600; color:var(--ink); line-height:1.25;
+               display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .kb-csub { font-size:11.5px; color:var(--accent); font-weight:500; min-height:15px; }
+  .kb-cdesc { font-size:12.5px; color:var(--ink-3); line-height:1.5; min-height:38px;
+              display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   /* 课程管理:按钮 / 表单 / 卡片悬停操作 */
-  /* 与 AT 标准按钮 at_btn 对齐:height 34 / radius 6 / ghost(line-2) / accent */
-  .cm-btn { display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 14px;
+  /* 与 AT 标准按钮 at_btn 对齐;带 body.at-page 前缀压过全局按钮重置(at-theme.css: body.at-page button{...}) */
+  body.at-page .cm-btn { display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 14px;
             border-radius:6px; font-size:13px; font-weight:500; letter-spacing:.01em;
             border:1px solid var(--line-2); background:transparent; color:var(--ink);
             cursor:pointer; white-space:nowrap; transition:background 120ms, border-color 120ms; }
-  .cm-btn:hover { background:var(--bg-hover); }
-  .cm-btn .material-symbols-outlined { font-size:16px; }
-  .cm-btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-  .cm-btn-primary:hover { background:var(--accent); filter:brightness(1.06); }
-  .cm-btn:disabled { opacity:.5; cursor:not-allowed; }
+  body.at-page .cm-btn:hover { background:var(--bg-hover); }
+  body.at-page .cm-btn .material-symbols-outlined { font-size:16px; }
+  body.at-page .cm-btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  body.at-page .cm-btn-primary:hover { background:var(--accent); filter:brightness(1.06); }
+  body.at-page .cm-btn:disabled { opacity:.5; cursor:not-allowed; }
   .cm-field { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--ink-3); }
   .cm-in { font-size:13px; padding:8px 10px; border:1px solid var(--line); border-radius:7px;
            background:var(--bg-page); color:var(--ink); width:100%; box-sizing:border-box; font-family:inherit; }
   .cm-in:focus { outline:2px solid var(--accent); outline-offset:-1px; }
-  .kb-card-ops { position:absolute; top:8px; right:8px; display:flex; gap:4px; opacity:0; transition:opacity 120ms; }
-  div:hover > .kb-card-ops { opacity:1; }
-  .kb-card-ops button { width:28px; height:28px; border-radius:6px; border:0; background:rgba(0,0,0,.55);
-                        color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  .kb-card-ops button:hover { background:rgba(0,0,0,.82); }
+  .kb-card-ops { position:absolute; bottom:10px; right:10px; display:flex; gap:5px; z-index:3;
+                 opacity:0; transition:opacity 120ms; }
+  .kb-card-wrap:hover .kb-card-ops { opacity:1; }
+  body.at-page .kb-card-ops button { width:30px; height:30px; border-radius:7px; border:1px solid var(--line);
+                        background:var(--bg-elev); color:var(--ink-2); cursor:pointer;
+                        display:flex; align-items:center; justify-content:center;
+                        box-shadow:0 2px 8px rgba(0,0,0,.14); }
+  body.at-page .kb-card-ops button:hover { background:var(--bg-hover); color:var(--ink); border-color:var(--accent); }
   .kb-card-ops .material-symbols-outlined { font-size:16px; }
 </style>
 </head>
@@ -325,7 +334,7 @@
   </div>
 
   {# ══════════ 互动课程 tab ══════════ #}
-  <div data-tab-panel="courses" style="height:100%;overflow-y:auto;" x-data="coursesAdmin()">
+  <div data-tab-panel="courses" style="height:100%;overflow-y:auto;">
     <main style="max-width:1280px;margin:0 auto;padding:0 36px;">
       <div style="padding-top:24px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;">
         <div>
@@ -334,7 +343,7 @@
           <div class="at-dim" style="font-size:13px;margin-top:6px;">{{ _('点击课程卡片,在新标签页中播放互动课件并完成考核。') }}</div>
         </div>
         {% if is_admin %}
-        <button class="cm-btn cm-btn-primary" @click="openUpload()">
+        <button class="cm-btn cm-btn-primary" onclick="cmOpenUpload()">
           <span class="material-symbols-outlined">upload_file</span>{{ _('上传课程') }}
         </button>
         {% endif %}
@@ -342,7 +351,7 @@
       {% if courses %}
       <div class="kb-grid">
         {% for c in courses %}
-        <div style="position:relative;">
+        <div class="kb-card-wrap" style="position:relative;">
           <a class="kb-card" href="{{ url_for('knowledge_wiki.play_course', course_key=c.key) }}" target="_blank" rel="noopener">
             <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};">
               {% if c.has_thumbs %}
@@ -360,11 +369,11 @@
           </a>
           {% if is_admin %}
           <div class="kb-card-ops">
-            <button title="{{ _('编辑') }}" @click.stop.prevent='openEdit({{ c|tojson }})'>
+            <button title="{{ _('编辑') }}" onclick='cmOpenEdit({{ c|tojson }})'>
               <span class="material-symbols-outlined">edit</span></button>
-            <button title="{{ _('生成缩略图') }}" @click.stop.prevent="genThumbs({{ c.id }})">
+            <button title="{{ _('生成缩略图') }}" onclick="cmGenThumbs({{ c.id }})">
               <span class="material-symbols-outlined">image</span></button>
-            <button title="{{ _('删除') }}" @click.stop.prevent="delCourse({{ c.id }}, {{ c.title|tojson }})">
+            <button title="{{ _('删除') }}" onclick='cmConfirmDelete({{ c.id }}, {{ c.title|tojson }})'>
               <span class="material-symbols-outlined">delete</span></button>
           </div>
           {% endif %}
@@ -376,54 +385,6 @@
       {% endif %}
     </main>
 
-    {# ── 上传 / 编辑 模态 ── #}
-    <template x-if="modal">
-      <div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;"
-           @click.self="modal=null">
-        <div style="background:var(--bg-elev);border-radius:14px;width:460px;max-width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-          <div style="padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-family:var(--font-serif);font-size:16px;font-weight:600;" x-text="modal==='upload' ? '{{ _('上传课程') }}' : '{{ _('编辑课程') }}'"></span>
-            <button @click="modal=null" style="border:0;background:none;cursor:pointer;color:var(--ink-4);"><span class="material-symbols-outlined">close</span></button>
-          </div>
-          <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px;">
-            <template x-if="modal==='upload'">
-              <label class="cm-field"><span>{{ _('课件 HTML 文件') }} *</span>
-                <input type="file" accept=".html" x-ref="file" class="cm-in"></label>
-            </template>
-            <label class="cm-field"><span>{{ _('标题') }} *</span><input x-model="form.title" class="cm-in"></label>
-            <label class="cm-field"><span>{{ _('副标题') }}</span><input x-model="form.subtitle" class="cm-in" placeholder="PNR2100 · 互动演示"></label>
-            <label class="cm-field"><span>{{ _('简介') }}</span><textarea x-model="form.desc" class="cm-in" rows="2"></textarea></label>
-            <div style="display:flex;gap:12px;">
-              <label class="cm-field" style="flex:1;"><span>{{ _('分类 topic') }}</span><input x-model="form.topic" class="cm-in" placeholder="产品技术"></label>
-              <label class="cm-field" style="width:110px;"><span>{{ _('封面底色') }}</span><input type="color" x-model="form.accent" class="cm-in" style="height:36px;padding:2px;"></label>
-            </div>
-            <template x-if="modal==='edit'">
-              <div style="display:flex;flex-direction:column;gap:12px;">
-                <label class="cm-field"><span>{{ _('封面取第几页') }}</span>
-                  <input type="number" min="1" x-model="form.cover_page" class="cm-in" style="width:90px;"></label>
-                <label class="cm-field"><span>{{ _('替换课件 HTML(可选,会重新析出知识 + 缩略图)') }}</span>
-                  <input type="file" accept=".html" x-ref="editFile" class="cm-in"></label>
-              </div>
-            </template>
-            <div x-show="err" style="color:var(--danger,#C0392B);font-size:12.5px;" x-text="err"></div>
-          </div>
-          <div style="padding:14px 20px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;">
-            <button class="cm-btn" x-show="modal==='edit'" @click="delCourse(editId, form.title)"
-                    style="color:var(--danger,#C0392B);border-color:var(--danger-soft,#e6c4c0);">
-              <span class="material-symbols-outlined">delete</span>{{ _('删除课程') }}
-            </button>
-            <span x-show="modal!=='edit'"></span>
-            <div style="display:flex;gap:10px;">
-              <button class="cm-btn" @click="modal=null">{{ _('取消') }}</button>
-              <button class="cm-btn cm-btn-primary" :disabled="busy" @click="modal==='upload' ? doUpload() : doEdit()">
-                <span x-show="!busy" x-text="modal==='upload' ? '{{ _('上传') }}' : '{{ _('保存') }}'"></span>
-                <span x-show="busy">{{ _('处理中…') }}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </template>
   </div>
 
   {% endcall %}
@@ -431,62 +392,94 @@
 </div>
 </div>
 
+{# ── 课程管理:上传/编辑 模态(AT 通用 at_modal_shell)── #}
+{% if is_admin %}
+{% set _up_footer %}<button type="button" class="cm-btn" onclick="cmClose('cmUploadModal')">{{ _('取消') }}</button><button type="button" class="cm-btn cm-btn-primary" onclick="cmSubmitUpload(this)">{{ _('上传') }}</button>{% endset %}
+{% call at_modal_shell('cmUploadModal', _('上传课程'), icon='plus', width=500, footer_html=_up_footer) %}
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    {% call at_field(_('课件 HTML 文件'), required=true) %}<input type="file" id="cmU_file" accept=".html" class="cm-in">{% endcall %}
+    {% call at_field(_('标题'), required=true) %}<input id="cmU_title" class="cm-in">{% endcall %}
+    {% call at_field(_('副标题')) %}<input id="cmU_subtitle" class="cm-in" placeholder="PNR2100 · 互动演示">{% endcall %}
+    {% call at_field(_('简介')) %}<textarea id="cmU_desc" class="cm-in" rows="2"></textarea>{% endcall %}
+    <div style="display:flex;gap:12px;">
+      <div style="flex:1;">{% call at_field(_('分类 topic')) %}<input id="cmU_topic" class="cm-in" value="产品技术">{% endcall %}</div>
+      <div style="width:120px;">{% call at_field(_('封面底色')) %}<input type="color" id="cmU_accent" class="cm-in" value="#1A0E3D" style="height:34px;padding:2px;">{% endcall %}</div>
+    </div>
+    <div id="cmU_err" style="color:var(--danger);font-size:12.5px;display:none;"></div>
+  </div>
+{% endcall %}
+{% set _ed_footer %}<button type="button" class="cm-btn" onclick="cmConfirmDelete(window._cmEditId, document.getElementById('cmE_title').value)" style="color:var(--danger);border-color:var(--danger-soft,#e6c4c0);margin-right:auto;"><span class="material-symbols-outlined" style="font-size:16px;">delete</span>{{ _('删除') }}</button><button type="button" class="cm-btn" onclick="cmClose('cmEditModal')">{{ _('取消') }}</button><button type="button" class="cm-btn cm-btn-primary" onclick="cmSubmitEdit(this)">{{ _('保存') }}</button>{% endset %}
+{% call at_modal_shell('cmEditModal', _('编辑课程'), icon='edit', width=500, footer_html=_ed_footer) %}
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    {% call at_field(_('标题'), required=true) %}<input id="cmE_title" class="cm-in">{% endcall %}
+    {% call at_field(_('副标题')) %}<input id="cmE_subtitle" class="cm-in">{% endcall %}
+    {% call at_field(_('简介')) %}<textarea id="cmE_desc" class="cm-in" rows="2"></textarea>{% endcall %}
+    <div style="display:flex;gap:12px;">
+      <div style="flex:1;">{% call at_field(_('分类 topic')) %}<input id="cmE_topic" class="cm-in">{% endcall %}</div>
+      <div style="width:120px;">{% call at_field(_('封面底色')) %}<input type="color" id="cmE_accent" class="cm-in" style="height:34px;padding:2px;">{% endcall %}</div>
+      <div style="width:120px;">{% call at_field(_('封面取第几页')) %}<input type="number" min="1" id="cmE_cover" class="cm-in">{% endcall %}</div>
+    </div>
+    {% call at_field(_('替换课件 HTML(可选,重新析出知识+缩略图)')) %}<input type="file" id="cmE_file" accept=".html" class="cm-in">{% endcall %}
+    <div id="cmE_err" style="color:var(--danger);font-size:12.5px;display:none;"></div>
+  </div>
+{% endcall %}
+{% endif %}
+
 <script>
-  function coursesAdmin() {
-    return {
-      modal: null, busy: false, err: '', editId: null,
-      form: { title:'', subtitle:'', desc:'', topic:'产品技术', accent:'#1A0E3D', cover_page:1 },
-      openUpload() { this.modal='upload'; this.err=''; this.editId=null;
-        this.form={ title:'', subtitle:'', desc:'', topic:'产品技术', accent:'#1A0E3D', cover_page:1 }; },
-      openEdit(c) { this.modal='edit'; this.err=''; this.editId=c.id;
-        this.form={ title:c.title||'', subtitle:c.subtitle||'', desc:c.desc||'', topic:c.topic||'产品技术',
-                    accent:c.accent||'#1A0E3D', cover_page:c.cover_page||1 }; },
-      async doUpload() {
-        const f = this.$refs.file && this.$refs.file.files[0];
-        if (!f) { this.err='请选择 HTML 文件'; return; }
-        if (!this.form.title.trim()) { this.err='请填写标题'; return; }
-        this.busy=true; this.err='';
-        const fd=new FormData(); fd.append('file', f);
-        ['title','subtitle','desc','topic','accent'].forEach(k=>fd.append(k, this.form[k]||''));
-        try {
-          const r=await fetch('/wiki/courses', {method:'POST', credentials:'same-origin', body:fd});
-          const j=await r.json();
-          if(!j.success) throw new Error(j.message||'上传失败');
-          location.reload();
-        } catch(e){ this.busy=false; this.err=e.message; }
-      },
-      async doEdit() {
-        this.busy=true; this.err='';
-        const fd=new FormData();
-        ['title','subtitle','desc','topic','accent','cover_page'].forEach(k=>fd.append(k, this.form[k]??''));
-        const f=this.$refs.editFile && this.$refs.editFile.files[0];
-        if(f) fd.append('file', f);
-        try {
-          const r=await fetch('/wiki/courses/'+this.editId, {method:'POST', credentials:'same-origin', body:fd});
-          const j=await r.json();
-          if(!j.success) throw new Error(j.message||'保存失败');
-          location.reload();
-        } catch(e){ this.busy=false; this.err=e.message; }
-      },
-      async genThumbs(id) {
-        if(!confirm('生成逐页缩略图?需服务端 Playwright,约 20-40 秒,请稍候。')) return;
-        try {
-          const r=await fetch('/wiki/courses/'+id+'/thumbs', {method:'POST', credentials:'same-origin'});
-          const j=await r.json();
-          if(!j.success) throw new Error(j.message||'生成失败');
-          alert('已生成 '+j.count+' 张缩略图'); location.reload();
-        } catch(e){ alert(e.message); }
-      },
-      async delCourse(id, title) {
-        if(!confirm('删除课程「'+title+'」?(课件/缩略图/题库一并删除,已析出的知识文章保留)')) return;
-        try {
-          const r=await fetch('/wiki/courses/'+id, {method:'DELETE', credentials:'same-origin'});
-          const j=await r.json();
-          if(!j.success) throw new Error(j.message||'删除失败');
-          location.reload();
-        } catch(e){ alert(e.message); }
-      },
-    };
+  function cmShow(id){ document.getElementById(id).style.display='flex'; }
+  function cmClose(id){ document.getElementById(id).style.display='none'; }
+  function cmVal(id){ var e=document.getElementById(id); return e? e.value : ''; }
+  function cmSet(id,v){ var e=document.getElementById(id); if(e) e.value=(v==null?'':v); }
+  function cmErr(id,msg){ var e=document.getElementById(id); if(e){ e.textContent=msg||''; e.style.display=msg?'block':'none'; } }
+
+  function cmOpenUpload(){
+    cmSet('cmU_file',''); cmSet('cmU_title',''); cmSet('cmU_subtitle','');
+    cmSet('cmU_desc',''); cmSet('cmU_topic','产品技术'); cmSet('cmU_accent','#1A0E3D');
+    cmErr('cmU_err',''); cmShow('cmUploadModal');
+  }
+  function cmSubmitUpload(btn){
+    if(!document.getElementById('cmU_file').files[0]){ cmErr('cmU_err','请选择 HTML 文件'); return; }
+    if(!cmVal('cmU_title').trim()){ cmErr('cmU_err','请填写标题'); return; }
+    btn.disabled=true; btn.textContent='上传中…'; cmErr('cmU_err','');
+    var fd=new FormData(); fd.append('file', document.getElementById('cmU_file').files[0]);
+    ['title','subtitle','desc','topic','accent'].forEach(function(k){ fd.append(k, cmVal('cmU_'+k)); });
+    fetch('/wiki/courses',{method:'POST',credentials:'same-origin',body:fd})
+      .then(function(r){return r.json();}).then(function(j){ if(!j.success) throw new Error(j.message||'上传失败'); location.reload(); })
+      .catch(function(e){ btn.disabled=false; btn.textContent='上传'; cmErr('cmU_err', e.message); });
+  }
+
+  function cmOpenEdit(c){
+    window._cmEditId=c.id;
+    cmSet('cmE_title',c.title); cmSet('cmE_subtitle',c.subtitle); cmSet('cmE_desc',c.desc);
+    cmSet('cmE_topic',c.topic||'产品技术'); cmSet('cmE_accent',c.accent||'#1A0E3D');
+    cmSet('cmE_cover',c.cover_page||1); cmSet('cmE_file',''); cmErr('cmE_err','');
+    cmShow('cmEditModal');
+  }
+  function cmSubmitEdit(btn){
+    if(!cmVal('cmE_title').trim()){ cmErr('cmE_err','请填写标题'); return; }
+    btn.disabled=true; btn.textContent='保存中…'; cmErr('cmE_err','');
+    var fd=new FormData();
+    ['title','subtitle','desc','topic','accent'].forEach(function(k){ fd.append(k, cmVal('cmE_'+k)); });
+    fd.append('cover_page', cmVal('cmE_cover'));
+    var f=document.getElementById('cmE_file').files[0]; if(f) fd.append('file', f);
+    fetch('/wiki/courses/'+window._cmEditId,{method:'POST',credentials:'same-origin',body:fd})
+      .then(function(r){return r.json();}).then(function(j){ if(!j.success) throw new Error(j.message||'保存失败'); location.reload(); })
+      .catch(function(e){ btn.disabled=false; btn.textContent='保存'; cmErr('cmE_err', e.message); });
+  }
+
+  function cmGenThumbs(id){
+    ATConfirm.show({ title:'生成缩略图', confirmText:'生成',
+      message:'逐页生成缩略图?需服务端 Playwright,约 20-40 秒。',
+      onConfirm:function(){ fetch('/wiki/courses/'+id+'/thumbs',{method:'POST',credentials:'same-origin'})
+        .then(function(r){return r.json();}).then(function(j){ if(!j.success) throw new Error(j.message||'生成失败'); location.reload(); })
+        .catch(function(e){ alert(e.message); }); } });
+  }
+  function cmConfirmDelete(id, title){
+    ATConfirm.show({ title:'删除课程', variant:'danger', confirmText:'删除',
+      message:'删除「'+(title||'')+'」?课件、缩略图、题库,以及析出的知识文章一并删除。',
+      onConfirm:function(){ fetch('/wiki/courses/'+id,{method:'DELETE',credentials:'same-origin'})
+        .then(function(r){return r.json();}).then(function(j){ if(!j.success) throw new Error(j.message||'删除失败'); location.reload(); })
+        .catch(function(e){ alert(e.message); }); } });
   }
 </script>
 

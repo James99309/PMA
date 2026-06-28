@@ -379,14 +379,26 @@ def gen_course_thumbs(cid):
 @knowledge_wiki_bp.route('/wiki/courses/<int:cid>', methods=['DELETE'])
 @login_required
 def delete_course(cid):
-    """删除课程(连带课件/缩略图/题库文件;析出的 wiki 文章保留)。"""
+    """删除课程 + 连带:课件/缩略图/题库文件 + 析出的知识文章(深链会随课程失效,故一并删)。"""
     if not _is_admin():
         return jsonify({'success': False, 'message': '仅管理员可删除'}), 403
     import shutil
     row = InteractiveCourse.query.get_or_404(cid)
     key = row.key
+
+    # 连带删除析出的知识文章(优先按 article_id,兜底按 <key>-deck slug)+ 其 .md 文件
+    art = (KnowledgeWikiArticle.query.get(row.article_id) if row.article_id else None) \
+        or KnowledgeWikiArticle.query.filter_by(slug=key + '-deck').first()
+    if art:
+        try:
+            storage.delete_article(art.topic, art.slug)
+        except Exception:
+            logger.warning('[course] 删知识文章 .md 失败: %s', art.slug)
+        db.session.delete(art)
+
     db.session.delete(row)
     db.session.commit()
+
     for p in (key + '.html', key + '.quiz.json'):
         try:
             os.remove(os.path.join(COURSE_ASSETS_DIR, p))
