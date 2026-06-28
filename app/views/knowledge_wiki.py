@@ -227,6 +227,128 @@ def course_thumb(course_key, page):
     return send_file(path, mimetype='image/png')
 
 
+# ── 课程管理(上传 / 编辑 / 生成缩略图 / 删除,仅管理员)──────────────
+
+@knowledge_wiki_bp.route('/wiki/courses', methods=['POST'])
+@login_required
+def create_course():
+    """上传 HTML 课件 → 建课程 + 析出知识(缩略图另点按钮生成)。"""
+    if not _is_admin():
+        return jsonify({'success': False, 'message': '仅管理员可上传课程'}), 403
+    f = request.files.get('file')
+    if not f or not (f.filename or '').lower().endswith('.html'):
+        return jsonify({'success': False, 'message': '请上传 .html 课件文件'}), 400
+    title = (request.form.get('title') or '').strip()
+    if not title:
+        return jsonify({'success': False, 'message': '请填写标题'}), 400
+    subtitle = (request.form.get('subtitle') or '').strip()
+    desc = (request.form.get('desc') or '').strip()
+    topic = (request.form.get('topic') or '产品技术').strip()
+    accent = (request.form.get('accent') or '#1A0E3D').strip()
+
+    raw_key = (request.form.get('key') or '').strip() or os.path.splitext(f.filename)[0]
+    base = secure_filename(raw_key) or 'course'
+    key, n = base, 2
+    while InteractiveCourse.query.filter_by(key=key).first():
+        key, n = f'{base}-{n}', n + 1
+
+    os.makedirs(COURSE_ASSETS_DIR, exist_ok=True)
+    path = os.path.join(COURSE_ASSETS_DIR, key + '.html')
+    f.save(path)
+    _COURSE_PAGES_CACHE.pop(key, None)
+    pages = _parse_course_pages(path)
+
+    row = InteractiveCourse(
+        key=key, title=title, subtitle=subtitle, desc=desc, topic=topic, accent=accent,
+        cover_page=1, page_count=len(pages), has_thumbs=False, owner_id=current_user.id)
+    db.session.add(row)
+    db.session.commit()
+
+    if pages:
+        try:
+            from app.services import course_knowledge
+            art = course_knowledge.ingest_course_knowledge(
+                row.to_dict(), pages, topic=topic, owner_id=current_user.id, scope='company')
+            row.article_id = art.id
+            db.session.commit()
+        except Exception:
+            logger.exception('[course] 知识析出失败: %s', key)
+
+    return jsonify({'success': True, 'data': row.to_dict(),
+                    'page_count': len(pages),
+                    'message': f'已创建,解析 {len(pages)} 页' + ('(可点"生成缩略图")' if pages else '(无分页)')})
+
+
+@knowledge_wiki_bp.route('/wiki/courses/<int:cid>', methods=['PATCH'])
+@login_required
+def update_course(cid):
+    """编辑课程元数据。"""
+    if not _is_admin():
+        return jsonify({'success': False, 'message': '仅管理员可编辑'}), 403
+    row = InteractiveCourse.query.get_or_404(cid)
+    data = request.get_json(silent=True) or {}
+    for fld in ('title', 'subtitle', 'desc', 'topic', 'accent'):
+        if fld in data:
+            setattr(row, fld, (data.get(fld) or '').strip())
+    if 'cover_page' in data:
+        try:
+            row.cover_page = max(1, int(data['cover_page']))
+        except (TypeError, ValueError):
+            pass
+    db.session.commit()
+    return jsonify({'success': True, 'data': row.to_dict()})
+
+
+@knowledge_wiki_bp.route('/wiki/courses/<int:cid>/thumbs', methods=['POST'])
+@login_required
+def gen_course_thumbs(cid):
+    """生成/重生成逐页缩略图(需服务端 Playwright + Chromium)。"""
+    if not _is_admin():
+        return jsonify({'success': False, 'message': '仅管理员可操作'}), 403
+    row = InteractiveCourse.query.get_or_404(cid)
+    _, path = _find_course(row.key)
+    if not path:
+        return jsonify({'success': False, 'message': '课件文件缺失'}), 404
+    pages = _get_course_pages(row.key, path)
+    if not pages:
+        return jsonify({'success': False, 'message': '课件无分页,无法生成缩略图'}), 400
+    try:
+        from app.services import course_thumbs
+        cnt = course_thumbs.generate_thumbnails(row.key, len(pages), COURSE_ASSETS_DIR)
+        row.has_thumbs = True
+        row.page_count = len(pages)
+        db.session.commit()
+        return jsonify({'success': True, 'count': cnt})
+    except Exception as e:
+        logger.exception('[course] 缩略图生成失败: %s', row.key)
+        return jsonify({'success': False,
+                        'message': f'生成失败(服务端可能未装 Playwright/Chromium): {e}'}), 500
+
+
+@knowledge_wiki_bp.route('/wiki/courses/<int:cid>', methods=['DELETE'])
+@login_required
+def delete_course(cid):
+    """删除课程(连带课件/缩略图/题库文件;析出的 wiki 文章保留)。"""
+    if not _is_admin():
+        return jsonify({'success': False, 'message': '仅管理员可删除'}), 403
+    import shutil
+    row = InteractiveCourse.query.get_or_404(cid)
+    key = row.key
+    db.session.delete(row)
+    db.session.commit()
+    for p in (key + '.html', key + '.quiz.json'):
+        try:
+            os.remove(os.path.join(COURSE_ASSETS_DIR, p))
+        except OSError:
+            pass
+    try:
+        shutil.rmtree(os.path.join(COURSE_ASSETS_DIR, key + '.thumbs'))
+    except OSError:
+        pass
+    _COURSE_PAGES_CACHE.pop(key, None)
+    return jsonify({'success': True})
+
+
 # ── 第3步:考核 + 评分 ────────────────────────────────────────────
 
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/quiz')

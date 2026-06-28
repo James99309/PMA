@@ -98,6 +98,24 @@
   .kb-ctitle { font-family:var(--font-serif); font-size:16px; font-weight:600; color:var(--ink); line-height:1.25; }
   .kb-csub { font-size:11.5px; color:var(--accent); font-weight:500; }
   .kb-cdesc { font-size:12.5px; color:var(--ink-3); line-height:1.5; }
+  /* 课程管理:按钮 / 表单 / 卡片悬停操作 */
+  .cm-btn { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500;
+            padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--bg-elev);
+            color:var(--ink-2); cursor:pointer; white-space:nowrap; }
+  .cm-btn:hover { background:var(--bg-hover); }
+  .cm-btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .cm-btn-primary:hover { background:var(--accent); filter:brightness(1.06); }
+  .cm-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .cm-field { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--ink-3); }
+  .cm-in { font-size:13px; padding:8px 10px; border:1px solid var(--line); border-radius:7px;
+           background:var(--bg-page); color:var(--ink); width:100%; box-sizing:border-box; font-family:inherit; }
+  .cm-in:focus { outline:2px solid var(--accent); outline-offset:-1px; }
+  .kb-card-ops { position:absolute; top:8px; right:8px; display:flex; gap:4px; opacity:0; transition:opacity 120ms; }
+  div:hover > .kb-card-ops { opacity:1; }
+  .kb-card-ops button { width:28px; height:28px; border-radius:6px; border:0; background:rgba(0,0,0,.55);
+                        color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .kb-card-ops button:hover { background:rgba(0,0,0,.82); }
+  .kb-card-ops .material-symbols-outlined { font-size:16px; }
 </style>
 </head>
 <body class="at-page">
@@ -304,44 +322,155 @@
   </div>
 
   {# ══════════ 互动课程 tab ══════════ #}
-  <div data-tab-panel="courses" style="height:100%;overflow-y:auto;">
+  <div data-tab-panel="courses" style="height:100%;overflow-y:auto;" x-data="coursesAdmin()">
     <main style="max-width:1280px;margin:0 auto;padding:0 36px;">
-      <div style="padding-top:24px;">
-        <div class="at-dim" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;">KNOWLEDGE · {{ _('互动课程') }}</div>
-        <h1 class="at-serif" style="margin:6px 0 0;font-size:22px;font-weight:600;">{{ _('互动课程') }}</h1>
-        <div class="at-dim" style="font-size:13px;margin-top:6px;">{{ _('点击课程卡片,在新标签页中播放互动课件并完成考核。') }}</div>
+      <div style="padding-top:24px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;">
+        <div>
+          <div class="at-dim" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;">KNOWLEDGE · {{ _('互动课程') }}</div>
+          <h1 class="at-serif" style="margin:6px 0 0;font-size:22px;font-weight:600;">{{ _('互动课程') }}</h1>
+          <div class="at-dim" style="font-size:13px;margin-top:6px;">{{ _('点击课程卡片,在新标签页中播放互动课件并完成考核。') }}</div>
+        </div>
+        {% if is_admin %}
+        <button class="cm-btn cm-btn-primary" @click="openUpload()">
+          <span class="material-symbols-outlined" style="font-size:17px;">upload_file</span>{{ _('上传课程') }}
+        </button>
+        {% endif %}
       </div>
       {% if courses %}
       <div class="kb-grid">
         {% for c in courses %}
-        <a class="kb-card" href="{{ url_for('knowledge_wiki.play_course', course_key=c.key) }}" target="_blank" rel="noopener">
-          <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};">
-            {% if c.has_thumbs %}
-            <img src="{{ url_for('knowledge_wiki.course_thumb', course_key=c.key, page=c.cover_page) }}"
-                 alt="{{ c.title }}" loading="lazy"
-                 style="width:100%;height:100%;object-fit:cover;">
-            {% else %}
-            <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
-            {% endif %}
+        <div style="position:relative;">
+          <a class="kb-card" href="{{ url_for('knowledge_wiki.play_course', course_key=c.key) }}" target="_blank" rel="noopener">
+            <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};">
+              {% if c.has_thumbs %}
+              <img src="{{ url_for('knowledge_wiki.course_thumb', course_key=c.key, page=c.cover_page) }}"
+                   alt="{{ c.title }}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
+              {% else %}
+              <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
+              {% endif %}
+            </div>
+            <div class="kb-cbody">
+              <div class="kb-csub">{{ c.subtitle }}</div>
+              <div class="kb-ctitle">{{ c.title }}</div>
+              <div class="kb-cdesc">{{ c.desc }}</div>
+            </div>
+          </a>
+          {% if is_admin %}
+          <div class="kb-card-ops">
+            <button title="{{ _('编辑') }}" @click.stop.prevent='openEdit({{ c|tojson }})'>
+              <span class="material-symbols-outlined">edit</span></button>
+            <button title="{{ _('生成缩略图') }}" @click.stop.prevent="genThumbs({{ c.id }})">
+              <span class="material-symbols-outlined">image</span></button>
+            <button title="{{ _('删除') }}" @click.stop.prevent="delCourse({{ c.id }}, {{ c.title|tojson }})">
+              <span class="material-symbols-outlined">delete</span></button>
           </div>
-          <div class="kb-cbody">
-            <div class="kb-csub">{{ c.subtitle }}</div>
-            <div class="kb-ctitle">{{ c.title }}</div>
-            <div class="kb-cdesc">{{ c.desc }}</div>
-          </div>
-        </a>
+          {% endif %}
+        </div>
         {% endfor %}
       </div>
       {% else %}
-      <div class="at-dim" style="padding:60px 0;text-align:center;font-size:13px;">{{ _('暂无互动课程') }}</div>
+      <div class="at-dim" style="padding:60px 0;text-align:center;font-size:13px;">{{ _('暂无互动课程,点右上角上传') }}</div>
       {% endif %}
     </main>
+
+    {# ── 上传 / 编辑 模态 ── #}
+    <template x-if="modal">
+      <div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;"
+           @click.self="modal=null">
+        <div style="background:var(--bg-elev);border-radius:14px;width:460px;max-width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-family:var(--font-serif);font-size:16px;font-weight:600;" x-text="modal==='upload' ? '{{ _('上传课程') }}' : '{{ _('编辑课程') }}'"></span>
+            <button @click="modal=null" style="border:0;background:none;cursor:pointer;color:var(--ink-4);"><span class="material-symbols-outlined">close</span></button>
+          </div>
+          <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px;">
+            <template x-if="modal==='upload'">
+              <label class="cm-field"><span>{{ _('课件 HTML 文件') }} *</span>
+                <input type="file" accept=".html" x-ref="file" class="cm-in"></label>
+            </template>
+            <label class="cm-field"><span>{{ _('标题') }} *</span><input x-model="form.title" class="cm-in"></label>
+            <label class="cm-field"><span>{{ _('副标题') }}</span><input x-model="form.subtitle" class="cm-in" placeholder="PNR2100 · 互动演示"></label>
+            <label class="cm-field"><span>{{ _('简介') }}</span><textarea x-model="form.desc" class="cm-in" rows="2"></textarea></label>
+            <div style="display:flex;gap:12px;">
+              <label class="cm-field" style="flex:1;"><span>{{ _('分类 topic') }}</span><input x-model="form.topic" class="cm-in" placeholder="产品技术"></label>
+              <label class="cm-field" style="width:110px;"><span>{{ _('封面底色') }}</span><input type="color" x-model="form.accent" class="cm-in" style="height:36px;padding:2px;"></label>
+            </div>
+            <template x-if="modal==='edit'">
+              <label class="cm-field"><span>{{ _('封面取第几页') }}</span><input type="number" min="1" x-model="form.cover_page" class="cm-in" style="width:90px;"></label>
+            </template>
+            <div x-show="err" style="color:var(--danger,#C0392B);font-size:12.5px;" x-text="err"></div>
+          </div>
+          <div style="padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;">
+            <button class="cm-btn" @click="modal=null">{{ _('取消') }}</button>
+            <button class="cm-btn cm-btn-primary" :disabled="busy" @click="modal==='upload' ? doUpload() : doEdit()">
+              <span x-show="!busy" x-text="modal==='upload' ? '{{ _('上传') }}' : '{{ _('保存') }}'"></span>
+              <span x-show="busy">{{ _('处理中…') }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 
   {% endcall %}
 
 </div>
 </div>
+
+<script>
+  function coursesAdmin() {
+    return {
+      modal: null, busy: false, err: '', editId: null,
+      form: { title:'', subtitle:'', desc:'', topic:'产品技术', accent:'#1A0E3D', cover_page:1 },
+      openUpload() { this.modal='upload'; this.err=''; this.editId=null;
+        this.form={ title:'', subtitle:'', desc:'', topic:'产品技术', accent:'#1A0E3D', cover_page:1 }; },
+      openEdit(c) { this.modal='edit'; this.err=''; this.editId=c.id;
+        this.form={ title:c.title||'', subtitle:c.subtitle||'', desc:c.desc||'', topic:c.topic||'产品技术',
+                    accent:c.accent||'#1A0E3D', cover_page:c.cover_page||1 }; },
+      async doUpload() {
+        const f = this.$refs.file && this.$refs.file.files[0];
+        if (!f) { this.err='请选择 HTML 文件'; return; }
+        if (!this.form.title.trim()) { this.err='请填写标题'; return; }
+        this.busy=true; this.err='';
+        const fd=new FormData(); fd.append('file', f);
+        ['title','subtitle','desc','topic','accent'].forEach(k=>fd.append(k, this.form[k]||''));
+        try {
+          const r=await fetch('/wiki/courses', {method:'POST', credentials:'same-origin', body:fd});
+          const j=await r.json();
+          if(!j.success) throw new Error(j.message||'上传失败');
+          location.reload();
+        } catch(e){ this.busy=false; this.err=e.message; }
+      },
+      async doEdit() {
+        this.busy=true; this.err='';
+        try {
+          const r=await fetch('/wiki/courses/'+this.editId, {method:'PATCH', credentials:'same-origin',
+            headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.form)});
+          const j=await r.json();
+          if(!j.success) throw new Error(j.message||'保存失败');
+          location.reload();
+        } catch(e){ this.busy=false; this.err=e.message; }
+      },
+      async genThumbs(id) {
+        if(!confirm('生成逐页缩略图?需服务端 Playwright,约 20-40 秒,请稍候。')) return;
+        try {
+          const r=await fetch('/wiki/courses/'+id+'/thumbs', {method:'POST', credentials:'same-origin'});
+          const j=await r.json();
+          if(!j.success) throw new Error(j.message||'生成失败');
+          alert('已生成 '+j.count+' 张缩略图'); location.reload();
+        } catch(e){ alert(e.message); }
+      },
+      async delCourse(id, title) {
+        if(!confirm('删除课程「'+title+'」?(课件/缩略图/题库一并删除,已析出的知识文章保留)')) return;
+        try {
+          const r=await fetch('/wiki/courses/'+id, {method:'DELETE', credentials:'same-origin'});
+          const j=await r.json();
+          if(!j.success) throw new Error(j.message||'删除失败');
+          location.reload();
+        } catch(e){ alert(e.message); }
+      },
+    };
+  }
+</script>
 
 {# 确认弹窗(wikiApp 脚本依赖 openConfirmModal)#}
 {{ tw_confirm_modal('wikiConfirmModal') }}
