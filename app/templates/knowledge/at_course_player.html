@@ -98,7 +98,7 @@
   </div>
 
   <iframe class="cp-frame" id="cpFrame"
-          src="{{ url_for('knowledge_wiki.course_asset', course_key=course.key) }}"
+          data-src="{{ url_for('knowledge_wiki.course_asset', course_key=course.key) }}"
           title="{{ course.title }}"></iframe>
 
 </div>
@@ -109,6 +109,12 @@
   var cpFrame = document.getElementById('cpFrame');
   var cpCur = 0;            // 当前页(1-based),0=未知
   var cpTotal = CP_PAGES.length;
+
+  // 深链:播放页 URL 带 #N → iframe 课件加载到第 N 页(deck 认初始 hash)
+  (function () {
+    var m = (location.hash || '').match(/(\d+)/);
+    cpFrame.src = cpFrame.dataset.src + (m ? '#' + m[1] : '');
+  })();
 
   function cpReadHash() {
     // 读 iframe 当前 hash(#N)→ 页码;同源可读,加载初期可能抛错

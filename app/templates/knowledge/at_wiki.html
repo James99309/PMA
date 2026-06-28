@@ -174,7 +174,7 @@
                         <span class="kb-art-title" x-text="art.title"></span>
                         <span x-show="isNewArticle(art)" class="kb-new">NEW</span>
                       </div>
-                      <div class="kb-art-sum" x-show="art.summary" x-text="art.summary"></div>
+                      <div class="kb-art-sum" x-show="art.summary" x-text="(art.summary||'').split('|||')[0]"></div>
                     </div>
                   </button>
                 </template>
@@ -221,7 +221,7 @@
                         x-text="scopeBadge(currentArticle)"></span>
                 </div>
                 <h1 class="at-serif" style="font-size:24px;font-weight:700;margin:0;color:var(--ink);" x-text="currentArticle.title"></h1>
-                <p style="font-size:13px;color:var(--ink-3);margin:6px 0 0;" x-text="currentArticle.summary"></p>
+                <p style="font-size:13px;color:var(--ink-3);margin:6px 0 0;" x-text="(currentArticle.summary||'').split('|||')[0]"></p>
                 <div style="margin-top:8px;display:flex;gap:10px;font-size:11px;color:var(--ink-4);">
                   <span x-show="currentArticle.last_compiled_at" x-text="'{{ _('编译于') }} ' + formatDate(currentArticle.last_compiled_at)"></span>
                   <span x-show="currentArticle.compile_model" x-text="'· ' + currentArticle.compile_model"></span>
