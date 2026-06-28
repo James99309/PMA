@@ -1,0 +1,1078 @@
+{#
+  Wiki 逻辑脚本(wikiApp Alpine 组件)—— 从 tw_wiki.html 抽出,供 TW/AT 两套模板共享 include。
+  含 Jinja(i18n/csrf/is_admin/current_user_id),必须由含这些上下文的页面渲染。
+  依赖:marked、DOMPurify、Alpine、openConfirmModal(tw_confirm_modal)、at-toast/或 toast。
+#}
+<script>
+function wikiApp() {
+    return {
+        // ── 目录树 ─────────────────
+        tree: {},
+        articleCount: 0,
+        loadingTree: false,
+
+        // ── Scope 过滤 ─────────────────
+        scopeFilter: JSON.parse(localStorage.getItem('wiki_scope_filter') || '{"system":true,"company":true,"department":true,"personal":true}'),
+
+        // ── 侧栏 / Topic 折叠 ─────────────────
+        sidebarCollapsed: JSON.parse(localStorage.getItem('wiki_sidebar_collapsed') || 'false'),
+        expandedTopics: JSON.parse(localStorage.getItem('wiki_expanded_topics') || '[]'),
+        topicSubmenuOpen: {},  // articleId → bool，控制 more_vert 里「调整 topic」子菜单
+
+        get filteredTree() {
+            const result = {};
+            for (const [topic, articles] of Object.entries(this.tree)) {
+                const filtered = articles.filter(art => this.scopeFilter[art.scope] !== false);
+                if (filtered.length > 0) result[topic] = filtered;
+            }
+            return result;
+        },
+
+        get filteredArticleCount() {
+            return Object.values(this.filteredTree).reduce((a, b) => a + b.length, 0);
+        },
+
+        toggleScope(scope) {
+            this.scopeFilter[scope] = !this.scopeFilter[scope];
+            localStorage.setItem('wiki_scope_filter', JSON.stringify(this.scopeFilter));
+        },
+
+        toggleSidebar() {
+            this.sidebarCollapsed = !this.sidebarCollapsed;
+            localStorage.setItem('wiki_sidebar_collapsed', JSON.stringify(this.sidebarCollapsed));
+        },
+
+        isTopicExpanded(topic) {
+            return this.expandedTopics.includes(topic);
+        },
+
+        toggleTopicExpand(topic) {
+            const i = this.expandedTopics.indexOf(topic);
+            if (i >= 0) this.expandedTopics.splice(i, 1);
+            else this.expandedTopics.push(topic);
+            localStorage.setItem('wiki_expanded_topics', JSON.stringify(this.expandedTopics));
+        },
+
+        scopeBadge(art) {
+            const map = { system: '{{ _('系统') }}', company: '{{ _('公司') }}', department: '{{ _('部门') }}', personal: '{{ _('个人') }}' };
+            if (art.scope === 'personal' && !art.is_mine && art.owner_name) {
+                return art.owner_name;
+            }
+            return map[art.scope] || art.scope;
+        },
+
+        scopeColor(scope) {
+            const colors = {
+                system: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                company: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+                department: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                personal: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+            };
+            return colors[scope] || 'bg-slate-100 text-slate-600';
+        },
+
+        // ── 当前文章 ─────────────────
+        currentArticle: null,
+        renderedContent: '',
+        loadingArticle: false,
+
+        // ── 图片管理面板 ─────────────────
+        imagePanelOpen: false,
+        replacingImageIndex: null,
+        _pendingReplaceIndex: null,
+        currentUserId: {{ current_user_id|tojson }},
+
+        // ── 问答 ─────────────────
+        chatExpanded: false,
+        chatMessages: [],
+        chatInput: '',
+        chatLoading: false,
+
+        // ── 索引预览 ─────────────────
+        showIndexPanel: false,
+        indexContent: '',
+
+        // ── 管理面板 ─────────────────
+        showAdminPanel: false,
+        rawFiles: [],
+        ingestingId: null,
+        lintRunning: false,
+        lintApplyFixes: false,
+        lintResult: null,
+        // 拖拽上传
+        dragOver: false,
+        uploading: false,
+        // 上传弹窗
+        showUploadModal: false,
+        pendingUploadFiles: [],
+        uploadModalTopic: '',
+        topics: [],
+        showNewTopic: false,
+        newTopicName: '',
+
+        // ── 晋升申请 ─────────────────
+        showPromoteModal: false,
+        promoteArticleId: null,
+        promoteModalArticleTitle: '',
+        promoteCurrentScope: '',
+        promoteTargetScope: '',
+        promoteReason: '',
+        promoteSubmitting: false,
+        promoteAvailableScopes: [],
+
+        // ── 晋升审核 ─────────────────
+        showReviewModal: false,
+        reviewData: {},
+        reviewNote: '',
+        reviewSubmitting: false,
+        pendingPromotions: [],  // 当前用户需要审核的晋升申请
+
+        // ── 分享 Modal ─────────────────
+        showShareModal: false,
+        shareArticleId: null,
+        shareArticleTitle: '',
+        shareGrants: [],
+        shareTab: 'user',  // 'user' | 'department' | 'company'
+        shareSearchQ: '',
+        shareTargetResults: [],
+        shareLoading: false,
+        shareAdding: false,
+        shareSearchTimer: null,
+
+        // ── NEW 标记追踪（localStorage，per-browser） ──
+        readArticleIds: JSON.parse(localStorage.getItem('wiki_read_articles') || '[]'),
+
+        markAsRead(articleId) {
+            if (!this.readArticleIds.includes(articleId)) {
+                this.readArticleIds.push(articleId);
+                localStorage.setItem('wiki_read_articles', JSON.stringify(this.readArticleIds));
+            }
+        },
+
+        isNewArticle(art) {
+            // 未读 + 7 天内更新的算 NEW
+            if (this.readArticleIds.includes(art.id)) return false;
+            if (!art.updated_at) return true;
+            const diff = Date.now() - new Date(art.updated_at).getTime();
+            return diff < 7 * 24 * 3600 * 1000;
+        },
+
+        async init() {
+            marked.setOptions({ breaks: true, gfm: true });
+            await this.refreshTree();
+            await this.loadPendingPromotions();
+            {% if is_admin %}
+            await this.loadRawFiles();
+            await this.loadTopics();
+            // 轮询：有 processing 状态的文件时，每 10 秒刷新一次
+            this._pollTimer = setInterval(async () => {
+                const hasProcessing = this.rawFiles.some(r => r.ingest_status === 'processing');
+                if (hasProcessing) {
+                    await this.loadRawFiles();
+                    if (!this.rawFiles.some(r => r.ingest_status === 'processing')) {
+                        await this.refreshTree();
+                    }
+                }
+            }, 10000);
+            {% endif %}
+
+            // 拦截 Wiki 内容区和问答区的文章链接点击
+            // AI 生成的链接格式多样：topic/slug.md, ../topic/slug.md, wiki/topic/slug.md 等
+            document.addEventListener('click', (e) => {
+                const a = e.target.closest('a[href]');
+                if (!a) return;
+                const href = a.getAttribute('href');
+                if (!href || !href.endsWith('.md')) return;
+
+                // 阻止所有 .md 链接的默认导航行为
+                e.preventDefault();
+
+                // 尝试从路径中提取 topic/slug
+                // 匹配：topic/slug.md, ../topic/slug.md, wiki/topic/slug.md, /wiki/topic/slug.md
+                const m = href.match(/(?:.*\/)?([^\/]+)\/([^\/]+)\.md$/);
+                if (m) {
+                    const [, topic, slug] = m;
+                    const articles = this.tree[topic];
+                    if (articles) {
+                        const art = articles.find(a => a.slug === slug);
+                        if (art) { this.openArticle(art.id); return; }
+                    }
+                }
+
+                // 正则未匹配或 tree 中找不到 → 用链接文本在所有文章中模糊搜索
+                const linkText = (a.textContent || '').trim();
+                if (linkText) {
+                    for (const articles of Object.values(this.tree)) {
+                        const art = articles.find(a => a.title === linkText || a.title.includes(linkText) || linkText.includes(a.title));
+                        if (art) { this.openArticle(art.id); return; }
+                    }
+                }
+            });
+
+            // 处理 URL 参数
+            const params = new URLSearchParams(window.location.search);
+
+            // ?promote=<id> — 从待办/通知跳转过来，打开审核弹窗
+            const promoteId = params.get('promote');
+            if (promoteId) {
+                const pr = this.pendingPromotions.find(p => p.id === parseInt(promoteId));
+                if (pr) {
+                    this.openReviewModal(pr);
+                    this.openArticle(pr.article_id);
+                }
+            }
+
+            // ?article=<id> — 从通知跳转过来，直接打开文章
+            const articleId = params.get('article');
+            if (articleId) {
+                this.openArticle(parseInt(articleId));
+            }
+
+            // 清除 URL 参数
+            if (promoteId || articleId) {
+                window.history.replaceState({}, '', '/wiki');
+            }
+        },
+
+        // ── 目录 ─────────────────
+        async refreshTree() {
+            this.loadingTree = true;
+            try {
+                const r = await fetch('/api/wiki/tree');
+                const j = await r.json();
+                if (j.success) {
+                    this.tree = j.data || {};
+                    this.articleCount = Object.values(this.tree).reduce((a, b) => a + b.length, 0);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.loadingTree = false;
+            }
+        },
+
+        // ── 打开文章 ─────────────────
+        async openArticle(id) {
+            this.loadingArticle = true;
+            this.currentArticle = null;
+            try {
+                const r = await fetch(`/api/wiki/articles/${id}`);
+                const j = await r.json();
+                if (j.success) {
+                    this.currentArticle = j.data;
+                    this.renderedContent = this.renderArticleMarkdown(j.data.content || '', id);
+                    this.markAsRead(id);
+                    if (j.data.topic && !this.expandedTopics.includes(j.data.topic)) {
+                        this.expandedTopics.push(j.data.topic);
+                        localStorage.setItem('wiki_expanded_topics', JSON.stringify(this.expandedTopics));
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.loadingArticle = false;
+            }
+        },
+
+        // ── 图片管理 ─────────────────
+        canEditCurrentArticle() {
+            if (!this.currentArticle) return false;
+            {% if is_admin %}return true;{% endif %}
+            return this.currentArticle.owner_id === this.currentUserId;
+        },
+
+        triggerImageReplace(index) {
+            this._pendingReplaceIndex = index;
+            this.$refs.imageReplaceInput.value = '';
+            this.$refs.imageReplaceInput.click();
+        },
+
+        async handleImageReplaceFile(ev) {
+            const file = ev.target.files && ev.target.files[0];
+            const index = this._pendingReplaceIndex;
+            if (!file || index == null || !this.currentArticle) return;
+            if (!file.type.startsWith('image/')) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('请选择图片文件') }}', message: file.type });
+                return;
+            }
+            this.replacingImageIndex = index;
+            try {
+                const fd = new FormData();
+                fd.append('image', file);
+                const r = await fetch(
+                    `/api/wiki/articles/${this.currentArticle.id}/image/${index}/replace`,
+                    { method: 'POST', body: fd, credentials: 'same-origin' }
+                );
+                const j = await r.json();
+                if (!r.ok || !j.success) {
+                    openConfirmModal('wikiConfirmModal', {
+                        title: '{{ _('替换失败') }}',
+                        message: j.message || `HTTP ${r.status}`,
+                    });
+                    return;
+                }
+                // Update manifest entry locally
+                const i = this.currentArticle.image_manifest.findIndex(m => m.index === index);
+                if (i >= 0) this.currentArticle.image_manifest[i] = j.image;
+                this.currentArticle.manually_edited = true;
+                // Force img refresh by appending a cache-busting param
+                const ts = Date.now();
+                this.currentArticle.image_manifest = this.currentArticle.image_manifest.map(m =>
+                    m.index === index ? { ...m, _v: ts } : m
+                );
+                // Re-render with cache-bust marker so <img> reloads
+                const baseHtml = this.renderArticleMarkdown(this.currentArticle.content || '', this.currentArticle.id);
+                this.renderedContent = baseHtml.replaceAll(
+                    `/api/wiki/articles/${this.currentArticle.id}/asset/${j.image.path}`,
+                    `/api/wiki/articles/${this.currentArticle.id}/asset/${j.image.path}?v=${ts}`,
+                );
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('替换失败') }}', message: String(e) });
+            } finally {
+                this.replacingImageIndex = null;
+                this._pendingReplaceIndex = null;
+            }
+        },
+
+        // ── 分享 ─────────────────
+        async openShareModal(articleId, title) {
+            this.shareArticleId = articleId;
+            this.shareArticleTitle = title;
+            this.shareTab = 'user';
+            this.shareSearchQ = '';
+            this.shareTargetResults = [];
+            this.shareGrants = [];
+            this.showShareModal = true;
+            await this.loadShareGrants();
+        },
+
+        async loadShareGrants() {
+            if (!this.shareArticleId) return;
+            this.shareLoading = true;
+            try {
+                const r = await fetch(`/api/wiki/articles/${this.shareArticleId}/shares`);
+                const j = await r.json();
+                if (j.success) this.shareGrants = j.data || [];
+            } catch (e) { console.error(e); }
+            finally { this.shareLoading = false; }
+        },
+
+        switchShareTab(tab) {
+            this.shareTab = tab;
+            this.shareSearchQ = '';
+            this.shareTargetResults = [];
+            this.searchShareTargets();
+        },
+
+        searchShareTargets() {
+            clearTimeout(this.shareSearchTimer);
+            this.shareSearchTimer = setTimeout(async () => {
+                try {
+                    const q = encodeURIComponent(this.shareSearchQ || '');
+                    const r = await fetch(`/api/wiki/share-targets?type=${this.shareTab}&q=${q}`);
+                    const j = await r.json();
+                    if (j.success) this.shareTargetResults = j.data || [];
+                } catch (e) { console.error(e); }
+            }, 250);
+        },
+
+        async addShareGrant(target) {
+            if (this.shareAdding) return;
+            this.shareAdding = true;
+            try {
+                const r = await fetch(`/api/wiki/articles/${this.shareArticleId}/shares`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}',
+                    },
+                    body: JSON.stringify({
+                        grant_type: this.shareTab,
+                        grant_target: target.value,
+                    }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    await this.loadShareGrants();
+                    this._shareToast(j.message || '{{ _('授权已添加') }}');
+                } else {
+                    this._shareToast(j.message || '{{ _('添加失败') }}', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                this._shareToast('{{ _('网络错误') }}', 'error');
+            } finally { this.shareAdding = false; }
+        },
+
+        async revokeShareGrant(grantId) {
+            try {
+                const r = await fetch(`/api/wiki/articles/${this.shareArticleId}/shares/${grantId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+                });
+                const j = await r.json();
+                if (j.success) {
+                    await this.loadShareGrants();
+                    this._shareToast(j.message || '{{ _('授权已撤销') }}');
+                } else {
+                    this._shareToast(j.message || '{{ _('撤销失败') }}', 'error');
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        _shareToast(msg, type) {
+            if (typeof showToast === 'function') { showToast(msg); return; }
+            if (type === 'error') { alert(msg); } else { console.log('[wiki share]', msg); }
+        },
+
+        grantTypeLabel(t) {
+            const map = { user: '{{ _('用户') }}', department: '{{ _('部门') }}', company: '{{ _('企业') }}' };
+            return map[t] || t;
+        },
+
+        // ── 索引 ─────────────────
+        async showIndex() {
+            try {
+                const r = await fetch('/api/wiki/index');
+                const j = await r.json();
+                if (j.success) {
+                    this.indexContent = j.content;
+                    this.showIndexPanel = true;
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        // ── 问答 ─────────────────
+        async sendQuestion() {
+            const q = this.chatInput.trim();
+            if (!q || this.chatLoading) return;
+            this.chatMessages.push({ role: 'user', text: q });
+            this.chatInput = '';
+            this.chatLoading = true;
+            this.$nextTick(() => this.scrollChatBottom());
+            try {
+                const r = await fetch('/api/wiki/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    const cited = j.data.cited_articles || [];
+                    const slugMap = {};
+                    for (const c of cited) slugMap[c.slug] = c.id;
+                    this.chatMessages.push({
+                        role: 'ai',
+                        text: j.data.answer,
+                        citedSlugMap: slugMap,
+                    });
+                } else {
+                    this.chatMessages.push({ role: 'ai', text: '❌ ' + (j.message || '{{ _('请求失败') }}') });
+                }
+            } catch (e) {
+                this.chatMessages.push({ role: 'ai', text: '❌ ' + e.message });
+            } finally {
+                this.chatLoading = false;
+                this.$nextTick(() => this.scrollChatBottom());
+            }
+        },
+
+        scrollChatBottom() {
+            if (this.$refs.chatScroll) {
+                this.$refs.chatScroll.scrollTop = this.$refs.chatScroll.scrollHeight;
+            }
+        },
+
+        // ── 管理：原始文件 ─────────────────
+        isRawCompiling(raw) {
+            return this.ingestingId === raw.id || raw.ingest_status === 'processing';
+        },
+
+        get pendingFiles() {
+            return this.rawFiles.filter(r => r.ingest_status !== 'ingested');
+        },
+        get compiledFiles() {
+            return this.rawFiles.filter(r => r.ingest_status === 'ingested');
+        },
+
+        getArticleCountForRaw(rawId) {
+            let count = 0;
+            for (const articles of Object.values(this.tree)) {
+                for (const art of articles) {
+                    if (art.source_raw_ids && art.source_raw_ids.includes(rawId)) count++;
+                }
+            }
+            return count;
+        },
+
+        async loadRawFiles() {
+            try {
+                const r = await fetch('/api/wiki/raw-files');
+                const j = await r.json();
+                if (j.success) this.rawFiles = j.data || [];
+            } catch (e) { console.error(e); }
+        },
+
+        async loadTopics() {
+            try {
+                const r = await fetch('/api/wiki/topics');
+                const j = await r.json();
+                if (j.success) {
+                    this.topics = j.data || [];
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        confirmNewTopicInModal() {
+            const name = this.newTopicName.trim();
+            if (!name) return;
+            if (!this.topics.includes(name)) this.topics.push(name);
+            this.uploadModalTopic = name;
+            this.showNewTopic = false;
+            this.newTopicName = '';
+        },
+
+        handleFileDrop(event) {
+            this.dragOver = false;
+            const files = Array.from(event.dataTransfer.files);
+            if (files.length > 0) this.showUploadDialog(files);
+        },
+
+        handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            if (files.length > 0) this.showUploadDialog(files);
+            event.target.value = '';
+        },
+
+        showUploadDialog(files) {
+            this.pendingUploadFiles = files;
+            this.uploadModalTopic = this.topics.length > 0 ? this.topics[0] : '';
+            this.showNewTopic = false;
+            this.newTopicName = '';
+            this.showUploadModal = true;
+        },
+
+        async doUploadFiles() {
+            if (!this.uploadModalTopic || this.pendingUploadFiles.length === 0) return;
+            this.uploading = true;
+            try {
+                for (const file of this.pendingUploadFiles) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('topic', this.uploadModalTopic);
+                    const r = await fetch('/api/wiki/upload-and-add', { method: 'POST', body: formData });
+                    const j = await r.json();
+                    if (!j.success) {
+                        openConfirmModal('wikiConfirmModal', { title: '{{ _('上传失败') }}', message: `${file.name}: ${j.message}` });
+                    }
+                }
+                await this.loadRawFiles();
+                await this.loadTopics();
+                this.showUploadModal = false;
+                this.pendingUploadFiles = [];
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('上传失败') }}', message: e.message });
+            } finally {
+                this.uploading = false;
+            }
+        },
+
+        triggerIngest(rawId) {
+            const self = this;
+            openConfirmModal('wikiConfirmModal', {
+                title: '{{ _('开始编译') }}',
+                message: '{{ _('编译可能需要 30-60 秒，确认开始吗？') }}',
+                onConfirm: () => {
+                    closeConfirmModal('wikiConfirmModal');
+                    self._doIngest(rawId);
+                },
+            });
+        },
+        async _doIngest(rawId) {
+            this.ingestingId = rawId;
+            // 清除之前的错误信息
+            const raw = this.rawFiles.find(r => r.id === rawId);
+            if (raw) { raw.ingest_status = 'processing'; raw.ingest_error = null; }
+            try {
+                const r = await fetch(`/api/wiki/raw-files/${rawId}/ingest`, { method: 'POST' });
+                const j = await r.json();
+                if (j.success) {
+                    await this.loadRawFiles();
+                    await this.refreshTree();
+                } else {
+                    await this.loadRawFiles();
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('编译失败') }}', message: j.message || '{{ _('未知错误') }}' });
+                }
+            } catch (e) {
+                await this.loadRawFiles();
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('编译失败') }}', message: e.message });
+            } finally {
+                this.ingestingId = null;
+            }
+        },
+
+        confirmDeleteRaw(rawId, title) {
+            const self = this;
+            openConfirmModal('wikiDeleteModal', {
+                title: '{{ _('确认删除') }}',
+                message: '{{ _('确定删除「%(title)s」吗？已编译的文章不会被删除。') }}'.replace('%(title)s', title),
+                onConfirm: async () => {
+                    try {
+                        const r = await fetch(`/api/wiki/raw-files/${rawId}`, { method: 'DELETE' });
+                        const j = await r.json();
+                        if (j.success) {
+                            await self.loadRawFiles();
+                        } else {
+                            throw new Error(j.message || '{{ _('删除失败') }}');
+                        }
+                    } catch (e) {
+                        throw new Error(e.message);
+                    }
+                },
+            });
+        },
+
+        // ── 文章操作（左侧 ... 菜单） ─────────────────
+        confirmDeleteArticle(articleId, title) {
+            const self = this;
+            openConfirmModal('wikiDeleteModal', {
+                title: '{{ _('确认删除文章') }}',
+                message: '{{ _('确定删除「%(title)s」吗？此操作无法撤销。') }}'.replace('%(title)s', title),
+                onConfirm: async () => {
+                    const r = await fetch(`/api/wiki/articles/${articleId}`, { method: 'DELETE' });
+                    const j = await r.json();
+                    if (!j.success) throw new Error(j.message || '{{ _('删除失败') }}');
+                    if (self.currentArticle && self.currentArticle.id === articleId) {
+                        self.currentArticle = null;
+                        self.renderedContent = '';
+                    }
+                    await self.refreshTree();
+                },
+            });
+        },
+
+        recompileArticle(articleId, sourceRawIds) {
+            if (!sourceRawIds || sourceRawIds.length === 0) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('提示') }}', message: '{{ _('该文章没有关联的原始文件。') }}' });
+                return;
+            }
+            const self = this;
+            openConfirmModal('wikiConfirmModal', {
+                title: '{{ _('重新编译') }}',
+                message: '{{ _('将重新编译关联的原始文件，可能需要 30-60 秒。确认开始吗？') }}',
+                onConfirm: () => {
+                    closeConfirmModal('wikiConfirmModal');
+                    self._doRecompile(articleId);
+                },
+            });
+        },
+        async _doRecompile(articleId) {
+            this.ingestingId = articleId;
+            try {
+                const r = await fetch(`/api/wiki/articles/${articleId}/recompile`, { method: 'POST' });
+                const j = await r.json();
+                if (j.success) {
+                    await this.refreshTree();
+                    await this.loadRawFiles();
+                } else {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('编译失败') }}', message: j.message || '{{ _('未知错误') }}' });
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('编译失败') }}', message: e.message });
+            } finally {
+                this.ingestingId = null;
+            }
+        },
+
+        async changeScope(articleId, newScope) {
+            try {
+                const r = await fetch(`/api/wiki/articles/${articleId}/scope`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope: newScope }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    // 更新 tree 中对应文章的 scope
+                    for (const articles of Object.values(this.tree)) {
+                        const art = articles.find(a => a.id === articleId);
+                        if (art) { art.scope = newScope; break; }
+                    }
+                    if (this.currentArticle && this.currentArticle.id === articleId) {
+                        this.currentArticle.scope = newScope;
+                    }
+                } else if (j.needs_approval) {
+                    // 超出权限 → 打开晋升申请弹窗
+                    this.openPromoteModal(articleId, newScope);
+                } else {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('调整失败') }}', message: j.message || '{{ _('未知错误') }}' });
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('调整失败') }}', message: e.message });
+            }
+        },
+
+        async changeTopic(articleId, newTopic) {
+            try {
+                const r = await fetch(`/api/wiki/articles/${articleId}/topic`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topic: newTopic }),
+                });
+                const j = await r.json();
+                if (!j.success) {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('切换 topic 失败') }}', message: j.message || '{{ _('未知错误') }}' });
+                    return;
+                }
+                await this.refreshTree();
+                if (this.currentArticle && this.currentArticle.id === articleId) {
+                    this.currentArticle.topic = newTopic;
+                }
+                if (!this.expandedTopics.includes(newTopic)) {
+                    this.expandedTopics.push(newTopic);
+                    localStorage.setItem('wiki_expanded_topics', JSON.stringify(this.expandedTopics));
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('切换 topic 失败') }}', message: e.message });
+            }
+        },
+
+        // ── 晋升申请流程 ─────────────────
+        openPromoteModal(articleId, targetScope) {
+            // 找到文章信息
+            let artInfo = null;
+            for (const articles of Object.values(this.tree)) {
+                artInfo = articles.find(a => a.id === articleId);
+                if (artInfo) break;
+            }
+            if (!artInfo) return;
+
+            this.promoteArticleId = articleId;
+            this.promoteModalArticleTitle = artInfo.title;
+            this.promoteCurrentScope = artInfo.scope;
+            this.promoteReason = '';
+            this.promoteSubmitting = false;
+
+            // 计算可选目标等级（比当前高的 + 需要审批的）
+            const hierarchy = ['personal', 'department', 'company', 'system'];
+            const currentIdx = hierarchy.indexOf(artInfo.scope);
+            this.promoteAvailableScopes = hierarchy.filter((_, i) => i > currentIdx);
+            this.promoteTargetScope = targetScope && this.promoteAvailableScopes.includes(targetScope) ? targetScope : (this.promoteAvailableScopes[0] || '');
+            this.showPromoteModal = true;
+        },
+
+        async doSubmitPromotion() {
+            if (!this.promoteTargetScope || !this.promoteReason.trim()) return;
+            this.promoteSubmitting = true;
+            try {
+                const r = await fetch(`/api/wiki/articles/${this.promoteArticleId}/promote`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to_scope: this.promoteTargetScope,
+                        reason: this.promoteReason.trim(),
+                    }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    this.showPromoteModal = false;
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('申请已提交') }}', message: j.message });
+                } else {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('提交失败') }}', message: j.message || '{{ _('未知错误') }}' });
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('提交失败') }}', message: e.message });
+            } finally {
+                this.promoteSubmitting = false;
+            }
+        },
+
+        // ── 晋升审核流程 ─────────────────
+        async loadPendingPromotions() {
+            try {
+                const r = await fetch('/api/wiki/promotion-requests');
+                const j = await r.json();
+                if (j.success) {
+                    this.pendingPromotions = (j.data || []).filter(p => p.status === 'pending' && p.assigned_to === {{ current_user.id }});
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        hasPromotion(articleId) {
+            return this.pendingPromotions.some(p => p.article_id === articleId);
+        },
+
+        getPromotion(articleId) {
+            return this.pendingPromotions.find(p => p.article_id === articleId);
+        },
+
+        openReviewModal(promotionData) {
+            this.reviewData = promotionData;
+            this.reviewNote = '';
+            this.reviewSubmitting = false;
+            this.showReviewModal = true;
+        },
+
+        async doReview(action) {
+            if (!this.reviewData.id) return;
+            this.reviewSubmitting = true;
+            try {
+                const r = await fetch(`/api/wiki/promotion-requests/${this.reviewData.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, review_note: this.reviewNote }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    this.showReviewModal = false;
+                    const text = action === 'approve' ? '{{ _('已通过') }}' : '{{ _('已拒绝') }}';
+                    openConfirmModal('wikiConfirmModal', { title: text, message: '{{ _('晋升申请') }}' + text });
+                    // 刷新数据
+                    await this.refreshTree();
+                    await this.loadPendingPromotions();
+                } else {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('操作失败') }}', message: j.message || '{{ _('未知错误') }}' });
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('操作失败') }}', message: e.message });
+            } finally {
+                this.reviewSubmitting = false;
+            }
+        },
+
+        async viewSource(articleId) {
+            // 按文章可见性反查源文件 —— 能看到文章就能看到源头
+            let sources = [];
+            try {
+                const r = await fetch(`/api/wiki/articles/${articleId}/sources`);
+                const j = await r.json();
+                if (!j.success) {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('获取来源失败') }}', message: j.message || '' });
+                    return;
+                }
+                sources = j.data || [];
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('获取来源失败') }}', message: String(e) });
+                return;
+            }
+            if (sources.length === 0) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('提示') }}', message: '{{ _('该文章没有关联的原始文件。') }}' });
+                return;
+            }
+            const scopeLabel = {
+                system: '系统', company: '公司', department: '部门', personal: '个人'
+            };
+            const escName = (s) => String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+            const rows = sources.map(raw => {
+                const sLabel = scopeLabel[raw.scope] || raw.scope || '';
+                const fileName = raw.file_name || raw.title || '';
+                const ownerName = raw.owner_name || raw.adder_name || '—';
+                return `<div class="py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-b-0">
+                    <div class="flex items-start gap-2">
+                        <span class="material-symbols-outlined text-base text-slate-400 mt-0.5">description</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium text-slate-900 dark:text-white truncate">${escName(raw.title)}</div>
+                            <div class="text-[11px] text-slate-500 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                                <span class="inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined" style="font-size:11px">topic</span>
+                                    ${escName(raw.topic || '—')}
+                                </span>
+                                <span class="inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined" style="font-size:11px">person</span>
+                                    ${escName(ownerName)}
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                    ${escName(sLabel)}
+                                </span>
+                            </div>
+                            ${fileName !== raw.title ? `<div class="text-[11px] text-slate-400 mt-0.5 truncate">${escName(fileName)}</div>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            });
+            const hint = `<div class="mt-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+                <span class="material-symbols-outlined" style="font-size:14px; line-height:1.2">info</span>
+                <span>{{ _('来源信息仅供参考。如需获取原始文件，请联系上传人线下处理。') }}</span>
+            </div>`;
+            openConfirmModal('wikiConfirmModal', {
+                title: '{{ _('文章来源') }}（' + sources.length + ' {{ _('个原始文件') }}）',
+                message: '<div class="max-h-[60vh] overflow-y-auto -mx-1 px-1">' + rows.join('') + '</div>' + hint,
+            });
+        },
+
+        runLint() {
+            const self = this;
+            openConfirmModal('wikiConfirmModal', {
+                title: '{{ _('开始质检') }}',
+                message: '{{ _('将对整个 Wiki 执行质检，可能需要 30-60 秒。确认开始吗？') }}',
+                onConfirm: () => {
+                    closeConfirmModal('wikiConfirmModal');
+                    self._doLint();
+                },
+            });
+        },
+        async _doLint() {
+            this.lintRunning = true;
+            this.lintResult = null;
+            try {
+                const r = await fetch('/api/wiki/lint', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apply_auto_fixes: this.lintApplyFixes }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    this.lintResult = j.data;
+                    if (this.lintApplyFixes && j.data.auto_fixes_applied > 0) {
+                        await this.refreshTree();
+                    }
+                } else {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('质检失败') }}', message: j.message || '{{ _('未知错误') }}' });
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('质检失败') }}', message: e.message });
+            } finally {
+                this.lintRunning = false;
+            }
+        },
+
+        // ── 工具 ─────────────────
+        renderMarkdown(text) {
+            // C4: Wiki 内容来源是 Claude Opus 输出（对抗性 PDF 可能触发
+            // prompt injection），内容会被多用户共享查看 —— 必须 sanitize。
+            // 用 DOMPurify 扫掉 script / on* / iframe / javascript: 等危险项。
+            if (!text) return '';
+            try {
+                const rawHtml = marked.parse(text);
+                if (typeof DOMPurify !== 'undefined') {
+                    return DOMPurify.sanitize(rawHtml, {
+                        USE_PROFILES: { html: true },
+                        FORBID_TAGS: ['style', 'iframe', 'object', 'embed', 'form'],
+                        FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+                    });
+                }
+                // DOMPurify 未加载时的降级：抛弃 HTML，只返回转义后的纯文本
+                console.warn('DOMPurify 未加载，Wiki 内容降级为纯文本渲染');
+                return this.escapeHtml(text);
+            } catch (e) {
+                return this.escapeHtml(text);
+            }
+        },
+
+        escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s || '';
+            return div.innerHTML;
+        },
+
+        // 渲染文章正文：在 renderMarkdown 基础上，把 _assets/<slug>/img-N.<ext> 形式的相对路径
+        // 重写为 /api/wiki/articles/<id>/asset/<rel>，让浏览器经过权限校验后的路由获取图片字节。
+        // 注意：仅文章详情场景调用，AI 答案/索引场景仍用 renderMarkdown。
+        renderArticleMarkdown(text, articleId) {
+            const html = this.renderMarkdown(text);
+            if (!html || !articleId) return html;
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html;
+            wrap.querySelectorAll('img').forEach(img => {
+                const src = (img.getAttribute('src') || '').trim();
+                if (src.startsWith('_assets/')) {
+                    img.setAttribute('src', `/api/wiki/articles/${articleId}/asset/${src}`);
+                    // Tailwind 内联样式：圆角、阴影、最大宽度，避免破坏排版
+                    const cls = (img.getAttribute('class') || '') + ' my-3 rounded-lg shadow-sm max-w-full h-auto';
+                    img.setAttribute('class', cls.trim());
+                    img.setAttribute('loading', 'lazy');
+                }
+            });
+            return wrap.innerHTML;
+        },
+
+        // 在 tree 中按 topic+slug 定位文章；topic 为空时跨 topic 兜底
+        findArticleByTopicSlug(topic, slug) {
+            if (topic && this.tree[topic]) {
+                const hit = this.tree[topic].find(a => a.slug === slug);
+                if (hit) return hit;
+            }
+            for (const arts of Object.values(this.tree)) {
+                const hit = arts.find(a => a.slug === slug);
+                if (hit) return hit;
+            }
+            return null;
+        },
+
+        // 渲染 AI 答案：用 marked + DOMPurify 得到 HTML，再把形如
+        // `<a href="topic/slug.md">xxx.md</a>` 的引用改造成：
+        //   - 文本替换为文章 title（LLM 若把 slug.md 当文本时修正）
+        //   - href 置 '#' + data-article-id，由 handleChatLinkClick 拦截
+        renderChatMarkdown(text, citedSlugMap) {
+            const html = this.renderMarkdown(text);
+            if (!html) return '';
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html;
+
+            // 重写图片路径 (_assets/<slug>/...) → /api/wiki/articles/<id>/asset/_assets/<slug>/...
+            // citedSlugMap: {slug: article_id} 来自 cited_articles
+            const map = citedSlugMap || {};
+            wrap.querySelectorAll('img').forEach(img => {
+                const src = (img.getAttribute('src') || '').trim();
+                const m = src.match(/^_assets\/([^\/]+)\//);
+                if (!m) return;
+                const slug = m[1];
+                const articleId = map[slug];
+                if (!articleId) {
+                    // slug 未在 cited_articles 中 — 兜底用 findArticleByTopicSlug
+                    const art = this.findArticleByTopicSlug('', slug);
+                    if (!art) return;
+                    img.setAttribute('src', `/api/wiki/articles/${art.id}/asset/${src}`);
+                } else {
+                    img.setAttribute('src', `/api/wiki/articles/${articleId}/asset/${src}`);
+                }
+                const cls = (img.getAttribute('class') || '') + ' my-2 rounded-lg shadow-sm max-w-full h-auto';
+                img.setAttribute('class', cls.trim());
+                img.setAttribute('loading', 'lazy');
+            });
+
+            wrap.querySelectorAll('a').forEach(a => {
+                const href = (a.getAttribute('href') || '').trim();
+                // 允许 ./topic/slug.md 或 topic/slug.md 或 slug.md
+                const m = href.match(/^\.?\/?(?:([^\/#?]+)\/)?([^\/#?]+)\.md(?:[#?].*)?$/);
+                if (!m) return;
+                const topic = m[1] || '';
+                const slug = m[2];
+                const art = this.findArticleByTopicSlug(topic, slug);
+                if (!art) return;
+                const t = (a.textContent || '').trim();
+                // 若链接文本形如 xxx.md 或等于 slug 或含路径分隔符，替换成真实标题
+                if (!t || t.endsWith('.md') || t === slug || t === `${topic}/${slug}` || t.includes('/')) {
+                    a.textContent = art.title || slug;
+                }
+                a.setAttribute('href', '#');
+                a.setAttribute('data-article-id', art.id);
+                a.classList.add('wiki-cite');
+            });
+            return wrap.innerHTML;
+        },
+
+        handleChatLinkClick(e) {
+            const a = e.target.closest('a[data-article-id]');
+            if (!a) return;
+            e.preventDefault();
+            const id = parseInt(a.getAttribute('data-article-id'), 10);
+            if (id) {
+                this.openArticle(id);
+                // 上报引用链接点击（积分由后端发放给文章作者，过滤作者本人）
+                fetch(`/api/wiki/articles/${id}/citation-click`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+                }).catch(() => {});
+            }
+        },
+
+        formatDate(iso) {
+            if (!iso) return '';
+            try {
+                return new Date(iso).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            } catch (e) { return iso; }
+        },
+    };
+}
+</script>

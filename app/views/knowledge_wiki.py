@@ -183,10 +183,14 @@ def _find_course(course_key):
 @knowledge_wiki_bp.route('/wiki/at')
 @login_required
 def at_wiki_page():
-    """AT 版知识库落地页 —— 互动课程卡片墙。"""
+    """AT 版知识库 —— 文章库(复用 wikiApp)+ 互动课程。"""
+    ensure_wiki_structure()
     return render_template(
         'knowledge/at_wiki.html',
         courses=INTERACTIVE_COURSES,
+        is_admin=_is_admin(),
+        is_dept_manager=getattr(current_user, 'is_department_manager', False),
+        current_user_id=current_user.id,
     )
 
 

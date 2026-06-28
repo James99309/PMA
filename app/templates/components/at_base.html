@@ -511,3 +511,27 @@
     </a>
   </th>
 {% endmacro %}
+
+{# ─── 分段控件(通用,Alpine 驱动;视觉同仪表盘 scope chip)──────
+   把仪表盘那套 chip 样式封装成可复用组件,支持任意项数 + 单选高亮。
+   用法:
+     {{ at_segmented(
+          items=[{'key':'all','label':_('全部')}, {'key':'system','label':_('系统')}],
+          active='sm === $key',     # JS 表达式;$key 自动替换为各项 key 的带引号字面量
+          select='sm = $key') }}    # 点击执行的 JS
+   - active/select 里写 $key 占位,宏会替换成 'key';
+   - equal=true 时每项等宽(flex:1);选中=白片+微阴影,未选=透明灰字。
+#}
+{% macro at_segmented(items, active, select, equal=true) %}
+{%- set _w = 'flex:1;' if equal else '' -%}
+{%- set _base = _w ~ 'padding:4px 8px;font-size:11.5px;font-weight:500;border-radius:5px;border:0;cursor:pointer;white-space:nowrap;' -%}
+{%- set _on = _base ~ 'color:var(--ink);background:var(--bg-elev);box-shadow:0 1px 2px rgba(31,30,27,0.06);' -%}
+{%- set _off = _base ~ 'color:var(--ink-3);background:transparent;' -%}
+<div style="display:flex;gap:4px;padding:3px;background:var(--bg-page);border-radius:7px;flex-shrink:0;">
+  {%- for it in items %}
+  {%- set _k = "'" ~ it.key ~ "'" %}
+  <button type="button" @click="{{ select|replace('$key', _k) }}"
+          :style="({{ active|replace('$key', _k) }}) ? '{{ _on }}' : '{{ _off }}'">{{ it.label }}</button>
+  {%- endfor %}
+</div>
+{% endmacro %}

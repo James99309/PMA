@@ -1,12 +1,16 @@
 {#
-  AT 版知识库 —— 互动课程墙(第 1 步)
+  AT 版知识库(统一页)—— 阶段1
   ─────────────────────────────────────────────────────────────
-  - AT 主题 shell(at_sidebar + at_topbar + at-theme.css),与 at_dashboard 同壳。
-  - courses 由 knowledge_wiki.at_wiki_page 传入;点击卡片在新标签页播放自包含 HTML。
-  - 现仅"播放";讲解条 / 下一步 / 考核评分为后续步骤。
+  AT 外壳(sidebar/topbar)+ 顶部 tab:
+    · 文章库   —— TW 知识库的树+scope+阅读+问答,复用 wikiApp() 逻辑(共享脚本),AT 风格重做
+    · 互动课程 —— 课程卡片墙(点击进播放器+考核)
+  复用:_wiki_app_script.html(同 x-* 绑定)+ 后端 /api/wiki/* 不变。
+  阶段2 再加:资料管理面板、单篇操作菜单、分享/晋升/审核 modal。
 #}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% from 'components/at_topbar.html' import at_topbar with context %}
+{% from 'components/at_base.html' import at_icon, at_tabs, at_segmented %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_delete_confirm_modal, tw_confirm_modal_script %}
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -16,88 +20,309 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>PMA · {{ _('知识库') }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<style>.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }</style>
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+<script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/dompurify/purify.min.js') }}"></script>
 <style>
-  .kb-grid { display:grid; gap:18px;
-             grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); }
-  .kb-card { background:var(--bg-elev); border:1px solid var(--line); border-radius:14px;
-             overflow:hidden; display:flex; flex-direction:column; cursor:pointer;
-             transition:box-shadow 140ms, transform 140ms, border-color 140ms; text-align:left; }
-  .kb-card:hover { box-shadow:0 14px 34px rgba(0,0,0,0.12); transform:translateY(-2px);
-                   border-color:var(--accent); }
-  .kb-cover { height:132px; display:flex; align-items:center; justify-content:center;
-              position:relative; }
-  .kb-cover .kb-play { position:absolute; right:12px; bottom:12px; width:34px; height:34px;
-              border-radius:50%; background:rgba(255,255,255,0.92); color:#1A0E3D;
-              display:flex; align-items:center; justify-content:center;
-              box-shadow:0 3px 10px rgba(0,0,0,0.25); }
-  .kb-cover .kb-mark { font-family:var(--font-serif); color:#fff; font-weight:700;
-              letter-spacing:3px; font-size:20px; }
-  .kb-cover .kb-mark small { display:block; color:#00D8FE; font-weight:500;
-              letter-spacing:4px; font-size:10px; margin-top:4px; }
-  .kb-body { padding:14px 16px 16px; flex:1; display:flex; flex-direction:column; gap:6px; }
-  .kb-title { font-family:var(--font-serif); font-size:16px; font-weight:600;
-              color:var(--ink); line-height:1.25; }
-  .kb-sub { font-size:11.5px; color:var(--accent); font-weight:500; letter-spacing:0.02em; }
-  .kb-desc { font-size:12.5px; color:var(--ink-3); line-height:1.5; }
-  .kb-tag { margin-top:auto; display:inline-flex; align-items:center; gap:5px; font-size:11px;
-            color:var(--ink-4); padding-top:6px; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+  /* 确认弹窗靠 Tailwind 的 .hidden 隐藏;AT 页无 Tailwind,补这条防止弹窗内容露在页底 */
+  .hidden { display:none !important; }
+  /* ── 顶部 tab(标准 at_tabs,撑满剩余高度)── */
+  #kbTabs { flex:1; display:flex; flex-direction:column; min-height:0; }
+  #kbTabs > nav { flex-shrink:0; padding:0 18px; background:var(--bg-elev); }
+  #kbTabs > .at-tabs-panels { flex:1; min-height:0; }
+  #kbTabs > .at-tabs-panels > [data-tab-panel] { height:100%; }
+
+  /* ── 文章库:两栏 ── */
+  .kb-wiki { display:flex; height:100%; min-height:0; }
+  .kb-side { width:288px; flex-shrink:0; border-right:1px solid var(--line); background:var(--bg-page);
+             display:flex; flex-direction:column; min-height:0; }
+  .kb-side-h { padding:12px 14px; display:flex; align-items:center; justify-content:space-between;
+               border-bottom:1px solid var(--line); }
+  /* scope chip 用通用组件 at_segmented 渲染;这里只给容器底色让轨道显出来 */
+  .kb-scope { padding:10px 12px; border-bottom:1px solid var(--line); background:var(--bg-elev); }
+  .kb-tree { flex:1; overflow-y:auto; padding:10px 8px; }
+  .kb-topic-btn { width:100%; display:flex; align-items:center; gap:7px; padding:9px 8px; border:0;
+                  background:none; cursor:pointer; font-size:13px; font-weight:600; color:var(--ink); text-align:left; border-radius:7px; }
+  .kb-topic-btn:hover { background:var(--bg-hover); }
+  .kb-art { width:100%; display:flex; align-items:flex-start; gap:9px; padding:12px; margin-bottom:5px;
+            border:0; background:none; cursor:pointer; text-align:left; border-radius:8px; }
+  .kb-art:hover { background:var(--bg-hover); }
+  .kb-art.on { background:var(--accent-tint); }
+  .kb-art-main { flex:1; min-width:0; }
+  /* 标题 + 摘要在右列,都对齐(不对齐徽章);允许换行,不截断 */
+  .kb-art-h { line-height:1.5; }
+  .kb-art-title { font-size:13px; font-weight:500; color:var(--ink); word-break:break-word; }
+  .kb-art.on .kb-art-title { color:var(--accent); }
+  .kb-art-sum { font-size:11.5px; color:var(--ink-4); margin-top:5px; line-height:1.55; word-break:break-word;
+                display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .kb-new { display:inline-block; font-size:8px; font-weight:700; color:#fff; background:var(--success,#1A7F4B);
+            border-radius:3px; padding:0 3px; margin-left:5px; vertical-align:2px; }
+  /* 徽章:左侧水槽,顶对齐标题首行 */
+  .kb-badge { display:inline-flex; flex-shrink:0; margin-top:1px; padding:2px 7px; border-radius:5px;
+              font-size:10px; font-weight:600; white-space:nowrap; }
+  .kb-side-f { padding:8px 14px; border-top:1px solid var(--line); font-size:11px; color:var(--ink-4);
+               display:flex; align-items:center; justify-content:space-between; }
+
+  /* ── 文章库:主区 ── */
+  .kb-main { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .kb-reader { flex:1; overflow-y:auto; padding:26px 36px; }
+  .kb-chat { border-top:1px solid var(--line); background:var(--bg-elev); display:flex; flex-direction:column; }
+  .kb-chat.col { height:56px; } .kb-chat.exp { height:340px; }
+  .kb-chat-h { padding:8px 16px; display:flex; align-items:center; justify-content:space-between;
+               border-bottom:1px solid var(--line); cursor:pointer; }
+  .kb-chat-body { flex:1; overflow-y:auto; padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
+  .kb-chat-in { padding:10px 16px; border-top:1px solid var(--line); }
+  .kb-input { flex:1; padding:8px 12px; border-radius:9px; background:var(--bg-sunk,var(--bg-page));
+              border:1px solid var(--line); font-size:13px; color:var(--ink); }
+  .kb-send { padding:8px 16px; border-radius:9px; background:var(--accent); color:#fff; border:0; font-size:13px;
+             font-weight:500; cursor:pointer; }
+  .kb-send:disabled { opacity:.5; cursor:not-allowed; }
+
+  /* ── 互动课程卡片(沿用) ── */
+  .kb-grid { display:grid; gap:18px; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); padding:24px 0; }
+  .kb-card { background:var(--bg-elev); border:1px solid var(--line); border-radius:14px; overflow:hidden;
+             display:flex; flex-direction:column; cursor:pointer; text-decoration:none;
+             transition:box-shadow 140ms,transform 140ms,border-color 140ms; }
+  .kb-card:hover { box-shadow:0 14px 34px rgba(0,0,0,.12); transform:translateY(-2px); border-color:var(--accent); }
+  .kb-cover { height:132px; display:flex; align-items:center; justify-content:center; position:relative; }
+  .kb-cover .kb-mark { font-family:var(--font-serif); color:#fff; font-weight:700; letter-spacing:3px; font-size:20px; }
+  .kb-cover .kb-mark small { display:block; color:#00D8FE; font-weight:500; letter-spacing:4px; font-size:10px; margin-top:4px; }
+  .kb-cbody { padding:14px 16px 16px; flex:1; display:flex; flex-direction:column; gap:6px; }
+  .kb-ctitle { font-family:var(--font-serif); font-size:16px; font-weight:600; color:var(--ink); line-height:1.25; }
+  .kb-csub { font-size:11.5px; color:var(--accent); font-weight:500; }
+  .kb-cdesc { font-size:12.5px; color:var(--ink-3); line-height:1.5; }
 </style>
 </head>
 <body class="at-page">
+{% set _en = session.get('language') == 'en' %}
 
 <div style="display:flex;min-height:100vh;">
 {{ at_sidebar(active_key='wiki_at') }}
 
-<div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-x:hidden;">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;">
 
   {{ at_topbar() }}
 
-  <main style="width:100%;box-sizing:border-box;max-width:1480px;margin:0 auto;padding:24px 36px 80px;">
+  {% call at_tabs(tabs=[
+       {'key':'articles','label':_('文章库')},
+       {'key':'courses','label':_('互动课程'),'count': courses|length}
+     ], active_key='articles', tab_id='kbTabs') %}
 
-    <div style="margin-bottom:22px;">
-      <div class="at-dim" style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;">
-        KNOWLEDGE · {{ _('知识库') }}</div>
-      <h1 class="at-serif" style="margin:6px 0 0;font-size:26px;font-weight:600;letter-spacing:-0.01em;">
-        {{ _('互动课程') }}</h1>
-      <div class="at-dim" style="font-size:13px;margin-top:6px;">
-        {{ _('点击课程卡片,在新标签页中播放互动课件。') }}</div>
-    </div>
+  {# ══════════ 文章库 tab(复用 wikiApp 逻辑)══════════ #}
+  <div data-tab-panel="articles" style="height:100%;" x-data="wikiApp()"
+       x-init="if(!scopeFilter.system && !scopeFilter.company && !scopeFilter.department && !scopeFilter.personal){ scopeFilter={system:true,company:true,department:true,personal:true}; localStorage.setItem('wiki_scope_filter', JSON.stringify(scopeFilter)); }">
+    <div class="kb-wiki">
 
-    {% if courses %}
-    <div class="kb-grid">
-      {% for c in courses %}
-      <a class="kb-card" href="{{ url_for('knowledge_wiki.play_course', course_key=c.key) }}"
-         target="_blank" rel="noopener">
-        <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};">
-          <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
-          <div class="kb-play"><span class="material-symbols-outlined" style="font-size:20px;">play_arrow</span></div>
+      {# 左:文章树 #}
+      <aside class="kb-side">
+        {# scope 单选:chip 直接在 wikiApp 作用域改 scopeFilter(全局映射表,无嵌套作用域)#}
+        <div class="kb-scope">
+          <script>
+            window.WIKI_SCOPE_MAP = {
+              all:        {system:true, company:true, department:true, personal:true},
+              system:     {system:true, company:false,department:false,personal:false},
+              company:    {system:false,company:true, department:false,personal:false},
+              department: {system:false,company:false,department:true, personal:false},
+              personal:   {system:false,company:false,department:false,personal:true}
+            };
+          </script>
+          {{ at_segmented(
+               items=[
+                 {'key':'all',        'label':('All'  if _en else '全部')},
+                 {'key':'system',     'label':('Sys'  if _en else '系统')},
+                 {'key':'company',    'label':('Co'   if _en else '公司')},
+                 {'key':'department', 'label':('Dept' if _en else '部门')},
+                 {'key':'personal',   'label':('Mine' if _en else '个人')}
+               ],
+               active='JSON.stringify(scopeFilter) === JSON.stringify(WIKI_SCOPE_MAP[$key])',
+               select="scopeFilter = WIKI_SCOPE_MAP[$key]; localStorage.setItem('wiki_scope_filter', JSON.stringify(WIKI_SCOPE_MAP[$key]))") }}
         </div>
-        <div class="kb-body">
-          <div class="kb-sub">{{ c.subtitle }}</div>
-          <div class="kb-title">{{ c.title }}</div>
-          <div class="kb-desc">{{ c.desc }}</div>
-          <div class="kb-tag">
-            <span class="material-symbols-outlined" style="font-size:14px;">open_in_new</span>
-            {{ _('新标签页播放') }}
+
+        {# topic 树 #}
+        <div class="kb-tree">
+          <template x-if="filteredArticleCount === 0">
+            <div style="padding:30px 12px;text-align:center;color:var(--ink-4);font-size:12px;">
+              <span x-show="articleCount === 0">{{ _('Wiki 为空') }}</span>
+              <span x-show="articleCount > 0">{{ _('当前过滤条件下无文章') }}</span>
+            </div>
+          </template>
+          <template x-for="(arts, topic) in filteredTree" :key="topic">
+            <div style="margin-bottom:8px;">
+              <button class="kb-topic-btn" @click="toggleTopicExpand(topic)">
+                <span class="material-symbols-outlined" style="font-size:16px;color:var(--ink-4);"
+                      x-text="isTopicExpanded(topic) ? 'expand_more' : 'chevron_right'"></span>
+                <span style="flex:1;font-weight:500;" x-text="topic"></span>
+                <span style="font-size:10px;color:var(--ink-4);" x-text="arts.length"></span>
+              </button>
+              <div x-show="isTopicExpanded(topic)" x-collapse>
+                <template x-for="art in arts" :key="art.id">
+                  <button class="kb-art" :class="currentArticle && currentArticle.id === art.id && 'on'"
+                          @click="openArticle(art.id)">
+                    <span class="kb-badge"
+                          :style="{system:'color:var(--info);background:var(--info-soft)',company:'color:var(--accent);background:var(--accent-tint)',department:'color:var(--success);background:var(--success-soft)',personal:'color:var(--warn);background:var(--warn-soft)'}[art.scope]"
+                          :title="scopeBadge(art)"
+                          x-text="{system:'{{ 'Sys' if _en else '系统' }}',company:'{{ 'Co' if _en else '公司' }}',department:'{{ 'Dept' if _en else '部门' }}',personal:'{{ 'Mine' if _en else '个人' }}'}[art.scope] || art.scope"></span>
+                    <div class="kb-art-main">
+                      <div class="kb-art-h">
+                        <span class="kb-art-title" x-text="art.title"></span>
+                        <span x-show="isNewArticle(art)" class="kb-new">NEW</span>
+                      </div>
+                      <div class="kb-art-sum" x-show="art.summary" x-text="art.summary"></div>
+                    </div>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="kb-side-f">
+          <span x-text="filteredArticleCount + '/' + articleCount + ' {{ _('篇') }}'"></span>
+          <span style="display:flex;align-items:center;gap:12px;">
+            <button @click="refreshTree()" title="{{ _('刷新') }}"
+                    style="border:0;background:none;cursor:pointer;color:var(--ink-4);padding:0;display:inline-flex;">
+              <span class="material-symbols-outlined" style="font-size:15px;">refresh</span>
+            </button>
+            <button @click="showIndex()" style="border:0;background:none;cursor:pointer;color:var(--accent);font-size:11px;">{{ _('索引') }}</button>
+          </span>
+        </div>
+      </aside>
+
+      {# 右:阅读 + 问答 #}
+      <main class="kb-main">
+        <section class="kb-reader">
+          <template x-if="!currentArticle && !loadingArticle">
+            <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--ink-4);">
+              <span class="material-symbols-outlined" style="font-size:54px;margin-bottom:12px;opacity:.5;">menu_book</span>
+              <div style="font-size:15px;font-weight:600;color:var(--ink-3);">{{ _('选择一篇文章开始阅读') }}</div>
+              <div style="font-size:13px;margin-top:6px;">{{ _('或在下方问答区直接向 Wiki 提问') }}</div>
+            </div>
+          </template>
+          <template x-if="loadingArticle">
+            <div style="height:100%;display:flex;align-items:center;justify-content:center;">
+              <div class="dot-typing text-primary"><span></span><span></span><span></span></div>
+            </div>
+          </template>
+          <template x-if="currentArticle && !loadingArticle">
+            <div>
+              <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-4);font-weight:600;"
+                       x-text="currentArticle.topic + ' / ' + currentArticle.slug"></div>
+                  <span class="kb-badge"
+                        :style="{system:'color:var(--info);background:var(--info-soft)',company:'color:var(--accent);background:var(--accent-tint)',department:'color:var(--success);background:var(--success-soft)',personal:'color:var(--warn);background:var(--warn-soft)'}[currentArticle.scope]"
+                        x-text="scopeBadge(currentArticle)"></span>
+                </div>
+                <h1 class="at-serif" style="font-size:24px;font-weight:700;margin:0;color:var(--ink);" x-text="currentArticle.title"></h1>
+                <p style="font-size:13px;color:var(--ink-3);margin:6px 0 0;" x-text="currentArticle.summary"></p>
+                <div style="margin-top:8px;display:flex;gap:10px;font-size:11px;color:var(--ink-4);">
+                  <span x-show="currentArticle.last_compiled_at" x-text="'{{ _('编译于') }} ' + formatDate(currentArticle.last_compiled_at)"></span>
+                  <span x-show="currentArticle.compile_model" x-text="'· ' + currentArticle.compile_model"></span>
+                  <span x-show="currentArticle.content_length" x-text="'· ' + currentArticle.content_length + ' {{ _('字符') }}'"></span>
+                </div>
+              </div>
+              <div class="wiki-md prose prose-slate dark:prose-invert max-w-none" x-html="renderedContent"></div>
+            </div>
+          </template>
+        </section>
+
+        {# 问答 #}
+        <section class="kb-chat" :class="chatExpanded ? 'exp' : 'col'">
+          <div class="kb-chat-h" @click="chatExpanded = !chatExpanded">
+            <span style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:var(--ink);">
+              <span class="material-symbols-outlined" style="font-size:17px;color:var(--accent);">forum</span>{{ _('Wiki 问答') }}
+              <span x-show="chatMessages.length > 0" style="font-size:10px;color:var(--ink-4);" x-text="'(' + chatMessages.length + ')'"></span>
+            </span>
+            <span style="display:flex;align-items:center;gap:8px;">
+              <button @click.stop="chatMessages = []" x-show="chatMessages.length > 0"
+                      style="border:0;background:none;cursor:pointer;font-size:11px;color:var(--ink-4);">{{ _('清空') }}</button>
+              <span class="material-symbols-outlined" style="font-size:18px;color:var(--ink-4);"
+                    x-text="chatExpanded ? 'expand_more' : 'expand_less'"></span>
+            </span>
           </div>
-        </div>
-      </a>
-      {% endfor %}
+          <div x-show="chatExpanded" class="kb-chat-body" x-ref="chatScroll">
+            <template x-if="chatMessages.length === 0">
+              <div style="text-align:center;font-size:12px;color:var(--ink-4);padding:20px 0;">
+                {{ _('向 Wiki 提问，AI 会基于现有文章回答，并带引用链接') }}
+              </div>
+            </template>
+            <template x-for="(msg, idx) in chatMessages" :key="idx">
+              <div style="display:flex;" :style="msg.role === 'user' ? 'justify-content:flex-end' : 'justify-content:flex-start'">
+                <div style="max-width:85%;padding:8px 12px;font-size:13px;border-radius:10px;"
+                     :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai wiki-md'"
+                     @click="msg.role === 'ai' && handleChatLinkClick($event)"
+                     x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderChatMarkdown(msg.text, msg.citedSlugMap)"></div>
+              </div>
+            </template>
+            <div x-show="chatLoading" style="display:flex;">
+              <div class="chat-bubble-ai" style="padding:10px 14px;border-radius:10px;">
+                <div class="dot-typing text-primary"><span></span><span></span><span></span></div>
+              </div>
+            </div>
+          </div>
+          <div x-show="chatExpanded" class="kb-chat-in">
+            <form @submit.prevent="sendQuestion()" style="display:flex;align-items:center;gap:8px;">
+              <input type="text" x-model="chatInput" :disabled="chatLoading" class="kb-input"
+                     placeholder="{{ _('向 Wiki 提问...（Shift+Enter 换行）') }}">
+              <button type="submit" class="kb-send" :disabled="chatLoading || !chatInput.trim()">
+                <span x-show="!chatLoading">{{ _('发送') }}</span>
+                <span x-show="chatLoading">{{ _('思考中...') }}</span>
+              </button>
+            </form>
+          </div>
+        </section>
+      </main>
     </div>
-    {% else %}
-    <div class="at-dim" style="padding:60px 0;text-align:center;font-size:13px;">
-      {{ _('暂无互动课程') }}
-    </div>
-    {% endif %}
+  </div>
 
-  </main>
+  {# ══════════ 互动课程 tab ══════════ #}
+  <div data-tab-panel="courses" style="height:100%;overflow-y:auto;">
+    <main style="max-width:1280px;margin:0 auto;padding:0 36px;">
+      <div style="padding-top:24px;">
+        <div class="at-dim" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;">KNOWLEDGE · {{ _('互动课程') }}</div>
+        <h1 class="at-serif" style="margin:6px 0 0;font-size:22px;font-weight:600;">{{ _('互动课程') }}</h1>
+        <div class="at-dim" style="font-size:13px;margin-top:6px;">{{ _('点击课程卡片,在新标签页中播放互动课件并完成考核。') }}</div>
+      </div>
+      {% if courses %}
+      <div class="kb-grid">
+        {% for c in courses %}
+        <a class="kb-card" href="{{ url_for('knowledge_wiki.play_course', course_key=c.key) }}" target="_blank" rel="noopener">
+          <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};">
+            <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
+          </div>
+          <div class="kb-cbody">
+            <div class="kb-csub">{{ c.subtitle }}</div>
+            <div class="kb-ctitle">{{ c.title }}</div>
+            <div class="kb-cdesc">{{ c.desc }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="at-dim" style="padding:60px 0;text-align:center;font-size:13px;">{{ _('暂无互动课程') }}</div>
+      {% endif %}
+    </main>
+  </div>
+
+  {% endcall %}
+
 </div>
 </div>
+
+{# 确认弹窗(wikiApp 脚本依赖 openConfirmModal)#}
+{{ tw_confirm_modal('wikiConfirmModal') }}
+{{ tw_delete_confirm_modal('wikiDeleteModal') }}
+{{ tw_confirm_modal_script() }}
+
+{# 复用的 wikiApp 逻辑(含 Jinja i18n/csrf/is_admin/current_user_id)#}
+{% include 'knowledge/_wiki_app_script.html' %}
 
 </body>
 </html>
