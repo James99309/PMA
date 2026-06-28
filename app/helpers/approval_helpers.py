@@ -6461,10 +6461,19 @@ def check_step_discount_violations(pricing_order, step_order, user_id):
         user_limits = DiscountPermissionService.get_user_discount_limits(user)
         
         violations = []
-        
-        # 检查批价单明细的折扣率
+
+        # 厂商产品 MN 集合:折扣检查仅针对厂商产品(与发起端一致;非厂商/手工/查不到的明细跳过)
+        from app.models.product import Product
+        vendor_mns = set(
+            mn for (mn,) in Product.query.filter_by(is_vendor_product=True)
+            .with_entities(Product.product_mn).all() if mn
+        )
+
+        # 检查批价单明细的折扣率(仅厂商产品)
         if user_limits['pricing_discount_limit'] is not None:
             for detail in pricing_order.pricing_details:
+                if not detail.product_mn or detail.product_mn not in vendor_mns:
+                    continue  # 非厂商产品跳过
                 # 将折扣率转换为百分比进行比较
                 detail_discount_pct = detail.discount_rate * 100 if detail.discount_rate else 0
                 if detail_discount_pct < user_limits['pricing_discount_limit']:
@@ -6476,10 +6485,10 @@ def check_step_discount_violations(pricing_order, step_order, user_id):
                         'limit': user_limits['pricing_discount_limit'],
                         'step_order': step_order
                     })
-        
+
         # 检查批价单总折扣率
-        if (user_limits['pricing_discount_limit'] is not None and 
-            pricing_order.pricing_discount_percentage and 
+        if (user_limits['pricing_discount_limit'] is not None and
+            pricing_order.pricing_discount_percentage and
             pricing_order.pricing_discount_percentage < user_limits['pricing_discount_limit']):
             violations.append({
                 'type': 'pricing_total',
@@ -6487,11 +6496,15 @@ def check_step_discount_violations(pricing_order, step_order, user_id):
                 'limit': user_limits['pricing_discount_limit'],
                 'step_order': step_order
             })
-        
-        # 检查结算单明细的折扣率
+
+        # 检查结算单明细的折扣率(仅厂商产品)
         if user_limits['settlement_discount_limit'] is not None:
             for detail in pricing_order.settlement_details:
-                if detail.discount_rate and detail.discount_rate < user_limits['settlement_discount_limit']:
+                if not detail.product_mn or detail.product_mn not in vendor_mns:
+                    continue  # 非厂商产品跳过
+                # 折扣率为分数(0~1),需 *100 与百分比下限比较(修正原漏乘100的误判)
+                detail_discount_pct = detail.discount_rate * 100 if detail.discount_rate else 0
+                if detail_discount_pct < user_limits['settlement_discount_limit']:
                     violations.append({
                         'type': 'settlement_detail',
                         'product_name': detail.product_name,

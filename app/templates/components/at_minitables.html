@@ -705,7 +705,7 @@
    单元格类名(cell-mn/cell-brand/cell-model/cell-qty/cell-market/cell-discount/
    cell-price/cell-subtotal/cell-note 及 settle 变体)与 tw_edit 一致,便于复用 JS。
    ────────────────────────────────────────────────────────────────── #}
-{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0, quote_map={}, grouped=none, quote_total=0) %}
+{% macro render_pricing_order_details_table(details, entity='pricing', currency_symbol='¥', can_edit=false, tbody_id='pricingTbody', total_amount=0, quote_map={}, grouped=none, quote_total=0, vendor_mns=none) %}
 {% set is_settle = (entity == 'settlement') %}
 {% set price_cls = 'cell-settle-price' if is_settle else 'cell-price' %}
 {% set disc_cls = 'cell-settle-discount' if is_settle else 'cell-discount' %}
@@ -756,7 +756,7 @@
       {% set ns.i = ns.i + 1 %}
       {% set disc_pct = '%.1f'|format((d.discount_rate or 0) * 100) %}
       {% set q = quote_map.get(d.id) %}
-      <tr class="product-row" data-id="{{ d.id }}"{% if is_settle and d.pricing_detail_id %} data-pricing-detail-id="{{ d.pricing_detail_id }}"{% endif %}>
+      <tr class="product-row" data-id="{{ d.id }}"{% if is_settle and d.pricing_detail_id %} data-pricing-detail-id="{{ d.pricing_detail_id }}"{% endif %}{% if vendor_mns and d.product_mn and d.product_mn in vendor_mns %} data-vendor="1"{% endif %}>
         <td class="po-sn">{{ '%02d'|format(ns.i) }}</td>
         {# 产品编码(只读;隐藏域供保存读原值) #}
         <td><span class="at-mono po-nowrap {{ 'po-ro' if is_settle else '' }}">{{ d.product_mn or '—' }}</span><input type="hidden" class="cell-mn" value="{{ d.product_mn or '' }}"></td>

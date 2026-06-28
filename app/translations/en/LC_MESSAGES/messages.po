@@ -36925,3 +36925,23 @@ msgstr "Exit fullscreen"
 
 msgid "仅支持图片"
 msgstr "Images only"
+
+# --- 批价单折扣权限提醒(2026-06) ---
+
+msgid "折扣低于权限下限"
+msgstr "Discount below permission floor"
+
+msgid "检测到 N 项明细折扣低于您的折扣权限下限(已在表中标红)。请确认您已就这些折扣获得邮件审批许可,确认后将发起审批。"
+msgstr "N item(s) have a discount below your discount-permission floor (highlighted in red). Please confirm you have obtained email approval for these discounts before submitting."
+
+msgid "已获许可,提交"
+msgstr "Approved, submit"
+
+msgid "折扣低于您的权限下限"
+msgstr "Discount below your permission floor"
+
+msgid "当前有 N 项厂商产品折扣低于您本人的折扣权限下限。请确认您已就这些折扣获得邮件审批许可,确认后再通过审批。"
+msgstr "N vendor-product item(s) have a discount below your own discount-permission floor. Please confirm you have obtained email approval for these discounts before approving."
+
+msgid "已获许可,继续"
+msgstr "Approved, continue"

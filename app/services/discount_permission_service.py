@@ -4,7 +4,7 @@
 折扣权限服务
 """
 from app.models.role_permissions import RolePermission
-from app.models.user import User
+from app.models.user import User, Permission
 
 
 class DiscountPermissionService:
@@ -34,21 +34,34 @@ class DiscountPermissionService:
         if user.role == 'admin':
             return {'pricing_discount_limit': 0.0, 'settlement_discount_limit': 0.0}
         
-        # 查找批价单权限
+        # 角色级下限(批价单 / 结算单)
         pricing_perm = RolePermission.query.filter_by(
-            role=user.role, 
+            role=user.role,
             module='pricing_order'
         ).first()
-        
-        # 查找结算单权限
         settlement_perm = RolePermission.query.filter_by(
-            role=user.role, 
+            role=user.role,
             module='settlement_order'
         ).first()
-        
-        pricing_limit = pricing_perm.pricing_discount_limit if pricing_perm else None
-        settlement_limit = settlement_perm.settlement_discount_limit if settlement_perm else None
-        
+        role_pricing = pricing_perm.pricing_discount_limit if pricing_perm else None
+        role_settlement = settlement_perm.settlement_discount_limit if settlement_perm else None
+
+        # 账户级下限(permissions 表,user_id+module)——优先,为空则回退角色级
+        user_pricing_perm = Permission.query.filter_by(
+            user_id=user.id, module='pricing_order'
+        ).first()
+        user_settlement_perm = Permission.query.filter_by(
+            user_id=user.id, module='settlement_order'
+        ).first()
+
+        pricing_limit = role_pricing
+        if user_pricing_perm and user_pricing_perm.pricing_discount_limit is not None:
+            pricing_limit = user_pricing_perm.pricing_discount_limit
+
+        settlement_limit = role_settlement
+        if user_settlement_perm and user_settlement_perm.settlement_discount_limit is not None:
+            settlement_limit = user_settlement_perm.settlement_discount_limit
+
         return {
             'pricing_discount_limit': pricing_limit,
             'settlement_discount_limit': settlement_limit
