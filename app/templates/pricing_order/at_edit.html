@@ -566,7 +566,7 @@ function poInitCombo(inputId,hiddenId,ddId,options,onChange){
   function render(q){
     var lq=(q||'').toLowerCase();
     var hits=q?options.filter(function(o){return o.text.toLowerCase().indexOf(lq)>=0;}):options;
-    dd.innerHTML=hits.length?hits.map(function(o){return '<div class="po-cb-item'+(o.special?' po-cb-special':'')+'" data-id="'+o.id+'" data-text="'+o.text.replace(/"/g,'&quot;')+'" data-disp="'+((o.disp||o.text).replace(/"/g,'&quot;'))+'">'+o.text+'</div>';}).join(''):'<div class="po-cb-item" style="color:var(--ink-4)">无匹配</div>';
+    dd.innerHTML=hits.length?hits.map(function(o){return '<div class="po-cb-item'+(o.special?' po-cb-special':'')+'" data-id="'+o.id+'" data-text="'+o.text.replace(/"/g,'&quot;')+'" data-disp="'+((o.disp||o.text).replace(/"/g,'&quot;'))+'">'+o.text+'</div>';}).join(''):'<div class="po-cb-item" style="color:var(--ink-4)">{{ _("无匹配") }}</div>';
     dd.style.display='block';
   }
   input.addEventListener('focus',function(){render(input.value);});
@@ -662,7 +662,7 @@ async function poSaveAll(btn){
       };
       var r1=await fetch('/pricing_order/'+PO_ORDER_ID+'/update_basic_info',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(basic)});
       var d1=await r1.json();
-      if(!d1.success){ alert('基本信息保存失败: '+(d1.message||'')); if(btn) btn.disabled=false; return; }
+      if(!d1.success){ alert('{{ _("基本信息保存失败") }}: '+(d1.message||'')); if(btn) btn.disabled=false; return; }
     }
     // 2. 批价明细(仅有权时)
     if(PO_CAN_EDIT_PRICING){
@@ -674,7 +674,7 @@ async function poSaveAll(btn){
       });
       var r2=await fetch('/pricing_order/'+PO_ORDER_ID+'/save_pricing_details',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({details:rows})});
       var d2=await r2.json();
-      if(!d2.success){ alert('明细保存失败: '+(d2.message||'未知错误')); if(btn) btn.disabled=false; return; }
+      if(!d2.success){ alert('{{ _("明细保存失败") }}: '+(d2.message||'{{ _("未知错误") }}')); if(btn) btn.disabled=false; return; }
       // 整单备注(批价+结算,update_notes 需 can_edit_pricing;两个值都发,避免互相清空)
       var pn=document.getElementById('poPricingNotes'), sn=document.getElementById('poSettleNotes');
       if(pn||sn){
@@ -691,11 +691,11 @@ async function poSaveAll(btn){
         var pct=parseFloat(dEl.value)||0;
         var rs=await fetch('/pricing_order/'+PO_ORDER_ID+'/update_settlement_detail',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({detail_id:parseInt(tr.dataset.id), discount_rate: pct/100})});
         var ds=await rs.json();
-        if(!ds.success){ alert('结算保存失败: '+(ds.message||'')); if(btn) btn.disabled=false; return; }
+        if(!ds.success){ alert('{{ _("结算保存失败") }}: '+(ds.message||'')); if(btn) btn.disabled=false; return; }
       }
     }
     location.reload();
-  }catch(err){ alert('请求失败: '+err.message); if(btn) btn.disabled=false; }
+  }catch(err){ alert('{{ _("请求失败") }}: '+err.message); if(btn) btn.disabled=false; }
 }
 </script>
 </body>

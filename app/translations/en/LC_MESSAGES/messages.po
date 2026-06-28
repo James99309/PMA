@@ -36945,3 +36945,14 @@ msgstr "N vendor-product item(s) have a discount below your own discount-permiss
 
 msgid "已获许可,继续"
 msgstr "Approved, continue"
+
+# --- 批价单页残留硬编码 i18n(2026-06)---
+
+msgid "基本信息保存失败"
+msgstr "Failed to save basic info"
+
+msgid "明细保存失败"
+msgstr "Failed to save line items"
+
+msgid "结算保存失败"
+msgstr "Failed to save settlement"
