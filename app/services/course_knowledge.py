@@ -33,6 +33,22 @@ def _two_gram_blob(text):
     return ' '.join(dict.fromkeys(toks))
 
 
+def relevant_pages(question, pages, top=3):
+    """按 2-gram 重叠给每页(label+notes)对问题打分,返回最相关的几页 [(page_1based, label)]。"""
+    qset = set(_two_gram_blob(question or '').split())
+    if not qset or not pages:
+        return []
+    scored = []
+    for i, p in enumerate(pages, 1):
+        text = (p.get('label') or '') + ' ' + (p.get('notes') or '')
+        pset = set(_two_gram_blob(text).split())
+        score = len(qset & pset)
+        if score > 0:
+            scored.append((score, i, (p.get('label') or '').strip()))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    return [(i, lbl) for _s, i, lbl in scored[:top]]
+
+
 def deck_to_markdown(course, pages):
     """把 [{label, notes}] 逐页拼成带页锚点深链的 Markdown。"""
     key = course['key']

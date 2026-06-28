@@ -199,3 +199,4 @@ i18n_preview/
 # 互动课程自包含 HTML 资源(大文件,不入 git;部署时单独投放/WebDAV 托管)
 app/course_assets/*.html
 app/course_assets/*.quiz.json
+app/course_assets/*.thumbs/

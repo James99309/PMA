@@ -27,13 +27,14 @@ import os
 import re
 import threading
 
-from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort
+from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort, url_for
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 
 from app import db
 from app.models.file_manager import FileLibrary, UserFileRef
 from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle, KnowledgePromotionRequest, KnowledgeTopic, KnowledgeShareGrant
+from app.models.course import InteractiveCourse
 from app.models.message import Message
 from app.models.user import User
 from app.services.file_manager_service import FileManagerService
@@ -113,15 +114,7 @@ COURSE_ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'course_assets'
 )
 
-INTERACTIVE_COURSES = [
-    {
-        'key': 'evertac-pnr2100',
-        'title': 'EVERTAC 香港展会 Pitch',
-        'subtitle': 'PNR2100 · 互动演示',
-        'desc': '香港展会产品路演互动页,可逐页浏览与交互。',
-        'accent': '#1A0E3D',
-    },
-]
+# 课程改为 DB 登记(interactive_courses 表);此处不再硬编码。
 
 # 每门课的"逐页备注"缓存:{course_key: [{label, notes}, ...]}
 # 备注就写在课件 HTML 里(deck 格式:每个 <section> 的 data-speaker-notes),
@@ -165,19 +158,25 @@ def _get_course_pages(course_key, abs_path):
     return _COURSE_PAGES_CACHE[course_key]
 
 
+def _list_courses():
+    """全部互动课程(dict 列表,新→旧)。"""
+    rows = InteractiveCourse.query.order_by(InteractiveCourse.created_at.desc()).all()
+    return [c.to_dict() for c in rows]
+
+
 def _find_course(course_key):
-    """按 key 找课程定义 + 校验课件文件存在;返回 (course, abs_path) 或 (None, None)。"""
+    """按 key 读 DB 课程 + 校验课件文件存在;返回 (course_dict, abs_path) 或 (None, None)。"""
     safe_key = secure_filename(course_key)
     if not safe_key:
         return None, None
-    course = next((c for c in INTERACTIVE_COURSES if c['key'] == safe_key), None)
-    if not course:
+    row = InteractiveCourse.query.filter_by(key=safe_key).first()
+    if not row:
         return None, None
     path = os.path.join(COURSE_ASSETS_DIR, safe_key + '.html')
     if not os.path.isfile(path):
         logger.warning('互动课程文件缺失: %s', path)
         return None, None
-    return course, path
+    return row.to_dict(), path
 
 
 @knowledge_wiki_bp.route('/wiki/at')
@@ -187,7 +186,7 @@ def at_wiki_page():
     ensure_wiki_structure()
     return render_template(
         'knowledge/at_wiki.html',
-        courses=INTERACTIVE_COURSES,
+        courses=_list_courses(),
         is_admin=_is_admin(),
         is_dept_manager=getattr(current_user, 'is_department_manager', False),
         current_user_id=current_user.id,
@@ -213,6 +212,19 @@ def course_asset(course_key):
     if not course:
         abort(404)
     return send_file(path, mimetype='text/html')
+
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>/thumb/<int:page>')
+@login_required
+def course_thumb(course_key, page):
+    """逐页缩略图(用于问答答案卡片预览;默认第1页可当封面)。"""
+    safe = secure_filename(course_key)
+    if not safe:
+        abort(404)
+    path = os.path.join(COURSE_ASSETS_DIR, safe + '.thumbs', f'{page}.png')
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(path, mimetype='image/png')
 
 
 # ── 第3步:考核 + 评分 ────────────────────────────────────────────
@@ -1454,6 +1466,35 @@ def query_endpoint():
     except Exception:
         logger.exception(f'[Wiki] query 失败: {question[:100]}')
         return jsonify({'success': False, 'message': '问答服务异常，请查看服务器日志'}), 500
+
+    # 富化:命中的"课件知识"文章(slug 以 -deck 结尾)→ 相关页缩略图深链,
+    # 让答案里能直接看到演示页、点击新标签跳到课件对应页。
+    try:
+        from app.services import course_knowledge
+        deck_pages, seen = [], set()
+        for ca in (result.get('cited_articles') or []):
+            slug = ca.get('slug') or ''
+            if not slug.endswith('-deck'):
+                continue
+            key = slug[:-5]
+            if key in seen:
+                continue
+            course, path = _find_course(key)
+            if not course:
+                continue
+            seen.add(key)
+            pages = _get_course_pages(key, path)
+            for pg, lbl in course_knowledge.relevant_pages(question, pages, top=3):
+                deck_pages.append({
+                    'key': key, 'page': pg, 'label': lbl,
+                    'course_title': course.get('title'),
+                    'thumb_url': url_for('knowledge_wiki.course_thumb', course_key=key, page=pg),
+                    'play_url': url_for('knowledge_wiki.play_course', course_key=key) + '#' + str(pg),
+                })
+        result['deck_pages'] = deck_pages
+    except Exception:
+        logger.exception('[Wiki] deck_pages 富化失败(忽略)')
+        result['deck_pages'] = []
 
     return jsonify({'success': True, 'data': result})
 

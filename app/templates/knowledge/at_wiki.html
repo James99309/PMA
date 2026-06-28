@@ -254,11 +254,32 @@
               </div>
             </template>
             <template x-for="(msg, idx) in chatMessages" :key="idx">
-              <div style="display:flex;" :style="msg.role === 'user' ? 'justify-content:flex-end' : 'justify-content:flex-start'">
+              <div style="display:flex;flex-direction:column;"
+                   :style="msg.role === 'user' ? 'align-items:flex-end' : 'align-items:flex-start'">
                 <div style="max-width:85%;padding:8px 12px;font-size:13px;border-radius:10px;"
                      :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai wiki-md'"
                      @click="msg.role === 'ai' && handleChatLinkClick($event)"
                      x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderChatMarkdown(msg.text, msg.citedSlugMap)"></div>
+                {# 相关演示页缩略图(点击新标签跳到课件对应页) #}
+                <template x-if="msg.deckPages && msg.deckPages.length">
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;max-width:90%;">
+                    <template x-for="dp in msg.deckPages" :key="dp.key + '-' + dp.page">
+                      <a :href="dp.play_url" target="_blank" rel="noopener"
+                         style="display:block;width:172px;border:1px solid var(--line);border-radius:9px;
+                                overflow:hidden;text-decoration:none;background:var(--bg-elev);transition:border-color 120ms;"
+                         onmouseenter="this.style.borderColor='var(--accent)'"
+                         onmouseleave="this.style.borderColor='var(--line)'">
+                        <img :src="dp.thumb_url" :alt="dp.label" loading="lazy"
+                             style="width:100%;display:block;aspect-ratio:16/9;object-fit:cover;background:#1A0E3D;">
+                        <div style="padding:6px 8px;font-size:11px;color:var(--ink-2);display:flex;align-items:center;gap:5px;">
+                          <span style="color:var(--accent);font-weight:600;flex-shrink:0;" x-text="'第'+dp.page+'页'"></span>
+                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="dp.label"></span>
+                          <span class="material-symbols-outlined" style="font-size:13px;margin-left:auto;flex-shrink:0;color:var(--ink-4);">open_in_new</span>
+                        </div>
+                      </a>
+                    </template>
+                  </div>
+                </template>
               </div>
             </template>
             <div x-show="chatLoading" style="display:flex;">
@@ -295,7 +316,13 @@
         {% for c in courses %}
         <a class="kb-card" href="{{ url_for('knowledge_wiki.play_course', course_key=c.key) }}" target="_blank" rel="noopener">
           <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};">
+            {% if c.has_thumbs %}
+            <img src="{{ url_for('knowledge_wiki.course_thumb', course_key=c.key, page=c.cover_page) }}"
+                 alt="{{ c.title }}" loading="lazy"
+                 style="width:100%;height:100%;object-fit:cover;">
+            {% else %}
             <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
+            {% endif %}
           </div>
           <div class="kb-cbody">
             <div class="kb-csub">{{ c.subtitle }}</div>

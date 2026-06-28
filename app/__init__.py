@@ -305,6 +305,7 @@ def create_app(config_class=Config):
         TrainingModuleState, TrainingQuizAttempt,
         TrainingStreak, TrainingApplicationSubmission,
     )
+    from app.models.course import InteractiveCourse
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp

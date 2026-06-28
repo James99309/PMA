@@ -465,6 +465,7 @@ function wikiApp() {
                         role: 'ai',
                         text: j.data.answer,
                         citedSlugMap: slugMap,
+                        deckPages: j.data.deck_pages || [],
                     });
                 } else {
                     this.chatMessages.push({ role: 'ai', text: '❌ ' + (j.message || '{{ _('请求失败') }}') });
