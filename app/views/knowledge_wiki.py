@@ -211,6 +211,88 @@ def course_asset(course_key):
     return send_file(path, mimetype='text/html')
 
 
+# ── 第3步:考核 + 评分 ────────────────────────────────────────────
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>/quiz')
+@login_required
+def course_quiz_page(course_key):
+    """考核页外壳(题目走 AJAX 拉,避免首生成阻塞页面)。"""
+    course, _ = _find_course(course_key)
+    if not course:
+        abort(404)
+    return render_template('knowledge/at_course_quiz.html', course=course)
+
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>/quiz/questions')
+@login_required
+def course_quiz_questions(course_key):
+    """返回去掉答案的题目(首次会触发 AI 出题并落盘缓存)。"""
+    from app.services import course_quiz
+    course, path = _find_course(course_key)
+    if not course:
+        abort(404)
+    pages = _get_course_pages(course['key'], path)
+    if not pages:
+        return jsonify({'success': False, 'message': '课件无讲解内容,无法出题'}), 400
+    force = request.args.get('regenerate') == '1' and _is_admin()
+    try:
+        questions = course_quiz.load_or_generate(course['key'], pages, COURSE_ASSETS_DIR, force=force)
+    except Exception as e:
+        logger.exception('出题失败: %s', course['key'])
+        return jsonify({'success': False, 'message': f'AI 出题失败: {e}'}), 502
+    return jsonify({'success': True, 'questions': course_quiz.public_questions(questions),
+                    'pass_score': course_quiz.PASS_SCORE})
+
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>/quiz/submit', methods=['POST'])
+@login_required
+def course_quiz_submit(course_key):
+    """收答案 → 判分 → 写 training_* 表 → 返回成绩与逐题对错。"""
+    from datetime import datetime
+    from app.services import course_quiz
+    from app.models.training import TrainingQuizAttempt, TrainingModuleState, get_local_time
+
+    course, path = _find_course(course_key)
+    if not course:
+        abort(404)
+    pages = _get_course_pages(course['key'], path)
+    try:
+        questions = course_quiz.load_or_generate(course['key'], pages, COURSE_ASSETS_DIR)
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'题目加载失败: {e}'}), 502
+
+    answers = (request.get_json(silent=True) or {}).get('answers') or {}
+    result = course_quiz.grade(questions, answers)
+
+    now = get_local_time()
+    module_slug = 'main'
+    # 逐题留痕
+    for d in result['details']:
+        db.session.add(TrainingQuizAttempt(
+            user_id=current_user.id,
+            course_slug=course['key'], module_slug=module_slug, chapter=1,
+            question_id=d['id'], question_text=d['question'],
+            question_type=d['type'],
+            user_answer=json.dumps(d['user_answer'], ensure_ascii=False),
+            correct_answer=json.dumps(d['correct_answer'], ensure_ascii=False),
+            is_correct=d['is_correct'], attempted_at=now,
+        ))
+    # 模块成绩(upsert)
+    state = TrainingModuleState.query.filter_by(
+        user_id=current_user.id, course_slug=course['key'], module_slug=module_slug).first()
+    if not state:
+        state = TrainingModuleState(
+            user_id=current_user.id, course_slug=course['key'], module_slug=module_slug)
+        db.session.add(state)
+    state.final_exam_score = result['score']
+    state.status = 'passed' if result['passed'] else 'failed'
+    if result['passed'] and not state.final_exam_passed_at:
+        state.final_exam_passed_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({'success': True, **result})
+
+
 # ══════════════════════════════════════════════════════════════════
 # 原始文件管理
 # ══════════════════════════════════════════════════════════════════

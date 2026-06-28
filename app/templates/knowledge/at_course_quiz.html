@@ -1,0 +1,202 @@
+{#
+  互动课程考核页(第3步)
+  ─────────────────────────────────────────────────────────────
+  题目走 AJAX 拉(首次触发 AI 出题,稍慢)→ 答题 → 提交判分 → 显示成绩 + 逐题对错解析。
+  评分落 training_* 表(服务端)。
+#}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ _('考核') }} · {{ course.title }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+  html,body{height:100%;margin:0;background:var(--bg-page);}
+  .qz-bar{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--bg-elev);
+          border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;}
+  .qz-back{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink-2);
+           font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg-page);}
+  .qz-back:hover{background:var(--bg-hover);color:var(--ink);}
+  .qz-title{flex:1;min-width:0;}
+  .qz-title .t{font-family:var(--font-serif);font-size:15px;font-weight:600;color:var(--ink);}
+  .qz-title .s{font-size:11.5px;color:var(--accent);font-weight:500;}
+  .qz-wrap{max-width:760px;margin:0 auto;padding:28px 24px 80px;}
+  .qz-status{color:var(--ink-3);font-size:14px;text-align:center;padding:60px 0;}
+  .qz-q{background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+        padding:18px 20px;margin-bottom:16px;}
+  .qz-q-stem{font-size:15px;font-weight:600;color:var(--ink);line-height:1.6;margin-bottom:14px;}
+  .qz-q-stem .idx{color:var(--accent);margin-right:8px;}
+  .qz-opt{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--line);
+          border-radius:9px;margin-bottom:8px;cursor:pointer;font-size:14px;color:var(--ink);line-height:1.5;}
+  .qz-opt:hover{background:var(--bg-hover);}
+  .qz-opt input{margin-top:3px;flex-shrink:0;}
+  .qz-opt.correct{border-color:var(--success,#1A7F4B);background:rgba(26,127,75,.08);}
+  .qz-opt.wrong{border-color:var(--danger,#C0392B);background:rgba(192,57,43,.07);}
+  .qz-explain{margin-top:10px;font-size:13px;color:var(--ink-2);line-height:1.6;
+              background:var(--bg-sunk,var(--bg-page));border-radius:8px;padding:10px 12px;}
+  .qz-explain b{color:var(--ink);}
+  .qz-actions{display:flex;gap:12px;align-items:center;margin-top:22px;}
+  .qz-btn{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:500;
+          padding:10px 20px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:#fff;}
+  .qz-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .qz-btn.ghost{background:var(--bg-page);color:var(--ink-2);border-color:var(--line);}
+  /* 成绩条 */
+  .qz-result{display:flex;align-items:center;gap:18px;background:var(--bg-elev);border:1px solid var(--line);
+             border-radius:14px;padding:20px 24px;margin-bottom:22px;}
+  .qz-score{font-family:var(--font-serif);font-size:40px;font-weight:700;line-height:1;}
+  .qz-badge{font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;}
+  .qz-badge.pass{background:rgba(26,127,75,.12);color:var(--success,#1A7F4B);}
+  .qz-badge.fail{background:rgba(192,57,43,.12);color:var(--danger,#C0392B);}
+  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;}
+</style>
+</head>
+<body class="at-page">
+  <div class="qz-bar">
+    <a class="qz-back" href="{{ url_for('knowledge_wiki.play_course', course_key=course.key) }}">
+      <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span>{{ _('返回课程') }}
+    </a>
+    <div class="qz-title">
+      <span class="t">{{ _('考核') }} · {{ course.title }}</span>
+      <span class="s">{{ course.subtitle }}</span>
+    </div>
+  </div>
+
+  <div class="qz-wrap">
+    <div id="qzStatus" class="qz-status">
+      <span class="material-symbols-outlined" style="font-size:30px;animation:spin 1s linear infinite;">progress_activity</span>
+      <div style="margin-top:10px;">{{ _('AI 正在根据课件内容出题,请稍候…') }}</div>
+    </div>
+    <div id="qzResult"></div>
+    <form id="qzForm" style="display:none;"></form>
+    <div id="qzActions" class="qz-actions" style="display:none;">
+      <button type="button" class="qz-btn" id="qzSubmit" onclick="qzSubmit()">{{ _('提交答卷') }}</button>
+    </div>
+  </div>
+
+<style>@keyframes spin{to{transform:rotate(360deg);}}</style>
+<script>
+  var QZ_KEY = {{ course.key|tojson }};
+  var Q_URL = {{ url_for('knowledge_wiki.course_quiz_questions', course_key=course.key)|tojson }};
+  var S_URL = {{ url_for('knowledge_wiki.course_quiz_submit', course_key=course.key)|tojson }};
+  var BACK_PLAYER = {{ url_for('knowledge_wiki.play_course', course_key=course.key)|tojson }};
+  var BACK_WIKI = {{ url_for('knowledge_wiki.at_wiki_page')|tojson }};
+  var QUESTIONS = [];
+
+  function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+
+  function loadQuestions(){
+    fetch(Q_URL, {credentials:'same-origin'})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(!j.success){throw new Error(j.message||'出题失败');}
+        QUESTIONS = j.questions;
+        renderForm();
+      })
+      .catch(function(e){
+        document.getElementById('qzStatus').innerHTML =
+          '<div style="color:var(--danger,#C0392B)">'+esc(e.message)+'</div>'+
+          '<div style="margin-top:12px;"><a class="qz-back" href="'+BACK_PLAYER+'">返回课程重试</a></div>';
+      });
+  }
+
+  function renderForm(){
+    document.getElementById('qzStatus').style.display='none';
+    var form=document.getElementById('qzForm');
+    var html='';
+    QUESTIONS.forEach(function(q,i){
+      html+='<div class="qz-q" data-id="'+q.id+'" data-type="'+q.type+'">';
+      html+='<div class="qz-q-stem"><span class="idx">'+(i+1)+'.</span>'+esc(q.question)+'</div>';
+      if(q.type==='single'){
+        q.options.forEach(function(opt,oi){
+          html+='<label class="qz-opt"><input type="radio" name="q_'+q.id+'" value="'+oi+'">'+
+                '<span>'+esc(opt)+'</span></label>';
+        });
+      }else{
+        [['true','对'],['false','错']].forEach(function(pair){
+          html+='<label class="qz-opt"><input type="radio" name="q_'+q.id+'" value="'+pair[0]+'">'+
+                '<span>'+pair[1]+'</span></label>';
+        });
+      }
+      html+='</div>';
+    });
+    form.innerHTML=html;
+    form.style.display='block';
+    document.getElementById('qzActions').style.display='flex';
+  }
+
+  function collectAnswers(){
+    var ans={};
+    QUESTIONS.forEach(function(q){
+      var sel=document.querySelector('input[name="q_'+q.id+'"]:checked');
+      if(!sel) return;
+      ans[q.id] = q.type==='single' ? parseInt(sel.value,10) : (sel.value==='true');
+    });
+    return ans;
+  }
+
+  function qzSubmit(){
+    var ans=collectAnswers();
+    if(Object.keys(ans).length < QUESTIONS.length){
+      if(!confirm('还有题未作答,确定提交?')) return;
+    }
+    var btn=document.getElementById('qzSubmit'); btn.disabled=true; btn.textContent='提交中…';
+    fetch(S_URL,{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({answers:ans})})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(!j.success){throw new Error(j.message||'提交失败');}
+        renderResult(j);
+      })
+      .catch(function(e){btn.disabled=false;btn.textContent='提交答卷';alert(e.message);});
+  }
+
+  function renderResult(res){
+    document.getElementById('qzForm').style.display='none';
+    document.getElementById('qzActions').style.display='none';
+    var byId={}; res.details.forEach(function(d){byId[d.id]=d;});
+    var head='<div class="qz-result"><div class="qz-score" style="color:'+
+      (res.passed?'var(--success,#1A7F4B)':'var(--danger,#C0392B)')+'">'+res.score+'</div>'+
+      '<div><div class="qz-badge '+(res.passed?'pass':'fail')+'">'+
+      (res.passed?'通过':'未通过')+'</div>'+
+      '<div style="font-size:13px;color:var(--ink-3);margin-top:6px;">答对 '+res.correct+
+      ' / '+res.total+' 题 · 通过线 80 分</div></div></div>';
+
+    var qs='';
+    res.details.forEach(function(d,i){
+      qs+='<div class="qz-q">';
+      qs+='<div class="qz-q-stem"><span class="idx">'+(i+1)+'.</span>'+esc(d.question)+
+          ' <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-3px;color:'+
+          (d.is_correct?'var(--success,#1A7F4B)':'var(--danger,#C0392B)')+'">'+
+          (d.is_correct?'check_circle':'cancel')+'</span></div>';
+      if(d.type==='single'){
+        d.options.forEach(function(opt,oi){
+          var cls='qz-opt';
+          if(oi===d.correct_answer) cls+=' correct';
+          else if(oi===d.user_answer) cls+=' wrong';
+          qs+='<div class="'+cls+'"><span>'+esc(opt)+'</span></div>';
+        });
+      }else{
+        var lbl={true:'对',false:'错'};
+        qs+='<div class="qz-opt correct"><span>正确答案:'+lbl[d.correct_answer]+'</span></div>';
+        if(!d.is_correct) qs+='<div class="qz-opt wrong"><span>你的答案:'+
+          (d.user_answer==null?'未答':lbl[d.user_answer])+'</span></div>';
+      }
+      if(d.explain) qs+='<div class="qz-explain"><b>解析:</b>'+esc(d.explain)+'</div>';
+      qs+='</div>';
+    });
+
+    var actions='<div class="qz-actions">'+
+      '<a class="qz-btn ghost" href="'+BACK_PLAYER+'">返回课程</a>'+
+      '<a class="qz-btn ghost" href="'+BACK_WIKI+'">返回知识库</a>'+
+      (res.passed?'':'<button type="button" class="qz-btn" onclick="location.reload()">再考一次</button>')+
+      '</div>';
+    document.getElementById('qzResult').innerHTML = head + qs + actions;
+  }
+
+  loadQuestions();
+</script>
+</body>
+</html>

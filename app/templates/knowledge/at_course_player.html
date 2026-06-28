@@ -75,6 +75,12 @@
       <span class="material-symbols-outlined" id="cpNotesIcon">expand_less</span>
       <span>{{ _('说明') }}</span>
     </button>
+    <a class="cp-btn" id="cpExam" href="{{ url_for('knowledge_wiki.course_quiz_page', course_key=course.key) }}"
+       style="border-color:var(--accent);color:var(--accent);" data-locked="1"
+       title="{{ _('看完全部页面后解锁') }}">
+      <span class="material-symbols-outlined">quiz</span>
+      <span id="cpExamLabel">{{ _('开始考核') }}</span>
+    </a>
   </div>
 
   <div class="cp-notes" id="cpNotes">
@@ -134,6 +140,7 @@
     body.textContent = p.notes || '';
     document.getElementById('cpPrev').disabled = (idx <= 1);
     document.getElementById('cpNext').disabled = (idx >= cpTotal);
+    cpCheckExam(idx);
   }
 
   function cpSyncFromFrame() {
@@ -142,13 +149,17 @@
     else if (!cpCur) cpRender(1);   // 初始兜底
   }
 
-  // 上一步/下一步:设 iframe hash 驱动 deck,deck 翻页后再由轮询同步备注
+  // 上一步/下一步:往 iframe 发一个方向键 keydown 驱动 deck(deck 不监听 hash,只认键盘)
+  // 必须只派发一次(deck 的监听会因冒泡重复计数);随后读真实 hash 同步备注/页码
   function cpGo(delta) {
-    var next = (cpCur || 1) + delta;
-    if (next < 1) next = 1;
-    if (cpTotal && next > cpTotal) next = cpTotal;
-    try { cpFrame.contentWindow.location.hash = '#' + next; } catch (e) {}
-    cpRender(next);
+    try {
+      var w = cpFrame.contentWindow;
+      var key = delta > 0 ? 'ArrowRight' : 'ArrowLeft';
+      var kc = delta > 0 ? 39 : 37;
+      w.document.dispatchEvent(new w.KeyboardEvent('keydown',
+        { key: key, code: key, keyCode: kc, which: kc, bubbles: true }));
+    } catch (e) {}
+    setTimeout(cpSyncFromFrame, 60);
   }
 
   function cpToggleNotes() {
@@ -158,6 +169,30 @@
     panel.classList.toggle('hidden', willHide);
     icon.textContent = willHide ? 'expand_more' : 'expand_less';
   }
+
+  // 考核解锁:翻到最后一页(看完)才允许进考核;无逐页备注则直接可考
+  var cpExamUnlocked = false;
+  function cpCheckExam(idx) {
+    if (cpExamUnlocked) return;
+    if (!cpTotal || idx >= cpTotal) cpUnlockExam();
+  }
+  function cpUnlockExam() {
+    cpExamUnlocked = true;
+    var a = document.getElementById('cpExam');
+    a.removeAttribute('data-locked');
+    a.style.opacity = '';
+    a.title = '{{ _('开始考核') }}';
+  }
+  (function () {
+    var a = document.getElementById('cpExam');
+    a.style.opacity = '0.5';
+    a.addEventListener('click', function (e) {
+      if (a.getAttribute('data-locked') === '1') {
+        e.preventDefault();
+        alert('{{ _('请先翻到最后一页(看完课程)再开始考核') }}');
+      }
+    });
+  })();
 
   // 监听 deck 自身翻页(hash 变化)+ 轮询兜底(初始 #1 及焦点在 iframe 内时)
   cpFrame.addEventListener('load', function () {
