@@ -18,7 +18,7 @@ from datetime import datetime, date
 import logging
 import json
 from app.utils.access_control import get_viewable_data, can_edit_data
-from app.utils.dictionary_helpers import get_currency_type_options
+from app.utils.dictionary_helpers import get_currency_type_options, get_currency_symbol
 from types import SimpleNamespace
 import os
 from werkzeug.exceptions import HTTPException
@@ -688,8 +688,8 @@ def at_view_expense(id):
 
     related = RelatedDataService.fetch_all('expense', id, current_user, limit=5)
 
-    # 货币符号
-    currency_sym = '$' if (e.currency or '') == 'USD' else ('RM' if (e.currency or '') == 'MYR' else '¥')
+    # 货币符号(按报销实际币种取,全币种支持:IDR→Rp 等)
+    currency_sym = get_currency_symbol(e.currency or 'CNY')
 
     can_edit_now = (e.status in ('draft', 'rejected') and e.owner_id == current_user.id)
     perms = {'can_edit': can_edit_now}
@@ -890,7 +890,7 @@ def at_new_expense():
         default_currency = (fresh_user.settlement_currency if fresh_user else None) or Config.DEFAULT_CURRENCY
     except Exception:
         default_currency = Config.DEFAULT_CURRENCY
-    currency_sym = '$' if default_currency == 'USD' else ('RM' if default_currency == 'MYR' else '¥')
+    currency_sym = get_currency_symbol(default_currency or 'CNY')
 
     stub = SimpleNamespace(
         id=None, expense_number='NEW', title='', description='',
