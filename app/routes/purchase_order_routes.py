@@ -145,7 +145,8 @@ def at_detail_view(order_id):
     shipments = build_shipments_data(order)
     current_action = build_current_action(order, approval, current_user.id)
 
-    currency_symbol = '$' if (order.currency or 'CNY') == 'USD' else '¥'
+    from app.utils.dictionary_helpers import get_currency_symbol
+    currency_symbol = get_currency_symbol(order.currency or 'CNY')
 
     return render_template(
         'inventory/at_purchase_order_detail.html',

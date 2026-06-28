@@ -808,7 +808,8 @@ def at_detail(instance_id):
                 from app.models.quotation import Quotation
                 _q = Quotation.query.get(_qid)
                 if _q:
-                    _sym = '$' if (getattr(_q, 'currency', None) == 'USD') else '¥'
+                    from app.utils.dictionary_helpers import get_currency_symbol
+                    _sym = get_currency_symbol(getattr(_q, 'currency', None) or 'CNY')
                     lines.append((_('锁定报价单'), f"{_q.quotation_number or ('#' + str(_q.id))} · {_sym}{float(_q.amount or 0):,.2f}"))
             if snap.get('wl_reason'):
                 lines.append((_('锁定理由'), snap.get('wl_reason')))

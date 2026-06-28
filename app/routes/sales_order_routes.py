@@ -127,7 +127,8 @@ def detail_view(order_id):
     items = build_so_items_data(order)
     shipments = build_so_shipments_data(order)
     current_action = build_so_current_action(order, stages)
-    currency_symbol = '$' if (order.currency or 'CNY') == 'USD' else '¥'
+    from app.utils.dictionary_helpers import get_currency_symbol
+    currency_symbol = get_currency_symbol(order.currency or 'CNY')
     is_referenced = SalesOrderService.is_referenced_by_po(order)
 
     return render_template(
