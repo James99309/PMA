@@ -36956,3 +36956,118 @@ msgstr "Failed to save line items"
 
 msgid "结算保存失败"
 msgstr "Failed to save settlement"
+
+# --- AT 批价单页面 UI i18n 补全(2026-06)---
+
+msgid "删除明细行"
+msgstr "Delete line item"
+
+msgid "厂商直提"
+msgstr "Vendor pickup"
+
+msgid "总折扣率"
+msgstr "Total discount rate"
+
+msgid "打印批价单"
+msgstr "Print pricing order"
+
+msgid "打印结算单"
+msgstr "Print settlement order"
+
+msgid "批价 - 结算"
+msgstr "Pricing - Settlement"
+
+msgid "批价 / 市场价"
+msgstr "Pricing / List price"
+
+msgid "批价单备注"
+msgstr "Pricing order notes"
+
+msgid "批价单备注…"
+msgstr "Pricing order notes…"
+
+msgid "批价日期"
+msgstr "Pricing date"
+
+msgid "批价明细"
+msgstr "Pricing details"
+
+msgid "批价管理"
+msgstr "Pricing management"
+
+msgid "报价 - 批价"
+msgstr "Quote - Pricing"
+
+msgid "报价合计"
+msgstr "Quote total"
+
+msgid "提交后将进入审批流程,审批中可召回。确认提交?"
+msgstr "After submission it enters the approval flow and can be recalled during approval. Confirm submission?"
+
+msgid "搜索分销商…"
+msgstr "Search distributor…"
+
+msgid "搜索经销商…"
+msgstr "Search dealer…"
+
+msgid "显示/隐藏 报价单价 + 报价合计 列"
+msgstr "Show/hide Quote unit price + Quote total columns"
+
+msgid "显示报价"
+msgstr "Show quote"
+
+msgid "来自关联报价"
+msgstr "From linked quote"
+
+msgid "来自批价单"
+msgstr "From pricing order"
+
+msgid "此操作不可恢复,确认删除当前批价单及其关联结算单?"
+msgstr "This action cannot be undone. Delete this pricing order and its linked settlement order?"
+
+msgid "毛利"
+msgstr "Gross profit"
+
+msgid "毛利率"
+msgstr "Gross margin"
+
+msgid "确定删除该明细行?保存后生效。"
+msgstr "Delete this line item? Takes effect after saving."
+
+msgid "结算价 / 市场价"
+msgstr "Settlement / List price"
+
+msgid "结算单备注"
+msgstr "Settlement order notes"
+
+msgid "结算单备注…"
+msgstr "Settlement order notes…"
+
+msgid "结算基本信息"
+msgstr "Settlement basic info"
+
+msgid "结算日期"
+msgstr "Settlement date"
+
+msgid "隐藏报价"
+msgstr "Hide quote"
+
+# --- AT 批价单页面 UI i18n 补全(2026-06,激活原 #~ 废弃条目)---
+msgid "结算公司"
+msgstr "Settlement company"
+
+msgid "结算总额"
+msgstr "Settlement total"
+
+msgid "结算折扣率"
+msgstr "Settlement discount rate"
+
+# --- 批价明细表宏 i18n 补全(2026-06)---
+msgid "暂无明细"
+msgstr "No line items"
+
+msgid "结算折扣"
+msgstr "Settlement discount"
+
+msgid "结算价"
+msgstr "Settlement price"
