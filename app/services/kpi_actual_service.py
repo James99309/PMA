@@ -1187,6 +1187,18 @@ def kpi_actual_breakdown(user, code, s, e):
     merged = _merge_metric(code, local, pdata, payload, user, s, e, li)
     pval = float(pdata.get('value') or 0)
     dtype = li.get('data_type') or pdata.get('data_type')
+    mode = li.get('scoring_mode') or pdata.get('scoring_mode')
+    # 是否真正发生合并:amount/count 恒合并;tiered/avg 仅两侧都有 parts 才池化;
+    # DB 率类(无 parts)实为仅本端 → 不算合并,卡片不显示 CN+SG 标签(避免误导)。
+    from app.helpers.scoring_modes import is_avg_aggregated
+    if dtype in ('amount', 'count'):
+        applied = True
+    elif mode == 'tiered' or is_avg_aggregated(dtype):
+        applied = bool(metric_parts(code, user, s, e) and (pdata or {}).get('parts'))
+    else:
+        applied = False
+    if not applied:
+        return {'merged': merged, 'local': local, 'has_peer': False}
     peer_cur = (payload or {}).get('self_currency')
     peer_conv = pval
     if dtype == 'amount' and peer_cur and peer_cur != _local_currency() and pval:
