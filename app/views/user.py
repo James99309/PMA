@@ -920,9 +920,9 @@ def edit_user(user_id):
         # 跨系统镜像 (Federation Lite Phase 1) - 仅 admin 可改
         cross_team_visible = 'cross_team_visible' in request.form
         cross_team_label = (request.form.get('cross_team_label') or '').strip() or None
-        # 跨实例双真实账号绑定(KPI 合并):勾选 peer_bind_enabled 且选了对端账号才存
+        # 跨实例双真实账号绑定(KPI 合并):UI 在「跨团队可见」下选了对端账号即存,清空即解绑
         _peer_raw = (request.form.get('peer_user_id') or '').strip()
-        peer_user_id = int(_peer_raw) if (_peer_raw.isdigit() and 'peer_bind_enabled' in request.form) else None
+        peer_user_id = int(_peer_raw) if _peer_raw.isdigit() else None
 
         # 对角色字段进行去空格处理，防止空格问题
         if role:

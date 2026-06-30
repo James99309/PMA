@@ -133,28 +133,28 @@
           <input type="hidden" id="ucActiveKeep" name="is_active" value="on" disabled>
           <div class="uc-field" style="display:flex;align-items:flex-end;padding-bottom:7px;">
             <label class="uc-check" style="margin:0;" title="{{ _('在另一站点(CN/SG)以外部身份显示') }}">
-              <input type="checkbox" name="cross_team_visible"> {{ _('跨团队可见') }}
+              <input type="checkbox" name="cross_team_visible" id="ucCrossTeam"> {{ _('跨团队可见') }}
             </label>
           </div>
           <div class="uc-field">
             <label>{{ _('对外身份标签') }}</label>
             <input class="uc-input" name="cross_team_label" placeholder="{{ _('如:海外技术支持') }}">
           </div>
-          <div class="uc-field" style="grid-column:1/-1;">
-            <label class="uc-check" style="margin:0 0 6px;" title="{{ _('该用户 KPI 实际值合并对端(CN+SG)业绩') }}">
-              <input type="checkbox" name="peer_bind_enabled" id="ucPeerEnable"> {{ _('绑定对端真实账号(KPI 合并 CN+SG)') }}
-            </label>
-            <div id="ucPeerRow" style="display:none;">
-              <div style="display:flex;gap:6px;">
-                <input class="uc-input" id="ucPeerSearch" placeholder="{{ _('搜索对端账号(用户名/姓名)') }}" style="flex:1;">
-                <button type="button" id="ucPeerSearchBtn"
-                        style="height:34px;padding:0 14px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('搜索') }}</button>
-              </div>
-              <select class="uc-input" name="peer_user_id" id="ucPeerSelect" style="margin-top:6px;">
-                <option value="">{{ _('— 未绑定,点搜索选择 —') }}</option>
-              </select>
-              <small style="color:var(--ink-3);display:block;margin-top:4px;">{{ _('选中对端账号并保存后,该用户 KPI 实际值将合并对端业绩(对端金额换算 CNY 后相加)。') }}</small>
+          {# 跨实例绑定:勾选「跨团队可见」后出现,输入即搜对端账号(实时下拉) #}
+          <div class="uc-field" id="ucPeerBlock" style="grid-column:1/-1;display:none;">
+            <label>{{ _('绑定对端真实账号(KPI 合并 CN+SG)') }}</label>
+            <div style="position:relative;">
+              <input class="uc-input" id="ucPeerSearch" autocomplete="off"
+                     placeholder="{{ _('输入用户名/姓名搜索对端账号...') }}">
+              <div id="ucPeerDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:60;background:var(--bg-elev);border:1px solid var(--line-2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;margin-top:4px;"></div>
             </div>
+            <input type="hidden" name="peer_user_id" id="ucPeerId" value="">
+            <div id="ucPeerChosen" style="display:none;align-items:center;gap:8px;margin-top:6px;">
+              <span id="ucPeerChosenText" style="font-size:13px;color:var(--ink-1);font-weight:500;"></span>
+              <button type="button" id="ucPeerClear"
+                      style="height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-3);font:inherit;font-size:12px;cursor:pointer;">{{ _('清除') }}</button>
+            </div>
+            <small style="color:var(--ink-3);display:block;margin-top:4px;">{{ _('选中对端账号并保存后,该用户 KPI 实际值将合并对端业绩(对端金额换算 CNY 后相加)。') }}</small>
           </div>
         </div>
       </div>
@@ -209,7 +209,7 @@
     document.getElementById('ucEditZone').hidden = true;
     document.getElementById('ucActiveKeep').disabled = true;
     ucToggleProb(false);
-    { const pr = document.getElementById('ucPeerRow'); if (pr) pr.style.display = 'none'; }
+    ucPeerClearSel(); ucToggleCrossTeam();
     ucFilterDepts();   // 公司未选 → 部门下拉先清空
     const un = $('#ucUsername');
     un.readOnly = false; un.value = ''; un.placeholder = '{{ _("登录名(创建后不可改)") }}';
@@ -246,40 +246,78 @@
     form.cross_team_visible.checked = !!u.cross_team_visible;
     form.cross_team_label.value = u.cross_team_label || '';
     // 跨实例绑定回填
-    const pe = document.getElementById('ucPeerEnable'), psel = document.getElementById('ucPeerSelect');
-    if (pe && psel) {
-      if (u.peer_user_id) {
-        pe.checked = true;
-        psel.innerHTML = '<option value="' + u.peer_user_id + '" selected>{{ _("当前绑定") }} · id=' + u.peer_user_id + '（' + ((u.peer_system||'').toUpperCase()) + '）</option>';
-        document.getElementById('ucPeerRow').style.display = '';
-      } else {
-        pe.checked = false;
-        psel.innerHTML = '<option value="">{{ _("— 未绑定,点搜索选择 —") }}</option>';
-        document.getElementById('ucPeerRow').style.display = 'none';
-      }
+    ucPeerClearSel();
+    if (u.peer_user_id) {
+      document.getElementById('ucPeerId').value = u.peer_user_id;
+      ucPeerSetChosen('{{ _("当前绑定") }} · id=' + u.peer_user_id + '（' + ((u.peer_system||'').toUpperCase()) + '）');
     }
+    ucToggleCrossTeam();
     show();
   };
 
-  // 跨实例绑定:勾选切换 + 搜索对端账号
+  // —— 跨实例绑定:辅助函数(外层作用域,create/edit/搜索共用) ——
+  function ucToggleCrossTeam() {
+    const ct = document.getElementById('ucCrossTeam'), blk = document.getElementById('ucPeerBlock');
+    if (ct && blk) blk.style.display = ct.checked ? '' : 'none';
+  }
+  function ucPeerClearSel() {
+    const id = document.getElementById('ucPeerId'), ch = document.getElementById('ucPeerChosen'),
+          inp = document.getElementById('ucPeerSearch'), dd = document.getElementById('ucPeerDropdown');
+    if (id) id.value = '';
+    if (ch) ch.style.display = 'none';
+    if (inp) inp.value = '';
+    if (dd) dd.style.display = 'none';
+  }
+  function ucPeerSetChosen(text) {
+    document.getElementById('ucPeerChosenText').textContent = text;
+    document.getElementById('ucPeerChosen').style.display = 'flex';
+    const inp = document.getElementById('ucPeerSearch'), dd = document.getElementById('ucPeerDropdown');
+    if (inp) inp.value = '';
+    if (dd) dd.style.display = 'none';
+  }
+
+  // —— 跨实例绑定:勾选跨团队显示 + 输入即搜对端账号(实时下拉) ——
   (function () {
-    const pe = document.getElementById('ucPeerEnable'), row = document.getElementById('ucPeerRow');
-    if (pe) pe.addEventListener('change', function () { row.style.display = pe.checked ? '' : 'none'; });
-    const btn = document.getElementById('ucPeerSearchBtn'), inp = document.getElementById('ucPeerSearch'), sel = document.getElementById('ucPeerSelect');
-    function load() {
-      const q = encodeURIComponent((inp.value || '').trim());
-      fetch('{{ url_for("user.api_peer_users") }}?q=' + q, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(r => r.json())
-        .then(d => {
-          if (!d.success) { alert(d.message || '拉取对端账号失败'); return; }
-          const cur = sel.value;
-          sel.innerHTML = '<option value="">{{ _("— 选择对端账号 —") }}</option>' +
-            (d.data || []).map(u => '<option value="' + u.id + '"' + (String(u.id) === cur ? ' selected' : '') + '>' +
-              u.name + ' (' + u.username + ' · ' + (u.role || '') + ') id=' + u.id + (u.is_mirror ? ' · 镜像' : '') + '</option>').join('');
-        });
+    const ct = document.getElementById('ucCrossTeam');
+    if (ct) ct.addEventListener('change', ucToggleCrossTeam);
+    const inp = document.getElementById('ucPeerSearch'), dd = document.getElementById('ucPeerDropdown'),
+          clr = document.getElementById('ucPeerClear');
+    if (clr) clr.addEventListener('click', ucPeerClearSel);
+    let timer = null;
+    function esc(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+    function render(list) {
+      if (!list.length) {
+        dd.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--ink-3);">{{ _("没有找到匹配账号") }}</div>';
+        dd.style.display = 'block'; return;
+      }
+      dd.innerHTML = list.map(u =>
+        '<div class="uc-peer-item" data-id="' + u.id + '" data-text="' + esc(u.name + ' (' + u.username + ') id=' + u.id) + '" ' +
+        'style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line-1);font-size:13px;">' +
+        '<span style="font-weight:600;color:var(--ink-1);">' + esc(u.name) + '</span> ' +
+        '<span style="color:var(--ink-3);">' + esc(u.username) + ' · ' + esc(u.role || '') + ' · id=' + u.id + (u.is_mirror ? ' · {{ _("镜像") }}' : '') + '</span></div>'
+      ).join('');
+      dd.style.display = 'block';
+      dd.querySelectorAll('.uc-peer-item').forEach(el => el.addEventListener('click', function () {
+        document.getElementById('ucPeerId').value = this.dataset.id;
+        ucPeerSetChosen(this.dataset.text);
+      }));
     }
-    if (btn) btn.addEventListener('click', load);
-    if (inp) inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); load(); } });
+    function search() {
+      const q = (inp.value || '').trim();
+      if (q.length < 1) { dd.style.display = 'none'; return; }
+      fetch('{{ url_for("user.api_peer_users") }}?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => { if (d.success) render(d.data || []);
+          else { dd.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:#c0392b;">' + esc(d.message || '拉取失败') + '</div>'; dd.style.display = 'block'; } })
+        .catch(() => { dd.style.display = 'none'; });
+    }
+    if (inp) {
+      inp.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(search, 280); });
+      inp.addEventListener('focus', function () { if ((inp.value || '').trim()) search(); });
+    }
+    document.addEventListener('click', function (e) {
+      if (dd && inp && !dd.contains(e.target) && e.target !== inp) dd.style.display = 'none';
+    });
   })();
 
   window.ucClose = function () {
