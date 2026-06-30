@@ -435,6 +435,7 @@ def _act_manual(code, agg='sum'):
     与录入侧「季考行存季度记录、月考行存月记录」对应。"""
     def fn(user, s, e):
         from app.models.performance_manual_entry import PerformanceManualEntry
+        from datetime import timedelta   # 既有遗漏:本模块未 import timedelta,致手工指标一直 NameError→算0(2026-06-30 修)
         years = {s.year, (e - timedelta(days=1)).year}
         ents = PerformanceManualEntry.query.filter(
             PerformanceManualEntry.user_id == user.id,
