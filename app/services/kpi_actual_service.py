@@ -434,33 +434,64 @@ def _act_manual(code, agg='sum'):
     月度记录优先;该季度无任何月度记录时回退季度记录(sum 按 1/3 折算到月,avg 取原值),
     与录入侧「季考行存季度记录、月考行存月记录」对应。"""
     def fn(user, s, e):
-        from app.models.performance_manual_entry import PerformanceManualEntry
-        from datetime import timedelta   # 既有遗漏:本模块未 import timedelta,致手工指标一直 NameError→算0(2026-06-30 修)
-        years = {s.year, (e - timedelta(days=1)).year}
-        ents = PerformanceManualEntry.query.filter(
-            PerformanceManualEntry.user_id == user.id,
-            PerformanceManualEntry.metric_code == code,
-            PerformanceManualEntry.year.in_(years),
-        ).all()
-        monthly = {(x.year, x.period): float(x.value)
-                   for x in ents if x.period_type == 'monthly' and x.value is not None}
-        quarterly = {(x.year, x.period): float(x.value)
-                     for x in ents if x.period_type == 'quarterly' and x.value is not None}
-        q_has_monthly = {(y, (m - 1) // 3 + 1) for (y, m) in monthly}
-        vals = []
-        d = s
-        while d < e:
-            q = (d.month - 1) // 3 + 1
-            if (d.year, d.month) in monthly:
-                vals.append(monthly[(d.year, d.month)])
-            elif (d.year, q) in quarterly and (d.year, q) not in q_has_monthly:
-                qv = quarterly[(d.year, q)]
-                vals.append(qv if agg == 'avg' else qv / 3.0)
-            d = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
+        vals = _manual_vals(code, agg, user, s, e)
         if not vals:
             return 0
         return round(sum(vals) / len(vals), 1) if agg == 'avg' else round(sum(vals), 2)
     return fn
+
+
+def _manual_vals(code, agg, user, s, e):
+    """手工指标窗口内逐月取到的值列表(agg-aware:sum 模式季度回退按 /3 折月)。
+    供 _act_manual 求 avg/sum,以及跨实例池化分子分母(metric_parts)单一来源。"""
+    from app.models.performance_manual_entry import PerformanceManualEntry
+    from datetime import timedelta
+    years = {s.year, (e - timedelta(days=1)).year}
+    ents = PerformanceManualEntry.query.filter(
+        PerformanceManualEntry.user_id == user.id,
+        PerformanceManualEntry.metric_code == code,
+        PerformanceManualEntry.year.in_(years),
+    ).all()
+    monthly = {(x.year, x.period): float(x.value)
+               for x in ents if x.period_type == 'monthly' and x.value is not None}
+    quarterly = {(x.year, x.period): float(x.value)
+                 for x in ents if x.period_type == 'quarterly' and x.value is not None}
+    q_has_monthly = {(y, (m - 1) // 3 + 1) for (y, m) in monthly}
+    vals = []
+    d = s
+    while d < e:
+        q = (d.month - 1) // 3 + 1
+        if (d.year, d.month) in monthly:
+            vals.append(monthly[(d.year, d.month)])
+        elif (d.year, q) in quarterly and (d.year, q) not in q_has_monthly:
+            qv = quarterly[(d.year, q)]
+            vals.append(qv if agg == 'avg' else qv / 3.0)
+        d = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return vals
+
+
+# 手工录入指标 → 聚合方式(avg 类参与跨实例池化:合并均值=(ΣCN+ΣSG)/(nCN+nSG))
+_MANUAL_AGG = {
+    'se_content_output': 'sum',
+    'se_response_rate': 'avg',
+    'se_satisfaction': 'avg',
+}
+
+
+def metric_parts(code, user, s, e):
+    """avg/档位类指标的跨实例池化分子分母 (sum, count);无法分解的(DB率类)→None。
+    合并均值 = (ΣCN+ΣSG)/(nCN+nSG),而非两侧各自均值再平均。"""
+    if code == 'se_confirm_quality':
+        try:
+            w = _se_window(user, s, e)
+            return (float(w.get('se_confirm_quality_sum') or 0),
+                    int(w.get('se_confirm_quality_count') or 0))
+        except Exception:
+            return None
+    if _MANUAL_AGG.get(code) == 'avg':
+        vals = _manual_vals(code, 'avg', user, s, e)
+        return (float(sum(vals)), len(vals))
+    return None
 
 def _act_project_activity(team=False):
     """项目活跃度%(快照型,窗口无关):
@@ -1076,18 +1107,19 @@ def _merge_metric(code, local, pdata, payload, user, s, e, local_info=None):
     dtype = li.get('data_type') or (pdata or {}).get('data_type')
     mode = li.get('scoring_mode') or (pdata or {}).get('scoring_mode')
     pval = float((pdata or {}).get('value') or 0)
-    # 植入品质:池化系数均值(非两均值再平均)
-    if mode == 'tiered' or code == 'se_confirm_quality':
-        try:
-            lw = _se_window(user, s, e)
-            lsum = float(lw.get('se_confirm_quality_sum') or 0)
-            lcnt = int(lw.get('se_confirm_quality_count') or 0)
-        except Exception:
-            lsum, lcnt = 0.0, 0
-        psum = float((pdata or {}).get('quality_sum') or 0)
-        pcnt = int((pdata or {}).get('quality_count') or 0)
-        tot = lcnt + pcnt
-        return round((lsum + psum) / tot, 2) if tot else local
+    from app.helpers.scoring_modes import is_avg_aggregated
+    # 均值/档位类(植入品质 tiered、率、满意度 avg):池化分子分母
+    # 合并均值=(ΣCN+ΣSG)/(nCN+nSG);任一侧无 parts(如 DB 率类不可分解)→ 仅本端。
+    if mode == 'tiered' or is_avg_aggregated(dtype):
+        lp = metric_parts(code, user, s, e)
+        pp = (pdata or {}).get('parts')
+        if lp and pp:
+            lsum, lcnt = lp
+            psum, pcnt = float(pp.get('sum') or 0), int(pp.get('count') or 0)
+            tot = lcnt + pcnt
+            if tot:
+                return round((lsum + psum) / tot, 2)
+        return local
     if dtype == 'amount':
         cur = (payload or {}).get('self_currency') or 'USD'
         tgt = _local_currency()
@@ -1128,3 +1160,40 @@ def kpi_actual(user, code, s, e):
     meta = _local_meta()
     local_info = meta.get(code) or meta.get(_MERGE_ALIAS.get(code, code)) or {}
     return _merge_metric(code, local, pdata, payload, user, s, e, local_info)
+
+
+def kpi_actual_breakdown(user, code, s, e):
+    """合并值 + CN/SG 拆分,供仪表盘卡 hover tooltip 展示。
+       返回 {'merged','local','has_peer'[,'peer','peer_converted','peer_currency']}。
+       未绑定/对端不可达 → has_peer=False,merged=local。"""
+    fn = _KPI_ACTUAL_FNS.get(_MERGE_ALIAS.get(code, code))
+    local = 0.0
+    if fn is not None:
+        try:
+            local = float(fn(user, s, e) or 0)
+        except Exception:
+            local = 0.0
+    peer_id = getattr(user, 'peer_user_id', None)
+    if not peer_id:
+        return {'merged': local, 'local': local, 'has_peer': False}
+    payload = _peer_kpi_payload(peer_id, s, e)
+    pdata = (payload or {}).get('data', {}).get(code) if payload else None
+    if not pdata:
+        pdata = (payload or {}).get('data', {}).get(_MERGE_ALIAS.get(code, code)) if payload else None
+    if not pdata:
+        return {'merged': local, 'local': local, 'has_peer': False}
+    meta = _local_meta()
+    li = meta.get(code) or meta.get(_MERGE_ALIAS.get(code, code)) or {}
+    merged = _merge_metric(code, local, pdata, payload, user, s, e, li)
+    pval = float(pdata.get('value') or 0)
+    dtype = li.get('data_type') or pdata.get('data_type')
+    peer_cur = (payload or {}).get('self_currency')
+    peer_conv = pval
+    if dtype == 'amount' and peer_cur and peer_cur != _local_currency() and pval:
+        try:
+            from app.services.exchange_rate_service import exchange_rate_service
+            peer_conv = float(exchange_rate_service.convert_amount(pval, peer_cur, _local_currency()) or 0)
+        except Exception:
+            peer_conv = pval
+    return {'merged': merged, 'local': local, 'has_peer': True,
+            'peer': pval, 'peer_converted': peer_conv, 'peer_currency': peer_cur}

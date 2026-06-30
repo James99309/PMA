@@ -857,8 +857,9 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
             target = sum(float((tmap.get(m) or {}).get(tkey, 0) or 0) for m in target_months)
 
         # 跨实例合并(绑定 peer 的人 = 本端+对端);未绑定/对端不可达 → 纯本端
-        from app.services.kpi_actual_service import kpi_actual
-        val = kpi_actual(user, code, start, end)
+        from app.services.kpi_actual_service import kpi_actual, kpi_actual_breakdown
+        bd = kpi_actual_breakdown(user, code, start, end)
+        val = bd['merged']
         prev = kpi_actual(user, code, prev_start, prev_end)
 
         raw_unit = unit_map.get(code, '')
@@ -876,6 +877,15 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
         else:
             unit = cur if raw_unit in ('', '元', '万元') else f' {raw_unit}'
         label = f"{label_prefix}{name_map.get(code, code)}"
+        # 跨实例 CN/SG 拆分(仅绑定 peer 且对端有数据时):卡片 hover tooltip 用
+        _peer_extra = None
+        if bd.get('has_peer'):
+            _money_u = unit not in (' 个', ' 户', ' 单', ' 人', '%', ' 分', ' 次')
+            def _disp(v):
+                return (f"{unit}{v:,.0f}" if _money_u else f"{v:g}{unit}")
+            _peer_extra = {'has_peer': True,
+                           'cn_disp': _disp(bd.get('local') or 0),
+                           'sg_disp': _disp(bd.get('peer_converted') or 0)}
         # 固定档位制(植入品质):无数字目标,按均值给等级 + 档位达成率(及格3/良好5/优秀7)
         smode = smode_map.get(code) or _dsmode(code)
         if smode == 'tiered':
@@ -883,15 +893,19 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
                     else _t('及格') if val >= _TP else _t('待提升'))
             t_tone = ('var(--success)' if val >= _TG
                       else 'var(--info)' if val >= _TP else 'var(--warn)')
+            _tx = {'tier': tier, 'pct': round(_tach(val)),
+                   'pass': int(_TP), 'good': int(_TG), 'excellent': 7}
+            if _peer_extra:
+                _tx.update(_peer_extra)
             items.append(_kpi_item(label, val, 0, unit, prev, t_tone, as_float=True,
-                                   data_extra={'tier': tier, 'pct': round(_tach(val)),
-                                               'pass': int(_TP), 'good': int(_TG), 'excellent': 7}))
+                                   data_extra=_tx))
             continue
         is_pct = (unit == '%')
         items.append(_kpi_item(label,
                                val if is_pct else int(val),
                                target if is_pct else int(target),
-                               unit, prev, _KPI_TONES[idx % len(_KPI_TONES)]))
+                               unit, prev, _KPI_TONES[idx % len(_KPI_TONES)],
+                               data_extra=_peer_extra))
     return items
 
 

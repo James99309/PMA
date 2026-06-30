@@ -248,6 +248,11 @@
             <div>
               <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px;">
                 <span style="font-size:12px;color:var(--ink-3);">{{ it.data.label }}</span>
+                {% if it.data.has_peer %}
+                <span title="{{ _('已合并对端业绩') }} · CN {{ it.data.cn_disp }} + SG {{ it.data.sg_disp }}"
+                      style="font-size:9.5px;font-weight:600;letter-spacing:0.02em;padding:1px 5px;border-radius:3px;
+                             color:var(--info);background:var(--bg-page);cursor:help;">CN+SG</span>
+                {% endif %}
                 <span style="flex:1;"></span>
                 <span style="font-size:10.5px;font-weight:500;padding:1px 6px;border-radius:3px;
                              color:{{ _delta_fg }};background:{{ _delta_bg }};">{{ it.delta }}</span>

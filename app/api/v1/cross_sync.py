@@ -662,7 +662,7 @@ def cross_sync_kpi_actuals():
     import os
     from datetime import datetime
     from app.models.user import User
-    from app.services.kpi_actual_service import _KPI_ACTUAL_FNS, _se_window
+    from app.services.kpi_actual_service import _KPI_ACTUAL_FNS, metric_parts
     from app.helpers.scoring_modes import load_metric_meta, default_scoring_mode
 
     uid = request.args.get('user_id', type=int)
@@ -711,13 +711,13 @@ def cross_sync_kpi_actuals():
             'data_type': info.get('data_type'),
             'scoring_mode': info.get('scoring_mode') or default_scoring_mode(code),
         }
-        if code == 'se_confirm_quality':
-            try:
-                w = _se_window(user, s, e)
-                entry['quality_sum'] = float(w.get('se_confirm_quality_sum') or 0)
-                entry['quality_count'] = int(w.get('se_confirm_quality_count') or 0)
-            except Exception:
-                pass
+        # avg/档位类指标:回传池化分子分母,供对端合并均值=(ΣCN+ΣSG)/(nCN+nSG)
+        try:
+            parts = metric_parts(code, user, s, e)
+            if parts is not None:
+                entry['parts'] = {'sum': float(parts[0]), 'count': int(parts[1])}
+        except Exception:
+            pass
         data[code] = entry
 
     return jsonify({
