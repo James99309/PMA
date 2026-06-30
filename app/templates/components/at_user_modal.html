@@ -147,6 +147,7 @@
               <div id="ucPeerDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:60;background:var(--bg-elev);border:1px solid var(--line-2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;margin-top:4px;"></div>
             </div>
             <input type="hidden" name="peer_user_id" id="ucPeerId" value="">
+            <input type="hidden" name="peer_name" id="ucPeerName" value="">
             <div id="ucPeerChosen" style="display:none;align-items:center;gap:8px;margin-top:6px;">
               <span id="ucPeerChosenText" style="font-size:13px;color:var(--ink-1);font-weight:500;"></span>
               <button type="button" id="ucPeerClear"
@@ -247,7 +248,9 @@
     ucPeerClearSel();
     if (u.peer_user_id) {
       document.getElementById('ucPeerId').value = u.peer_user_id;
-      ucPeerSetChosen('{{ _("当前绑定") }} · id=' + u.peer_user_id + '（' + ((u.peer_system||'').toUpperCase()) + '）');
+      document.getElementById('ucPeerName').value = u.peer_name || '';
+      const _t = (u.peer_name ? u.peer_name + ' · ' : '{{ _("当前绑定") }} · ') + 'id=' + u.peer_user_id + '（' + ((u.peer_system||'').toUpperCase()) + '）';
+      ucPeerSetChosen(_t);
     }
     ucToggleCrossTeam();
     show();
@@ -259,9 +262,11 @@
     if (ct && blk) blk.style.display = ct.checked ? '' : 'none';
   }
   function ucPeerClearSel() {
-    const id = document.getElementById('ucPeerId'), ch = document.getElementById('ucPeerChosen'),
+    const id = document.getElementById('ucPeerId'), nm = document.getElementById('ucPeerName'),
+          ch = document.getElementById('ucPeerChosen'),
           inp = document.getElementById('ucPeerSearch'), dd = document.getElementById('ucPeerDropdown');
     if (id) id.value = '';
+    if (nm) nm.value = '';
     if (ch) ch.style.display = 'none';
     if (inp) inp.value = '';
     if (dd) dd.style.display = 'none';
@@ -289,7 +294,7 @@
         dd.style.display = 'block'; return;
       }
       dd.innerHTML = list.map(u =>
-        '<div class="uc-peer-item" data-id="' + u.id + '" data-text="' + esc(u.name + ' (' + u.username + ') id=' + u.id) + '" ' +
+        '<div class="uc-peer-item" data-id="' + u.id + '" data-name="' + esc(u.name + ' (' + u.username + ')') + '" data-text="' + esc(u.name + ' (' + u.username + ') id=' + u.id) + '" ' +
         'style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line-1);font-size:13px;">' +
         '<span style="font-weight:600;color:var(--ink-1);">' + esc(u.name) + '</span> ' +
         '<span style="color:var(--ink-3);">' + esc(u.username) + ' · ' + esc(u.role || '') + ' · id=' + u.id + (u.is_mirror ? ' · {{ _("镜像") }}' : '') + '</span></div>'
@@ -297,6 +302,7 @@
       dd.style.display = 'block';
       dd.querySelectorAll('.uc-peer-item').forEach(el => el.addEventListener('click', function () {
         document.getElementById('ucPeerId').value = this.dataset.id;
+        document.getElementById('ucPeerName').value = this.dataset.name;
         ucPeerSetChosen(this.dataset.text);
       }));
     }

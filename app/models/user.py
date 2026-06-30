@@ -74,6 +74,7 @@ class User(db.Model, UserMixin):
     # 用于 KPI 实际值 CN+SG 合并(见 docs/plans/2026-06-30-cross-instance-kpi-merge.md)
     peer_user_id = db.Column(db.Integer, nullable=True)          # 对端真实 user.id
     peer_system = db.Column(db.String(20), nullable=True)        # 对端系统 'sp8d'/'ovs'
+    peer_name = db.Column(db.String(80), nullable=True)          # 对端账号显示名快照(绑定时存,详情/编辑回填展示用)
 
     # 关系
     permissions = db.relationship('Permission', backref='user', lazy='dynamic', cascade='all, delete-orphan')
@@ -170,6 +171,7 @@ class User(db.Model, UserMixin):
             # 跨实例双真实账号绑定 (KPI 合并)
             'peer_user_id': getattr(self, 'peer_user_id', None),
             'peer_system': getattr(self, 'peer_system', None),
+            'peer_name': getattr(self, 'peer_name', None),
             # 个人偏好
             'settlement_currency': self.settlement_currency,
             'language_preference': self.language_preference,

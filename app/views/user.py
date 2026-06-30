@@ -983,8 +983,10 @@ def edit_user(user_id):
                 import os as _os
                 _self = _os.environ.get('PMA_DB_TYPE', _os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
                 user.peer_system = 'ovs' if _self == 'sp8d' else 'sp8d'
+                user.peer_name = (request.form.get('peer_name') or '').strip() or None
             else:
                 user.peer_system = None
+                user.peer_name = None
         if password and password.strip():
             user.set_password(password)
 
@@ -3364,6 +3366,12 @@ def at_user_detail(user_id):
         'created': _ts(u.created_at),
         'last_login': _ts(u.last_login),
     }
+    # 跨实例 KPI 合并绑定:有 peer 才展示(名字快照 + 对端系统 + id)
+    if getattr(u, 'peer_user_id', None):
+        _pn = getattr(u, 'peer_name', None) or f'id={u.peer_user_id}'
+        info['peer_display'] = f"{_pn} · {(u.peer_system or '').upper()} (id={u.peer_user_id})"
+    else:
+        info['peer_display'] = None
     can_edit = current_user.has_permission('user_management', 'edit')
     # 编辑模态:原始字段值(与 edit_user POST 字段对齐)+ 字典选项
     edit_data, form_options = None, None
@@ -3383,6 +3391,9 @@ def at_user_detail(user_id):
             'probation_end': u.probation_end.isoformat() if u.probation_end else None,
             'cross_team_visible': bool(getattr(u, 'cross_team_visible', False)),
             'cross_team_label': getattr(u, 'cross_team_label', '') or '',
+            'peer_user_id': getattr(u, 'peer_user_id', None),
+            'peer_system': getattr(u, 'peer_system', None),
+            'peer_name': getattr(u, 'peer_name', None),
         }
         dicts = Dictionary.query.filter_by(is_active=True).all()
         from app.models.expense import Department as _Dept

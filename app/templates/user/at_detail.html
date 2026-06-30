@@ -96,6 +96,12 @@
             <dd {% if mono %}class="at-mono"{% endif %}>{{ value }}</dd>
           </div>
           {% endfor %}
+          {% if u.peer_display %}
+          <div class="at-info-row">
+            <dt>{{ _('跨实例绑定') }}</dt>
+            <dd>{{ u.peer_display }}</dd>
+          </div>
+          {% endif %}
         </dl>
       </div>
     </section>
