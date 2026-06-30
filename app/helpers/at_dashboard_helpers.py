@@ -856,9 +856,10 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
         else:
             target = sum(float((tmap.get(m) or {}).get(tkey, 0) or 0) for m in target_months)
 
-        fn = _KPI_ACTUAL_FNS.get(code)
-        val = fn(user, start, end) if fn else 0
-        prev = fn(user, prev_start, prev_end) if fn else 0
+        # 跨实例合并(绑定 peer 的人 = 本端+对端);未绑定/对端不可达 → 纯本端
+        from app.services.kpi_actual_service import kpi_actual
+        val = kpi_actual(user, code, start, end)
+        prev = kpi_actual(user, code, prev_start, prev_end)
 
         raw_unit = unit_map.get(code, '')
         dtype = dtype_map.get(code, '')
@@ -976,11 +977,12 @@ def _kpi_score_summary(user):
             w = wmap.get(code, 0)
             if not w:
                 continue
-            fn = _KPI_ACTUAL_FNS.get(_ALIAS.get(code, code))
-            if not fn:
+            if not _KPI_ACTUAL_FNS.get(_ALIAS.get(code, code)):
                 continue
             try:
-                A = float(fn(user, s, e) or 0)
+                # 跨实例合并(绑定 peer 的人 = 本端+对端);未绑定/对端不可达 → 纯本端
+                from app.services.kpi_actual_service import kpi_actual
+                A = float(kpi_actual(user, code, s, e) or 0)
             except Exception:
                 A = 0.0
             mode = scoring_mode_of(code, meta)

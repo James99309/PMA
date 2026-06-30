@@ -2838,7 +2838,7 @@ def api_user_actuals(user_id, year):
         if not codes:
             return jsonify({'success': True, 'data': {}})
 
-        from app.services.kpi_actual_service import _KPI_ACTUAL_FNS
+        from app.services.kpi_actual_service import _KPI_ACTUAL_FNS, kpi_actual
         from config import Config
         _DIVISOR = float(Config.AMOUNT_DIVISOR)       # 基础币种→显示单位(CN万=10000 / SG千=1000)
         _ALIAS = {'sales_target': 'sales_amount'}     # 定义表 code → 看板 code
@@ -2864,7 +2864,7 @@ def api_user_actuals(user_id, year):
                     row['m'][m] = None
                     continue
                 e = datetime(year + 1, 1, 1) if m == 12 else datetime(year, m + 1, 1)
-                row['m'][m] = round(fn(user, s, e) / scale, 2)
+                row['m'][m] = round(kpi_actual(user, code, s, e) / scale, 2)
             for q in range(1, 5):
                 sm = (q - 1) * 3 + 1
                 s = datetime(year, sm, 1)
@@ -2872,9 +2872,9 @@ def api_user_actuals(user_id, year):
                     row['q'][q] = None
                     continue
                 e = datetime(year + 1, 1, 1) if q == 4 else datetime(year, sm + 3, 1)
-                row['q'][q] = round(fn(user, s, e) / scale, 2)
+                row['q'][q] = round(kpi_actual(user, code, s, e) / scale, 2)
             if datetime(year, 1, 1) <= now:
-                row['y'] = round(fn(user, datetime(year, 1, 1), datetime(year + 1, 1, 1)) / scale, 2)
+                row['y'] = round(kpi_actual(user, code, datetime(year, 1, 1), datetime(year + 1, 1, 1)) / scale, 2)
             out[code] = row
 
         return jsonify({'success': True, 'data': out})

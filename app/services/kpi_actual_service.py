@@ -363,7 +363,10 @@ _SE_WINDOW_SQL = """
     ql AS (
         -- 植入品质:本期该 SE 确认的报价单,每单 = 出现过的"推荐产品"系数之和(去重,不看数量),
         -- 取所有确认报价的平均(无推荐产品的单计 0)。citation_coefficient>0 才计。
-        SELECT COALESCE(AVG(qs.qscore), 0) AS quality
+        -- quality_sum/quality_count 供「跨实例池化」用,合并均值=(ΣCN+ΣSG)除以(nCN+nSG),非两均值再平均。
+        SELECT COALESCE(AVG(qs.qscore), 0) AS quality,
+               COALESCE(SUM(qs.qscore), 0) AS quality_sum,
+               COUNT(*) AS quality_count
         FROM (
             SELECT q.id, COALESCE(SUM(p.citation_coefficient), 0) AS qscore
             FROM quotations q
@@ -395,7 +398,8 @@ _SE_WINDOW_SQL = """
             GROUP BY po.currency
         ) t
     )
-    SELECT c.cnt, spt.sup AS sup, ql.quality, im.by_cur AS implant, sa.by_cur AS sales
+    SELECT c.cnt, spt.sup AS sup, ql.quality, ql.quality_sum, ql.quality_count,
+           im.by_cur AS implant, sa.by_cur AS sales
     FROM c, spt, ql, im, sa
 """
 
@@ -415,6 +419,8 @@ def _se_window(user, s, e, _cache={}):
             'se_confirm_count': int(r.cnt or 0),
             'se_sales_support': int(r.sup or 0),
             'se_confirm_quality': round(float(r.quality or 0), 2),  # 植入品质(推荐系数加权均值)
+            'se_confirm_quality_sum': round(float(r.quality_sum or 0), 4),    # 跨实例池化分子(系数和)
+            'se_confirm_quality_count': int(r.quality_count or 0),            # 跨实例池化分母(确认报价笔数)
             'se_implant_amount': _cmap(r.implant),
             'se_sales_amount': _cmap(r.sales),
         }
@@ -1001,3 +1007,100 @@ _KPI_ACTUAL_FNS.update({
     'team_new_customers':          _act_team_new_customers,
     'team_customer_activity_rate': _act_team_customer_activity,
 })
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# 跨实例 KPI 合并(Phase 2):绑定 peer_user_id 的人,实际值 = 本端 + 对端(CN+SG)
+#   amount  → 对端值换算到本端币种后相加
+#   count   → 直接相加
+#   tiered(植入品质)→ 池化:合并均值 = (ΣCN+ΣSG)/(nCN+nSG),套同一档
+#   percentage(率)/ score-avg(满意度)→ 暂仅本端(TODO 2b:暴露分子分母/明细池化后合并)
+# 对端不可达 → 静默降级为仅本端,绝不影响本端考核。
+# ──────────────────────────────────────────────────────────────────────────
+_MERGE_ALIAS = {'sales_target': 'sales_amount'}
+
+
+def _local_currency():
+    import os
+    _self = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+    return 'CNY' if _self == 'sp8d' else 'USD'
+
+
+def _peer_kpi_payload(peer_id, s, e):
+    """拉取对端整份 KPI payload,按 (peer_id, 窗口) 请求内缓存(一次渲染算多指标只调一次)。"""
+    from flask import g, has_request_context
+    key = ('_peer_kpi', peer_id, s.isoformat() if hasattr(s, 'isoformat') else str(s),
+           e.isoformat() if hasattr(e, 'isoformat') else str(e))
+    cache = None
+    if has_request_context():
+        cache = getattr(g, '_peer_kpi_cache', None)
+        if cache is None:
+            cache = {}
+            g._peer_kpi_cache = cache
+        if key in cache:
+            return cache[key]
+    try:
+        from app.services.cross_sync_service import fetch_peer_kpi_actuals
+        payload = fetch_peer_kpi_actuals(peer_id, s.isoformat(), e.isoformat())
+    except Exception:
+        payload = None
+    if cache is not None:
+        cache[key] = payload
+    return payload
+
+
+def _merge_metric(code, local, pdata, payload, user, s, e):
+    """按 data_type/scoring_mode 合并本端值 local 与对端 pdata。"""
+    dtype = (pdata or {}).get('data_type')
+    mode = (pdata or {}).get('scoring_mode')
+    pval = float((pdata or {}).get('value') or 0)
+    # 植入品质:池化系数均值(非两均值再平均)
+    if mode == 'tiered' or code == 'se_confirm_quality':
+        try:
+            lw = _se_window(user, s, e)
+            lsum = float(lw.get('se_confirm_quality_sum') or 0)
+            lcnt = int(lw.get('se_confirm_quality_count') or 0)
+        except Exception:
+            lsum, lcnt = 0.0, 0
+        psum = float((pdata or {}).get('quality_sum') or 0)
+        pcnt = int((pdata or {}).get('quality_count') or 0)
+        tot = lcnt + pcnt
+        return round((lsum + psum) / tot, 2) if tot else local
+    if dtype == 'amount':
+        cur = (payload or {}).get('self_currency') or 'USD'
+        tgt = _local_currency()
+        conv = pval
+        if cur != tgt and pval:
+            try:
+                from app.services.exchange_rate_service import exchange_rate_service
+                conv = float(exchange_rate_service.convert_amount(pval, cur, tgt) or 0)
+            except Exception:
+                conv = pval
+        return local + conv
+    if dtype == 'count':
+        return local + pval
+    # 率 / 满意度均值:Phase 2b 再做(需分子分母/明细池化)→ 暂仅本端
+    return local
+
+
+def kpi_actual(user, code, s, e):
+    """KPI 实际值唯一公共入口(2026-06-30):本端值 +(若绑定对端)跨实例合并。
+       未绑定 / 对端不可达 → 返回纯本端值。调用方应改用本函数替代直接索引 _KPI_ACTUAL_FNS,
+       以便合并口径统一(仪表盘卡 / 绩效页 / 个人配置实际值一致)。"""
+    fn = _KPI_ACTUAL_FNS.get(_MERGE_ALIAS.get(code, code))
+    local = 0.0
+    if fn is not None:
+        try:
+            local = float(fn(user, s, e) or 0)
+        except Exception:
+            local = 0.0
+    peer_id = getattr(user, 'peer_user_id', None)
+    if not peer_id:
+        return local
+    payload = _peer_kpi_payload(peer_id, s, e)
+    if not payload or not payload.get('data'):
+        return local
+    pdata = payload['data'].get(code) or payload['data'].get(_MERGE_ALIAS.get(code, code))
+    if not pdata:
+        return local
+    return _merge_metric(code, local, pdata, payload, user, s, e)

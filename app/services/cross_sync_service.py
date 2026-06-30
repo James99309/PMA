@@ -708,23 +708,28 @@ def fetch_peer_user(peer_id):
     return None
 
 
-def fetch_peer_kpi_actuals(peer_user_id, start_iso, end_iso):
+def fetch_peer_kpi_actuals(peer_user_id, start_iso, end_iso, metrics=None):
     """GET 对端某用户本期各 KPI 指标实际值(Phase 2 合并用)。
-       返回 {metric_code: {...}} 或 None(对端不可达时,调用方降级为仅本地)。"""
+       返回完整 payload {self_system, self_currency, data:{code:{...}}} 或 None
+       (对端不可达时,调用方降级为仅本地,不影响本端考核)。
+       metrics: 可选 list[str],只取这些指标(减负载);None=全量。"""
     if not is_cross_sync_enabled() or not peer_user_id:
         return None
     peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
     api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
     import requests
+    params = {'user_id': peer_user_id, 'start': start_iso, 'end': end_iso}
+    if metrics:
+        params['metrics'] = ','.join(metrics)
     try:
         resp = requests.get(
             f'{peer_url}/cross-sync/kpi-actuals',
-            params={'user_id': peer_user_id, 'start': start_iso, 'end': end_iso},
+            params=params,
             headers={'X-API-Key': api_key},
             timeout=15,
         )
         if resp.status_code == 200:
-            return (resp.json() or {}).get('data', None)
+            return resp.json() or None
         logger.warning(f'fetch_peer_kpi_actuals 失败 status={resp.status_code} body={resp.text[:200]}')
     except Exception as e:
         logger.warning(f'fetch_peer_kpi_actuals 异常: {e}')

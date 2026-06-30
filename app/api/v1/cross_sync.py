@@ -649,3 +649,80 @@ def cross_sync_list_users():
             'is_mirror': bool(getattr(u, 'is_mirror', False)),
         } for u in rows],
     })
+
+
+@api_v1_bp.route('/cross-sync/kpi-actuals', methods=['GET'])
+@require_api_key_or_jwt
+def cross_sync_kpi_actuals():
+    """跨实例 KPI 合并(Phase 2)用:返回本端某用户本期各指标实际值 + 元数据。
+       入参:user_id(必填) / start,end(ISO 时间窗) / metrics(可选,逗号分隔;默认全量)。
+       返回 data[code] = {value, data_type, scoring_mode};植入品质额外带池化分子分母
+       (quality_sum/quality_count)。金额值已按本端默认币种聚合(SG=USD),并回传 self_currency
+       供对端换算。对端不可达/出错时调用方降级为仅本地,不影响本端考核。"""
+    import os
+    from datetime import datetime
+    from app.models.user import User
+    from app.services.kpi_actual_service import _KPI_ACTUAL_FNS, _se_window
+    from app.helpers.scoring_modes import load_metric_meta, default_scoring_mode
+
+    uid = request.args.get('user_id', type=int)
+    if not uid:
+        return jsonify({'success': False, 'message': '缺少 user_id'}), 400
+    user = User.query.get(uid)
+    if not user:
+        return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+    def _parse(ts):
+        if not ts:
+            return None
+        try:
+            return datetime.fromisoformat(ts.replace('Z', '+00:00').replace('+00:00', ''))
+        except Exception:
+            return None
+    s, e = _parse(request.args.get('start')), _parse(request.args.get('end'))
+    if not s or not e:
+        return jsonify({'success': False, 'message': 'start/end 时间窗无效(需 ISO)'}), 400
+
+    _ALIAS = {'sales_target': 'sales_amount'}
+    req_codes = [c.strip() for c in (request.args.get('metrics') or '').split(',') if c.strip()]
+    codes = req_codes or list(_KPI_ACTUAL_FNS.keys())
+
+    self_sys = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+    self_currency = 'USD' if self_sys == 'ovs' else 'CNY'
+
+    try:
+        meta = load_metric_meta()
+    except Exception:
+        meta = {}
+
+    data = {}
+    for code in codes:
+        fn = _KPI_ACTUAL_FNS.get(_ALIAS.get(code, code))
+        if fn is None:
+            continue
+        try:
+            val = float(fn(user, s, e) or 0)
+        except Exception as ex:
+            logger.warning(f'[cross-kpi] {code} 计算失败 uid={uid}: {ex}')
+            continue
+        info = meta.get(code) or meta.get(_ALIAS.get(code, code)) or {}
+        entry = {
+            'value': val,
+            'data_type': info.get('data_type'),
+            'scoring_mode': info.get('scoring_mode') or default_scoring_mode(code),
+        }
+        if code == 'se_confirm_quality':
+            try:
+                w = _se_window(user, s, e)
+                entry['quality_sum'] = float(w.get('se_confirm_quality_sum') or 0)
+                entry['quality_count'] = int(w.get('se_confirm_quality_count') or 0)
+            except Exception:
+                pass
+        data[code] = entry
+
+    return jsonify({
+        'success': True,
+        'self_system': self_sys,
+        'self_currency': self_currency,
+        'data': data,
+    })
