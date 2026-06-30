@@ -622,10 +622,9 @@ def cross_sync_list_users():
     from sqlalchemy import or_, func
     q = (request.args.get('q') or '').strip()
     limit = min(int(request.args.get('limit', 50) or 50), 200)
-    query = User.query.filter(
-        User._is_active == True,
-        User.is_mirror == False,   # 镜像影子号不可被绑定
-    )
+    # 注意:镜像号(is_mirror)也要可绑——同一人用对端镜像号登录、在对端做业务
+    # (如 SE 确认报价 confirmed_by=镜像号),其 KPI 真实归属该镜像号。仅排除停用账号。
+    query = User.query.filter(User._is_active == True)
     if q:
         like = f'%{q}%'
         query = query.filter(or_(
@@ -643,5 +642,6 @@ def cross_sync_list_users():
             'role': u.role or '',
             'dept': u.department or '',
             'email': u.email or '',
+            'is_mirror': bool(getattr(u, 'is_mirror', False)),
         } for u in rows],
     })

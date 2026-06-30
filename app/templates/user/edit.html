@@ -189,7 +189,7 @@
                             if(!d.success){ alert(d.message||'拉取对端账号失败'); return; }
                             var cur=sel.value;
                             sel.innerHTML='<option value="">{{ _("— 选择对端账号 —") }}</option>'+
-                              (d.data||[]).map(function(u){return '<option value="'+u.id+'"'+(String(u.id)===cur?' selected':'')+'>'+u.name+' ('+u.username+' · '+(u.role||'')+') id='+u.id+'</option>';}).join('');
+                              (d.data||[]).map(function(u){return '<option value="'+u.id+'"'+(String(u.id)===cur?' selected':'')+'>'+u.name+' ('+u.username+' · '+(u.role||'')+') id='+u.id+(u.is_mirror?' · 镜像':'')+'</option>';}).join('');
                           });
                       }
                       if(btn){ btn.addEventListener('click', load); }
