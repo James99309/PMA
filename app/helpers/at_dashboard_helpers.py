@@ -1617,17 +1617,18 @@ def _build_implant(user, variant='solution'):
             if my_cat_ids:
                 rows = db.session.query(
                     Product.product_name,
-                    func.count(QuotationDetail.id),
+                    func.coalesce(func.sum(QuotationDetail.quantity), 0),
                     func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0),
                 ).join(QuotationDetail, QuotationDetail.product_mn == Product.product_mn)\
                  .join(Quotation, Quotation.id == QuotationDetail.quotation_id)\
                  .filter(Product.category_id.in_(my_cat_ids),
                          QuotationDetail.implant_subtotal > 0,
+                         Quotation.confirmed_by.isnot(None),   # 仅有确认过(含再次确认 reconfirm,confirmed_by 保留)
                          Quotation.created_at >= s, Quotation.created_at < e)\
                  .group_by(Product.product_name)\
                  .order_by(func.sum(QuotationDetail.implant_subtotal).desc()).all()
                 total = sum(float(r[2]) for r in rows)
-                items = [{'name': n or '—', 'count': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
+                items = [{'name': n or '—', 'qty': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
             periods[pk] = {'total': total, 'items': items}
         return {'variant': 'product', 'sub': _t('我负责分类的产品'),
                 'has_team': False, 'mine': {'periods': periods}}
@@ -1640,16 +1641,17 @@ def _build_implant(user, variant='solution'):
         for pk, (s, e) in _dash_periods().items():
             rows = db.session.query(
                 QuotationDetail.product_name,
-                func.count(QuotationDetail.id),
+                func.coalesce(func.sum(QuotationDetail.quantity), 0),
                 func.coalesce(func.sum(QuotationDetail.implant_subtotal), 0),
             ).join(Quotation, Quotation.id == QuotationDetail.quotation_id)\
              .filter(quote_filter,
                      QuotationDetail.implant_subtotal > 0,
+                     Quotation.confirmed_by.isnot(None),   # 仅有确认过(含再次确认 reconfirm,confirmed_by 保留)
                      Quotation.created_at >= s, Quotation.created_at < e)\
              .group_by(QuotationDetail.product_name)\
              .order_by(func.sum(QuotationDetail.implant_subtotal).desc()).all()
             total = sum(float(r[2]) for r in rows)
-            items = [{'name': n or '—', 'count': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
+            items = [{'name': n or '—', 'qty': int(c), 'amount': float(a)} for n, c, a in rows[:6]]
             out[pk] = {'total': total, 'items': items}
         return out
 

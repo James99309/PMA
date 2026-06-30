@@ -443,7 +443,7 @@
                 <li style="padding:10px 4px;border-top:{{ '0' if loop.first else '1px solid var(--line)' }};
                            display:flex;align-items:center;gap:10px;font-size:12.5px;">
                   <span style="flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ it.name }}</span>
-                  <span style="font-size:11px;color:var(--ink-4);flex-shrink:0;">×{{ it.count }}</span>
+                  <span style="font-size:11px;color:var(--ink-4);flex-shrink:0;" title="{{ _('植入数量') }}">×{{ it.qty }}</span>
                   <span class="dash-tab-num" style="color:var(--ink);font-weight:500;flex-shrink:0;">{{ dash.currency }}{{ '{:,.0f}'.format(it.amount) }}</span>
                 </li>
                 {% else %}
