@@ -1027,6 +1027,24 @@ def _local_currency():
     return 'CNY' if _self == 'sp8d' else 'USD'
 
 
+def _local_meta():
+    """本端全量指标元数据 {code:{data_type,scoring_mode}},请求内缓存。
+       合并以本端 data_type 为权威(对端定义可能不全,如 SG 缺某指标 data_type)。"""
+    from flask import g, has_request_context
+    if has_request_context():
+        m = getattr(g, '_kpi_local_meta', None)
+        if m is not None:
+            return m
+    try:
+        from app.helpers.scoring_modes import load_metric_meta
+        m = load_metric_meta()
+    except Exception:
+        m = {}
+    if has_request_context():
+        g._kpi_local_meta = m
+    return m
+
+
 def _peer_kpi_payload(peer_id, s, e):
     """拉取对端整份 KPI payload,按 (peer_id, 窗口) 请求内缓存(一次渲染算多指标只调一次)。"""
     from flask import g, has_request_context
@@ -1050,10 +1068,13 @@ def _peer_kpi_payload(peer_id, s, e):
     return payload
 
 
-def _merge_metric(code, local, pdata, payload, user, s, e):
-    """按 data_type/scoring_mode 合并本端值 local 与对端 pdata。"""
-    dtype = (pdata or {}).get('data_type')
-    mode = (pdata or {}).get('scoring_mode')
+def _merge_metric(code, local, pdata, payload, user, s, e, local_info=None):
+    """按 data_type/scoring_mode 合并本端值 local 与对端 pdata。
+       data_type/scoring_mode 以本端(local_info)为权威,对端值仅兜底
+       (对端 metrics 定义可能不全,如 SG 缺某指标 data_type 会致漏加)。"""
+    li = local_info or {}
+    dtype = li.get('data_type') or (pdata or {}).get('data_type')
+    mode = li.get('scoring_mode') or (pdata or {}).get('scoring_mode')
     pval = float((pdata or {}).get('value') or 0)
     # 植入品质:池化系数均值(非两均值再平均)
     if mode == 'tiered' or code == 'se_confirm_quality':
@@ -1104,4 +1125,6 @@ def kpi_actual(user, code, s, e):
     pdata = payload['data'].get(code) or payload['data'].get(_MERGE_ALIAS.get(code, code))
     if not pdata:
         return local
-    return _merge_metric(code, local, pdata, payload, user, s, e)
+    meta = _local_meta()
+    local_info = meta.get(code) or meta.get(_MERGE_ALIAS.get(code, code)) or {}
+    return _merge_metric(code, local, pdata, payload, user, s, e, local_info)
