@@ -883,9 +883,17 @@ def _kpi_config_driven(user, start, end, prev_start, prev_end, label_prefix, tar
             _money_u = unit not in (' 个', ' 户', ' 单', ' 人', '%', ' 分', ' 次')
             def _disp(v):
                 return (f"{unit}{v:,.0f}" if _money_u else f"{v:g}{unit}")
-            _peer_extra = {'has_peer': True,
-                           'cn_disp': _disp(bd.get('local') or 0),
-                           'sg_disp': _disp(bd.get('peer_converted') or 0)}
+            _cn_disp = _disp(bd.get('local') or 0)
+            _peer_raw = bd.get('peer') or 0
+            _peer_conv = bd.get('peer_converted') or 0
+            # 金额类且发生了换算(对端币种≠本币)→ 显示「原币 → 换算后」,杜绝歧义
+            if _money_u and bd.get('peer_currency') and abs(_peer_raw - _peer_conv) > 0.5:
+                from app.utils.dictionary_helpers import get_currency_symbol
+                _psym = get_currency_symbol(bd.get('peer_currency'))
+                _sg_disp = f"{_psym}{_peer_raw:,.0f} → {unit}{_peer_conv:,.0f}"
+            else:
+                _sg_disp = _disp(_peer_conv)
+            _peer_extra = {'has_peer': True, 'cn_disp': _cn_disp, 'sg_disp': _sg_disp}
         # 固定档位制(植入品质):无数字目标,按均值给等级 + 档位达成率(及格3/良好5/优秀7)
         smode = smode_map.get(code) or _dsmode(code)
         if smode == 'tiered':
