@@ -89,6 +89,20 @@ def get_auth_headers():
         return {'Authorization': f'Bearer {token}'}
     return {}
 
+
+@user_bp.route('/api/peer-users')
+@login_required
+def api_peer_users():
+    """跨实例绑定 UI 用:代理拉取对端真实账号列表(仅 admin)。"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    from app.services.cross_sync_service import is_cross_sync_enabled, fetch_peer_users
+    if not is_cross_sync_enabled():
+        return jsonify({'success': False, 'message': '本实例未开通跨实例同步(CROSS_SYNC 未配置)', 'data': []})
+    q = (request.args.get('q') or '').strip()
+    return jsonify({'success': True, 'data': fetch_peer_users(q=q, limit=50)})
+
+
 @user_bp.route('/list')
 @login_required
 @permission_required('user_management', 'view')
@@ -906,6 +920,9 @@ def edit_user(user_id):
         # 跨系统镜像 (Federation Lite Phase 1) - 仅 admin 可改
         cross_team_visible = 'cross_team_visible' in request.form
         cross_team_label = (request.form.get('cross_team_label') or '').strip() or None
+        # 跨实例双真实账号绑定(KPI 合并):勾选 peer_bind_enabled 且选了对端账号才存
+        _peer_raw = (request.form.get('peer_user_id') or '').strip()
+        peer_user_id = int(_peer_raw) if (_peer_raw.isdigit() and 'peer_bind_enabled' in request.form) else None
 
         # 对角色字段进行去空格处理，防止空格问题
         if role:
@@ -960,6 +977,14 @@ def edit_user(user_id):
         if not bool(getattr(user, 'is_mirror', False)) and current_user.role == 'admin':
             user.cross_team_visible = cross_team_visible
             user.cross_team_label = cross_team_label
+            # 绑定对端真实账号(KPI 合并);peer_system = 对端实例类型(本端的对立面)
+            user.peer_user_id = peer_user_id
+            if peer_user_id:
+                import os as _os
+                _self = _os.environ.get('PMA_DB_TYPE', _os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+                user.peer_system = 'ovs' if _self == 'sp8d' else 'sp8d'
+            else:
+                user.peer_system = None
         if password and password.strip():
             user.set_password(password)
 

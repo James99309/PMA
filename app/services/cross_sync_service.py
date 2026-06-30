@@ -654,3 +654,49 @@ def sync_display_order_to_peer(category_code, subcategory_code):
 
     thread = threading.Thread(target=_do_sync, daemon=True)
     thread.start()
+
+
+# ═══ 跨实例「双真实账号」绑定 + KPI 合并:同步 GET 对端(2026-06-30)═══════════
+def fetch_peer_users(q='', limit=50):
+    """GET 对端真实账号列表(供 CN 绑定 UI 下拉)。失败返回 []。"""
+    if not is_cross_sync_enabled():
+        return []
+    peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+    import requests
+    try:
+        resp = requests.get(
+            f'{peer_url}/cross-sync/list-users',
+            params={'q': q or '', 'limit': limit},
+            headers={'X-API-Key': api_key},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return (resp.json() or {}).get('data', []) or []
+        logger.warning(f'fetch_peer_users 失败 status={resp.status_code} body={resp.text[:200]}')
+    except Exception as e:
+        logger.warning(f'fetch_peer_users 异常: {e}')
+    return []
+
+
+def fetch_peer_kpi_actuals(peer_user_id, start_iso, end_iso):
+    """GET 对端某用户本期各 KPI 指标实际值(Phase 2 合并用)。
+       返回 {metric_code: {...}} 或 None(对端不可达时,调用方降级为仅本地)。"""
+    if not is_cross_sync_enabled() or not peer_user_id:
+        return None
+    peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+    import requests
+    try:
+        resp = requests.get(
+            f'{peer_url}/cross-sync/kpi-actuals',
+            params={'user_id': peer_user_id, 'start': start_iso, 'end': end_iso},
+            headers={'X-API-Key': api_key},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            return (resp.json() or {}).get('data', None)
+        logger.warning(f'fetch_peer_kpi_actuals 失败 status={resp.status_code} body={resp.text[:200]}')
+    except Exception as e:
+        logger.warning(f'fetch_peer_kpi_actuals 异常: {e}')
+    return None

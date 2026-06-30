@@ -69,7 +69,12 @@ class User(db.Model, UserMixin):
     source_user_id = db.Column(db.Integer, nullable=True)        # 源系统的 user.id
     is_mirror = db.Column(db.Boolean, default=False, nullable=False)
     mirrored_at = db.Column(db.Float, nullable=True)             # 上次同步时间
-    
+    # ─── 跨实例「双真实账号」绑定 (KPI 合并用,区别于上面的镜像影子号) ───
+    # 同一人在对端也有真实账号、两边都做业务;本字段指向对端真实 user.id,
+    # 用于 KPI 实际值 CN+SG 合并(见 docs/plans/2026-06-30-cross-instance-kpi-merge.md)
+    peer_user_id = db.Column(db.Integer, nullable=True)          # 对端真实 user.id
+    peer_system = db.Column(db.String(20), nullable=True)        # 对端系统 'sp8d'/'ovs'
+
     # 关系
     permissions = db.relationship('Permission', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     linked_company = db.relationship('Company', foreign_keys=[linked_company_id], backref=db.backref('linked_users', lazy='dynamic'))  # 关联的公司(供应商/代理商/客户)
@@ -162,6 +167,9 @@ class User(db.Model, UserMixin):
             'source_system': getattr(self, 'source_system', None),
             'source_user_id': getattr(self, 'source_user_id', None),
             'mirrored_at': getattr(self, 'mirrored_at', None),
+            # 跨实例双真实账号绑定 (KPI 合并)
+            'peer_user_id': getattr(self, 'peer_user_id', None),
+            'peer_system': getattr(self, 'peer_system', None),
             # 个人偏好
             'settlement_currency': self.settlement_currency,
             'language_preference': self.language_preference,
