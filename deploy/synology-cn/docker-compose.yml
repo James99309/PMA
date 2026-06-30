@@ -86,6 +86,12 @@ services:
       # 数据库类型：SP8D（决定货币为 CNY/¥）
       PMA_DB_TYPE: sp8d
 
+      # 跨实例 Federation（CN→SG;.env 已有同名变量,这里引用传进容器）— 2026-06-30 补
+      CROSS_SYNC_ENABLED: "true"
+      CROSS_SYNC_PEER_URL: ${CROSS_SYNC_PEER_URL:-http://100.87.155.40:5002/api/v1}
+      CROSS_SYNC_API_KEY: ${CROSS_SYNC_API_KEY}
+      CROSS_SYNC_SELF_LABEL: ${CROSS_SYNC_SELF_LABEL:-中国 PMA}
+
       # APNs Push Notifications (2026-05-15) — iOS 推送，密钥在命名卷 storage/secrets
       APNS_BUNDLE_ID: com.evertacsolutions.pma.mobile
       APNS_TEAM_ID: N2L8SYV8GY
