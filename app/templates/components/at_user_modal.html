@@ -140,6 +140,22 @@
             <label>{{ _('对外身份标签') }}</label>
             <input class="uc-input" name="cross_team_label" placeholder="{{ _('如:海外技术支持') }}">
           </div>
+          <div class="uc-field" style="grid-column:1/-1;">
+            <label class="uc-check" style="margin:0 0 6px;" title="{{ _('该用户 KPI 实际值合并对端(CN+SG)业绩') }}">
+              <input type="checkbox" name="peer_bind_enabled" id="ucPeerEnable"> {{ _('绑定对端真实账号(KPI 合并 CN+SG)') }}
+            </label>
+            <div id="ucPeerRow" style="display:none;">
+              <div style="display:flex;gap:6px;">
+                <input class="uc-input" id="ucPeerSearch" placeholder="{{ _('搜索对端账号(用户名/姓名)') }}" style="flex:1;">
+                <button type="button" id="ucPeerSearchBtn"
+                        style="height:34px;padding:0 14px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer;">{{ _('搜索') }}</button>
+              </div>
+              <select class="uc-input" name="peer_user_id" id="ucPeerSelect" style="margin-top:6px;">
+                <option value="">{{ _('— 未绑定,点搜索选择 —') }}</option>
+              </select>
+              <small style="color:var(--ink-3);display:block;margin-top:4px;">{{ _('选中对端账号并保存后,该用户 KPI 实际值将合并对端业绩(对端金额换算 CNY 后相加)。') }}</small>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -193,6 +209,7 @@
     document.getElementById('ucEditZone').hidden = true;
     document.getElementById('ucActiveKeep').disabled = true;
     ucToggleProb(false);
+    { const pr = document.getElementById('ucPeerRow'); if (pr) pr.style.display = 'none'; }
     ucFilterDepts();   // 公司未选 → 部门下拉先清空
     const un = $('#ucUsername');
     un.readOnly = false; un.value = ''; un.placeholder = '{{ _("登录名(创建后不可改)") }}';
@@ -228,8 +245,42 @@
     document.getElementById('ucActiveKeep').disabled = !u.is_active;
     form.cross_team_visible.checked = !!u.cross_team_visible;
     form.cross_team_label.value = u.cross_team_label || '';
+    // 跨实例绑定回填
+    const pe = document.getElementById('ucPeerEnable'), psel = document.getElementById('ucPeerSelect');
+    if (pe && psel) {
+      if (u.peer_user_id) {
+        pe.checked = true;
+        psel.innerHTML = '<option value="' + u.peer_user_id + '" selected>{{ _("当前绑定") }} · id=' + u.peer_user_id + '（' + ((u.peer_system||'').toUpperCase()) + '）</option>';
+        document.getElementById('ucPeerRow').style.display = '';
+      } else {
+        pe.checked = false;
+        psel.innerHTML = '<option value="">{{ _("— 未绑定,点搜索选择 —") }}</option>';
+        document.getElementById('ucPeerRow').style.display = 'none';
+      }
+    }
     show();
   };
+
+  // 跨实例绑定:勾选切换 + 搜索对端账号
+  (function () {
+    const pe = document.getElementById('ucPeerEnable'), row = document.getElementById('ucPeerRow');
+    if (pe) pe.addEventListener('change', function () { row.style.display = pe.checked ? '' : 'none'; });
+    const btn = document.getElementById('ucPeerSearchBtn'), inp = document.getElementById('ucPeerSearch'), sel = document.getElementById('ucPeerSelect');
+    function load() {
+      const q = encodeURIComponent((inp.value || '').trim());
+      fetch('{{ url_for("user.api_peer_users") }}?q=' + q, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+          if (!d.success) { alert(d.message || '拉取对端账号失败'); return; }
+          const cur = sel.value;
+          sel.innerHTML = '<option value="">{{ _("— 选择对端账号 —") }}</option>' +
+            (d.data || []).map(u => '<option value="' + u.id + '"' + (String(u.id) === cur ? ' selected' : '') + '>' +
+              u.name + ' (' + u.username + ' · ' + (u.role || '') + ') id=' + u.id + (u.is_mirror ? ' · 镜像' : '') + '</option>').join('');
+        });
+    }
+    if (btn) btn.addEventListener('click', load);
+    if (inp) inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); load(); } });
+  })();
 
   window.ucClose = function () {
     document.getElementById('ucOverlay').classList.remove('open');

@@ -151,51 +151,7 @@
                                    placeholder="例如：海外技术支持 / 区域销售联络"
                                    value="{{ user.cross_team_label or '' if user else '' }}">
                         </div>
-                        <div class="col-12 mt-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="peer_bind_enabled" name="peer_bind_enabled"
-                                       {% if user and user.peer_user_id %}checked{% endif %}>
-                                <label class="form-check-label" for="peer_bind_enabled">
-                                    {{ _('绑定对端真实账号(KPI 合并 CN+SG)') }}
-                                </label>
-                            </div>
-                            <div id="peerBindRow" class="mt-2" style="{% if not (user and user.peer_user_id) %}display:none;{% endif %}">
-                                <div class="input-group" style="max-width:480px;">
-                                    <input type="text" class="form-control" id="peerSearch" placeholder="{{ _('搜索对端账号(用户名/姓名)') }}">
-                                    <button type="button" class="btn btn-outline-secondary" id="peerSearchBtn">{{ _('搜索') }}</button>
-                                </div>
-                                <select class="form-select mt-1" id="peer_user_id" name="peer_user_id" style="max-width:480px;">
-                                    {% if user and user.peer_user_id %}
-                                    <option value="{{ user.peer_user_id }}" selected>{{ _('当前绑定') }} · id={{ user.peer_user_id }}（{{ (user.peer_system or '')|upper }}）</option>
-                                    {% else %}
-                                    <option value="">{{ _('— 未绑定,点搜索选择 —') }}</option>
-                                    {% endif %}
-                                </select>
-                                <small class="text-muted d-block mt-1">{{ _('勾选并选中对端账号后保存;该用户 KPI 实际值将合并对端业绩(对端金额换算后相加)。') }}</small>
-                            </div>
-                        </div>
                     </div>
-                    <script>
-                    (function(){
-                      var cb=document.getElementById('peer_bind_enabled'), row=document.getElementById('peerBindRow');
-                      if(!cb) return;
-                      cb.addEventListener('change', function(){ row.style.display=cb.checked?'':'none'; });
-                      var btn=document.getElementById('peerSearchBtn'), inp=document.getElementById('peerSearch'), sel=document.getElementById('peer_user_id');
-                      function load(){
-                        var q=encodeURIComponent(inp.value.trim());
-                        fetch('{{ url_for("user.api_peer_users") }}?q='+q, {headers:{'X-Requested-With':'XMLHttpRequest'}})
-                          .then(function(r){return r.json();})
-                          .then(function(d){
-                            if(!d.success){ alert(d.message||'拉取对端账号失败'); return; }
-                            var cur=sel.value;
-                            sel.innerHTML='<option value="">{{ _("— 选择对端账号 —") }}</option>'+
-                              (d.data||[]).map(function(u){return '<option value="'+u.id+'"'+(String(u.id)===cur?' selected':'')+'>'+u.name+' ('+u.username+' · '+(u.role||'')+') id='+u.id+(u.is_mirror?' · 镜像':'')+'</option>';}).join('');
-                          });
-                      }
-                      if(btn){ btn.addEventListener('click', load); }
-                      if(inp){ inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); load(); } }); }
-                    })();
-                    </script>
                     {% elif user and user.is_mirror %}
                     <div class="alert alert-info py-2 mb-3" style="font-size:13px;">
                         🔗 此账号是来自 <b>{{ user.source_system|upper }}</b> 系统的镜像用户。
