@@ -35,11 +35,17 @@ def _act_sales(user, s, e):
     return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
 
 def _act_implant(user, s, e):
+    """植入额(2026-06-30 口径修正):
+       ① 归属按【项目拥有人】(Project.owner_id),不看报价 owner(SE/他人代写报价不影响归属);
+       ② 仅计【有确认过】的报价(confirmed_by 留痕),不看当前徽章状态('reconfirm' 仍算)。"""
     from app import db
     from app.models.quotation import Quotation
-    q = db.session.query(Quotation).filter(
-        Quotation.owner_id == user.id,
-        Quotation.created_at >= s, Quotation.created_at < e)
+    from app.models.project import Project
+    q = (db.session.query(Quotation)
+         .join(Project, Project.id == Quotation.project_id)
+         .filter(Project.owner_id == user.id,
+                 Quotation.confirmed_by.isnot(None),
+                 Quotation.created_at >= s, Quotation.created_at < e))
     return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
 # ── 合格「新建客户/项目」统一口径(2026-06-21,个人/团队/渠道共用) ──
@@ -619,11 +625,15 @@ def _act_team_sales(user, s, e):
 
 
 def _act_team_implant(user, s, e):
+    """团队植入额(2026-06-30 口径修正):按【项目拥有人 ∈ 本部门成员】归属 + 仅计有确认过的报价。"""
     from app import db
     from app.models.quotation import Quotation
-    q = db.session.query(Quotation).filter(
-        Quotation.owner_id.in_(_dept_member_ids(user)),
-        Quotation.created_at >= s, Quotation.created_at < e)
+    from app.models.project import Project
+    q = (db.session.query(Quotation)
+         .join(Project, Project.id == Quotation.project_id)
+         .filter(Project.owner_id.in_(_dept_member_ids(user)),
+                 Quotation.confirmed_by.isnot(None),
+                 Quotation.created_at >= s, Quotation.created_at < e))
     return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
 
@@ -728,12 +738,15 @@ def _act_channel_sales(user, s, e):
 
 
 def _act_channel_implant(user, s, e):
+    """渠道植入额(2026-06-30 补确认):渠道项目(report_source=channel,不限负责人)归属不变,
+       仅补"有确认过的报价"(confirmed_by 留痕)条件,与销售/团队口径一致。"""
     from app import db
     from app.models.quotation import Quotation
     from app.models.project import Project
     q = (db.session.query(Quotation)
          .join(Project, Project.id == Quotation.project_id)
          .filter(*_channel_project_filter(),
+                 Quotation.confirmed_by.isnot(None),
                  Quotation.created_at >= s, Quotation.created_at < e))
     return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
 
