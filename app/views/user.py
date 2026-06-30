@@ -3329,6 +3329,33 @@ def at_list():
                            form_options=form_options)
 
 
+def _peer_system_label(sys_code):
+    """对端系统代码 → 友好服务器名(展示用)。"""
+    return {'ovs': _('新加坡 (SG)'), 'sp8d': _('中国 (CN)')}.get(
+        (sys_code or '').lower(), (sys_code or '').upper())
+
+
+def _resolve_peer_name(user):
+    """对端绑定账号显示名:优先用快照 peer_name;缺失则跨实例按 id 反查并回填落库(自愈)。
+       对端不可达时返回 None(调用方降级为仅显示 id)。"""
+    pid = getattr(user, 'peer_user_id', None)
+    if not pid:
+        return None
+    name = getattr(user, 'peer_name', None)
+    if not name:
+        try:
+            from app.services.cross_sync_service import fetch_peer_user
+            row = fetch_peer_user(pid)
+            if row and row.get('name'):
+                name = f"{row['name']} ({row['username']})" if row.get('username') else row['name']
+                user.peer_name = name
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+            name = getattr(user, 'peer_name', None)
+    return name
+
+
 @user_bp.route('/at-detail/<int:user_id>')
 @login_required
 @permission_required('user_management', 'view')
@@ -3366,10 +3393,14 @@ def at_user_detail(user_id):
         'created': _ts(u.created_at),
         'last_login': _ts(u.last_login),
     }
-    # 跨实例 KPI 合并绑定:有 peer 才展示(名字快照 + 对端系统 + id)
+    # 跨实例 KPI 合并绑定:展示「账户名 · id · 服务器名」;名字缺失自愈回填
+    _peer_name = _resolve_peer_name(u)
     if getattr(u, 'peer_user_id', None):
-        _pn = getattr(u, 'peer_name', None) or f'id={u.peer_user_id}'
-        info['peer_display'] = f"{_pn} · {(u.peer_system or '').upper()} (id={u.peer_user_id})"
+        _srv = _peer_system_label(u.peer_system)
+        if _peer_name:
+            info['peer_display'] = f"{_peer_name} · id={u.peer_user_id} · {_srv}"
+        else:
+            info['peer_display'] = f"id={u.peer_user_id} · {_srv}"
     else:
         info['peer_display'] = None
     can_edit = current_user.has_permission('user_management', 'edit')

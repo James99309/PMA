@@ -679,6 +679,35 @@ def fetch_peer_users(q='', limit=50):
     return []
 
 
+def fetch_peer_user(peer_id):
+    """GET 对端单个真实账号(按 id)。用于绑定名快照缺失时自愈回填。
+       返回 dict(id/username/name/role/...) 或 None。"""
+    if not is_cross_sync_enabled() or not peer_id:
+        return None
+    peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+    import requests
+    try:
+        resp = requests.get(
+            f'{peer_url}/cross-sync/list-users',
+            params={'id': peer_id, 'limit': 1},
+            headers={'X-API-Key': api_key},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            rows = (resp.json() or {}).get('data', []) or []
+            # 防御:对端必须返回 id 精确匹配的那一条;若对端旧版忽略 id 参数(返回搜索结果),
+            # 则 id 不匹配 → 丢弃,避免回填错误姓名。
+            for r in rows:
+                if str(r.get('id')) == str(peer_id):
+                    return r
+            return None
+        logger.warning(f'fetch_peer_user 失败 status={resp.status_code} body={resp.text[:200]}')
+    except Exception as e:
+        logger.warning(f'fetch_peer_user 异常: {e}')
+    return None
+
+
 def fetch_peer_kpi_actuals(peer_user_id, start_iso, end_iso):
     """GET 对端某用户本期各 KPI 指标实际值(Phase 2 合并用)。
        返回 {metric_code: {...}} 或 None(对端不可达时,调用方降级为仅本地)。"""

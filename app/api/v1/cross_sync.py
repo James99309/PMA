@@ -625,7 +625,11 @@ def cross_sync_list_users():
     # 注意:镜像号(is_mirror)也要可绑——同一人用对端镜像号登录、在对端做业务
     # (如 SE 确认报价 confirmed_by=镜像号),其 KPI 真实归属该镜像号。仅排除停用账号。
     query = User.query.filter(User._is_active == True)
-    if q:
+    # id 精确查:供对端「绑定名快照」缺失时按 peer_user_id 反查回填(自愈)
+    _exact_id = (request.args.get('id') or '').strip()
+    if _exact_id.isdigit():
+        query = query.filter(User.id == int(_exact_id))
+    elif q:
         like = f'%{q}%'
         query = query.filter(or_(
             func.lower(User.username).like(like.lower()),

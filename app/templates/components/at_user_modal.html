@@ -249,8 +249,10 @@
     if (u.peer_user_id) {
       document.getElementById('ucPeerId').value = u.peer_user_id;
       document.getElementById('ucPeerName').value = u.peer_name || '';
-      const _t = (u.peer_name ? u.peer_name + ' · ' : '{{ _("当前绑定") }} · ') + 'id=' + u.peer_user_id + '（' + ((u.peer_system||'').toUpperCase()) + '）';
-      ucPeerSetChosen(_t);
+      const _sysMap = { ovs: '{{ _("新加坡 (SG)") }}', sp8d: '{{ _("中国 (CN)") }}' };
+      const _sys = _sysMap[(u.peer_system || '').toLowerCase()] || (u.peer_system || '').toUpperCase();
+      const _nm = u.peer_name ? (u.peer_name + ' · ') : '';
+      ucPeerSetChosen(_nm + 'id=' + u.peer_user_id + ' · ' + _sys);
     }
     ucToggleCrossTeam();
     show();
