@@ -136,10 +136,8 @@
               <input type="checkbox" name="cross_team_visible" id="ucCrossTeam"> {{ _('跨团队可见') }}
             </label>
           </div>
-          <div class="uc-field">
-            <label>{{ _('对外身份标签') }}</label>
-            <input class="uc-input" name="cross_team_label" placeholder="{{ _('如:海外技术支持') }}">
-          </div>
+          {# 对外身份标签不在弹窗里编辑,但保留字段值(hidden 透传)防止保存被清空 #}
+          <input type="hidden" name="cross_team_label" id="ucCrossLabelKeep" value="">
           {# 跨实例绑定:勾选「跨团队可见」后出现,输入即搜对端账号(实时下拉) #}
           <div class="uc-field" id="ucPeerBlock" style="grid-column:1/-1;display:none;">
             <label>{{ _('绑定对端真实账号(KPI 合并 CN+SG)') }}</label>
