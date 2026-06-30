@@ -610,3 +610,38 @@ def cross_sync_users_search():
             'label': u.cross_team_label or '海外支持',
         } for u in rows],
     })
+
+
+@api_v1_bp.route('/cross-sync/list-users', methods=['GET'])
+@require_api_key_or_jwt
+def cross_sync_list_users():
+    """跨实例「双真实账号」绑定用:返回本端所有真实(非镜像)活跃账号供对端选择。
+       与 users-search 不同——不限 cross_team_visible(被绑定的真实账号未必勾了跨团队可见)。
+       q 模糊搜用户名/姓名/邮箱;返回 id/username/name/role/dept。"""
+    from app.models.user import User
+    from sqlalchemy import or_, func
+    q = (request.args.get('q') or '').strip()
+    limit = min(int(request.args.get('limit', 50) or 50), 200)
+    query = User.query.filter(
+        User._is_active == True,
+        User.is_mirror == False,   # 镜像影子号不可被绑定
+    )
+    if q:
+        like = f'%{q}%'
+        query = query.filter(or_(
+            func.lower(User.username).like(like.lower()),
+            User.real_name.ilike(like),
+            User.email.ilike(like),
+        ))
+    rows = query.order_by(User.real_name.asc().nullslast(), User.username.asc()).limit(limit).all()
+    return jsonify({
+        'success': True,
+        'data': [{
+            'id': u.id,
+            'username': u.username,
+            'name': u.real_name or u.username,
+            'role': u.role or '',
+            'dept': u.department or '',
+            'email': u.email or '',
+        } for u in rows],
+    })
