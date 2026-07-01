@@ -767,6 +767,17 @@ def at_flows():
         },
     }
 
+    # SG(ovs)组织扁平:报备/失败搁置无业务线经理层,自动跳过第一步直达总经理(与
+    # project_hold_helpers.resolve_hold_approvers 的 ovs 分支一致),展示上也隐去第一步。
+    import os
+    _is_ovs = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d')) == 'ovs'
+    if _is_ovs:
+        for _k in ('project', 'project_hold'):
+            _spec = BUILTIN_SPECS.get(_k)
+            if _spec:
+                _spec['notes'] = ['SG 组织扁平:无业务线经理层,发起后自动跳过第一步,直达总经理(ceo)审批'] + [
+                    n for n in _spec['notes'] if '第一步人选' not in n]
+
     tpls = (ApprovalProcessTemplate.query
             .order_by(ApprovalProcessTemplate.is_active.desc(), ApprovalProcessTemplate.object_type,
                       ApprovalProcessTemplate.id).all())
@@ -787,6 +798,11 @@ def at_flows():
                         desc = f'固定审批人:{u.real_name or u.username}'
             items.append({'order': st.step_order, 'name': st.step_name,
                           'desc': desc, 'email': bool(st.send_email)})
+        # SG:报备/失败搁置隐去被自动跳过的「业务线经理」首步,总经理重排为第 1 步
+        if _is_ovs and t.is_active and t.object_type in ('project', 'project_hold'):
+            items = [it for it in items if it['order'] != 1]
+            for _i, it in enumerate(items, 1):
+                it['order'] = _i
         flows.append({
             'id': t.id, 'name': t.name,
             'object_type': t.object_type,

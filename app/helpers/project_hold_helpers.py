@@ -26,6 +26,7 @@ def resolve_hold_approvers(project):
       - 部门经理可为 None(该部门未设经理),由调用方跳过部门经理这级。
         发起人本身就是部门经理的情况也由调用方处理(自动跳过,不能自审)。
     """
+    import os
     from app.models.user import User
 
     owner = project.owner
@@ -41,6 +42,12 @@ def resolve_hold_approvers(project):
     ceo = _active_role('ceo')
     if not ceo:
         return None, None, '未找到总经理(ceo)，请联系管理员配置后再发起'
+
+    # SG(ovs):组织结构扁平,无业务线经理层,报备/失败/搁置一律跳过第一步直达总经理(ceo)。
+    # 与 resolve_win_lock_candidates 的 ovs 逻辑保持一致(SG 任何类型 → ceo)。
+    _db_type = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+    if _db_type == 'ovs':
+        return None, ceo, None
 
     # 第一步按「项目类型」(project_type,即列表显示的「类型」)分流(2026-06-16 修正):
     #   服务(business_opportunity)/负责人属服务部门或服务经理 → 服务经理;无在职 → 直达总经理
