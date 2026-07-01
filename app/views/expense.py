@@ -976,11 +976,10 @@ def at_list_view():
     from sqlalchemy import nullslast
     _SORT_COLS = {
         'created_at': Expense.created_at,
-        'updated_at': Expense.updated_at,
         'total_amount': Expense.total_amount,
     }
     sort_field, sort_order = extract_sort_params(
-        request.args, default_sort='updated_at', default_order='desc',
+        request.args, default_sort='created_at', default_order='desc',
         allowed_fields=list(_SORT_COLS.keys()))
     _col = _SORT_COLS[sort_field]
     _ordered = _col.desc() if sort_order == 'desc' else _col.asc()

@@ -1056,7 +1056,6 @@ def at_list_view():
         'created_at': Quotation.created_at,
         'updated_at': Quotation.updated_at,
         'amount': Quotation.amount,
-        'implant_total_amount': Quotation.implant_total_amount,
     }
     sort_field, sort_order = extract_sort_params(
         request.args, default_sort='updated_at', default_order='desc',
