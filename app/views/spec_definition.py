@@ -85,7 +85,22 @@ def at_list_view():
             SpecificationDictionary.name_en.ilike(s),
         ))
 
-    pagination = q.order_by(SpecificationDictionary.display_order).paginate(
+    # 列排序(可点击表头):白名单字段,NULL 值排最后,id 兜底保证稳定次序
+    # 仅日期列(created_at/updated_at)对外可点击;display_order 仅作默认排序,沿用原行为
+    from app.utils.query_filters import extract_sort_params
+    from sqlalchemy import nullslast
+    _SORT_COLS = {
+        'display_order': SpecificationDictionary.display_order,
+        'created_at': SpecificationDictionary.created_at,
+        'updated_at': SpecificationDictionary.updated_at,
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='display_order', default_order='asc',
+        allowed_fields=list(_SORT_COLS.keys()))
+    _col = _SORT_COLS[sort_field]
+    _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
+
+    pagination = q.order_by(nullslast(_ordered), SpecificationDictionary.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
     return render_template('spec_definition/at_list.html',
@@ -93,7 +108,9 @@ def at_list_view():
                            pagination=pagination,
                            categories=categories,
                            current_category_id=category_id,
-                           search=search)
+                           search=search,
+                           sort_field=sort_field,
+                           sort_order=sort_order)
 
 
 @spec_definition_bp.route('/api/list')

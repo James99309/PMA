@@ -67,11 +67,23 @@ def list_view():
 @permission_required('system_diagram', 'view')
 def at_list_view():
     """AT 风格系统图列表"""
-    from sqlalchemy import or_
+    from sqlalchemy import or_, nullslast
+    from app.utils.query_filters import extract_sort_params
     page = max(int(request.args.get('page', 1)), 1)
     per_page = 30
     tab = request.args.get('tab', 'diagrams')  # diagrams | templates
     search = request.args.get('search', '').strip()
+
+    # 可排序列(仅真实 DB 日期列)
+    _SORT_COLS = {
+        'created_at': SystemDiagram.created_at,
+        'updated_at': SystemDiagram.updated_at,
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='updated_at', default_order='desc',
+        allowed_fields=list(_SORT_COLS.keys()))
+    _col = _SORT_COLS[sort_field]
+    _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
 
     base = SystemDiagram.query.filter(
         SystemDiagram.is_deleted == False,
@@ -86,7 +98,7 @@ def at_list_view():
     if search:
         q = q.filter(SystemDiagram.name.ilike(f'%{search}%'))
 
-    pagination = q.order_by(SystemDiagram.updated_at.desc()).paginate(
+    pagination = q.order_by(nullslast(_ordered), SystemDiagram.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
     return render_template('system_diagram/at_list.html',
@@ -94,7 +106,9 @@ def at_list_view():
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,
-                           search=search)
+                           search=search,
+                           sort_field=sort_field,
+                           sort_order=sort_order)
 
 
 @system_diagram.route('/new')

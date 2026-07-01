@@ -968,10 +968,28 @@ def at_list_view():
             Product.model.ilike(like),
         ))
 
+    # 列排序(可点击表头):金额列白名单,NULL 值排最后,id 兜底保证稳定次序。
+    # 未点列时(sort=display)沿用产品显示顺序(分类→子分类→型号)默认排序。
     from app.utils.product_sort import apply_product_display_sort
-    pagination = apply_product_display_sort(q).paginate(
-        page=page, per_page=per_page, error_out=False,
-    )
+    from app.utils.query_filters import extract_sort_params
+    from sqlalchemy import nullslast
+    _SORT_COLS = {
+        'created_at': Product.created_at, 'updated_at': Product.updated_at,
+        'retail_price': Product.retail_price,
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='display', default_order='desc',
+        allowed_fields=['display'] + list(_SORT_COLS.keys()))
+    if sort_field in _SORT_COLS:
+        _col = _SORT_COLS[sort_field]
+        _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
+        pagination = q.order_by(nullslast(_ordered), Product.id.desc()).paginate(
+            page=page, per_page=per_page, error_out=False,
+        )
+    else:
+        pagination = apply_product_display_sort(q).paginate(
+            page=page, per_page=per_page, error_out=False,
+        )
 
     form_data = _get_product_form_data()
 
@@ -1004,6 +1022,8 @@ def at_list_view():
 
     return render_template('product/at_list.html',
                            products=pagination.items,
+                           sort_field=sort_field,
+                           sort_order=sort_order,
                            pagination=pagination,
                            tab_counts=tab_counts,
                            current_tab=tab,

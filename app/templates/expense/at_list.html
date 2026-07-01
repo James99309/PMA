@@ -1,5 +1,5 @@
 {% extends 'components/at_list_layout.html' %}
-{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_sort_th %}
 
 {% block sidebar_active %}expense{% endblock %}
 {% block page_title %}{{ _('报销管理') }}{% endblock %}
@@ -64,13 +64,19 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [(_('报销编号'),'left'),(_('主题'),'left'),(_('客户·项目'),'left'),
-                (_('金额'),'right'),(_('状态'),'left'),(_('申请人'),'left'),(_('更新'),'left')] %}
+{% macro _plain_th(h, a) %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
            background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
-{% endfor %}
+{% endmacro %}
+{{ _plain_th(_('报销编号'), 'left') }}
+{{ _plain_th(_('主题'), 'left') }}
+{{ _plain_th(_('客户·项目'), 'left') }}
+{{ at_sort_th(_('金额'), 'total_amount', sort_field, sort_order, align='right') }}
+{{ _plain_th(_('状态'), 'left') }}
+{{ _plain_th(_('申请人'), 'left') }}
+{{ at_sort_th(_('更新'), 'updated_at', sort_field, sort_order) }}
 {% endblock %}
 
 {% block trows %}

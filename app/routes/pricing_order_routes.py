@@ -1756,7 +1756,20 @@ def at_list_view():
     tab_total_amount = q.with_entities(
         _func.coalesce(_func.sum(PricingOrder.pricing_total_amount), 0)).scalar() or 0
 
-    pagination = q.order_by(PricingOrder.created_at.desc()).paginate(
+    # 点击列排序(仅日期+金额列;均为 PricingOrder 上的真实 DB Column)
+    from app.utils.query_filters import extract_sort_params
+    from sqlalchemy import nullslast
+    _SORT_COLS = {
+        'approved_at': PricingOrder.approved_at,              # 审批通过时间(列表显示列)
+        'pricing_total_amount': PricingOrder.pricing_total_amount,  # 批价总额
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='approved_at', default_order='desc',
+        allowed_fields=list(_SORT_COLS.keys()))
+    _col = _SORT_COLS[sort_field]
+    _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
+
+    pagination = q.order_by(nullslast(_ordered), PricingOrder.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
 
@@ -1776,6 +1789,8 @@ def at_list_view():
                            show_filter=show_filter,
                            owner_options=owner_options,
                            owner_values=owner_values,
+                           sort_field=sort_field,
+                           sort_order=sort_order,
                            can_view_settlement=PricingOrderService.can_view_settlement_tab(current_user),
                            list_qs=list_qs)
 

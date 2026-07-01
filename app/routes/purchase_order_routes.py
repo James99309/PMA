@@ -14,6 +14,8 @@ from app.models.product import Product
 from app.models.user import User
 from app.decorators import permission_required, permission_required_with_approval_context
 from app.utils.access_control import get_viewable_data
+from app.utils.query_filters import extract_sort_params
+from sqlalchemy import nullslast
 from app.helpers.purchase_order_helpers import (
     process_order_details,
     upload_signature_image,
@@ -83,7 +85,20 @@ def at_list_view():
             )
         )
 
-    query = query.order_by(PurchaseOrder.created_at.desc())
+    # 点击列排序:仅日期 / 金额类真实 DB 列
+    _SORT_COLS = {
+        'created_at': PurchaseOrder.created_at,
+        'updated_at': PurchaseOrder.updated_at,
+        'required_date': PurchaseOrder.required_date,   # 交期
+        'total_amount': PurchaseOrder.total_amount,     # 金额
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='created_at', default_order='desc',
+        allowed_fields=list(_SORT_COLS.keys())
+    )
+    _col = _SORT_COLS[sort_field]
+    _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
+    query = query.order_by(nullslast(_ordered), PurchaseOrder.id.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     orders = pagination.items
 
@@ -114,6 +129,8 @@ def at_list_view():
         current_test=test_filter,
         current_category=category,
         search=search,
+        sort_field=sort_field,
+        sort_order=sort_order,
     )
 
 

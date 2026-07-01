@@ -747,19 +747,21 @@ def _build_task_list_query(uid, tab='my', status='', search=''):
     return query
 
 
-def _apply_task_sort(query, sort='updated'):
-    """统一排序:已完成/已取消沉底。"""
+def _apply_task_sort(query, sort='updated', order='desc'):
+    """统一排序:已完成/已取消沉底。order 控制日期列升/降(优先级列固定)。"""
     completed_last = db.case((Task.status.in_(['completed', 'cancelled']), 1), else_=0)
+    _asc = (order == 'asc')
     if sort == 'due_date':
-        return query.order_by(completed_last, Task.due_date.asc().nullslast(), Task.updated_at.desc())
+        _due = Task.due_date.asc().nullslast() if _asc else Task.due_date.desc().nullslast()
+        return query.order_by(completed_last, _due, Task.updated_at.desc())
     if sort == 'priority':
         priority_order = db.case(
             (Task.priority == 'urgent', 1), (Task.priority == 'high', 2),
             (Task.priority == 'normal', 3), (Task.priority == 'low', 4), else_=5)
         return query.order_by(completed_last, priority_order, Task.updated_at.desc())
     if sort == 'created':
-        return query.order_by(completed_last, Task.created_at.desc())
-    return query.order_by(completed_last, Task.updated_at.desc())
+        return query.order_by(completed_last, Task.created_at.asc() if _asc else Task.created_at.desc())
+    return query.order_by(completed_last, Task.updated_at.asc() if _asc else Task.updated_at.desc())
 
 
 def _task_team_members(uid):
@@ -793,8 +795,14 @@ def _task_team_members(uid):
 def at_list_view():
     """AT 风格任务列表(服务端渲染,复用 management_list 同款查询/排序/代理查看)。"""
     _auto_promote_pending_tasks()
+    from app.utils.query_filters import extract_sort_params
     tab = request.args.get('tab', 'my')
-    sort = request.args.get('sort', 'updated')
+    # 排序:白名单沿用原下拉键;order 缺省时截止日期默认升序(近期在前),其余降序
+    _raw_sort = request.args.get('sort', 'updated')
+    _default_order = 'asc' if _raw_sort == 'due_date' else 'desc'
+    sort, sort_order = extract_sort_params(
+        request.args, default_sort='updated', default_order=_default_order,
+        allowed_fields=['updated', 'due_date', 'priority', 'created'])
     status = request.args.get('status', '').strip()
     search = request.args.get('search', '').strip()
     page = max(request.args.get('page', 1, type=int), 1)
@@ -808,7 +816,7 @@ def at_list_view():
     tab_counts = {k: _build_task_list_query(uid, k).count()
                   for k in ('all', 'my', 'created', 'shared', 'review')}
 
-    query = _apply_task_sort(_build_task_list_query(uid, tab, status, search), sort)
+    query = _apply_task_sort(_build_task_list_query(uid, tab, status, search), sort, sort_order)
     pagination = query.options(
         joinedload(Task.creator), joinedload(Task.assignee), joinedload(Task.project),
     ).paginate(page=page, per_page=per_page, error_out=False)
@@ -821,6 +829,7 @@ def at_list_view():
         list_qs['search'] = search
     if sort and sort != 'updated':
         list_qs['sort'] = sort
+        list_qs['order'] = sort_order
     if view_user_id:
         list_qs['view_user_id'] = view_user_id
 
@@ -831,6 +840,7 @@ def at_list_view():
         tasks=[t.to_dict() for t in pagination.items], pagination=pagination,
         tab_counts=tab_counts, current_tab=tab,
         status=status, search=search, sort=sort,
+        sort_field=sort, sort_order=sort_order,
         can_view_team=can_view_team, team_options=team_options,
         view_user_id=view_user_id, list_qs=list_qs,
     )

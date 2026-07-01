@@ -1050,7 +1050,21 @@ def at_list_view():
         like = f'%{search}%'
         q = q.filter(Quotation.quotation_number.ilike(like))
 
-    pagination = q.order_by(Quotation.updated_at.desc()).paginate(
+    # ── 点击列排序(日期列 + 金额列,均为模型真实 DB Column)──
+    from sqlalchemy import nullslast
+    _SORT_COLS = {
+        'created_at': Quotation.created_at,
+        'updated_at': Quotation.updated_at,
+        'amount': Quotation.amount,
+        'implant_total_amount': Quotation.implant_total_amount,
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='updated_at', default_order='desc',
+        allowed_fields=list(_SORT_COLS.keys()))
+    _col = _SORT_COLS[sort_field]
+    _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
+
+    pagination = q.order_by(nullslast(_ordered), Quotation.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
 
@@ -1067,6 +1081,8 @@ def at_list_view():
                            show_filter=show_filter,
                            owner_options=owner_options,
                            owner_values=owner_values,
+                           sort_field=sort_field,
+                           sort_order=sort_order,
                            list_qs={k: v for k, v in {'search': search,
                                     'owner': owner_values}.items() if v})
 

@@ -3265,7 +3265,19 @@ def at_list():
     elif tab == 'inactive':
         q = q.filter(User._is_active.is_(False))
 
-    pagination = q.order_by(User.updated_at.desc().nullslast()).paginate(
+    # 列排序(可点击表头):白名单字段,NULL 值排最后,id 兜底保证稳定次序
+    from app.utils.query_filters import extract_sort_params
+    from sqlalchemy import nullslast
+    _SORT_COLS = {
+        'created_at': User.created_at, 'updated_at': User.updated_at,
+        'last_login': User.last_login,
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='updated_at', default_order='desc',
+        allowed_fields=list(_SORT_COLS.keys()))
+    _col = _SORT_COLS[sort_field]
+    _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
+    pagination = q.order_by(nullslast(_ordered), User.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False)
 
     users_view = [{
@@ -3325,6 +3337,8 @@ def at_list():
                            company_values=company_values,
                            dept_values=dept_values,
                            list_qs=list_qs,
+                           sort_field=sort_field,
+                           sort_order=sort_order,
                            can_create=can_create,
                            form_options=form_options)
 

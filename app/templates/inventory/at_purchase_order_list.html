@@ -1,5 +1,5 @@
 {% extends 'components/at_list_layout.html' %}
-{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_progress %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_progress, at_sort_th %}
 {% from 'components/at_purchase_order.html' import at_order_form_modal %}
 {% from 'components/at_product_picker.html' import at_product_picker_modal %}
 {% from 'components/at_customer_needs_modal.html' import at_customer_needs_modal %}
@@ -80,14 +80,20 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [('PO ' + _('单号'),'left'),(_('供应商'),'left'),(_('类型'),'left'),
-                (_('金额'),'right'),(_('进度'),'left'),(_('状态'),'left'),
-                (_('测试'),'left'),(_('交期'),'left')] %}
+{% macro _plain_th(h, a) %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
            background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
-{% endfor %}
+{% endmacro %}
+{{ _plain_th('PO ' + _('单号'), 'left') }}
+{{ _plain_th(_('供应商'), 'left') }}
+{{ _plain_th(_('类型'), 'left') }}
+{{ at_sort_th(_('金额'), 'total_amount', sort_field, sort_order, align='right') }}
+{{ _plain_th(_('进度'), 'left') }}
+{{ _plain_th(_('状态'), 'left') }}
+{{ _plain_th(_('测试'), 'left') }}
+{{ at_sort_th(_('交期'), 'required_date', sort_field, sort_order) }}
 {% endblock %}
 
 {% block trows %}

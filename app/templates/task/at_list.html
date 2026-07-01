@@ -1,5 +1,5 @@
 {% extends 'components/at_list_layout.html' %}
-{% from 'components/at_base.html' import at_icon, at_status_pill, at_btn, at_input, at_select, at_avatar, at_progress %}
+{% from 'components/at_base.html' import at_icon, at_status_pill, at_btn, at_input, at_select, at_avatar, at_progress, at_sort_th %}
 
 {% block sidebar_active %}task{% endblock %}
 {% block page_title %}{{ _('任务管理') }}{% endblock %}
@@ -47,7 +47,7 @@
   <form method="get" action="{{ url_for('task.at_list_view') }}" style="display:flex;align-items:center;">
     <input type="hidden" name="tab" value="{{ current_tab }}">
     {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
-    {% if sort and sort != 'updated' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    {% if sort and sort != 'updated' %}<input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="order" value="{{ sort_order }}">{% endif %}
     {% if view_user_id %}<input type="hidden" name="view_user_id" value="{{ view_user_id }}">{% endif %}
     {{ at_input(name='search', value=search, placeholder=_('搜索任务标题…'), icon_l='search', width='280px') }}
   </form>
@@ -66,6 +66,7 @@
     <button type="button" class="{{ 'on' if status == s.k else '' }}"
             onclick="location.href='{{ url_for('task.at_list_view', tab=current_tab, status=(s.k or none),
                         search=(search or none), sort=(sort if sort != 'updated' else none),
+                        order=(sort_order if sort != 'updated' else none),
                         view_user_id=(view_user_id or none)) }}'">{{ s.l }}</button>
     {% endfor %}
   </div>
@@ -94,13 +95,17 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [(_('状态'),'left'),(_('任务'),'left'),(_('进度'),'left'),
-                (_('指派'),'left'),(_('截止'),'left')] %}
+{% macro _plain_th(h, a) %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
            background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
-{% endfor %}
+{% endmacro %}
+{{ _plain_th(_('状态'), 'left') }}
+{{ _plain_th(_('任务'), 'left') }}
+{{ _plain_th(_('进度'), 'left') }}
+{{ _plain_th(_('指派'), 'left') }}
+{{ at_sort_th(_('截止'), 'due_date', sort_field, sort_order) }}
 {% endblock %}
 
 {% block trows %}

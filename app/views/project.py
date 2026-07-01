@@ -657,7 +657,20 @@ def at_list_view():
         q, Project.quotation_customer, Project.quotation_currency
     )
 
-    pagination = q.order_by(Project.updated_at.desc()).paginate(
+    # 列排序(可点击表头):白名单字段,NULL 值排最后,id 兜底保证稳定次序
+    from app.utils.query_filters import extract_sort_params
+    from sqlalchemy import nullslast
+    _SORT_COLS = {
+        'created_at': Project.created_at, 'updated_at': Project.updated_at,
+        'delivery_forecast': Project.delivery_forecast,
+        'quotation_customer': Project.quotation_customer,
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='updated_at', default_order='desc',
+        allowed_fields=list(_SORT_COLS.keys()))
+    _col = _SORT_COLS[sort_field]
+    _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
+    pagination = q.order_by(nullslast(_ordered), Project.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
 
@@ -744,6 +757,8 @@ def at_list_view():
 
     return render_template('project/at_list.html',
                            projects=pagination.items,
+                           sort_field=sort_field,
+                           sort_order=sort_order,
                            overdue_days=overdue_days,
                            quote_confirm_status=quote_confirm_status,
                            quality_scores=quality_scores,

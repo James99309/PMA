@@ -608,22 +608,36 @@ def at_list_view():
     if subcategory_filter:
         query = query.filter(ProductSubcategory.name == subcategory_filter)
 
-    # Sort by product display order (same as TW list)
+    # 列排序:默认沿用原「产品展示顺序」分组(同 TW 列表);仅当用户点击日期列表头时才按列排。
+    from app.utils.query_filters import extract_sort_params
+    from sqlalchemy import nullslast, func, and_
     from app.models.product_display_order import ProductDisplayOrder
-    from sqlalchemy import func, and_
-    query = query.outerjoin(
-        ProductDisplayOrder,
-        and_(
-            ProductCategory.code_letter == ProductDisplayOrder.category_code,
-            ProductSubcategory.code_letter == ProductDisplayOrder.subcategory_code,
-            SpecTemplate.model == ProductDisplayOrder.model
+    _SORT_COLS = {
+        'created_at': SpecTemplate.created_at,
+        'updated_at': SpecTemplate.updated_at,
+    }
+    sort_field, sort_order = extract_sort_params(
+        request.args, default_sort='display', default_order='desc',
+        allowed_fields=['display'] + list(_SORT_COLS.keys()))
+    if sort_field in _SORT_COLS:
+        _col = _SORT_COLS[sort_field]
+        _ordered = _col.desc() if sort_order == 'desc' else _col.asc()
+        query = query.order_by(nullslast(_ordered), SpecTemplate.id.desc())
+    else:
+        # 默认:按产品展示顺序分组
+        query = query.outerjoin(
+            ProductDisplayOrder,
+            and_(
+                ProductCategory.code_letter == ProductDisplayOrder.category_code,
+                ProductSubcategory.code_letter == ProductDisplayOrder.subcategory_code,
+                SpecTemplate.model == ProductDisplayOrder.model
+            )
+        ).order_by(
+            func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
+            func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
+            func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
+            SpecTemplate.created_at.desc()
         )
-    ).order_by(
-        func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
-        func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
-        func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
-        SpecTemplate.created_at.desc()
-    )
     templates = query.all()
 
     # Build category tree for filter tabs
@@ -649,7 +663,9 @@ def at_list_view():
                            search=search,
                            category_filter=category_filter,
                            subcategory_filter=subcategory_filter,
-                           category_tree=category_tree_sorted)
+                           category_tree=category_tree_sorted,
+                           sort_field=sort_field,
+                           sort_order=sort_order)
 
 
 @spec_template_bp.route('/<int:template_id>/at')

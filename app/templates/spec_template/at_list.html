@@ -1,5 +1,5 @@
 {% extends 'components/at_list_layout.html' %}
-{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_input %}
+{% from 'components/at_base.html' import at_icon, at_pill, at_btn, at_input, at_sort_th %}
 
 {% block sidebar_active %}spec_template{% endblock %}
 {% block page_title %}{{ _('规格模板') }}{% endblock %}
@@ -71,13 +71,18 @@
 {% endblock %}
 
 {% block thead %}
-{% for h, a in [(_('型号'),'left'),(_('名称'),'left'),(_('分类'),'left'),
-                (_('版本'),'left'),(_('规格项'),'right'),(_('更新'),'left')] %}
+{% macro _plain_th(h, a) %}
 <th style="text-align:{{ a }};padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
            white-space:nowrap;position:sticky;top:0;z-index:2;
            background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
-{% endfor %}
+{% endmacro %}
+{{ _plain_th(_('型号'), 'left') }}
+{{ _plain_th(_('名称'), 'left') }}
+{{ _plain_th(_('分类'), 'left') }}
+{{ _plain_th(_('版本'), 'left') }}
+{{ _plain_th(_('规格项'), 'right') }}
+{{ at_sort_th(_('更新'), 'updated_at', sort_field, sort_order) }}
 {% if has_permission('product_code', 'delete') %}
 <th style="text-align:right;padding:14px 16px;font-size:11px;font-weight:500;
            color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase;
