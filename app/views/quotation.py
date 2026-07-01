@@ -695,8 +695,15 @@ def at_new_quotation():
         if src_project and not can_view_project(current_user, src_project):
             src_project = None  # 无权访问的项目静默忽略
         if src_project:
-            # Project 没 currency 字段,沿用上一次报价的货币(quotation_currency)
-            src_currency = (getattr(src_project, 'quotation_currency', None) or Config.DEFAULT_CURRENCY)
+            # Project 没"项目本币"字段,quotation_currency 仅是"最新一张报价单货币"的缓存,
+            # 由报价保存事件回填。新项目还没有任何报价单时该字段是列硬编码默认 'CNY',
+            # 不代表用户选择,不能继承(否则 SG/OVS 上新项目建报价会误默认成 CNY)。
+            # 因此仅当项目"已有报价单"时才继承其货币,否则一律走环境默认(ovs=USD / sp8d=CNY)。
+            has_existing_quotation = Quotation.query.filter_by(
+                project_id=src_project.id
+            ).first() is not None
+            if has_existing_quotation:
+                src_currency = (getattr(src_project, 'quotation_currency', None) or Config.DEFAULT_CURRENCY)
             # 预填客户:取第一个关联客户
             from app.models.project_customer_association import ProjectCustomerAssociation
             from app.models.customer import Company
