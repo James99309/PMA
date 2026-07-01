@@ -17162,6 +17162,10 @@ msgstr "Actual Payment"
 msgid "审批时间"
 msgstr "Approval Time"
 
+#: app/templates/pricing_order/at_list.html:115
+msgid "审批通过时间"
+msgstr "Approved"
+
 #: app/templates/expense/at_view.html:467
 msgid "审批备注"
 msgstr "Approval Note"
