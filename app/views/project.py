@@ -2181,8 +2181,8 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
         # 更新项目阶段
         project.current_stage = new_stage
 
-        # 签约 → 自动解除「成功锁定」(锁单预判已兑现)
-        if new_stage == 'signed' and getattr(project, 'win_locked', False):
+        # 成功锁定只在「中标待签约」窗口有效:签约(兑现)或任何其它阶段变更(回退/撤销)都应解除
+        if getattr(project, 'win_locked', False) and new_stage != old_stage:
             project.win_locked = False
             project.win_lock_reason = None
             project.win_locked_by = None
@@ -2452,8 +2452,8 @@ def update_project_stage():
         # 更新项目阶段
         project.current_stage = new_stage
 
-        # 签约 → 自动解除「成功锁定」(锁单预判已兑现)
-        if new_stage == 'signed' and getattr(project, 'win_locked', False):
+        # 成功锁定只在「中标待签约」窗口有效:签约(兑现)或任何其它阶段变更(回退/撤销)都应解除
+        if getattr(project, 'win_locked', False) and new_stage != old_stage:
             project.win_locked = False
             project.win_lock_reason = None
             project.win_locked_by = None
