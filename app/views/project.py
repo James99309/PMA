@@ -500,6 +500,12 @@ def at_view_project(project_id):
     project_attachments = []
     try:
         _raw = p.attachments_list
+        # 附件按创建人隔离(与图纸统一口径):创建人 / 厂商 / 上级 / 角色(方案·产品经理) / admin。
+        # 老数据(无 uploaded_by)归项目负责人名义。(能到详情页=已过 can_view_project)
+        from app.models.user import Affiliation
+        _aff_owner_ids = {aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=current_user.id).all()}
+        _att_full = (current_user.role in ('admin', 'solution_manager', 'product_manager')
+                     or getattr(p, 'vendor_sales_manager_id', None) == current_user.id)
         _uids = {a.get('uploaded_by') for a in _raw if a.get('uploaded_by')}
         _umap = {}
         if _uids:
@@ -507,6 +513,9 @@ def at_view_project(project_id):
             for _u in _U.query.filter(_U.id.in_(_uids)).all():
                 _umap[_u.id] = _u.real_name or _u.username
         for a in _raw:
+            _uid = a.get('uploaded_by') or p.owner_id   # 老数据归项目负责人
+            if not (_att_full or _uid == current_user.id or _uid in _aff_owner_ids):
+                continue
             a = dict(a)
             a['uploader'] = a.get('uploaded_by_name') or _umap.get(a.get('uploaded_by')) or ''
             project_attachments.append(a)
@@ -517,9 +526,12 @@ def at_view_project(project_id):
     # 项目系统图(系统设计卡;复用 system_diagram 模块,只读加载)
     try:
         from app.models.system_diagram import SystemDiagram
-        project_diagrams = (SystemDiagram.query
-                            .filter_by(project_id=p.id, is_deleted=False)
-                            .order_by(SystemDiagram.updated_at.desc()).all())
+        from app.views.system_diagram import _can_view_diagram
+        _all_dg = (SystemDiagram.query
+                   .filter_by(project_id=p.id, is_deleted=False)
+                   .order_by(SystemDiagram.updated_at.desc()).all())
+        # 逐图按统一口径过滤(创建人/厂商/上级/角色),不再"能看项目就全看"
+        project_diagrams = [d for d in _all_dg if _can_view_diagram(d)]
     except Exception as _dg_err:
         current_app.logger.warning(f"加载项目系统图失败: {_dg_err}")
         project_diagrams = []
@@ -2169,8 +2181,8 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
         # 更新项目阶段
         project.current_stage = new_stage
 
-        # 签约 → 自动解除「成功锁定」(锁单预判已兑现)
-        if new_stage == 'signed' and getattr(project, 'win_locked', False):
+        # 成功锁定只在「中标待签约」窗口有效:签约(兑现)或任何其它阶段变更(回退/撤销)都应解除
+        if getattr(project, 'win_locked', False) and new_stage != old_stage:
             project.win_locked = False
             project.win_lock_reason = None
             project.win_locked_by = None
@@ -2440,8 +2452,8 @@ def update_project_stage():
         # 更新项目阶段
         project.current_stage = new_stage
 
-        # 签约 → 自动解除「成功锁定」(锁单预判已兑现)
-        if new_stage == 'signed' and getattr(project, 'win_locked', False):
+        # 成功锁定只在「中标待签约」窗口有效:签约(兑现)或任何其它阶段变更(回退/撤销)都应解除
+        if getattr(project, 'win_locked', False) and new_stage != old_stage:
             project.win_locked = False
             project.win_lock_reason = None
             project.win_locked_by = None

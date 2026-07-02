@@ -1081,6 +1081,15 @@ class PricingOrderService:
             old_stage = project.current_stage
             project.current_stage = 'signed'
 
+            # 签约即"成功锁定"审核的最终兑现 → 清除成功锁定标记(与手动阶段推进保持一致)
+            if getattr(project, 'win_locked', False):
+                project.win_locked = False
+                project.win_lock_reason = None
+                project.win_locked_by = None
+                project.win_locked_at = None
+                project.win_locked_quotation_id = None
+                project.win_locked_amount = None
+
             # 自动锁定项目（与手动阶段推进保持一致）
             if not project.is_locked:
                 project.is_locked = True

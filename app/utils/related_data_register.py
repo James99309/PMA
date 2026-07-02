@@ -112,7 +112,7 @@ def _project_quotations(pid, user):
 
 def _project_pricing_orders(pid, user):
     from app.models.pricing_order import PricingOrder
-    return PricingOrder.query.filter(PricingOrder.project_id == pid)
+    return get_viewable_data(PricingOrder, user, [PricingOrder.project_id == pid])
 
 
 def _project_sales_orders(pid, user):
