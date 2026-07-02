@@ -639,6 +639,14 @@ def at_list_view():
     _all_filter = or_(Project.current_stage.is_(None),
                       Project.current_stage.notin_(_EXCLUDE_FROM_ALL))
 
+    # 搜索作用于 base → 各 tab 计数也随搜索更新(能看出匹配项落在哪个 tab,便于切过去)
+    if search:
+        like = f'%{search}%'
+        base = base.filter(or_(
+            Project.project_name.ilike(like),
+            Project.authorization_code.ilike(like),
+        ))
+
     tab_counts = {'all': base.filter(_all_filter).count()}
     for k, stages in TAB_STAGE_MAP.items():
         tab_counts[k] = base.filter(Project.current_stage.in_(stages)).count()
@@ -654,12 +662,7 @@ def at_list_view():
     else:  # 全部:排除 搁置/失败/签约
         q = q.filter(_all_filter)
 
-    if search:
-        like = f'%{search}%'
-        q = q.filter(or_(
-            Project.project_name.ilike(like),
-            Project.authorization_code.ilike(like),
-        ))
+    # 注:搜索已在上方作用于 base(q 由 base 派生),此处无需再过滤
 
     # 当前 tab+筛选下的报价总额(全量,非仅当页)。
     # 跨币种(SG: MYR/SGD/USD)用 MultiCurrencyAggregationService 按行换算到实例默认币种
