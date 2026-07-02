@@ -2025,15 +2025,26 @@ class PerformanceDashboardService:
                          for m in PerformanceMetricsDefinition.query.filter(
                              PerformanceMetricsDefinition.metric_code.in_(
                                  [it['item_code'] for it in scheme])).all()}
-                # 权重:角色级覆盖(role_performance_targets.weight) > 岗位方案默认
-                from app.models.performance_config import RolePerformanceTarget
-                _w_over = {t.item_code: float(t.weight)
+                # 权重优先级:个人覆盖(user_performance_targets.weight_override)
+                #            > 角色级(role_performance_targets.weight) > 岗位方案默认
+                from app.models.performance_config import RolePerformanceTarget, UserPerformanceTarget
+                _w_role = {t.item_code: float(t.weight)
                            for t in RolePerformanceTarget.query.filter_by(
                                role_code=user.role, year=year).all()
                            if getattr(t, 'weight', None) is not None}
+                _w_user = {t.item_code: float(t.weight_override)
+                           for t in UserPerformanceTarget.query.filter_by(
+                               user_id=user_id, year=year).all()
+                           if getattr(t, 'weight_override', None) is not None}
+                def _eff_weight(code, default):
+                    if code in _w_user:
+                        return _w_user[code]
+                    if code in _w_role:
+                        return _w_role[code]
+                    return default
                 items = [SimpleNamespace(
                             item_code=it['item_code'],
-                            weight=_w_over.get(it['item_code'], it['weight']),
+                            weight=_eff_weight(it['item_code'], it['weight']),
                             item_name=_defs.get(it['item_code'])
                                       or _name_fallback.get(it['item_code'], it['item_code']))
                          for it in scheme]
