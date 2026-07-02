@@ -22,7 +22,9 @@ TASK_TYPES = [
     #   技术培训:完成计数进绩效 se_training_count(纯内部,不关联项目)
     #   项目支持:关联项目/报价单可见(allow_link),SE 配合销售的项目侧任务
     {'code': 'se_tech_training',    'label': '技术培训', 'group': 'position', 'group_label': '方案', 'roles': ['solution_manager'], 'require_review': True, 'allow_link': False},
-    {'code': 'se_project_support', 'label': '项目支持', 'group': 'position', 'group_label': '方案', 'roles': ['solution_manager'], 'require_review': False, 'allow_link': True},
+    #   creatable_by:除方案经理本人外,销售类角色也可创建「项目支持」并指派给方案经理(方便销售发起 SE 项目配合);
+    #   仅放开创建入口,绩效归属仍按 roles(solution_manager),且该类型本就不计 KPI。
+    {'code': 'se_project_support', 'label': '项目支持', 'group': 'position', 'group_label': '方案', 'roles': ['solution_manager'], 'creatable_by': ['sales_director', 'sales_manager', 'channel_manager', 'customer_sales', 'service_manager'], 'require_review': False, 'allow_link': True},
     # 岗位 · 产品经理 —— 研发/质量需审核通过才计入绩效,上市支持完成即计
     {'code': 'pm_rd',             'label': '研发任务', 'group': 'position', 'group_label': '产品', 'roles': ['product_manager'], 'require_review': True,  'allow_link': False},
     {'code': 'pm_quality',        'label': '质量任务', 'group': 'position', 'group_label': '产品', 'roles': ['product_manager'], 'require_review': True,  'allow_link': False},
@@ -45,7 +47,8 @@ def task_types_for(user):
     for t in TASK_TYPES:
         if t['group'] == 'daily':
             out.append(t)
-        elif is_super or (t.get('roles') and role in t['roles']):
+        elif is_super or (t.get('roles') and role in t['roles']) \
+                or (t.get('creatable_by') and role in t['creatable_by']):
             out.append(t)
     return out
 
