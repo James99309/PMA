@@ -106,6 +106,7 @@ def check_pricing_edit_permission(pricing_order, current_user):
 
 @pricing_order_bp.route('/project/<int:project_id>/start_pricing_process', methods=['POST'])
 @login_required
+@permission_required('pricing_order', 'create')  # 批价是销售/厂商动作;方案经理/产品经理等无此权限者不可发起
 def start_pricing_process(project_id):
     """启动批价流程（从项目页面的签约按钮触发）"""
     try:

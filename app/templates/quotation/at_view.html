@@ -250,8 +250,9 @@
       {% endif %}
       {# 批价单:已确认 + 项目处于批价/签约阶段才显示;有进行中批价单则进入,否则生成 #}
       {% if not is_new and quotation.id %}
-        {% set _can_pricing = (quotation.confirmation_badge_status == 'confirmed') and quotation.project and (quotation.project.current_stage in ['quoted','signed']) %}
-        {% if active_pricing_order %}
+        {# 批价是销售/厂商动作:需 pricing_order:create 权限;方案经理/产品经理等无此权限者不显示 #}
+        {% set _can_pricing = (quotation.confirmation_badge_status == 'confirmed') and quotation.project and (quotation.project.current_stage in ['quoted','signed']) and has_permission('pricing_order', 'create') %}
+        {% if active_pricing_order and has_permission('pricing_order', 'view') %}
         <a href="/pricing_order/{{ active_pricing_order.id }}/at-edit" class="view-only"
            style="height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--accent);
                   background:var(--accent-tint);color:var(--accent);font-size:12px;font-weight:500;

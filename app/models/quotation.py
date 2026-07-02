@@ -358,8 +358,10 @@ class Quotation(db.Model):
         self.confirmed_at = None
     
     def set_pending_confirmation_badge(self):
-        """设置待确认徽章（创建报价单时自动添加）"""
-        if self.confirmation_badge_status == 'none':
+        """设置待确认徽章（提交技术确认时）。
+        none(新报价) 与 reconfirm(返工重确认) 两种"待提交"状态都应转 pending,
+        否则从 reconfirm 提交后徽章不变,提交按键继续显示 → 可重复提交。"""
+        if self.confirmation_badge_status in ('none', 'reconfirm'):
             self.confirmation_badge_status = 'pending'
             self.confirmation_badge_color = '#f97316'  # 橙色
             self.product_signature = self.calculate_product_signature()
