@@ -502,6 +502,16 @@ def additive_grant_conditions(model_class, user):
         if proj_ids:
             conds.append(model_class.project_id.in_(proj_ids))
         conds.append(model_class.id.in_(_get_task_linked_ids(user.id, 'quotation_id')))
+    elif name == 'PricingOrder':
+        # 批价单(用 created_by):厂商负责人负责的项目下批价 + 归属上级创建的批价。
+        # (批价自身的 shared_with_users 已由上面通用段处理)
+        proj_ids = set(p[0] for p in Project.query.filter(
+            Project.vendor_sales_manager_id == user.id).with_entities(Project.id).all())
+        if proj_ids:
+            conds.append(model_class.project_id.in_(proj_ids))
+        aff_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
+        if aff_ids:
+            conds.append(model_class.created_by.in_(aff_ids))
     elif name == 'Company':
         conds.append(model_class.id.in_(_get_worklog_shared_ids(user.id, 'customer_id')))
     # Contact: 仅通用共享(若有 shared_with_users);其可见性主要随所属公司,不在此叠加
@@ -982,20 +992,18 @@ def get_viewable_data(model_class, user, special_filters=None):
         if hasattr(model_class, 'is_deleted'):
             base_filters.append(model_class.is_deleted == False)
 
-        # 使用统一的权限级别过滤逻辑
+        # 使用统一的权限级别过滤逻辑;各级(system 除外)叠加附加授权(厂商负责人/归属上级/批价自身共享)
         if permission_level == 'system':
             query = model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
-        elif permission_level == 'company' and user.company_name:
-            company_user_ids = get_company_user_ids(user, include_affiliations=False)
-            all_filters = base_filters + [model_class.created_by.in_(company_user_ids)] + (special_filters if special_filters else [])
-            query = model_class.query.filter(*all_filters)
-        elif permission_level == 'department' and user.department and user.company_name:
-            dept_user_ids = get_department_user_ids(user, include_affiliations=False)
-            all_filters = base_filters + [model_class.created_by.in_(dept_user_ids)] + (special_filters if special_filters else [])
-            query = model_class.query.filter(*all_filters)
-        else:  # personal
-            # 个人级权限：只能查看自己创建的批价单（不包含归属关系）
-            all_filters = base_filters + [model_class.created_by == user.id] + (special_filters if special_filters else [])
+        else:
+            if permission_level == 'company' and user.company_name:
+                scope_ids = get_company_user_ids(user, include_affiliations=False)
+            elif permission_level == 'department' and user.department and user.company_name:
+                scope_ids = get_department_user_ids(user, include_affiliations=False)
+            else:  # personal
+                scope_ids = [user.id]
+            _add = additive_grant_conditions(model_class, user)
+            all_filters = base_filters + [db.or_(model_class.created_by.in_(scope_ids), *_add)] + (special_filters if special_filters else [])
             query = model_class.query.filter(*all_filters)
 
         # 应用内容过滤
@@ -1522,56 +1530,36 @@ def can_view_quotation(user, quotation):
             logger.debug(f"[权限检查] 报价单共享权限 - 允许访问")
             return True
 
-    # 判断是否通过项目共享获得权限（需区分主动共享 vs 资源池审批共享）
+    # 项目「主动共享」不再传导到报价单(共享只给项目本体);
+    # 仅「资源池审批」显式勾选了报价单才放行(项目级或客户级 AccessRequest)
     if quotation.project_id:
         project = quotation.project
-        if project and hasattr(project, 'shared_with_users') and project.shared_with_users:
-            if user.id in project.shared_with_users:
-                from app.models.access_request import AccessRequest
-                # 检查是否通过资源池审批获得的项目共享
-                access_req = AccessRequest.query.filter_by(
-                    requester_id=user.id,
-                    entity_type='project',
-                    entity_id=project.id,
-                    status='approved'
-                ).order_by(AccessRequest.resolved_at.desc()).first()
-
-                if access_req:
-                    # 资源池项目审批 → 按 share_options 控制
-                    if access_req.share_options and access_req.share_options.get('quotations'):
-                        logger.debug(f"[权限检查] 资源池项目审批共享(含报价单) - 允许访问")
+        if project and getattr(project, 'shared_with_users', None) and user.id in project.shared_with_users:
+            from app.models.access_request import AccessRequest
+            access_req = AccessRequest.query.filter_by(
+                requester_id=user.id, entity_type='project',
+                entity_id=project.id, status='approved'
+            ).order_by(AccessRequest.resolved_at.desc()).first()
+            if access_req:
+                if access_req.share_options and access_req.share_options.get('quotations'):
+                    logger.debug(f"[权限检查] 资源池项目审批共享(含报价单) - 允许访问")
+                    return True
+            else:
+                # 无项目级 AccessRequest → 检查客户级资源池审批
+                from app.models.project_customer_association import ProjectCustomerAssociation
+                assoc_company_ids = [a.company_id for a in
+                    ProjectCustomerAssociation.query.filter_by(project_id=project.id).all()]
+                if assoc_company_ids:
+                    customer_req = AccessRequest.query.filter(
+                        AccessRequest.requester_id == user.id,
+                        AccessRequest.entity_type == 'customer',
+                        AccessRequest.entity_id.in_(assoc_company_ids),
+                        AccessRequest.status == 'approved'
+                    ).order_by(AccessRequest.resolved_at.desc()).first()
+                    if customer_req and customer_req.share_options and customer_req.share_options.get('quotations'):
+                        logger.debug(f"[权限检查] 资源池客户审批共享(含报价单) - 允许访问")
                         return True
-                    else:
-                        logger.debug(f"[权限检查] 资源池项目审批共享(未勾选报价单) - 拒绝访问")
-                        # 不 return True，继续后续检查
-                else:
-                    # 无项目级 AccessRequest → 检查客户审批路径
-                    from app.models.project_customer_association import ProjectCustomerAssociation
-                    assoc_company_ids = [a.company_id for a in
-                        ProjectCustomerAssociation.query.filter_by(project_id=project.id).all()]
-                    if assoc_company_ids:
-                        customer_req = AccessRequest.query.filter(
-                            AccessRequest.requester_id == user.id,
-                            AccessRequest.entity_type == 'customer',
-                            AccessRequest.entity_id.in_(assoc_company_ids),
-                            AccessRequest.status == 'approved'
-                        ).order_by(AccessRequest.resolved_at.desc()).first()
-                        if customer_req:
-                            # 客户审批路径 → 按 share_options 控制
-                            if customer_req.share_options and customer_req.share_options.get('quotations'):
-                                logger.debug(f"[权限检查] 资源池客户审批共享(含报价单) - 允许访问")
-                                return True
-                            else:
-                                logger.debug(f"[权限检查] 资源池客户审批共享(未勾选报价单) - 拒绝访问")
-                                # 不 return True，继续后续检查
-                        else:
-                            # 无 AccessRequest 记录 → 主动共享（全量权限）
-                            logger.debug(f"[权限检查] 主动项目共享权限 - 允许访问关联报价单")
-                            return True
-                    else:
-                        # 无 AccessRequest 且无客户关联 → 主动共享
-                        logger.debug(f"[权限检查] 主动项目共享权限 - 允许访问关联报价单")
-                        return True
+            # 其余(纯主动项目共享 / 未勾选报价单)→ 不放行,继续后续检查
 
     # 注：财务总监、渠道经理、营销总监、服务经理等角色的报价单查看权限
     # 通过权限配置系统控制：
@@ -1703,6 +1691,11 @@ def can_view_pricing_order(user, pricing_order):
         if pricing_order.project.vendor_sales_manager_id == user.id:
             logger.debug(f"[权限检查] 厂商销售负责人权限 - 允许访问")
             return True
+
+    # 归属上级权限：可以查看下属创建的批价单(与"上级全量可见"一致)
+    if pricing_order.created_by in [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]:
+        logger.debug(f"[权限检查] 归属上级权限 - 允许访问")
+        return True
 
     # 审批人权限：检查 V2 审批系统
     if pricing_order.status in ('pending', 'approved', 'rejected', 'recalled'):

@@ -21,21 +21,33 @@ logger = logging.getLogger(__name__)
 system_diagram = Blueprint('system_diagram', __name__, url_prefix='/system-diagram')
 
 
-def _can_edit_diagram(diagram):
-    """检查当前用户是否有权编辑系统图（基于数据归属和项目权限）"""
-    from app.utils.access_control import can_edit_data, can_view_project
-    # admin 和 owner 在 can_edit_data 内部处理
-    # SystemDiagram 不在 can_edit_data 的已知模型中，手动实现等效逻辑
+def _can_view_diagram(diagram):
+    """当前用户是否可查看该系统图(与关联数据统一口径,不再"能看项目就全看"):
+       创建人 / 项目厂商负责人 / 归属上级 / 角色(方案经理·产品经理 且能看该项目) / admin。
+       无 project_id 的个人图/模板仅创建人(admin)可见。"""
+    from app.utils.access_control import can_view_project
+    from app.models.user import Affiliation
     if current_user.role == 'admin':
         return True
-    if diagram.owner_id == current_user.id:
+    if diagram.owner_id == current_user.id:              # 创建人
         return True
-    # 如果系统图关联了项目，继承项目的查看权限（能看项目即可编辑其系统图）
     if diagram.project_id:
         project = Project.query.get(diagram.project_id)
-        if project and can_view_project(current_user, project):
-            return True
+        if project:
+            if getattr(project, 'vendor_sales_manager_id', None) == current_user.id:  # 厂商负责人
+                return True
+            aff_owner_ids = [a.owner_id for a in Affiliation.query.filter_by(viewer_id=current_user.id).all()]
+            if diagram.owner_id in aff_owner_ids:         # 归属上级
+                return True
+            if current_user.role in ('solution_manager', 'product_manager') \
+                    and can_view_project(current_user, project):  # 角色开口
+                return True
     return False
+
+
+def _can_edit_diagram(diagram):
+    """编辑权限 = 查看权限(创建人/厂商/上级/角色),与查看口径统一。"""
+    return _can_view_diagram(diagram)
 
 
 # ── 页面路由 ──────────────────────────────────────────────
@@ -137,6 +149,8 @@ def edit_editor(diagram_id):
     """编辑已有系统图"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
     if diagram.is_deleted:
+        return render_template('errors/404.html'), 404
+    if not _can_view_diagram(diagram):
         return render_template('errors/404.html'), 404
     project_name = ''
     if diagram.project_id:
@@ -288,6 +302,8 @@ def api_load(diagram_id):
     diagram = SystemDiagram.query.get_or_404(diagram_id)
     if diagram.is_deleted:
         return jsonify({'success': False, 'message': _('系统图不存在')}), 404
+    if not _can_view_diagram(diagram):
+        return jsonify({'success': False, 'message': _('无权访问此系统图')}), 403
     return jsonify({
         'success': True,
         'diagram': {
