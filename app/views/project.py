@@ -2242,7 +2242,7 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
 
 @project.route('/api/update_stage', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 粗闸=模块访问;真授权由函数内 owner/vendor/admin 判断(支持负责人操作自己项目)
 def update_project_stage():
     """
     更新项目阶段
@@ -2773,11 +2773,14 @@ def get_company_contacts(company_id):
 
 @project.route('/api/<int:project_id>/add_action', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 粗闸=模块访问;记录级授权见下(认归属,支持负责人/dealer 为自己项目加跟进)
 def api_add_action(project_id):
     """AJAX添加行动记录API"""
     try:
         project_obj = Project.query.get_or_404(project_id)
+        # 记录级授权:能编辑该项目者(负责人/厂商/公司级等)才可加跟进
+        if not can_edit_data(project_obj, current_user):
+            return jsonify({'success': False, 'message': _('您没有权限为此项目添加跟进记录')}), 403
 
         # 获取JSON数据
         data = request.get_json()
@@ -3097,7 +3100,7 @@ def get_project_api(project_id):
 
 @project.route('/api/users', methods=['GET'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 读接口(取用户列表),view 即可
 def get_users_api():
     """获取用户列表API，用于销售负责人选择"""
     user_type = request.args.get('type', 'all')  # vendor, dealer, all
@@ -4480,7 +4483,7 @@ def get_project_approval_flow(project_id):
 
 @project.route('/api/approval/<int:project_id>/recall', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 粗闸=模块访问;真授权由函数内 created_by/admin 判断
 def recall_project_approval(project_id):
     """召回项目审批"""
     try:
@@ -4549,7 +4552,7 @@ def recall_project_approval(project_id):
 
 @project.route('/api/approval/<int:project_id>/resubmit', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 粗闸=模块访问;真授权由函数内 _can_win_lock(认归属)
 def resubmit_project_approval(project_id):
     """重新提交项目审批"""
     try:
@@ -4569,7 +4572,7 @@ def resubmit_project_approval(project_id):
 
 @project.route('/api/hold/<int:project_id>/request', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 粗闸=模块访问;真授权由函数内 _can_win_lock(认归属,支持负责人/dealer 发起)
 def request_project_hold(project_id):
     """发起项目失败/搁置审核(申请)。body: {target: 'lost'|'paused', reason: str}"""
     try:
@@ -4642,7 +4645,7 @@ def get_project_hold_editable_fields(project_id):
 
 @project.route('/api/hold/<int:project_id>/recall', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 粗闸=模块访问;真授权由函数内 created_by/admin 判断
 def recall_project_hold(project_id):
     """撤回进行中的失败/搁置审核(仅发起人或管理员)。"""
     try:
@@ -4705,7 +4708,7 @@ def get_project_win_lock_editable_fields(project_id):
 
 @project.route('/api/win-lock/<int:project_id>/recall', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 粗闸=模块访问;真授权由函数内 created_by/admin 判断
 def recall_project_win_lock(project_id):
     """撤回进行中的成功锁定审核(仅发起人或管理员)。"""
     try:
@@ -4957,7 +4960,7 @@ def api_create_project():
 
 @project.route('/api/<int:project_id>/update', methods=['POST'])
 @login_required
-@permission_required('project', 'edit')
+@permission_required('project', 'view')  # 粗闸=模块访问;真授权由函数内 can_edit_data(认归属,支持负责人编辑自己项目)
 def api_update_project(project_id):
     """API端点 - 更新项目数据"""
     try:
