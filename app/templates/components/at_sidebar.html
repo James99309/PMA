@@ -194,8 +194,7 @@
           <div class="at-sb-text at-sb-sub" style="margin-left:30px;margin-top:2px;margin-bottom:4px;
                      display:none;flex-direction:column;gap:1px;border-left:1px solid var(--line);padding-left:10px;">
             {{ _sub_link(url_for('meeting.minutes_list'), _('会议纪要'), 'meeting_minutes', active_key) }}
-            {{ _sub_link(url_for('knowledge_wiki.wiki_page'), _('Wiki 知识库'), 'wiki', active_key) }}
-            {{ _sub_link(url_for('knowledge_wiki.at_wiki_page'), _('互动课程'), 'wiki_at', active_key) }}
+            {{ _sub_link(url_for('knowledge_wiki.at_wiki_page'), _('知识库'), 'wiki_at', active_key) }}
             {% if has_permission('product_analysis', 'view') %}{{ _sub_link(url_for('geo_monitor.dashboard'), _('GEO 监控'), 'geo_monitor', active_key) }}{% endif %}
             {% if current_user.role == 'admin' or has_permission('cli_agent', 'view') or config.get('ENABLE_CLI_AGENT') %}
               {{ _sub_link(url_for('cli.terminal'), _('智能终端'), 'cli_terminal', active_key) }}

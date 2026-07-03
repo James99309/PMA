@@ -69,6 +69,28 @@
   /* 徽章:左侧水槽,顶对齐标题首行 */
   .kb-badge { display:inline-flex; flex-shrink:0; margin-top:1px; padding:2px 7px; border-radius:5px;
               font-size:10px; font-weight:600; white-space:nowrap; }
+  /* 单篇 ⋮ 操作菜单 */
+  [x-cloak] { display:none !important; }
+  .kb-art-menu { position:absolute; top:7px; right:6px; opacity:0; transition:opacity 120ms; }
+  .kb-art-row:hover .kb-art-menu { opacity:1; }
+  body.at-page .kb-menu-btn { width:24px; height:24px; border-radius:5px; border:0; background:rgba(0,0,0,.05);
+             color:var(--ink-3); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  body.at-page .kb-menu-btn:hover { background:var(--bg-hover); color:var(--ink); }
+  .kb-menu-btn .material-symbols-outlined { font-size:16px; }
+  .kb-menu { position:fixed; width:188px; background:var(--bg-elev); border:1px solid var(--line);
+             border-radius:9px; box-shadow:0 12px 34px rgba(0,0,0,.16); z-index:200; padding:5px 0; }
+  .kb-menu-label { padding:6px 12px 2px; font-size:10px; color:var(--ink-4); font-weight:600; }
+  body.at-page .kb-menu-item { width:100%; display:flex; align-items:center; gap:8px; padding:7px 12px;
+             border:0; background:none; color:var(--ink-2); cursor:pointer; text-align:left; font-size:12px; }
+  body.at-page .kb-menu-item:hover { background:var(--bg-hover); color:var(--ink); }
+  body.at-page .kb-menu-item.kb-menu-danger { color:var(--danger); }
+  body.at-page .kb-menu-item.kb-menu-danger:hover { background:var(--danger-soft); }
+  .kb-menu-item .material-symbols-outlined { font-size:15px; }
+  body.at-page .kb-menu-scope { padding:2px 7px; border-radius:5px; border:0; font-size:9.5px; font-weight:600; cursor:pointer; }
+  body.at-page .kb-menu-sub { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
+             padding:5px 12px 5px 20px; border:0; background:none; color:var(--ink-2); cursor:pointer; text-align:left; font-size:11.5px; }
+  body.at-page .kb-menu-sub:hover { background:var(--bg-hover); }
+  .kb-menu-sep { height:1px; background:var(--line); margin:4px 0; }
   .kb-side-f { padding:8px 14px; border-top:1px solid var(--line); font-size:11px; color:var(--ink-4);
                display:flex; align-items:center; justify-content:space-between; }
 
@@ -193,6 +215,7 @@
               </button>
               <div x-show="isTopicExpanded(topic)" x-collapse>
                 <template x-for="art in arts" :key="art.id">
+                  <div class="kb-art-row" style="position:relative;">
                   <button class="kb-art" :class="currentArticle && currentArticle.id === art.id && 'on'"
                           @click="openArticle(art.id)">
                     <span class="kb-badge"
@@ -207,6 +230,59 @@
                       <div class="kb-art-sum" x-show="art.summary" x-text="(art.summary||'').split('|||')[0]"></div>
                     </div>
                   </button>
+                  {# ⋮ 单篇操作菜单(teleport 到 body 防止被树滚动区裁切)#}
+                  <div class="kb-art-menu" x-data="{ mo:false, ms:{} }" @click.outside="mo=false">
+                    <button type="button" class="kb-menu-btn" title="{{ _('操作') }}" @click.stop="
+                      const r=$el.getBoundingClientRect(); const up=r.bottom+220>window.innerHeight;
+                      ms={ position:'fixed', right:(window.innerWidth-r.right)+'px',
+                           ...(up ? { bottom:(window.innerHeight-r.top+4)+'px' } : { top:(r.bottom+4)+'px' }) };
+                      mo=!mo;">
+                      <span class="material-symbols-outlined">more_vert</span>
+                    </button>
+                    <template x-teleport="body">
+                      <div x-cloak x-show="mo" x-transition @click.outside="mo=false" :style="ms" class="kb-menu">
+                        <template x-if="art.can_manage">
+                          <div>
+                            <div class="kb-menu-label">{{ _('调整等级') }}</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:4px;padding:2px 12px 8px;">
+                              <template x-for="s in ['system','company','department','personal']" :key="s">
+                                <button type="button" class="kb-menu-scope"
+                                        :style="art.scope===s ? {system:'color:var(--info);background:var(--info-soft)',company:'color:var(--accent);background:var(--accent-tint)',department:'color:var(--success);background:var(--success-soft)',personal:'color:var(--warn);background:var(--warn-soft)'}[s] : 'color:var(--ink-3);background:var(--bg-sunk);'"
+                                        @click.stop="if(art.scope!==s){ changeScope(art.id, s); mo=false; }"
+                                        x-text="{system:'{{ 'Sys' if _en else '系统' }}',company:'{{ 'Co' if _en else '公司' }}',department:'{{ 'Dept' if _en else '部门' }}',personal:'{{ 'Mine' if _en else '个人' }}'}[s]"></button>
+                              </template>
+                            </div>
+                            <div class="kb-menu-sep"></div>
+                          </div>
+                        </template>
+                        <template x-if="art.can_manage">
+                          <div x-data="{ so:false }">
+                            <button type="button" class="kb-menu-item" @click.stop="so=!so">
+                              <span class="material-symbols-outlined">drive_file_move</span>{{ _('调整 topic') }}
+                              <span class="material-symbols-outlined" style="margin-left:auto;" x-text="so?'expand_less':'chevron_right'"></span>
+                            </button>
+                            <div x-show="so" style="max-height:160px;overflow-y:auto;background:var(--bg-sunk);">
+                              <template x-for="t in topics" :key="t">
+                                <button type="button" class="kb-menu-sub" @click.stop="if(art.topic!==t){ changeTopic(art.id, t); mo=false; }"
+                                        :style="art.topic===t ? 'color:var(--ink-4);cursor:default;' : ''">
+                                  <span x-text="t"></span><span x-show="art.topic===t" style="font-size:9px;flex-shrink:0;">{{ _('当前') }}</span>
+                                </button>
+                              </template>
+                              <template x-if="topics.length===0"><div style="padding:6px 18px;font-size:10px;color:var(--ink-4);">{{ _('无可选 topic') }}</div></template>
+                            </div>
+                            <button type="button" class="kb-menu-item kb-menu-danger" @click.stop="mo=false; confirmDeleteArticle(art.id, art.title)">
+                              <span class="material-symbols-outlined">delete</span>{{ _('删除文章') }}</button>
+                            <button type="button" class="kb-menu-item" @click.stop="mo=false; recompileArticle(art.id, art.source_raw_ids)">
+                              <span class="material-symbols-outlined">refresh</span>{{ _('重新编译') }}</button>
+                          </div>
+                        </template>
+                        <template x-if="!art.can_manage">
+                          <div style="padding:8px 12px;font-size:11px;color:var(--ink-4);">{{ _('无管理权限') }}</div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                  </div>
                 </template>
               </div>
             </div>
@@ -483,10 +559,22 @@
   }
 </script>
 
-{# 确认弹窗(wikiApp 脚本依赖 openConfirmModal)#}
-{{ tw_confirm_modal('wikiConfirmModal') }}
-{{ tw_delete_confirm_modal('wikiDeleteModal') }}
-{{ tw_confirm_modal_script() }}
+{# 确认弹窗:AT 页用 ATConfirm 实现 openConfirmModal(TW 的 wikiConfirmModal 依赖 Tailwind,AT 不可用)#}
+<script>
+  window.openConfirmModal = function (modalId, options) {
+    options = options || {};
+    var isDel = ((modalId || '') + '').toLowerCase().indexOf('delete') >= 0;
+    ATConfirm.show({
+      title: options.title || '确认',
+      message: options.message || '',
+      confirmText: options.confirmText || (isDel ? '删除' : '确定'),
+      variant: isDel ? 'danger' : 'accent',
+      onConfirm: function () {
+        if (typeof options.onConfirm === 'function') return options.onConfirm(options.data);
+      }
+    });
+  };
+</script>
 
 {# 复用的 wikiApp 逻辑(含 Jinja i18n/csrf/is_admin/current_user_id)#}
 {% include 'knowledge/_wiki_app_script.html' %}
