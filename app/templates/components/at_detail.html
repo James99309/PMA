@@ -93,7 +93,8 @@
    columns: 1(默认单列 KV)| 2 | 3 | 4(grid 布局,适合宽 section)
    action_html: 标题右侧操作 HTML(如 [编辑] 按钮),传完整 HTML 字符串
 #}
-{% macro at_info_panel(title, rows, columns=1, action_html='', filter_empty=false, empty_text='') %}
+{% macro at_info_panel(title, rows, columns=1, action_html='', filter_empty=false, empty_text='', footer_html='') %}
+{# footer_html:可选,渲染在信息行下方的整段自定义内容(如长文本描述);默认空,不影响现有调用 #}
 {# filter_empty=true → 跳过 value 为 None/空字符串/0 的行;若全空且有 empty_text → 整段渲染占位文本 #}
 {% set _rows = [] %}
 {% if filter_empty %}
@@ -150,6 +151,7 @@
         {% endfor %}
       </dl>
     {% endif %}
+    {% if footer_html %}{{ footer_html | safe }}{% endif %}
   </div>
 </section>
 {% endmacro %}

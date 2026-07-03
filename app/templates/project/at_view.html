@@ -355,6 +355,11 @@
       {% set _pen_owner %}{% if perms.can_change_owner %}<button type="button" onclick="atOpenPersonnelEdit('owner')" title="{{ _('更换项目负责人') }}" style="{{ _pen_style }}" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('pen', 13) }}</button>{% endif %}{% endset %}
       {% set _pen_vendor %}{% if perms.can_change_owner %}<button type="button" onclick="atOpenPersonnelEdit('vendor')" title="{{ _('更换厂商销售负责人') }}" style="{{ _pen_style }}" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('pen', 13) }}</button>{% endif %}{% endset %}
 
+      {% set _desc_footer %}{% if project.stage_description %}
+      <div style="border-top:1px solid var(--line-soft);margin-top:16px;padding-top:12px;">
+        <div class="at-dim" style="font-size:11.5px;margin-bottom:5px;letter-spacing:0.04em;">{{ _('项目描述') }}</div>
+        <div style="font-size:12.5px;line-height:1.6;color:var(--ink-2);white-space:pre-wrap;word-break:break-word;">{{ project.stage_description }}</div>
+      </div>{% endif %}{% endset %}
       {{ at_info_panel(_('基本信息'), [
         (_('授权编号'), project.authorization_code, 'at-mono'),
         (_('项目类型'), (project.project_type | project_type_label) if project.project_type else None),
@@ -365,7 +370,7 @@
         (_('交期'), project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else None, 'at-mono'),
         (_('上报时间'), project.report_time.strftime('%Y-%m-%d') if project.report_time else None, 'at-mono'),
         (_('报价额'), (get_currency_symbol(project.quotation_currency or get_default_currency()) ~ '{:,.0f}'.format(project.quotation_customer or 0)) if project.quotation_customer else None, 'at-mono'),
-      ], columns=2) }}
+      ], columns=2, footer_html=_desc_footer|trim) }}
 
       {# 关联客户(项目专属 — 反向多对多)#}
       {% call at_detail_section(
