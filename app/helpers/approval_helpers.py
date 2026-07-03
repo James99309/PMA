@@ -5565,6 +5565,27 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                                 'business_opportunity': 'business_authorization',
                             }
                             _ba = _BRANCH_BY_TYPE.get(project.project_type)
+                            # 渠道项目报备通过:厂商销售负责人为空时,回填为本次批准的渠道经理。
+                            # (代理商提交、内部无厂商销售 → 用批准的渠道经理作归属,供后续 KPI/跟进。)
+                            # 置于 _handle 之前,借其 db.session.commit() 一并落库。
+                            try:
+                                _is_channel = (project.project_type == 'channel_follow') or ((project.report_source or '') == 'channel')
+                                if _is_channel and not project.vendor_sales_manager_id:
+                                    from app.models.approval import ApprovalRecord as _AR
+                                    from app.models.user import User as _U
+                                    _cm = None
+                                    for _r in (_AR.query.filter_by(instance_id=instance.id, action='approve')
+                                               .order_by(_AR.timestamp).all()):
+                                        _u = _U.query.get(_r.approver_id)
+                                        if _u and (_u.role or '') == 'channel_manager':
+                                            _cm = _u
+                                            break
+                                    if _cm:
+                                        project.vendor_sales_manager_id = _cm.id
+                                        current_app.logger.info(
+                                            f"渠道项目 {project.id} 报备通过,回填厂商销售负责人=渠道经理 {_cm.username}")
+                            except Exception as _vsm_err:
+                                current_app.logger.warning(f"回填渠道经理为厂商销售负责人失败: {_vsm_err}")
                             try:
                                 _handle_project_authorization(instance, None, branch_action=_ba)
                             except Exception as _auth_err:
