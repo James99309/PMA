@@ -364,6 +364,7 @@
         (_('授权编号'), project.authorization_code, 'at-mono'),
         (_('项目类型'), (project.project_type | project_type_label) if project.project_type else None),
         (_('当前阶段'), (project.current_stage | project_stage_label) if project.current_stage else None),
+        (_('品牌情况'), (project.product_situation | product_situation_label) if project.product_situation else None),
         (_('项目负责人'), (project.owner.real_name or project.owner.username) if project.owner else None, '', _pen_owner|trim),
         (_('厂商销售负责人'), (project.vendor_sales_manager.real_name or project.vendor_sales_manager.username) if project.vendor_sales_manager else None, '', _pen_vendor|trim),
         (_('行业'), (project.industry | industry_label) if project.industry else None),
