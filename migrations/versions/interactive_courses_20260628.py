@@ -4,7 +4,7 @@
 非破坏性:只新增 1 张表。
 
 Revision ID: interactive_courses_20260628
-Revises: pm_new_launch_listing_20260623
+Revises: add_peer_name_20260630
 Create Date: 2026-06-28
 """
 from alembic import op
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 revision = 'interactive_courses_20260628'
-down_revision = 'pm_new_launch_listing_20260623'
+down_revision = 'add_peer_name_20260630'
 branch_labels = None
 depends_on = None
 
