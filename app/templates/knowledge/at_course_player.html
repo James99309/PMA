@@ -40,7 +40,23 @@
   .cp-btn .material-symbols-outlined { font-size:18px; }
 
   /* 课件 */
-  .cp-frame { flex:1; min-height:0; border:0; width:100%; display:block; background:#fff; }
+  .cp-stage { flex:1; min-height:0; position:relative; background:#fff; }
+  .cp-frame { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:#fff; }
+
+  /* 加载遮罩:用产品封面盖住 deck 自身的 Unpacking/模板闪屏,启动完再淡出 */
+  .cp-loading { position:absolute; inset:0; z-index:5; display:flex; align-items:center;
+                justify-content:center; background:#0c2228; transition:opacity .45s ease; }
+  .cp-loading.cp-hide { opacity:0; pointer-events:none; }
+  .cp-loading-cover { position:absolute; inset:0; background-size:contain;
+                      background-position:center; background-repeat:no-repeat; }
+  .cp-loading-scrim { position:absolute; inset:0; background:rgba(8,22,28,.60); }
+  .cp-loading-box { position:relative; z-index:1; display:flex; flex-direction:column;
+                    align-items:center; gap:15px; }
+  .cp-spinner { width:42px; height:42px; border-radius:50%; border:3px solid rgba(255,255,255,.22);
+                border-top-color:#6fd6e8; animation:cpSpin .8s linear infinite; }
+  @keyframes cpSpin { to { transform:rotate(360deg); } }
+  .cp-loading-text { color:#eaf6f8; font-size:14px; letter-spacing:1px;
+                     font-family:var(--font-serif); text-shadow:0 1px 5px rgba(0,0,0,.55); }
 
   /* 逐页备注(底部) */
   .cp-notes { flex-shrink:0; background:var(--bg-elev); border-bottom:1px solid var(--line);
@@ -97,9 +113,22 @@
     <div class="cp-notes-body" id="cpNotesBody"></div>
   </div>
 
-  <iframe class="cp-frame" id="cpFrame"
-          data-src="{{ url_for('knowledge_wiki.course_asset', course_key=course.key) }}"
-          title="{{ course.title }}"></iframe>
+  <div class="cp-stage">
+    <iframe class="cp-frame" id="cpFrame"
+            data-src="{{ url_for('knowledge_wiki.course_asset', course_key=course.key) }}"
+            title="{{ course.title }}"></iframe>
+    <div class="cp-loading" id="cpLoading">
+      {% if course.has_thumbs %}
+      <div class="cp-loading-cover"
+           style="background-image:url('{{ url_for('knowledge_wiki.course_thumb', course_key=course.key, page=course.cover_page or 1) }}');"></div>
+      {% endif %}
+      <div class="cp-loading-scrim"></div>
+      <div class="cp-loading-box">
+        <div class="cp-spinner"></div>
+        <div class="cp-loading-text">{{ _('课件加载中…') }}</div>
+      </div>
+    </div>
+  </div>
 
 </div>
 
@@ -114,6 +143,35 @@
   (function () {
     var m = (location.hash || '').match(/(\d+)/);
     cpFrame.src = cpFrame.dataset.src + (m ? '#' + m[1] : '');
+  })();
+
+  // 加载遮罩:盖住 deck 自身的 Unpacking 屏 + 未渲染模板闪屏,直到课件真正启动完
+  // (iframe 同源,轮询其正文:解压屏文字 / 未渲染的模板占位 都消失 = 已进正页)
+  (function () {
+    var cpLoading = document.getElementById('cpLoading');
+    if (!cpLoading) return;
+    var start = Date.now();
+    var MUSTACHE = '{' + '{';   // 拼接避免被 Jinja 当插值
+    function ready() {
+      try {
+        var d = cpFrame.contentDocument;
+        if (!d || !d.body) return false;
+        var t = d.body.innerText || '';
+        if (t.indexOf('Unpacking') >= 0) return false;   // 解压屏还在
+        if (t.indexOf(MUSTACHE) >= 0) return false;       // 未渲染的模板占位还在(灯箱等)
+        return t.replace(/\s/g, '').length > 0;           // 已有实际内容
+      } catch (e) { return false; }
+    }
+    function hide() {
+      cpLoading.classList.add('cp-hide');
+      setTimeout(function () { cpLoading.style.display = 'none'; }, 500);
+    }
+    var poll = setInterval(function () {
+      if (ready() || Date.now() - start > 12000) {        // 12s 兜底,无论如何揭开
+        clearInterval(poll);
+        hide();
+      }
+    }, 200);
   })();
 
   function cpReadHash() {
