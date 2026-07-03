@@ -44,12 +44,6 @@ RUN pip install --no-cache-dir \
     --trusted-host pypi.tuna.tsinghua.edu.cn \
     -r requirements.txt gunicorn
 
-# Playwright Chromium(互动课件缩略图渲染)
-# 装到全局路径 /ms-playwright,供非 root 运行用户 pma 在运行时读取;ENV 需保留到运行时
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN python -m playwright install --with-deps chromium \
-    && chmod -R a+rX /ms-playwright
-
 # 复制应用代码
 COPY . .
 

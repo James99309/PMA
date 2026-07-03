@@ -33,12 +33,7 @@ def generate_thumbnails(key, n_pages, assets_dir, viewport=(1024, 576)):
     done = 0
     try:
         with sync_playwright() as p:
-            # 省内存启动参数:--single-process/--no-zygote 把 Chromium 压到单进程,
-            # 显著降低峰值内存(SG NAS 内存紧张);容器内需 --no-sandbox / --disable-dev-shm-usage。
-            browser = p.chromium.launch(headless=True, args=[
-                '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu',
-                '--single-process', '--no-zygote',
-            ])
+            browser = p.chromium.launch(headless=True)
             page = browser.new_page(viewport={'width': viewport[0], 'height': viewport[1]})
             page.goto(f'http://127.0.0.1:{port}/{key}.html', wait_until='load')
             page.wait_for_timeout(1500)
