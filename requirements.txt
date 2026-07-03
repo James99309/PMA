@@ -109,3 +109,6 @@ json-repair>=0.30.0
 
 # DXF/DWG 平面图渲染（系统图编辑器）
 matplotlib>=3.7.0
+
+# 互动课件逐页缩略图渲染（Chromium 由各部署 Dockerfile 的 playwright install 安装）
+playwright==1.57.0
