@@ -468,7 +468,7 @@
       {% call at_detail_section(
             _('系统设计'),
             count=project_diagrams|length,
-            create_url=(url_for('system_diagram.template_gallery', project_id=project.id)) if (perms.can_edit and project_diagrams) else none,
+            create_url=(url_for('system_diagram.template_gallery', project_id=project.id)) if (has_permission('system_diagram','create') and project_diagrams) else none,
             create_label=_('+ 新建')) %}
         {% if project_diagrams %}
         <div style="padding:0;">
@@ -482,7 +482,7 @@
                           white-space:nowrap;" title="{{ d.name }}">{{ d.name }}</div>
               <div class="at-dim" style="font-size:10.5px;">{{ d.updated_at.strftime('%Y-%m-%d %H:%M') if d.updated_at else '' }}</div>
             </a>
-            {% if perms.can_edit %}
+            {% if has_permission('system_diagram','delete') %}
             <button type="button" onclick='atProjDeleteDiagram({{ d.id }}, {{ d.name|tojson }})'
                     title="{{ _('删除') }}" style="border:0;background:transparent;color:var(--ink-4);cursor:pointer;
                     padding:2px;display:inline-flex;flex-shrink:0;"
@@ -495,7 +495,7 @@
         <div style="text-align:center;padding:24px 18px;color:var(--ink-4);">
           <div style="margin-bottom:8px;display:flex;justify-content:center;">{{ at_icon('grid', 22) }}</div>
           <div style="font-size:12px;margin-bottom:12px;">{{ _('暂无系统图') }}</div>
-          {% if perms.can_edit %}
+          {% if has_permission('system_diagram','create') %}
           <a href="{{ url_for('system_diagram.template_gallery', project_id=project.id) }}"
              style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 14px;border-radius:6px;
                     border:1px solid var(--line-2);background:var(--bg-elev);color:var(--ink-2);
@@ -511,7 +511,7 @@
       {% call at_detail_section(
             _('项目附件'),
             count=(project_attachments|length),
-            create_url=('javascript:atProjUploadPick()') if perms.can_edit else none,
+            create_url=('javascript:atProjUploadPick()') if (perms.can_edit or current_user.role in ('solution_manager','product_manager')) else none,
             create_label=_('+ 上传')) %}
         {% if project_attachments %}
         <div style="padding:0;">
@@ -527,7 +527,7 @@
             <a href="{{ f.url }}" target="_blank" rel="noopener" download="{{ f.filename }}" title="{{ _('下载') }}"
                style="color:var(--ink-4);padding:2px;display:inline-flex;flex-shrink:0;"
                onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-4)'">{{ at_icon('download', 14) }}</a>
-            {% if perms.can_edit %}
+            {% if perms.can_edit or (current_user.role in ('solution_manager','product_manager') and f.uploaded_by == current_user.id) %}
             <button type="button" onclick='atProjDeleteAttachment({{ loop.index0 }}, {{ f.filename|tojson }})'
                     title="{{ _('删除') }}" style="border:0;background:transparent;color:var(--ink-4);cursor:pointer;
                     padding:2px;display:inline-flex;flex-shrink:0;"
@@ -540,7 +540,7 @@
         <div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">{{ _('暂无附件') }}</div>
         {% endif %}
       {% endcall %}
-      {% if perms.can_edit %}
+      {% if perms.can_edit or current_user.role in ('solution_manager','product_manager') %}
       <input type="file" id="atProjFileInput" style="display:none;" onchange="atProjUploadDo(this)">
       {% endif %}
 

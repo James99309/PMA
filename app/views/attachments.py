@@ -33,6 +33,17 @@ def _registry():
     }
 
 
+def _se_pm_can_access_project(entity_type, entity):
+    """角色开口:方案经理/产品经理若能查看该项目,可上传项目附件(删除仅限本人所传)。
+    与 project 详情页附件卡「创建人隔离」口径一致:SE/PM 是技术参与方,附件是其交付物。"""
+    if entity_type != 'project':
+        return False
+    if getattr(current_user, 'role', None) not in ('solution_manager', 'product_manager'):
+        return False
+    from app.utils.access_control import can_view_project
+    return can_view_project(current_user, entity)
+
+
 def _load(entity_type, entity_id):
     cfg = _registry().get(entity_type)
     if not cfg:
@@ -75,7 +86,7 @@ def upload(entity_type, entity_id):
     entity, cfg, err = _load(entity_type, entity_id)
     if err:
         return jsonify({'success': False, 'message': err}), 404
-    if not can_edit_data(entity, current_user):
+    if not (can_edit_data(entity, current_user) or _se_pm_can_access_project(entity_type, entity)):
         return jsonify({'success': False, 'message': '您没有权限上传该对象的附件'}), 403
 
     file = request.files.get('file')
@@ -132,12 +143,16 @@ def delete(entity_type, entity_id, index):
     entity, cfg, err = _load(entity_type, entity_id)
     if err:
         return jsonify({'success': False, 'message': err}), 404
-    if not can_edit_data(entity, current_user):
-        return jsonify({'success': False, 'message': '您没有权限删除该对象的附件'}), 403
-
     atts = _att_list(entity)
     if not (0 <= index < len(atts)):
         return jsonify({'success': False, 'message': '附件不存在'}), 404
+
+    # 权限:项目负责人/编辑者可删任意附件;SE/PM 仅能删自己上传的
+    _can = can_edit_data(entity, current_user)
+    if not _can and _se_pm_can_access_project(entity_type, entity):
+        _can = atts[index].get('uploaded_by') == current_user.id
+    if not _can:
+        return jsonify({'success': False, 'message': '您没有权限删除该对象的附件'}), 403
 
     atts.pop(index)
     entity.attachments = json.dumps(atts) if atts else None
