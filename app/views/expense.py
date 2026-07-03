@@ -771,9 +771,48 @@ def at_view_expense(id):
     except Exception as _be:
         current_app.logger.warning(f'报销聚合计算失败: {_be}')
 
+    # 订单 ↔ 报销 合理性体检:与"预算"是两条线——预算由财务后台给定;这里让报销人实时看到
+    # "已报销 / 订单额"是否超 1.5% 标准。
+    # ⚠️ 仅对"有订单的销售类角色"生成:角色→订单额口径映射;不在表中的角色(财务/行政/技术/
+    #   产品/方案/HR/CEO 等与订单无关者)不生成 order_check → 模板块不显示。
+    _ROLE_ORDER_FN = {
+        'sales_manager':   '_act_sales',        # 一线销售:本人已审批批价单
+        'customer_sales':  '_act_sales',
+        'sales_director':  '_act_team_sales',   # 销售总监:团队订单
+        'service_manager': '_act_team_sales',
+        'channel_manager': '_act_channel_sales',# 渠道销售:渠道订单
+    }
+    order_check = None
+    try:
+        _owner_role = getattr(getattr(e, 'owner', None), 'role', None)
+        _fn_name = _ROLE_ORDER_FN.get(_owner_role)
+        if _yr and budget_summary and _fn_name:
+            import app.services.kpi_actual_service as _kpi
+            from datetime import datetime as _dt_oc
+            _order_fn = getattr(_kpi, _fn_name)
+            _oc_s, _oc_e = _dt_oc(_yr, 1, 1), _dt_oc(_yr + 1, 1, 1)
+            _order_amt = float(_order_fn(e.owner, _oc_s, _oc_e) or 0)
+            _reimbursed = float(budget_summary.get('expense_total') or 0)
+            _std = 0.015  # 财务标准:年度报销 ≤ 订单额 × 1.5%
+            _limit = _order_amt * _std
+            order_check = {
+                'order_amount': _order_amt,
+                'ratio_std': _std,
+                'limit': _limit,
+                'reimbursed': _reimbursed,
+                'remaining': _limit - _reimbursed,
+                'actual_ratio': (_reimbursed / _order_amt) if _order_amt > 0 else None,
+                'exceeded': _order_amt > 0 and _reimbursed > _limit,
+                'no_order': _order_amt <= 0,
+                'currency': budget_summary.get('currency'),
+            }
+    except Exception as _oe:
+        current_app.logger.warning(f'订单报销比对计算失败: {_oe}')
+
     return render_template('expense/at_view.html',
                            expense=e,
                            budget_summary=budget_summary,
+                           order_check=order_check,
                            related=related,
                            perms=perms,
                            can_export_pdf=can_export_pdf,
@@ -3740,25 +3779,39 @@ def get_expense_approval_flow(expense_id):
         from app.helpers.approval_helpers import _check_step_execution_condition
         target_object_for_condition = expense_obj
 
+        # 🔥 记录→步骤 预分配(修复:归属人上级审批被"无上级自动跳过"后误显示成"待确定")
+        #   1) 先按 step_id 精确匹配(原始模板步骤,记录带整型 step_id);
+        #   2) 剩余 step_id 为空的处理记录(approve/reject/skipped,如动态插入的归属人步骤)
+        #      按时间顺序逐位补给尚未匹配到记录的步骤(step_order 升序)。
+        #   原兜底只认 approve/reject → 漏了 skipped,导致被跳过的归属人上级步匹配不到记录。
+        step_record_map = {}
+        _matched_rec_ids = set()
+        for _s in steps:
+            _sid = _s.get('step_id')
+            if _sid:
+                _srs = [r for r in records if r.step_id == _sid]
+                if _srs:
+                    step_record_map[_s.get('step_order')] = _srs[-1]
+                    _matched_rec_ids.update(r.id for r in _srs)
+        _null_records = [r for r in records
+                         if r.step_id is None and r.id not in _matched_rec_ids
+                         and r.action in ('approve', 'reject', 'skipped')]
+        _unassigned = sorted(
+            (s for s in steps if s.get('step_order') not in step_record_map),
+            key=lambda s: s.get('step_order', 0))
+        for _s, _r in zip(_unassigned, _null_records):
+            step_record_map[_s.get('step_order')] = _r
+
         for i, step in enumerate(steps):
             # 确定审批人
             from app.helpers.approval_helpers import get_step_actual_approver
             actual_approver = get_step_actual_approver(step, approval_instance)
             
-            # 获取这个步骤的审批记录
-            # 优先通过step_id匹配
+            # 获取这个步骤的审批记录(用上方预分配表:step_id 精确匹配 + step_id 为空按序补位)
             step_records = []
-
-            if step.get('step_id'):
-                step_records = [r for r in records if r.step_id == step['step_id']]
-
-            # 兜底：模板快照模式（动态生成的step_id写入记录时为NULL）
-            if not step_records and records:
-                approve_records = [r for r in records if r.action in ('approve', 'reject')]
-                if approve_records and all(r.step_id is None for r in approve_records):
-                    step_order = step.get('step_order', i + 1)
-                    if step_order <= len(approve_records):
-                        step_records = [approve_records[step_order - 1]]
+            _mapped = step_record_map.get(step.get('step_order'))
+            if _mapped:
+                step_records = [_mapped]
             
             # 对尚未到达的步骤，评估执行条件，不满足条件的不显示
             if not step_records and step['step_order'] != current_step_order:

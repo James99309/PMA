@@ -447,6 +447,42 @@
             <span style="color:{{ 'var(--danger)' if (_bs.usage_rate or 0)>100 else 'var(--ink-3)' }};">{{ (_bs.usage_rate or 0)|round|int }}%</span>
           </div>
           {% endif %}
+
+          {# 订单 ↔ 报销 1.5% 合理性体检(与预算独立):报销人本年订单额 × 1.5% = 合理报销上限 #}
+          {% if order_check %}
+          {% set _oc = order_check %}
+          <div style="border-top:1px dashed var(--line);padding-top:9px;margin-top:5px;display:flex;flex-direction:column;gap:6px;font-size:11.5px;">
+            <div style="font-weight:600;color:var(--ink-2);font-size:11px;letter-spacing:.02em;">{{ _('订单 ↔ 报销') }}</div>
+            {% if _oc.no_order %}
+            <div class="at-dim" style="font-size:11px;">{{ _('本年暂无已审批订单,暂无法比对') }}</div>
+            {% else %}
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="color:var(--ink-3);">{{ _('本年销售订单额') }}</span><span style="flex:1;"></span>
+              <span class="at-mono" style="color:var(--ink);">{{ _cur }}{{ '{:,.0f}'.format(_oc.order_amount) }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="color:var(--ink-3);">{{ _('合理上限(订单×1.5%)') }}</span><span style="flex:1;"></span>
+              <span class="at-mono" style="color:var(--ink-2);">{{ _cur }}{{ '{:,.0f}'.format(_oc.limit) }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="color:var(--ink-3);">{{ _('距1.5%合理线') }}</span><span style="flex:1;"></span>
+              <span class="at-mono" style="color:{{ 'var(--danger)' if _oc.remaining < 0 else 'var(--ink-2)' }};">{{ _cur }}{{ '{:,.0f}'.format(_oc.remaining) }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;
+                 background:{{ 'rgba(239,68,68,.10)' if _oc.exceeded else 'rgba(22,163,74,.10)' }};">
+              <span style="font-weight:700;color:{{ 'var(--danger)' if _oc.exceeded else '#16a34a' }};">{{ '⚠' if _oc.exceeded else '✓' }}</span>
+              <span style="color:var(--ink-2);">{{ _('报销占订单额') }}</span>
+              <span class="at-mono" style="font-weight:600;color:{{ 'var(--danger)' if _oc.exceeded else 'var(--ink)' }};">{{ '%.2f'|format((_oc.actual_ratio or 0)*100) }}%</span>
+              <span style="color:var(--ink-4);">/ {{ _('合理线') }} 1.5%</span>
+              <span style="flex:1;"></span>
+              <span style="font-weight:600;color:{{ 'var(--danger)' if _oc.exceeded else '#16a34a' }};">{{ _('超1.5%合理线') if _oc.exceeded else _('未超1.5%') }}</span>
+            </div>
+            {% if _oc.exceeded %}
+            <div class="at-dim" style="font-size:10.5px;line-height:1.4;">{{ _('注:超的是订单1.5%合理线,非年度预算(预算使用见上)。') }}</div>
+            {% endif %}
+            {% endif %}
+          </div>
+          {% endif %}
         </div>
       </div>
     </section>

@@ -37075,3 +37075,35 @@ msgstr "Settlement discount"
 
 msgid "结算价"
 msgstr "Settlement price"
+
+# ── 报销 订单↔报销 1.5% 体检(2026-07)──
+
+msgid "订单 ↔ 报销"
+msgstr "Orders vs. Expenses"
+
+msgid "本年暂无已审批订单,暂无法比对"
+msgstr "No approved orders this year — comparison unavailable"
+
+msgid "本年销售订单额"
+msgstr "Sales orders (this year)"
+
+msgid "合理上限(订单×1.5%)"
+msgstr "Reasonable cap (orders × 1.5%)"
+
+msgid "距1.5%合理线"
+msgstr "Headroom to 1.5% line"
+
+msgid "报销占订单额"
+msgstr "Expense / orders"
+
+msgid "合理线"
+msgstr "guideline"
+
+msgid "超1.5%合理线"
+msgstr "Over 1.5% guideline"
+
+msgid "未超1.5%"
+msgstr "Within 1.5%"
+
+msgid "注:超的是订单1.5%合理线,非年度预算(预算使用见上)。"
+msgstr "Note: this exceeds the 1.5%-of-orders guideline, not the annual budget (see budget usage above)."
