@@ -47,9 +47,7 @@ RUN pip install --no-cache-dir \
 # Playwright Chromium(互动课件缩略图渲染)
 # 装到全局路径 /ms-playwright,供非 root 运行用户 pma 在运行时读取;ENV 需保留到运行时
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-# PLAYWRIGHT_DOWNLOAD_HOST 仅 build 时内联(国内 CDN,避免 chromium 下载被墙);不持久化到运行时
-RUN PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright \
-    python -m playwright install --with-deps chromium \
+RUN python -m playwright install --with-deps chromium \
     && chmod -R a+rX /ms-playwright
 
 # 复制应用代码
