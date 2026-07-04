@@ -758,9 +758,13 @@ def _act_team_fail_rate(user, s, e):
 
 
 # ── 渠道口径(全量 report_source/source='channel',不限负责人)──
-def _channel_project_filter():
+def _channel_project_filter(user):
+    """渠道项目过滤:report_source=channel 且 厂商销售负责人(vendor_sales_manager)为本人。
+    2026-07-03:由"全渠道不分人"改为按厂商负责人归属,避免多渠道经理互相串号
+    (代理商上报的渠道项目 owner 常为代理商/他人,真正归属看 vendor_sales_manager)。"""
     from app.models.project import Project
-    return [Project.is_deleted == False, Project.report_source == 'channel']
+    return [Project.is_deleted == False, Project.report_source == 'channel',
+            Project.vendor_sales_manager_id == user.id]
 
 
 def _act_channel_sales(user, s, e):
@@ -769,21 +773,21 @@ def _act_channel_sales(user, s, e):
     from app.models.project import Project
     q = (db.session.query(PricingOrder)
          .join(Project, Project.id == PricingOrder.project_id)
-         .filter(*_channel_project_filter(),
+         .filter(*_channel_project_filter(user),
                  PricingOrder.status == 'approved',
                  PricingOrder.approved_at >= s, PricingOrder.approved_at < e))
     return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
 
 
 def _act_channel_implant(user, s, e):
-    """渠道植入额(2026-06-30 补确认):渠道项目(report_source=channel,不限负责人)归属不变,
-       仅补"有确认过的报价"(confirmed_by 留痕)条件,与销售/团队口径一致。"""
+    """渠道植入额:渠道项目(report_source=channel + 厂商销售负责人为本人)中有确认过的报价
+       (confirmed_by 留痕)的植入额之和。2026-07-03 归属口径由全渠道改为按厂商负责人。"""
     from app import db
     from app.models.quotation import Quotation
     from app.models.project import Project
     q = (db.session.query(Quotation)
          .join(Project, Project.id == Quotation.project_id)
-         .filter(*_channel_project_filter(),
+         .filter(*_channel_project_filter(user),
                  Quotation.confirmed_by.isnot(None),
                  Quotation.created_at >= s, Quotation.created_at < e))
     return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
@@ -794,7 +798,7 @@ def _act_channel_new_projects(user, s, e):
     from app import db
     from app.models.project import Project
     return db.session.query(func.count(Project.id)).filter(
-        *_channel_project_filter(),
+        *_channel_project_filter(user),
         Project.qualified_at.isnot(None),
         Project.qualified_at >= s, Project.qualified_at < e,
     ).scalar() or 0
@@ -807,24 +811,26 @@ def _dealer_user_ids():
 
 
 def _act_channel_new_customers(user, s, e):
-    # 渠道新增客户 = 代理商账户名下本期新建的客户(客户不分渠道,按创建账户归属)
+    # 渠道新增客户 = 本人名下本期新建的客户(按创建账户归属)
+    # 2026-07-03:由"全部代理商账户名下"改为"本人名下"(Company.owner_id == 本人),与渠道各项口径一致
     from sqlalchemy import func
     from app import db
     from app.models.customer import Company
     return db.session.query(func.count(Company.id)).filter(
-        Company.owner_id.in_(_dealer_user_ids()), Company.is_deleted == False,
+        Company.owner_id == user.id, Company.is_deleted == False,
         Company.qualified_at.isnot(None),
         Company.qualified_at >= s, Company.qualified_at < e,
     ).scalar() or 0
 
 
 def _act_channel_customer_activity(user, s, e):
-    # 渠道客户活跃度 = 代理商账户名下客户中 高活/活跃/正常 占比(快照)
+    # 渠道客户活跃度 = 本人名下客户中 高活/活跃/正常 占比(快照)
+    # 2026-07-03:由"全部代理商账户名下客户"改为"本人名下客户"(Company.owner_id == 本人)
     from sqlalchemy import func
     from app import db
     from app.models.customer import Company
     rows = dict(db.session.query(Company.status, func.count(Company.id))
-                .filter(Company.is_deleted == False, Company.owner_id.in_(_dealer_user_ids()))
+                .filter(Company.is_deleted == False, Company.owner_id == user.id)
                 .group_by(Company.status).all())
     total = sum(rows.values())
     if not total:
@@ -841,7 +847,7 @@ def _act_channel_project_activity(user, s, e):
     from app.models.project import Project
     from app.models.action import Action
     from app.models.projectpm_stage_history import ProjectStageHistory
-    projs = Project.query.filter(*_channel_project_filter(),
+    projs = Project.query.filter(*_channel_project_filter(user),
                                  ~Project.current_stage.in_(('signed', 'paused', 'lost'))).all()
     if not projs:
         return 100.0
@@ -869,24 +875,26 @@ def _act_channel_project_activity(user, s, e):
 def _act_channel_fail_rate(user, s, e):
     """渠道失败率%(反向):当年失败的渠道项目 ÷ 渠道项目总数"""
     from app.models.project import Project
-    total = Project.query.filter(*_channel_project_filter()).count()
+    total = Project.query.filter(*_channel_project_filter(user)).count()
     if not total:
         return 0.0
     lost_ids = _lost_this_year_ids(s.year)
     if not lost_ids:
         return 0.0
-    lost_channel = Project.query.filter(*_channel_project_filter(),
+    lost_channel = Project.query.filter(*_channel_project_filter(user),
                                         Project.id.in_(list(lost_ids))).count()
     return round(lost_channel / total * 100, 1)
 
 
 def _act_channel_new_dealers(user, s, e):
-    """渠道发展:本期新增的代理商/分销商客户数(company_type=dealer/distributor)"""
+    """渠道发展:本人名下本期新建的代理商/分销商客户数(company_type=dealer/distributor)。
+    2026-07-03:由全实例改为按创建账户归属(Company.owner_id == 本人),谁建的代理商算谁。"""
     from sqlalchemy import func
     from app import db
     from app.models.customer import Company
     return db.session.query(func.count(Company.id)).filter(
         Company.is_deleted == False,
+        Company.owner_id == user.id,
         Company.company_type.in_(('dealer', 'distributor')),
         Company.created_at >= s, Company.created_at < e).scalar() or 0
 
