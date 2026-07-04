@@ -215,7 +215,7 @@
     {% if actions %}
       <div style="display:flex;flex-direction:column;gap:14px;max-height:{{ max_height }};overflow-y:auto;padding-right:4px;">
         {% for a in actions %}
-        <div style="display:flex;gap:12px;align-items:flex-start;">
+        <div id="at-action-{{ a.id }}" style="display:flex;gap:12px;align-items:flex-start;scroll-margin-top:80px;border-radius:6px;">
           {{ at_avatar(a.owner.real_name or a.owner.username if a.owner else '—', 28) }}
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px;font-size:12.5px;flex-wrap:wrap;">
@@ -235,11 +235,38 @@
                         display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;">
 {{- a.communication or '—' -}}
             </div>
-            {% if a.replies and a.replies.count() > 0 %}
-            <div style="margin-top:6px;font-size:11px;color:var(--ink-4);">
-              {{ a.replies.count() }} {{ _('条回复') }}
+            {# 回复(公共组件 at-action-replies.js;项目/客户 AT 页共用,API 前缀按 URL 自动识别)#}
+            {% set _rc = (a.replies.count() if a.replies else 0) %}
+            <div class="at-reply-block" data-action-id="{{ a.id }}" style="margin-top:7px;">
+              <button type="button" class="at-reply-toggle" data-action-id="{{ a.id }}" title="{{ _('回复') }}"
+                      style="display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;
+                             color:var(--ink-4);font-size:11px;cursor:pointer;padding:2px 0;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                <span class="at-reply-count">{{ _rc }}</span>
+                <span class="at-reply-caret" style="display:inline-block;transition:transform .15s;font-size:9px;">▾</span>
+              </button>
+              <div class="at-reply-panel" data-action-id="{{ a.id }}" hidden
+                   style="margin-top:6px;border-left:2px solid var(--line);padding-left:10px;">
+                <div class="at-reply-list" style="display:flex;flex-direction:column;gap:9px;"></div>
+                {# 回复图标(点击才出输入框,不常驻);回复统一挂主记录、单级平铺 #}
+                <button type="button" class="at-reply-add" title="{{ _('回复') }}"
+                        style="margin-top:7px;display:inline-flex;align-items:center;border:0;background:transparent;
+                               color:var(--accent);cursor:pointer;padding:2px 0;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
+                </button>
+                <div class="at-reply-compose" hidden style="display:flex;gap:6px;margin-top:6px;align-items:flex-end;">
+                  <textarea class="at-reply-input" rows="1" placeholder="{{ _('写回复…') }}"
+                            style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--line-2);
+                                   border-radius:6px;background:var(--bg-elev);color:var(--ink);resize:vertical;
+                                   font-family:inherit;"></textarea>
+                  <button type="button" class="at-reply-submit" data-action-id="{{ a.id }}" title="{{ _('发送') }}"
+                          style="flex-shrink:0;height:30px;padding:0 11px;border-radius:6px;border:0;
+                                 background:var(--accent);color:#fff;cursor:pointer;display:inline-flex;align-items:center;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                  </button>
+                </div>
+              </div>
             </div>
-            {% endif %}
           </div>
         </div>
         {% endfor %}
@@ -251,6 +278,19 @@
 </section>
 {# 跟进记录文本可点击展开(超出 5 行时)— 幂等脚本,多次引入安全 #}
 <script src="{{ url_for('static', filename='js/at-clamp-expand.js') }}"></script>
+{# 回复公共组件:i18n 文案 + JS(幂等)。项目/客户 AT 页共用此宏,自动获得回复功能 #}
+<script>
+window.atReplyI18n = window.atReplyI18n || {
+  reply: {{ _('回复')|tojson }}, send: {{ _('发送')|tojson }},
+  writeReply: {{ _('写回复…')|tojson }}, delete: {{ _('删除')|tojson }},
+  confirmDelete: {{ _('确定删除这条回复?')|tojson }}, noReplies: {{ _('暂无回复')|tojson }},
+  loading: {{ _('加载中…')|tojson }}, loadFail: {{ _('加载失败')|tojson }},
+  submitFail: {{ _('提交失败')|tojson }}, delFail: {{ _('删除失败')|tojson }},
+  justNow: {{ _('刚刚')|tojson }}, minAgo: {{ _(' 分钟前')|tojson }},
+  hourAgo: {{ _(' 小时前')|tojson }}
+};
+</script>
+<script src="{{ url_for('static', filename='js/at-action-replies.js') }}"></script>
 {% endmacro %}
 
 

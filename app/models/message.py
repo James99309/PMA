@@ -851,3 +851,41 @@ class Message(db.Model):
                 'subtask_id': getattr(subtask, 'id', None),
             },
         )
+
+    @classmethod
+    def create_action_reply(cls, sender_id, recipient_id, action, content,
+                            parent_reply=None, context=None):
+        """跟进记录回复通知(站内 Message,推送在 notification_service 里发)。
+
+        parent_reply 非空 → 回复某条评论;为空 → 回复跟进记录本身。
+        context: 'project'/'customer' —— 决定点击跳转到项目还是客户详情。
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = (sender.real_name or sender.username) if sender else '未知用户'
+        preview = (content or '')[:100] + ('...' if len(content or '') > 100 else '')
+        # 关联对象(供仪表盘点击跳转到对应详情页的那条跟进记录)
+        if context == 'project' and action.project_id:
+            rel_type, rel_id = 'project', action.project_id
+        elif action.company_id:
+            rel_type, rel_id = 'customer', action.company_id
+        elif action.contact_id:
+            rel_type, rel_id = 'contact', action.contact_id
+        elif action.project_id:
+            rel_type, rel_id = 'project', action.project_id
+        else:
+            rel_type, rel_id = 'action', action.id
+        if parent_reply is not None:
+            title = f'{sender_name} 回复了你的评论'
+        else:
+            title = f'{sender_name} 回复了你的跟进记录'
+        return cls(
+            message_type='action_reply',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=title,
+            content=preview,
+            related_object_type=rel_type,
+            related_object_id=rel_id,
+            extra_data={'action_id': action.id},
+        )

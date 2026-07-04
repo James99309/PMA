@@ -2912,6 +2912,8 @@ def add_action_reply(action_id):
         owner_id=current_user.id
     )
     db.session.add(reply)
+    from app.services import notification_service as _notif
+    _notif.notify_action_reply(current_user.id, action, reply, context='project')
     db.session.commit()
     return jsonify({'success': True})
 

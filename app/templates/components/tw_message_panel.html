@@ -504,6 +504,15 @@ function messagePanel() {
             if (item.message_type && item.message_type.startsWith('approval_')) {
                 return item.detail_url || '#';
             }
+            // 跟进记录回复:跳到对应 AT 详情页并锚定该条跟进记录(#at-action-<id> 由 at-action-replies.js 定位展开)
+            if (item.message_type === 'action_reply') {
+                const aid = (item.metadata && item.metadata.action_id) ? `#at-action-${item.metadata.action_id}` : '';
+                const rid = item.related_object_id;
+                if (item.related_object_type === 'project') return `/project/${rid}/at_view${aid}`;
+                if (item.related_object_type === 'customer') return `/customer/${rid}/at_view${aid}`;
+                if (item.related_object_type === 'contact') return `/customer/contacts/${rid}/at_view${aid}`;
+                return '#';
+            }
             if (item.related_object_type === 'workitem') {
                 // 行程类消息，跳转到 AT 日历查看行程
                 let url = '/worklog/at-calendar';
@@ -547,6 +556,7 @@ function messagePanel() {
                 'workitem_shared': 'event',
                 'workitem_comment': 'chat_bubble',
                 'worklog_comment': 'chat_bubble',
+                'action_reply': 'reply',
                 'meeting_invite': 'record_voice_over',
                 'workitem_cancelled': 'event_busy',
                 'workitem_completed': 'event_available',

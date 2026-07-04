@@ -37107,3 +37107,22 @@ msgstr "Within 1.5%"
 
 msgid "注:超的是订单1.5%合理线,非年度预算(预算使用见上)。"
 msgstr "Note: this exceeds the 1.5%-of-orders guideline, not the annual budget (see budget usage above)."
+
+# ── 跟进记录回复组件(2026-07)──
+
+msgid "写回复…"
+msgstr "Write a reply…"
+
+msgid "确定删除这条回复?"
+msgstr "Delete this reply?"
+
+msgid " 分钟前"
+msgstr " min ago"
+
+msgid " 小时前"
+msgstr " hr ago"
+
+# ── 跟进回复仪表盘标签 ──
+
+msgid "跟进记录回复"
+msgstr "Follow-up reply"

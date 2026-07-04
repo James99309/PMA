@@ -16,9 +16,10 @@ from app import db
 logger = logging.getLogger(__name__)
 
 
-def _push(recipient_id, title, body, task_id=None):
+def _push(recipient_id, title, body, task_id=None, data=None):
     """站外 APNS 推送 — fire-and-forget,后台线程(仿 chat),不阻塞/不依赖
-    事务提交。失败只 log。站内已读态由 Message.is_read 管,推送只负责叮一下。"""
+    事务提交。失败只 log。站内已读态由 Message.is_read 管,推送只负责叮一下。
+    data 非空时用作自定义 payload(供 App 深链);否则回落到 task 类型。"""
     if not recipient_id:
         return
     try:
@@ -35,7 +36,7 @@ def _push(recipient_id, title, body, task_id=None):
                     user_ids=[recipient_id],
                     title=(title or '')[:80] or '任务通知',
                     body=(body or '')[:120],
-                    data={'type': 'task', 'task_id': task_id} if task_id else None,
+                    data=data if data is not None else ({'type': 'task', 'task_id': task_id} if task_id else None),
                 )
             except Exception as e:
                 logger.warning(f"task push 失败: {e}")
@@ -128,6 +129,38 @@ def notify_task_reply(actor_id, task, content, subtask=None):
             _push(rid, msg.title, msg.content, getattr(task, 'id', None))
     except Exception as e:
         logger.warning(f"notify_task_reply 失败: {e}")
+
+
+def notify_action_reply(actor_id, action, reply, context=None):
+    """跟进记录被回复 → 通知记录创建人(+被回复的子评论作者);站内 Message + 站外推送。
+
+    接收人 = action.owner_id(记录创建人) + parent_reply.owner_id(若回复的是某条评论)
+             − 回复作者本人。context 传 'project'/'customer' 决定点击跳转目标。
+    失败只 log 不抛(与其它通知一致,不阻断回复主流程)。
+    """
+    try:
+        recipients = {getattr(action, 'owner_id', None)}
+        parent = None
+        pid = getattr(reply, 'parent_reply_id', None)
+        if pid:
+            from app.models.action import ActionReply
+            parent = ActionReply.query.get(pid)
+            if parent is not None:
+                recipients.add(getattr(parent, 'owner_id', None))
+        recipients.discard(actor_id)
+        recipients.discard(None)
+        if not recipients:
+            return
+        from app.models.message import Message
+        for rid in recipients:
+            msg = Message.create_action_reply(
+                sender_id=actor_id, recipient_id=rid, action=action,
+                content=getattr(reply, 'content', ''), parent_reply=parent, context=context)
+            db.session.add(msg)
+            _push(rid, msg.title, msg.content,
+                  data={'type': 'action', 'action_id': getattr(action, 'id', None)})
+    except Exception as e:
+        logger.warning(f"notify_action_reply 失败: {e}")
 
 
 def notify_task_custom(actor_id, recipient_id, title, content,

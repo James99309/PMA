@@ -138,7 +138,7 @@
                      max-height:350px;overflow-y:auto;">
             {% for t in _todos %}
             {% set _has_route = t.route and t.route != '#' %}
-            <li data-type="{{ t.type }}" class="dash-list-item"
+            <li data-type="{{ t.type }}" data-todo-id="{{ t.id }}" class="dash-list-item"
                 {% if _has_route %}data-href="{{ t.route }}"{% endif %}
                 style="border-top:{{ '0' if loop.first else '1px solid var(--line)' }};position:relative;
                        {% if _has_route %}cursor:pointer;{% endif %}">
@@ -995,9 +995,26 @@
   };
 
   // 待办列表项点击 → 跳转 data-href(后端通过 _build_todos 注入,审批类带 #approval hash)
+  // @我的(mention)类:点击查看即标记该站内消息已读 → 回到仪表盘即消失
+  //   (审批类要处理完才消失、跟进提醒要真跟进才消失,故此处仅对 mention 生效)
   document.querySelectorAll('.dash-list-item[data-href]').forEach(function (li) {
     li.addEventListener('click', function () {
       var href = li.getAttribute('data-href');
+      var type = li.getAttribute('data-type');
+      var tid = li.getAttribute('data-todo-id') || '';
+      if (type === 'mention' && tid.charAt(0) === 'M') {
+        var mid = parseInt(tid.slice(1), 10);
+        if (mid) {
+          try {
+            var _csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+            fetch('/message/api/mark-read', {
+              method: 'POST', keepalive: true,
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf },
+              body: JSON.stringify({ message_ids: [mid] })
+            });
+          } catch (e) {}
+        }
+      }
       if (href) location.href = href;
     });
   });

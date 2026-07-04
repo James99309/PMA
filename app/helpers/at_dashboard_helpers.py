@@ -212,7 +212,7 @@ def _build_todos(user):
         msgs = Message.query.filter(
             Message.recipient_id == user.id,
             Message.message_type.in_(['worklog_mention', 'task_reply', 'task_assigned',
-                                      'workitem_comment', 'worklog_comment']),
+                                      'workitem_comment', 'worklog_comment', 'action_reply']),
             Message.is_read == False,
         ).order_by(Message.created_at.desc()).limit(2).all()
         type_label_map = {
@@ -221,6 +221,7 @@ def _build_todos(user):
             'task_assigned':   _t('任务指派'),
             'workitem_comment': _t('工作项评论'),
             'worklog_comment':  _t('日报评论'),
+            'action_reply':     _t('跟进记录回复'),
         }
         for m in msgs:
             from app.models.user import User
@@ -237,11 +238,44 @@ def _build_todos(user):
             elif m.message_type == 'worklog_comment':
                 _d = _ed.get('log_date')
                 _route = f'/worklog/at-calendar?open_log=1' + (f'&date={_d}' if _d else '')
+            elif m.message_type == 'action_reply':
+                # 跟进记录回复 → 对应 AT 详情页并锚定该条跟进记录(#at-action-<id>)
+                _aid = _ed.get('action_id')
+                _anchor = f'#at-action-{_aid}' if _aid else ''
+                if m.related_object_type == 'project':
+                    _route = f'/project/{m.related_object_id}/at_view{_anchor}'
+                elif m.related_object_type == 'customer':
+                    _route = f'/customer/{m.related_object_id}/at_view{_anchor}'
+                elif m.related_object_type == 'contact':
+                    _route = f'/customer/contacts/{m.related_object_id}/at_view{_anchor}'
+            # 标题/副行:回复类用「项目/客户名(标题)+ 回复内容截断(副行)」,让人知道回复在哪条下
+            _m_title = (m.title or '')[:60]
+            _m_meta = (m.content or '')[:60]
+            if m.message_type == 'action_reply':
+                _ctx = None
+                try:
+                    if m.related_object_type == 'project':
+                        from app.models.project import Project
+                        _o = Project.query.get(m.related_object_id)
+                        _ctx = _o.project_name if _o else None
+                    elif m.related_object_type == 'customer':
+                        from app.models.customer import Company
+                        _o = Company.query.get(m.related_object_id)
+                        _ctx = _o.company_name if _o else None
+                    elif m.related_object_type == 'contact':
+                        from app.models.customer import Contact
+                        _o = Contact.query.get(m.related_object_id)
+                        _ctx = _o.name if _o else None
+                except Exception:
+                    _ctx = None
+                if _ctx:
+                    _m_title = _ctx[:40]
+                _m_meta = (m.content or '')[:40]   # 回复内容,过长截断
             out.append({
                 'id': f'M{m.id}', 'type': 'mention', 'typeLabel': type_label_map.get(m.message_type, _t('@我')),
                 'tone': 'info',
-                'title': (m.title or '')[:60],
-                'meta': (m.content or '')[:60],
+                'title': _m_title,
+                'meta': _m_meta,
                 'who': _fmt_user(sender),
                 'when': _ago(m.created_at), '_ts': m.created_at,
                 'route': _route, 'urgent': False,
