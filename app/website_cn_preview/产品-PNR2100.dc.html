@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="mobile.css">
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Saira:wght@400;500;600;700;800&amp;family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; }
+body { font-family: 'Noto Sans SC', 'PingFang SC', sans-serif; color: #16242C; -webkit-font-smoothing: antialiased; }
+.sc-host { display: contents; }
+</style>
+</helmet>
+
+<div data-screen-label="PNR2100详情页" style="min-width:1200px;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="products" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ 产品 HERO（旗舰模板） ═══════ -->
+  <section data-screen-label="产品Hero" style="position:relative;background:#0A141C;overflow:hidden;">
+    <div style="position:absolute;inset:0;background:radial-gradient(110% 130% at 82% 45%,#14313E 0%,#0E2430 48%,#0A141C 100%);"></div>
+    <div style="position:absolute;right:120px;top:50%;transform:translateY(-50%);width:640px;height:640px;border-radius:50%;background:radial-gradient(circle,rgba(77,165,199,.2) 0%,rgba(77,165,199,0) 65%);"></div>
+    <div style="position:relative;max-width:1280px;margin:0 auto;padding:0 32px;display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center;min-height:600px;">
+      <div style="padding:72px 0;">
+        <div style="display:flex;align-items:center;gap:14px;font-size:13.5px;color:rgba(255,255,255,.55);">
+          <a href="Evertac官网首页.dc.html" style="color:rgba(255,255,255,.55);text-decoration:none;" style-hover="color:#7FC4DC;">首页</a>
+          <span>/</span>
+          <a href="Evertac官网首页.dc.html#products" style="color:rgba(255,255,255,.55);text-decoration:none;" style-hover="color:#7FC4DC;">产品与系统</a>
+          <span>/</span>
+          <a href="产品-终端.dc.html" style="color:rgba(255,255,255,.55);text-decoration:none;" style-hover="color:#7FC4DC;">智能终端与配件</a>
+          <span>/</span>
+          <span style="color:rgba(255,255,255,.85);">PNR2100</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:36px;">
+          <span style="background:#4DA5C7;color:#ffffff;font-family:'Saira',sans-serif;font-size:12px;font-weight:700;letter-spacing:.14em;padding:5px 12px;border-radius:3px;">NEW</span>
+          <span style="font-family:'Saira',sans-serif;font-size:14px;letter-spacing:.2em;color:#7FC4DC;font-weight:600;">INTELLIGENT TASK RADIO</span>
+        </div>
+        <h1 style="margin:18px 0 0;font-size:52px;font-weight:900;line-height:1.2;color:#ffffff;">智能任务对讲机</h1>
+        <div style="display:flex;align-items:baseline;gap:22px;margin-top:10px;">
+          <span style="font-family:'Saira',sans-serif;font-size:56px;font-weight:800;color:#4DA5C7;line-height:1;">PNR2100</span>
+          <span style="font-size:22px;font-weight:300;color:rgba(255,255,255,.8);">一台终端 · <span style="color:#ffffff;font-weight:500;">两张网</span></span>
+        </div>
+        <p style="margin:26px 0 0;font-size:17px;line-height:1.9;color:rgba(255,255,255,.72);max-width:520px;font-weight:300;">融合 DMR 专网通信与 4G LTE 公网语音的双模智能任务终端，集任务下发、定位反馈、紧急告警与 NetFlex 平台协同于一体。</p>
+        <div style="display:flex;gap:12px;margin-top:32px;">
+          <span style="font-family:'Saira',sans-serif;font-size:14px;color:#ffffff;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:8px 20px;">DMR 专网</span>
+          <span style="font-family:'Saira',sans-serif;font-size:14px;color:#ffffff;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:8px 20px;">4G LTE 公网</span>
+          <span style="font-family:'Saira',sans-serif;font-size:14px;color:#7FC4DC;border:1px solid rgba(127,196,220,.55);border-radius:999px;padding:8px 20px;">双模守候</span>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:40px;">
+          <a href="#contact" style="background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 32px;border-radius:3px;" style-hover="background:#3B8FB0;">咨询与试用</a>
+          <a href="#specs" style="border:1px solid rgba(255,255,255,.45);color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 32px;border-radius:3px;" style-hover="border-color:#ffffff;background:rgba(255,255,255,.08);">查看规格参数</a>
+        </div>
+      </div>
+      <div style="position:relative;height:600px;overflow:hidden;">
+        <img src="assets/pnr-hero.jpg" alt="PNR2100 智能任务对讲机" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:820px;-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 12%,#000 88%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0%,#000 12%,#000 88%,transparent 100%);">
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 页内锚点导航 ═══════ -->
+  <div style="position:sticky;top:74px;z-index:90;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-bottom:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;height:56px;display:flex;align-items:center;gap:8px;">
+      <span style="font-family:'Saira',sans-serif;font-weight:700;font-size:16px;color:#0E2430;margin-right:24px;">PNR2100</span>
+      <a href="#overview" style="text-decoration:none;font-size:14.5px;color:#5B6B73;padding:8px 16px;" style-hover="color:#4DA5C7;">概述</a>
+      <a href="#modes" style="text-decoration:none;font-size:14.5px;color:#5B6B73;padding:8px 16px;" style-hover="color:#4DA5C7;">通信模态</a>
+      <a href="#features" style="text-decoration:none;font-size:14.5px;color:#5B6B73;padding:8px 16px;" style-hover="color:#4DA5C7;">核心功能</a>
+      <a href="#industries" style="text-decoration:none;font-size:14.5px;color:#5B6B73;padding:8px 16px;" style-hover="color:#4DA5C7;">适用行业</a>
+      <a href="#specs" style="text-decoration:none;font-size:14.5px;color:#5B6B73;padding:8px 16px;" style-hover="color:#4DA5C7;">规格参数</a>
+      <a href="#contact" style="margin-left:auto;text-decoration:none;font-size:14px;font-weight:500;color:#4DA5C7;">获取产品手册 →</a>
+    </div>
+  </div>
+
+  <!-- ═══════ 概述 ═══════ -->
+  <section id="overview" data-screen-label="概述" style="background:#ffffff;padding:96px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:grid;grid-template-columns:1.05fr .95fr;gap:64px;align-items:center;">
+      <div data-reveal="">
+        <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">THE TERMINAL</div>
+        <h2 style="margin:14px 0 0;font-size:36px;font-weight:700;line-height:1.35;">智能任务终端，一机融合</h2>
+        <p style="margin:20px 0 0;font-size:16px;line-height:1.95;color:#5B6B73;">PNR2100 把专业通信、广域通信、任务下发、定位反馈与平台管理集成在一台机器里——面向需要高安全性、高指令传达效率的工业、政企、园区等任务协作型场景。</p>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:36px;">
+          <sc-for list="{{ valueChips }}" as="v" hint-placeholder-count="6">
+            <div style="border:1px solid #E6EBEE;border-radius:5px;padding:16px 18px;background:#F7FAFB;">
+              <div style="font-family:'Saira',sans-serif;font-size:20px;font-weight:700;color:#0E2430;">{{ v.name }}</div>
+              <div style="font-size:13px;color:#5B6B73;margin-top:4px;">{{ v.desc }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div data-reveal="" style="position:relative;border-radius:6px;overflow:hidden;">
+        <img src="assets/pnr-onsite.jpg" alt="数据中心任务现场" style="width:100%;height:520px;object-fit:cover;display:block;">
+        <div style="position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(8,18,26,.88));padding:56px 26px 22px;">
+          <div style="font-family:'Saira',sans-serif;font-size:12px;letter-spacing:.14em;color:#9FD3E6;">ON SITE · 任务现场</div>
+          <div style="color:#ffffff;font-size:17px;margin-top:6px;">从机房到园区，一线与监控中心实时在线。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 三种模态 ═══════ -->
+  <section id="modes" data-screen-label="通信模态" style="background:#0E2430;padding:96px 0;color:#ffffff;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="">
+        <div style="font-size:13px;letter-spacing:.16em;color:#7FC4DC;font-family:'Saira',sans-serif;font-weight:600;">THREE MODES</div>
+        <h2 style="margin:14px 0 0;font-size:36px;font-weight:700;">一台终端，三种通信模态</h2>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.9;color:rgba(255,255,255,.68);max-width:600px;font-weight:300;">同一台终端在三种模态间自由切换，兼顾安全与效率。</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:52px;">
+        <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3">
+          <div data-reveal="" style="position:relative;border-radius:6px;overflow:hidden;min-height:440px;border:1px solid {{ m.border }};">
+            <img src="{{ m.img }}" alt="{{ m.title }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+            <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,18,26,.2) 0%,rgba(8,18,26,.55) 50%,rgba(8,18,26,.95) 100%);"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;padding:28px;">
+              <div style="font-family:'Saira',sans-serif;font-size:22px;font-weight:700;color:#7FC4DC;">{{ m.num }}</div>
+              <div style="font-family:'Saira',sans-serif;font-size:26px;font-weight:700;margin-top:6px;">{{ m.title }}</div>
+              <div style="font-size:16px;font-weight:500;color:rgba(255,255,255,.9);margin-top:2px;">{{ m.sub }}</div>
+              <p style="margin:12px 0 0;font-size:14px;line-height:1.75;color:rgba(255,255,255,.75);font-weight:300;">{{ m.desc }}</p>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <!-- 双模守候流程 -->
+      <div data-reveal="" style="margin-top:64px;border-top:1px solid rgba(255,255,255,.12);padding-top:56px;">
+        <h3 style="margin:0;font-size:26px;font-weight:700;">两张网同时守候，通话从不掉线</h3>
+        <p style="margin:12px 0 0;font-size:15px;color:rgba(255,255,255,.65);font-weight:300;">专网与公网并行待机，切换在后台完成，使用者无需任何操作。</p>
+        <div style="display:grid;grid-template-columns:1fr 56px 1fr 56px 1fr;gap:0;align-items:center;margin-top:36px;">
+          <sc-for list="{{ dualStates }}" as="d" hint-placeholder-count="3">
+            <div style="display:contents;">
+              <div style="background:rgba(77,165,199,.1);border:1px solid rgba(77,165,199,.35);border-radius:6px;padding:26px 28px;min-height:170px;box-sizing:border-box;">
+                <div style="font-family:'Saira',sans-serif;font-size:12.5px;letter-spacing:.14em;color:#7FC4DC;font-weight:600;">{{ d.tag }}</div>
+                <div style="font-size:19px;font-weight:600;margin-top:10px;">{{ d.title }}</div>
+                <p style="margin:10px 0 0;font-size:14px;line-height:1.7;color:rgba(255,255,255,.68);font-weight:300;">{{ d.desc }}</p>
+              </div>
+              <sc-if value="{{ d.arrow }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;justify-content:center;font-size:26px;color:#4DA5C7;">→</div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 核心功能 ═══════ -->
+  <section id="features" data-screen-label="核心功能" style="background:#ffffff;padding:96px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="text-align:center;">
+        <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">KEY CAPABILITIES</div>
+        <h2 style="margin:14px 0 0;font-size:36px;font-weight:700;">五项核心能力</h2>
+      </div>
+
+      <sc-for list="{{ features }}" as="f" hint-placeholder-count="5">
+        <div data-reveal="" style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;margin-top:72px;direction:{{ f.dir }};">
+          <div style="direction:ltr;border-radius:6px;overflow:hidden;position:relative;">
+            <img src="{{ f.img }}" alt="{{ f.title }}" style="width:100%;height:400px;object-fit:cover;display:block;">
+            <div style="position:absolute;left:0;bottom:0;background:rgba(8,18,26,.82);color:#ffffff;padding:12px 20px;font-size:13px;border-left:3px solid #4DA5C7;">
+              <span style="font-family:'Saira',sans-serif;letter-spacing:.1em;color:#9FD3E6;">{{ f.tag }}</span>
+            </div>
+          </div>
+          <div style="direction:ltr;">
+            <div style="font-family:'Saira',sans-serif;font-size:14px;color:#4DA5C7;font-weight:600;letter-spacing:.1em;">{{ f.num }}</div>
+            <h3 style="margin:12px 0 0;font-size:28px;font-weight:700;line-height:1.4;">{{ f.title }}</h3>
+            <div style="display:flex;flex-direction:column;gap:16px;margin-top:24px;">
+              <sc-for list="{{ f.points }}" as="p" hint-placeholder-count="3">
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                  <span style="flex:none;width:7px;height:7px;border-radius:50%;background:#4DA5C7;margin-top:9px;"></span>
+                  <div>
+                    <div style="font-size:16px;font-weight:600;">{{ p.name }}</div>
+                    <div style="font-size:14px;color:#5B6B73;line-height:1.75;margin-top:3px;">{{ p.desc }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- ═══════ 适用行业 ═══════ -->
+  <section id="industries" data-screen-label="适用行业" style="background:#F7FAFB;padding:96px 0;border-top:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="">
+        <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">INDUSTRIES</div>
+        <h2 style="margin:14px 0 0;font-size:36px;font-weight:700;">为任务协作型行业而生</h2>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.9;color:#5B6B73;max-width:600px;">人员分散、环境复杂、任务需要闭环——GPS + LTE 联合定位、语音通信与任务反馈，实现远程集中调度。</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:20px;margin-top:52px;">
+        <sc-for list="{{ pnrIndustries }}" as="ind" hint-placeholder-count="5">
+          <div data-reveal="" style="background:#ffffff;border:1px solid #E6EBEE;border-radius:6px;overflow:hidden;" style-hover="box-shadow:0 16px 32px -16px rgba(14,36,48,.25);">
+            <div style="height:150px;overflow:hidden;">
+              <img src="{{ ind.img }}" alt="{{ ind.name }}" style="width:100%;height:100%;object-fit:cover;display:block;">
+            </div>
+            <div style="padding:18px 18px 20px;">
+              <div style="font-size:16px;font-weight:600;line-height:1.4;">{{ ind.name }}</div>
+              <div style="font-size:13px;color:#5B6B73;line-height:1.7;margin-top:6px;">{{ ind.desc }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 规格参数 ═══════ -->
+  <section id="specs" data-screen-label="规格参数" style="background:#ffffff;padding:96px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;">
+        <div>
+          <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">SPECIFICATIONS</div>
+          <h2 style="margin:14px 0 0;font-size:36px;font-weight:700;">核心规格参数</h2>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:12px;">
+          <span style="font-family:'Saira',sans-serif;font-weight:800;font-size:26px;color:#0E2430;">PNR2100</span>
+          <span style="font-size:15px;color:#8A99A1;">智能任务终端</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px;">
+        <sc-for list="{{ specGroups }}" as="g" hint-placeholder-count="3">
+          <div data-reveal="" style="border:1px solid #E6EBEE;border-radius:6px;padding:28px 28px 16px;">
+            <div style="font-size:18px;font-weight:700;color:#4DA5C7;padding-bottom:14px;border-bottom:2px solid #EAF2F5;">{{ g.title }}</div>
+            <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="6">
+              <div style="display:flex;justify-content:space-between;gap:16px;padding:13px 0;border-bottom:1px solid #F1F5F7;">
+                <span style="font-size:14px;color:#8A99A1;flex:none;">{{ r.k }}</span>
+                <span style="font-size:14px;color:#16242C;text-align:right;line-height:1.5;">{{ r.v }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ CTA ═══════ -->
+  <section id="contact" data-screen-label="联系CTA" style="position:relative;background:#0A141C;padding:96px 0;overflow:hidden;">
+    <div style="position:absolute;inset:0;background:radial-gradient(110% 130% at 80% 20%,#14313E 0%,#0E2430 55%,#0A141C 100%);"></div>
+    <img src="assets/pnr-render.png" alt="" style="position:absolute;right:-80px;bottom:-60px;width:760px;opacity:.32;transform:scaleX(-1);">
+    <div style="position:relative;max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="max-width:640px;">
+        <div style="width:56px;height:4px;background:#4DA5C7;"></div>
+        <h2 style="margin:28px 0 0;font-size:38px;font-weight:700;color:#ffffff;line-height:1.4;">通讯在，团队就在</h2>
+        <p style="margin:18px 0 0;font-size:16.5px;line-height:1.95;color:rgba(255,255,255,.72);font-weight:300;">从机房盲区到跨城广域，从一句组呼到一键告警——让每一次任务都被听见、被看见、被响应。</p>
+        <div style="display:flex;gap:16px;margin-top:36px;">
+          <a href="mailto:info@evertacsolutions.com" style="background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;" style-hover="background:#3B8FB0;">预约演示与试用</a>
+          <a href="mailto:info@evertacsolutions.com" style="border:1px solid rgba(255,255,255,.45);color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;" style-hover="border-color:#ffffff;">获取产品手册</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 页脚（简化） ═══════ -->
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const els = document.querySelectorAll('[data-reveal]');
+    els.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(22px)';
+      el.style.transition = 'opacity .7s cubic-bezier(.22,.61,.36,1), transform .7s cubic-bezier(.22,.61,.36,1)';
+    });
+    this._io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+          this._io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    els.forEach((el) => this._io.observe(el));
+  }
+  componentWillUnmount() { if (this._io) this._io.disconnect(); }
+
+  renderVals() {
+    return {
+      valueChips: [
+        { name: 'DMR', desc: '专网数字通信' },
+        { name: '4G LTE', desc: '公网广域语音' },
+        { name: 'GPS+BLE', desc: '室内外精准定位' },
+        { name: 'NetFlex', desc: '云平台任务联动' },
+        { name: 'IP67', desc: '工业三防机身' },
+        { name: '3400mAh', desc: '可拆卸长续航电池' },
+      ],
+      modes: [
+        { num: '01', title: 'DMR', sub: '专网安全保障', img: 'assets/pnr-secure.jpg', border: 'rgba(255,255,255,.12)',
+          desc: '在加密专网系统中，为封闭空间提供无盲区通信。数字加密、抗干扰，是应急时刻的最佳保障。' },
+        { num: '02', title: '4G LTE', sub: '公网广域语音', img: 'assets/pnr-lte.jpg', border: 'rgba(255,255,255,.12)',
+          desc: '跨城跨区，广域调度。灵活创建虚拟频道、免频率许可，让分散站点与多地团队同处一张网。' },
+        { num: '03', title: 'DUAL', sub: '双模智能守候', img: 'assets/pnr-dual.jpg', border: 'rgba(77,165,199,.5)',
+          desc: '专网与公网同时在线，按场景自动选网。公网中断切专网、回到覆盖再切回，通话不掉线。' },
+      ],
+      dualStates: [
+        { tag: 'STATE 01 · 常态', title: '公网在线 · 走 4G LTE', desc: '日常调度、跨区呼叫、平台任务同步，全部通过公网承载。', arrow: true },
+        { tag: 'STATE 02 · 触发', title: '进盲区 / 公网中断', desc: '进入封闭机房、地下空间时，终端实时侦测并自动切换，使用者零操作。', arrow: true },
+        { tag: 'STATE 03 · 兜底', title: '切 DMR 专网直通', desc: '脱网组呼立即接管，盲区里照样喊得应；回到覆盖再自动切回公网。', arrow: false },
+      ],
+      features: [
+        { num: 'CAPABILITY 01', title: '任务以卡片下发，看一眼就会用', img: 'assets/pnr-onsite.jpg', tag: 'TASK CARDS · 任务卡片式交互', dir: 'ltr', points: [
+          { name: '2.0 英寸高清彩屏', desc: '界面清晰、对比鲜明，戴手套、暗光环境下也看得清。' },
+          { name: '卡片式操作逻辑', desc: '每条任务一张卡片，确认 / 回复 / 取消三键直达，无需翻菜单。' },
+          { name: '通话 · 任务 · 告警一屏', desc: '本地显示通话记录、任务卡片与告警通知，信息不再分散。' },
+        ]},
+        { num: 'CAPABILITY 02', title: '加密通信，全程安全可控', img: 'assets/pnr-secure.jpg', tag: 'SECURE · 通信保密与安全管控', dir: 'rtl', points: [
+          { name: 'DMR 数字加密通信', desc: '频段独享，语音与数据在团队内部闭环，防旁路监听。' },
+          { name: '终端遗失 · 远程关闭', desc: '系统一键远程锁定关闭，杜绝信息随设备外泄。' },
+          { name: '唯一识别 · 主动防克隆', desc: '每台终端具唯一识别码，克隆设备被系统主动排除。' },
+        ]},
+        { num: 'CAPABILITY 03', title: '室外靠 GPS，室内靠 BLE', img: 'assets/pnr-ind-mining.jpg', tag: 'POSITIONING · GPS + BLE 精准定位', dir: 'ltr', points: [
+          { name: 'GPS + BLE 联合定位', desc: '复杂地形、建筑密集或室内场景，盲区也能持续锁定位置。' },
+          { name: '位置实时上传', desc: '终端位置同步至平台，调度一眼看清每个人在哪。' },
+          { name: '蓝牙 BT4.2 + BLE', desc: '支持耳机通信与定位广播，配合信标实现楼层级室内导引。' },
+        ]},
+        { num: 'CAPABILITY 04', title: '把一线作业，搬上云端看板', img: 'assets/pnr-netflex.jpg', tag: 'NETFLEX · 云平台联动', dir: 'rtl', points: [
+          { name: '任务派发 · 状态回执', desc: '平台下发、终端回执，任务闭环全程在线、可追溯。' },
+          { name: '终端状态远程同步', desc: '电量、位置、任务状态等关键信息实时上传、远程可查。' },
+          { name: '一键 SOS · 即时报警', desc: '平台地图即时弹出告警点，联动就近人员处置。' },
+        ]},
+        { num: 'CAPABILITY 05', title: 'IP67 三防机身，恶劣环境连续工作', img: 'assets/pnr-rain.jpg', tag: 'RUGGED · 工业三防与全天候', dir: 'ltr', points: [
+          { name: 'IP67 防尘防水', desc: '整机密封防护，雨雪、粉尘环境照常运转。' },
+          { name: '-20~55°C 宽温域', desc: '工作温度覆盖严寒酷暑；存储 -40~70°C、湿度耐受 95%。' },
+          { name: '3400mAh 可拆卸电池', desc: '长时续航、现场快换；约 219g 轻巧机身，戴手套握持。' },
+        ]},
+      ],
+      pnrIndustries: [
+        { name: '制造业工厂', img: 'assets/pnr-ind-manufacturing.jpg', desc: '设备故障上报、语音组呼与工单任务闭环。' },
+        { name: '物流配送', img: 'assets/pnr-ind-logistics.jpg', desc: '多站点批量派单、跟踪进度，实时联动。' },
+        { name: '港口码头', img: 'assets/pnr-ind-port.jpg', desc: '露天遮蔽环境稳定通信，盲区一键组呼。' },
+        { name: '商场 · 物业', img: 'assets/pnr-ind-property.jpg', desc: '多岗位呼叫、任务通知与实时回执。' },
+        { name: '矿业 · 山区海岛', img: 'assets/pnr-ind-mining.jpg', desc: '地形分散，GPS+LTE 联合定位与任务反馈。' },
+      ],
+      specGroups: [
+        { title: '通信与定位', rows: [
+          { k: '通信模式', v: 'DMR 数字通信 + 4G LTE 公网语音' },
+          { k: 'DMR 频段', v: '400–470 MHz (UHF)' },
+          { k: '公网频段', v: 'FDD-LTE B1/3/5/8 · TDD-LTE B34/38/39/40/41' },
+          { k: '定位功能', v: 'GPS + BLE' },
+          { k: '蓝牙功能', v: 'BT4.2 + BLE' },
+          { k: '发射功率', v: '专网 2W' },
+        ]},
+        { title: '硬件与系统', rows: [
+          { k: '显示屏', v: '2.0 英寸高清彩屏' },
+          { k: '处理器', v: 'ASR1606 · ARM Cortex-R5 · 625MHz' },
+          { k: '操作系统', v: 'RTOS' },
+          { k: '存储容量', v: 'RAM 8MB + ROM 8MB' },
+          { k: '电池容量', v: '3400mAh 可拆卸锂电池' },
+          { k: '接口类型', v: 'Type-C · 3.5mm 耳机 · Nano SIM' },
+        ]},
+        { title: '环境与结构', rows: [
+          { k: '工作温度', v: '-20°C ~ +55°C' },
+          { k: '存储温度', v: '-40°C ~ +70°C' },
+          { k: '湿度范围', v: '≤95% (45°C)' },
+          { k: '防护等级', v: 'IP67' },
+          { k: '设备尺寸', v: '132 × 60 × 31 mm' },
+          { k: '整机重量', v: '约 219g（含电池与天线）' },
+        ]},
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

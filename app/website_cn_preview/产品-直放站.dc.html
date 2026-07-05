@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="mobile.css">
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Saira:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; }
+body { font-family: 'Noto Sans SC', 'PingFang SC', sans-serif; color: #16242C; -webkit-font-smoothing: antialiased; }
+.sc-host { display: contents; }
+</style>
+</helmet>
+
+<div data-screen-label="直放站详情页" style="min-width:1200px;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="products" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ 产品头部 ═══════ -->
+  <section data-screen-label="产品头部" style="background:#F7FAFB;border-bottom:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:56px 32px 56px;">
+      <div style="display:flex;align-items:center;gap:14px;font-size:13.5px;color:#8A99A1;">
+        <a href="Evertac官网首页.dc.html" style="color:#8A99A1;text-decoration:none;" style-hover="color:#4DA5C7;">首页</a>
+        <span>/</span>
+        <a href="Evertac官网首页.dc.html#products" style="color:#8A99A1;text-decoration:none;" style-hover="color:#4DA5C7;">产品与系统</a>
+        <span>/</span>
+        <span style="color:#16242C;">光纤直放站</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:64px;align-items:end;margin-top:40px;">
+        <div>
+          <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">DISTRINET FIBER TRANSPORT</div>
+          <h1 style="margin:14px 0 0;font-size:42px;font-weight:900;line-height:1.3;">光纤直放站</h1>
+          <div style="font-family:'Saira',sans-serif;font-size:16px;color:#8A99A1;letter-spacing:.06em;margin-top:8px;">OPTICAL MASTER / REMOTE UNIT</div>
+          <p style="margin:20px 0 0;font-size:16px;line-height:1.95;color:#5B6B73;max-width:620px;">近端机将信号转为光信号沿光纤送远，远端直放站还原放大——以光纤替代射频线缆，是 DistriNET 分布式覆盖的传输骨干。从智能模拟到数字中频、从机柜到室外壁挂，三个系列覆盖不同规模与环境。</p>
+        </div>
+        <div style="background:#0E3440;border-radius:8px;padding:20px 26px;color:#ffffff;max-width:300px;">
+          <div style="font-family:'Saira',sans-serif;font-size:12px;letter-spacing:.14em;color:#7FC4DC;font-weight:600;">2026 · 全国首批</div>
+          <div style="font-size:15.5px;font-weight:600;line-height:1.6;margin-top:8px;">400MHz 专用对讲机直放站 无线电发射设备型号核准</div>
+          <a href="新闻-三部门来访型号核准.dc.html" style="display:inline-block;margin-top:10px;font-size:13px;color:#7FC4DC;text-decoration:none;">阅读报道 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 产品家族（Tab 切换） ═══════ -->
+  <section id="family" data-screen-label="产品家族" style="background:#ffffff;padding:56px 0 88px;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <!-- 产品 Tab -->
+      <div class="evt-tabrow" style="display:flex;gap:4px;border-bottom:1px solid #E6EBEE;">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+          <div onClick="{{ t.select }}" style="padding:14px 24px;font-size:15.5px;font-weight:600;color:{{ t.color }};border-bottom:3px solid {{ t.bar }};cursor:pointer;transition:color .15s;margin-bottom:-1px;white-space:nowrap;">{{ t.label }}<span style="font-family:'Saira',sans-serif;font-size:12px;font-weight:600;margin-left:10px;color:{{ t.subColor }};">{{ t.series }}</span></div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;">
+        <sc-for list="{{ products }}" as="p" hint-placeholder-count="0">
+          <div style="padding:32px 0 0;">
+            <!-- 深色整体块 -->
+            <div style="background:#0E3440;border-radius:10px;padding:52px 48px 0;color:#ffffff;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;padding-bottom:48px;">
+                <div role="img" aria-label="{{ p.name }}" style="position:relative;width:100%;aspect-ratio:{{ p.ratio }};background-image:{{ p.bgImg }};background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 28px 30px rgba(0,0,0,.4));"></div>
+                <div>
+                  <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+                    <h3 style="margin:0;font-size:28px;font-weight:900;color:#ffffff;line-height:1.4;">{{ p.name }}</h3>
+                    <span style="font-family:'Saira',sans-serif;font-size:14px;font-weight:600;color:#7FC4DC;letter-spacing:.06em;white-space:nowrap;">{{ p.series }}</span>
+                  </div>
+                  <p style="margin:16px 0 0;font-size:14.5px;line-height:1.95;color:rgba(255,255,255,.75);font-weight:300;">{{ p.desc }}</p>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin-top:22px;">
+                    <sc-for list="{{ p.features }}" as="f" hint-placeholder-count="6">
+                      <div style="display:flex;gap:10px;align-items:flex-start;">
+                        <span style="flex:none;width:5px;height:5px;border-radius:50%;background:#7FC4DC;margin-top:9px;"></span>
+                        <span style="font-size:13.5px;line-height:1.7;color:rgba(255,255,255,.82);">{{ f }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+              <!-- 关键指标带 -->
+              <div style="border-top:1px solid rgba(255,255,255,.14);margin:0 -48px;padding:26px 48px 30px;display:flex;align-items:center;gap:48px;">
+                <sc-for list="{{ p.stats }}" as="st" hint-placeholder-count="4">
+                  <div>
+                    <div style="font-family:'Saira',sans-serif;font-size:26px;font-weight:600;color:#7FC4DC;line-height:1;white-space:nowrap;">{{ st.v }}</div>
+                    <div style="font-size:12.5px;color:rgba(255,255,255,.6);margin-top:7px;white-space:nowrap;">{{ st.k }}</div>
+                  </div>
+                </sc-for>
+                <div style="margin-left:auto;">
+                  <a href="{{ p.pdf }}" download="" style="text-decoration:none;background:#4DA5C7;color:#ffffff;font-size:13.5px;font-weight:500;padding:10px 22px;border-radius:3px;white-space:nowrap;" style-hover="background:#3B8FB0;">规格书 PDF</a>
+                </div>
+              </div>
+            </div>
+            <!-- 工作原理 -->
+            <div style="margin-top:36px;background:#F7FAFB;border-left:3px solid #4DA5C7;border-radius:0 6px 6px 0;padding:22px 30px;">
+              <div style="font-size:14.5px;font-weight:700;">工作原理</div>
+              <p style="margin:10px 0 0;font-size:14px;line-height:1.95;color:#5B6B73;">{{ p.principle }}</p>
+            </div>
+            <!-- 完整规格 -->
+            <div style="margin-top:40px;">
+              <div style="font-size:15px;font-weight:700;color:#16242C;padding-bottom:8px;border-bottom:2px solid #4DA5C7;display:inline-block;">完整规格</div>
+              <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:0 56px;">
+                <sc-for list="{{ p.specs }}" as="s" hint-placeholder-count="10">
+                  <div style="display:grid;grid-template-columns:190px 1fr;gap:18px;padding:12px 0;border-bottom:1px solid #F1F5F7;">
+                    <span style="font-size:13.5px;color:#8A99A1;">{{ s.k }}</span>
+                    <span style="font-size:13.5px;color:#16242C;line-height:1.6;">{{ s.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top:14px;font-size:12.5px;color:#9FB2BC;">完整参数（含近端机 / 远端机分项指标与系统架构图）见规格书 PDF（2511 V3）。</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 相关产品 ═══════ -->
+  <section data-screen-label="相关产品" style="background:#F7FAFB;padding:88px 0;border-top:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;">
+        <h2 style="margin:0;font-size:30px;font-weight:900;">同系统组件</h2>
+        <a href="Evertac官网首页.dc.html#products" style="font-size:15px;color:#0E2430;text-decoration:none;font-weight:500;border-bottom:2px solid #4DA5C7;padding-bottom:4px;">全部产品 →</a>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:44px;">
+        <sc-for list="{{ related }}" as="r" hint-placeholder-count="4">
+          <a href="{{ r.href }}" data-reveal="" style="text-decoration:none;color:#16242C;background:#ffffff;border:1px solid #E6EBEE;border-radius:6px;padding:24px 24px 26px;display:block;position:relative;" style-hover="border-color:#4DA5C7;box-shadow:0 16px 32px -18px rgba(14,36,48,.2);">
+            <sc-if value="{{ r.isNew }}" hint-placeholder-val="{{ false }}">
+              <span style="position:absolute;right:16px;top:16px;background:#4DA5C7;color:#ffffff;font-family:'Saira',sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.12em;padding:3px 8px;border-radius:3px;">NEW</span>
+            </sc-if>
+            <div style="font-size:17px;font-weight:600;">{{ r.name }}</div>
+            <div style="font-family:'Saira',sans-serif;font-size:12px;color:#8A99A1;letter-spacing:.06em;margin-top:4px;">{{ r.en }}</div>
+            <p style="margin:12px 0 0;font-size:13.5px;line-height:1.75;color:#5B6B73;">{{ r.desc }}</p>
+          </a>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ CTA ═══════ -->
+  <section id="contact" data-screen-label="联系CTA" style="background:#0E2430;padding:72px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:flex;justify-content:space-between;align-items:center;gap:40px;">
+      <div>
+        <h2 style="margin:0;font-size:28px;font-weight:900;color:#ffffff;">需要覆盖链路设计支持？</h2>
+        <p style="margin:10px 0 0;font-size:15px;color:rgba(255,255,255,.65);font-weight:300;">从载波容量、组网结构到近远端配比，工程师按项目给出直放站选型建议。</p>
+      </div>
+      <a href="mailto:info@evertacsolutions.com" style="flex-shrink:0;background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;" style-hover="background:#3B8FB0;">联系工程师</a>
+    </div>
+  </section>
+
+  <!-- ═══════ 页脚（简化） ═══════ -->
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { tab: 0 };
+
+  componentDidMount() {
+    const els = document.querySelectorAll('[data-reveal]');
+    els.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(18px)';
+      el.style.transition = 'opacity .6s cubic-bezier(.22,.61,.36,1), transform .6s cubic-bezier(.22,.61,.36,1)';
+    });
+    this._io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+          this._io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    els.forEach((el) => this._io.observe(el));
+  }
+  componentWillUnmount() { if (this._io) this._io.disconnect(); }
+
+  renderVals() {
+    const allProducts = [
+      {
+        name: '智能光纤近端机 / 远端直放站', series: 'SMART LT 系列',
+        img: 'assets/prod-smartlt-cut.png', ratio: '542 / 396',
+        desc: 'Smart LT 智能光纤直放站增加了智能化监控技术，为使用者提供更快捷的部署方式和更为简便的操作流程，为建设单位提供更高效的开通程序和更简便的维护模式。不仅满足无线对讲远距离覆盖，更让不具备全面系统知识的维护人员也能通过智能管理方式，实现设备的实时高效管理。',
+        features: [
+          '指示灯设计，状态信息一目了然',
+          '远程监控功能，支持网讯云平台接入管理',
+          '近远 1:4 高性价比设计',
+          '多种频段及功率规格，适合不同通信系统',
+          '远端壁挂及机柜双规格，适合不同安装环境',
+        ],
+        stats: [
+          { v: '1 : 4', k: '近远端配比' },
+          { v: '50±2 dB', k: '设备增益（近远端整体）' },
+          { v: '2–8', k: '系统载波容量' },
+          { v: '2W / 10W', k: '远端功率（壁挂 / 机柜）' },
+        ],
+        principle: '智能光纤近端机将电信号转变为光信号，经过光纤传输到智能光纤远端直放站；远端直放站将光信号转为射频信号并放大。利用光的远距离传输特性实现远区域室内覆盖，光传输采用波分复用技术（WDM），同一根光纤同时传输上下行信号。设备采用全面检测电路设计，数据上传，与网讯云平台联动远程管理。',
+        specs: [
+          { k: '支持频段', v: '87–108 / 137–174 / 351–366 / 400–470 / 806–870 MHz' },
+          { k: '光波长', v: '1310 / 1550 nm · 光纤接口 FC-PC' },
+          { k: '系统载波容量', v: '2–8' },
+          { k: '设备增益 · 噪声', v: '50±2 dB（近远端整体）· 噪声系数 ≤7 dB' },
+          { k: '近端机 · 远端承载', v: '最大 4 台远端机' },
+          { k: '近端机 · 光指标', v: '光输出 ≥-6 dBm · 光接收灵敏度 ≤-10 dBm' },
+          { k: '近端机 · 结构', v: '2U 机柜安装 · 5.75 kg · IP40' },
+          { k: '远端机 · 功率', v: '2W（壁挂型）/ 10W（机柜型）' },
+          { k: '远端机 · 隔离度', v: '≥60 dB（2W）/ ≥75 dB（10W）上下行隔离' },
+          { k: '远端机 · 结构', v: '壁挂 350×218×90 mm · IP53；机柜 490×435×90 mm · IP40' },
+          { k: '端口', v: 'N 型母头 · 50 Ω · 防静电' },
+          { k: '工作环境', v: '-20~55°C · 湿度 ≤95%' },
+        ],
+        pdf: 'assets/智能光纤近端机远端直放站-规格书.pdf',
+      },
+      {
+        name: '数字智能光纤近端机 / 远端直放站', series: 'DIGITAL 系列',
+        img: 'assets/prod-digital-oru-cut.png', ratio: '804 / 261',
+        desc: '为大容量无线对讲机系统而设计的数字光纤直放站，采用最新的数字中频处理和选频技术，更好地避免相邻频率之间的传输干扰，为并发通信和更长距离的传输覆盖提供高质量的信号保证——高达 20 公里依然可以即时获取优质信号。全彩触屏与全新外观设计，更符合人性化使用。',
+        features: [
+          '最大 16 信道并发传输能力，适配复杂及超大型系统',
+          '链型、环网、星型多种结构设计，灵活多样',
+          '触摸屏设计，部署简单快捷',
+          '远程监控功能，支持网讯云平台接入管理',
+          '近远 1:32 高性价比设计',
+          '多种频段规格，适合不同通信系统',
+        ],
+        stats: [
+          { v: '1 : 32', k: '近远端配比' },
+          { v: '16', k: '信道并发能力' },
+          { v: '20 km', k: '远距离无损传输' },
+          { v: '≤35 μs', k: '传输延时' },
+        ],
+        principle: '数字智能光纤近端机将电信号进行中频数字处理后，将处理的数字信号调制转变为光信号，经过光纤传输到数字智能光纤远端直放站；远端将光信号解调为中频数字信号，还原成射频信号并放大。中频处理技术使信号经过长距离传输后，远端仍可无损解析，确保远端处理信号的质量及功率无变化，提升系统稳定性。触摸屏全面数据操作，降低部署难度。',
+        specs: [
+          { k: '支持频段', v: '87–108 / 137–174 / 351–366 / 400–470 / 806–870 MHz' },
+          { k: '光波长', v: '1310 / 1550 nm · 光纤接口 FC-PC' },
+          { k: '系统载波容量', v: '2–16' },
+          { k: '设备增益 · 噪声', v: '50±2 dB（近远端整体）· 噪声系数 ≤7 dB' },
+          { k: '传输延时 · 频率误差', v: '≤35 μs · ≤5×10⁻⁸' },
+          { k: '近端机 · 远端承载', v: '最大 32 台远端机' },
+          { k: '近端机 · 光指标', v: '光输出 ≥-6 dBm · 光接收灵敏度 ≤-15 dBm' },
+          { k: '近端机 · 结构', v: '2U 机柜安装 · 9.15 kg · IP40' },
+          { k: '远端机 · 功率', v: '10W（机柜型）' },
+          { k: '远端机 · 增益调节', v: '0~30 dB / 1 dB 步进' },
+          { k: '端口', v: 'N 型母头 · 50 Ω · 防静电' },
+          { k: '工作环境', v: '-20~55°C · 湿度 ≤95%' },
+        ],
+        pdf: 'assets/数字智能光纤近端机远端直放站-规格书.pdf',
+      },
+      {
+        name: '数字智能光纤远端直放站 · 室外壁挂型', series: 'DRFT 系列 · 全国首批型号核准',
+        img: 'assets/prod-outdoor-oru-cut.png', ratio: '621 / 380',
+        desc: '为大容量无线对讲系统量身打造，融合先进的数字中频处理与选频技术，显著提升信号抗干扰能力。专为室外环境设计：防静电与 IP65 高防护等级，确保设备在复杂气候条件下稳定运行，适应壁挂安装需求，广泛适用于各类户外通信覆盖场景。400MHz 型号（DRFT-BDA UHF）为国无办〔2025〕1 号文后全国首批完成型号核准的产品。',
+        features: [
+          '支持最大 12 信道并发通信，满足大型复杂场景组网',
+          '支持远端链型、环网、星型多种结构设计',
+          '智能配置远程运维：CPS 专用软件 + 网讯云平台',
+          '光旁路保护：级联节点故障，后级远端仍正常获取信号',
+          '交织模式双路由：同时接收双基站信号，自动切换双重保障',
+          '近远端 1:32 高性价比设计',
+        ],
+        stats: [
+          { v: 'IP65', k: '室外高防护等级' },
+          { v: '12', k: '信道并发能力' },
+          { v: '≥90 dB', k: '上下行隔离度' },
+          { v: '10 W', k: '功率规格' },
+        ],
+        principle: '设备通过智能光纤传输，将近端的光信号转换为射频信号并进行放大输出。借助数字中频处理技术，即使在长距离传输后，远端设备仍能无损解析信号，确保远端处理信号的质量与功率无变化，提升系统整体稳定性。',
+        specs: [
+          { k: '频率规格', v: 'FM 87–108 · VHF 137–174 · 350M 351–366 · 380M 372–386 · UHF 400–470 · 800M 800–890 MHz' },
+          { k: '功率规格', v: '10 W' },
+          { k: '设备增益', v: '50±2 dB（近远端整体）· 增益调节 0~30 dB / 1 dB' },
+          { k: '噪声系数 · 频率误差', v: '≤7 dB · ≤5×10⁻⁸' },
+          { k: '传输延时', v: '≤35 μs（近远端整体）' },
+          { k: '光指标', v: '光输出 ≥-6 dBm · 光接收灵敏度 ≤-15 dBm · 光口 2/4（交织模式）· LC' },
+          { k: 'ALC · 带内波动', v: 'ALC ≥20 dB · 带内波动 ≤3 dB' },
+          { k: '上下行隔离度', v: '≥90 dB' },
+          { k: '端口', v: 'N-J · 50 Ω · 防静电' },
+          { k: '防护等级', v: 'IP65（室外型 · 壁挂）' },
+          { k: '设备重量', v: '≤15 kg' },
+          { k: '工作环境', v: '-20~55°C · 湿度 ≤95%' },
+        ],
+        pdf: 'assets/数字智能光纤远端直放站-室外壁挂型-规格书.pdf',
+      },
+    ];
+    const tab = this.state.tab;
+    return {
+      tabs: allProducts.map((p, i) => ({
+        label: ['Smart LT 智能系列', '数字中频系列', '室外壁挂型'][i],
+        series: ['1:4', '1:32 · 16CH', 'IP65 · 首批核准'][i],
+        select: () => this.setState({ tab: i }),
+        color: tab === i ? '#16242C' : '#8A99A1',
+        subColor: tab === i ? '#4DA5C7' : '#B9C6CD',
+        bar: tab === i ? '#4DA5C7' : 'transparent',
+      })),
+      products: [allProducts[tab]].map((p) => ({ ...p, bgImg: 'url("' + p.img + '")' })),
+      related: [
+        { name: '信源基站', en: 'BASE STATION', desc: '一体化基站与 MARK1000 MAX 信道机。', href: '产品-信源基站.dc.html', isNew: false },
+        { name: '合路平台', en: 'COMBINER PLATFORM', desc: '分合路器、剥离矩阵与双工器。', href: '产品-合路平台.dc.html', isNew: false },
+        { name: '智能终端与配件', en: 'RADIOS & ACCESSORIES', desc: 'PNR 系列终端与充电、耳机配件。', href: '产品-终端.dc.html', isNew: false },
+        { name: 'PNR2100 智能终端', en: 'INTELLIGENT TASK RADIO', desc: '专网安全，公网自由，双模守候。', href: '产品-PNR2100.dc.html', isNew: true },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

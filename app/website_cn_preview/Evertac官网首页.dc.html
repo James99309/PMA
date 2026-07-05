@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="mobile.css">
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Saira:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; }
+body { font-family: 'Noto Sans SC', 'PingFang SC', sans-serif; color: #16242C; -webkit-font-smoothing: antialiased; }
+.sc-host { display: contents; }
+@keyframes ev-hero-zoom { from { transform: scale(1.06); } to { transform: scale(1); } }
+</style>
+</helmet>
+
+<div data-screen-label="首页" style="min-width:1200px;background:#ffffff;">
+
+  <!-- ═══════ 顶部工具条 ═══════ -->
+  <div style="background:#0E2430;color:rgba(255,255,255,.75);font-size:13px;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;height:38px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="letter-spacing:.02em;">专业无线对讲即时通信系统与智能运营平台</span>
+      <div style="display:flex;align-items:center;gap:28px;">
+        <a href="#contact" style="color:rgba(255,255,255,.75);text-decoration:none;">合作咨询</a>
+        <a href="#contact" style="color:rgba(255,255,255,.75);text-decoration:none;">技术支持</a>
+        <span style="display:flex;align-items:center;gap:10px;">
+          <span style="color:#ffffff;font-weight:500;">中文</span>
+          <span style="color:rgba(255,255,255,.3);">|</span>
+          <a href="#" style="color:rgba(255,255,255,.55);text-decoration:none;font-family:'Saira',sans-serif;">EN</a>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <dc-import name="SiteHeader" active="home" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ HERO ═══════ -->
+  <section id="top" data-screen-label="Hero" style="position:relative;height:620px;overflow:hidden;background:#0A141C;">
+    <video ref="{{ heroVideoRef }}" src="assets/hero-video.webm" poster="assets/hero-frame1.jpg" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" autoPlay="{{ true }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:72% center;"></video>
+    <div style="position:absolute;inset:0;background:linear-gradient(95deg,rgba(8,18,26,.94) 26%,rgba(8,18,26,.6) 56%,rgba(8,18,26,.14) 85%);"></div>
+    <div style="position:relative;max-width:1280px;margin:0 auto;padding:0 32px;height:100%;display:flex;flex-direction:column;justify-content:center;">
+      <div style="width:56px;height:4px;background:#4DA5C7;"></div>
+      <h1 class="evt-hero-h1" style="margin:28px 0 0;font-size:54px;line-height:1.25;font-weight:900;color:#ffffff;letter-spacing:.01em;max-width:640px;">以智能通信<br>赋能关键时刻</h1>
+      <p style="margin:24px 0 0;font-size:19px;line-height:1.9;color:rgba(255,255,255,.82);max-width:540px;font-weight:300;">二十余年专注无线对讲即时通信系统，为超高层建筑、交通枢纽与工业设施提供永不掉线的团队协作保障。</p>
+      <div class="evt-hero-cta" style="display:flex;gap:16px;margin-top:40px;">
+        <a href="#solutions" style="background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;transition:background .18s;" style-hover="background:#3B8FB0;">探索解决方案</a>
+        <a href="#cases" style="border:1px solid rgba(255,255,255,.45);color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;transition:border-color .18s, background .18s;" style-hover="border-color:#ffffff;background:rgba(255,255,255,.08);">查看成功案例</a>
+      </div>
+    </div>
+    <div style="position:absolute;left:0;right:0;bottom:0;border-top:1px solid rgba(255,255,255,.14);background:rgba(8,18,26,.4);backdrop-filter:blur(6px);">
+      <div style="max-width:1280px;margin:0 auto;padding:16px 32px;display:flex;gap:0;">
+        <sc-for list="{{ stats }}" as="st" hint-placeholder-count="4">
+          <div style="flex:1;display:flex;align-items:baseline;gap:10px;border-left:1px solid rgba(255,255,255,.15);padding-left:24px;">
+            <span style="font-family:'Saira',sans-serif;font-size:24px;font-weight:600;color:#8CCADF;line-height:1;">{{ st.value }}<span style="font-size:14px;margin-left:2px;">{{ st.unit }}</span></span>
+            <span style="font-size:13px;color:rgba(255,255,255,.72);">{{ st.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 行业解决方案 ═══════ -->
+  <section id="solutions" data-screen-label="行业解决方案" style="background:#F7FAFB;padding:96px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;gap:40px;">
+        <div>
+          <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">INDUSTRY SOLUTIONS</div>
+          <h2 style="margin:14px 0 0;font-size:38px;font-weight:700;line-height:1.3;">行业解决方案</h2>
+          <p style="margin:16px 0 0;font-size:16px;line-height:1.9;color:#5B6B73;max-width:560px;">每一个行业都有独特的通信挑战。我们以专业的系统设计能力，为不同场景量身定制可靠的即时通信方案。</p>
+        </div>
+        <a href="#contact" style="flex-shrink:0;font-size:15px;color:#0E2430;text-decoration:none;font-weight:500;border-bottom:2px solid #4DA5C7;padding-bottom:4px;">全部行业方案 →</a>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:56px;">
+        <sc-for list="{{ industries }}" as="ind" hint-placeholder-count="6">
+          <a href="{{ ind.href }}" data-reveal="" style="text-decoration:none;color:#16242C;background:#ffffff;border:1px solid #E6EBEE;border-radius:6px;overflow:hidden;display:block;transition:box-shadow .25s, transform .25s;" style-hover="box-shadow:0 20px 40px -18px rgba(14,36,48,.25);transform:translateY(-4px);">
+            <div style="height:200px;overflow:hidden;background:#0E2430;background-image:{{ ind.bgImg }};background-size:cover;background-position:center;"></div>
+            <div style="padding:24px 26px 28px;">
+              <div style="font-size:19px;font-weight:600;">{{ ind.name }}</div>
+              <p style="margin:10px 0 0;font-size:14px;line-height:1.8;color:#5B6B73;">{{ ind.desc }}</p>
+            </div>
+          </a>
+        </sc-for>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════ 产品与系统（深色） ═══════ -->
+  <section id="products" data-screen-label="产品与系统" style="background:#0E2430;padding:100px 0;color:#ffffff;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center;">
+        <div data-reveal="">
+          <div style="font-size:13px;letter-spacing:.16em;color:#7FC4DC;font-family:'Saira',sans-serif;font-weight:600;">DISTRINET SYSTEM</div>
+          <h2 style="margin:14px 0 0;font-size:38px;font-weight:700;line-height:1.35;">DistriNET<br>数字分布式对讲系统</h2>
+          <p style="margin:20px 0 0;font-size:16px;line-height:1.95;color:rgba(255,255,255,.72);font-weight:300;">由信源基站、光纤传输部件、智能天馈与终端组成。创新采用光纤替代射频线缆，降低建设成本、提升传输效率，消防通信网与物业通信网合二为一。</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-top:36px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1);">
+            <sc-for list="{{ products }}" as="p" hint-placeholder-count="6">
+              <div style="background:#0E2430;padding:18px 20px;transition:background .18s;" style-hover="background:#132D3C;">
+                <div style="font-size:16px;font-weight:500;color:#ffffff;">{{ p.name }}</div>
+                <div style="font-size:13px;color:rgba(255,255,255,.55);margin-top:4px;font-family:'Saira',sans-serif;letter-spacing:.04em;">{{ p.en }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <a href="#contact" style="display:inline-block;margin-top:36px;background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:500;padding:13px 30px;border-radius:3px;transition:background .18s;" style-hover="background:#3B8FB0;">获取系统方案</a>
+        </div>
+        <div data-reveal="" style="position:relative;">
+          <img src="assets/fiber-rack.png" alt="DistriNET 系统机柜" style="width:100%;display:block;border-radius:6px;">
+          <div style="position:absolute;left:-1px;bottom:-1px;background:#4DA5C7;color:#ffffff;padding:16px 24px;border-radius:0 6px 0 6px;">
+            <div style="font-family:'Saira',sans-serif;font-size:24px;font-weight:600;line-height:1;">632 m</div>
+            <div style="font-size:13px;margin-top:6px;opacity:.9;">上海中心大厦 全楼层无缝覆盖</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ NetFlex 平台 ═══════ -->
+  <section data-screen-label="NetFlex平台" style="background:#ffffff;padding:100px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:grid;grid-template-columns:1.1fr 1fr;gap:72px;align-items:center;">
+      <div data-reveal="" style="border-radius:6px;overflow:hidden;">
+        <img src="assets/control-room.png" alt="NetFlex 运营中枢" style="width:100%;display:block;">
+      </div>
+      <div data-reveal="">
+        <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">NETFLEX PLATFORM</div>
+        <h2 style="margin:14px 0 0;font-size:38px;font-weight:700;line-height:1.35;">NetFlex 云端运营平台</h2>
+        <p style="margin:20px 0 0;font-size:16px;line-height:1.95;color:#5B6B73;">面向管理端、服务端与设备端的可视化运营中枢：实时定位、巡更管理、智能工单与设备总览，让每一次响应都有据可依。</p>
+        <div style="margin-top:32px;display:flex;flex-direction:column;gap:20px;">
+          <sc-for list="{{ netflexFeatures }}" as="f" hint-placeholder-count="3">
+            <div style="display:flex;gap:18px;align-items:flex-start;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#4DA5C7;margin-top:9px;flex-shrink:0;"></div>
+              <div>
+                <div style="font-size:16px;font-weight:600;">{{ f.name }}</div>
+                <div style="font-size:14px;line-height:1.8;color:#5B6B73;margin-top:4px;">{{ f.desc }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 生态架构 ═══════ -->
+  <section data-screen-label="生态架构" style="background:#ffffff;padding:100px 0;border-top:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="text-align:center;">
+        <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">ONE CONNECTED ECOSYSTEM</div>
+        <h2 style="margin:14px 0 0;font-size:38px;font-weight:700;">一张网，贯通云、管、端</h2>
+        <p style="margin:16px auto 0;font-size:16px;line-height:1.9;color:#5B6B73;max-width:640px;">从云端平台到分布式网络再到一线终端，三层架构原生互通——不是拼装的产品清单，而是一个完整的通信生态。</p>
+      </div>
+      <div data-reveal="" style="margin-top:60px;display:flex;flex-direction:column;">
+        <sc-for list="{{ ecoLayers }}" as="layer" hint-placeholder-count="3">
+          <div style="display:grid;grid-template-columns:280px 1fr;gap:0;">
+            <!-- 左：层级标签 -->
+            <div style="position:relative;padding:30px 40px 30px 0;border-right:2px solid #4DA5C7;">
+              <div style="position:absolute;right:-7px;top:50%;width:12px;height:12px;border-radius:50%;background:#ffffff;border:3px solid #4DA5C7;transform:translateY(-50%);box-sizing:border-box;"></div>
+              <div style="font-family:'Saira',sans-serif;font-size:12px;letter-spacing:.14em;color:#8A99A1;font-weight:600;">{{ layer.en }}</div>
+              <div style="font-size:22px;font-weight:700;margin-top:6px;">{{ layer.name }}</div>
+              <div style="font-size:14px;color:#5B6B73;line-height:1.7;margin-top:6px;">{{ layer.desc }}</div>
+            </div>
+            <!-- 右：组成 -->
+            <div style="padding:30px 0 30px 48px;display:flex;align-items:center;">
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;width:100%;">
+                <sc-for list="{{ layer.items }}" as="it" hint-placeholder-count="4">
+                  <div style="background:{{ layer.cardBg }};border:1px solid {{ layer.cardBorder }};border-radius:5px;padding:16px 18px;transition:border-color .18s;" style-hover="border-color:#4DA5C7;">
+                    <div style="font-size:15px;font-weight:600;color:{{ layer.cardText }};">{{ it.name }}</div>
+                    <div style="font-size:12.5px;color:{{ layer.cardSub }};margin-top:4px;line-height:1.5;">{{ it.desc }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div data-reveal="" style="margin-top:44px;text-align:center;font-size:14.5px;color:#5B6B73;">消防通信网与物业通信网合二为一，一次建设即可覆盖全部场景。</div>
+    </div>
+  </section>
+
+  <!-- ═══════ 服务能力 ═══════ -->
+  <section id="services" data-screen-label="服务与支持" style="background:#F7FAFB;padding:96px 0;border-top:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;gap:40px;">
+        <h2 style="margin:0;font-size:38px;font-weight:700;">让您的系统永不过时</h2>
+        <p style="margin:0;font-size:15.5px;line-height:1.8;color:#5B6B73;max-width:420px;text-align:right;">系统设计、交付、运维与保障，<br>由同一支原厂团队负责到底。</p>
+      </div>
+      <div data-reveal="" style="margin-top:48px;background:#ffffff;border:1px solid #E6EBEE;border-radius:6px;display:grid;grid-template-columns:repeat(4,1fr);">
+        <sc-for list="{{ services }}" as="sv" hint-placeholder-count="4">
+          <div style="padding:30px 28px 32px;border-left:{{ sv.divider }};position:relative;">
+            <div style="position:absolute;left:-1px;top:0;width:100%;height:3px;background:transparent;"></div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="width:8px;height:8px;background:#4DA5C7;flex:none;"></span>
+              <span style="font-size:17.5px;font-weight:600;">{{ sv.name }}</span>
+            </div>
+            <p style="margin:12px 0 0;font-size:14px;line-height:1.8;color:#5B6B73;">{{ sv.desc }}</p>
+          </div>
+        </sc-for>
+      </div>
+      <div data-reveal="" style="margin-top:44px;display:flex;justify-content:center;align-items:center;gap:36px;font-size:14px;color:#75858D;">
+        <span style="letter-spacing:.06em;">资质与合规</span>
+        <div style="display:flex;gap:16px;">
+          <sc-for list="{{ certs }}" as="c" hint-placeholder-count="4">
+            <span style="border:1px solid #DCE4E8;border-radius:3px;padding:7px 16px;font-family:'Saira',sans-serif;font-weight:500;color:#3E525C;background:#ffffff;">{{ c }}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 成功案例 ═══════ -->
+  <section id="cases" data-screen-label="成功案例" style="background:#ffffff;padding:100px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;gap:40px;">
+        <div>
+          <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">CASE STUDIES</div>
+          <h2 style="margin:14px 0 0;font-size:38px;font-weight:700;">在关键时刻，成为坚实后盾</h2>
+        </div>
+        <a href="案例中心.dc.html" style="flex-shrink:0;font-size:15px;color:#0E2430;text-decoration:none;font-weight:500;border-bottom:2px solid #4DA5C7;padding-bottom:4px;">全部案例 →</a>
+      </div>
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:28px;margin-top:56px;">
+        <a href="案例中心.dc.html" data-reveal="" style="text-decoration:none;position:relative;border-radius:6px;overflow:hidden;display:block;min-height:520px;background:#0E2430;">
+          <img src="assets/case-shanghai-tower.jpg" alt="上海中心大厦" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .6s;">
+          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,18,26,.92) 8%,rgba(8,18,26,.25) 55%,transparent);"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:36px;">
+            <div style="color:#9FD3E6;font-size:13px;letter-spacing:.12em;font-family:'Saira',sans-serif;font-weight:600;">超高层建筑 · 632 米</div>
+            <div style="color:#ffffff;font-size:28px;font-weight:700;margin-top:10px;">上海中心大厦</div>
+            <p style="color:rgba(255,255,255,.75);font-size:15px;line-height:1.8;margin:10px 0 0;max-width:520px;">中国第一高楼，127 层全楼层无缝对讲覆盖，多业态独立管理、宽频共网共享，消防与物业通信网合一。</p>
+          </div>
+        </a>
+        <div style="display:flex;flex-direction:column;gap:28px;">
+          <sc-for list="{{ sideCases }}" as="cs" hint-placeholder-count="2">
+            <a href="案例中心.dc.html" data-reveal="" style="text-decoration:none;position:relative;border-radius:6px;overflow:hidden;display:block;flex:1;min-height:246px;background:#0E2430;">
+              <img src="{{ cs.img }}" alt="{{ cs.name }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+              <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,18,26,.92) 12%,rgba(8,18,26,.2) 60%,transparent);"></div>
+              <div style="position:absolute;left:0;right:0;bottom:0;padding:26px;">
+                <div style="color:#9FD3E6;font-size:12px;letter-spacing:.12em;font-family:'Saira',sans-serif;font-weight:600;">{{ cs.tag }}</div>
+                <div style="color:#ffffff;font-size:20px;font-weight:700;margin-top:8px;">{{ cs.name }}</div>
+                <p style="color:rgba(255,255,255,.75);font-size:14px;line-height:1.7;margin:8px 0 0;">{{ cs.desc }}</p>
+              </div>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 新闻动态 ═══════ -->
+  <section id="news" data-screen-label="新闻动态" style="background:#ffffff;padding:96px 0;border-top:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;">
+        <h2 style="margin:0;font-size:38px;font-weight:700;">新闻动态</h2>
+        <a href="新闻中心.dc.html" style="font-size:15px;color:#0E2430;text-decoration:none;font-weight:500;border-bottom:2px solid #4DA5C7;padding-bottom:4px;">新闻中心 →</a>
+      </div>
+      <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:56px;margin-top:48px;align-items:start;">
+        <!-- 头条 -->
+        <a href="{{ featuredNews.href }}" data-reveal="" style="text-decoration:none;color:#16242C;display:block;" style-hover="color:#2E7FA3;">
+          <div style="border-radius:6px;overflow:hidden;height:320px;">
+            <img src="{{ featuredNews.img }}" alt="{{ featuredNews.title }}" style="width:100%;height:100%;object-fit:cover;display:block;">
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:22px;">
+            <span style="font-size:12.5px;font-weight:600;color:#4DA5C7;letter-spacing:.06em;">{{ featuredNews.tag }}</span>
+            <span style="font-family:'Saira',sans-serif;font-size:12.5px;color:#8A99A1;letter-spacing:.04em;">{{ featuredNews.date }}</span>
+          </div>
+          <div style="font-size:23px;font-weight:700;line-height:1.5;margin-top:10px;">{{ featuredNews.title }}</div>
+          <p style="margin:10px 0 0;font-size:14.5px;line-height:1.8;color:#5B6B73;">{{ featuredNews.summary }}</p>
+        </a>
+        <!-- 列表 -->
+        <div style="display:flex;flex-direction:column;">
+          <sc-for list="{{ newsList }}" as="n" hint-placeholder-count="4">
+            <a href="{{ n.href }}" data-reveal="" style="text-decoration:none;color:#16242C;padding:22px 0;border-bottom:1px solid #EAF0F3;display:block;" style-hover="color:#2E7FA3;">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span style="font-size:12px;font-weight:600;color:#4DA5C7;letter-spacing:.06em;">{{ n.tag }}</span>
+                <span style="font-family:'Saira',sans-serif;font-size:12px;color:#8A99A1;letter-spacing:.04em;">{{ n.date }}</span>
+              </div>
+              <div style="font-size:16.5px;font-weight:600;line-height:1.6;margin-top:8px;">{{ n.title }}</div>
+            </a>
+          </sc-for>
+          <a href="mailto:info@evertacsolutions.com" data-reveal="" style="margin-top:26px;text-decoration:none;background:#F4F8FA;border:1px solid #E6EBEE;border-radius:5px;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;color:#16242C;" style-hover="border-color:#4DA5C7;">
+            <span style="font-size:14.5px;">订阅产品与行业资讯，第一时间获取更新</span>
+            <span style="font-size:14px;color:#4DA5C7;font-weight:500;flex:none;">订阅</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 关于 / CTA ═══════ -->
+  <section id="about" data-screen-label="关于与联系" style="position:relative;background:#0A141C;padding:110px 0;overflow:hidden;">
+    <img src="assets/engineers.png" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.28;">
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 75% 90% at 50% 40%,rgba(8,18,26,.35),rgba(8,18,26,.94) 85%);"></div>
+    <div id="contact" style="position:relative;max-width:840px;margin:0 auto;padding:0 32px;text-align:center;">
+      <div data-reveal="">
+        <div style="width:56px;height:4px;background:#4DA5C7;margin:0 auto;"></div>
+        <h2 style="margin:30px 0 0;font-size:40px;font-weight:700;color:#ffffff;line-height:1.4;">让通信成为最坚实的保障</h2>
+        <p style="margin:20px auto 0;font-size:17px;line-height:1.95;color:rgba(255,255,255,.75);max-width:560px;font-weight:300;">成立于 2003 年，总部中国上海。从系统设计到持续运营，我们与您一起，让团队协作更进一步。</p>
+        <div style="display:flex;gap:16px;justify-content:center;margin-top:40px;">
+          <a href="mailto:info@evertacsolutions.com" style="background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;transition:background .18s;" style-hover="background:#3B8FB0;">预约方案咨询</a>
+          <a href="https://www.evertacsolutions.com" style="border:1px solid rgba(255,255,255,.45);color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;font-family:'Saira',sans-serif;transition:border-color .18s;" style-hover="border-color:#ffffff;">WWW.EVERTACSOLUTIONS.COM</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 页脚（共享） ═══════ -->
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;scrollReveal&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;动效&quot;}}">
+class Component extends DCLogic {
+  state = { menu: null, heroIdx: 0 };
+
+  open(key) { this.setState({ menu: key }); }
+
+  componentDidMount() {
+    // 确保静音自动播放（部分浏览器需显式调用）
+    const tryPlay = () => {
+      const v = this._heroVideo;
+      if (v) { v.muted = true; const p = v.play(); if (p) p.catch(() => {}); }
+    };
+    setTimeout(tryPlay, 300);
+    document.addEventListener('click', tryPlay, { once: true });
+    if ((this.props.scrollReveal ?? true) === false) return;
+    const root = this.el || document;
+    const els = (root.querySelectorAll ? root : document).querySelectorAll('[data-reveal]');
+    els.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(22px)';
+      el.style.transition = 'opacity .7s cubic-bezier(.22,.61,.36,1), transform .7s cubic-bezier(.22,.61,.36,1)';
+    });
+    this._io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+          this._io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    els.forEach((el) => this._io.observe(el));
+  }
+
+  componentWillUnmount() {
+    if (this._io) this._io.disconnect();
+  }
+
+  renderVals() {
+    const menu = this.state.menu;
+    const mk = (key, label) => ({
+      key, label,
+      open: () => this.open(key),
+      color: menu === key ? '#4DA5C7' : '#16242C',
+      bar: menu === key ? '#4DA5C7' : 'transparent',
+    });
+    return {
+      heroVideoRef: (el) => { this._heroVideo = el; },
+      navItems: [
+        mk('solutions', '行业解决方案'),
+        mk('products', '产品与系统'),
+        mk('services', '服务与支持'),
+        mk('cases', '成功案例'),
+        mk('about', '关于我们'),
+      ],
+      closeMenu: () => this.setState({ menu: null }),
+      showSolutions: menu === 'solutions',
+      showProducts: menu === 'products',
+      showServices: menu === 'services',
+      showCases: menu === 'cases',
+      showAbout: menu === 'about',
+
+      solutionCols: [
+        { title: '建筑与城市', items: [
+          { name: '超高层建筑', desc: '垂直纵横的全楼层无缝覆盖' },
+          { name: '城市综合体', desc: '商业、办公、酒店多业态协同' },
+          { name: '隧道与管廊', desc: '地下空间的可靠通信保障' },
+        ]},
+        { title: '交通与工业', items: [
+          { name: '交通枢纽', desc: '机场、轨交与港口的调度通信' },
+          { name: '能源化工', desc: '全链路防爆与光纤分布式覆盖' },
+          { name: '制造业', desc: '洁净车间与大规模集群设计' },
+          { name: '数据中心', desc: '关键设施的运维协作' },
+        ]},
+        { title: '公共与服务', items: [
+          { name: '公共安全', desc: '应急救援的最后通信保障' },
+          { name: '会展场馆', desc: '大客流场景的从容调度' },
+          { name: '酒店文旅', desc: '随需而通的宾客服务响应' },
+        ]},
+      ],
+      productCols: [
+        { title: '系统设备', items: [
+          { name: '信源基站', desc: '系统核心，语音与数据交换', href: '#products' },
+          { name: '合路平台', desc: '多制式信号合分路与抗干扰', href: '产品-合路平台.dc.html' },
+          { name: '直放站', desc: '远距离传输的信号放大', href: '#products' },
+          { name: '智能天馈', desc: '射频信号的末端覆盖', href: '#products' },
+        ]},
+        { title: '终端与平台', items: [
+          { name: '智能终端与配件', desc: 'PNR 系列终端 · 充电 · 耳机配件', href: '产品-终端.dc.html' },
+          { name: 'PNR2100 智能终端', desc: '专网安全，公网自由', href: '产品-PNR2100.dc.html', isNew: true },
+          { name: 'NetFlex 云平台', desc: '定位、工单与调度一体化', href: '#products' },
+        ]},
+      ],
+      serviceLinks: [
+        { name: '专业设计咨询', desc: '以用户需求为核心的系统规划' },
+        { name: '厂家系统交付', desc: '原厂交付带来准确性与便捷性' },
+        { name: '快速响应售后', desc: '一对一专业工程师支持' },
+        { name: '大型活动通信保障', desc: '关键时刻，保驾护航' },
+      ],
+      caseCols: [
+        { title: '超高层与地标', items: [
+          { name: '上海中心大厦', desc: '632 米全楼层无缝覆盖' },
+          { name: '国家会展中心', desc: '140 万㎡ 多网融合' },
+        ]},
+        { title: '基建与交通', items: [
+          { name: '港珠澳大桥', desc: '55 公里跨海集群通信' },
+          { name: '轨道交通与机场', desc: '枢纽级调度通信' },
+        ]},
+        { title: '工业与制造', items: [
+          { name: '科思创一体化基地', desc: '800 套防爆终端在网' },
+          { name: '半导体与智能制造', desc: '洁净车间通信覆盖' },
+        ]},
+      ],
+      aboutLinks: [
+        { name: '公司简介', desc: '二十余年专注智能通信' },
+        { name: '资质与合规', desc: 'SIRIM · IMDA · CE/RED · ATEX' },
+        { name: '全生命周期服务', desc: '让您的系统永不过时' },
+        { name: '联系我们', desc: '中国上海总部' },
+      ],
+
+      stats: [
+        { value: '2003', unit: '年', label: '成立于上海 · 创建时间' },
+        { value: '632', unit: 'm', label: '上海中心大厦 · 标杆项目' },
+        { value: '20', unit: '+年', label: '专网通信自主研发深耕' },
+        { value: '15', unit: '+类', label: '覆盖关键行业应用场景' },
+      ],
+      industries: [
+        { name: '交通枢纽', img: 'assets/airport.png', desc: '机场、轨道交通与场站的地勤调度与应急通信，保障每一个航班与班次准点运行。', href: '行业-机场交通枢纽.dc.html' },
+        { name: '港口与物流', img: 'assets/port.png', desc: '堆场、岸桥与集卡之间的实时协同，让大吞吐量码头的作业指令即时送达。' },
+        { name: '能源化工', img: 'assets/petrochem-hero.jpg', desc: '石油化工与能源厂区的全链路 IIC 级防爆与光纤分布式覆盖，装置区、储罐区听得到、说得出。', href: '行业-能源化工.dc.html' },
+        { name: '制造业', img: 'assets/engineers.png', desc: '半导体、智能制造与洁净车间的大规模集群系统设计，覆盖厂区每一个角落的安全生产通信。' },
+        { name: '数据中心', img: 'assets/datacenter-aerial.png', desc: '机房与动力设施的运维协作通信，为关键基础设施提供全天候保障。', href: '行业-数据中心.dc.html' },
+        { name: '公共安全', img: 'assets/control-room.png', desc: '建筑内外救援人员与指挥平台之间的可靠通信桥梁，在突发时刻不掉线。' },
+        { name: '智能建筑', img: 'assets/tower-night.png', desc: '超高层、城市综合体与酒店文旅，物业、消防、安保多网合一的全域无缝覆盖。', href: '行业-智能建筑.dc.html' },
+        { name: '海岛与矿业开发', img: 'assets/mining-field.png', desc: '地形分散、公网薄弱的野外作业区，专网集群与联合定位保障远程调度。' },
+        { name: '船舶与仓储', img: 'assets/case-marine.jpg', desc: '穿透钢结构船体的全船覆盖，货轮、邮轮与游轮的舱内外调度通信，靠港后与仓储库区共网协同。', href: '行业-船舶.dc.html' },
+        { name: '隧道与管廊', img: 'assets/tunnel-hero.png', desc: '公路隧道、地下管廊与地下综合体的集约化分区专网，消防、运营与公共安全多网融合、长距离可维护。', href: '行业-隧道管廊.dc.html' },
+      ].map((it) => ({ ...it, href: it.href || '#contact', bgImg: 'url("' + it.img + '")' })),
+
+      products: [
+        { name: '信源基站', en: 'REPEATER STATION' },
+        { name: '合路平台', en: 'COMBINER UNIT' },
+        { name: '直放站', en: 'REPEATER UNIT' },
+        { name: '智能天馈', en: 'ANTENNA COMPONENTS' },
+        { name: '智能终端', en: 'TWO-WAY RADIO' },
+        { name: 'NetFlex 平台', en: 'CLOUD PLATFORM' },
+      ],
+      netflexFeatures: [
+        { name: '实时定位与巡更', desc: '室内外人员定位、区域跟踪与巡更任务管理，一屏总览。' },
+        { name: '智能工单调度', desc: '动态虚拟频道与工单联动，酒店与场馆服务响应更快一步。' },
+        { name: '设备全生命周期管理', desc: 'Web 运营平台与移动端 Nuts 运维工具协同，设备状态尽在掌握。' },
+      ],
+      ecoLayers: [
+        {
+          en: 'CLOUD · 平台层', name: 'NetFlex 云端运营平台', desc: '可视化运营与智能调度中枢',
+          cardBg: '#0E2430', cardBorder: '#0E2430', cardText: '#ffffff', cardSub: 'rgba(255,255,255,.55)',
+          items: [
+            { name: '实时定位', desc: '室内外人员与区域跟踪' },
+            { name: '智能工单', desc: '虚拟频道与任务联动' },
+            { name: '巡更管理', desc: '任务计划与轨迹留痕' },
+            { name: '设备总览', desc: 'Web + Nuts 移动运维' },
+          ],
+        },
+        {
+          en: 'NETWORK · 网络层', name: 'DistriNET 分布式网络', desc: '光纤传输，一网多用',
+          cardBg: '#F1F6F8', cardBorder: '#DCE4E8', cardText: '#16242C', cardSub: '#75858D',
+          items: [
+            { name: '信源基站', desc: '语音与数据交换核心' },
+            { name: '合路平台', desc: '多制式合分路抗干扰' },
+            { name: '光纤直放站', desc: '低成本远距离传输' },
+            { name: '智能天馈', desc: '射频信号末端覆盖' },
+          ],
+        },
+        {
+          en: 'EDGE · 终端层', name: '智能终端', desc: '一线人员的可靠工具',
+          cardBg: '#F1F6F8', cardBorder: '#DCE4E8', cardText: '#16242C', cardSub: '#75858D',
+          items: [
+            { name: 'PNR2100', desc: '专网安全，公网自由' },
+            { name: '数字对讲终端', desc: '坚固耐用，久经考验' },
+            { name: '防爆终端', desc: 'ATEX 认证，化工可用' },
+            { name: '车载台', desc: '移动调度通信' },
+          ],
+        },
+      ],
+      services: [
+        { name: '设计咨询', desc: '现场勘测、频率规划到系统设计，方案在开工前就经过验证。', divider: 'none' },
+        { name: '系统交付', desc: '原厂工程团队施工与调试，交付即达设计指标。', divider: '1px solid #E6EBEE' },
+        { name: '售后响应', desc: '一对一工程师支持，故障响应时限写进合同。', divider: '1px solid #E6EBEE' },
+        { name: '活动保障', desc: '重大活动期间工程师驻场，通信专人值守。', divider: '1px solid #E6EBEE' },
+      ],
+      certs: ['SIRIM', 'IMDA', 'CE / RED', 'ATEX'],
+
+      sideCases: [
+        { name: '长沙黄花国际机场', img: 'assets/case-changsha-airport.jpg', tag: '交通枢纽 · 16 载波集群', desc: 'T3 航站楼 52.43 万㎡，"信号提取—光传—分区"三层架构应对千万级客流。' },
+        { name: '科思创上海一体化基地', img: 'assets/case-covestro.jpg', tag: '化工 · 防爆集群', desc: '24 载波数字基站、100+ 光纤直放站、1000+ 终端，150 万㎡ 无死角覆盖。' },
+      ],
+
+      featuredNews: {
+        tag: '资质认证', date: '2026-05-27 · 上海',
+        title: '三部门莅临和源通信——一场围绕 400MHz 对讲机新政的产业对话',
+        summary: '上海市无线电管理处、上海市无线电监测站、国家无线电监测中心走进和源，对照新规与首批合规设备开展现场实测——DRFT-BDA UHF 为新政后全国首批唯一获证的 400MHz 专用对讲机直放站。',
+        img: 'assets/news-visit-group.jpg',
+        href: '新闻-三部门来访型号核准.dc.html',
+      },
+      newsList: [
+        { tag: '项目交付', date: '2026-06', title: '和源通信携手上海伙伴，护航东方枢纽专用通信系统落地', href: '新闻-东方枢纽专用通信.dc.html' },
+        { tag: '产品发布', date: '2025-11', title: 'PNR2100 智能任务对讲机上市：一台终端，两张网', href: '产品-PNR2100.dc.html' },
+        { tag: '公司新闻', date: '2024-09', title: '和源通信亮相 2024 亚太智能建筑论坛，重塑智能通信生态', href: '新闻-2024亚太智能建筑论坛.dc.html' },
+        { tag: '产品发布', date: '2025-05', title: 'CMP2600 智能多联充电器发布，充电数据接入 NetFlex', href: '产品-CMP2600.dc.html' },
+      ],
+      footerCols: [
+        { title: '行业解决方案', links: [
+          { name: '超高层建筑', href: '#solutions' },
+          { name: '交通枢纽', href: '#solutions' },
+          { name: '能源化工', href: '行业-能源化工.dc.html' },
+          { name: '制造业', href: '#solutions' },
+          { name: '数据中心', href: '#solutions' },
+        ]},
+        { title: '产品与系统', links: [
+          { name: 'DistriNET 系统', href: '#products' },
+          { name: '智能终端与配件', href: '产品-终端.dc.html' },
+          { name: 'PNR2100 智能终端', href: '产品-PNR2100.dc.html' },
+          { name: 'NetFlex 云平台', href: '#products' },
+        ]},
+        { title: '公司', links: [
+          { name: '关于我们', href: '#about' },
+          { name: '成功案例', href: '#cases' },
+          { name: '新闻中心', href: '新闻中心.dc.html' },
+          { name: '联系我们', href: '#contact' },
+        ]},
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

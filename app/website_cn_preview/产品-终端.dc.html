@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="mobile.css">
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Saira:wght@400;500;600;700;800&amp;family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; }
+body { font-family: 'Noto Sans SC', 'PingFang SC', sans-serif; color: #16242C; -webkit-font-smoothing: antialiased; }
+.sc-host { display: contents; }
+image-slot { display: block; width: 100%; height: 100%; }
+</style>
+</helmet>
+
+<div data-screen-label="终端聚合页" style="min-width:1200px;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="products" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ HERO：品类开场 ═══════ -->
+  <section data-screen-label="品类Hero" style="position:relative;background:#0A0D10;color:#ffffff;overflow:hidden;">
+    <div style="position:absolute;inset:0;background:radial-gradient(120% 100% at 75% 30%,#152028 0%,#0A0D10 60%);"></div>
+    <div style="position:relative;max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div style="display:flex;align-items:center;gap:14px;font-size:13.5px;color:rgba(255,255,255,.45);padding-top:28px;">
+        <a href="Evertac官网首页.dc.html" style="color:rgba(255,255,255,.45);text-decoration:none;" style-hover="color:#7FC4DC;">首页</a>
+        <span>/</span>
+        <a href="Evertac官网首页.dc.html#products" style="color:rgba(255,255,255,.45);text-decoration:none;" style-hover="color:#7FC4DC;">产品与系统</a>
+        <span>/</span>
+        <span style="color:rgba(255,255,255,.8);">智能终端与配件</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 520px;gap:48px;align-items:center;min-height:520px;">
+        <div>
+          <div style="font-family:'Saira',sans-serif;font-size:14px;letter-spacing:.24em;color:#7FC4DC;font-weight:600;">RADIOS &amp; ACCESSORIES</div>
+          <h1 style="margin:20px 0 0;font-size:64px;font-weight:900;line-height:1.15;letter-spacing:.01em;">为一线而造</h1>
+          <p style="margin:24px 0 0;font-size:18px;line-height:1.9;color:rgba(255,255,255,.6);max-width:460px;font-weight:300;">PNR 系列智能对讲终端与整套充电、音频装备。<br>握在手里可靠，管在系统里省心。</p>
+          <div style="display:flex;gap:40px;margin-top:48px;">
+            <a href="#pnr2100" style="text-decoration:none;color:#ffffff;font-size:15px;font-weight:500;border-bottom:2px solid #4DA5C7;padding-bottom:6px;" style-hover="color:#7FC4DC;">PNR2100</a>
+            <a href="#pnr2000" style="text-decoration:none;color:rgba(255,255,255,.65);font-size:15px;font-weight:500;border-bottom:2px solid transparent;padding-bottom:6px;" style-hover="color:#ffffff;border-bottom:2px solid #4DA5C7;">PNR2000</a>
+            <a href="#charging" style="text-decoration:none;color:rgba(255,255,255,.65);font-size:15px;font-weight:500;border-bottom:2px solid transparent;padding-bottom:6px;" style-hover="color:#ffffff;border-bottom:2px solid #4DA5C7;">充电装备</a>
+            <a href="#audio" style="text-decoration:none;color:rgba(255,255,255,.65);font-size:15px;font-weight:500;border-bottom:2px solid transparent;padding-bottom:6px;" style-hover="color:#ffffff;border-bottom:2px solid #4DA5C7;">音频配件</a>
+          </div>
+        </div>
+        <div style="position:relative;height:520px;overflow:hidden;">
+          <img src="assets/pnr-hero.jpg" alt="PNR2100" style="position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);height:700px;-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%);">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ PNR2100（旗舰大幅） ═══════ -->
+  <section id="pnr2100" data-screen-label="PNR2100" style="position:relative;background:#0E1418;color:#ffffff;overflow:hidden;border-top:1px solid rgba(255,255,255,.06);">
+    <div style="max-width:1280px;margin:0 auto;padding:110px 32px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;">
+      <div data-reveal="">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="background:#4DA5C7;color:#ffffff;font-family:'Saira',sans-serif;font-size:11px;font-weight:700;letter-spacing:.14em;padding:4px 10px;border-radius:3px;">NEW</span>
+          <span style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.2em;color:#7FC4DC;font-weight:600;">INTELLIGENT TASK RADIO</span>
+        </div>
+        <div style="font-family:'Saira',sans-serif;font-size:76px;font-weight:800;line-height:1;margin-top:22px;color:#ffffff;">PNR2100</div>
+        <div style="font-size:22px;font-weight:300;color:rgba(255,255,255,.75);margin-top:10px;">智能任务对讲机 · 一台终端，两张网</div>
+        <p style="margin:24px 0 0;font-size:16px;line-height:1.9;color:rgba(255,255,255,.55);max-width:460px;font-weight:300;">DMR 专网与 4G LTE 公网双模守候，任务卡片式交互，GPS+BLE 定位，与 NetFlex 云平台深度联动。</p>
+        <div style="display:flex;gap:36px;margin-top:36px;padding-top:28px;border-top:1px solid rgba(255,255,255,.12);">
+          <div><div style="font-family:'Saira',sans-serif;font-size:24px;font-weight:700;color:#7FC4DC;">双模</div><div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;">专网 + 公网守候</div></div>
+          <div><div style="font-family:'Saira',sans-serif;font-size:24px;font-weight:700;color:#7FC4DC;">IP67</div><div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;">工业三防机身</div></div>
+          <div><div style="font-family:'Saira',sans-serif;font-size:24px;font-weight:700;color:#7FC4DC;">GPS+BLE</div><div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;">室内外定位</div></div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:40px;">
+          <a href="产品-PNR2100.dc.html" style="background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:500;padding:13px 30px;border-radius:3px;" style-hover="background:#3B8FB0;">查看产品详情</a>
+          <a href="#contact" style="border:1px solid rgba(255,255,255,.35);color:#ffffff;text-decoration:none;font-size:15px;font-weight:500;padding:13px 30px;border-radius:3px;" style-hover="border-color:#ffffff;">预约演示</a>
+        </div>
+      </div>
+      <div data-reveal="" style="position:relative;height:560px;overflow:hidden;border-radius:6px;">
+        <img src="assets/pnr-rain.jpg" alt="PNR2100 现场使用" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(8,14,18,.8));"></div>
+        <div style="position:absolute;left:24px;bottom:20px;font-size:13.5px;color:rgba(255,255,255,.85);"><span style="font-family:'Saira',sans-serif;letter-spacing:.12em;color:#9FD3E6;">ALL-WEATHER</span> · 雨雪粉尘，照常运转</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ PNR2000（棚拍大图） ═══════ -->
+  <section id="pnr2000" data-screen-label="PNR2000" style="position:relative;background:#0A0D10;color:#ffffff;overflow:hidden;border-top:1px solid rgba(255,255,255,.06);">
+    <div style="max-width:1280px;margin:0 auto;padding:110px 32px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;">
+      <div data-reveal="" style="position:relative;height:600px;overflow:hidden;border-radius:6px;order:1;">
+        <img src="assets/pnr2000-studio.jpg" alt="PNR2000 专业数字对讲机" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 40%;">
+      </div>
+      <div data-reveal="" style="order:2;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.2em;color:#7FC4DC;font-weight:600;">PROFESSIONAL DMR RADIO</div>
+        <div style="font-family:'Saira',sans-serif;font-size:76px;font-weight:800;line-height:1;margin-top:22px;">PNR2000</div>
+        <div style="font-size:22px;font-weight:300;color:rgba(255,255,255,.75);margin-top:10px;">专业数字对讲机 · 简单，可靠</div>
+        <p style="margin:24px 0 0;font-size:16px;line-height:1.9;color:rgba(255,255,255,.55);max-width:460px;font-weight:300;">标准 DMR 通信，数字模拟双模式并行，从现有模拟系统低成本平滑过渡。数字信号解码，语音清晰洪亮；紧凑轻便机身，久握不累。</p>
+        <div style="display:flex;gap:36px;margin-top:36px;padding-top:28px;border-top:1px solid rgba(255,255,255,.12);">
+          <div><div style="font-family:'Saira',sans-serif;font-size:24px;font-weight:700;color:#7FC4DC;">双模式</div><div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;">数字 / 模拟并行</div></div>
+          <div><div style="font-family:'Saira',sans-serif;font-size:24px;font-weight:700;color:#7FC4DC;">10-12h</div><div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;">电池续航</div></div>
+          <div><div style="font-family:'Saira',sans-serif;font-size:24px;font-weight:700;color:#7FC4DC;">U/V 全段</div><div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;">UHF · VHF 覆盖</div></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:28px;flex-wrap:wrap;">
+          <span style="font-size:13px;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 16px;">紧急报警</span>
+          <span style="font-size:13px;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 16px;">双时隙通话</span>
+          <span style="font-size:13px;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 16px;">语音加密</span>
+          <span style="font-size:13px;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 16px;">VOC 声控</span>
+          <span style="font-size:13px;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 16px;">Type-C</span>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:40px;">
+          <a href="产品-PNR2000.dc.html" style="background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:500;padding:13px 30px;border-radius:3px;" style-hover="background:#3B8FB0;">查看产品详情</a>
+          <a href="#contact" style="border:1px solid rgba(255,255,255,.35);color:#ffffff;text-decoration:none;font-size:15px;font-weight:500;padding:13px 30px;border-radius:3px;" style-hover="border-color:#ffffff;">获取规格书</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 充电装备 ═══════ -->
+  <section id="charging" data-screen-label="充电装备" style="position:relative;background:#0E1418;color:#ffffff;overflow:hidden;border-top:1px solid rgba(255,255,255,.06);">
+    <div style="max-width:1280px;margin:0 auto;padding:110px 32px;">
+      <div data-reveal="">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.2em;color:#7FC4DC;font-weight:600;">CHARGING FLEET</div>
+        <h2 style="margin:16px 0 0;font-size:44px;font-weight:700;line-height:1.3;">批量部署的另一半，<br>是井然有序的充电管理</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:28px;margin-top:56px;">
+        <!-- CMP2600 -->
+        <div data-reveal="" style="position:relative;border-radius:6px;overflow:hidden;min-height:560px;background:#000000;">
+          <img src="assets/cmp2600-studio.jpg" alt="CMP2600 智能多联桌面充电器" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 55%;">
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,6,8,.25) 0%,transparent 35%,transparent 55%,rgba(4,6,8,.92) 100%);"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:36px;">
+            <div style="font-family:'Saira',sans-serif;font-size:34px;font-weight:800;">CMP2600</div>
+            <div style="font-size:17px;color:rgba(255,255,255,.8);margin-top:4px;">智能多联桌面充电器</div>
+            <p style="margin:14px 0 0;font-size:14.5px;line-height:1.8;color:rgba(255,255,255,.6);max-width:520px;font-weight:300;">六位一体，整班组终端集中充电。每一位独立指示充电状态，取用一目了然。</p>
+            <a href="产品-CMP2600.dc.html" style="display:inline-block;margin-top:20px;font-size:14.5px;color:#7FC4DC;text-decoration:none;font-weight:500;">查看产品详情 →</a>
+          </div>
+        </div>
+        <!-- 充电柜（占位） -->
+        <div data-reveal="" style="position:relative;border-radius:6px;overflow:hidden;min-height:560px;background:#11181D;display:flex;flex-direction:column;">
+          <div style="flex:1;position:relative;">
+            <x-import component-from-global-scope="image-slot" from="./image-slot.js" id="acc-cabinet-photo" shape="rect" placeholder="拖入智能充电柜产品图" style="position:absolute;inset:0;" hint-size="100%,360px"></x-import>
+          </div>
+          <div style="padding:30px 32px 36px;border-top:1px solid rgba(255,255,255,.08);">
+            <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#7FC4DC;font-weight:600;">CHARGING CABINET</div>
+            <div style="font-size:22px;font-weight:600;margin-top:8px;">智能充电柜</div>
+            <p style="margin:10px 0 0;font-size:14px;line-height:1.8;color:rgba(255,255,255,.55);font-weight:300;">大规模部署的集中充电与存放方案，取还有序、电量可管。</p>
+            <a href="#contact" style="display:inline-block;margin-top:16px;font-size:14px;color:#7FC4DC;text-decoration:none;font-weight:500;">咨询详情 →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 音频配件 ═══════ -->
+  <section id="audio" data-screen-label="音频配件" style="background:#0A0D10;color:#ffffff;border-top:1px solid rgba(255,255,255,.06);">
+    <div style="max-width:1280px;margin:0 auto;padding:100px 32px 110px;display:grid;grid-template-columns:1fr 1.2fr;gap:64px;align-items:center;">
+      <div data-reveal="">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.2em;color:#7FC4DC;font-weight:600;">AUDIO ACCESSORIES</div>
+        <h2 style="margin:16px 0 0;font-size:44px;font-weight:700;line-height:1.3;">戴上就位，<br>解放双手</h2>
+        <p style="margin:20px 0 0;font-size:16px;line-height:1.9;color:rgba(255,255,255,.55);max-width:420px;font-weight:300;">耳挂、喉麦与肩咪等多种佩戴方式，适配不同岗位与噪声环境——让指令在嘈杂现场依然清晰入耳。</p>
+        <a href="#contact" style="display:inline-block;margin-top:28px;font-size:14.5px;color:#7FC4DC;text-decoration:none;font-weight:500;">咨询配件选型 →</a>
+      </div>
+      <div data-reveal="" style="height:420px;border-radius:6px;overflow:hidden;background:#11181D;">
+        <x-import component-from-global-scope="image-slot" from="./image-slot.js" id="acc-headset-photo" shape="rect" placeholder="拖入耳机 / 音频配件产品图" style="display:block;width:100%;height:100%;" hint-size="100%,420px"></x-import>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ CTA ═══════ -->
+  <section id="contact" data-screen-label="联系CTA" style="background:#ffffff;padding:88px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:flex;justify-content:space-between;align-items:center;gap:40px;">
+      <div>
+        <div style="width:48px;height:4px;background:#4DA5C7;"></div>
+        <h2 style="margin:22px 0 0;font-size:32px;font-weight:700;">为团队配齐装备</h2>
+        <p style="margin:12px 0 0;font-size:15.5px;color:#5B6B73;">告诉我们团队规模与使用场景，我们给出终端与配件的整套配置建议。</p>
+      </div>
+      <a href="mailto:info@evertacsolutions.com" style="flex-shrink:0;background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:15px 36px;border-radius:3px;" style-hover="background:#3B8FB0;">获取配置建议</a>
+    </div>
+  </section>
+
+  <!-- ═══════ 页脚（简化） ═══════ -->
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const els = document.querySelectorAll('[data-reveal]');
+    els.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(22px)';
+      el.style.transition = 'opacity .8s cubic-bezier(.22,.61,.36,1), transform .8s cubic-bezier(.22,.61,.36,1)';
+    });
+    this._io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+          this._io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    els.forEach((el) => this._io.observe(el));
+  }
+  componentWillUnmount() { if (this._io) this._io.disconnect(); }
+
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

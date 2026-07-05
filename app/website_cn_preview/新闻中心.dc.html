@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="mobile.css">
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Saira:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; }
+body { font-family: 'Noto Sans SC', 'PingFang SC', sans-serif; color: #16242C; -webkit-font-smoothing: antialiased; }
+.sc-host { display: contents; }
+</style>
+</helmet>
+
+<div data-screen-label="新闻中心" style="min-width:1200px;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="news" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ 页头 ═══════ -->
+  <section data-screen-label="页头" style="background:#F7FAFB;border-bottom:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:52px 32px 0;">
+      <div style="display:flex;align-items:center;gap:14px;font-size:13.5px;color:#8A99A1;">
+        <a href="Evertac官网首页.dc.html" style="color:#8A99A1;text-decoration:none;" style-hover="color:#4DA5C7;">首页</a>
+        <span>/</span>
+        <span style="color:#16242C;">新闻中心</span>
+      </div>
+      <h1 style="margin:28px 0 0;font-size:42px;font-weight:900;">新闻中心</h1>
+      <p style="margin:14px 0 0;font-size:16px;color:#5B6B73;line-height:1.8;">公司动态、产品发布、项目交付与行业观察。</p>
+      <!-- 分类 tabs -->
+      <div class="evt-tabrow" style="display:flex;gap:4px;margin-top:36px;">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="6">
+          <div onClick="{{ t.select }}" style="padding:12px 22px;font-size:15px;font-weight:500;color:{{ t.color }};border-bottom:3px solid {{ t.bar }};cursor:pointer;transition:color .15s;">{{ t.label }}</div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 头条区（仅"全部"时显示） ═══════ -->
+  <sc-if value="{{ showFeatured }}" hint-placeholder-val="{{ true }}">
+    <section data-screen-label="头条区" style="background:#ffffff;padding:56px 0 8px;">
+      <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:grid;grid-template-columns:1.5fr 1fr;gap:28px;">
+        <!-- 大头条 -->
+        <a href="新闻-东方枢纽专用通信.dc.html" style="text-decoration:none;color:#ffffff;position:relative;border-radius:6px;overflow:hidden;display:block;min-height:440px;background:#0E2430;">
+          <img src="assets/news-eastern-hub-plaza.png" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,18,26,.94) 10%,rgba(8,18,26,.3) 55%,transparent);"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:32px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <span style="background:#4DA5C7;color:#ffffff;font-size:12px;font-weight:600;padding:4px 12px;border-radius:3px;">项目交付</span>
+              <span style="font-family:'Saira',sans-serif;font-size:12.5px;color:rgba(255,255,255,.7);">2026-06-10 · 上海</span>
+            </div>
+            <div style="font-size:26px;font-weight:700;line-height:1.5;margin-top:14px;max-width:620px;">和源通信携手上海伙伴，护航东方枢纽专用通信系统落地</div>
+            <p style="margin:10px 0 0;font-size:14.5px;line-height:1.8;color:rgba(255,255,255,.75);max-width:600px;">为东方枢纽上海东站量身设计专用无线通信方案，承担地上 L1 层覆盖系统实施落地。</p>
+          </div>
+        </a>
+        <!-- 右侧两条次头条 -->
+        <div style="display:flex;flex-direction:column;gap:28px;">
+          <sc-for list="{{ subFeatured }}" as="sf" hint-placeholder-count="2">
+            <a href="{{ sf.href }}" style="text-decoration:none;color:#ffffff;position:relative;border-radius:6px;overflow:hidden;display:block;flex:1;min-height:206px;background:#0E2430;">
+              <div style="position:absolute;inset:0;background-image:{{ sf.bgImg }};background-size:cover;background-position:center;"></div>
+              <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(8,18,26,.94) 14%,rgba(8,18,26,.25) 60%,transparent);"></div>
+              <div style="position:absolute;left:0;right:0;bottom:0;padding:22px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:11.5px;font-weight:600;color:#9FD3E6;letter-spacing:.04em;">{{ sf.tag }}</span>
+                  <span style="font-family:'Saira',sans-serif;font-size:11.5px;color:rgba(255,255,255,.6);">{{ sf.date }}</span>
+                </div>
+                <div style="font-size:17px;font-weight:600;line-height:1.55;margin-top:8px;">{{ sf.title }}</div>
+              </div>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+    </section>
+  </sc-if>
+
+  <!-- ═══════ 新闻列表 ═══════ -->
+  <section data-screen-label="新闻列表" style="background:#ffffff;padding:48px 0 88px;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 56px;">
+        <sc-for list="{{ filtered }}" as="n" hint-placeholder-count="8">
+          <a href="{{ n.href }}" style="text-decoration:none;color:#16242C;display:grid;grid-template-columns:150px 1fr;gap:24px;padding:26px 0;border-bottom:1px solid #EAF0F3;align-items:center;" style-hover="color:#2E7FA3;">
+            <div style="border-radius:5px;overflow:hidden;height:96px;background:#F1F6F8;background-image:{{ n.bgImg }};background-size:cover;background-position:center;"></div>
+            <div>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:12px;font-weight:600;color:#4DA5C7;letter-spacing:.04em;">{{ n.tag }}</span>
+                <span style="font-family:'Saira',sans-serif;font-size:12px;color:#8A99A1;">{{ n.date }}</span>
+              </div>
+              <div style="font-size:16.5px;font-weight:600;line-height:1.55;margin-top:8px;">{{ n.title }}</div>
+              <div style="font-size:13.5px;color:#5B6B73;line-height:1.7;margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">{{ n.summary }}</div>
+            </div>
+          </a>
+        </sc-for>
+      </div>
+      <!-- 订阅 -->
+      <div style="margin-top:56px;background:#0E2430;border-radius:6px;padding:32px 36px;display:flex;justify-content:space-between;align-items:center;gap:40px;color:#ffffff;">
+        <div>
+          <div style="font-size:20px;font-weight:700;">订阅产品与行业资讯</div>
+          <div style="font-size:14px;color:rgba(255,255,255,.6);margin-top:6px;font-weight:300;">新产品发布、项目案例与行业观察，第一时间送达。</div>
+        </div>
+        <a href="mailto:info@evertacsolutions.com" style="flex-shrink:0;background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:500;padding:13px 30px;border-radius:3px;" style-hover="background:#3B8FB0;">订阅</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 页脚（简化） ═══════ -->
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { cat: '全部' };
+
+  renderVals() {
+    const cat = this.state.cat;
+    const cats = ['全部', '公司新闻', '产品发布', '项目交付', '渠道动态', '资质认证'];
+    const detail = '新闻-2024亚太智能建筑论坛.dc.html';
+    const hub = '新闻-东方枢纽专用通信.dc.html';
+    const visit = '新闻-三部门来访型号核准.dc.html';
+    const all = [
+      { tag: '资质认证', date: '2026-05-27', img: 'assets/news-visit-group.jpg', href: visit,
+        title: '三部门菅临和源通信——一场围绕 400MHz 对讲机新政的产业对话',
+        summary: '上海市无线电管理处、上海市无线电监测站、国家无线电监测中心走进和源，对照新规、对照首批合规设备展开现场实测——DRFT-BDA UHF 为新政后全国首批唯一获证的 400MHz 专用对讲机直放站。' },
+      { tag: '项目交付', date: '2026-06-10', img: 'assets/news-eastern-hub-plaza.png', href: hub,
+        title: '和源通信携手上海伙伴，护航东方枢纽专用通信系统落地',
+        summary: '为东方枢纽上海东站量身设计专用无线通信方案，承担地上 L1 层覆盖系统实施——400MHz 专网调度与 350MHz 消防应急共用一套宽频天馈。' },
+      { tag: '公司新闻', date: '2024-09-02', img: 'assets/engineers.png', href: detail,
+        title: '和源通信亮相 2024 亚太智能建筑论坛，重塑智能通信生态',
+        summary: '围绕 DistriNET 分布式网络与 NetFlex 云平台，展示商业建筑日常运营与事件处置中的团队协同方案。' },
+      { tag: '产品发布', date: '2025-11', img: 'assets/pnr-hero.jpg', href: detail,
+        title: 'PNR2100 智能任务对讲机上市：一台终端，两张网',
+        summary: 'DMR 专网与 4G LTE 公网双模守候，任务卡片式交互，与 NetFlex 平台深度联动。' },
+      { tag: '渠道动态', date: '2025-01', img: 'assets/control-room.png', href: detail,
+        title: '2025 年渠道伙伴授权完成，营销网络体系深化调整',
+        summary: '以赋能解决方案予代理商、加强品牌传播效应，推动渠道向组织驱动型模式转变。' },
+      { tag: '项目交付', date: '2025-08', img: 'assets/airport.png', href: detail,
+        title: '某国际机场无线对讲系统改造项目完成整体交付',
+        summary: '航站楼与飞行区多网融合覆盖，地勤调度与应急通信合一。（占位，请替换真实项目）' },
+      { tag: '资质认证', date: '2025-06', img: 'assets/equipment-room.png', href: detail,
+        title: 'MAEX10 系列通过欧盟 ATEX 防爆型式检验',
+        summary: 'Ⅱ2G/2D，T6/T85℃ · IP65，可用于石化等易燃易爆生产环境。' },
+      { tag: '产品发布', date: '2025-05', img: 'assets/cmp2600-studio.jpg', href: detail,
+        title: 'CMP2600 智能多联充电器发布，充电数据接入 NetFlex',
+        summary: '六槽独立管理芯片，电池充放电维护数据实时上云可查。' },
+      { tag: '项目交付', date: '2024-12', img: 'assets/port.png', href: detail,
+        title: '某跨海通道集群通信系统通过年度运维验收',
+        summary: '全程无缝覆盖持续稳定运行。（占位，请替换真实项目）' },
+      { tag: '公司新闻', date: '2024-06', img: 'assets/datacenter.png', href: detail,
+        title: '和源通信与多家数据中心运营方达成运维通信合作',
+        summary: '机房与动力设施的运维协作通信方案落地。（占位，请替换真实动态）' },
+    ];
+    const withBg = (n) => ({ ...n, bgImg: 'url("' + n.img + '")' });
+    return {
+      tabs: cats.map((c) => ({
+        label: c,
+        select: () => this.setState({ cat: c }),
+        color: cat === c ? '#16242C' : '#8A99A1',
+        bar: cat === c ? '#4DA5C7' : 'transparent',
+      })),
+      showFeatured: cat === '全部',
+      subFeatured: [
+        { tag: '资质认证', date: '2026-05-27', img: 'assets/news-visit-group.jpg', href: '新闻-三部门来访型号核准.dc.html', title: '三部门菅临和源通信——围绕 400MHz 对讲机新政的产业对话' },
+        { tag: '产品发布', date: '2025-11', img: 'assets/pnr-rain.jpg', href: '产品-PNR2100.dc.html', title: 'PNR2100 智能任务对讲机上市：一台终端，两张网' },
+      ].map(withBg),
+      filtered: (cat === '全部' ? all : all.filter((n) => n.tag === cat)).map(withBg),
+    };
+  }
+}
+</script>
+</body>
+</html>

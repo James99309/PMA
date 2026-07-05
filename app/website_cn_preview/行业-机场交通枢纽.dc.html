@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Saira:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  ::selection { background: #4DA5C7; color: #fff; }
+</style>
+</helmet>
+
+<div style="font-family:'Noto Sans SC','PingFang SC',sans-serif;color:#16242C;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="solutions" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ HERO ═══════ -->
+  <section data-screen-label="机场·封面" style="position:relative;background:#0A1A22;color:#fff;overflow:hidden;min-height:540px;display:flex;align-items:center;">
+    <img src="assets/airport-hero.png" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;opacity:.5;pointer-events:none;">
+    <div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(10,26,34,.95) 0%,rgba(10,26,34,.8) 46%,rgba(10,26,34,.4) 100%);pointer-events:none;"></div>
+    <div style="position:relative;max-width:1280px;margin:0 auto;padding:92px 32px;width:100%;">
+      <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.24em;color:#7FC4DC;font-weight:600;">AIRPORT &amp; TRANSPORTATION HUB</div>
+      <h1 class="evt-hero-h1" style="margin:20px 0 0;font-size:52px;line-height:1.14;font-weight:900;letter-spacing:-.01em;max-width:16em;">一张融合专网，<br>让每个航班准点起落。</h1>
+      <p style="margin:26px 0 0;font-size:19px;line-height:1.75;color:rgba(255,255,255,.76);max-width:42em;font-weight:300;">航站楼、廊桥、停机坪、行李分拣、地下捷运——机场运行环节多、跨度大、室内外交织。以 <strong style="color:#fff;font-weight:500;">DistriNET MAX 数字化融合通信平台</strong>，把地勤调度、公共安全与应急指挥汇入一张网，室外覆盖更广、室内质量更高。</p>
+      <div style="margin-top:38px;display:flex;gap:14px;flex-wrap:wrap;">
+        <a href="Evertac官网首页.dc.html#contact" style="background:#4DA5C7;color:#fff;text-decoration:none;padding:15px 30px;border-radius:5px;font-size:15px;font-weight:500;transition:background .2s;" style-hover="background:#3d94b6;">咨询机场方案</a>
+        <a href="#coverage" style="background:rgba(255,255,255,.08);color:#fff;text-decoration:none;padding:15px 30px;border-radius:5px;font-size:15px;font-weight:500;border:1px solid rgba(255,255,255,.16);transition:background .2s;" style-hover="background:rgba(255,255,255,.14);">看全域覆盖</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ② 多元化运营覆盖（等距全景图） ═══════ -->
+  <section id="coverage" data-screen-label="全域覆盖" style="background:#F4F8FA;padding:90px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="max-width:48em;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-weight:600;">DIVERSIFIED OPERATIONS</div>
+        <h2 style="margin:14px 0 0;font-size:32px;font-weight:900;line-height:1.28;">一套系统，覆盖机场每一个作业环节</h2>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.8;color:#5B6B73;">数字光纤远端（ORU）沿航站楼、廊桥、停机坪、停车场、地下捷运与在建楼宇分布，把统一主基站的信号送达每一处——运营多元化催生越来越多的通信队伍，一张网即可承载。</p>
+      </div>
+      <div data-reveal style="margin-top:36px;background:#fff;border:1px solid #E1EAEE;border-radius:16px;padding:26px;">
+        <img src="assets/airport-iso.png" alt="机场全域光纤分布覆盖示意" style="width:100%;height:auto;display:block;">
+      </div>
+      <div class="evt-grid-4" data-reveal style="margin-top:30px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+        <sc-for list="{{ zones }}" as="z" hint-placeholder-count="4">
+          <div style="padding:20px 20px;background:#fff;border:1px solid #E6EBEE;border-radius:10px;">
+            <div style="font-size:15.5px;font-weight:700;color:#16242C;">{{ z.area }}</div>
+            <p style="margin:8px 0 0;font-size:13.5px;line-height:1.7;color:#5B6B73;">{{ z.ops }}</p>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ③ 集成通信平台 · DistriNET MAX ═══════ -->
+  <section data-screen-label="集成平台" style="background:#0A1A22;color:#fff;padding:92px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div class="evt-2col" style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:56px;align-items:center;">
+        <div data-reveal>
+          <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#7FC4DC;font-weight:600;">INTEGRATED PLATFORM</div>
+          <h2 style="margin:14px 0 0;font-size:32px;font-weight:900;line-height:1.28;">集成通信平台，<br>已是行业大势</h2>
+          <p style="margin:18px 0 0;font-size:16px;line-height:1.85;color:rgba(255,255,255,.74);font-weight:300;">机场日益成为城市间最高效的通勤枢纽，规模与客流对运行管理提出更高标准。基于基站组合的传统专网，正被<strong style="color:#fff;font-weight:500;">数字化、智能化的集成通信平台</strong>取代——从基站到传输系统全程数字化，为未来运行与应急响应提供有力支撑。</p>
+          <p style="margin:16px 0 0;font-size:16px;line-height:1.85;color:rgba(255,255,255,.74);font-weight:300;"><strong style="color:#7FC4DC;font-weight:600;">DistriNET MAX</strong> 最多可同时提供 24 条全域通信信道，把语音、数据与调度并发承载在一条更宽、更可靠的通路上，从容应对多业务并发导致的通信拥塞。</p>
+          <div style="margin-top:26px;display:flex;gap:14px;flex-wrap:wrap;">
+            <a href="产品-合路平台.dc.html" style="background:#4DA5C7;color:#fff;text-decoration:none;padding:13px 26px;border-radius:5px;font-size:14.5px;font-weight:500;transition:background .2s;" style-hover="background:#3d94b6;">了解 DistriNET MAX →</a>
+          </div>
+        </div>
+        <div data-reveal style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+          <sc-for list="{{ platformStats }}" as="s" hint-placeholder-count="4">
+            <div style="padding:24px 22px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;">
+              <div style="font-family:'Saira',sans-serif;font-size:34px;font-weight:800;line-height:1;color:#7FC4DC;">{{ s.k }}</div>
+              <div style="margin-top:12px;font-size:14.5px;font-weight:600;color:#fff;">{{ s.title }}</div>
+              <p style="margin:6px 0 0;font-size:13px;line-height:1.65;color:rgba(255,255,255,.6);">{{ s.desc }}</p>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ④ 分区化管理 · 无缝扩容 ═══════ -->
+  <section data-screen-label="分区扩容" style="background:#ffffff;padding:90px 0;border-bottom:1px solid #EEF2F4;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="max-width:48em;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-weight:600;">REGIONALIZED MANAGEMENT</div>
+        <h2 style="margin:14px 0 0;font-size:32px;font-weight:900;line-height:1.28;">分区化管理，跨楼无缝扩容</h2>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.8;color:#5B6B73;">不同建设阶段的航站楼可无缝扩容：一座航站楼的主基站作中枢，其余航站楼作为汇聚中心，把信号逐级扩展到更大范围。为广阔的航站楼与停机坪清晰划定各区专网的覆盖范围与呼叫清晰度，高效协同众多部门与服务机构。</p>
+      </div>
+      <div data-reveal style="margin-top:36px;background:#F4F8FA;border:1px solid #E1EAEE;border-radius:16px;padding:30px 26px;">
+        <img src="assets/airport-coverage.png" alt="航站楼分区覆盖示意（主基站中枢 + ORU 汇聚扩展）" style="width:100%;height:auto;display:block;">
+      </div>
+      <div class="evt-grid-4" data-reveal style="margin-top:30px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+        <sc-for list="{{ expandNodes }}" as="n" hint-placeholder-count="4">
+          <div style="padding:20px 20px;border-top:2px solid rgba(77,165,199,.4);">
+            <div style="font-family:'Saira',sans-serif;font-size:12px;letter-spacing:.1em;color:#4DA5C7;font-weight:600;">{{ n.tag }}</div>
+            <div style="margin-top:8px;font-size:16px;font-weight:700;">{{ n.name }}</div>
+            <p style="margin:6px 0 0;font-size:13px;line-height:1.7;color:#5B6B73;">{{ n.desc }}</p>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ CTA ═══════ -->
+  <section data-screen-label="CTA" style="background:#0A1A22;color:#fff;padding:80px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:28px;">
+      <div>
+        <h2 style="margin:0;font-size:30px;font-weight:900;line-height:1.3;">让机场运行，始终在线</h2>
+        <p style="margin:12px 0 0;font-size:16px;color:rgba(255,255,255,.68);font-weight:300;">航站楼、廊桥、停机坪、地下捷运——一套数字融合专网，覆盖每一个作业环节。</p>
+      </div>
+      <a href="Evertac官网首页.dc.html#contact" style="background:#4DA5C7;color:#fff;text-decoration:none;padding:16px 34px;border-radius:5px;font-size:16px;font-weight:500;flex:none;transition:background .2s;" style-hover="background:#3d94b6;">咨询机场方案 →</a>
+    </div>
+  </section>
+
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const els = document.querySelectorAll('[data-reveal]');
+    els.forEach((el) => { el.style.opacity = '0'; el.style.transform = 'translateY(22px)'; el.style.transition = 'opacity .7s cubic-bezier(.22,.61,.36,1), transform .7s cubic-bezier(.22,.61,.36,1)'; });
+    this._io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.style.opacity = '1'; e.target.style.transform = 'translateY(0)'; this._io.unobserve(e.target); } }), { threshold: 0.1 });
+    els.forEach((el) => this._io.observe(el));
+  }
+  componentWillUnmount() { if (this._io) this._io.disconnect(); }
+  renderVals() {
+    return {
+      challenges: [
+        { no: '01', title: '通信增容', desc: '机场扩容与运营多元化，通信队伍不断增多，传统专网的信道容量日渐吃紧。' },
+        { no: '02', title: '可靠与信息安全', desc: '复杂电磁环境下需抗干扰、防风险，杜绝系统越权接入与信息泄露。' },
+        { no: '03', title: '简化高效运维', desc: '故障即时预警、主动介入，掌握系统运行状态，避免通信瘫痪拖累运行。' },
+        { no: '04', title: '业务流程融合', desc: '不止语音与无线调度，更要延伸到运行管理的每个环节，推动流程数字化。' },
+      ],
+      zones: [
+        { area: '航站楼大厅', ops: '值机管理、安检与安防、旅客服务的高密度室内覆盖。' },
+        { area: '廊桥区域', ops: '登机口管理与地勤对接，廊桥与近机位可靠通信。' },
+        { area: '停机坪 / 跑道', ops: '车辆调度、行李装卸与地面作业的室外广域覆盖。' },
+        { area: '行李分拣区', ops: '行李分拣与转运调度，仓储式空间的稳定连接。' },
+      ],
+      platformStats: [
+        { k: '24', title: '全域通信信道', desc: '并发承载语音、数据与调度。' },
+        { k: '端到端', title: '全程数字化', desc: '从基站到传输系统全数字。' },
+        { k: 'NetFlex', title: '统一运维平台', desc: '状态可视、故障预警。' },
+        { k: '一网', title: '融合承载', desc: '多业务并发不拥塞。' },
+      ],
+      expandNodes: [
+        { tag: 'HUB', name: '主基站航站楼', desc: '一座航站楼的主基站作为中枢核心。' },
+        { tag: 'AGGREGATION', name: '汇聚航站楼', desc: '其余航站楼作汇聚中心，逐级扩展。' },
+        { tag: 'ORU', name: '数字光纤远端', desc: '沿建筑分布，把信号送达各分区。' },
+        { tag: 'FUTURE', name: '在建 / 扩展区', desc: '经光纤接入新建楼宇与隧道，平滑扩容。' },
+      ],
+      bands: [
+        { mhz: '400 MHz', title: '机场运营', color: '#4DA5C7', desc: '地勤调度、值机与行李、车辆作业的日常运行通信。' },
+        { mhz: '350 MHz', title: '公共安全', color: '#5A9E6F', desc: '公安与安保系统，保障机场公共区域的安全联动。' },
+        { mhz: '800 MHz', title: '消防灭火', color: '#C46A4A', desc: '消防与应急救援通信，突发时刻快速指挥协同。' },
+      ],
+      dr: [
+        { no: '01', title: '分区管理 ORU', desc: '高性能数字光纤 ORU 分区化管理，将故障影响降到单一分区之内。' },
+        { no: '02', title: '双基站容灾冗余', desc: '交织式数字光纤 ORU 支持双基站容灾冗余，同步传输、主动防障。' },
+        { no: '03', title: '主备信号传输', desc: '天馈系统支持双基站容灾与备份信号传输，保障通信可靠不中断。' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

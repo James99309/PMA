@@ -357,6 +357,9 @@ def create_app(config_class=Config):
     # AT 设计系统预览(开发期临时)
     from app.routes.at_preview_routes import at_preview_bp
 
+    # 中国官网预览(测试用途,需登录)
+    from app.routes.website_preview_routes import website_preview_bp
+
     # 导入库存管理蓝图
     from app.routes.inventory import inventory
 
@@ -408,6 +411,7 @@ def create_app(config_class=Config):
     csrf.exempt(product_sn_bp)  # 豁免序列号管理蓝图的CSRF保护
 
     app.register_blueprint(at_preview_bp)  # AT 设计系统预览(开发期)
+    app.register_blueprint(website_preview_bp)  # 中国官网预览(测试用途,需登录)
     app.register_blueprint(inventory, url_prefix='/inventory')  # 注册库存管理蓝图
     app.register_blueprint(purchase_order_bp)  # 注册采购订单蓝图（Tailwind风格）
     csrf.exempt(purchase_order_bp)  # 豁免采购订单蓝图的CSRF保护

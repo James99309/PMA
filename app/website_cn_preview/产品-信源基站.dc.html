@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="mobile.css">
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Saira:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; }
+body { font-family: 'Noto Sans SC', 'PingFang SC', sans-serif; color: #16242C; -webkit-font-smoothing: antialiased; }
+.sc-host { display: contents; }
+</style>
+</helmet>
+
+<div data-screen-label="信源基站详情页" style="min-width:1200px;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="products" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ 产品头部 ═══════ -->
+  <section data-screen-label="产品头部" style="background:#F7FAFB;border-bottom:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:56px 32px 64px;">
+      <div style="display:flex;align-items:center;gap:14px;font-size:13.5px;color:#8A99A1;">
+        <a href="Evertac官网首页.dc.html" style="color:#8A99A1;text-decoration:none;" style-hover="color:#4DA5C7;">首页</a>
+        <span>/</span>
+        <a href="Evertac官网首页.dc.html#products" style="color:#8A99A1;text-decoration:none;" style-hover="color:#4DA5C7;">产品与系统</a>
+        <span>/</span>
+        <span style="color:#16242C;">信源基站</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 420px;gap:64px;align-items:center;margin-top:40px;">
+        <div>
+          <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">DISTRINET SIGNAL SOURCE</div>
+          <h1 style="margin:14px 0 0;font-size:42px;font-weight:900;line-height:1.3;">信源基站</h1>
+          <div style="font-family:'Saira',sans-serif;font-size:16px;color:#8A99A1;letter-spacing:.06em;margin-top:8px;">BASE STATION</div>
+          <p style="margin:20px 0 0;font-size:16px;line-height:1.95;color:#5B6B73;max-width:560px;">DistriNET 分布式系统的信号源头：既可选择工厂集成、开箱即用的一体化基站，也可按需选配 MARK1000 MAX 智能数字信道机自行组柜。</p>
+          <div style="display:flex;gap:12px;margin-top:30px;">
+            <a href="#integrated" style="text-decoration:none;background:#4DA5C7;color:#ffffff;font-size:14.5px;font-weight:500;padding:12px 26px;border-radius:3px;" style-hover="background:#3B8FB0;">一体化基站</a>
+            <a href="#mark1000" style="text-decoration:none;border:1px solid #C9D6DD;color:#16242C;font-size:14.5px;font-weight:500;padding:12px 26px;border-radius:3px;" style-hover="border-color:#4DA5C7;color:#4DA5C7;">MARK1000 MAX 信道机</a>
+          </div>
+        </div>
+        <div style="border-radius:6px;overflow:hidden;border:1px solid #E6EBEE;background:#0A141C;">
+          <img src="assets/base-station-rack.png" alt="一体化基站机柜" style="width:100%;height:340px;object-fit:cover;object-position:center 30%;display:block;">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 一体化基站（深色块） ═══════ -->
+  <section id="integrated" data-screen-label="一体化基站" style="background:#ffffff;padding:88px 0 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="background:#0E3440;border-radius:10px;padding:56px 48px;color:#ffffff;display:grid;grid-template-columns:.85fr 1.15fr;gap:64px;align-items:center;">
+        <div style="border-radius:8px;overflow:hidden;">
+          <img src="assets/base-station-rack.png" alt="一体化基站 · 工厂集成机柜" style="width:100%;height:520px;object-fit:cover;display:block;">
+        </div>
+        <div>
+          <div style="font-family:'Saira',sans-serif;font-size:14px;color:#7FC4DC;font-weight:600;letter-spacing:.1em;">01 · INTEGRATED BASE STATION</div>
+          <h2 style="margin:12px 0 0;font-size:32px;font-weight:900;line-height:1.4;color:#ffffff;">一体化基站</h2>
+          <p style="margin:18px 0 0;font-size:15px;line-height:2.0;color:rgba(255,255,255,.75);font-weight:300;">面向标准设计的系统：从信源到合路平台、光纤近端机，以及所需的配线架、交换机与服务器，在工厂内一柜集成、预连预调——到场即吊装，上电即开通。</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-top:28px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.12);border-radius:6px;overflow:hidden;">
+            <sc-for list="{{ rackItems }}" as="r" hint-placeholder-count="6">
+              <div style="background:#0E3440;padding:16px 20px;">
+                <div style="font-size:15px;font-weight:600;color:#ffffff;">{{ r.name }}</div>
+                <div style="font-size:12.5px;color:rgba(255,255,255,.55);margin-top:3px;">{{ r.desc }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:26px;">
+            <sc-for list="{{ rackPoints }}" as="pt" hint-placeholder-count="3">
+              <div style="display:flex;gap:12px;align-items:flex-start;">
+                <span style="flex:none;width:5px;height:5px;border-radius:50%;background:#7FC4DC;margin-top:9px;"></span>
+                <span style="font-size:14px;line-height:1.75;color:rgba(255,255,255,.82);">{{ pt }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <a href="mailto:info@evertacsolutions.com" style="display:inline-block;margin-top:30px;text-decoration:none;background:#4DA5C7;color:#ffffff;font-size:14.5px;font-weight:500;padding:12px 28px;border-radius:3px;" style-hover="background:#3B8FB0;">获取整柜配置方案</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ MARK1000 MAX 信道机 ═══════ -->
+  <section id="mark1000" data-screen-label="MARK1000信道机" style="background:#ffffff;padding:80px 0 88px;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center;">
+        <!-- 图 -->
+        <div role="img" aria-label="MARK1000 MAX 智能数字信道机" style="width:100%;aspect-ratio:698/171;background-image:url('assets/prod-mark1000-cut.png');background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 28px 30px rgba(14,36,48,.28));"></div>
+        <!-- 文 -->
+        <div>
+          <div style="font-family:'Saira',sans-serif;font-size:14px;color:#4DA5C7;font-weight:600;letter-spacing:.1em;">02 · SMART DIGITAL REPEATER</div>
+          <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:10px;">
+            <h2 style="margin:0;font-size:30px;font-weight:900;">智能数字信道机</h2>
+            <span style="font-family:'Saira',sans-serif;font-size:15px;font-weight:600;color:#4DA5C7;letter-spacing:.04em;">MARK1000 MAX</span>
+          </div>
+          <p style="margin:16px 0 0;font-size:15px;line-height:2.0;color:#5B6B73;">Mark1000 系列数字常规信道机，除具备传统常规通信能力外，还增加了数据及智能控制能力，在智慧建筑的使用和运维方面全面加强。设备具备标准的 DMR 双时隙通信能力，与 DistriNET 分布系统高度融合；智能化管理方式让非专业维护人员也能实现设备的实时高效管理。</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin-top:22px;">
+            <sc-for list="{{ markFeatures }}" as="f" hint-placeholder-count="6">
+              <div style="display:flex;gap:10px;align-items:flex-start;">
+                <span style="flex:none;width:5px;height:5px;border-radius:50%;background:#4DA5C7;margin-top:9px;"></span>
+                <span style="font-size:13.5px;line-height:1.7;color:#3E525C;">{{ f }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- 关键指标带 -->
+      <div data-reveal="" style="margin-top:44px;background:#0E3440;border-radius:8px;padding:26px 36px;display:flex;align-items:center;gap:48px;color:#ffffff;">
+        <sc-for list="{{ markStats }}" as="st" hint-placeholder-count="4">
+          <div>
+            <div style="font-family:'Saira',sans-serif;font-size:26px;font-weight:600;color:#7FC4DC;line-height:1;white-space:nowrap;">{{ st.v }}</div>
+            <div style="font-size:12.5px;color:rgba(255,255,255,.6);margin-top:7px;white-space:nowrap;">{{ st.k }}</div>
+          </div>
+        </sc-for>
+        <div style="margin-left:auto;">
+          <a href="assets/智能数字信道机-规格书.pdf" download="" style="text-decoration:none;background:#4DA5C7;color:#ffffff;font-size:13.5px;font-weight:500;padding:10px 22px;border-radius:3px;white-space:nowrap;" style-hover="background:#3B8FB0;">规格书 PDF</a>
+        </div>
+      </div>
+
+      <!-- 工作原理 -->
+      <div data-reveal="" style="margin-top:40px;background:#F7FAFB;border-left:3px solid #4DA5C7;border-radius:0 6px 6px 0;padding:24px 30px;">
+        <div style="font-size:14.5px;font-weight:700;">工作原理</div>
+        <p style="margin:10px 0 0;font-size:14px;line-height:1.95;color:#5B6B73;">采用标准数字 DMR 信道，提供通信对讲终端用户语音或数据信息的交换。每对收发频率组成的信道机可提供两个数字时隙，每个时隙满足一个数字通话组工作，由多个信道机组成可支持更多的通话组。设备支持后台数据采集分析与全面数据检测，实现与网讯云平台联动、远程管理设备。</p>
+      </div>
+
+      <!-- 完整规格 -->
+      <div data-reveal="" style="margin-top:44px;">
+        <div style="font-size:15px;font-weight:700;color:#16242C;padding-bottom:8px;border-bottom:2px solid #4DA5C7;display:inline-block;">完整规格</div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:0 56px;">
+          <sc-for list="{{ markSpecs }}" as="s" hint-placeholder-count="10">
+            <div style="display:grid;grid-template-columns:170px 1fr;gap:18px;padding:12px 0;border-bottom:1px solid #F1F5F7;">
+              <span style="font-size:13.5px;color:#8A99A1;">{{ s.k }}</span>
+              <span style="font-size:13.5px;color:#16242C;line-height:1.6;">{{ s.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px;font-size:12.5px;color:#9FB2BC;">完整参数见规格书 PDF（2511 V3）。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 相关产品 ═══════ -->
+  <section data-screen-label="相关产品" style="background:#F7FAFB;padding:88px 0;border-top:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;">
+        <h2 style="margin:0;font-size:30px;font-weight:900;">同系统组件</h2>
+        <a href="Evertac官网首页.dc.html#products" style="font-size:15px;color:#0E2430;text-decoration:none;font-weight:500;border-bottom:2px solid #4DA5C7;padding-bottom:4px;">全部产品 →</a>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:44px;">
+        <sc-for list="{{ related }}" as="r" hint-placeholder-count="4">
+          <a href="{{ r.href }}" data-reveal="" style="text-decoration:none;color:#16242C;background:#ffffff;border:1px solid #E6EBEE;border-radius:6px;padding:24px 24px 26px;display:block;position:relative;" style-hover="border-color:#4DA5C7;box-shadow:0 16px 32px -18px rgba(14,36,48,.2);">
+            <sc-if value="{{ r.isNew }}" hint-placeholder-val="{{ false }}">
+              <span style="position:absolute;right:16px;top:16px;background:#4DA5C7;color:#ffffff;font-family:'Saira',sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.12em;padding:3px 8px;border-radius:3px;">NEW</span>
+            </sc-if>
+            <div style="font-size:17px;font-weight:600;">{{ r.name }}</div>
+            <div style="font-family:'Saira',sans-serif;font-size:12px;color:#8A99A1;letter-spacing:.06em;margin-top:4px;">{{ r.en }}</div>
+            <p style="margin:12px 0 0;font-size:13.5px;line-height:1.75;color:#5B6B73;">{{ r.desc }}</p>
+          </a>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ CTA ═══════ -->
+  <section id="contact" data-screen-label="联系CTA" style="background:#0E2430;padding:72px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:flex;justify-content:space-between;align-items:center;gap:40px;">
+      <div>
+        <h2 style="margin:0;font-size:28px;font-weight:900;color:#ffffff;">标准系统，还是定制组柜？</h2>
+        <p style="margin:10px 0 0;font-size:15px;color:rgba(255,255,255,.65);font-weight:300;">告诉我们您的项目规模与机房条件，工程师给出一体化或分立配置建议。</p>
+      </div>
+      <a href="mailto:info@evertacsolutions.com" style="flex-shrink:0;background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;" style-hover="background:#3B8FB0;">联系工程师</a>
+    </div>
+  </section>
+
+  <!-- ═══════ 页脚（简化） ═══════ -->
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const els = document.querySelectorAll('[data-reveal]');
+    els.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(18px)';
+      el.style.transition = 'opacity .6s cubic-bezier(.22,.61,.36,1), transform .6s cubic-bezier(.22,.61,.36,1)';
+    });
+    this._io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+          this._io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    els.forEach((el) => this._io.observe(el));
+  }
+  componentWillUnmount() { if (this._io) this._io.disconnect(); }
+
+  renderVals() {
+    return {
+      rackItems: [
+        { name: 'MARK1000 信道机', desc: '语音与数据交换核心' },
+        { name: '多信道分合路器', desc: '基站信号整合单元' },
+        { name: '信号剥离矩阵', desc: '上下行信号平衡' },
+        { name: '智能光纤近端机', desc: '光纤拉远接口' },
+        { name: '配线架 · 交换机', desc: '布线与网络就绪' },
+        { name: '服务器（NetFlex）', desc: '平台与数据服务' },
+      ],
+      rackPoints: [
+        '工厂定制集成：整柜在出厂前完成安装、连线与系统调测，现场工程量与风险大幅降低',
+        '标准化设计：按 DistriNET 标准系统架构预配置，与光纤远端单元即插即通',
+        '一柜到位：通信、供电、布线、网络与平台服务器统一规划，机房占位与散热一次设计',
+      ],
+      markFeatures: [
+        '全新工业设计外形，高品质的保证',
+        '支持快速接入全网分布系统',
+        '标准数据协议，访问更稳定',
+        '符合 DMR 标准，双时隙通信',
+        '支持数据 / 语音通信',
+        '远程监控功能，支持网讯云平台接入管理',
+      ],
+      markStats: [
+        { v: '16', k: '信道数' },
+        { v: '≤-120 dBm', k: '灵敏度（误码率 5%）' },
+        { v: '137–470', k: '支持频段 MHz' },
+        { v: '2 时隙', k: '每信道机 DMR 双时隙' },
+      ],
+      markSpecs: [
+        { k: '支持频段', v: '137–174 / 350–400 / 400–470 MHz' },
+        { k: '信道间隔', v: '12.5 kHz / 25 kHz' },
+        { k: '调制方式', v: '4FSK（12.5kHz 数据 7K60FXD · 数据和语音 7K60FXW）' },
+        { k: '信道数', v: '16' },
+        { k: '载波频率误差', v: '≤0.5 ppm' },
+        { k: '灵敏度', v: '≤-120 dBm（误码率 5%）' },
+        { k: '互调衰减', v: '共存 ≤-50 dB · 共址 ≤-70 dB' },
+        { k: '共信道抑制', v: '≥-12 dB（误码率 <5%）' },
+        { k: '杂散发射', v: '-36 dBm ≤1GHz · -30 dBm >1GHz' },
+        { k: '端口阻抗 · 接口', v: '50 Ω · N-K · 防静电 · IP40' },
+        { k: '设备尺寸 · 重量', v: '490 × 435 × 90 mm · 8.7 kg · 机柜安装' },
+        { k: '工作环境', v: '-30°C ~ +60°C · 湿度 ≤95%' },
+        { k: '本地显示 · 监控', v: '单色指示灯 · PC 本地监控' },
+        { k: '远程监控', v: '本地平台或云平台 · 分类告警 / 状态参量 / 设备信息' },
+      ],
+      related: [
+        { name: '合路平台', en: 'COMBINER PLATFORM', desc: '分合路器、剥离矩阵与双工器。', href: '产品-合路平台.dc.html', isNew: false },
+        { name: '光纤直放站', en: 'FIBER REPEATER', desc: 'Smart LT、数字中频与室外壁挂三系列。', href: '产品-直放站.dc.html', isNew: false },
+        { name: '智能终端与配件', en: 'RADIOS & ACCESSORIES', desc: 'PNR 系列终端与充电、耳机配件。', href: '产品-终端.dc.html', isNew: false },
+        { name: 'PNR2100 智能终端', en: 'INTELLIGENT TASK RADIO', desc: '专网安全，公网自由，双模守候。', href: '产品-PNR2100.dc.html', isNew: true },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

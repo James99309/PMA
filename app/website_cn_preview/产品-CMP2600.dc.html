@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="mobile.css">
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Saira:wght@400;500;600;700;800&amp;family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; padding: 0; background: #ffffff; }
+body { font-family: 'Noto Sans SC', 'PingFang SC', sans-serif; color: #16242C; -webkit-font-smoothing: antialiased; }
+.sc-host { display: contents; }
+</style>
+</helmet>
+
+<div data-screen-label="CMP2600详情页" style="min-width:1200px;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="products" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ 产品头部（常规模板） ═══════ -->
+  <section data-screen-label="产品头部" style="background:#F7FAFB;border-bottom:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:56px 32px 64px;">
+      <div style="display:flex;align-items:center;gap:14px;font-size:13.5px;color:#8A99A1;">
+        <a href="Evertac官网首页.dc.html" style="color:#8A99A1;text-decoration:none;" style-hover="color:#4DA5C7;">首页</a>
+        <span>/</span>
+        <a href="Evertac官网首页.dc.html#products" style="color:#8A99A1;text-decoration:none;" style-hover="color:#4DA5C7;">产品与系统</a>
+        <span>/</span>
+        <a href="产品-终端.dc.html" style="color:#8A99A1;text-decoration:none;" style-hover="color:#4DA5C7;">智能终端与配件</a>
+        <span>/</span>
+        <span style="color:#16242C;">CMP2600</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 460px;gap:64px;align-items:center;margin-top:40px;">
+        <div>
+          <div style="font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">MULTI-UNIT CHARGER</div>
+          <h1 style="margin:14px 0 0;font-size:42px;font-weight:900;line-height:1.3;">智能多联桌面充电器 CMP2600</h1>
+          <div style="font-family:'Saira',sans-serif;font-size:16px;color:#8A99A1;letter-spacing:.06em;margin-top:8px;">SIX-UNIT SMART CHARGING</div>
+          <p style="margin:20px 0 0;font-size:16px;line-height:1.95;color:#5B6B73;max-width:560px;">六个独立充电槽，每槽配备独立充电管理芯片，对电池充电前、中、后期有效管理。支持通过网口将电池充放电维护数据更新至 NetFlex 平台，实时掌握电池健康，让更替与维护更及时。</p>
+          <div style="display:flex;gap:16px;margin-top:32px;">
+            <a href="#contact" style="background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:500;padding:13px 30px;border-radius:3px;" style-hover="background:#3B8FB0;">咨询与采购</a>
+            <a href="#specs" style="border:1px solid #C9D6DD;color:#16242C;text-decoration:none;font-size:15px;font-weight:500;padding:13px 30px;border-radius:3px;" style-hover="border-color:#4DA5C7;color:#4DA5C7;">规格参数</a>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;">
+          <img src="assets/cmp2600-transparent.png" alt="CMP2600 智能多联桌面充电器" style="width:100%;max-height:320px;object-fit:contain;display:block;filter:drop-shadow(0 24px 28px rgba(14,36,48,.22));">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 特性 ═══════ -->
+  <section data-screen-label="产品特性" style="background:#ffffff;padding:88px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <h2 data-reveal="" style="margin:0;font-size:30px;font-weight:700;">产品特点</h2>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:20px;margin-top:44px;">
+        <sc-for list="{{ featureCards }}" as="f" hint-placeholder-count="5">
+          <div data-reveal="" style="border-top:3px solid #4DA5C7;background:#F7FAFB;padding:24px 22px 26px;">
+            <div style="font-size:16.5px;font-weight:600;line-height:1.5;">{{ f.name }}</div>
+            <p style="margin:10px 0 0;font-size:13.5px;line-height:1.8;color:#5B6B73;">{{ f.desc }}</p>
+          </div>
+        </sc-for>
+      </div>
+      <div data-reveal="" style="margin-top:52px;background:#0E2430;border-radius:6px;padding:36px 40px;display:grid;grid-template-columns:1fr auto;gap:40px;align-items:center;color:#ffffff;">
+        <div>
+          <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#7FC4DC;font-weight:600;">NETFLEX CONNECTED</div>
+          <div style="font-size:22px;font-weight:700;margin-top:10px;">充电数据，上云可查</div>
+          <p style="margin:10px 0 0;font-size:14.5px;line-height:1.85;color:rgba(255,255,255,.65);font-weight:300;max-width:640px;">通过网口连接 NetFlex 平台，电池充放电维护数据实时更新——管理者可跟踪分析每块电池的使用情况与健康状态，让批量装备的更替维护有据可依。</p>
+        </div>
+        <a href="Evertac官网首页.dc.html#products" style="flex-shrink:0;border:1px solid rgba(255,255,255,.4);color:#ffffff;text-decoration:none;font-size:14.5px;font-weight:500;padding:12px 26px;border-radius:3px;" style-hover="border-color:#ffffff;">了解 NetFlex 平台</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 规格 ═══════ -->
+  <section id="specs" data-screen-label="规格参数" style="background:#F7FAFB;padding:88px 0;border-top:1px solid #E6EBEE;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;">
+        <h2 style="margin:0;font-size:30px;font-weight:700;">性能指标</h2>
+        <span style="font-family:'Saira',sans-serif;font-size:13px;color:#8A99A1;letter-spacing:.08em;">2511V3</span>
+      </div>
+      <div data-reveal="" style="margin-top:40px;background:#ffffff;border:1px solid #E6EBEE;border-radius:6px;padding:12px 32px;">
+        <sc-for list="{{ specs }}" as="s" hint-placeholder-count="10">
+          <div style="display:grid;grid-template-columns:260px 1fr;gap:24px;padding:15px 0;border-bottom:1px solid #F1F5F7;">
+            <span style="font-size:14.5px;color:#8A99A1;">{{ s.k }}</span>
+            <span style="font-size:14.5px;color:#16242C;line-height:1.6;">{{ s.v }}</span>
+          </div>
+        </sc-for>
+        <div style="padding:16px 0;font-size:13px;color:#8A99A1;">* 详细指标以产品规格书（2511V3）为准。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ 相关产品 ═══════ -->
+  <section data-screen-label="相关产品" style="background:#ffffff;padding:88px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal="" style="display:flex;justify-content:space-between;align-items:flex-end;">
+        <h2 style="margin:0;font-size:30px;font-weight:700;">搭配装备</h2>
+        <a href="产品-终端.dc.html" style="font-size:15px;color:#0E2430;text-decoration:none;font-weight:500;border-bottom:2px solid #4DA5C7;padding-bottom:4px;">终端与配件全览 →</a>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:44px;">
+        <sc-for list="{{ related }}" as="r" hint-placeholder-count="4">
+          <a href="{{ r.href }}" data-reveal="" style="text-decoration:none;color:#16242C;border:1px solid #E6EBEE;border-radius:6px;padding:24px 24px 26px;display:block;position:relative;" style-hover="border-color:#4DA5C7;box-shadow:0 16px 32px -18px rgba(14,36,48,.2);">
+            <sc-if value="{{ r.isNew }}" hint-placeholder-val="{{ false }}">
+              <span style="position:absolute;right:16px;top:16px;background:#4DA5C7;color:#ffffff;font-family:'Saira',sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.12em;padding:3px 8px;border-radius:3px;">NEW</span>
+            </sc-if>
+            <div style="font-size:17px;font-weight:600;">{{ r.name }}</div>
+            <div style="font-family:'Saira',sans-serif;font-size:12px;color:#8A99A1;letter-spacing:.06em;margin-top:4px;">{{ r.en }}</div>
+            <p style="margin:12px 0 0;font-size:13.5px;line-height:1.75;color:#5B6B73;">{{ r.desc }}</p>
+          </a>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ CTA ═══════ -->
+  <section id="contact" data-screen-label="联系CTA" style="background:#0E2430;padding:72px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:flex;justify-content:space-between;align-items:center;gap:40px;">
+      <div>
+        <h2 style="margin:0;font-size:28px;font-weight:700;color:#ffffff;">规划整套充电管理方案？</h2>
+        <p style="margin:10px 0 0;font-size:15px;color:rgba(255,255,255,.65);font-weight:300;">桌面充电器可与充电栈组合形成充电柜方案，满足更大规模的充电管理需求。</p>
+      </div>
+      <a href="mailto:info@evertacsolutions.com" style="flex-shrink:0;background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:16px;font-weight:500;padding:14px 34px;border-radius:3px;" style-hover="background:#3B8FB0;">联系工程师</a>
+    </div>
+  </section>
+
+  <!-- ═══════ 页脚（简化） ═══════ -->
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const els = document.querySelectorAll('[data-reveal]');
+    els.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(18px)';
+      el.style.transition = 'opacity .6s cubic-bezier(.22,.61,.36,1), transform .6s cubic-bezier(.22,.61,.36,1)';
+    });
+    this._io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+          this._io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    els.forEach((el) => this._io.observe(el));
+  }
+  componentWillUnmount() { if (this._io) this._io.disconnect(); }
+
+  renderVals() {
+    return {
+      featureCards: [
+        { name: '六组同时充电维护', desc: '同时为六组电池或对讲机充电维护，高效的充电解决方案。' },
+        { name: '独立充电管理芯片', desc: '每个充电槽独立管理芯片，对电池全面管理和保护。' },
+        { name: '数据跟踪和分析', desc: '网口连接 NetFlex 平台，实时更新电池充放电维护数据。' },
+        { name: '便捷放置和充电', desc: '对讲机放置有序、取用便捷，办公环境更加整洁。' },
+        { name: '多种布局选择', desc: '可置于桌面，也可与充电栈组合形成充电柜方案。' },
+      ],
+      specs: [
+        { k: '输入电压', v: '5V' },
+        { k: '输入电流', v: '10A' },
+        { k: '充电电流', v: '1A（每槽）' },
+        { k: '充电上限电压', v: '4.2V' },
+        { k: '充电指示', v: '充电红灯常亮 · 充满绿灯常亮 · 故障橙灯常亮' },
+        { k: '平台联动', v: '网口连接 NetFlex 平台，充放电维护数据实时更新' },
+        { k: '尺寸', v: '418 × 117 × 60 mm' },
+        { k: '材料', v: 'ABS' },
+        { k: '设备重量', v: '662g' },
+        { k: '工作温度', v: '-20 ~ +55°C · 湿度 ≤95%' },
+      ],
+      related: [
+        { name: 'PNR2000 数字对讲机', en: 'PROFESSIONAL DMR RADIO', desc: '数字模拟双模式，简单可靠。', href: '产品-PNR2000.dc.html', isNew: false },
+        { name: 'PNR2100 智能终端', en: 'INTELLIGENT TASK RADIO', desc: '专网安全，公网自由，双模守候。', href: '产品-PNR2100.dc.html', isNew: true },
+        { name: '智能充电柜', en: 'CHARGING CABINET', desc: '与充电栈组合的大规模集中方案。', href: '产品-终端.dc.html', isNew: false },
+        { name: '耳机与音频配件', en: 'AUDIO ACCESSORIES', desc: '耳挂、喉麦与肩咪，适配不同岗位。', href: '产品-终端.dc.html', isNew: false },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

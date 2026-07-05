@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="stylesheet" href="mobile.css">
+</helmet>
+
+<footer data-screen-label="页脚" style="background:#0E2430;color:rgba(255,255,255,.65);border-top:1px solid rgba(255,255,255,.08);font-family:'Noto Sans SC','PingFang SC',sans-serif;">
+  <div class="evt-footer-grid" style="max-width:1280px;margin:0 auto;padding:64px 32px 0;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;gap:40px;">
+    <div>
+      <img src="assets/logo-cn.png" alt="EVERTAC 和源通信" style="height:48px;display:block;">
+      <div style="margin-top:18px;font-size:14px;color:rgba(255,255,255,.75);">和源通信（上海）股份有限公司</div>
+      <div style="font-family:'Saira',sans-serif;font-size:11.5px;color:rgba(255,255,255,.4);letter-spacing:.04em;margin-top:2px;">EVERTAC COMMUNICATION (SHANGHAI) CORP., LTD</div>
+      <div style="margin-top:22px;display:flex;flex-direction:column;gap:10px;font-size:13.5px;color:rgba(255,255,255,.6);">
+        <div style="display:flex;gap:12px;"><span style="color:rgba(255,255,255,.38);flex:none;width:36px;">地址</span><span>上海市普陀区武威路88弄19号楼6楼</span></div>
+        <div style="display:flex;gap:12px;"><span style="color:rgba(255,255,255,.38);flex:none;width:36px;">电话</span><span style="font-family:'Saira',sans-serif;">+86 21 62596028 / 62597828</span></div>
+        <div style="display:flex;gap:12px;"><span style="color:rgba(255,255,255,.38);flex:none;width:36px;">官网</span><a href="https://www.evertac.net" style="color:rgba(255,255,255,.6);text-decoration:none;font-family:'Saira',sans-serif;" style-hover="color:#7FC4DC;">www.evertac.net</a></div>
+        <div style="display:flex;gap:12px;"><span style="color:rgba(255,255,255,.38);flex:none;width:36px;">邮箱</span><a href="mailto:info@evertacsolutions.com" style="color:rgba(255,255,255,.6);text-decoration:none;font-family:'Saira',sans-serif;" style-hover="color:#7FC4DC;">info@evertacsolutions.com</a></div>
+      </div>
+    </div>
+    <sc-for list="{{ footerCols }}" as="fc" hint-placeholder-count="3">
+      <div class="evt-footer-col" style="padding-top:58px;">
+        <div style="font-size:14px;font-weight:600;color:#ffffff;letter-spacing:.04em;">{{ fc.title }}</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:20px;">
+          <sc-for list="{{ fc.links }}" as="l" hint-placeholder-count="4">
+            <a href="{{ l.href }}" style="color:rgba(255,255,255,.6);text-decoration:none;font-size:14px;transition:color .15s;" style-hover="color:#7FC4DC;">{{ l.name }}</a>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div class="evt-footer-bottom" style="max-width:1280px;margin:52px auto 0;padding:24px 32px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:rgba(255,255,255,.38);">
+    <span>© 2026 和源通信（上海）股份有限公司 保留所有权利　·　<a href="https://beian.miit.gov.cn" style="color:rgba(255,255,255,.38);text-decoration:none;" style-hover="color:rgba(255,255,255,.6);">沪ICP备XXXXXXXX号</a></span>
+    <span style="font-family:'Saira',sans-serif;letter-spacing:.04em;">SHANGHAI · CHINA</span>
+  </div>
+</footer>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const H = 'Evertac官网首页.dc.html';
+    return {
+      footerCols: [
+        { title: '行业解决方案', links: [
+          { name: '智能建筑', href: '行业-智能建筑.dc.html' },
+          { name: '交通枢纽', href: '行业-机场交通枢纽.dc.html' },
+          { name: '能源化工', href: '行业-能源化工.dc.html' },
+          { name: '数据中心', href: '行业-数据中心.dc.html' },
+          { name: '船舶与仓储', href: '行业-船舶.dc.html' },
+          { name: '隧道与管廊', href: '行业-隧道管廊.dc.html' },
+        ]},
+        { title: '产品与系统', links: [
+          { name: '信源基站', href: '产品-信源基站.dc.html' },
+          { name: '合路平台', href: '产品-合路平台.dc.html' },
+          { name: '光纤直放站', href: '产品-直放站.dc.html' },
+          { name: '智能天馈', href: '产品-智能天馈.dc.html' },
+          { name: '智能终端与配件', href: '产品-终端.dc.html' },
+          { name: 'NetFlex 云平台', href: H + '#products' },
+        ]},
+        { title: '服务与支持', links: [
+          { name: '专业设计咨询', href: '服务-设计咨询.dc.html' },
+          { name: '厂家系统交付', href: '服务-系统交付.dc.html' },
+          { name: '快速响应售后', href: H + '#services' },
+          { name: '大型活动通信保障', href: H + '#services' },
+        ]},
+        { title: '公司', links: [
+          { name: '关于我们', href: '关于我们.dc.html' },
+          { name: '成功案例', href: '案例中心.dc.html' },
+          { name: '新闻中心', href: '新闻中心.dc.html' },
+          { name: '联系我们', href: H + '#contact' },
+        ]},
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

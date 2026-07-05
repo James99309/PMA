@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Saira:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  ::selection { background: #4DA5C7; color: #fff; }
+</style>
+</helmet>
+
+<div style="font-family:'Noto Sans SC','PingFang SC',sans-serif;color:#16242C;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="solutions" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ HERO ═══════ -->
+  <section data-screen-label="隧道管廊·封面" style="position:relative;background:#0A1A22 url('assets/tunnel-hero.png') center/cover no-repeat;color:#fff;overflow:hidden;">
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,18,24,.92) 0%,rgba(8,18,24,.74) 42%,rgba(8,18,24,.32) 72%,rgba(8,18,24,.15) 100%);"></div>
+    <div style="position:relative;max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div style="max-width:40em;padding:132px 0;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.24em;color:#7FC4DC;font-weight:600;">TUNNELS & UTILITY CORRIDORS</div>
+        <h1 class="evt-hero-h1" style="margin:20px 0 0;font-size:52px;line-height:1.14;font-weight:900;letter-spacing:-.01em;text-shadow:0 2px 30px rgba(0,0,0,.5);">地下空间，<br>要一张会呼吸的专网。</h1>
+        <p style="margin:26px 0 0;font-size:18px;line-height:1.75;color:rgba(255,255,255,.82);max-width:34em;font-weight:300;text-shadow:0 1px 16px rgba(0,0,0,.5);">公路隧道、地下管廊、地铁与地下综合体——狭长、封闭、多部门共用。我们以<strong style="color:#fff;font-weight:500;">集约化分区结构 + 数字光纤组网</strong>，把消防、运营、公共安全的通信集中到一张可控、可视、易维护的专网上。</p>
+        <div style="margin-top:36px;display:flex;gap:14px;flex-wrap:wrap;">
+          <a href="Evertac官网首页.dc.html#contact" style="background:#4DA5C7;color:#fff;text-decoration:none;padding:15px 30px;border-radius:5px;font-size:15px;font-weight:500;transition:background .2s;" style-hover="background:#3d94b6;">咨询隧道方案</a>
+          <a href="#cases" style="background:rgba(255,255,255,.1);color:#fff;text-decoration:none;padding:15px 30px;border-radius:5px;font-size:15px;font-weight:500;border:1px solid rgba(255,255,255,.22);transition:background .2s;backdrop-filter:blur(4px);" style-hover="background:rgba(255,255,255,.18);">看项目案例</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ① 地下空间场景 ═══════ -->
+  <section data-screen-label="地下空间场景" style="background:#ffffff;padding:82px 0;border-bottom:1px solid #EEF2F4;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="max-width:48em;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-weight:600;">UNDERGROUND CITY</div>
+        <h2 style="margin:14px 0 0;font-size:32px;font-weight:900;line-height:1.25;">城市向地下生长，通信不能掉队</h2>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.8;color:#5B6B73;">大规模地下空间随城市集约化而生。从地表到深层，交通、市政与储备设施逐层叠加——围绕它的建设、治理与维护，都依赖一套完善的专用通信系统来解决公共服务中的通信挑战。</p>
+      </div>
+      <div class="evt-2col" data-reveal style="margin-top:44px;display:grid;grid-template-columns:0.82fr 1.18fr;gap:52px;align-items:center;">
+        <div style="background:#0A1A22;border-radius:14px;padding:16px;border:1px solid #E6EBEE;box-shadow:0 26px 60px -30px rgba(14,36,48,.4);">
+          <img src="assets/underground-section.png" alt="城市地下空间分层结构示意" style="width:100%;display:block;border-radius:8px;">
+        </div>
+        <div>
+          <div style="font-size:15px;color:#8A99A1;font-weight:500;margin-bottom:6px;">自地表向深层，逐层分布：</div>
+          <div style="display:flex;flex-direction:column;">
+            <sc-for list="{{ layers }}" as="l" hint-placeholder-count="6">
+              <div style="display:flex;gap:18px;align-items:flex-start;padding:16px 0;border-bottom:1px solid #EEF2F4;">
+                <span style="flex:none;width:10px;height:10px;border-radius:50%;background:{{ l.dot }};margin-top:7px;box-shadow:0 0 0 4px {{ l.halo }};"></span>
+                <div style="flex:1;">
+                  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+                    <span style="font-size:17px;font-weight:700;">{{ l.name }}</span>
+                    <span style="font-family:'Saira',sans-serif;font-size:12px;letter-spacing:.06em;color:#B4C2C9;font-weight:600;">{{ l.en }}</span>
+                  </div>
+                  <div style="font-size:14px;color:#5B6B73;line-height:1.65;margin-top:3px;">{{ l.desc }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div data-reveal style="margin-top:30px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <span style="font-size:14px;color:#8A99A1;font-weight:500;margin-right:4px;">一网融合承载：</span>
+        <sc-for list="{{ services }}" as="v" hint-placeholder-count="4">
+          <span style="padding:8px 18px;background:#0A1A22;color:#7FC4DC;border-radius:100px;font-size:13.5px;font-weight:500;">{{ v }}</span>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ② 痛点 ═══════ -->
+  <section data-screen-label="隧道痛点" style="background:#F4F8FA;padding:88px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="max-width:46em;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-weight:600;">PAIN POINTS</div>
+        <h2 style="margin:14px 0 0;font-size:32px;font-weight:900;line-height:1.28;">传统对讲，撑不起地下治理</h2>
+      </div>
+      <div class="evt-grid-3" data-reveal style="margin-top:40px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+        <sc-for list="{{ pains }}" as="p" hint-placeholder-count="3">
+          <div style="background:#fff;border:1px solid #E6EBEE;border-radius:12px;padding:30px 28px;">
+            <div style="font-family:'Saira',sans-serif;font-size:12px;letter-spacing:.12em;color:#C0576B;font-weight:600;">{{ p.en }}</div>
+            <div style="margin-top:12px;font-size:20px;font-weight:700;color:#C0576B;">{{ p.title }}</div>
+            <p style="margin:12px 0 0;font-size:14.5px;line-height:1.8;color:#5B6B73;">{{ p.desc }}</p>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ③ 集约化分区结构 ═══════ -->
+  <section data-screen-label="集约化分区" style="background:#ffffff;padding:90px 0;border-bottom:1px solid #EEF2F4;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="max-width:48em;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-weight:600;">ZONED ARCHITECTURE</div>
+        <h2 style="margin:14px 0 0;font-size:32px;font-weight:900;line-height:1.28;">集约化分区，狭长空间也可控</h2>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.8;color:#5B6B73;">按空间结构与功能，采用不同的末端覆盖与接入方式，集中到一个区域节点提供各种用途的信号接入。分区之间彼此独立平行、支持区间漫游——大大降低系统整体瘫痪的风险。</p>
+      </div>
+      <div class="evt-2col" data-reveal style="margin-top:44px;display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center;">
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <sc-for list="{{ zoning }}" as="z" hint-placeholder-count="3">
+            <div style="display:flex;gap:18px;align-items:flex-start;padding:20px 22px;background:#F4F8FA;border-radius:10px;">
+              <span style="font-family:'Saira',sans-serif;font-size:13px;font-weight:700;color:#fff;background:#4DA5C7;flex:none;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;">{{ z.tag }}</span>
+              <div><div style="font-size:16.5px;font-weight:700;">{{ z.title }}</div><div style="font-size:14px;color:#5B6B73;line-height:1.7;margin-top:4px;">{{ z.desc }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="border-radius:12px;overflow:hidden;border:1px solid #E6EBEE;box-shadow:0 24px 60px -30px rgba(14,36,48,.25);">
+          <img src="assets/tunnel-cutaway.png" alt="隧道分区覆盖剖面" style="width:100%;display:block;background:#F4F8FA;">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ④ DistriNET MAX 方案 ═══════ -->
+  <section data-screen-label="DistriNET MAX" style="background:#0A1A22;color:#fff;padding:92px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="max-width:48em;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#7FC4DC;font-weight:600;">DISTRINET MAX</div>
+        <h2 style="margin:14px 0 0;font-size:32px;font-weight:900;line-height:1.28;">数字多通信融合组网</h2>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.8;color:rgba(255,255,255,.72);font-weight:300;">数字化基站强化语音与数据输出，传输全程数字光纤化——把消防、运营、公共安全多张网融合到一套集约化组网里，天生为隧道的长距离与后期扩建而设计。</p>
+      </div>
+      <div class="evt-grid-4" data-reveal style="margin-top:44px;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;">
+        <sc-for list="{{ maxStats }}" as="m" hint-placeholder-count="4">
+          <div style="padding:28px 24px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;">
+            <div style="display:flex;align-items:baseline;gap:6px;"><span style="font-family:'Saira',sans-serif;font-size:38px;font-weight:800;color:#7FC4DC;line-height:1;">{{ m.k }}</span><span style="font-size:15px;color:rgba(255,255,255,.7);font-weight:500;">{{ m.unit }}</span></div>
+            <div style="margin-top:14px;font-size:15px;line-height:1.7;color:rgba(255,255,255,.72);">{{ m.desc }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div data-reveal style="margin-top:20px;display:flex;flex-wrap:wrap;gap:10px;">
+        <sc-for list="{{ maxTags }}" as="t" hint-placeholder-count="5">
+          <span style="padding:8px 18px;background:rgba(127,196,220,.1);color:#7FC4DC;border-radius:100px;font-size:13.5px;font-weight:500;">{{ t }}</span>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ⑤ 项目案例 ═══════ -->
+  <section id="cases" data-screen-label="隧道案例" style="background:#ffffff;padding:90px 0;border-bottom:1px solid #EEF2F4;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div class="evt-2col" style="display:grid;grid-template-columns:0.9fr 1.3fr;gap:52px;align-items:center;">
+        <div data-reveal>
+          <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-weight:600;">PROJECTS</div>
+          <h2 style="margin:14px 0 0;font-size:32px;font-weight:900;line-height:1.28;">隧道行业案例</h2>
+          <p style="margin:16px 0 0;font-size:16px;line-height:1.8;color:#5B6B73;">从城市主干隧道到地下综合体，专网通信在多个标杆项目中稳定运行。</p>
+          <div style="margin-top:24px;border-radius:12px;overflow:hidden;border:1px solid #E6EBEE;box-shadow:0 20px 44px -26px rgba(14,36,48,.3);">
+            <img src="assets/tunnel-equiproom.jpg" alt="隧道无线通信系统机房" style="width:100%;display:block;">
+          </div>
+          <div style="margin-top:10px;font-size:13px;color:#8A99A1;">项目现场 · 隧道无线通信系统设备机房</div>
+        </div>
+        <div data-reveal style="border-top:1px solid #E6EBEE;">
+          <sc-for list="{{ cases }}" as="c" hint-placeholder-count="6">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:18px 0;border-bottom:1px solid #E6EBEE;">
+              <span style="font-size:17px;font-weight:600;">{{ c.name }}</span>
+              <span style="font-family:'Saira',sans-serif;font-size:15px;font-weight:600;color:#4DA5C7;flex:none;">{{ c.len }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ CTA ═══════ -->
+  <section data-screen-label="CTA" style="background:#0E2430;color:#fff;padding:80px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:28px;">
+      <div>
+        <h2 style="margin:0;font-size:30px;font-weight:900;line-height:1.3;">让地下的每一段，都在网内</h2>
+        <p style="margin:12px 0 0;font-size:16px;color:rgba(255,255,255,.68);font-weight:300;">隧道、管廊、地下综合体——集约化分区专网，一次建成、长期可维。</p>
+      </div>
+      <a href="Evertac官网首页.dc.html#contact" style="background:#4DA5C7;color:#fff;text-decoration:none;padding:16px 34px;border-radius:5px;font-size:16px;font-weight:500;flex:none;transition:background .2s;" style-hover="background:#3d94b6;">咨询隧道方案 →</a>
+    </div>
+  </section>
+
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const els = document.querySelectorAll('[data-reveal]');
+    els.forEach((el) => { el.style.opacity = '0'; el.style.transform = 'translateY(22px)'; el.style.transition = 'opacity .7s cubic-bezier(.22,.61,.36,1), transform .7s cubic-bezier(.22,.61,.36,1)'; });
+    this._io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.style.opacity = '1'; e.target.style.transform = 'translateY(0)'; this._io.unobserve(e.target); } }), { threshold: 0.1 });
+    els.forEach((el) => this._io.observe(el));
+  }
+  componentWillUnmount() { if (this._io) this._io.disconnect(); }
+  renderVals() {
+    return {
+      layers: [
+        { name: '地下综合体', en: 'INTERCHANGE · PLAZA', dot: '#7FC4DC', halo: 'rgba(127,196,220,.18)', desc: '巴士换乘站、地下广场、自行车停放与步行连廊——人流密集的地下公共空间。' },
+        { name: '综合管廊', en: 'COMMON SERVICES TUNNEL', dot: '#4DA5C7', halo: 'rgba(77,165,199,.16)', desc: '电力、给排水、通信等市政管线集中敷设的狭长廊道。' },
+        { name: '道路与轨道交通', en: 'ROAD & RAIL NETWORKS', dot: '#3d94b6', halo: 'rgba(61,148,182,.16)', desc: '城市地铁网与公路隧道，长距离、封闭、车流密集。' },
+        { name: '深层排水系统', en: 'DEEP TUNNEL SEWAGE', dot: '#5B7C8A', halo: 'rgba(91,124,138,.16)', desc: '深层排水隧道，运维巡检需稳定的地下通信保障。' },
+        { name: '岩洞储库与地下水库', en: 'CAVERNS & RESERVOIRS', dot: '#42606E', halo: 'rgba(66,96,110,.16)', desc: '岩洞储存与地下水库等深层战略设施，环境复杂、公网无法覆盖。' },
+      ],
+      services: ['消防救援通信', '运营管理', '公共安全', '交通广播'],
+      pains: [
+        { en: 'OPERATION & MAINTENANCE', title: '维护成本高', desc: '复杂的地下环境给维保带来巨大困难，往往付出巨大人工成本，收效甚微。' },
+        { en: 'NO FAULT WARNING', title: '故障无预警', desc: '设备故障总是被动处理，无法清晰了解系统运行状态，面临通信瘫痪的风险。' },
+        { en: 'BUSINESS PENETRATION', title: '业务渗透不足', desc: '传统对讲仅支持语音，无法延伸到运营流程的检查点，阻碍通信信息化发展。' },
+      ],
+      zoning: [
+        { tag: '天线', title: '天线分区', desc: '在人行工作井采用天线覆盖与吸收通信，适配开阔节点空间。' },
+        { tag: '漏缆', title: '漏缆分区', desc: '管廊等狭长区域用泄漏电缆分段覆盖，贴合狭小连续空间。' },
+        { tag: '分段', title: '分区段覆盖', desc: '将一个区域的多个分区集中到一个分控点，各段独立、分区可控。' },
+      ],
+      maxStats: [
+        { k: '30', unit: 'km+', desc: '传输全程数字光纤化，30 公里以上传输距离。' },
+        { k: '16', unit: '台+', desc: '单机可携带不低于 16 台远端设备，便于后期改造扩建。' },
+        { k: '多', unit: '网融合', desc: '消防、运营、公共安全多系统融合接入一套组网。' },
+        { k: '小', unit: '型化', desc: '小型化设计，支持隧道预留洞室安装。' },
+      ],
+      maxTags: ['数字化基站', '合路 / 射频', '泄漏电缆', 'FM 广播', '区间漫游'],
+      cases: [
+        { name: '东西通道', len: '7800 m' },
+        { name: '人民路隧道', len: '3097 m' },
+        { name: '延安东路隧道', len: '2261 m' },
+        { name: '新建路隧道', len: '2235 m' },
+        { name: '南京沿山路隧道改造', len: '改造项目' },
+        { name: '南京红山路隧道改造', len: '改造项目' },
+        { name: '张江卓闻路隧道', len: '市政项目' },
+        { name: '上海翔殿路隧道', len: '市政项目' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

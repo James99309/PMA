@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="mobile.css">
+</helmet>
+<div onMouseLeave="{{ closeMenu }}" style="position:sticky;top:0;z-index:100;background:#ffffff;border-bottom:1px solid #E6EBEE;font-family:'Noto Sans SC','PingFang SC',sans-serif;color:#16242C;">
+  <div style="max-width:1280px;margin:0 auto;padding:0 32px;height:74px;display:flex;align-items:center;justify-content:space-between;gap:40px;">
+    <a href="Evertac官网首页.dc.html" style="display:flex;align-items:center;flex-shrink:0;">
+      <img src="assets/logo-cn.png" alt="EVERTAC 和源通信" style="height:42px;display:block;">
+    </a>
+    <div class="evt-burger" onClick="{{ toggleMobile }}" style="display:none;flex-shrink:0;width:42px;height:42px;cursor:pointer;flex-direction:column;gap:5px;">
+      <span style="width:22px;height:2px;background:#16242C;display:block;border-radius:2px;"></span>
+      <span style="width:22px;height:2px;background:#16242C;display:block;border-radius:2px;"></span>
+      <span style="width:22px;height:2px;background:#16242C;display:block;border-radius:2px;"></span>
+    </div>
+    <nav class="evt-desk-nav" style="display:flex;align-items:stretch;height:74px;flex:1;">
+      <a href="Evertac官网首页.dc.html" onMouseEnter="{{ closeMenu }}" style="display:flex;align-items:center;padding:0 22px;text-decoration:none;font-size:16px;font-weight:500;color:{{ homeColor }};" style-hover="color:#4DA5C7;">首页</a>
+      <sc-for list="{{ navItems }}" as="item" hint-placeholder-count="5">
+        <div onMouseEnter="{{ item.open }}" style="display:flex;align-items:center;padding:0 22px;cursor:pointer;position:relative;">
+          <span style="font-size:16px;font-weight:500;color:{{ item.color }};letter-spacing:.01em;transition:color .18s;">{{ item.label }}</span>
+          <div style="position:absolute;left:22px;right:22px;bottom:0;height:3px;background:{{ item.bar }};transition:background .18s;"></div>
+        </div>
+      </sc-for>
+      <a href="新闻中心.dc.html" onMouseEnter="{{ closeMenu }}" style="display:flex;align-items:center;padding:0 22px;text-decoration:none;font-size:16px;font-weight:500;color:{{ newsColor }};" style-hover="color:#4DA5C7;">新闻动态</a>
+    </nav>
+    <a href="mailto:info@evertacsolutions.com" class="evt-desk-cta" style="flex-shrink:0;background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:500;padding:11px 26px;border-radius:3px;transition:background .18s;" style-hover="background:#3B8FB0;">联系我们</a>
+  </div>
+
+  <!-- ═══ 移动端下拉面板 ═══ -->
+  <div class="evt-mpanel" style="display:{{ mpanelDisplay }};position:absolute;left:0;right:0;top:74px;background:#ffffff;border-top:1px solid #E6EBEE;box-shadow:0 24px 48px -16px rgba(14,36,48,.18);max-height:calc(100vh - 74px);overflow-y:auto;">
+    <div style="padding:6px 20px 26px;">
+      <a href="Evertac官网首页.dc.html" style="display:block;padding:15px 4px;font-size:16px;font-weight:600;color:#16242C;text-decoration:none;border-bottom:1px solid #EEF2F4;">首页</a>
+      <sc-for list="{{ mobileSections }}" as="sec" hint-placeholder-count="5">
+        <div style="border-bottom:1px solid #EEF2F4;">
+          <div onClick="{{ sec.toggle }}" style="display:flex;align-items:center;justify-content:space-between;padding:15px 4px;cursor:pointer;">
+            <span style="font-size:16px;font-weight:600;color:#16242C;">{{ sec.label }}</span>
+            <span style="font-size:22px;color:#9AA8AF;transform:{{ sec.rotate }};transition:transform .2s;line-height:1;font-weight:300;">＋</span>
+          </div>
+          <sc-if value="{{ sec.open }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:0 4px 14px;display:flex;flex-direction:column;gap:6px;">
+              <sc-for list="{{ sec.links }}" as="l" hint-placeholder-count="3">
+                <a href="{{ l.href }}" style="display:block;padding:11px 14px;font-size:14.5px;color:#3E4E56;text-decoration:none;border-radius:6px;background:#F5F8FA;">{{ l.name }}</a>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+      <a href="新闻中心.dc.html" style="display:block;padding:15px 4px;font-size:16px;font-weight:600;color:#16242C;text-decoration:none;border-bottom:1px solid #EEF2F4;">新闻动态</a>
+      <a href="mailto:info@evertacsolutions.com" style="display:block;margin-top:20px;text-align:center;background:#4DA5C7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px;border-radius:4px;">联系我们</a>
+    </div>
+  </div>
+
+  <!-- ═══ 下拉：行业解决方案 ═══ -->
+  <sc-if value="{{ showSolutions }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:0;right:0;top:74px;background:#ffffff;border-top:1px solid #E6EBEE;box-shadow:0 24px 48px -16px rgba(14,36,48,.18);">
+      <div style="max-width:1280px;margin:0 auto;padding:36px 32px 40px;display:grid;grid-template-columns:260px 1fr 1fr 1fr;gap:48px;">
+        <div style="border-right:1px solid #E6EBEE;padding-right:40px;">
+          <div style="font-size:13px;letter-spacing:.14em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">INDUSTRIES</div>
+          <div style="font-size:22px;font-weight:700;margin-top:10px;line-height:1.4;">行业解决方案</div>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.8;color:#5B6B73;">面向不同行业场景的无线对讲即时通信系统设计、交付与运营。</p>
+          <a href="Evertac官网首页.dc.html#solutions" style="display:inline-block;margin-top:18px;font-size:14px;color:#4DA5C7;text-decoration:none;font-weight:500;">查看全部方案 →</a>
+        </div>
+        <sc-for list="{{ solutionCols }}" as="col" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="font-size:13px;color:#8A99A1;letter-spacing:.06em;margin-bottom:8px;">{{ col.title }}</div>
+            <sc-for list="{{ col.items }}" as="s" hint-placeholder-count="3">
+              <a href="{{ s.href }}" style="text-decoration:none;color:#16242C;padding:9px 12px;margin:0 -12px;border-radius:4px;display:block;transition:background .15s;" style-hover="background:#F1F6F8;">
+                <div style="font-size:15px;font-weight:500;">{{ s.name }}</div>
+                <div style="font-size:13px;color:#75858D;margin-top:2px;">{{ s.desc }}</div>
+              </a>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ═══ 下拉：产品与系统 ═══ -->
+  <sc-if value="{{ showProducts }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:0;right:0;top:74px;background:#ffffff;border-top:1px solid #E6EBEE;box-shadow:0 24px 48px -16px rgba(14,36,48,.18);">
+      <div style="max-width:1280px;margin:0 auto;padding:36px 32px 40px;display:grid;grid-template-columns:260px 1fr 1fr 300px;gap:48px;">
+        <div style="border-right:1px solid #E6EBEE;padding-right:40px;">
+          <div style="font-size:13px;letter-spacing:.14em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">PRODUCTS</div>
+          <div style="font-size:22px;font-weight:700;margin-top:10px;line-height:1.4;">产品与系统</div>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.8;color:#5B6B73;">从信源到终端的完整系统架构，软硬一体。</p>
+          <a href="Evertac官网首页.dc.html#products" style="display:inline-block;margin-top:18px;font-size:14px;color:#4DA5C7;text-decoration:none;font-weight:500;">浏览全部产品 →</a>
+        </div>
+        <sc-for list="{{ productCols }}" as="col" hint-placeholder-count="2">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="font-size:13px;color:#8A99A1;letter-spacing:.06em;margin-bottom:8px;">{{ col.title }}</div>
+            <sc-for list="{{ col.items }}" as="p" hint-placeholder-count="3">
+              <a href="{{ p.href }}" onMouseEnter="{{ p.enter }}" style="text-decoration:none;color:#16242C;padding:9px 12px;margin:0 -12px;border-radius:4px;display:block;transition:background .15s;" style-hover="background:#F1F6F8;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:15px;font-weight:500;">{{ p.name }}</span>
+                  <sc-if value="{{ p.isNew }}" hint-placeholder-val="{{ false }}">
+                    <span style="background:#4DA5C7;color:#ffffff;font-family:'Saira',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;padding:2px 7px;border-radius:3px;">NEW</span>
+                  </sc-if>
+                </div>
+                <div style="font-size:13px;color:#75858D;margin-top:2px;">{{ p.desc }}</div>
+              </a>
+            </sc-for>
+          </div>
+        </sc-for>
+        <a href="{{ feat.href }}" style="text-decoration:none;display:block;border-radius:6px;overflow:hidden;position:relative;background:#0E2430;min-height:240px;">
+          <sc-for list="{{ featLayers }}" as="L" hint-placeholder-count="7">
+            <img src="{{ L.img }}" alt="" style="width:100%;height:100%;object-fit:{{ L.fit }};display:block;position:absolute;inset:0;opacity:{{ L.op }};transition:opacity .22s ease;">
+          </sc-for>
+          <div style="position:relative;padding:20px;background:linear-gradient(to top,rgba(8,20,28,.92),rgba(8,20,28,.1) 62%,rgba(8,20,28,0) 100%);height:100%;min-height:240px;display:flex;flex-direction:column;justify-content:flex-end;box-sizing:border-box;">
+            <div style="color:#9FD3E6;font-size:12px;letter-spacing:.14em;font-family:'Saira',sans-serif;">{{ feat.eyebrow }}</div>
+            <div style="color:#ffffff;font-size:17px;font-weight:600;margin-top:6px;">{{ feat.name }}</div>
+            <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:8px;">了解详情 →</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ═══ 下拉：服务与支持 ═══ -->
+  <sc-if value="{{ showServices }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:0;right:0;top:74px;background:#ffffff;border-top:1px solid #E6EBEE;box-shadow:0 24px 48px -16px rgba(14,36,48,.18);">
+      <div style="max-width:1280px;margin:0 auto;padding:36px 32px 40px;display:grid;grid-template-columns:260px 1fr;gap:48px;">
+        <div style="border-right:1px solid #E6EBEE;padding-right:40px;">
+          <div style="font-size:13px;letter-spacing:.14em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">SERVICES</div>
+          <div style="font-size:22px;font-weight:700;margin-top:10px;line-height:1.4;">服务与支持</div>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.8;color:#5B6B73;">全生命周期服务，让您的系统永不过时。</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 48px;align-content:start;">
+          <sc-for list="{{ serviceLinks }}" as="s" hint-placeholder-count="4">
+            <a href="{{ s.href }}" style="text-decoration:none;color:#16242C;padding:12px;margin:0 -12px;border-radius:4px;display:block;transition:background .15s;" style-hover="background:#F1F6F8;">
+              <div style="font-size:15px;font-weight:500;">{{ s.name }}</div>
+              <div style="font-size:13px;color:#75858D;margin-top:3px;">{{ s.desc }}</div>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ═══ 下拉：成功案例 ═══ -->
+  <sc-if value="{{ showCases }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:0;right:0;top:74px;background:#ffffff;border-top:1px solid #E6EBEE;box-shadow:0 24px 48px -16px rgba(14,36,48,.18);">
+      <div style="max-width:1280px;margin:0 auto;padding:36px 32px 40px;display:grid;grid-template-columns:260px 1fr 1fr 1fr;gap:48px;">
+        <div style="border-right:1px solid #E6EBEE;padding-right:40px;">
+          <div style="font-size:13px;letter-spacing:.14em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">CASE STUDIES</div>
+          <div style="font-size:22px;font-weight:700;margin-top:10px;line-height:1.4;">成功案例</div>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.8;color:#5B6B73;">覆盖超高层、跨海大桥、化工、会展等标志性项目。</p>
+          <a href="案例中心.dc.html" style="display:inline-block;margin-top:18px;font-size:14px;color:#4DA5C7;text-decoration:none;font-weight:500;">查看全部案例 →</a>
+        </div>
+        <sc-for list="{{ caseCols }}" as="col" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="font-size:13px;color:#8A99A1;letter-spacing:.06em;margin-bottom:8px;">{{ col.title }}</div>
+            <sc-for list="{{ col.items }}" as="c" hint-placeholder-count="2">
+              <a href="案例中心.dc.html" style="text-decoration:none;color:#16242C;padding:9px 12px;margin:0 -12px;border-radius:4px;display:block;transition:background .15s;" style-hover="background:#F1F6F8;">
+                <div style="font-size:15px;font-weight:500;">{{ c.name }}</div>
+                <div style="font-size:13px;color:#75858D;margin-top:2px;">{{ c.desc }}</div>
+              </a>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ═══ 下拉：关于我们 ═══ -->
+  <sc-if value="{{ showAbout }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:0;right:0;top:74px;background:#ffffff;border-top:1px solid #E6EBEE;box-shadow:0 24px 48px -16px rgba(14,36,48,.18);">
+      <div style="max-width:1280px;margin:0 auto;padding:36px 32px 40px;display:grid;grid-template-columns:260px 1fr;gap:48px;">
+        <div style="border-right:1px solid #E6EBEE;padding-right:40px;">
+          <div style="font-size:13px;letter-spacing:.14em;color:#4DA5C7;font-family:'Saira',sans-serif;font-weight:600;">COMPANY</div>
+          <div style="font-size:22px;font-weight:700;margin-top:10px;line-height:1.4;">关于我们</div>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.8;color:#5B6B73;">成立于 2003 年，总部中国上海，专注智能通信二十余年。</p>
+          <a href="关于我们.dc.html" style="display:inline-block;margin-top:18px;font-size:14px;color:#4DA5C7;text-decoration:none;font-weight:500;">了解和源 →</a>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 48px;align-content:start;">
+          <sc-for list="{{ aboutLinks }}" as="s" hint-placeholder-count="4">
+            <a href="{{ s.href }}" style="text-decoration:none;color:#16242C;padding:12px;margin:0 -12px;border-radius:4px;display:block;transition:background .15s;" style-hover="background:#F1F6F8;">
+              <div style="font-size:15px;font-weight:500;">{{ s.name }}</div>
+              <div style="font-size:13px;color:#75858D;margin-top:3px;">{{ s.desc }}</div>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:420},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;&quot;,&quot;solutions&quot;,&quot;products&quot;,&quot;services&quot;,&quot;cases&quot;,&quot;about&quot;],&quot;default&quot;:&quot;products&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;导航&quot;}}">
+class Component extends DCLogic {
+  state = { menu: null, mobileOpen: false, openSec: null };
+
+  componentDidMount() {
+    // 预加载产品下拉配图，首次悬停即时切换
+    ['assets/nav-base-station.png','assets/equipment-room.png','assets/prod-smartlt-cut.png','assets/prod-ma-antenna-cut2.png','assets/pnr-rain.jpg','assets/pnr-hero.jpg','assets/pnr-netflex.jpg'].forEach((s) => { const i = new Image(); i.src = s; });
+  }
+
+  renderVals() {
+    // 行业下拉：有二级页的行业直达，其余回首页行业区
+    const pageMap = { '智能建筑': '行业-智能建筑.dc.html', '数据中心': '行业-数据中心.dc.html', '船舶与仓储': '行业-船舶.dc.html', '隧道与管廊': '行业-隧道管廊.dc.html', '能源化工': '行业-能源化工.dc.html', '交通枢纽': '行业-机场交通枢纽.dc.html' };
+    const withHref = (cols) => cols.map((c) => ({
+      ...c,
+      items: c.items.map((it) => ({ ...it, href: pageMap[it.name] || 'Evertac官网首页.dc.html#solutions' })),
+    }));
+    const menu = this.state.menu;
+    const active = this.props.active ?? '';
+    const mk = (key, label) => ({
+      key, label,
+      open: () => this.setState({ menu: key }),
+      color: (menu === key || (menu === null && active === key)) ? '#4DA5C7' : '#16242C',
+      bar: (menu === key || (menu === null && active === key)) ? '#4DA5C7' : 'transparent',
+    });
+    const vals = {
+      navItems: [
+        mk('solutions', '行业解决方案'),
+        mk('products', '产品与系统'),
+        mk('services', '服务与支持'),
+        mk('cases', '成功案例'),
+        mk('about', '关于我们'),
+      ],
+      closeMenu: () => this.setState({ menu: null }),
+      newsColor: active === 'news' ? '#4DA5C7' : '#16242C',
+      homeColor: active === 'home' ? '#4DA5C7' : '#16242C',
+      showSolutions: menu === 'solutions',
+      showProducts: menu === 'products',
+      showServices: menu === 'services',
+      showCases: menu === 'cases',
+      showAbout: menu === 'about',
+
+      solutionCols: withHref([
+        { title: '建筑与城市', items: [
+          { name: '智能建筑', desc: '超高层、城市综合体、酒店文旅全楼层无缝覆盖' },
+          { name: '数据中心', desc: '关键设施的运维协作通信' },
+          { name: '隧道与管廊', desc: '地下空间集约化分区专网' },
+        ]},
+        { title: '交通与物流', items: [
+          { name: '交通枢纽', desc: '机场、轨交与港口的调度通信' },
+          { name: '船舶与仓储', desc: '货轮、邮轮的全船无盲区覆盖' },
+          { name: '能源化工', desc: '全链路防爆与光纤分布式覆盖' },
+        ]},
+        { title: '工业与公共', items: [
+          { name: '制造业', desc: '洁净车间与大规模集群设计' },
+          { name: '公共安全', desc: '应急救援的最后通信保障' },
+          { name: '会展场馆', desc: '大客流场景的从容调度' },
+        ]},
+      ]),
+      productCols: [
+        { title: '系统设备', items: [
+          { name: '信源基站', desc: '一体化基站与 MARK1000 信道机', href: '产品-信源基站.dc.html' },
+          { name: '合路平台', desc: '多制式信号合分路与抗干扰', href: '产品-合路平台.dc.html' },
+          { name: '光纤直放站', desc: 'Smart LT · 数字中频 · 室外壁挂', href: '产品-直放站.dc.html' },
+          { name: '智能天馈', desc: 'MA 系列 · 防爆 · 室外天线', href: '产品-智能天馈.dc.html' },
+        ]},
+        { title: '终端与平台', items: [
+          { name: '智能终端与配件', desc: 'PNR 系列终端 · 充电 · 耳机配件', href: '产品-终端.dc.html' },
+          { name: 'PNR2100 智能终端', desc: '专网安全，公网自由', href: '产品-PNR2100.dc.html', isNew: true },
+          { name: 'NetFlex 云平台', desc: '定位、工单与调度一体化', href: 'Evertac官网首页.dc.html#products' },
+        ]},
+      ],
+      serviceLinks: [
+        { name: '专业设计咨询', desc: '以用户需求为核心的系统规划', href: '服务-设计咨询.dc.html' },
+        { name: '厂家系统交付', desc: '原厂交付带来准确性与便捷性', href: '服务-系统交付.dc.html' },
+        { name: '快速响应售后', desc: '一对一专业工程师支持', href: 'Evertac官网首页.dc.html#services' },
+        { name: '大型活动通信保障', desc: '关键时刻，保驾护航', href: 'Evertac官网首页.dc.html#services' },
+      ],
+      caseCols: [
+        { title: '交通枢纽 · 超高层', items: [
+          { name: '上海中心大厦', desc: '632 米全楼层无缝覆盖' },
+          { name: '长沙 / 西安国际机场', desc: '千万级客流集群调度' },
+        ]},
+        { title: '半导体与制造', items: [
+          { name: '长江存储基地', desc: '抗电磁干扰微功率覆盖' },
+          { name: '华虹 / 积塔 / 联电', desc: '晶圆洁净厂房通信' },
+        ]},
+        { title: '化工 · 文旅 · 数据中心', items: [
+          { name: '科思创一体化基地', desc: '1000+ 终端防爆集群' },
+          { name: '金山乐高乐园', desc: '大客流分区无缝覆盖' },
+        ]},
+      ],
+      aboutLinks: [
+        { name: '公司简介', desc: '二十余年专注智能通信', href: '关于我们.dc.html#company' },
+        { name: '行业领导力与标准', desc: '参与行业标准的设计、制定与编写', href: '关于我们.dc.html#leadership' },
+        { name: '资质与合规', desc: 'SIRIM · IMDA · CE/RED · ATEX', href: '关于我们.dc.html#compliance' },
+        { name: '联系我们', desc: '中国上海总部', href: '关于我们.dc.html#contact' },
+      ],
+    };
+    const flat = (cols) => (cols || []).flatMap((c) => c.items || []);
+    const st = this.state;
+    const mkSec = (key, label, links) => ({
+      key, label, links,
+      open: st.openSec === key,
+      rotate: st.openSec === key ? 'rotate(45deg)' : 'rotate(0deg)',
+      toggle: () => this.setState((s) => ({ openSec: s.openSec === key ? null : key })),
+    });
+    vals.toggleMobile = () => this.setState((s) => ({ mobileOpen: !s.mobileOpen }));
+    vals.mpanelDisplay = st.mobileOpen ? 'block' : 'none';
+
+    // 产品下拉：悬停切换右侧配图
+    const prodImgs = {
+      '信源基站': { img: 'assets/nav-base-station.png', fit: 'cover', eyebrow: 'SYSTEM · 信源基站' },
+      '合路平台': { img: 'assets/equipment-room.png', fit: 'cover', eyebrow: 'SYSTEM · 合路平台' },
+      '光纤直放站': { img: 'assets/prod-smartlt-cut.png', fit: 'contain', eyebrow: 'SYSTEM · 光纤直放站' },
+      '智能天馈': { img: 'assets/prod-ma-antenna-cut2.png', fit: 'contain', eyebrow: 'SYSTEM · 智能天馈' },
+      '智能终端与配件': { img: 'assets/pnr-rain.jpg', fit: 'cover', eyebrow: 'TERMINAL · 智能终端' },
+      'PNR2100 智能终端': { img: 'assets/pnr-hero.jpg', fit: 'cover', eyebrow: 'NEW · 双模智能终端' },
+      'NetFlex 云平台': { img: 'assets/pnr-netflex.jpg', fit: 'cover', eyebrow: 'PLATFORM · 云端运营' },
+    };
+    vals.productCols.forEach((col) => col.items.forEach((it) => {
+      const m = prodImgs[it.name] || prodImgs['信源基站'];
+      it.enter = () => this.setState({ prodFeat: { name: it.name, href: it.href, img: m.img, fit: m.fit, eyebrow: m.eyebrow } });
+    }));
+    const dk = prodImgs['信源基站'];
+    vals.feat = st.prodFeat || { name: '一体化基站 · 信源系统', href: '产品-信源基站.dc.html', img: dk.img, fit: dk.fit, eyebrow: dk.eyebrow };
+    // 所有配图常驻叠层，切换仅改透明度（即时、无需重新加载）
+    const layerDefs = [
+      { img: 'assets/nav-base-station.png', fit: 'cover' },
+      { img: 'assets/equipment-room.png', fit: 'cover' },
+      { img: 'assets/prod-smartlt-cut.png', fit: 'contain' },
+      { img: 'assets/prod-ma-antenna-cut2.png', fit: 'contain' },
+      { img: 'assets/pnr-rain.jpg', fit: 'cover' },
+      { img: 'assets/pnr-hero.jpg', fit: 'cover' },
+      { img: 'assets/pnr-netflex.jpg', fit: 'cover' },
+    ];
+    vals.featLayers = layerDefs.map((l) => ({ img: l.img, fit: l.fit, op: l.img === vals.feat.img ? 1 : 0 }));
+    vals.mobileSections = [
+      mkSec('solutions', '行业解决方案', flat(vals.solutionCols).map((i) => ({ name: i.name, href: i.href }))),
+      mkSec('products', '产品与系统', flat(vals.productCols).map((i) => ({ name: i.name, href: i.href }))),
+      mkSec('services', '服务与支持', (vals.serviceLinks || []).map((s) => ({ name: s.name, href: s.href || 'Evertac官网首页.dc.html#services' }))),
+      mkSec('cases', '成功案例', flat(vals.caseCols).map((c) => ({ name: c.name, href: '案例中心.dc.html' }))),
+      mkSec('about', '关于我们', (vals.aboutLinks || []).map((a) => ({ name: a.name, href: a.href }))),
+    ];
+    return vals;
+  }
+}
+</script>
+</body>
+</html>

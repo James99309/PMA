@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin="">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Saira:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  ::selection { background: #4DA5C7; color: #fff; }
+  [data-reveal] { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
+  [data-reveal].in { opacity: 1; transform: none; }
+</style>
+</helmet>
+
+<div style="font-family:'Noto Sans SC','PingFang SC',sans-serif;color:#16242C;background:#ffffff;">
+
+  <dc-import name="SiteHeader" active="solutions" style="display:contents" hint-size="100%,74px"></dc-import>
+
+  <!-- ═══════ HERO ═══════ -->
+  <section data-screen-label="能源化工·封面" style="position:relative;background:#0A1A22 url('assets/petrochem-hero.jpg') center 40%/cover no-repeat;color:#fff;overflow:hidden;">
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,18,24,.94) 0%,rgba(8,18,24,.74) 42%,rgba(8,18,24,.28) 76%,rgba(8,18,24,.08) 100%);"></div>
+    <div style="position:relative;max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div style="max-width:40em;padding:132px 0;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.24em;color:#E6A15C;font-weight:600;">ENERGY &amp; PETROCHEMICAL</div>
+        <h1 class="evt-hero-h1" style="margin:20px 0 0;font-size:54px;line-height:1.12;font-weight:900;letter-spacing:-.01em;text-shadow:0 2px 30px rgba(0,0,0,.5);">通信失联，<br>就是安全失控。</h1>
+        <p style="margin:24px 0 0;font-size:18px;line-height:1.7;color:rgba(255,255,255,.82);max-width:32em;font-weight:300;text-shadow:0 1px 16px rgba(0,0,0,.5);">一套 <strong style="color:#fff;font-weight:500;">DistriNet 光纤分布式架构</strong>，让装置区、储罐区、控制区的每一次呼叫都听得到、说得出、可追溯。</p>
+        <div style="margin-top:34px;display:flex;gap:14px;flex-wrap:wrap;">
+          <a href="Evertac官网首页.dc.html#contact" style="background:#4DA5C7;color:#fff;text-decoration:none;padding:15px 30px;border-radius:5px;font-size:15px;font-weight:500;" style-hover="background:#3d94b6;">咨询石化方案</a>
+          <a href="#tco" style="background:rgba(255,255,255,.1);color:#fff;text-decoration:none;padding:15px 30px;border-radius:5px;font-size:15px;font-weight:500;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(4px);" style-hover="background:rgba(255,255,255,.18);">看 5 年成本对比</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ① 五大挑战（紧凑条） ═══════ -->
+  <section data-screen-label="石化挑战" style="background:#ffffff;padding:64px 0;border-bottom:1px solid #EEF2F4;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap;">
+        <h2 style="margin:0;font-size:26px;font-weight:900;line-height:1.3;">石化厂区的五道通信关口</h2>
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.14em;color:#C0576B;font-weight:600;">CHALLENGES</div>
+      </div>
+      <div data-reveal style="margin-top:32px;display:grid;grid-template-columns:repeat(5,1fr);gap:0;" class="evt-grid-5">
+        <sc-for list="{{ challenges }}" as="c" hint-placeholder-count="5">
+          <div style="padding:4px 22px 4px 22px;border-left:2px solid #F0DCE1;">
+            <div style="font-family:'Saira',sans-serif;font-size:26px;font-weight:800;color:#D98BA0;">{{ c.no }}</div>
+            <div style="margin-top:10px;font-size:17px;font-weight:800;color:#C0576B;">{{ c.title }}</div>
+            <div style="margin-top:8px;font-size:13.5px;line-height:1.65;color:#7A8890;">{{ c.short }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ② 架构示意图（核心） ═══════ -->
+  <section data-screen-label="架构示意" style="background:#0A1A22;color:#fff;padding:84px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="display:flex;justify-content:space-between;align-items:flex-end;gap:30px;flex-wrap:wrap;">
+        <div style="max-width:34em;">
+          <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#7FC4DC;font-weight:600;">DISTRINET ARCHITECTURE</div>
+          <h2 style="margin:12px 0 0;font-size:32px;font-weight:900;line-height:1.24;">集中处理，分布覆盖</h2>
+          <p style="margin:14px 0 0;font-size:16px;line-height:1.75;color:rgba(255,255,255,.68);font-weight:300;">一台主基站集中所有信道资源，数字光纤把信号拉远到每个防爆装置区。扩容只加 ORU 远端，无需新增基站与频率。</p>
+        </div>
+      </div>
+
+      <!-- 光纤拉远 + 分区架构（PPT 原图：厂区天际线覆盖示意） -->
+      <div data-reveal style="margin-top:40px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:18px;padding:34px 30px 30px;">
+        <!-- 三个特性 -->
+        <div class="evt-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="width:9px;height:9px;border-radius:50%;background:#E6A15C;flex:none;"></span>
+            <span style="font-size:15px;font-weight:600;color:rgba(255,255,255,.9);">信号直接送达装置内部</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="width:9px;height:9px;border-radius:50%;background:#E6A15C;flex:none;"></span>
+            <span style="font-size:15px;font-weight:600;color:rgba(255,255,255,.9);">分区独立，互不干扰</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="width:9px;height:9px;border-radius:50%;background:#E6A15C;flex:none;"></span>
+            <span style="font-size:15px;font-weight:600;color:rgba(255,255,255,.9);">移动过程中无感切换</span>
+          </div>
+        </div>
+
+        <!-- 分区标签 -->
+        <div style="position:relative;margin-top:8px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;">
+            <div style="font-family:'Saira',sans-serif;font-size:15px;font-weight:700;color:#E6A15C;">DistriNet 扩展区 A</div>
+            <div style="font-family:'Saira',sans-serif;font-size:15px;font-weight:700;color:#7FC4DC;">基站覆盖区域</div>
+            <div style="font-family:'Saira',sans-serif;font-size:15px;font-weight:700;color:#E6A15C;">DistriNet 扩展区 B</div>
+          </div>
+          <!-- 天际线覆盖图 -->
+          <img src="assets/energy-skyline-coverage.png" alt="厂区光纤拉远覆盖示意" style="width:100%;height:auto;display:block;margin-top:10px;" />
+          <!-- 光纤标记 -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;text-align:center;margin-top:6px;">
+            <div></div>
+            <div style="font-family:'Saira',sans-serif;font-size:12.5px;letter-spacing:.14em;color:#C9885A;">光纤</div>
+            <div style="font-family:'Saira',sans-serif;font-size:12.5px;letter-spacing:.14em;color:#C9885A;">光纤</div>
+            <div></div>
+          </div>
+        </div>
+
+        <!-- 说明 -->
+        <p style="margin:22px auto 0;max-width:60em;text-align:center;font-size:15px;line-height:1.8;color:rgba(255,255,255,.66);font-weight:300;"><strong style="color:#fff;font-weight:600;">DistriNet 基站拓展技术</strong>：沿用厂区已建的光纤网络，把主基站的信道资源同步拉远到每个装置区。基站居中覆盖，两侧扩展区经光纤直送信号进入建筑与装置内部，全厂共用同一套主基站资源。</p>
+      </div>
+
+      <!-- 三个指标 -->
+      <div data-reveal style="margin-top:34px;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;" class="evt-grid-3">
+        <sc-for list="{{ archMetrics }}" as="m" hint-placeholder-count="3">
+          <div style="padding:22px 0;border-top:2px solid rgba(127,196,220,.4);">
+            <div style="font-family:'Saira',sans-serif;font-size:42px;font-weight:800;line-height:1;color:#7FC4DC;">{{ m.value }}</div>
+            <div style="margin-top:10px;font-size:14.5px;color:rgba(255,255,255,.74);font-weight:500;">{{ m.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- 光纤分布技术 · 通信质量稳定 -->
+      <div data-reveal class="evt-2col" style="margin-top:58px;display:grid;grid-template-columns:1.08fr 0.92fr;gap:52px;align-items:center;border-top:1px solid rgba(255,255,255,.09);padding-top:52px;">
+        <!-- 覆盖深度对比面积图 -->
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:26px 26px 22px;">
+          <div style="font-size:14.5px;font-weight:600;color:rgba(255,255,255,.82);">沿厂区各点位的室内 / 装置内信号质量</div>
+          <div style="margin-top:16px;display:flex;gap:20px;">
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:13px;height:13px;border-radius:3px;background:#E6A15C;display:inline-block;"></span><span style="font-size:12.5px;color:rgba(255,255,255,.6);">DistriNet 光纤分布</span></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:13px;height:13px;border-radius:3px;background:#4FB79E;display:inline-block;"></span><span style="font-size:12.5px;color:rgba(255,255,255,.6);">传统基站系统</span></div>
+          </div>
+          <svg viewBox="0 0 560 280" style="width:100%;height:auto;display:block;margin-top:14px;" data-om-raster>
+            <defs>
+              <linearGradient id="dnQual" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#E6A15C" stop-opacity="0.5"></stop>
+                <stop offset="1" stop-color="#E6A15C" stop-opacity="0.05"></stop>
+              </linearGradient>
+              <linearGradient id="tradQual" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#4FB79E" stop-opacity="0.42"></stop>
+                <stop offset="1" stop-color="#4FB79E" stop-opacity="0.04"></stop>
+              </linearGradient>
+            </defs>
+            <!-- 网格线 -->
+            <g stroke="rgba(255,255,255,0.08)" stroke-width="1">
+              <line x1="48" y1="40" x2="536" y2="40"></line>
+              <line x1="48" y1="100" x2="536" y2="100"></line>
+              <line x1="48" y1="160" x2="536" y2="160"></line>
+              <line x1="48" y1="220" x2="536" y2="220"></line>
+            </g>
+            <!-- 传统基站：起伏大、整体偏低（远端衰减、装置内跌落） -->
+            <path d="M48 150 L 130 172 L 212 128 L 294 188 L 376 140 L 458 196 L 536 158 L 536 220 L 48 220 Z" fill="url(#tradQual)"></path>
+            <path d="M48 150 L 130 172 L 212 128 L 294 188 L 376 140 L 458 196 L 536 158" fill="none" stroke="#4FB79E" stroke-width="2.4"></path>
+            <!-- DistriNet：始终更高、更平稳 -->
+            <path d="M48 78 L 130 92 L 212 70 L 294 96 L 376 74 L 458 90 L 536 76 L 536 220 L 48 220 Z" fill="url(#dnQual)"></path>
+            <path d="M48 78 L 130 92 L 212 70 L 294 96 L 376 74 L 458 90 L 536 76" fill="none" stroke="#E6A15C" stroke-width="2.6"></path>
+            <!-- 覆盖深度差标注 -->
+            <line x1="294" y1="96" x2="294" y2="188" stroke="#5FD9A0" stroke-width="1.4" stroke-dasharray="4 4"></line>
+            <text x="304" y="146" text-anchor="start" font-family="'Noto Sans SC',sans-serif" font-size="12.5" fill="#5FD9A0" font-weight="600">覆盖深度差</text>
+            <!-- y 轴刻度 -->
+            <g font-family="'Saira',sans-serif" font-size="11.5" fill="rgba(255,255,255,0.4)" text-anchor="end">
+              <text x="40" y="44">强</text>
+              <text x="40" y="224">弱</text>
+            </g>
+            <!-- x 轴标签 -->
+            <g font-family="'Noto Sans SC',sans-serif" font-size="12.5" fill="rgba(255,255,255,0.5)" text-anchor="middle">
+              <text x="89" y="244">主控楼</text>
+              <text x="212" y="244">装置区</text>
+              <text x="335" y="244">罐区</text>
+              <text x="458" y="244">远端厂界</text>
+            </g>
+          </svg>
+          <p style="margin:14px 2px 0;font-size:13px;line-height:1.7;color:rgba(255,255,255,.5);">传统基站越往远端、越进入装置与建筑内部，信号衰减越明显，各点位质量参差；DistriNet 光纤把信号直送每个点位，全厂各处始终维持在高质量区间。</p>
+        </div>
+
+        <div>
+          <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#E6A15C;font-weight:600;">FIBER DISTRIBUTION</div>
+          <h3 style="margin:12px 0 0;font-size:26px;font-weight:900;line-height:1.3;">光纤分布技术，<br>通信质量稳定</h3>
+          <p style="margin:16px 0 0;font-size:15.5px;line-height:1.78;color:rgba(255,255,255,.68);font-weight:300;">一套主基站即可通过光纤拉远覆盖整个厂区。光纤分布技术让扩展区网格更小，把信号<strong style="color:#fff;font-weight:600;">直接送达建筑与装置内部</strong>，覆盖深度和信号稳定性都优于传统基站方案——远端、罐区、装置内也不掉话、不失联。</p>
+          <div style="margin-top:24px;display:flex;gap:30px;flex-wrap:wrap;">
+            <div>
+              <div style="font-family:'Saira',sans-serif;font-size:30px;font-weight:800;color:#E6A15C;line-height:1;">1 套</div>
+              <div style="margin-top:7px;font-size:13.5px;color:rgba(255,255,255,.6);">主基站覆盖全厂</div>
+            </div>
+            <div>
+              <div style="font-family:'Saira',sans-serif;font-size:30px;font-weight:800;color:#5FD9A0;line-height:1;">全域</div>
+              <div style="margin-top:7px;font-size:13.5px;color:rgba(255,255,255,.6);">高质量、无盲区</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ③ 前后对比 ═══════ -->
+  <section data-screen-label="根本改善" style="background:#F4F8FA;padding:76px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap;">
+        <h2 style="margin:0;font-size:28px;font-weight:900;line-height:1.28;">从被动救火，到主动预警</h2>
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.14em;color:#4DA5C7;font-weight:600;">WHY IT WORKS</div>
+      </div>
+      <div data-reveal style="margin-top:30px;display:grid;grid-template-columns:repeat(3,1fr);gap:22px;" class="evt-grid-3">
+        <sc-for list="{{ beforeAfter }}" as="b" hint-placeholder-count="3">
+          <div style="background:#fff;border:1px solid #E6EBEE;border-radius:14px;padding:28px 26px;">
+            <div style="font-size:14.5px;font-weight:700;color:#16242C;">{{ b.topic }}</div>
+            <div style="margin-top:18px;display:flex;align-items:center;gap:14px;">
+              <span style="font-family:'Saira',sans-serif;font-size:15px;color:#B4728A;font-weight:600;text-decoration:line-through;text-decoration-color:rgba(180,114,138,.5);">{{ b.before }}</span>
+              <span style="color:#4DA5C7;font-size:18px;">→</span>
+              <span style="font-family:'Saira',sans-serif;font-size:26px;font-weight:800;color:#1F8A5B;">{{ b.after }}</span>
+            </div>
+            <div style="margin-top:14px;font-family:'Saira',sans-serif;font-size:12px;letter-spacing:.05em;color:#B4C2C9;font-weight:600;">{{ b.by }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ④ 双模终端 ═══════ -->
+  <section data-screen-label="双模终端" style="background:#ffffff;padding:80px 0;border-bottom:1px solid #EEF2F4;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div class="evt-2col" style="display:grid;grid-template-columns:1fr 0.95fr;gap:56px;align-items:center;">
+        <div data-reveal>
+          <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-weight:600;">ONE TERMINAL, TWO NETWORKS</div>
+          <h2 style="margin:12px 0 0;font-size:30px;font-weight:900;line-height:1.28;">厂内专网，厂外公网，<br>一部终端全搞定</h2>
+          <p style="margin:16px 0 0;font-size:15.5px;line-height:1.75;color:#5B6B73;">核心装置区用 DMR 专网，到厂区边缘或外出自动切换 4G 公网。无需另建公网系统，也无需配两部终端。</p>
+          <a href="产品-PNR2100.dc.html" style="display:inline-block;margin-top:22px;font-size:15px;color:#4DA5C7;text-decoration:none;font-weight:500;">了解 PNR2100 智能防爆终端 →</a>
+        </div>
+        <div data-reveal style="position:relative;background:linear-gradient(160deg,#0E2430,#0A1A22);border-radius:16px;padding:38px;overflow:hidden;">
+          <div style="position:relative;z-index:1;">
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div style="flex:1;text-align:center;padding:16px 10px;background:rgba(127,196,220,.1);border:1px solid rgba(127,196,220,.28);border-radius:10px;">
+                <div style="font-family:'Saira',sans-serif;font-size:12px;color:#7FC4DC;letter-spacing:.1em;font-weight:600;">CORE AREA</div>
+                <div style="margin-top:6px;color:#fff;font-size:15px;font-weight:700;">DMR 专网</div>
+              </div>
+              <div style="color:rgba(255,255,255,.4);font-size:12px;text-align:center;line-height:1.3;">自动<br>切换</div>
+              <div style="flex:1;text-align:center;padding:16px 10px;background:rgba(230,161,92,.1);border:1px solid rgba(230,161,92,.28);border-radius:10px;">
+                <div style="font-family:'Saira',sans-serif;font-size:12px;color:#E6A15C;letter-spacing:.1em;font-weight:600;">PERIMETER</div>
+                <div style="margin-top:6px;color:#fff;font-size:15px;font-weight:700;">4G 公网</div>
+              </div>
+            </div>
+            <div style="margin-top:26px;text-align:center;">
+              <div style="font-family:'Saira',sans-serif;font-size:32px;font-weight:800;color:#fff;letter-spacing:.02em;">PNR2100 PT</div>
+              <div style="margin-top:6px;font-size:13px;color:rgba(255,255,255,.6);">智能防爆终端 · DMR 语音 + 4G 数据</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ⑤ 全链路防爆（链条图示） ═══════ -->
+  <section data-screen-label="全链路防爆" style="background:#14110B;color:#fff;padding:80px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap;">
+        <h2 style="margin:0;font-size:28px;font-weight:900;line-height:1.28;">全链路 IIC 级防爆，合规无死角</h2>
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.14em;color:#E6A15C;font-weight:600;">FULL-CHAIN EX-PROOF</div>
+      </div>
+      <div data-reveal style="margin-top:36px;display:flex;align-items:stretch;gap:0;flex-wrap:wrap;" class="evt-chain">
+        <sc-for list="{{ exChain }}" as="p" hint-placeholder-count="3">
+          <div style="flex:1;min-width:220px;display:flex;align-items:center;gap:0;">
+            <div style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(230,161,92,.24);border-radius:14px;padding:0 0 24px;height:100%;overflow:hidden;">
+              <div style="height:150px;background:linear-gradient(150deg,#EDEDEF,#E2E2E5);display:flex;align-items:center;justify-content:center;">
+                <img src="{{ p.img }}" alt="{{ p.name }}" style="max-height:132px;max-width:80%;object-fit:contain;display:block;filter:drop-shadow(0 8px 16px rgba(0,0,0,.16));"></img>
+              </div>
+              <div style="padding:22px 22px 0;">
+                <div style="font-family:'Saira',sans-serif;font-size:12px;letter-spacing:.1em;color:#E6A15C;font-weight:600;">{{ p.en }}</div>
+                <div style="margin-top:10px;font-size:18px;font-weight:800;">{{ p.name }}</div>
+                <div style="margin-top:12px;font-size:13px;line-height:1.7;color:rgba(255,255,255,.62);">{{ p.desc }}</div>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);font-family:'Saira',sans-serif;font-size:12px;color:#C9A878;letter-spacing:.03em;">{{ p.cert }}</div>
+              </div>
+            </div>
+            <sc-if value="{{ p.arrow }}" hint-placeholder-val="{{ true }}">
+              <div style="flex:none;width:44px;text-align:center;color:rgba(230,161,92,.6);font-size:22px;" class="evt-chain-arrow">→</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ⑥ TCO 对比 ═══════ -->
+  <section id="tco" data-screen-label="TCO对比" style="background:#ffffff;padding:84px 0;border-bottom:1px solid #EEF2F4;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="max-width:52em;">
+        <div style="font-family:'Saira',sans-serif;font-size:13px;letter-spacing:.16em;color:#4DA5C7;font-weight:600;">BUSINESS VALUE</div>
+        <h2 style="margin:12px 0 0;font-size:32px;font-weight:900;line-height:1.24;">选择架构，决定长期成本</h2>
+        <p style="margin:14px 0 0;font-size:14.5px;line-height:1.7;color:#8A99A1;">基于典型中型石化厂区（10 km²、500 用户、8 个覆盖区域）的 5 年总体拥有成本测算。</p>
+      </div>
+
+      <div data-reveal style="margin-top:38px;display:grid;grid-template-columns:1.15fr 0.85fr;gap:44px;align-items:center;" class="evt-2col">
+        <div style="border:1px solid #E6EBEE;border-radius:14px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;background:#0A1A22;color:#fff;">
+            <div style="padding:16px 20px;font-size:14px;font-weight:600;">成本项目</div>
+            <div style="padding:16px 12px;font-size:14px;font-weight:700;text-align:center;background:rgba(127,196,220,.16);color:#9FD4E6;">EVERTAC</div>
+            <div style="padding:16px 12px;font-size:14px;font-weight:500;text-align:center;color:rgba(255,255,255,.7);">国产传统方案</div>
+            <div style="padding:16px 12px;font-size:14px;font-weight:500;text-align:center;color:rgba(255,255,255,.7);">国际传统方案</div>
+          </div>
+          <sc-for list="{{ tcoRows }}" as="r" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;border-top:1px solid #EEF2F4;{{ r.rowStyle }}">
+              <div style="padding:15px 20px;font-size:14.5px;color:#33454D;font-weight:{{ r.weight }};">{{ r.item }}</div>
+              <div style="padding:15px 12px;text-align:center;font-family:'Saira',sans-serif;font-size:16px;font-weight:800;color:#1F8A5B;background:rgba(31,138,91,.05);">{{ r.evertac }}</div>
+              <div style="padding:15px 12px;text-align:center;font-family:'Saira',sans-serif;font-size:15px;color:#5B6B73;">{{ r.hyt }}</div>
+              <div style="padding:15px 12px;text-align:center;font-family:'Saira',sans-serif;font-size:15px;color:#5B6B73;">{{ r.moto }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div>
+          <div style="background:linear-gradient(160deg,#0E3A2A,#0A2A20);border-radius:16px;padding:34px 32px;color:#fff;">
+            <div style="font-size:15px;color:rgba(255,255,255,.72);">选择 EVERTAC，5 年预计节省</div>
+            <div style="margin-top:16px;display:flex;align-items:baseline;gap:10px;">
+              <span style="font-family:'Saira',sans-serif;font-size:58px;font-weight:800;line-height:1;color:#5FD9A0;">340</span>
+              <span style="font-size:20px;color:#5FD9A0;font-weight:600;">万元</span>
+            </div>
+            <div style="margin-top:8px;font-size:14px;color:rgba(255,255,255,.6);">对比国际传统方案（对比国产传统方案约省 115 万元）</div>
+          </div>
+          <div style="margin-top:14px;font-size:13px;color:#8A99A1;line-height:1.7;">* 可基于您的实际厂区规模，生成定制化 TCO 分析。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ⑦ 为什么选 + CTA ═══════ -->
+  <section data-screen-label="合作方式" style="background:#0A1A22;color:#fff;padding:84px 0;">
+    <div style="max-width:1280px;margin:0 auto;padding:0 32px;">
+      <div data-reveal style="display:grid;grid-template-columns:repeat(3,1fr);gap:28px;" class="evt-grid-3">
+        <sc-for list="{{ whyCards }}" as="w" hint-placeholder-count="3">
+          <div style="border-top:2px solid rgba(127,196,220,.35);padding-top:20px;">
+            <div style="font-size:17px;font-weight:800;">{{ w.title }}</div>
+            <div style="margin-top:10px;font-size:14px;line-height:1.75;color:rgba(255,255,255,.64);">{{ w.desc }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div data-reveal style="margin-top:54px;padding-top:42px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center;gap:30px;flex-wrap:wrap;" class="evt-cta">
+        <div style="font-size:26px;font-weight:800;line-height:1.4;">这不是一次设备采购，<br>而是一次<span style="color:#7FC4DC;">安全通信体系</span>的升级。</div>
+        <a href="Evertac官网首页.dc.html#contact" style="flex:none;background:#4DA5C7;color:#fff;text-decoration:none;padding:16px 36px;border-radius:6px;font-size:16px;font-weight:600;" style-hover="background:#3d94b6;">预约技术交流</a>
+      </div>
+    </div>
+  </section>
+
+  <dc-import name="SiteFooter" style="display:contents" hint-size="100%,360px"></dc-import>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const io = new IntersectionObserver((es) => {
+      es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold: 0, rootMargin: '0px 0px -8% 0px' });
+    const scope = this.el || document;
+    setTimeout(() => scope.querySelectorAll('[data-reveal]').forEach((n) => io.observe(n)), 0);
+    this._reveal = () => {
+      scope.querySelectorAll('[data-reveal]:not(.in)').forEach((n) => {
+        if (n.getBoundingClientRect().top < window.innerHeight * 0.9) n.classList.add('in');
+      });
+    };
+    window.addEventListener('scroll', this._reveal, { passive: true });
+  }
+  componentWillUnmount() {
+    if (this._reveal) window.removeEventListener('scroll', this._reveal);
+  }
+  renderVals() {
+    return {
+      challenges: [
+        { no: '01', title: '覆盖', short: '金属装置层层屏蔽，"听得到、说不出"' },
+        { no: '02', title: '防爆', short: '非合规设备入防爆区，等于埋雷' },
+        { no: '03', title: '调度', short: '语音无法回溯，事故复盘无据' },
+        { no: '04', title: '巡检', short: '天馈故障靠人工，滞后 24h+' },
+        { no: '05', title: '扩容', short: '选错架构，每扩一区就加一座基站' },
+      ],
+      archMetrics: [
+        { value: '30–40%', label: '初始投资节省，用更少基站实现更优覆盖' },
+        { value: '70%', label: '扩容成本降低，扩容只加 ORU 不加基站' },
+        { value: '6×', label: '智能运维效率提升，故障主动预警' },
+      ],
+      beforeAfter: [
+        { topic: '装置区覆盖率', before: '78%', after: '99%', by: 'ORU 远端直放站深入装置' },
+        { topic: '故障发现时间', before: '>24h', after: '<4h', by: 'NetFlex 智能运维在线监测' },
+        { topic: '通信模式', before: '单向通', after: '双向畅', by: '分布式深度覆盖' },
+      ],
+      exChain: [
+        { en: 'EX-PROOF ORU', name: '防爆 ORU 远端', desc: '核心信号沿光纤延伸数十公里，12 信道 / 24 工作组并行。', cert: 'Ex 2 级 / 3 级', img: 'assets/chain-oru.png', arrow: true },
+        { en: 'EX-PROOF ANTENNA', name: '防爆天线', desc: '第二代防爆阻断结构，小巧易装，户外 / 防爆室内通用。', cert: 'Ex db ib mb IIC T6 Gb', img: 'assets/chain-antenna.png', arrow: true },
+        { en: 'EX-PROOF RADIO', name: 'PNR2100 PT 终端', desc: 'DMR 语音 + 4G 数据双模，双重防爆，NetFlex 智管。', cert: 'IIC 级 · 长续航', img: 'assets/chain-term.png', arrow: false },
+      ],
+      tcoRows: [
+        { item: '初始投资', evertac: '≈200 万', hyt: '≈260 万', moto: '≈450 万', weight: '400', rowStyle: '' },
+        { item: '5 年运维成本', evertac: '≈30 万', hyt: '≈60 万', moto: '≈80 万', weight: '400', rowStyle: '' },
+        { item: '5 年停机损失', evertac: '≈10 万', hyt: '≈35 万', moto: '≈50 万', weight: '400', rowStyle: '' },
+        { item: '5 年 TCO 总计', evertac: '≈240 万', hyt: '≈355 万', moto: '≈580 万', weight: '700', rowStyle: 'background:#F7FAFB;' },
+      ],
+      whyCards: [
+        { title: '全链路自研，原生兼容', desc: '基站、ORU、天馈、终端、平台统一研发，无拼凑隐患。一个电话找和源，不推诿。' },
+        { title: '看得到全局的平台', desc: 'NetFlex 全方位监测基站、ORU、天馈、终端电池——普通网管做不到。' },
+        { title: '本地化伙伴保障', desc: '授权服务伙伴覆盖主要石化产业集群，巡检、培训、维护就近响应。' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

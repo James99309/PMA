@@ -57,6 +57,16 @@
 
   {{ at_topbar() }}
 
+  {# ── 官网预览通知条(通栏,紧贴工具栏底部,无间隙,系统主橘色50%透明;每次登录出现) ── #}
+  <a href="{{ url_for('website_preview.cn_home') }}" target="_blank" rel="noopener"
+     style="display:block;width:100%;box-sizing:border-box;padding:5px 36px;text-decoration:none;
+            background:color-mix(in srgb, var(--accent) 50%, transparent);color:#ffffff;
+            font-size:12.5px;line-height:1.35;letter-spacing:0.02em;text-align:left;transition:background 120ms;"
+     onmouseover="this.style.background='color-mix(in srgb, var(--accent) 65%, transparent)'"
+     onmouseout="this.style.background='color-mix(in srgb, var(--accent) 50%, transparent)'">
+    {{ _('公司官网预览') }}　{{ _('请点击跳转') }}
+  </a>
+
   <main style="width:100%;box-sizing:border-box;max-width:1480px;margin:0 auto;padding:24px 36px 80px;">
 
     {# ── 欢迎 ── #}
