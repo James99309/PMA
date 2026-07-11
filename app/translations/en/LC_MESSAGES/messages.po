@@ -2905,7 +2905,6 @@ msgid "文件"
 msgstr "File"
 
 #: app/helpers/js_i18n_strings.py:131
-#, fuzzy
 msgid "文件预览(示意)"
 msgstr "File preview"
 
@@ -3067,9 +3066,8 @@ msgid "此操作会撤回当前审批,需要重新提交。"
 msgstr "This will recall the current approval; you'll need to resubmit."
 
 #: app/helpers/js_i18n_strings.py:155
-#, fuzzy
 msgid "此格式暂不支持页内预览"
-msgstr "Preview not supported"
+msgstr "Inline preview not supported for this format"
 
 #: app/helpers/js_i18n_strings.py:156
 msgid "法人:"
@@ -3518,7 +3516,6 @@ msgstr "Stage"
 
 #: app/helpers/js_i18n_strings.py:221
 #: app/templates/components/at_file_preview.html:46
-#, fuzzy
 msgid "附件预览"
 msgstr "File preview"
 
