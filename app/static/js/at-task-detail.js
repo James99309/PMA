@@ -86,6 +86,9 @@
   function pctOf(d) { var sc = d.subtask_count || 0, sd = d.subtask_completed || 0; return sc > 0 ? Math.floor(sd * 100 / sc) : (d.status === 'completed' ? 100 : 0); }
   // 提交完成进入审核 / 已完成 / 已取消 → 锁定任务下全部交互(仅审核浮层操作保留)
   function isLocked() { return ['pending_review', 'completed', 'cancelled'].indexOf(data && data.status) >= 0; }
+  // 已完成(completed)任务仍放开"新增评论 + 上传附件"(不含删除/编辑/状态变更);
+  // 审核中(pending_review)/已取消(cancelled)仍全锁。
+  function canContribute() { return !isLocked() || (data && data.status === 'completed'); }
 
   // ── 数据切片 ──
   function taskComments() { return (data.replies || []).filter(function (r) { return (!r.reply_type || r.reply_type === 'comment') && !r.subtask_id; }); }
@@ -238,7 +241,7 @@
 
     // 附件卡(项目附件上传样式:任务级)
     var atts = d.attachments || [];
-    var upAction = (!isLocked())
+    var upAction = canContribute()
       ? '<button type="button" onclick="document.getElementById(\'ovAttInput\').click()" style="border:0;background:transparent;color:var(--accent);font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">' + svg('plus', 13) + t('上传') + '</button>' : null;
     var attBody = '';
     if (!atts.length) attBody = '<div style="text-align:center;padding:18px;color:var(--ink-4);font-size:12px;">' + t('暂无附件') + '</div>';
@@ -249,8 +252,8 @@
     // 评论卡(公用 at-comments 组件:只刷新评论区,不重载整页)
     var cmts = taskComments();
     var cmtBody = '<div id="ovCmtList" style="margin-bottom:12px;"></div>'
-      + '<div style="display:flex;gap:10px;"><textarea id="ovCmtInput" placeholder="' + t('写评论…') + '" ' + (isLocked() ? 'disabled' : '') + ' style="flex:1;min-height:56px;border:1px solid var(--line-2);background:var(--bg-elev);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink);resize:vertical;box-sizing:border-box;' + (isLocked() ? 'opacity:.5;' : '') + '"></textarea>'
-      + '<button type="button" id="ovCmtSend" ' + (isLocked() ? 'disabled' : '') + ' style="align-self:flex-end;height:36px;padding:0 16px;border:0;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;' + (isLocked() ? 'opacity:.5;' : '') + '">' + t('发送') + '</button></div>';
+      + '<div style="display:flex;gap:10px;"><textarea id="ovCmtInput" placeholder="' + t('写评论…') + '" ' + (!canContribute() ? 'disabled' : '') + ' style="flex:1;min-height:56px;border:1px solid var(--line-2);background:var(--bg-elev);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink);resize:vertical;box-sizing:border-box;' + (!canContribute() ? 'opacity:.5;' : '') + '"></textarea>'
+      + '<button type="button" id="ovCmtSend" ' + (!canContribute() ? 'disabled' : '') + ' style="align-self:flex-end;height:36px;padding:0 16px;border:0;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;' + (!canContribute() ? 'opacity:.5;' : '') + '">' + t('发送') + '</button></div>';
     var cardCmt = card(t('评论'), cmts.length, null, cmtBody, false, 'card-comments');
 
     // 会审改为标题旁徽章浮层(见 render 头部),概览不再常驻会审卡
