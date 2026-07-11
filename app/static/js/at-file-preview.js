@@ -38,6 +38,13 @@
     docx: { color: '#2A5F8F', tint: '#DDE6F1', label: 'DOC' },
     xls:  { color: '#2F7155', tint: '#DCE8E0', label: 'XLS' },
     xlsx: { color: '#2F7155', tint: '#DCE8E0', label: 'XLS' },
+    csv:  { color: '#2F7155', tint: '#DCE8E0', label: 'CSV' },
+    ppt:  { color: '#C2703B', tint: '#F2E2D6', label: 'PPT' },
+    pptx: { color: '#C2703B', tint: '#F2E2D6', label: 'PPT' },
+    rar:  { color: '#7A5AE0', tint: '#E2DCF5', label: 'RAR' },
+    '7z': { color: '#7A5AE0', tint: '#E2DCF5', label: '7Z'  },
+    dwg:  { color: '#2A6F7A', tint: '#D8E9EC', label: 'DWG' },
+    txt:  { color: '#5C5A54', tint: '#E5E3DD', label: 'TXT' },
   };
 
   function fileMeta(f) {

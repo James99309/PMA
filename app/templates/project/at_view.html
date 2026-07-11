@@ -12,6 +12,7 @@
 {% from 'components/at_add_customer_modal.html' import at_add_customer_modal %}
 {% from 'components/at_action_modal.html' import at_action_modal %}
 {% from 'components/at_search_picker.html' import at_search_picker %}
+{% from 'components/at_file_preview.html' import at_file_preview_modal %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
 <!DOCTYPE html>
 <html lang="zh">
@@ -58,6 +59,7 @@
 <script src="{{ url_for('static', filename='js/at-ai-research.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-add-customer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-action-modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
 {{ at_detail_styles() }}
 </head>
 <body class="at-page">
@@ -525,9 +527,11 @@
           <div style="display:flex;align-items:center;gap:8px;padding:10px 18px;
                       border-bottom:{{ '0' if loop.last else '1px solid var(--line-soft)' }};">
             <span style="color:var(--ink-3);flex-shrink:0;">{{ at_icon('file', 14) }}</span>
-            <div style="flex:1;min-width:0;">
+            <div onclick="atProjPreviewAttachment({{ loop.index0 }})" style="flex:1;min-width:0;cursor:pointer;"
+                 title="{{ f.filename }}">
               <div style="font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;
-                          white-space:nowrap;" title="{{ f.filename }}">{{ f.filename }}</div>
+                          white-space:nowrap;"
+                   onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink)'">{{ f.filename }}</div>
               <div class="at-dim" style="font-size:10.5px;">{{ (f.uploaded_at[:16] | replace('T', ' ')) if f.uploaded_at else '' }}{% if f.uploader %} · {{ f.uploader }}{% endif %}</div>
             </div>
             <a href="{{ f.url }}" target="_blank" rel="noopener" download="{{ f.filename }}" title="{{ _('下载') }}"
@@ -589,7 +593,20 @@
     const _STAGE_LABELS = {discover:'{{ _("发现") }}',embed:'{{ _("植入") }}',pre_tender:'{{ _("标前") }}',tendering:'{{ _("标中") }}',awarded:'{{ _("中标") }}',quoted:'{{ _("批价") }}',signed:'{{ _("签约") }}',lost:'{{ _("失败") }}',paused:'{{ _("搁置") }}'};
     const _csrf = () => document.querySelector('meta[name="csrf-token"]').content;
 
-    // ── 项目附件:上传/删除(复用通用 /api/attachments/project/<id> 端点) ──
+    // ── 项目附件:预览(复用通用 ATFilePreview)/上传/删除(通用 /api/attachments/project/<id> 端点) ──
+    // 不传 type:后端存的是 "attachment" 而非扩展名,而 ATFilePreview 优先用 type 判定
+    // 预览类型 —— 传了会让图片/PDF 全部退化成"不支持预览"。留空由 name 后缀推导。
+    const _PROJ_ATTACHMENTS = [
+      {%- for f in project_attachments %}
+      { name: {{ f.filename|tojson }}, url: {{ f.url|tojson }},
+        size: {{ (f.size or none)|tojson }}, uploaded_at: {{ (f.uploaded_at or '')|tojson }} }{{ ',' if not loop.last }}
+      {%- endfor %}
+    ];
+    window.atProjPreviewAttachment = function (index) {
+      if (!window.ATFilePreview || !_PROJ_ATTACHMENTS.length) return;
+      ATFilePreview.open('{{ _("项目附件") }}', _PROJ_ATTACHMENTS);
+      if (ATFilePreview._selectFile) ATFilePreview._selectFile(index);
+    };
     window.atProjUploadPick = function () {
       var el = document.getElementById('atProjFileInput'); if (el) el.click();
     };
@@ -884,6 +901,9 @@
 
 </div>
 </div>
+
+{# 附件预览模态(通用 AT 组件) #}
+{{ at_file_preview_modal() }}
 
 {# 编辑项目 + 添加客户 modal + 地图选择器(perms.can_edit 时才渲染) #}
 {% if perms.can_edit %}
