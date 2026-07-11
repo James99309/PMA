@@ -181,8 +181,10 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 3
+      # timeout 5s 在内存吃紧时会误判(见 SG:gunicorn 被换出 swap → 换页拖过 5s →
+      # 连续 3 次被 autoheal 重启)。CN 内存宽裕暂未触发,但配置同源,一并放宽。
+      timeout: 20s
+      retries: 5
       start_period: 30s
     labels:
       - "autoheal=true"
