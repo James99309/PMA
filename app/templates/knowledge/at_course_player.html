@@ -152,25 +152,42 @@
     if (!cpLoading) return;
     var start = Date.now();
     var MUSTACHE = '{' + '{';   // 拼接避免被 Jinja 当插值
-    function ready() {
+    var readySince = 0;
+    // 框架已挂载:解压屏没了、未渲染占位没了、文档 complete、已有实质文字
+    function coreReady() {
       try {
         var d = cpFrame.contentDocument;
         if (!d || !d.body) return false;
+        if (d.readyState !== 'complete') return false;
         var t = d.body.innerText || '';
         if (t.indexOf('Unpacking') >= 0) return false;   // 解压屏还在
         if (t.indexOf(MUSTACHE) >= 0) return false;       // 未渲染的模板占位还在(灯箱等)
-        return t.replace(/\s/g, '').length > 0;           // 已有实际内容
+        return t.replace(/\s/g, '').length >= 10;         // 已有实质文字
       } catch (e) { return false; }
+    }
+    // 当前 DOM 里有 src 的 <img> 是否都画好了(封面大图没加载完就先别揭)
+    function imgsReady() {
+      try {
+        var imgs = [].slice.call(cpFrame.contentDocument.images)
+          .filter(function (i) { return i.currentSrc || i.getAttribute('src'); });
+        return imgs.every(function (i) { return i.complete && i.naturalWidth > 0; });
+      } catch (e) { return true; }
     }
     function hide() {
       cpLoading.classList.add('cp-hide');
       setTimeout(function () { cpLoading.style.display = 'none'; }, 500);
     }
     var poll = setInterval(function () {
-      if (ready() || Date.now() - start > 12000) {        // 12s 兜底,无论如何揭开
-        clearInterval(poll);
-        hide();
+      if (coreReady()) {
+        if (!readySince) readySince = Date.now();
+        var held = Date.now() - readySince;
+        // 挂载后必须等图片都画好 + 0.5s 缓冲再揭(避免露出还没画完的空白页);
+        // 极端情况(图片永远不 complete)由下方 15s 兜底
+        if (imgsReady() && held > 500) { clearInterval(poll); hide(); }
+      } else {
+        readySince = 0;   // 还在解压/未挂载 → 回退,继续盖着封面
       }
+      if (Date.now() - start > 15000) { clearInterval(poll); hide(); }   // 15s 兜底
     }, 200);
   })();
 
