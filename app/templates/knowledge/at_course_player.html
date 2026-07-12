@@ -165,11 +165,17 @@
         return t.replace(/\s/g, '').length >= 10;         // 已有实质文字
       } catch (e) { return false; }
     }
-    // 当前 DOM 里有 src 的 <img> 是否都画好了(封面大图没加载完就先别揭)
+    // 只等"当前视口内(封面/当前页)"有 src 的 <img> 画好即可 —— 其余页的图后台慢慢加载,
+    // 不必等整个 deck 全部图都下完(那样等于把 deck 的全量加载缺点放大)。
     function imgsReady() {
       try {
-        var imgs = [].slice.call(cpFrame.contentDocument.images)
-          .filter(function (i) { return i.currentSrc || i.getAttribute('src'); });
+        var win = cpFrame.contentWindow, doc = cpFrame.contentDocument;
+        var vw = win.innerWidth || 1280, vh = win.innerHeight || 720;
+        var imgs = [].slice.call(doc.images).filter(function (i) {
+          if (!(i.currentSrc || i.getAttribute('src'))) return false;
+          var r = i.getBoundingClientRect();
+          return r.width > 1 && r.height > 1 && r.bottom > 0 && r.top < vh && r.right > 0 && r.left < vw;
+        });
         return imgs.every(function (i) { return i.complete && i.naturalWidth > 0; });
       } catch (e) { return true; }
     }
@@ -181,9 +187,9 @@
       if (coreReady()) {
         if (!readySince) readySince = Date.now();
         var held = Date.now() - readySince;
-        // 挂载后必须等图片都画好 + 0.5s 缓冲再揭(避免露出还没画完的空白页);
-        // 极端情况(图片永远不 complete)由下方 15s 兜底
-        if (imgsReady() && held > 500) { clearInterval(poll); hide(); }
+        // 挂载(当前页已渲染)后:视口内图片画好(≥400ms)就揭;否则最多再等 1.5s 就揭
+        // (封面这时已画好,其余页的图后台继续加载,不必等整个 deck 全下完)
+        if ((imgsReady() && held > 400) || held > 1500) { clearInterval(poll); hide(); }
       } else {
         readySince = 0;   // 还在解压/未挂载 → 回退,继续盖着封面
       }
