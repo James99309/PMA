@@ -29,7 +29,7 @@ import threading
 
 from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort, url_for
 from flask_login import current_user, login_required
-from werkzeug.utils import secure_filename
+from werkzeug.utils import secure_filename, safe_join
 
 from app import db
 from app.models.file_manager import FileLibrary, UserFileRef
@@ -164,6 +164,18 @@ def _list_courses():
     return [c.to_dict() for c in rows]
 
 
+def _is_package(safe_key):
+    """多文件离线包:存在 course_assets/<key>/index.html(目录形态)。"""
+    return os.path.isfile(os.path.join(COURSE_ASSETS_DIR, safe_key, 'index.html'))
+
+
+def _course_html_path(safe_key):
+    """课件主 HTML 绝对路径:多文件包→<key>/index.html;单文件→<key>.html。"""
+    if _is_package(safe_key):
+        return os.path.join(COURSE_ASSETS_DIR, safe_key, 'index.html')
+    return os.path.join(COURSE_ASSETS_DIR, safe_key + '.html')
+
+
 def _find_course(course_key):
     """按 key 读 DB 课程 + 校验课件文件存在;返回 (course_dict, abs_path) 或 (None, None)。"""
     safe_key = secure_filename(course_key)
@@ -172,7 +184,7 @@ def _find_course(course_key):
     row = InteractiveCourse.query.filter_by(key=safe_key).first()
     if not row:
         return None, None
-    path = os.path.join(COURSE_ASSETS_DIR, safe_key + '.html')
+    path = _course_html_path(safe_key)
     if not os.path.isfile(path):
         logger.warning('互动课程文件缺失: %s', path)
         return None, None
@@ -201,7 +213,12 @@ def play_course(course_key):
     if not course:
         abort(404)
     pages = _get_course_pages(course['key'], path)
-    return render_template('knowledge/at_course_player.html', course=course, pages=pages)
+    # 多文件包:iframe 指向包内 index.html(相对资源经 /pkg/ 伺服);单文件走 /asset
+    if _is_package(course['key']):
+        asset_url = url_for('knowledge_wiki.course_pkg', course_key=course['key'], rel='index.html')
+    else:
+        asset_url = url_for('knowledge_wiki.course_asset', course_key=course['key'])
+    return render_template('knowledge/at_course_player.html', course=course, pages=pages, asset_url=asset_url)
 
 
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/asset')
@@ -212,6 +229,25 @@ def course_asset(course_key):
     if not course:
         abort(404)
     return send_file(path, mimetype='text/html')
+
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>/pkg/<path:rel>')
+@login_required
+def course_pkg(course_key, rel):
+    """多文件离线包内的文件(index.html / assets 图片 / mp4 视频),安全伺服。
+
+    仅登录可见;safe_join 防目录穿越;mp4 由 send_file 支持 Range(可拖动进度)。
+    """
+    safe = secure_filename(course_key)
+    if not safe:
+        abort(404)
+    base = os.path.join(COURSE_ASSETS_DIR, safe)
+    if not os.path.isdir(base):
+        abort(404)
+    full = safe_join(base, rel)
+    if not full or not os.path.isfile(full):
+        abort(404)
+    return send_file(full, conditional=True)
 
 
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/thumb/<int:page>')

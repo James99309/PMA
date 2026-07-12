@@ -15,8 +15,12 @@ import threading
 logger = logging.getLogger(__name__)
 
 
-def generate_thumbnails(key, n_pages, assets_dir, viewport=(1024, 576)):
-    """为 key 课件生成 1..n_pages 页缩略图。成功返回张数,失败抛异常。"""
+def generate_thumbnails(key, n_pages, assets_dir, viewport=(1024, 576), html_rel=None):
+    """为 key 课件生成 1..n_pages 页缩略图。成功返回张数,失败抛异常。
+
+    html_rel:课件主 HTML 相对 assets_dir 的路径;默认 <key>.html(单文件),
+    多文件包传 '<key>/index.html'(相对资源才能正确解析)。
+    """
     if n_pages <= 0:
         return 0
     from playwright.sync_api import sync_playwright  # 延迟导入:未装时不影响其它功能
@@ -35,7 +39,8 @@ def generate_thumbnails(key, n_pages, assets_dir, viewport=(1024, 576)):
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page(viewport={'width': viewport[0], 'height': viewport[1]})
-            page.goto(f'http://127.0.0.1:{port}/{key}.html', wait_until='load')
+            rel = html_rel or (key + '.html')
+            page.goto(f'http://127.0.0.1:{port}/{rel}', wait_until='load')
             page.wait_for_timeout(1500)
             for i in range(1, n_pages + 1):
                 if i > 1:

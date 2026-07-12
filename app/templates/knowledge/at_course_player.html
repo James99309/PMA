@@ -115,7 +115,7 @@
 
   <div class="cp-stage">
     <iframe class="cp-frame" id="cpFrame"
-            data-src="{{ url_for('knowledge_wiki.course_asset', course_key=course.key) }}"
+            data-src="{{ asset_url or url_for('knowledge_wiki.course_asset', course_key=course.key) }}"
             title="{{ course.title }}"></iframe>
     <div class="cp-loading" id="cpLoading">
       {% if course.has_thumbs %}
