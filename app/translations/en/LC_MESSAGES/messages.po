@@ -37123,3 +37123,97 @@ msgstr " hr ago"
 
 msgid "跟进记录回复"
 msgstr "Follow-up reply"
+
+# ── AT 知识库补充翻译 ──
+
+msgid "封面取第几页"
+msgstr "Cover page"
+
+msgid "简介"
+msgstr "Description"
+
+msgid "返回课程"
+msgstr "Back to Course"
+
+msgid "互动课程"
+msgstr "Interactive Courses"
+
+msgid "分类 topic"
+msgstr "Topic"
+
+msgid "提交答卷"
+msgstr "Submit Answers"
+
+msgid "替换课件 HTML(可选,重新析出知识+缩略图)"
+msgstr "Replace courseware HTML (optional; re-extracts knowledge + thumbnails)"
+
+msgid "请先翻到最后一页(看完课程)再开始考核"
+msgstr "Please view the last page (finish the course) before starting the assessment"
+
+msgid "封面底色"
+msgstr "Cover color"
+
+msgid "开始考核"
+msgstr "Start Assessment"
+
+msgid "副标题"
+msgstr "Subtitle"
+
+msgid "课件加载中…"
+msgstr "Loading courseware…"
+
+msgid "AI 正在根据课件内容出题,请稍候…"
+msgstr "AI is generating questions from the courseware, please wait…"
+
+msgid "看完全部页面后解锁"
+msgstr "Unlocks after viewing all pages"
+
+msgid "编辑课程"
+msgstr "Edit Course"
+
+msgid "无管理权限"
+msgstr "No admin permission"
+
+msgid "本课件未内置逐页说明"
+msgstr "This courseware has no per-page notes"
+
+msgid "点击课程卡片,在新标签页中播放互动课件并完成考核。"
+msgstr "Click a course card to play the interactive courseware in a new tab and complete the assessment."
+
+msgid "暂无互动课程,点右上角上传"
+msgstr "No interactive courses yet. Click Upload at the top right."
+
+msgid "文章库"
+msgstr "Articles"
+
+msgid "课件 HTML 文件"
+msgstr "Courseware HTML file"
+
+msgid "返回知识库"
+msgstr "Back to Knowledge Base"
+
+msgid "生成缩略图"
+msgstr "Generate Thumbnails"
+
+msgid "考核"
+msgstr "Assessment"
+
+msgid "篇"
+msgstr "articles"
+
+msgid "上传课程"
+msgstr "Upload Course"
+
+# ── 课件知识数据层翻译 ──
+
+msgid "课件知识"
+msgstr "Courseware Knowledge"
+
+msgid "本文由互动课件《%(title)s》逐页讲解析出(共 %(n)d 页)。每节末尾可点击跳到课件对应页查看演示。"
+msgstr "Auto-extracted page by page from the interactive courseware «%(title)s» (%(n)d pages). At the end of each section you can jump to the corresponding courseware page."
+
+msgid "。关键词:"
+msgstr ". Keywords: "
+
+msgid "。互动课件《%(t)s》逐页讲解析出,可搜可问,每节可跳课件对应页。"
+msgstr ". Auto-extracted page by page from the interactive courseware «%(t)s»; searchable and queryable, each section links to its courseware page."

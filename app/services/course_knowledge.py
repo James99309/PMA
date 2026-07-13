@@ -9,6 +9,8 @@ import logging
 import re
 from datetime import datetime
 
+from flask_babel import gettext as _
+
 from app import db
 from app.models.knowledge import KnowledgeWikiArticle
 from app.services.wiki import storage
@@ -53,9 +55,9 @@ def deck_to_markdown(course, pages):
     """把 [{label, notes}] 逐页拼成带页锚点深链的 Markdown。"""
     key = course['key']
     title = course.get('title') or key
-    out = [f"# {title} · 课件知识", "",
-           f"> 本文由互动课件《{title}》逐页讲解析出(共 {len(pages)} 页)。"
-           f"每节末尾可点击跳到课件对应页查看演示。", ""]
+    out = [f"# {title} · " + _('课件知识'), "",
+           "> " + (_('本文由互动课件《%(title)s》逐页讲解析出(共 %(n)d 页)。每节末尾可点击跳到课件对应页查看演示。')
+                   % {'title': title, 'n': len(pages)}), ""]
     for i, p in enumerate(pages, 1):
         label = (p.get('label') or f'第{i}页').strip()
         notes = (p.get('notes') or '').strip()
@@ -79,8 +81,9 @@ def ingest_course_knowledge(course, pages, topic, owner_id, scope='company'):
     base_title = course.get('title') or key
     # 产品名:从 subtitle 取(如 "PNR2100 · 互动演示" → "PNR2100")
     product = ((course.get('subtitle') or '').split('·')[0]).strip()
-    title = (f"{product} · {base_title} · 课件知识").strip(' ·') if product \
-        else f"{base_title} · 课件知识"
+    _kw = _('课件知识')
+    title = (f"{product} · {base_title} · {_kw}").strip(' ·') if product \
+        else f"{base_title} · {_kw}"
     content = deck_to_markdown(course, pages)
     # 摘要里塞产品名 + 各页要点标签 —— 全文检索只搜 title+summary,
     # 标签本身就是「两张网/DMR·生命线/4G·频率自由/NetFlex/资质合规」这些关键词。
@@ -94,10 +97,10 @@ def ingest_course_knowledge(course, pages, topic, owner_id, scope='company'):
               'AES', '加密', 'DAS', '光纤', '远端', '直放站', '频率', '集群', 'NetFlex',
               '网关', '合规', 'IMDA', '频谱', '案例', 'SLA', '对讲', '专网', '公网', '安全']
     present = [t for t in _TERMS if t in all_text]
-    human = ((f"{product}:" if product else '')
+    human = ((f"{product}: " if product else '')
              + '、'.join(key_labels[:16])
-             + (('。关键词:' + '、'.join(present)) if present else '')
-             + f"。互动课件《{base_title}》逐页讲解析出,可搜可问,每节可跳课件对应页。")
+             + ((_('。关键词:') + '、'.join(present)) if present else '')
+             + (_('。互动课件《%(t)s》逐页讲解析出,可搜可问,每节可跳课件对应页。') % {'t': base_title}))
     # FTS 补偿:wiki 中文检索是 2-gram,但 PG simple 把中文整段当一个 token,
     # 两边对不上 → 把关键词/标签/正文预切成 2-gram 拼进 summary 尾部,
     # 让文档 token 与查询 2-gram 对齐(卡片只显 2 行,这段藏在下面)。
