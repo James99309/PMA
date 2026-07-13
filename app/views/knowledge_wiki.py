@@ -263,6 +263,44 @@ def course_thumb(course_key, page):
     return send_file(path, mimetype='image/png')
 
 
+# ── 对外公开课件(无需登录,供二维码扫码;仅标记 .public 的课程)────────────
+# 只下发干净 deck 本身(无 PMA 外壳/说明/考核);其余课程/系统内容不可达。
+# opt-in 方式:课程目录/单文件旁放一个空的 .public 标记文件即公开,删除即下线。
+
+def _course_is_public(safe_key):
+    return (os.path.isfile(os.path.join(COURSE_ASSETS_DIR, safe_key, '.public'))
+            or os.path.isfile(os.path.join(COURSE_ASSETS_DIR, safe_key + '.public')))
+
+
+@knowledge_wiki_bp.route('/wiki/pub/<course_key>/', strict_slashes=False)
+def public_course(course_key):
+    """公开课件入口(无登录):下发干净 deck 的 index.html。仅 .public 课程可达。"""
+    safe = secure_filename(course_key)
+    if not safe or not _course_is_public(safe):
+        abort(404)
+    path = _course_html_path(safe)
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(path, mimetype='text/html')
+
+
+@knowledge_wiki_bp.route('/wiki/pub/<course_key>/<path:rel>')
+def public_course_asset(course_key, rel):
+    """公开课件的同级资源(pkg-assets 图片 / mp4),无登录;safe_join 防穿越,mp4 支持 Range。"""
+    safe = secure_filename(course_key)
+    if not safe or not _course_is_public(safe):
+        abort(404)
+    if rel.startswith('.') or '/.' in rel:   # 挡掉 .public 等点文件
+        abort(404)
+    base = os.path.join(COURSE_ASSETS_DIR, safe)
+    if not os.path.isdir(base):
+        abort(404)
+    full = safe_join(base, rel)
+    if not full or not os.path.isfile(full):
+        abort(404)
+    return send_file(full, conditional=True)
+
+
 # ── 课程管理(上传 / 编辑 / 生成缩略图 / 删除,仅管理员)──────────────
 
 def _bg_generate_thumbs(app_obj, cid, key, n_pages):

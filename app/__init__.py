@@ -748,6 +748,7 @@ def create_app(config_class=Config):
             '/auth/activate', '/static', '/api/version',
             '/language/current', '/language/switch', '/storage',
             '/p/',  # 产品公开信息页面（二维码扫描）
+            '/wiki/pub/',  # 互动课件公开页（二维码扫描，仅标记 .public 的课程，只下发干净 deck）
             '/api/v1/',  # API v1端点（有自己的认证机制）
             '/api/external/',  # 外部API端点（供Stargirl等系统调用，使用API Key认证）
             '/chat/api/ai/',  # OpenClaw AI API（db-query, db-schema, upload-file，均使用 token 认证）
