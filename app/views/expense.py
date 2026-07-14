@@ -67,6 +67,23 @@ def is_cloud_environment():
 
 expense = Blueprint('expense', __name__)
 
+
+def _wants_json_response():
+    """AT 表单用 fetch + multipart 提交:必须回 JSON。
+    回 HTML 重定向会被前端当成 resp.ok 成功(fetch 自动跟随 302),错误就此湮没。"""
+    return (request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or request.headers.get('Content-Type', '').startswith('multipart/form-data'))
+
+
+def _reject_expense_form(message, endpoint='expense.create_expense', **endpoint_kwargs):
+    """报销单表单校验失败的统一出口:AJAX → JSON 400;传统整页表单 → flash + redirect。
+    两条路都写日志 — 原先这些分支静默返回,线上排查时看不到任何拒绝原因。"""
+    logger.warning(f"报销单表单校验失败(用户 {current_user.username}): {message}")
+    if _wants_json_response():
+        return jsonify({'success': False, 'message': message}), 400
+    flash(message, 'error')
+    return redirect(url_for(endpoint, **endpoint_kwargs))
+
 @expense.route('/')
 @login_required
 @permission_required('expense', 'view')
@@ -1283,13 +1300,11 @@ def create_expense():
             if no_customer_mode:
                 # 不关联客户模式：验证报销说明必填
                 if not description:
-                    flash(_('不关联客户模式下，报销说明为必填项'), 'error')
-                    return redirect(url_for('expense.create_expense'))
+                    return _reject_expense_form(_('不关联客户模式下，报销说明为必填项'))
             else:
                 # 常规模式：验证客户和联系人
                 if not all([customer_id, contact_id]):
-                    flash(_('请填写所有必填字段（客户和联系人）'), 'error')
-                    return redirect(url_for('expense.create_expense'))
+                    return _reject_expense_form(_('请填写所有必填字段（客户和联系人）'))
             
             # 获取报销明细数据 - 支持两种数据格式
             detail_data = {}
@@ -1363,8 +1378,7 @@ def create_expense():
             
             # 验证明细数据
             if not detail_data:
-                flash(_('请至少添加一条报销明细'), 'error')
-                return redirect(url_for('expense.create_expense'))
+                return _reject_expense_form(_('请至少添加一条报销明细'))
             
             # 验证明细数据完整性
             detail_items = []
@@ -1377,8 +1391,8 @@ def create_expense():
                     required_fields = ['expense_category', 'expense_date', 'description', 'invoice_amount', 'currency']
                     for field in required_fields:
                         if not detail.get(field) or not str(detail[field]).strip():
-                            flash(_('第{index}个明细项目的{field}字段为必填项').format(index=index+1, field=field), 'error')
-                            return redirect(url_for('expense.create_expense'))
+                            return _reject_expense_form(
+                                _('第{index}个明细项目的{field}字段为必填项').format(index=index+1, field=field))
                     
                     # 转换数据类型
                     expense_date = datetime.strptime(detail['expense_date'], '%Y-%m-%d').date()
@@ -1401,8 +1415,8 @@ def create_expense():
                     document_count = int(detail.get('document_count', 1)) if detail.get('document_count') else 1
                     
                     if invoice_amount <= 0:
-                        flash(_('第{index}个明细项目的发票金额必须大于0').format(index=index+1), 'error')
-                        return redirect(url_for('expense.create_expense'))
+                        return _reject_expense_form(
+                            _('第{index}个明细项目的发票金额必须大于0').format(index=index+1))
                     
                     # 确保amount字段不为null或0
                     if amount is None or amount <= 0:
@@ -1434,8 +1448,8 @@ def create_expense():
                     total_amount += current_amount  # 使用转换后的金额计算总额
                     
                 except (ValueError, KeyError) as e:
-                    flash(_('第{index}个明细项目数据格式错误: {error}').format(index=index+1, error=str(e)), 'error')
-                    return redirect(url_for('expense.create_expense'))
+                    return _reject_expense_form(
+                        _('第{index}个明细项目数据格式错误: {error}').format(index=index+1, error=str(e)))
             
             # 如果没有填写报销主题，则自动生成
             if not title:

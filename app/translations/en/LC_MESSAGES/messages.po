@@ -37217,3 +37217,7 @@ msgstr ". Keywords: "
 
 msgid "。互动课件《%(t)s》逐页讲解析出,可搜可问,每节可跳课件对应页。"
 msgstr ". Auto-extracted page by page from the interactive courseware «%(t)s»; searchable and queryable, each section links to its courseware page."
+
+#: app/static/js/at-expense-form.js
+msgid "每条明细金额必须大于 0"
+msgstr "Each item amount must be greater than 0"

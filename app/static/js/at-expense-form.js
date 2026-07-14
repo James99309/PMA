@@ -713,6 +713,21 @@
     fd.append('title', $('expTitle').value.trim());
     fd.append('currency', $('expCurrency').value);
     var noCust = $('expNoCustomerMode').checked;
+    var desc = $('expDescription').value.trim();
+
+    // 提交前校验 — 与后端 expense.py 的必填规则一一对应,不必等服务端往返
+    if (noCust && !desc) {
+      if (g.ATToast) ATToast.error(t('不关联客户模式下，报销说明为必填项'));
+      $('expDescription').focus();
+      btn.disabled = false; btn.innerHTML = oldHtml;
+      return;
+    }
+    if (!noCust && !($('expCustomerId').value && $('expContactId').value)) {
+      if (g.ATToast) ATToast.error(t('请填写所有必填字段（客户和联系人）'));
+      btn.disabled = false; btn.innerHTML = oldHtml;
+      return;
+    }
+
     if (noCust) fd.append('no_customer_mode', '1');
     if (!noCust) {
       fd.append('customer_id', $('expCustomerId').value);
@@ -720,7 +735,7 @@
     }
     var projId = $('expProjectId').value;
     if (projId) fd.append('project_id', projId);
-    fd.append('description', $('expDescription').value.trim());
+    fd.append('description', desc);
     if ($('expAttributeToSelf').checked) {
       fd.append('attribute_to_self', '1');
     } else {
@@ -733,7 +748,7 @@
     // 明细行
     var rows = document.querySelectorAll('#expDetailsBody tr[data-row-idx]');
     if (!rows.length) {
-      if (g.ATToast) ATToast.error('请添加至少一条报销明细');
+      if (g.ATToast) ATToast.error(t('请至少添加一条报销明细'));
       btn.disabled = false; btn.innerHTML = oldHtml;
       return;
     }
@@ -780,7 +795,7 @@
     });
 
     if (hasError) {
-      if (g.ATToast) ATToast.error('每条明细金额必须 > 0');
+      if (g.ATToast) ATToast.error(t('每条明细金额必须大于 0'));
       btn.disabled = false; btn.innerHTML = oldHtml;
       return;
     }
@@ -803,23 +818,25 @@
       if (ct.indexOf('application/json') >= 0) {
         return resp.json().then(function (j) {
           if (j.success === false) {
-            if (g.ATToast) ATToast.error(j.message || '保存失败');
+            if (g.ATToast) ATToast.error(j.message || t('保存失败'));
             btn.disabled = false; btn.innerHTML = oldHtml;
             return null;
           }
           var newId = j.expense_id || j.id || extractIdFromUrl(j.redirect_url) || CFG.expense_id;
-          if (g.ATToast) ATToast.success('已保存', '跳转中…');
+          if (g.ATToast) ATToast.success(t('已保存'), t('跳转中…'));
           setTimeout(function () { location.href = atTarget(newId); }, 400);
           return null;
         });
       }
       // ── B. 老 form redirect:从 redirect URL 提 expense_id,强制跳 AT 详情 ──
-      if (resp.ok || resp.redirected) {
-        var newId = extractIdFromUrl(resp.url) || CFG.expense_id;
-        if (g.ATToast) ATToast.success('已保存', '跳转中…');
+      // 注意:后端校验失败时会 302 回表单页(URL 里没有 id),fetch 自动跟随后 resp.ok 同样为 true。
+      // 因此拿不到 id 一律判失败 —— 否则"没保存"会被显示成"已保存",单子人间蒸发。
+      var newId = extractIdFromUrl(resp.url) || CFG.expense_id;
+      if (resp.ok && newId) {
+        if (g.ATToast) ATToast.success(t('已保存'), t('跳转中…'));
         setTimeout(function () { location.href = atTarget(newId); }, 400);
       } else {
-        if (g.ATToast) ATToast.error('保存失败 (HTTP ' + resp.status + ')');
+        if (g.ATToast) ATToast.error(t('保存失败，请重试'));
         btn.disabled = false; btn.innerHTML = oldHtml;
       }
     }).catch(function (e) {
