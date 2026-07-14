@@ -310,6 +310,7 @@ def at_api_fail_attribution(project_id):
 @permission_required('project', 'view')
 def at_view_project(project_id):
     """AT 风格项目详情页"""
+    from app.helpers.favorite_helpers import is_favorited as _is_fav, FAV_PROJECT
     from app.utils.related_data import RelatedDataService
     from app.models.action import Action
     from app.models.project_customer_association import ProjectCustomerAssociation
@@ -581,7 +582,8 @@ def at_view_project(project_id):
                            win_lock_candidates=win_lock_candidates,
                            recover_stage=(last_normal if _abnormal else None),
                            project_attachments=project_attachments,
-                           project_diagrams=project_diagrams)
+                           project_diagrams=project_diagrams,
+                           is_favorited=_is_fav(current_user.id, FAV_PROJECT, p.id))
 
 
 @project.route('/at_list')
@@ -589,7 +591,7 @@ def at_view_project(project_id):
 @permission_required('project', 'view')
 def at_list_view():
     """AT 风格项目列表"""
-    from sqlalchemy import or_
+    from sqlalchemy import or_, true as sa_true
     page = max(int(request.args.get('page', 1)), 1)
     per_page = 30
     tab = request.args.get('tab', 'all')
@@ -598,8 +600,17 @@ def at_list_view():
     owner_values = [v for v in request.args.getlist('owner') if v.strip()]
     ptype_values = [v for v in request.args.getlist('ptype') if v.strip()]
     vsm_values = [v for v in request.args.getlist('vsm') if v.strip()]  # 厂商销售负责人(多选)
+    fav_only = request.args.get('fav') == '1'   # 「仅看关注」开关(与 tab 正交)
 
     base = get_viewable_data(Project, current_user).filter(Project.is_deleted == False)
+
+    # ── 我关注的项目(个人书签;只影响我自己)──
+    from app.helpers.favorite_helpers import favorite_ids as _fav_ids, FAV_PROJECT
+    fav_ids = _fav_ids(current_user.id, FAV_PROJECT)
+    if fav_only:
+        # 关注集本身很小 → 开关开启时不再排除 签约/搁置/失败(见下方 _all_filter),
+        # 特意关注了却在「全部」里看不见,是反直觉的
+        base = base.filter(Project.id.in_(fav_ids or [-1]))
 
     # ── 筛选选项(基于可见数据 → 天然含权限+归属);能看到他人数据才显示筛选 ──
     from app.utils.dictionary_helpers import project_type_label
@@ -634,10 +645,12 @@ def at_list_view():
         'signed':     ['signed'],            # 签约(独立 tab)
         'closed':     ['lost', 'paused'],
     }
-    # 「全部」排除 搁置/失败/签约(只看进行中管道);NULL 阶段仍计入
+    # 「全部」排除 搁置/失败/签约(只看进行中管道);NULL 阶段仍计入。
+    # 例外:「仅看关注」开启时不排除 —— 关注集很小,你特意关注的(哪怕已签约)都该看得见
     _EXCLUDE_FROM_ALL = ['paused', 'lost', 'signed']
-    _all_filter = or_(Project.current_stage.is_(None),
-                      Project.current_stage.notin_(_EXCLUDE_FROM_ALL))
+    _all_filter = (sa_true() if fav_only else
+                   or_(Project.current_stage.is_(None),
+                       Project.current_stage.notin_(_EXCLUDE_FROM_ALL)))
 
     # 搜索作用于 base → 各 tab 计数也随搜索更新(能看出匹配项落在哪个 tab,便于切过去)
     if search:
@@ -731,6 +744,8 @@ def at_list_view():
         list_qs['ptype'] = ptype_values
     if vsm_values:
         list_qs['vsm'] = vsm_values
+    if fav_only:
+        list_qs['fav'] = '1'
 
     # 未跟进天数(当前页批量;排除 签约/暂停/失败;≥20 天才标识)
     overdue_days = {}
@@ -790,6 +805,8 @@ def at_list_view():
                            vsm_values=vsm_values,
                            win_lock_pending_ids=win_lock_pending_ids,
                            tab_total_amount=tab_total_amount,
+                           fav_ids=fav_ids,
+                           fav_only=fav_only,
                            list_qs=list_qs)
 
 

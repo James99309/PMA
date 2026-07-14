@@ -14,6 +14,7 @@
 {% from 'components/at_search_picker.html' import at_search_picker %}
 {% from 'components/at_file_preview.html' import at_file_preview_modal %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
+{% from 'components/at_favorite.html' import at_fav_star %}
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -60,6 +61,7 @@
 <script src="{{ url_for('static', filename='js/at-add-customer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-action-modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-file-preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/favorite-star.js') }}"></script>
 {{ at_detail_styles() }}
 </head>
 <body class="at-page">
@@ -205,6 +207,7 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {{ at_fav_star('project', project.id, is_favorited, with_label=true) }}
       {% if can_win_lock and not project.win_locked and not win_lock_pending
             and project.current_stage not in ('signed', 'lost') and lock_quotations %}
         {{ at_btn(_('锁定成功'), variant='ghost', size='sm', icon_l='lock', onclick='wlLock()') }}

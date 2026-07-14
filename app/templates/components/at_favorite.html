@@ -1,0 +1,48 @@
+{# ─── 个人关注星标(通用) ───────────────────────────────────────
+   依赖: static/js/favorite-star.js(事件委托,页面引一次即可)
+          <meta name="csrf-token"> (AT 各 layout 已有)
+
+   用法(注意本段是注释,示例里不要写嵌套的 Jinja 注释,会提前闭合):
+     from 'components/at_favorite.html' import at_fav_star
+     列表行内 : at_fav_star('project', p.id, p.id in fav_ids)
+     详情页按钮: at_fav_star('project', project.id, is_favorited, with_label=true)
+
+   关注是纯个人书签:只影响当前登录用户,不改变任何数据可见性。
+#}
+
+{% macro at_fav_star(object_type, object_id, favorited=false, size=16, with_label=false) %}
+<button type="button" data-fav-toggle
+        data-fav-type="{{ object_type }}" data-fav-id="{{ object_id }}"
+        data-fav-on="{{ '1' if favorited else '0' }}"
+        aria-pressed="{{ 'true' if favorited else 'false' }}"
+        title="{{ _('取消关注') if favorited else _('关注') }}"
+        style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+               background:{{ 'var(--bg-elev)' if with_label else 'transparent' }};
+               border:{{ '1px solid var(--line)' if with_label else '0' }};
+               border-radius:6px;padding:{{ '0 12px' if with_label else '2px' }};
+               {% if with_label %}height:32px;font-size:12px;font-weight:500;{% endif %}
+               line-height:1;transition:color 120ms;
+               color:{{ 'var(--warn)' if favorited else 'var(--ink-4)' }};">
+  <svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24"
+       fill="{{ 'currentColor' if favorited else 'none' }}" stroke="currentColor"
+       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.9z"/>
+  </svg>
+  {% if with_label %}<span data-fav-label>{{ _('已关注') if favorited else _('关注') }}</span>{% endif %}
+</button>
+{% endmacro %}
+
+
+{# 列表筛选区的「仅看关注」开关 —— 纯图标,与筛选漏斗同款(34x34,无边框/背景);
+   href 由调用方拼(开启则去掉 fav 参数、关闭则加上 fav=1),active 决定星标是否点亮。#}
+{% macro at_fav_filter(href, active=false) %}
+<a href="{{ href }}" title="{{ _('只显示我关注的;星标可随时点亮/熄灭') }}"
+   style="height:34px;width:34px;padding:0;border:none;background:transparent;text-decoration:none;
+          display:inline-flex;align-items:center;justify-content:center;
+          color:{{ 'var(--warn)' if active else 'var(--ink-3)' }};transition:color 120ms;">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="{{ 'currentColor' if active else 'none' }}"
+       stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.9z"/>
+  </svg>
+</a>
+{% endmacro %}

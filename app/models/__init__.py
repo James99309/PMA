@@ -77,6 +77,8 @@ from app.models.ai_proxy_usage import AIProxyUsage
 # GEO Monitor 模块
 from app.models.geo_monitor import GeoIntent, GeoQuery, GeoResult, GeoSettings
 
+from app.models.favorite import UserFavorite
+
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
            'ProductCodeFieldOption', 'ProductCode', 'ProductCodeFieldValue', 'SpecificationDictionary',
@@ -117,4 +119,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'ProductDisplayOrder',
            'CliSession', 'UserCliState', 'CliSkill',
            'AIProxyUsage',
-           'GeoIntent', 'GeoQuery', 'GeoResult', 'GeoSettings']
+           'GeoIntent', 'GeoQuery', 'GeoResult', 'GeoSettings',
+           'UserFavorite']

@@ -1,4 +1,5 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_avatar %}
+{% from 'components/at_favorite.html' import at_fav_star %}
 {% from 'components/at_header_badges.html' import at_header_chip_group %}
 {% from 'components/at_approval_dropdown.html' import at_approval_dropdown %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
@@ -21,6 +22,7 @@
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/favorite-star.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-product-picker.js') }}"></script>
 {{ at_detail_styles() }}
@@ -219,6 +221,7 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+      {% if not is_new and quotation.id %}{{ at_fav_star('quotation', quotation.id, is_favorited, with_label=true) }}{% endif %}
       {{ at_btn(_('返回'), variant='ghost', icon_l='back', tag='a',
                 href=url_for('quotation.at_list_view')) }}
       {# 导出(复用既有 export_excel / export_excel_pdf 端点,模板随 SP8D/OVS 自动适配)#}

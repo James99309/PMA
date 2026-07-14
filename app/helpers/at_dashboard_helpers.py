@@ -303,11 +303,19 @@ def _build_todos(user):
         _EXCLUDE_STAGES = ('signed', 'paused', 'lost')
         _base_f = [Project.is_deleted == False, ~Project.current_stage.in_(_EXCLUDE_STAGES)]
 
-        cand = {}   # pid → (project, threshold, meta_suffix)
+        cand = {}   # pid → (project, threshold, is_fav)
+        # 视角0:我关注的项目(20 天;优先级最高 —— 哪怕不是我负责的,也按当事人级灵敏度提醒我)
+        from app.helpers.favorite_helpers import favorite_ids as _fav_ids, FAV_PROJECT
+        _my_fav = _fav_ids(user.id, FAV_PROJECT)
+        if _my_fav:
+            from app.utils.access_control import get_viewable_data as _gvd
+            for p in _gvd(Project, user).filter(*_base_f, Project.id.in_(_my_fav)).all():
+                cand[p.id] = (p, 20, True)
         # 视角1:当事人(20 天)
         for p in Project.query.filter(*_base_f, _or(Project.owner_id == user.id,
                                                     Project.vendor_sales_manager_id == user.id)).all():
-            cand[p.id] = (p, 20, '')
+            if p.id not in cand:
+                cand[p.id] = (p, 20, False)
         # 视角2:部门经理(30 天,部门成员的项目;同公司)
         if user.is_department_manager and user.department:
             _dept_ids = [u.id for u in _U.query.filter(
@@ -316,12 +324,12 @@ def _build_todos(user):
             if _dept_ids:
                 for p in Project.query.filter(*_base_f, Project.owner_id.in_(_dept_ids)).all():
                     if p.id not in cand:
-                        cand[p.id] = (p, 30, '')
+                        cand[p.id] = (p, 30, False)
         # 视角3:总经理(35 天,全部)
         if user.role == 'ceo':
             for p in Project.query.filter(*_base_f).all():
                 if p.id not in cand:
-                    cand[p.id] = (p, 35, '')
+                    cand[p.id] = (p, 35, False)
 
         proj_ids = list(cand.keys())
         # 批量:每项目最近 Action.date(一次 group by)
@@ -340,7 +348,7 @@ def _build_todos(user):
                                .group_by(ProjectStageHistory.project_id).all())
         _stage_zh = {'discover': _t('发现'), 'embed': _t('植入'), 'pre_tender': _t('标前'),
                      'tendering': _t('标中'), 'awarded': _t('中标'), 'quoted': _t('批价')}
-        for pid, (p, threshold, _suffix) in cand.items():
+        for pid, (p, threshold, is_fav) in cand.items():
             last_date = last_action.get(pid)
             if last_date:
                 days = (today - last_date).days
@@ -351,12 +359,14 @@ def _build_todos(user):
                 last_ts = base
             if days is not None and days >= threshold:
                 _meta = _stage_zh.get(p.current_stage, p.current_stage or '')
-                if threshold >= 30 and p.owner_id != user.id:
+                # 关注项/他人项目:带上负责人,才知道该找谁
+                if (is_fav or threshold >= 30) and p.owner_id != user.id:
                     _own = _U.query.get(p.owner_id) if p.owner_id else None
                     if _own:
                         _meta += f' · {_own.real_name or _own.username}'
                 fu.append({
-                    'id': f'P{pid}', 'type': 'action', 'typeLabel': _t('项目跟进'), 'tone': 'danger',
+                    'id': f'P{pid}', 'type': 'action',
+                    'typeLabel': _t('关注项目') if is_fav else _t('项目跟进'), 'tone': 'danger',
                     'title': f'{p.project_name} · {_t("%(d)s 天未跟进", d=days)}', 'meta': _meta,
                     'who': '—', 'when': _t('%(d)s天', d=days),
                     'route': f'/project/{pid}/at_view', 'urgent': days >= threshold + 15,
@@ -1288,6 +1298,135 @@ def _build_projects(user, scope_filter=None):
     return items, {'active': len(items), 'dueSoon': due_soon_count}
 
 
+# ─── 我的关注(个人书签)────────────────────────────────
+def _build_favorites(user):
+    """我关注的项目 + 客户 + 报价单。个人维度,不分 mine/team scope。
+
+    三类都走 get_viewable_data:关注过的对象后来移出我的权限范围 → 自动不显示(不做特例)。
+    未跟进天数只对项目算(与列表页/跟进提醒同口径),客户/报价单只展示状态+归属。
+    """
+    return (_fav_projects(user) + _fav_customers(user) + _fav_quotations(user))
+
+
+def _fav_customers(user):
+    items = []
+    try:
+        from app.models.customer import Company
+        from app.utils.access_control import get_viewable_data
+        from app.helpers.favorite_helpers import favorite_ids, FAV_CUSTOMER
+        ids = favorite_ids(user.id, FAV_CUSTOMER)
+        if not ids:
+            return []
+        rows = (get_viewable_data(Company, user)
+                .filter(Company.is_deleted == False, Company.id.in_(ids))
+                .order_by(Company.updated_at.desc()).limit(20).all())
+        from app.utils.dictionary_helpers import company_type_label
+        for c in rows:
+            items.append({
+                'kind': 'customer', 'kindLabel': _t('客户'),
+                'id': c.id, 'name': (c.company_name or '')[:40],
+                'stage': company_type_label(c.company_type) if c.company_type else _t('客户'),
+                'stageT': 'info', 'amount': 0, 'overdue': None,
+                'owner': _fmt_user(c.owner),
+                'route': f'/customer/{c.id}/at_view',
+            })
+    except Exception as e:
+        import logging; logging.warning(f'fav customers err: {e}')
+    return items
+
+
+def _fav_quotations(user):
+    items = []
+    try:
+        from app.models.quotation import Quotation
+        from app.utils.access_control import get_viewable_data
+        from app.helpers.favorite_helpers import favorite_ids, FAV_QUOTATION
+        ids = favorite_ids(user.id, FAV_QUOTATION)
+        if not ids:
+            return []
+        rows = (get_viewable_data(Quotation, user)
+                .filter(Quotation.id.in_(ids))
+                .order_by(Quotation.updated_at.desc()).limit(20).all())
+        _badge = {'none': (_t('待审批'), 'neutral'), 'pending': (_t('待确认'), 'warn'),
+                  'confirmed': (_t('已成交'), 'success'), 'rejected': (_t('已驳回'), 'danger')}
+        for q in rows:
+            lbl, tone = _badge.get(q.confirmation_badge_status or 'none', (_t('报价单'), 'neutral'))
+            items.append({
+                'kind': 'quotation', 'kindLabel': _t('报价单'),
+                'id': q.id, 'name': q.quotation_number or f'#{q.id}',
+                'stage': lbl, 'stageT': tone,
+                'amount': float(q.amount or 0), 'overdue': None,
+                'owner': _fmt_user(q.owner),
+                'route': f'/quotation/{q.id}/at_view',
+            })
+    except Exception as e:
+        import logging; logging.warning(f'fav quotations err: {e}')
+    return items
+
+
+def _fav_projects(user):
+    items = []
+    try:
+        from sqlalchemy import func as _f
+        from app import db
+        from app.models.project import Project
+        from app.models.action import Action
+        from app.models.projectpm_stage_history import ProjectStageHistory
+        from app.utils.access_control import get_viewable_data
+        from app.helpers.favorite_helpers import favorite_ids, FAV_PROJECT
+
+        fav_ids = favorite_ids(user.id, FAV_PROJECT)
+        if not fav_ids:
+            return []
+        rows = (get_viewable_data(Project, user)
+                .filter(Project.is_deleted == False, Project.id.in_(fav_ids))
+                .order_by(Project.updated_at.desc()).limit(20).all())
+        if not rows:
+            return []
+
+        pids = [p.id for p in rows]
+        last_action = dict(db.session.query(Action.project_id, _f.max(Action.date))
+                           .filter(Action.project_id.in_(pids))
+                           .group_by(Action.project_id).all())
+        no_act = [pid for pid in pids if pid not in last_action]
+        stage_since = {}
+        if no_act:
+            stage_since = dict(db.session.query(ProjectStageHistory.project_id,
+                                                _f.max(ProjectStageHistory.change_date))
+                               .filter(ProjectStageHistory.project_id.in_(no_act))
+                               .group_by(ProjectStageHistory.project_id).all())
+        now = datetime.now()
+        today = now.date()
+        for p in rows:
+            meta = _PROJ_STAGE_MAP.get(p.current_stage or 'discover',
+                                       {'label': p.current_stage or '', 'tone': 'neutral', 'pct': 0})
+            # 未跟进天数:仅对进行中项目计(签约/搁置/失败不催)
+            overdue = None
+            if p.current_stage not in ('signed', 'paused', 'lost'):
+                ld = last_action.get(p.id)
+                if ld:
+                    days = (today - ld).days
+                else:
+                    base = stage_since.get(p.id) or p.created_at
+                    days = (now - base).days if base else None
+                if days is not None and days >= 20:
+                    overdue = days
+            items.append({
+                'kind': 'project', 'kindLabel': _t('项目'),
+                'id': p.id,
+                'name': (p.project_name or '')[:40],
+                'stage': _t(meta['label']),
+                'stageT': meta['tone'],
+                'amount': float(p.quotation_customer or 0),
+                'overdue': overdue,
+                'owner': _fmt_user(p.owner),
+                'route': f'/project/{p.id}/at_view',
+            })
+    except Exception as e:
+        import logging; logging.warning(f'fav projects err: {e}')
+    return items
+
+
 # ─── 我的报价 ────────────────────────────────────────────
 def _build_quotes(user, scope_filter=None):
     """scope_filter: SQLAlchemy 过滤子句(我的=owner==user;可见=get_viewable_data id 集合)"""
@@ -1815,6 +1954,8 @@ def build_dashboard(user, monthly_stats=None, year_total=None,
         'layout': layout,
         'scope': scope,
         'todos': _build_todos(user) if 'todo' in cards else [],
+        # 关注是个人书签,不挂角色卡片配置:关注了才出卡,没关注就没有(空列表 → 模板不渲染)
+        'favorites': _build_favorites(user),
         'kpis':  _build_kpis(user, db_currency_symbol, variant) if 'kpi' in cards else None,
         'kpiScores': _kpi_score_summary(user) if 'kpi' in cards else None,
         'todayStats': _build_today_stats(user) if 'kpi' in cards else None,

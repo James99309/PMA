@@ -26,6 +26,7 @@
 | at-perm-sheet.js | AT 权限矩阵组件(CRUD+数据范围+内容筛选+折扣) | 角色默认权限/个人权限覆盖配置页 | 2 | ✅ 已文档化 🆕 |
 | at-budget-sheet.js | AT 预算表组件(总额+科目chips+权重%+部门上限) | 部门预算/个人预算配置页 | 2 | ✅ 已文档化 🆕 |
 | at-person-picker.js | AT 人员/部门选择器(搜索+部门分组下拉,焦点稳定) | 个人配置各页(权限/归属/预算/绩效/薪资/AI)人员选择 | 6 | ✅ 已文档化 🆕 |
+| favorite-star.js | 通用「关注」星标(个人书签):事件委托 + 乐观更新 + 失败回滚,行内星标自动 stopPropagation(不触发整行跳转) | 项目/客户/报价单等对象的个人关注标记 | 2 | ✅ 已文档化 🆕 |
 | trigger-dropdown.js | 触发式下拉搜索组件 | @提及用户、#引用项目等触发式搜索 | 1 | ✅ 已文档化 🆕 |
 | drag-sort.js | 轻量级拖拽排序工具 | 简单列表拖拽排序（无需依赖） | 1 | ✅ 已文档化 🆕 |
 | sortable-list.js | 通用拖拽排序组件 | 任何需要列表拖拽排序的页面 | 2 | ✅ 已文档化 |
@@ -3752,3 +3753,41 @@ picker.refresh();   // 数据变化后刷新列表(仅菜单展开时)
 - onSelect 若引用稍后定义的函数,用 `onSelect: id => xxSelect(id)` 晚绑定避免顺序问题。
 
 **创建日期**: 2026-06-13
+
+#### favorite-star.js
+
+**基本信息**
+- **文件路径**: `app/static/js/favorite-star.js`
+- **功能描述**: 通用「关注」星标(个人书签)。整页一个事件委托监听 → 分页/局部刷新后新出现的星标也自动生效;点击乐观更新(先亮再发请求),失败回滚并 toast;行内星标自动 `stopPropagation`,避免连带触发外层"整行点击跳详情"。
+- **使用场景**: 任何"仅对自己有效"的对象关注/收藏标记。后端是通用表 `user_favorites`(user_id + object_type + object_id),新增对象类型只需在 `app/helpers/favorite_helpers.py` 的 `_OBJ` 注册表加一行可见性校验函数。
+
+**已使用页面**
+1. `project/at_list.html` — 项目列表(首列星标 + 「仅看关注」开关)
+2. `project/at_view.html` — 项目详情(头部「关注 / 已关注」按钮)
+
+**用法**(不要手写 HTML,用 Jinja 宏)
+```jinja2
+{% from 'components/at_favorite.html' import at_fav_star %}
+
+{{ at_fav_star('project', p.id, p.id in fav_ids) }}                        {# 列表行内:纯星标 #}
+{{ at_fav_star('project', project.id, is_favorited, with_label=true) }}    {# 详情页:带文字按钮 #}
+```
+页面需引入脚本(以及 AT 各 layout 已有的 `<meta name="csrf-token">`):
+```html
+<script src="{{ url_for('static', filename='js/favorite-star.js') }}"></script>
+```
+
+**宏参数**
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|-----|------|-----|--------|------|
+| object_type | str | ✅ | — | 对象类型,须在后端 `_OBJ` 注册(目前:`project`) |
+| object_id | int | ✅ | — | 对象 ID |
+| favorited | bool | — | false | 当前是否已关注(服务端渲染初始态) |
+| size | int | — | 16 | 星标像素尺寸 |
+| with_label | bool | — | false | true → 渲染成带「关注/已关注」文字的按钮(详情页用) |
+
+**后端契约**
+- `POST /api/favorites/toggle` `{object_type, object_id}` → `{success, favorited}`;403=无权关注该对象、400=类型不支持。
+- 写入只认 `current_user.id`;toggle 前校验"你本来就能看到这个对象"。关注**不改变任何可见性**,读取侧一律配合 `get_viewable_data` 过滤。
+
+**创建日期**: 2026-07-15

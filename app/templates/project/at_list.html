@@ -3,6 +3,7 @@
 {% from 'components/at_project_modal.html' import at_project_form_modal %}
 {% from 'components/tw_map_picker.html' import render_map_picker_modal %}
 {% from 'components/quality_badge.html' import quality_badge %}
+{% from 'components/at_favorite.html' import at_fav_star, at_fav_filter %}
 
 {% block sidebar_active %}project{% endblock %}
 {% block page_title %}{{ _('项目管理') }}{% endblock %}
@@ -40,6 +41,7 @@
 <script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
 <script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-project-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/favorite-star.js') }}"></script>
 {% endblock %}
 
 {% block total_extra %}{{ at_total_amount(tab_total_amount) }}{% endblock %}
@@ -80,6 +82,7 @@
     <input type="hidden" name="tab" value="{{ current_tab }}">
     {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
     {% for v in ptype_values %}<input type="hidden" name="ptype" value="{{ v }}">{% endfor %}
+    {% if fav_only %}<input type="hidden" name="fav" value="1">{% endif %}
     {{ at_input(name='search', value=search, placeholder=_('搜索项目名 / 授权码…'), icon_l='search', width='320px') }}
   </form>
   {% if show_filter %}
@@ -90,9 +93,15 @@
          {'key':'vsm','label':_('厂商销售负责人'),'type':'user','items':vsm_options,'values':vsm_values},
          {'key':'ptype','label':_('类型'),'type':'select','options':type_options,'values':ptype_values},
        ],
-       hidden={'tab':current_tab,'search':search},
+       hidden={'tab':current_tab,'search':search,'fav':('1' if fav_only else '')},
        panel_id='projFilterPanel') }}
   {% endif %}
+
+  {# 「仅看关注」开关 — 与 tab 正交:开启后各 tab 的内容和计数都只算我关注的项目 #}
+  {# 注意:不能用 {% set _ = ... %} 接返回值 —— 会覆盖 gettext 的 _ #}
+  {% set _qs = list_qs.copy() %}{% set _dropped = _qs.pop('fav', none) %}
+  {{ at_fav_filter(url_for('project.at_list_view', tab=current_tab,
+                           fav=(none if fav_only else '1'), **_qs), fav_only) }}
 </div>
 {% endblock %}
 
@@ -103,6 +112,7 @@
            white-space:nowrap;position:sticky;top:0;z-index:2;
            background:var(--bg-elev);border-bottom:1px solid var(--line);">{{ h }}</th>
 {% endmacro %}
+{{ _plain_th('', 'center') }}   {# 关注星标(无表头文字) #}
 {{ _plain_th(_('项目'), 'left') }}
 {{ _plain_th(_('阶段'), 'left') }}
 {{ _plain_th(_('类型'), 'left') }}
@@ -121,6 +131,9 @@
 <tr class="at-row" data-href="{{ url_for('project.at_view_project', project_id=p.id) }}"
     onclick="location.href=this.dataset.href"
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
+  <td style="padding:0 0 0 12px;border-bottom:{{ cell_bd }};width:36px;text-align:center;">
+    {{ at_fav_star('project', p.id, p.id in fav_ids) }}
+  </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:300px;">
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
       <span style="font-size:13px;font-weight:500;color:var(--ink);
@@ -175,8 +188,12 @@
 </tr>
 {% else %}
 <tr>
-  <td colspan="8" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+  <td colspan="9" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    {% if fav_only and not fav_ids %}
+    {{ _('还没有关注任何项目 —— 关闭「仅看关注」,点亮项目左侧的星标即可') }}
+    {% else %}
     {{ _('没有符合筛选条件的项目') }}
+    {% endif %}
   </td>
 </tr>
 {% endfor %}

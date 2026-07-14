@@ -325,6 +325,60 @@
     </div>
 
 
+    {# ══════════════════ Row F · 我的关注(个人书签;没关注任何项目时整卡不出现)══════════════════ #}
+    {% if dash.favorites %}
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
+      <section class="dash-card" style="flex:1 1 100%;min-width:0;">
+        <header class="dash-card-h">
+          <div style="flex:1;min-width:0;">
+            <h3 class="dash-card-title">{{ _('我的关注') }}</h3>
+            <div class="dash-card-sub">
+              {% set _fp = dash.favorites | selectattr('kind','equalto','project') | list | length %}
+              {% set _fc = dash.favorites | selectattr('kind','equalto','customer') | list | length %}
+              {% set _fq = dash.favorites | selectattr('kind','equalto','quotation') | list | length %}
+              <span>
+                {%- set _parts = [] -%}
+                {%- if _fp %}{% set _x = _parts.append(_fp ~ ' ' ~ _('项目')) %}{% endif -%}
+                {%- if _fc %}{% set _x = _parts.append(_fc ~ ' ' ~ _('客户')) %}{% endif -%}
+                {%- if _fq %}{% set _x = _parts.append(_fq ~ ' ' ~ _('报价单')) %}{% endif -%}
+                {{ _parts | join(' · ') }}
+              </span>
+              {% set _fov = dash.favorites | selectattr('overdue') | list | length %}
+              {% if _fov %}
+              <span style="width:4px;height:4px;background:var(--ink-4);border-radius:2px;display:inline-block;margin:0 6px;vertical-align:middle;"></span>
+              <span style="color:var(--warn);">{{ _fov }} {{ _('项待跟进') }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </header>
+        <div class="dash-card-body">
+          <ul style="list-style:none;margin:0;padding:0;max-height:280px;overflow-y:auto;">
+            {% for f in dash.favorites %}
+            <li class="dash-list-item" data-href="{{ f.route }}"
+                style="padding:10px 4px;gap:10px;cursor:pointer;align-items:center;
+                       border-top:{{ '0' if loop.first else '1px solid var(--line)' }};">
+              <span class="at-mono" style="font-size:10px;color:var(--ink-4);width:44px;flex-shrink:0;">{{ f.kindLabel }}</span>
+              {{ at_pill(f.stage, tone=f.stageT, size='md') }}
+              <span style="flex:1;font-size:13px;color:var(--ink);font-weight:500;
+                           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{{ f.name }}</span>
+              {% if f.amount %}
+              <span class="at-mono dash-tab-num" style="font-size:12px;color:var(--ink-2);white-space:nowrap;">
+                {{ dash.currency }}{{ '{:,.0f}'.format(f.amount) }}</span>
+              {% endif %}
+              {% if f.overdue %}
+              <span style="font-size:10.5px;color:var(--warn);font-weight:500;white-space:nowrap;">
+                {{ _('%(d)s 天未跟进', d=f.overdue) }}</span>
+              {% endif %}
+              <span style="font-size:11.5px;color:var(--ink-3);white-space:nowrap;">{{ f.owner }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+    </div>
+    {% endif %}
+
+
     {# ══════════════════ Row M · Task + Implant(2 列)— 仅解决方案/产品经理/管理员 ══════════════════ #}
     {% if 'task' in layout.cards %}
     <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">

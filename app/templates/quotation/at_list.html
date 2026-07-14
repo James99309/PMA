@@ -1,6 +1,7 @@
 {% extends 'components/at_list_layout.html' %}
 {% from 'components/at_base.html' import at_icon, at_pill, at_status_pill, at_btn, at_input, at_select, at_sort_th %}
 {% from 'components/quality_badge.html' import quality_badge %}
+{% from 'components/at_favorite.html' import at_fav_star, at_fav_filter %}
 
 {% block sidebar_active %}quotation{% endblock %}
 {% block extra_head %}
@@ -72,6 +73,7 @@
         style="display:flex;gap:10px;align-items:center;">
     <input type="hidden" name="tab" value="{{ current_tab }}">
     {% for v in owner_values %}<input type="hidden" name="owner" value="{{ v }}">{% endfor %}
+    {% if fav_only %}<input type="hidden" name="fav" value="1">{% endif %}
     {{ at_input(name='search', value=search, placeholder=_('搜索报价单号…'), icon_l='search', width='320px') }}
   </form>
   {% if show_filter %}
@@ -80,9 +82,14 @@
        fields=[
          {'key':'owner','label':_('负责人'),'type':'user','items':owner_options,'values':owner_values},
        ],
-       hidden={'tab':current_tab,'search':search},
+       hidden={'tab':current_tab,'search':search,'fav':('1' if fav_only else '')},
        panel_id='quotFilterPanel') }}
   {% endif %}
+
+  {# 「仅看关注」开关(与 tab 正交):开启后各 tab 只算我关注的报价单 #}
+  {% set _qs = list_qs.copy() %}{% set _dropped = _qs.pop('fav', none) %}
+  {{ at_fav_filter(url_for('quotation.at_list_view', tab=current_tab,
+                           fav=(none if fav_only else '1'), **_qs), fav_only) }}
 </div>
 {% endblock %}
 
@@ -96,6 +103,7 @@
 <th class="q-selcol" style="width:38px;padding:14px 0 14px 16px;position:sticky;top:0;z-index:2;background:var(--bg-elev);border-bottom:1px solid var(--line);">
   <input type="checkbox" id="qSelAll" onclick="qBS.toggleAll(this)" title="{{ _('全选本页') }}" style="cursor:pointer;">
 </th>
+{{ _plain_th('', 'center') }}   {# 关注星标 #}
 {{ _plain_th(_('报价单号'), 'left') }}
 {{ _plain_th(_('客户'), 'left') }}
 {{ _plain_th(_('项目'), 'left') }}
@@ -115,6 +123,9 @@
     style="height:var(--row-h, 56px);cursor:pointer;transition:background 100ms;">
   <td class="q-selcol" style="padding:0 0 0 16px;border-bottom:{{ cell_bd }};" onclick="event.stopPropagation()">
     <input type="checkbox" class="q-sel" data-id="{{ q.id }}" onclick="qBS.toggle(this)" style="cursor:pointer;">
+  </td>
+  <td style="padding:0 0 0 8px;border-bottom:{{ cell_bd }};width:36px;text-align:center;">
+    {{ at_fav_star('quotation', q.id, q.id in fav_ids) }}
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
     <span class="at-mono" style="font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0.01em;">
@@ -157,8 +168,12 @@
 </tr>
 {% else %}
 <tr>
-  <td colspan="9" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+  <td colspan="10" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+    {% if fav_only and not fav_ids %}
+    {{ _('还没有关注任何报价单 —— 关闭星标开关,点亮列表左侧的星标即可') }}
+    {% else %}
     {{ _('没有符合筛选条件的报价') }}
+    {% endif %}
   </td>
 </tr>
 {% endfor %}
@@ -166,6 +181,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/at-batch-select.js') }}"></script>
+<script src="{{ url_for('static', filename='js/favorite-star.js') }}"></script>
 <script>
 (function () {
   'use strict';

@@ -1,4 +1,5 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_btn %}
+{% from 'components/at_favorite.html' import at_fav_star %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% from 'components/at_detail.html' import at_detail_styles, at_detail_section,
     at_info_panel, at_contact_list, at_action_timeline, at_ai_research_card %}
@@ -27,6 +28,7 @@
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/favorite-star.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-search-picker.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-action-modal.js') }}"></script>
@@ -129,7 +131,8 @@
         {% endif %}
       </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {{ at_fav_star('customer', company.id, is_favorited, with_label=true) }}
       {% if perms.can_edit %}
         {{ at_btn(_('编辑'), variant='ghost', size='sm', icon_l='pen',
                   onclick='atOpenCustomerForm("edit", ' ~ company.id ~ ')') }}

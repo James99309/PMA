@@ -23,6 +23,7 @@ _JS_FILES = [
     'at-task-detail.js',
     'at-expense-form.js',
     'at-target-sheet.js',
+    'favorite-star.js',
 ]
 # 匹配 t('..') 与 _t('..')(带兜底前缀);均不被 \w/.$ 前导,避免命中 format( 等
 _PAT = re.compile(r"""(?<![\w.$])_?t\(\s*(['"])(.*?)\1""")

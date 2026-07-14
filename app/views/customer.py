@@ -294,6 +294,7 @@ def at_view_company(company_id):
     if getattr(company, 'share_enabled', False) and getattr(company, 'shared_with_users', None):
         shared_users = User.query.filter(User.id.in_(company.shared_with_users)).all()
 
+    from app.helpers.favorite_helpers import is_favorited as _is_fav, FAV_CUSTOMER
     return render_template('customer/at_view.html',
                            company=company,
                            related=related,
@@ -301,7 +302,8 @@ def at_view_company(company_id):
                            actions=actions,
                            perms=perms,
                            shareable_users_tree=shareable_users_tree,
-                           shared_users=shared_users)
+                           shared_users=shared_users,
+                           is_favorited=_is_fav(current_user.id, FAV_CUSTOMER, company.id))
 
 
 @customer.route('/at_list')
@@ -316,8 +318,15 @@ def at_list_view():
     # 多选:同名多个 query 参数
     owner_values = [v for v in request.args.getlist('owner') if v.strip()]
     industry_values = [v for v in request.args.getlist('industry') if v.strip()]
+    fav_only = request.args.get('fav') == '1'   # 「仅看关注」开关(与 tab 正交)
 
     base = get_viewable_data(Company, current_user).filter(Company.is_deleted == False)
+
+    # ── 我关注的客户(个人书签;只影响我自己)──
+    from app.helpers.favorite_helpers import favorite_ids as _fav_ids, FAV_CUSTOMER
+    fav_ids = _fav_ids(current_user.id, FAV_CUSTOMER)
+    if fav_only:
+        base = base.filter(Company.id.in_(fav_ids or [-1]))
 
     # ── 筛选选项(基于可见数据 → 含权限+归属);能看到他人数据才显示筛选 ──
     from app.utils.access_control import build_owner_filter_options
@@ -474,6 +483,8 @@ def at_list_view():
         list_qs['industry'] = industry_values
     if geo_values:
         list_qs[geo_key] = geo_values
+    if fav_only:
+        list_qs['fav'] = '1'
 
     return render_template('customer/at_list.html',
                            companies=pagination.items,
@@ -492,6 +503,8 @@ def at_list_view():
                            geo_options=geo_options,
                            geo_values=geo_values,
                            followup_overdue=followup_overdue,
+                           fav_ids=fav_ids,
+                           fav_only=fav_only,
                            list_qs=list_qs)
 
 

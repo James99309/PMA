@@ -288,6 +288,67 @@ msgid "数据统计"
 msgstr "Data Statistics"
 ```
 
+### **⚠️ 重新提取/更新词条的三个地雷（2026-07-15 实测踩全）**
+
+只要你要跑 `pybabel extract` + `pybabel update`，先读完这一节。三个坑都是**静默**的：不报错，但英文站悄悄退回中文。
+
+#### **地雷 1：`_t()` 不在 Babel 默认关键字里 → 整类字符串从未被提取**
+
+`app/helpers/at_dashboard_helpers.py` 等文件用 `from flask_babel import gettext as _t`，然后调 `_t('任务跟进')`。Babel 默认只认 `_` / `gettext` / `ngettext`，**认不出 `_t`**，这些字符串从来没进过 po（`任务跟进` 至今在 SG 上是中文）。
+
+```bash
+# ✅ 正确：把 _t 也加进关键字
+pybabel extract -F babel.cfg -k _t -k _l -o messages.pot .
+```
+
+#### **地雷 2：`pybabel update` 默认做模糊匹配 → 给新词条乱配旧译文并标 fuzzy**
+
+不加参数时，Babel 会把新 msgid 和相似的旧 msgid 配对，直接把旧译文抄过来并打 `#, fuzzy`。实测产物：`取消关注 → "Cancel"`、`仅看关注 → "Warning Only"`、`不支持的关注对象类型 → "Unsupported database type"`。fuzzy 条目编译时**会被 msgfmt 忽略**，所以英文站显示中文，而 po 里看起来"有翻译"，极难发现。
+
+```bash
+# ✅ 正确：禁用模糊匹配，新词条留空由人填
+pybabel update -i messages.pot -d app/translations --no-fuzzy-matching
+```
+
+#### **地雷 3：运行期动态翻译的条目会被判为 obsolete → 直接丢失**
+
+有一类翻译**源码里没有 `_()` 包裹**，靠模板 `{{ _(变量) }}` 在运行期拿中文 key 去 .mo 查表，例如：
+
+```python
+HR_DOC_TYPES = ['劳动合同', '绩效协议', '招聘资料', '奖励通知', '其他']   # 裸字符串
+```
+```jinja2
+{% for t in doc_types %}<option>{{ _(t) }}</option>{% endfor %}   {# 运行期查表 #}
+```
+
+Babel 扫不到这些字符串 → `pybabel update` 认为它们过时 → 标 `#~` obsolete → 编译后 .mo 里没有 → 英文站退回中文。2026-07-15 一次 update 就打掉了 24 条（HR 资料类型、批价折扣提醒、课件文案等）。
+
+**必须做的收尾检查**（每次 update 后，compile 前）：
+
+```bash
+# 对比 update 前后"已翻译条目"，确认没有净丢失
+python3 - <<'EOF'
+import re, subprocess
+def active(t):
+    return {k: v for k, v in re.findall(r'^msgid "((?:[^"\\]|\\.)*)"\nmsgstr "((?:[^"\\]|\\.)*)"', t, re.M) if k and v}
+old = active(subprocess.run(['git','show','HEAD:app/translations/en/LC_MESSAGES/messages.po'],
+                            capture_output=True, text=True).stdout)
+new = active(open('app/translations/en/LC_MESSAGES/messages.po', encoding='utf-8').read())
+lost = {k: old[k] for k in old if k not in new}
+print(f'丢失 {len(lost)} 条'); [print(' -', k) for k in lost]
+EOF
+```
+丢了就把它们作为活跃条目追加回 po 末尾（保留原译文），再 `pybabel compile`。
+
+**标准流程（照抄）**：
+```bash
+pybabel extract -F babel.cfg -k _t -k _l -o messages.pot .
+pybabel update -i messages.pot -d app/translations --no-fuzzy-matching
+# → 跑上面的"丢失检查"，补回被误判 obsolete 的动态条目
+# → 填新增空 msgstr
+pybabel compile -d app/translations
+```
+
 ## 🚨 常见问题与解决方案
 
 ### **问题：英文翻译全部失效，显示中文**

@@ -1081,6 +1081,10 @@ def create_app(config_class=Config):
     from app.views.prospect import prospect_bp
     app.register_blueprint(prospect_bp, url_prefix='/prospect')
 
+    # 注册个人关注(收藏)蓝图
+    from app.views.favorite import favorite_bp
+    app.register_blueprint(favorite_bp)
+
     # 添加审批相关函数到模板上下文
     from app.context_processors import inject_approval_functions
     app.context_processor(inject_approval_functions)

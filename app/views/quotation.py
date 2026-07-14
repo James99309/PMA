@@ -766,6 +766,7 @@ def at_new_quotation():
 @permission_required('quotation', 'view')
 def at_view_quotation(id):
     """AT 风格报价详情页"""
+    from app.helpers.favorite_helpers import is_favorited as _fav_is, FAV_QUOTATION as _FAV_Q
     from app.utils.related_data import RelatedDataService
     from app.models.action import Action
     from app.models.product import Product
@@ -1004,7 +1005,8 @@ def at_view_quotation(id):
                            sm_is_assignee=sm_is_assignee,
                            sm_pending=sm_pending,
                            sm_available_assignees=sm_available_assignees,
-                           at_ap_status=_at_ap_status)
+                           at_ap_status=_at_ap_status,
+                           is_favorited=_fav_is(current_user.id, _FAV_Q, q.id))
 
 
 @quotation.route('/at_list')
@@ -1019,8 +1021,15 @@ def at_list_view():
     search = request.args.get('search', '').strip()
     # 多选:同名多个 query 参数(状态维度已由 tab 表达,这里不再重复筛选)
     owner_values = [v for v in request.args.getlist('owner') if v.strip()]
+    fav_only = request.args.get('fav') == '1'   # 「仅看关注」开关(与 tab 正交)
 
     base = get_viewable_data(Quotation, current_user)
+
+    # ── 我关注的报价单(个人书签;只影响我自己)──
+    from app.helpers.favorite_helpers import favorite_ids as _fav_ids, FAV_QUOTATION
+    fav_ids = _fav_ids(current_user.id, FAV_QUOTATION)
+    if fav_only:
+        base = base.filter(Quotation.id.in_(fav_ids or [-1]))
 
     # ── 筛选选项(基于可见数据 → 含权限+归属);能看到他人数据才显示筛选 ──
     from app.utils.access_control import build_owner_filter_options
@@ -1083,8 +1092,11 @@ def at_list_view():
                            owner_values=owner_values,
                            sort_field=sort_field,
                            sort_order=sort_order,
+                           fav_ids=fav_ids,
+                           fav_only=fav_only,
                            list_qs={k: v for k, v in {'search': search,
-                                    'owner': owner_values}.items() if v})
+                                    'owner': owner_values,
+                                    'fav': ('1' if fav_only else '')}.items() if v})
 
 
 @quotation.route('/api/quotations/filter', methods=['GET'])
