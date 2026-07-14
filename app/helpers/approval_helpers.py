@@ -266,37 +266,31 @@ class OrderApprovalWrapper:
 # 注：此映射用于确定授权审批的默认审批人，是工作流配置而非权限检查
 # 未来可迁移到数据库配置表，以便动态调整工作流
 PROJECT_TYPE_ROLE_MAPPING = {
-    'channel_follow': 'channel_manager',      # 渠道跟进 -> 渠道经理
-    'sales_focus': 'sales_director',          # 销售重点 -> 营销总监
-    'sales_key': 'sales_director',            # 向sales_focus统一
-    'business_opportunity': 'service_manager' # 客户服务 -> 服务经理
+    # 渠道跟进 -> 渠道总监优先,缺位退渠道经理(2026-07-14 用户确认:渠道审批负责人=渠道总监)
+    'channel_follow': ['channel_director', 'channel_manager'],
+    'sales_focus': ['sales_director'],          # 销售重点 -> 营销总监
+    'sales_key': ['sales_director'],            # 向sales_focus统一
+    'business_opportunity': ['service_manager'] # 客户服务 -> 服务经理
 }
 
 def get_authorization_approver_by_project_type(project_type):
     """根据项目类型获取授权审批人
-    
+
     Args:
         project_type: 项目类型
-        
+
     Returns:
         User对象或None
     """
     from app.models.user import User
-    
-    # 获取目标角色
-    target_role = PROJECT_TYPE_ROLE_MAPPING.get(project_type)
-    if not target_role:
-        # 如果没有找到对应角色，默认使用总经理
-        target_role = 'ceo'
-    
-    # 查找第一个具有该角色的用户
-    approver = User.query.filter_by(role=target_role).first()
 
-    # 如果没找到对应角色的用户，使用总经理角色(不再回退到 admin —— admin 不参与审批)
-    if not approver:
-        approver = User.query.filter_by(role='ceo').first()
-
-    return approver
+    # 角色链:按优先级找**在职**用户(原先不过滤在职,可能把审批派给已离职的人)
+    role_chain = PROJECT_TYPE_ROLE_MAPPING.get(project_type) or []
+    for role in list(role_chain) + ['ceo']:
+        approver = User.query.filter(User.role == role, User._is_active.is_(True)).first()
+        if approver:
+            return approver
+    return None
 
 
 def get_next_level_approver(user):
@@ -5569,7 +5563,10 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                             # (代理商提交、内部无厂商销售 → 用批准的渠道经理作归属,供后续 KPI/跟进。)
                             # 置于 _handle 之前,借其 db.session.commit() 一并落库。
                             try:
-                                _is_channel = (project.project_type == 'channel_follow') or ((project.report_source or '') == 'channel')
+                                # 业务线判据收口:只看项目类型,不再掺 report_source
+                                # (渠道来源的销售项目不是渠道项目 —— 见 biz_line_routing)
+                                from app.helpers.biz_line_routing import biz_line_of, CHANNEL_APPROVER_ROLES
+                                _is_channel = biz_line_of(project) == 'channel'
                                 if _is_channel and not project.vendor_sales_manager_id:
                                     from app.models.approval import ApprovalRecord as _AR
                                     from app.models.user import User as _U
@@ -5577,13 +5574,14 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                                     for _r in (_AR.query.filter_by(instance_id=instance.id, action='approve')
                                                .order_by(_AR.timestamp).all()):
                                         _u = _U.query.get(_r.approver_id)
-                                        if _u and (_u.role or '') == 'channel_manager':
+                                        # 渠道总监也算(渠道审批负责人已改为总监,只认经理会导致回填失效)
+                                        if _u and (_u.role or '') in CHANNEL_APPROVER_ROLES:
                                             _cm = _u
                                             break
                                     if _cm:
                                         project.vendor_sales_manager_id = _cm.id
                                         current_app.logger.info(
-                                            f"渠道项目 {project.id} 报备通过,回填厂商销售负责人=渠道经理 {_cm.username}")
+                                            f"渠道项目 {project.id} 报备通过,回填厂商销售负责人=渠道线审批人 {_cm.username}")
                             except Exception as _vsm_err:
                                 current_app.logger.warning(f"回填渠道经理为厂商销售负责人失败: {_vsm_err}")
                             try:

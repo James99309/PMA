@@ -31,7 +31,9 @@ def resolve_dealer_approvers(company, initiator_id):
     if not ceo:
         return None, None, None, '未找到总经理(ceo)，请联系管理员配置后再发起'
     ba = _active_role('business_admin')
-    cm = _active_role('channel_manager')
+    # 渠道线审批人 = 渠道总监优先,缺位退渠道经理(2026-07-14:渠道审批负责人已改为渠道总监)
+    from app.helpers.biz_line_routing import CHANNEL_APPROVER_ROLES
+    cm = next((u for u in (_active_role(r) for r in CHANNEL_APPROVER_ROLES) if u), None)
 
     # 与发起人/终审人重复的级跳过
     def _dedupe(u, taken):

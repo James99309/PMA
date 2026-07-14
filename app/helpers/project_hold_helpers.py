@@ -49,20 +49,16 @@ def resolve_hold_approvers(project):
     if _db_type == 'ovs':
         return None, ceo, None
 
-    # 第一步按「项目类型」(project_type,即列表显示的「类型」)分流(2026-06-16 修正):
-    #   服务(business_opportunity)/负责人属服务部门或服务经理 → 服务经理;无在职 → 直达总经理
-    #   渠道(channel_follow,或报备来源=channel) → 渠道经理;无在职 → 营销总监代理 → 总经理
-    #   销售(sales_focus)/其余 → 营销总监;无在职 → 直达总经理
-    # 原按 report_source 判渠道:服务项目若报备来源恰为 channel 会被误判成渠道(漏看「类型」),
-    # 导致服务经理的搁置/报备审批落到平级营销总监而非其上级 CEO。
-    pt = (project.project_type or '')
-    _owner_is_service = (owner.role == 'service_manager') or ('服务' in (owner.department or ''))
-    if pt == 'business_opportunity' or _owner_is_service:
-        first = _active_role('service_manager')
-    elif pt == 'channel_follow' or (project.report_source or '') == 'channel':
-        first = _active_role('channel_manager') or _active_role('sales_director')
-    else:
-        first = _active_role('sales_director')
+    # 第一步按业务线分流 —— 判据收口到 biz_line_routing(只看项目类型,不看报备来源)。
+    # 2026-07-14:这里原先是 `pt == 'channel_follow' or report_source == 'channel'`,
+    # 于是「国航股份浙江分公司新园区」(类型=销售重点、报备来源=渠道)被派给了渠道经理。
+    from app.helpers.biz_line_routing import approver_role_chain
+
+    first = None
+    for role in approver_role_chain(project, owner):
+        first = _active_role(role)
+        if first:
+            break
     return first, ceo, None
 
 
@@ -319,12 +315,16 @@ def resolve_win_lock_candidates(project, exclude_user_id=None):
         return (cands, None) if cands else (None, '未找到总经理(ceo)，请联系管理员')
     owner = project.owner
     # 业务线主审 → 缺位/仅自己 逐级兜底,最终到总经理(ceo)。仅取在职(_is_active),离职自动跳过。
-    if (project.report_source or '') == 'channel':
-        cands = _role_users('channel_manager') or _role_users('sales_director') or _role_users('ceo')
-    elif owner and ('服务' in (owner.department or '') or owner.role == 'service_manager'):
-        cands = _role_users('service_manager') or _role_users('sales_director') or _role_users('ceo')
-    else:  # 销售/其余 → 营销总监,缺位 → 总经理
-        cands = _role_users('sales_director') or _role_users('ceo')
+    # 判据收口到 biz_line_routing:原先这里**只看 report_source、完全没看项目类型**,
+    # 渠道来源的销售项目会被派给渠道线;现统一为「只看项目类型」。
+    from app.helpers.biz_line_routing import approver_role_chain
+
+    cands = []
+    for role in approver_role_chain(project, owner):
+        cands = _role_users(role)
+        if cands:
+            break
+    cands = cands or _role_users('ceo')
     return (cands, None) if cands else (None, '未找到审核人(营销总监/总经理均缺),请联系管理员')
 
 
