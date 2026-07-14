@@ -37221,3 +37221,11 @@ msgstr ". Auto-extracted page by page from the interactive courseware «%(t)s»;
 #: app/static/js/at-expense-form.js
 msgid "每条明细金额必须大于 0"
 msgstr "Each item amount must be greater than 0"
+
+#: app/templates/main/at_dashboard.html
+msgid "公司官网预览"
+msgstr "Company website preview"
+
+#: app/templates/main/at_dashboard.html
+msgid "请点击跳转"
+msgstr "Click to open"

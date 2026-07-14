@@ -200,3 +200,9 @@ i18n_preview/
 app/course_assets/*.html
 app/course_assets/*.quiz.json
 app/course_assets/*.thumbs/
+
+# 官网预览快照(每份 140M+):不进 git,按区域单独投放到各自 NAS
+# CN NAS 只放中文站、SG NAS 只放英文站,避免两台互相拉对方语言的 140M 资产。
+# 投放/更新:deploy/sync-website-preview.sh
+app/website_cn_preview/
+app/website_en_preview/
