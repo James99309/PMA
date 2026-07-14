@@ -33,6 +33,7 @@ from app.helpers.approval_helpers import get_object_approval_instance, get_curre
 from app.utils.work_item_recorder import record_activity
 from sqlalchemy import event
 from app.models.quotation import update_quotation_implant_total, QuotationDetail
+from app.utils.price_consistency import normalize_discount
 from app.utils.query_filters import (
     extract_filter_params, apply_filters_to_query, extract_sort_params,
     extract_pagination_params
@@ -1570,6 +1571,10 @@ def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CUR
             except (ValueError, TypeError):
                 unit_price = 0
 
+            # 面价是基准、单价是事实:折扣一律由二者反算,杜绝「面价×折扣≠单价」的矛盾数据
+            # (这种矛盾会在生成批价单时把报价单价冲成面价 —— 见 price_consistency 模块注释)
+            discount = normalize_discount(market_price, unit_price, discount)
+
             try:
                 total_price = float(detail.get('total_price', 0))
                 if total_price < 0:
@@ -1865,6 +1870,9 @@ def create_quotation():
                             current_app.logger.warning(f"{error_msg}: {str(e)}")
                             detail_errors.append(error_msg)
                         
+                        # 面价是基准、单价是事实:折扣一律由二者反算(同上,防矛盾数据流入批价单)
+                        discount = normalize_discount(market_price, unit_price, discount)
+
                         try:
                             total_price = float(detail.get('total_price', 0))
                             if total_price < 0:

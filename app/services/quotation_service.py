@@ -18,6 +18,7 @@ from typing import Optional
 from app import db
 from app.models.quotation import Quotation, QuotationDetail
 from app.models.project import Project
+from app.utils.price_consistency import normalize_discount
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -100,7 +101,10 @@ def create_quotation_from_bom(
             quantity = max(1, int(item.get('quantity', 1) or 1))
             market_price = float(item.get('market_price', 0) or 0)
             unit_price   = float(item.get('unit_price', 0) or 0)
-            discount     = float(item.get('discount', 1.0) or 1.0)
+            # 折扣由 面价/单价 反算,不再默认 1.0 —— 默认值会造出「面价×折扣≠单价」的
+            # 矛盾数据,进而在生成批价单时把单价冲成面价(见 price_consistency 模块注释)
+            discount     = normalize_discount(market_price, unit_price,
+                                              float(item.get('discount', 1.0) or 1.0))
             # 优先用传入的 total_price,否则按 unit * qty 算
             total_price  = float(item.get('total_price') or (unit_price * quantity))
 

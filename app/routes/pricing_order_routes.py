@@ -864,10 +864,16 @@ def update_total_discount_rate(order_id):
             pricing_order.pricing_total_discount_rate = discount_rate_decimal
             pricing_order.pricing_total_amount = sum(d.total_price or 0 for d in details)
 
-            # 注意：修改批价单折扣率时，不再同步覆盖结算单折扣率
-            # 结算单有独立的折扣率，由用户在结算 tab 中单独设置
+            # 批价 → 结算 单向同步:创建人看不到结算 tab,不同步就会一路飘到审批人手里倒挂
+            PricingOrderService.sync_settlement_from_pricing(pricing_order)
+            pricing_order.settlement_total_discount_rate = discount_rate_decimal
         else:
-            # 结算单更新不影响批价单
+            # 结算单更新不回写批价单,但不得高于批价折扣(倒挂)
+            ok, err = PricingOrderService.validate_settlement_not_inverted(pricing_order)
+            if not ok:
+                db.session.rollback()
+                return jsonify({'success': False, 'message': err}), 400
+
             pricing_order.settlement_total_discount_rate = discount_rate_decimal
             pricing_order.settlement_total_amount = sum(d.total_price or 0 for d in details)
 

@@ -9,6 +9,7 @@ from app.models.pricing_order import (
     SettlementOrderStatus
 )
 from app.models.quotation import Quotation, QuotationDetail
+from app.utils.price_consistency import normalize_discount
 from app.models.project import Project
 from app.models.customer import Company
 from app.models.user import User
@@ -632,7 +633,13 @@ class PricingOrderService:
             .all()
         
         for qd in sorted_details:
-            # 创建批价单明细
+            # 折扣按 单价/面价 反算,而不是照抄报价单的 discount 字段。
+            # 照抄的后果:紧接着的 calculate_prices() 执行「单价 = 面价 × 折扣」,
+            # 一旦报价单里 discount 与 unit_price 不自洽(历史数据大量如此),报价的
+            # 单价就会被面价静默冲掉(实测:报价 4000 的调试开通被冲成面价 30000),
+            # 人只能把折扣一行行手改回去 —— 详见 price_consistency 模块注释。
+            discount_rate = normalize_discount(qd.market_price, qd.unit_price, qd.discount)
+
             pricing_detail = PricingOrderDetail(
                 pricing_order_id=pricing_order.id,
                 product_name=qd.product_name,
@@ -644,7 +651,7 @@ class PricingOrderService:
                 market_price=qd.market_price,
                 unit_price=qd.unit_price,
                 quantity=qd.quantity,
-                discount_rate=qd.discount,
+                discount_rate=discount_rate,
                 source_type='quotation',
                 source_quotation_detail_id=qd.id,
                 currency=qd.currency or quotation.currency,  # 继承货币
@@ -656,6 +663,67 @@ class PricingOrderService:
         # 刷新以获取批价单明细的ID
         db.session.flush()
     
+    @staticmethod
+    def sync_settlement_from_pricing(pricing_order, only_detail_ids=None):
+        """批价 → 结算 单向同步(折扣率/单价/数量)。
+
+        为什么必须同步:创建人(customer_sales)对 settlement 模块无 view 权限,压根
+        看不到结算 tab。他调完批价折扣后结算仍停在创建时那份快照,一路飘到审批人
+        手里 —— 审批人若没手动补设,就出现结算总额高于批价总额的倒挂
+        (实测 PO202607-006:结算 40,219 > 批价 16,665)。
+
+        反向不成立:结算 tab 的独立下调(给渠道让利)不回写批价,维持原有语义。
+
+        Args:
+            only_detail_ids: 只同步这些批价明细 id(单条编辑时用);None = 全量
+        """
+        synced = 0
+        for settlement_detail in pricing_order.settlement_details:
+            pd_id = settlement_detail.pricing_detail_id
+            if not pd_id:
+                continue  # 手工新增、无对应批价明细的结算行不动
+            if only_detail_ids is not None and pd_id not in only_detail_ids:
+                continue
+
+            pricing_detail = PricingOrderDetail.query.get(pd_id)
+            if not pricing_detail:
+                continue
+
+            settlement_detail.market_price = pricing_detail.market_price
+            settlement_detail.discount_rate = pricing_detail.discount_rate
+            settlement_detail.quantity = pricing_detail.quantity
+            settlement_detail.calculate_prices()  # 单价 = 面价 × 折扣
+            synced += 1
+
+        pricing_order.calculate_settlement_totals()
+
+        settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order.id).first()
+        if settlement_order:
+            settlement_order.calculate_totals()
+
+        return synced
+
+    @staticmethod
+    def validate_settlement_not_inverted(pricing_order):
+        """校验结算折扣不得高于批价折扣(逐行比对,按 pricing_detail_id 配对)。
+
+        结算价高于批价价 = 倒挂:厂商结算收得比渠道批价还高,渠道倒贴。
+        返回 (True, None) 或 (False, 错误信息)。
+        """
+        for sd in pricing_order.settlement_details:
+            if not sd.pricing_detail_id:
+                continue
+            pd = PricingOrderDetail.query.get(sd.pricing_detail_id)
+            if not pd or pd.discount_rate is None or sd.discount_rate is None:
+                continue
+            # 浮点容差:折扣率保留 4 位,1e-6 足够挡住真实的越界
+            if float(sd.discount_rate) > float(pd.discount_rate) + 1e-6:
+                return False, (
+                    f"「{sd.product_name}」结算折扣 {float(sd.discount_rate) * 100:.2f}% "
+                    f"高于批价折扣 {float(pd.discount_rate) * 100:.2f}%，会导致结算价倒挂"
+                )
+        return True, None
+
     @staticmethod
     def create_settlement_details(pricing_order, settlement_order):
         """创建结算单明细（基于批价单明细）"""
@@ -704,26 +772,15 @@ class PricingOrderService:
             
             pricing_detail.calculate_prices()
 
-            # 同步更新结算单明细：只同步数量，不同步折扣率和单价
-            # 结算单的折扣率/单价由用户在结算 tab 中独立设置
-            settlement_detail = SettlementOrderDetail.query.filter_by(
-                pricing_detail_id=detail_id
-            ).first()
-            if settlement_detail:
-                if quantity is not None:
-                    settlement_detail.quantity = pricing_detail.quantity
-                    settlement_detail.calculate_prices()
-
-            # 重新计算总额
+            # 批价 → 结算 单向同步(折扣率/单价/数量一起跟随)。
+            # 原先只同步数量,结算折扣纹丝不动 —— 而创建人看不到结算 tab,于是批价
+            # 一调就分道扬镳,最终倒挂。反向(结算改批价)仍然不同步。
             pricing_order = PricingOrder.query.get(pricing_order_id)
-            pricing_order.calculate_pricing_totals()
-            pricing_order.calculate_settlement_totals()
+            PricingOrderService.sync_settlement_from_pricing(
+                pricing_order, only_detail_ids={pricing_detail.id})
 
-            # 更新结算单总额
-            settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
-            if settlement_order:
-                settlement_order.calculate_totals()
-            
+            pricing_order.calculate_pricing_totals()
+
             db.session.commit()
             return True, None
             
@@ -753,9 +810,14 @@ class PricingOrderService:
                 settlement_detail.item_note = item_note
 
             settlement_detail.calculate_prices()
-            
-            # 🔥 关键修复：只重新计算结算单总额，不影响批价单
+
+            # 结算改动不回写批价(维持原语义),但不得高于批价折扣,否则倒挂
             pricing_order = PricingOrder.query.get(pricing_order_id)
+            ok, err = PricingOrderService.validate_settlement_not_inverted(pricing_order)
+            if not ok:
+                db.session.rollback()
+                return False, err
+
             pricing_order.calculate_settlement_totals()
             
             # 更新结算单总额
@@ -783,27 +845,33 @@ class PricingOrderService:
                 for detail in pricing_order.pricing_details:
                     detail.discount_rate = total_discount_rate
                     detail.calculate_prices()
-                    # 注意：不同步结算单明细，结算单有独立折扣率
 
                 pricing_order.pricing_total_discount_rate = total_discount_rate
                 pricing_order.calculate_pricing_totals()
-                
+
+                # 批价 → 结算 单向同步(原先明确不同步,是倒挂的直接成因)
+                PricingOrderService.sync_settlement_from_pricing(pricing_order)
+                pricing_order.settlement_total_discount_rate = total_discount_rate
+
             else:  # settlement
-                # 🔥 关键修复：更新结算单时不影响批价单
-                # 只更新结算单所有明细的折扣率，不同步到批价单
+                # 结算单独立下调(给渠道让利)不回写批价 —— 但不得高于批价,否则倒挂
                 for detail in pricing_order.settlement_details:
                     detail.discount_rate = total_discount_rate
                     detail.calculate_prices()
-                
+
+                ok, err = PricingOrderService.validate_settlement_not_inverted(pricing_order)
+                if not ok:
+                    db.session.rollback()
+                    return False, err
+
                 pricing_order.settlement_total_discount_rate = total_discount_rate
-                # 🔥 关键修复：只重新计算结算单总额，不计算批价单总额
                 pricing_order.calculate_settlement_totals()
-            
+
             # 更新结算单总额
             settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
             if settlement_order:
                 settlement_order.calculate_totals()
-            
+
             db.session.commit()
             return True, None
             
@@ -1994,7 +2062,52 @@ class PricingOrderService:
                 pricing_order.settlement_total_amount = settlement_total_amount
                 processed_fields.append('settlement_details')
                 current_app.logger.info(f"✅ 更新结算单明细和总金额: {settlement_total_amount}")
-            
+
+            db.session.flush()
+
+            # 步骤4: 结算明细兜底重建 + 批价→结算 单向同步
+            # 步骤1 只要 payload 里有 pricing_details 就会连带删掉结算明细,而步骤3 只在
+            # payload 带 settlement_details 时才重建 —— 创建人(customer_sales)无结算权限,
+            # 表单里根本没有这块数据,于是一保存结算明细就被整片抹掉。这里按批价明细重建,
+            # 顺带完成「批价改 → 结算跟随」。
+            if 'pricing_details' in request_data and 'settlement_details' not in request_data:
+                settlement_order = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else None
+                new_pricing_details = PricingOrderDetail.query.filter_by(
+                    pricing_order_id=pricing_order_id).order_by(PricingOrderDetail.id).all()
+                for pd in new_pricing_details:
+                    sd = SettlementOrderDetail(
+                        pricing_order_id=pricing_order_id,
+                        settlement_order_id=settlement_order.id if settlement_order else None,
+                        pricing_detail_id=pd.id,
+                        product_name=pd.product_name,
+                        product_model=pd.product_model,
+                        product_desc=pd.product_desc,
+                        brand=pd.brand,
+                        unit=pd.unit,
+                        product_mn=pd.product_mn,
+                        market_price=pd.market_price,
+                        unit_price=pd.unit_price,
+                        quantity=pd.quantity,
+                        discount_rate=pd.discount_rate,
+                        currency=pd.currency,
+                    )
+                    sd.calculate_prices()
+                    db.session.add(sd)
+                db.session.flush()
+                pricing_order.calculate_settlement_totals()
+                processed_fields.append('settlement_details(synced)')
+                current_app.logger.info(f"✅ 结算明细按批价明细重建并同步: {len(new_pricing_details)} 条")
+
+            # 结算折扣不得高于批价折扣(倒挂)。
+            # 只在本次确实提交了结算明细时校验 —— 否则存量倒挂单(SG PO202606-002、
+            # CN PO202607-006)会连改个基本信息都保存不了,把历史包袱变成当下故障。
+            # 走 sync 分支重建的结算明细天然与批价一致,不需要再校验。
+            if 'settlement_details' in request_data:
+                ok, err = PricingOrderService.validate_settlement_not_inverted(pricing_order)
+                if not ok:
+                    db.session.rollback()
+                    return False, err
+
             # 提交数据库变更
             db.session.commit()
             
