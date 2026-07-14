@@ -117,7 +117,8 @@ def _build_todos(user):
     try:
         from app.helpers.approval_helpers import get_user_pending_approvals
         from app.models.user import User
-        page = get_user_pending_approvals(user_id=user.id, per_page=3)
+        # per_page=None → 全部待审批(不设上限;列表超高内部滚动,tab 计数也才是真实条数)
+        page = get_user_pending_approvals(user_id=user.id, per_page=None)
         for ai in page.items:
             urgent = (datetime.now() - (ai.started_at or datetime.now())).days >= 3
             obj_label = obj_label_map.get(ai.object_type, ai.object_type)
@@ -343,9 +344,11 @@ def _build_todos(user):
             last_date = last_action.get(pid)
             if last_date:
                 days = (today - last_date).days
+                last_ts = datetime.combine(last_date, datetime.min.time())   # Action.date 是 Date
             else:
                 base = stage_since.get(pid) or p.created_at
                 days = (now - base).days if base else None
+                last_ts = base
             if days is not None and days >= threshold:
                 _meta = _stage_zh.get(p.current_stage, p.current_stage or '')
                 if threshold >= 30 and p.owner_id != user.id:
@@ -356,7 +359,8 @@ def _build_todos(user):
                     'id': f'P{pid}', 'type': 'action', 'typeLabel': _t('项目跟进'), 'tone': 'danger',
                     'title': f'{p.project_name} · {_t("%(d)s 天未跟进", d=days)}', 'meta': _meta,
                     'who': '—', 'when': _t('%(d)s天', d=days),
-                    'route': f'/project/{pid}/at_view', 'urgent': days >= threshold + 15, '_d': days,
+                    'route': f'/project/{pid}/at_view', 'urgent': days >= threshold + 15,
+                    '_d': days, '_ts': last_ts,
                 })
 
         # 4b) 我的任务:指派给我 或 我创建;非已完成;最近一次交互
@@ -384,7 +388,8 @@ def _build_todos(user):
                     'id': f'T{t.id}', 'type': 'action', 'typeLabel': _t('任务跟进'), 'tone': 'danger',
                     'title': f'{t.title} · {_t("%(d)s 天未更新", d=days)}', 'meta': _t('任务'),
                     'who': '—', 'when': _t('%(d)s天', d=days),
-                    'route': f'/task/at/{t.id}', 'urgent': days > 20, '_d': days,
+                    'route': f'/task/at/{t.id}', 'urgent': days > 20,
+                    '_d': days, '_ts': last_act,
                 })
 
         # 4c) 锁定成功提醒 — 给「项目负责人的部门经理 / 总经理(ceo)/ 管理员」的跟进提醒
@@ -414,19 +419,22 @@ def _build_todos(user):
                         'title': f'{p_.project_name}',
                         'meta': (p_.win_lock_reason or '')[:50],
                         'who': _fmt_user(locker), 'when': _ago(p_.win_locked_at),
-                        'route': f'/project/{p_.id}/at_view', 'urgent': False, '_d': days_,
+                        'route': f'/project/{p_.id}/at_view', 'urgent': False,
+                        '_d': days_, '_ts': p_.win_locked_at,
                     })
         except Exception as _we:
             import logging; logging.warning(f'todos winlock err: {_we}')
 
-        fu.sort(key=lambda x: x['_d'], reverse=True)
+        fu.sort(key=lambda x: x['_d'], reverse=True)   # 截断时优先保住最逾期的
         for it in fu[:50]:        # 安全上限;列表只展示 top 5,其余进"显示其余 N 项"
             it.pop('_d', None)
             out.append(it)
     except Exception as e:
         import logging; logging.warning(f'todos followup err: {e}')
 
-    # 全局按时间倒序(最新在最上面);无 _ts 的(跟进提醒)沉底、内部保留逾期序(稳定排序)
+    # 全局按"最近一次动静"时间倒序:审批=提交时间、@我=消息时间、跟进=最后跟进/更新时间。
+    # 三类共用同一条时间轴,「全部」tab 里 when 列自上而下单调(1小时前→3天前→20天→45天),
+    # 不再出现跟进提醒整块沉底;逾期最久的排在最下,但 urgent 红点 + 卡头"N 紧急"仍标出。
     out.sort(key=lambda x: x.get('_ts') or datetime.min, reverse=True)
     for it in out:
         it.pop('_ts', None)

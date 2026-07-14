@@ -1673,7 +1673,12 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
 
     # 按创建时间倒序排列
     query = query.order_by(ApprovalInstance.started_at.desc())
-    
+
+    # per_page=None → 不限条数,一次返回全部(仪表盘待办:待审批不设上限)。
+    # valid_instance_ids 是结果集的上界,用它当 per_page 即可保证单页装下全部。
+    if per_page is None:
+        per_page = max(len(valid_instance_ids), 1)
+
     # 返回分页结果
     return query.paginate(page=page, per_page=per_page, error_out=False)
 
