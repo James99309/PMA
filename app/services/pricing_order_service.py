@@ -654,6 +654,7 @@ class PricingOrderService:
                 discount_rate=discount_rate,
                 source_type='quotation',
                 source_quotation_detail_id=qd.id,
+                quote_unit_price=qd.unit_price,   # 报价单价快照(不受报价单后续编辑影响)
                 currency=qd.currency or quotation.currency,  # 继承货币
                 item_note=qd.item_note or ''
             )
@@ -665,14 +666,19 @@ class PricingOrderService:
     
     @staticmethod
     def sync_settlement_from_pricing(pricing_order, only_detail_ids=None):
-        """批价 → 结算 单向同步(折扣率/单价/数量)。
+        """批价 → 结算 单向同步:结构字段(市场价/数量)跟随;折扣「只压天花板」。
 
-        为什么必须同步:创建人(customer_sales)对 settlement 模块无 view 权限,压根
-        看不到结算 tab。他调完批价折扣后结算仍停在创建时那份快照,一路飘到审批人
-        手里 —— 审批人若没手动补设,就出现结算总额高于批价总额的倒挂
-        (实测 PO202607-006:结算 40,219 > 批价 16,665)。
+        折扣语义 = 结算折扣受批价折扣**上限**约束,而非等于批价:
+          - 结算 > 批价(倒挂)→ 压回批价折扣
+          - 结算 ≤ 批价(给渠道让利,合理)→ 原样保留,绝不冲掉
+        旧实现无条件拉平(结算折扣 = 批价折扣),会把有权限者主动设的低折扣冲成批价,
+        与"结算可独立让利"的语义自相矛盾 —— 已改为条件性。
 
-        反向不成立:结算 tab 的独立下调(给渠道让利)不回写批价,维持原有语义。
+        为什么需要:创建人(customer_sales)对 settlement 模块无 view 权限,看不到结算 tab,
+        调完批价后不会重新提交结算;若结算停在旧的高折扣就会倒挂(实测 PO202607-006:
+        结算 40,219 > 批价 16,665)。这里兜底把倒挂行压平。
+
+        反向不成立:结算的独立下调不回写批价。
 
         Args:
             only_detail_ids: 只同步这些批价明细 id(单条编辑时用);None = 全量
@@ -689,9 +695,13 @@ class PricingOrderService:
             if not pricing_detail:
                 continue
 
+            # 结构字段照常跟随
             settlement_detail.market_price = pricing_detail.market_price
-            settlement_detail.discount_rate = pricing_detail.discount_rate
             settlement_detail.quantity = pricing_detail.quantity
+            # 折扣只压天花板:高于批价才拉回;合理的低折扣(≤批价)保持不动
+            if (settlement_detail.discount_rate is None
+                    or float(settlement_detail.discount_rate) > float(pricing_detail.discount_rate) + 1e-6):
+                settlement_detail.discount_rate = pricing_detail.discount_rate
             settlement_detail.calculate_prices()  # 单价 = 面价 × 折扣
             synced += 1
 

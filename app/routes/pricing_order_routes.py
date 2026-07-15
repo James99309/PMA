@@ -405,35 +405,44 @@ def at_edit_pricing_order(order_id):
         gm = (gp / pricing_total * 100) if pricing_total > 0 else 0
         market_total = sum((d.market_price or 0) * (d.quantity or 0) for d in pricing_order.pricing_details)
 
-        # 报价单价/报价合计:来自来源报价单明细(source_quotation_detail_id)
+        # 报价单价:优先用批价明细上的快照 quote_unit_price(创建时抄的,永不悬空);
+        # 快照为空(历史未回填)才回退实时反查源报价明细 —— 报价单被编辑过时这条会失败(悬空),
+        # 显示空白。快照回填后一律走快照,不再受报价单编辑影响。
         from app.models.quotation import QuotationDetail
         q_ids = set()
         for d in pricing_order.pricing_details:
-            if d.source_quotation_detail_id:
+            if d.quote_unit_price is None and d.source_quotation_detail_id:
                 q_ids.add(d.source_quotation_detail_id)
         for s in pricing_order.settlement_details:
             pd = s.pricing_detail
-            if pd and pd.source_quotation_detail_id:
+            if pd and pd.quote_unit_price is None and pd.source_quotation_detail_id:
                 q_ids.add(pd.source_quotation_detail_id)
         qd_map = {}
         if q_ids:
             for qd in QuotationDetail.query.filter(QuotationDetail.id.in_(q_ids)).all():
                 qd_map[qd.id] = qd
+
+        def _quote_unit(pd):
+            """报价单价:快照优先,回退实时反查(悬空则 None)。"""
+            if pd is None:
+                return None
+            if pd.quote_unit_price is not None:
+                return pd.quote_unit_price
+            qd = qd_map.get(pd.source_quotation_detail_id)
+            return (qd.unit_price or 0) if qd else None
+
         # 报价合计按"当前批价/结算明细数量 × 报价单价"计算(数量可能与报价单不同)
         pricing_quote, settlement_quote = {}, {}
         quote_total, settle_quote_total = 0.0, 0.0
         for d in pricing_order.pricing_details:
-            qd = qd_map.get(d.source_quotation_detail_id)
-            if qd:
-                q_unit = qd.unit_price or 0
+            q_unit = _quote_unit(d)
+            if q_unit is not None:
                 line = q_unit * (d.quantity or 0)
                 pricing_quote[d.id] = {'unit': q_unit, 'total': line}
                 quote_total += line
         for s in pricing_order.settlement_details:
-            pd = s.pricing_detail
-            qd = qd_map.get(pd.source_quotation_detail_id) if pd else None
-            if qd:
-                q_unit = qd.unit_price or 0
+            q_unit = _quote_unit(s.pricing_detail)
+            if q_unit is not None:
                 line = q_unit * (s.quantity or 0)
                 settlement_quote[s.id] = {'unit': q_unit, 'total': line}
                 settle_quote_total += line
@@ -2205,6 +2214,12 @@ def save_pricing_details(order_id):
                 if sd:
                     db.session.delete(sd)
                 db.session.delete(pd)
+
+        # 兜底:批价折扣改动后把倒挂的结算行压回批价(只压天花板,不碰合理的低折扣)。
+        # 创建人(customer_sales)看不到结算 tab、不会重新提交结算,靠这里防止结算 > 批价倒挂。
+        # 上面按 id 原地更新时刻意没动结算折扣,所以这里只影响"现在倒挂"的行。
+        db.session.flush()
+        PricingOrderService.sync_settlement_from_pricing(pricing_order)
 
         # 重新计算总额和总折扣率（基于明细数据）
         pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)

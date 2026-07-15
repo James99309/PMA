@@ -408,15 +408,18 @@ class PricingOrderDetail(db.Model):
     # 数据来源
     source_type = Column(String(32), default='quotation', comment='数据来源：quotation/manual')
     source_quotation_detail_id = Column(Integer, nullable=True, comment='来源报价单明细ID')
-    
+    # 报价单价快照:创建时抄一份源报价单的单价,从此不受报价单后续编辑影响。
+    # (原先靠 source_quotation_detail_id 实时反查,报价单一改旧明细被删 → 引用悬空 → 报价单价列空白)
+    quote_unit_price = Column(Float, nullable=True, comment='报价单价快照(创建时的源报价单单价)')
+
     # 货币字段
     currency = Column(String(10), default='CNY', comment='货币类型')
-    
+
     def calculate_prices(self):
         """计算价格"""
         self.unit_price = self.market_price * self.discount_rate
         self.total_price = self.unit_price * self.quantity
-    
+
     @property
     def is_deletable(self):
         """是否可删除（允许删除所有品牌的产品）"""
