@@ -638,7 +638,16 @@ class PricingOrderService:
             # 一旦报价单里 discount 与 unit_price 不自洽(历史数据大量如此),报价的
             # 单价就会被面价静默冲掉(实测:报价 4000 的调试开通被冲成面价 30000),
             # 人只能把折扣一行行手改回去 —— 详见 price_consistency 模块注释。
-            discount_rate = normalize_discount(qd.market_price, qd.unit_price, qd.discount)
+            market_price = qd.market_price or 0
+            unit_price = qd.unit_price or 0
+            discount_rate = normalize_discount(market_price, unit_price, qd.discount)
+
+            # 价格面议产品:源报价只有报价单价、没有面价(market_price=0)。批价模型是
+            # 单价=面价×折扣,面价0会让紧接着的 calculate_prices() 把单价冲成0。
+            # 把报价单价当作批价面价、折扣100%,使 面价=单价=报价单价,避免批价单价显示0。
+            if market_price <= 0 and unit_price > 0:
+                market_price = unit_price
+                discount_rate = 1.0
 
             pricing_detail = PricingOrderDetail(
                 pricing_order_id=pricing_order.id,
@@ -648,8 +657,8 @@ class PricingOrderService:
                 brand=qd.brand,
                 unit=qd.unit,
                 product_mn=qd.product_mn,
-                market_price=qd.market_price,
-                unit_price=qd.unit_price,
+                market_price=market_price,
+                unit_price=unit_price,
                 quantity=qd.quantity,
                 discount_rate=discount_rate,
                 source_type='quotation',
