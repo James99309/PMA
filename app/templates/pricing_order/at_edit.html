@@ -682,16 +682,20 @@ async function poSaveAll(btn){
       }
     }
     // 3. 结算折扣(仅有权时;只发结算行折扣,后端 discount_rate 为小数)
+    //    直销单结算页签整块隐藏(settlementTbody 不渲染),stb 为 null → 跳过,
+    //    既避免 null 崩溃,也不去调后端已拦截的直销结算接口。
     if(PO_CAN_EDIT_SETTLE){
       var stb=document.getElementById('settlementTbody');
-      var srows=[].slice.call(stb.querySelectorAll('tr.product-row'));
-      for(var i=0;i<srows.length;i++){
-        var tr=srows[i]; if(!tr.dataset.id) continue;
-        var dEl=tr.querySelector('.cell-settle-discount'); if(!dEl) continue;
-        var pct=parseFloat(dEl.value)||0;
-        var rs=await fetch('/pricing_order/'+PO_ORDER_ID+'/update_settlement_detail',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({detail_id:parseInt(tr.dataset.id), discount_rate: pct/100})});
-        var ds=await rs.json();
-        if(!ds.success){ alert('{{ _("结算保存失败") }}: '+(ds.message||'')); if(btn) btn.disabled=false; return; }
+      if(stb){
+        var srows=[].slice.call(stb.querySelectorAll('tr.product-row'));
+        for(var i=0;i<srows.length;i++){
+          var tr=srows[i]; if(!tr.dataset.id) continue;
+          var dEl=tr.querySelector('.cell-settle-discount'); if(!dEl) continue;
+          var pct=parseFloat(dEl.value)||0;
+          var rs=await fetch('/pricing_order/'+PO_ORDER_ID+'/update_settlement_detail',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({detail_id:parseInt(tr.dataset.id), discount_rate: pct/100})});
+          var ds=await rs.json();
+          if(!ds.success){ alert('{{ _("结算保存失败") }}: '+(ds.message||'')); if(btn) btn.disabled=false; return; }
+        }
       }
     }
     location.reload();
