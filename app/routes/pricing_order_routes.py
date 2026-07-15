@@ -259,7 +259,7 @@ def excel_edit_pricing_order(order_id):
 
         (can_edit_pricing, can_edit_settlement, _,
          can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
-        can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
+        can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user, pricing_order)
 
         from app.utils.access_control import get_viewable_data
         # 经销商栏:经销商 + 分销商都可选(分销商资格客户也能作为批价单位发起批价)
@@ -375,7 +375,7 @@ def at_edit_pricing_order(order_id):
 
         (can_edit_pricing, can_edit_settlement, _,
          _, _, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
-        can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
+        can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user, pricing_order)
 
         vendor_company_name = PricingOrderService.get_vendor_company_name()
 
@@ -767,7 +767,15 @@ def update_settlement_detail(order_id):
     """更新结算单明细"""
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
-        
+
+        # 直销单:结算=批价的镜像,双向锁死,不允许单独编辑结算(结算页签本就已隐藏,
+        # 这里兜底防有人绕过 UI 直接调接口破坏 1:1)
+        if getattr(pricing_order, 'is_direct_contract', False):
+            return jsonify({
+                'success': False,
+                'message': '直销业务结算单与批价单一致，不支持单独调整'
+            })
+
         # 权限检查 - 使用统一的权限检查函数
         can_edit_settlement = PricingOrderService.can_edit_settlement_details(
             pricing_order, current_user, is_approval_context=True

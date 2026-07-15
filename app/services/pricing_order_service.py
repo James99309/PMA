@@ -666,23 +666,28 @@ class PricingOrderService:
     
     @staticmethod
     def sync_settlement_from_pricing(pricing_order, only_detail_ids=None):
-        """批价 → 结算 单向同步:结构字段(市场价/数量)跟随;折扣「只压天花板」。
+        """批价 → 结算 单向同步:结构字段(市场价/数量)跟随;折扣按业务类型分流。
 
-        折扣语义 = 结算折扣受批价折扣**上限**约束,而非等于批价:
-          - 结算 > 批价(倒挂)→ 压回批价折扣
-          - 结算 ≤ 批价(给渠道让利,合理)→ 原样保留,绝不冲掉
-        旧实现无条件拉平(结算折扣 = 批价折扣),会把有权限者主动设的低折扣冲成批价,
-        与"结算可独立让利"的语义自相矛盾 —— 已改为条件性。
+        折扣同步分两种业务:
+          - 直销(is_direct_contract):没有经销商、无让利概念,结算**强制等于**批价
+            (force-equal,双向锁死)。审批中调高/调低批价,结算都 1:1 跟上,永远相等。
+          - 渠道/提货:结算折扣受批价折扣**上限**约束(clamp,只压天花板):
+              · 结算 > 批价(倒挂)→ 压回批价折扣
+              · 结算 ≤ 批价(给渠道让利,合理)→ 原样保留,绝不冲掉
+            旧实现对所有单无条件拉平,会把有权限者主动设的低折扣冲成批价,与"渠道结算可
+            独立让利"的语义自相矛盾 —— 已改为条件性。
 
         为什么需要:创建人(customer_sales)对 settlement 模块无 view 权限,看不到结算 tab,
-        调完批价后不会重新提交结算;若结算停在旧的高折扣就会倒挂(实测 PO202607-006:
-        结算 40,219 > 批价 16,665)。这里兜底把倒挂行压平。
+        调完批价后不会重新提交结算;若结算停在旧折扣就会倒挂(实测 PO202607-006:
+        结算 40,219 > 批价 16,665)。这里兜底把结算拉回合规。
 
-        反向不成立:结算的独立下调不回写批价。
+        反向不成立:渠道结算的独立下调不回写批价(直销无独立结算,不适用)。
 
         Args:
             only_detail_ids: 只同步这些批价明细 id(单条编辑时用);None = 全量
         """
+        # 直销单:结算是批价的镜像,强制相等;渠道/提货:只压天花板
+        is_direct = bool(getattr(pricing_order, 'is_direct_contract', False))
         synced = 0
         for settlement_detail in pricing_order.settlement_details:
             pd_id = settlement_detail.pricing_detail_id
@@ -698,9 +703,12 @@ class PricingOrderService:
             # 结构字段照常跟随
             settlement_detail.market_price = pricing_detail.market_price
             settlement_detail.quantity = pricing_detail.quantity
-            # 折扣只压天花板:高于批价才拉回;合理的低折扣(≤批价)保持不动
-            if (settlement_detail.discount_rate is None
+            if is_direct:
+                # 直销:强制等于批价(调高批价时也拉上去,维持 1:1)
+                settlement_detail.discount_rate = pricing_detail.discount_rate
+            elif (settlement_detail.discount_rate is None
                     or float(settlement_detail.discount_rate) > float(pricing_detail.discount_rate) + 1e-6):
+                # 渠道/提货:只压天花板,高于批价才拉回;合理的低折扣(≤批价)保持不动
                 settlement_detail.discount_rate = pricing_detail.discount_rate
             settlement_detail.calculate_prices()  # 单价 = 面价 × 折扣
             synced += 1
@@ -1615,8 +1623,18 @@ class PricingOrderService:
             return False, f"权限检查失败: {str(e)}"
     
     @staticmethod
-    def can_view_settlement_tab(current_user):
-        """检查是否可以查看结算单页签"""
+    def can_view_settlement_tab(current_user, pricing_order=None):
+        """检查是否可以查看结算单页签
+
+        Args:
+            pricing_order: 传入具体批价单时,直销单(is_direct_contract)一律隐藏结算页签
+                —— 直销无经销商,结算=批价的镜像,不作为独立单据展示/编辑/审批。
+                不传(列表/模态等无单 PO 上下文)则维持按权限判断的原行为。
+        """
+        # 直销单:结算就是批价,不单独出页签(编辑页和审批中都不显示)
+        if pricing_order is not None and getattr(pricing_order, 'is_direct_contract', False):
+            return False
+
         # admin和CEO用户直接返回True
         from app.permissions import is_admin_or_ceo
         if is_admin_or_ceo():
