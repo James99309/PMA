@@ -133,9 +133,13 @@ def create_task(actor, data):
 
 def complete_task(actor, t):
     """完成任务;审计类任务进入待审核并通知审计人(忠实抽取)。返回 Task。"""
-    if t.task_reviewers and not t.review_status:
+    # 有审核人的任务:只要还没「审批通过」,完成都要(重新)进会审 —— 含被驳回后再次完成。
+    # 旧条件 `not t.review_status` 只在首次完成生效,驳回后(review_status='rejected')再完成
+    # 会落到下面直接 completed,绕过会审(bug:驳回后再提交直接通过)。
+    if t.task_reviewers and t.review_status != 'approved':
         t.status = 'pending_review'
         t.review_status = 'pending_review'
+        t.reviewed_at = None
         for tr in t.task_reviewers:
             tr.status = 'pending'
             tr.reviewed_at = None
