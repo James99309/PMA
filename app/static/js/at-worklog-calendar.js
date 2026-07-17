@@ -81,6 +81,15 @@
       el.style.pointerEvents = 'auto'; el.style.cursor = 'pointer';
       el.addEventListener('click', function (ev) { ev.stopPropagation(); g.openLog(el.dataset.logdate); });
     });
+    // "+N 更多":跳到当天日视图看全部(否则点击冒泡到格子会误触"新建工作项")
+    grid.querySelectorAll('.cal-more').forEach(function (el) {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var cell = el.closest('[data-date]');
+        if (cell) { anchor = parseISO(cell.dataset.date); setView('day'); }
+      });
+    });
     grid.querySelectorAll('[data-date]').forEach(function (cell) {
       cell.addEventListener('click', function () { wiOpenNew(cell.dataset.date); });
       cell.addEventListener('dragover', function (ev) { ev.preventDefault(); cell.classList.add('cal-drop'); });

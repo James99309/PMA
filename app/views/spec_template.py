@@ -428,19 +428,51 @@ def _is_template_admin():
     return current_user.role.lower() in ('admin', 'ceo')
 
 
+def _managed_category_ids():
+    """当前用户作为产品经理管理的品类 id 列表（ProductCategory.manager_id 反查）。"""
+    return [c.id for c in getattr(current_user, 'managed_categories', []) or []]
+
+
+def _apply_template_scope(query):
+    """规格模板可见范围过滤:
+      - admin/ceo:全部
+      - 产品经理:所管品类内的全部模板(不论谁建)+ 自己建的
+      - 其他:仅自己建的
+    模板是全公司共享的基准数据,按"品类归属"而非"创建人"授权可见。
+    """
+    if _is_template_admin():
+        return query
+    cat_ids = _managed_category_ids()
+    if cat_ids:
+        return query.filter(db.or_(
+            SpecTemplate.category_id.in_(cat_ids),
+            SpecTemplate.created_by == current_user.id
+        ))
+    return query.filter(SpecTemplate.created_by == current_user.id)
+
+
+def _can_manage_template(template):
+    """是否可查看/编辑该模板:admin/ceo、所管品类、或本人创建。"""
+    if _is_template_admin():
+        return True
+    if template is None:
+        return False
+    if template.category_id and template.category_id in _managed_category_ids():
+        return True
+    return template.created_by == current_user.id
+
+
 def _check_template_owner(template):
     """检查当前用户是否有权访问该模板，无权则 abort(403)"""
-    if _is_template_admin():
-        return
-    if template.created_by != current_user.id:
+    if not _can_manage_template(template):
         abort(403)
 
 
 def _check_config_owner(config):
-    """检查当前用户是否有权访问该配置版本（通过所属模板的 owner 判断）"""
+    """检查当前用户是否有权访问该配置版本（通过所属模板判断）"""
     if _is_template_admin():
         return
-    if config.template and config.template.created_by != current_user.id:
+    if not (config.template and _can_manage_template(config.template)):
         abort(403)
 
 
@@ -454,8 +486,7 @@ def list_templates():
     subcategory_filter = request.args.get('subcategory', '').strip()
 
     query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
-    if not _is_template_admin():
-        query = query.filter_by(created_by=current_user.id)
+    query = _apply_template_scope(query)
 
     if search:
         search_term = f'%{search}%'
@@ -496,8 +527,7 @@ def list_templates():
 
     # 构建分类→子分类树（仅包含有模板的分类）
     all_templates = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
-    if not _is_template_admin():
-        all_templates = all_templates.filter_by(created_by=current_user.id)
+    all_templates = _apply_template_scope(all_templates)
     all_templates = all_templates.all()
 
     category_tree = {}  # {cat_name: {'order': int, 'subs': {sub_name: order}}}
@@ -589,8 +619,7 @@ def at_list_view():
     subcategory_filter = request.args.get('subcategory', '').strip()
 
     query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
-    if not _is_template_admin():
-        query = query.filter_by(created_by=current_user.id)
+    query = _apply_template_scope(query)
 
     if search:
         s = f'%{search}%'
@@ -642,8 +671,7 @@ def at_list_view():
 
     # Build category tree for filter tabs
     all_q = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
-    if not _is_template_admin():
-        all_q = all_q.filter_by(created_by=current_user.id)
+    all_q = _apply_template_scope(all_q)
     category_tree = {}
     for t in all_q.all():
         if t.subcategory and t.subcategory.parent_category:
@@ -711,7 +739,7 @@ def at_view_template(template_id):
     region_options = [{'value': r.code, 'label': r.name.split('(')[0].strip()} for r in sales_regions]
     status_options = [{'value': code, 'label': name} for code, name in CONFIG_STATUS]
 
-    can_edit = _is_template_admin() or template.created_by == current_user.id
+    can_edit = _can_manage_template(template)
 
     test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(
         TestConditionDictionary.display_order).all()
@@ -800,7 +828,7 @@ def at_matrix_partial(template_id):
         SpecificationDictionary.query.filter(SpecificationDictionary.id.in_(spec_dict_ids)).all()
     ) if spec_dict_ids else {}
 
-    can_edit = _is_template_admin() or template.created_by == current_user.id
+    can_edit = _can_manage_template(template)
 
     code_items = sorted([item for item in all_items if item.use_in_code], key=lambda x: x.display_order)
     code_position_map = {}
@@ -836,7 +864,7 @@ def at_specs_partial(template_id):
         if item.spec_dict and item.spec_dict.category_id:
             items_by_category.setdefault(item.spec_dict.category_id, []).append(item)
 
-    can_edit = _is_template_admin() or template.created_by == current_user.id
+    can_edit = _can_manage_template(template)
     has_locked_config = any(c.mn_locked for c in template.configurations if c.deleted_at is None)
 
     code_items = sorted([item for item in all_items if item.use_in_code], key=lambda x: x.display_order)
@@ -1131,8 +1159,7 @@ def edit_template_page(template_id):
 def api_list_templates():
     """API: 获取规格模板列表"""
     query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
-    if not _is_template_admin():
-        query = query.filter_by(created_by=current_user.id)
+    query = _apply_template_scope(query)
 
     # 使用 product_display_order 表排序（与产品列表保持一致）
     from app.models.product_display_order import ProductDisplayOrder
