@@ -15,6 +15,9 @@
 {% block page_actions %}
 {{ at_btn(_('管理测试方法'), variant='ghost', size='sm', tag='a',
           href=url_for('spec_definition.list_test_methods')) }}
+{% if has_permission('product_code', 'create') %}
+{{ at_btn(_('添加规格'), variant='primary', size='sm', icon_l='plus', onclick='openSpecModal()') }}
+{% endif %}
 {% endblock %}
 
 {% block tabs %}
@@ -54,6 +57,7 @@
 {{ _plain_th(_('排序'), 'right') }}
 {{ at_sort_th(_('创建'), 'created_at', sort_field, sort_order) }}
 {{ at_sort_th(_('更新'), 'updated_at', sort_field, sort_order) }}
+{{ _plain_th(_('指标'), 'right') }}
 {% endblock %}
 
 {% block trows %}
@@ -95,10 +99,21 @@
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};white-space:nowrap;">
     <span class="at-mono" style="font-size:12px;color:var(--ink-3);">{{ d.updated_at.strftime('%Y-%m-%d') if d.updated_at else '—' }}</span>
   </td>
+  <td style="padding:0 16px;border-bottom:{{ cell_bd }};text-align:right;white-space:nowrap;">
+    <button data-def-id="{{ d.id }}" data-def-name="{{ d.name }}" data-def-unit="{{ d.unit or '' }}"
+            onclick="openIndicatorFromEl(this)" title="{{ _('指标管理') }}"
+            style="width:28px;height:28px;padding:0;border:none;background:none;cursor:pointer;
+                   color:var(--ink-3);border-radius:5px;
+                   display:inline-flex;align-items:center;justify-content:center;"
+            onmouseenter="this.style.background='var(--bg-hover)';this.style.color='var(--accent)'"
+            onmouseleave="this.style.background='none';this.style.color='var(--ink-3)'">
+      {{ at_icon('grid', 15) }}
+    </button>
+  </td>
 </tr>
 {% else %}
 <tr>
-  <td colspan="8" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
+  <td colspan="9" style="padding:60px 16px;text-align:center;color:var(--ink-3);">
     {{ _('此分类下暂无规格项') }}
   </td>
 </tr>
@@ -121,4 +136,289 @@
   {% endif %}
 </div>
 {% endif %}
+{% endblock %}
+
+{% block modals %}
+{% if has_permission('product_code', 'create') %}
+{# ── 添加规格项模态框(AT 皮肤,复用 TW 的 api_create_definition 逻辑)── #}
+<div id="atSpecModal"
+     style="display:none;position:fixed;inset:0;z-index:9000;
+            align-items:center;justify-content:center;background:rgba(0,0,0,0.4);"
+     onclick="if(event.target===this)closeSpecModal()">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:560px;max-width:calc(100vw - 32px);max-height:88vh;
+              display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.18);">
+    {# Header #}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;flex-shrink:0;">
+      <div>
+        <div class="at-mono at-dim" style="font-size:10px;letter-spacing:0.15em;margin-bottom:4px;">
+          SPEC DICT · {{ _('添加规格项') }}
+        </div>
+        <div style="font-size:16px;font-weight:500;color:var(--ink);">
+          {{ _('添加规格') }}<span id="atSpecCatName" style="color:var(--ink-3);font-weight:400;font-size:13px;margin-left:8px;">{{ current_category.name if current_category else '' }}</span>
+        </div>
+      </div>
+      <button onclick="closeSpecModal()"
+              style="width:28px;height:28px;border:none;background:none;cursor:pointer;color:var(--ink-3);
+                     border-radius:4px;display:flex;align-items:center;justify-content:center;"
+              onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background='none'">
+        {{ at_icon('close', 16) }}
+      </button>
+    </div>
+    {# Body #}
+    <form id="specForm" onsubmit="return false;" style="flex:1;overflow-y:auto;padding:4px 24px 8px;">
+      <input type="hidden" id="sp_category_id" value="{{ current_category_id or '' }}">
+      {% set _lbl = 'display:block;font-size:12px;font-weight:500;color:var(--ink-2);margin-bottom:6px;' %}
+      {% set _inp = 'width:100%;box-sizing:border-box;height:34px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:13px;outline:none;' %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="{{ _lbl }}">{{ _('规格名称') }} <span style="color:var(--danger);">*</span></label>
+          <input id="sp_name" type="text" placeholder="{{ _('如：下行频率范围') }}" style="{{ _inp }}"
+                 onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'">
+        </div>
+        <div>
+          <label style="{{ _lbl }}">{{ _('英文名称') }}</label>
+          <input id="sp_name_en" type="text" placeholder="{{ _('如：DL Freq Range') }}" style="{{ _inp }}"
+                 onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'">
+        </div>
+        <div>
+          <label style="{{ _lbl }}">{{ _('单位') }}</label>
+          <input id="sp_unit" type="text" placeholder="{{ _('如：MHz、dBm、°C') }}" style="{{ _inp }}"
+                 onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'">
+        </div>
+        <div>
+          <label style="{{ _lbl }}">{{ _('值类型') }}</label>
+          <select id="sp_value_type" style="{{ _inp }}">
+            <option value="text">{{ _('文本') }}</option>
+            <option value="number">{{ _('数值') }}</option>
+            <option value="select">{{ _('选项') }}</option>
+            <option value="boolean">{{ _('布尔') }}</option>
+          </select>
+        </div>
+        <div>
+          <label style="{{ _lbl }}">{{ _('默认测试条件') }}</label>
+          <select id="sp_cond" style="{{ _inp }}">
+            <option value="">{{ _('请选择') }}</option>
+            {% for c in test_conditions %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="{{ _lbl }}">{{ _('默认测试方法') }}</label>
+          <select id="sp_method" style="{{ _inp }}">
+            <option value="">{{ _('请选择') }}</option>
+            {% for m in test_methods %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:14px;">
+        <input id="sp_allow_attachment" type="checkbox" style="width:15px;height:15px;accent-color:var(--accent);">
+        <span style="font-size:13px;color:var(--ink-2);">{{ _('允许附件') }}</span>
+      </label>
+      <div style="margin-bottom:6px;">
+        <label style="{{ _lbl }}">{{ _('规格说明') }}</label>
+        <textarea id="sp_desc" rows="2" placeholder="{{ _('规格项的详细说明') }}"
+                  style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:13px;outline:none;resize:vertical;"
+                  onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'"></textarea>
+      </div>
+      <div id="specErr" style="display:none;color:var(--danger);font-size:12px;margin-top:8px;"></div>
+    </form>
+    {# Footer #}
+    <div style="display:flex;justify-content:flex-end;gap:10px;padding:14px 24px 20px;flex-shrink:0;border-top:1px solid var(--line-soft);">
+      {{ at_btn(_('取消'), variant='ghost', size='md', onclick='closeSpecModal()') }}
+      {{ at_btn(_('保存'), variant='primary', size='md', icon_l='check', onclick='submitSpec()', extra_attrs='id="specSubmitBtn"') }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── 指标管理模态框(列表/新增/删除;编辑+产品同步下一步)── #}
+<div id="atIndModal"
+     style="display:none;position:fixed;inset:0;z-index:9001;
+            align-items:center;justify-content:center;background:rgba(0,0,0,0.4);"
+     onclick="if(event.target===this)closeIndicatorModal()">
+  <div style="background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;
+              width:620px;max-width:calc(100vw - 32px);max-height:88vh;
+              display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.18);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;flex-shrink:0;">
+      <div>
+        <div class="at-mono at-dim" style="font-size:10px;letter-spacing:0.15em;margin-bottom:4px;">SPEC DICT · {{ _('指标管理') }}</div>
+        <div style="font-size:16px;font-weight:500;color:var(--ink);"><span id="indSpecName"></span></div>
+      </div>
+      <button onclick="closeIndicatorModal()"
+              style="width:28px;height:28px;border:none;background:none;cursor:pointer;color:var(--ink-3);
+                     border-radius:4px;display:flex;align-items:center;justify-content:center;"
+              onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background='none'">
+        {{ at_icon('close', 16) }}
+      </button>
+    </div>
+    {% if has_permission('product_code', 'create') %}
+    {# 新增指标行 #}
+    <div style="display:flex;gap:8px;align-items:center;padding:4px 24px 12px;flex-shrink:0;">
+      <input id="indNewValue" type="text" placeholder="{{ _('指标值(编码自动生成)') }}"
+             style="flex:1;box-sizing:border-box;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:13px;outline:none;"
+             onkeydown="if(event.key==='Enter')addIndicator()"
+             onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'">
+      <input id="indNewValueEn" type="text" placeholder="{{ _('英文(可选)') }}"
+             style="width:150px;box-sizing:border-box;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:13px;outline:none;"
+             onkeydown="if(event.key==='Enter')addIndicator()"
+             onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--line)'">
+      {{ at_btn(_('添加'), variant='primary', size='sm', icon_l='plus', onclick='addIndicator()', extra_attrs='id="indAddBtn"') }}
+    </div>
+    {% endif %}
+    <div id="indErr" style="display:none;color:var(--danger);font-size:12px;margin:0 24px 8px;"></div>
+    {# 指标列表 #}
+    <div style="flex:1;overflow-y:auto;padding:0 24px 16px;min-height:120px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:8px 8px;font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--line);">{{ _('指标值') }}</th>
+            <th style="text-align:left;padding:8px 8px;font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--line);">EN</th>
+            <th style="text-align:left;padding:8px 8px;font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--line);">{{ _('编码') }}</th>
+            <th style="width:60px;border-bottom:1px solid var(--line);"></th>
+          </tr>
+        </thead>
+        <tbody id="indList"></tbody>
+      </table>
+      <div id="indLoading" style="padding:36px;text-align:center;color:var(--ink-3);font-size:13px;">{{ _('加载中…') }}</div>
+      <div id="indEmpty" style="display:none;padding:36px;text-align:center;color:var(--ink-4);font-size:13px;">{{ _('暂无指标') }}</div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:12px 24px 20px;flex-shrink:0;border-top:1px solid var(--line-soft);">
+      {{ at_btn(_('关闭'), variant='ghost', size='md', onclick='closeIndicatorModal()') }}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if has_permission('product_code', 'create') %}
+<script>
+function openSpecModal(){
+  var f=document.getElementById('specForm'); if(f) f.reset();
+  var err=document.getElementById('specErr'); if(err) err.style.display='none';
+  var btn=document.getElementById('specSubmitBtn'); if(btn) btn.disabled=false;
+  document.getElementById('atSpecModal').style.display='flex';
+  setTimeout(function(){ var n=document.getElementById('sp_name'); if(n) n.focus(); }, 50);
+}
+function closeSpecModal(){ document.getElementById('atSpecModal').style.display='none'; }
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && document.getElementById('atSpecModal').style.display==='flex') closeSpecModal();
+});
+async function submitSpec(){
+  var err=document.getElementById('specErr');
+  var name=(document.getElementById('sp_name').value||'').trim();
+  if(!name){ err.textContent='{{ _("规格名称不能为空") }}'; err.style.display='block'; return; }
+  var catId=document.getElementById('sp_category_id').value;
+  if(!catId){ err.textContent='{{ _("请选择规格分类") }}'; err.style.display='block'; return; }
+  var btn=document.getElementById('specSubmitBtn'); btn.disabled=true;
+  var v=function(id){ return (document.getElementById(id).value||'').trim(); };
+  var payload={
+    category_id: parseInt(catId),
+    name: name,
+    name_en: v('sp_name_en')||null,
+    unit: v('sp_unit')||null,
+    value_type: v('sp_value_type')||'text',
+    allow_attachment: document.getElementById('sp_allow_attachment').checked,
+    default_test_condition_id: v('sp_cond')?parseInt(v('sp_cond')):null,
+    default_test_method_id: v('sp_method')?parseInt(v('sp_method')):null,
+    description: v('sp_desc')||null
+  };
+  try{
+    var headers={'Content-Type':'application/json'};
+    var meta=document.querySelector('meta[name="csrf-token"]');
+    if(meta) headers['X-CSRFToken']=meta.getAttribute('content');
+    var r=await fetch('{{ url_for("spec_definition.api_create_definition") }}',
+                      {method:'POST',headers:headers,body:JSON.stringify(payload)});
+    var d=await r.json();
+    if(d && d.success){ window.location.reload(); }
+    else { err.textContent=(d && d.message)||'{{ _("保存失败") }}'; err.style.display='block'; btn.disabled=false; }
+  }catch(e){ err.textContent='{{ _("保存失败") }}'; err.style.display='block'; btn.disabled=false; }
+}
+</script>
+{% endif %}
+
+{# 指标管理 JS:列表对 view 可用,新增/删除按权限 #}
+<script>
+(function(){
+  var CAN_ADD = {{ 'true' if has_permission('product_code','create') else 'false' }};
+  var CAN_DEL = {{ 'true' if has_permission('product_code','delete') else 'false' }};
+  var IND_BASE = '{{ url_for("spec_definition.list_definitions") }}api';
+  var curDefId = null;
+  function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML; }
+  function hdrs(){ var h={'Content-Type':'application/json'}; var m=document.querySelector('meta[name="csrf-token"]'); if(m) h['X-CSRFToken']=m.getAttribute('content'); return h; }
+
+  window.openIndicatorFromEl = function(el){
+    openIndicatorModal(parseInt(el.getAttribute('data-def-id')),
+                       el.getAttribute('data-def-name') || '',
+                       el.getAttribute('data-def-unit') || '');
+  };
+  window.openIndicatorModal = function(id, name, unit){
+    curDefId = id;
+    document.getElementById('indSpecName').textContent = name + (unit ? ' ('+unit+')' : '');
+    var e=document.getElementById('indErr'); if(e) e.style.display='none';
+    var nv=document.getElementById('indNewValue'); if(nv) nv.value='';
+    var ne=document.getElementById('indNewValueEn'); if(ne) ne.value='';
+    document.getElementById('atIndModal').style.display='flex';
+    loadIndicators();
+  };
+  window.closeIndicatorModal = function(){ document.getElementById('atIndModal').style.display='none'; };
+
+  async function loadIndicators(){
+    var list=document.getElementById('indList'), loading=document.getElementById('indLoading'), empty=document.getElementById('indEmpty');
+    list.innerHTML=''; loading.style.display='block'; empty.style.display='none';
+    try{
+      var r=await fetch(IND_BASE + '/' + curDefId + '/indicators');
+      var d=await r.json();
+      loading.style.display='none';
+      var items=(d && d.data) || [];
+      if(!items.length){ empty.style.display='block'; return; }
+      items.forEach(function(it){
+        var delCell='';
+        if(CAN_DEL){
+          if(it.is_used){ delCell='<span title="{{ _("已被产品/子分类引用,不可删除") }}" style="color:var(--ink-4);font-size:11.5px;">{{ _("占用") }}</span>'; }
+          else { delCell='<button onclick="delIndicator('+it.id+')" style="border:1px solid var(--line-2);background:none;cursor:pointer;color:var(--ink-3);padding:2px 8px;border-radius:4px;font-size:11.5px;">{{ _("删除") }}</button>'; }
+        }
+        var tr=document.createElement('tr');
+        tr.innerHTML=
+          '<td style="padding:8px;font-size:13px;color:var(--ink);border-bottom:1px solid var(--line-soft);">'+esc(it.value)+'</td>'+
+          '<td style="padding:8px;font-size:12.5px;color:var(--ink-3);border-bottom:1px solid var(--line-soft);">'+esc(it.value_en||'—')+'</td>'+
+          '<td style="padding:8px;border-bottom:1px solid var(--line-soft);"><span class="at-mono" style="font-size:12px;color:var(--ink-2);">'+esc(it.code||'—')+'</span></td>'+
+          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--line-soft);">'+delCell+'</td>';
+        list.appendChild(tr);
+      });
+    }catch(e){ loading.style.display='none'; empty.style.display='block'; }
+  }
+
+  window.addIndicator = async function(){
+    if(!CAN_ADD) return;
+    var err=document.getElementById('indErr');
+    var val=(document.getElementById('indNewValue').value||'').trim();
+    if(!val){ err.textContent='{{ _("指标值不能为空") }}'; err.style.display='block'; return; }
+    err.style.display='none';
+    var btn=document.getElementById('indAddBtn'); if(btn) btn.disabled=true;
+    var payload={ value: val, value_en: (document.getElementById('indNewValueEn').value||'').trim()||null };
+    try{
+      var r=await fetch(IND_BASE + '/' + curDefId + '/indicators', {method:'POST', headers:hdrs(), body:JSON.stringify(payload)});
+      var d=await r.json();
+      if(d && d.success){ document.getElementById('indNewValue').value=''; document.getElementById('indNewValueEn').value=''; loadIndicators(); }
+      else { err.textContent=(d&&d.message)||'{{ _("添加失败") }}'; err.style.display='block'; }
+    }catch(e){ err.textContent='{{ _("添加失败") }}'; err.style.display='block'; }
+    if(btn) btn.disabled=false;
+  };
+
+  window.delIndicator = async function(optId){
+    if(!CAN_DEL) return;
+    var err=document.getElementById('indErr'); err.style.display='none';
+    try{
+      var r=await fetch(IND_BASE + '/indicators/' + optId, {method:'DELETE', headers:hdrs()});
+      var d=await r.json();
+      if(d && d.success){ loadIndicators(); }
+      else { err.textContent=(d&&d.message)||'{{ _("删除失败") }}'; err.style.display='block'; }
+    }catch(e){ err.textContent='{{ _("删除失败") }}'; err.style.display='block'; }
+  };
+
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape' && document.getElementById('atIndModal').style.display==='flex') closeIndicatorModal();
+  });
+})();
+</script>
 {% endblock %}

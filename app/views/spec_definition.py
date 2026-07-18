@@ -103,11 +103,18 @@ def at_list_view():
     pagination = q.order_by(nullslast(_ordered), SpecificationDictionary.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False,
     )
+    # 添加规格项模态框需要:当前分类(hidden category_id)+ 测试方法/条件下拉
+    current_category = SpecCategory.query.get(category_id) if category_id else None
+    test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
+    test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
     return render_template('spec_definition/at_list.html',
                            definitions=pagination.items,
                            pagination=pagination,
                            categories=categories,
                            current_category_id=category_id,
+                           current_category=current_category,
+                           test_methods=test_methods,
+                           test_conditions=test_conditions,
                            search=search,
                            sort_field=sort_field,
                            sort_order=sort_order)
