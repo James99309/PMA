@@ -479,7 +479,7 @@
         .then(function(res) {
           if (res.ok && res.d.success) {
             if (window.atToast) atToast('{{ _("产品已删除") }}', 'success');
-            setTimeout(function(){ window.location.href = '/product/at_list'; }, 800);
+            setTimeout(function(){ window.location.href = '{{ url_for("product.at_list_view") }}'; }, 800);
           } else if (res.d.code === 'PRODUCT_REFERENCED') {
             ATConfirm.show({
               title: '{{ _("无法删除") }}',
