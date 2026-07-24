@@ -18,16 +18,31 @@ logger = logging.getLogger(__name__)
 _client = None
 
 
+def _vision_conf():
+    """视觉专用端点配置，优先 CLAUDE_VISION_*，未配则回退全局 ANTHROPIC_*。
+
+    背景：文本类 AI 走国内 GLM 代理(省)，但 GLM 经 Anthropic 兼容端点不读图。
+    发票/名片 OCR 需要能读图的后端(如 Codex/ChatGPT gpt-5.4 视觉)，故视觉调用
+    单独走 CLAUDE_VISION_BASE_URL + CLAUDE_VISION_API_KEY。两者都不配时行为不变。
+    """
+    api_key = os.environ.get('CLAUDE_VISION_API_KEY') or os.environ.get('ANTHROPIC_API_KEY')
+    base_url = os.environ.get('CLAUDE_VISION_BASE_URL') or os.environ.get('ANTHROPIC_BASE_URL')
+    bearer_flag = (os.environ.get('CLAUDE_VISION_USE_BEARER')
+                   or os.environ.get('ANTHROPIC_USE_BEARER') or '')
+    use_bearer = bearer_flag.lower() in ('1', 'true', 'yes')
+    return api_key, base_url, use_bearer
+
+
 def get_client():
-    """复用 chat_translation_service 同款客户端构造逻辑 — base_url + 可选 bearer"""
+    """复用 chat_translation_service 同款客户端构造逻辑 — base_url + 可选 bearer。
+    视觉端点独立于文本端点(见 _vision_conf)。"""
     global _client
     if _client is None:
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-        base_url = os.environ.get('ANTHROPIC_BASE_URL')
+        api_key, base_url, use_bearer = _vision_conf()
         kwargs = {'api_key': api_key}
         if base_url:
             kwargs['base_url'] = base_url
-        if os.environ.get('ANTHROPIC_USE_BEARER', '').lower() in ('1', 'true', 'yes'):
+        if use_bearer:
             kwargs['default_headers'] = {
                 'Authorization': f'Bearer {api_key}',
                 'anthropic-beta': 'oauth-2025-04-20',
@@ -80,9 +95,9 @@ def extract_with_schema(
     if not image_blob:
         return {'success': False, 'message': '图片为空'}
 
-    api_key = os.environ.get('ANTHROPIC_API_KEY')
+    api_key = _vision_conf()[0]
     if not api_key:
-        return {'success': False, 'message': '未配置 ANTHROPIC_API_KEY'}
+        return {'success': False, 'message': '未配置视觉端点 API Key (CLAUDE_VISION_API_KEY / ANTHROPIC_API_KEY)'}
 
     media_type = detect_image_type(image_blob)
     is_pdf = media_type == 'application/pdf'
