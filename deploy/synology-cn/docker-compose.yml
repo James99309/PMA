@@ -125,6 +125,13 @@ services:
       CLI_AGENT_PROVIDER: ${CLI_AGENT_PROVIDER:-claude}
       CLI_AGENT_MODEL: ${CLI_AGENT_MODEL:-claude-sonnet-4-6}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      ANTHROPIC_USE_BEARER: ${ANTHROPIC_USE_BEARER:-}
+      # 视觉 OCR 独立端点（发票/名片读图走能读图的后端，如 Codex/ChatGPT gpt-5.4）
+      # 未配则回退 ANTHROPIC_*，见 app/services/claude_vision_ocr.py:_vision_conf
+      CLAUDE_VISION_BASE_URL: ${CLAUDE_VISION_BASE_URL:-}
+      CLAUDE_VISION_API_KEY: ${CLAUDE_VISION_API_KEY:-}
+      CLAUDE_VISION_USE_BEARER: ${CLAUDE_VISION_USE_BEARER:-}
+      CLAUDE_VISION_MODEL: ${CLAUDE_VISION_MODEL:-}
       # Tavily 网络搜索（AI 回填客户/项目信息）
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
 
