@@ -129,7 +129,13 @@ def extract_with_schema(
                 ],
             }],
         )
-        raw = msg.content[0].text.strip() if msg.content else ''
+        # 取第一个 text 块 — 跳过 reasoning 模型(gpt-5.x 等)可能先返回的 thinking 块,
+        # 否则 content[0] 是 ThinkingBlock(无 .text 属性)会抛异常
+        raw = ''
+        for _block in (msg.content or []):
+            if getattr(_block, 'type', None) == 'text' and getattr(_block, 'text', None):
+                raw = _block.text.strip()
+                break
         # 防御性: 有时模型会包 ```json ... ```
         if raw.startswith('```'):
             raw = raw.strip('`').lstrip('json').strip()
