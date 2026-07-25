@@ -204,14 +204,15 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: pma-cloudflared
     restart: unless-stopped
-    command: tunnel run
+    # --protocol http2 强制 TCP(7844)，不用默认的 QUIC/UDP。
+    # 背景：国内出口 UDP 被限速，cloudflared 反复报
+    # "failed to dial to edge with quic: timeout: no recent network activity"
+    # 导致边缘连接不断重建。ingress 无 UDP/warp-routing，http2 无副作用。
+    # 注意：环境变量名是 TUNNEL_TRANSPORT_PROTOCOL，不是 TUNNEL_PROTOCOL
+    # （后者不存在会被静默忽略，2026-07-25 踩过）；故直接用显式参数。
+    command: tunnel --protocol http2 run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-      # 强制 TCP(7844)，不用默认的 QUIC/UDP。
-      # 背景：国内出口 UDP 被限速，cloudflared 反复报
-      # "failed to dial to edge with quic: timeout: no recent network activity"
-      # 导致边缘连接不断重建。ingress 无 UDP/warp-routing，http2 无副作用。
-      TUNNEL_PROTOCOL: http2
     deploy:
       resources:
         limits:
@@ -228,10 +229,9 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: pma-cloudflared-backup
     restart: unless-stopped
-    command: tunnel run
+    command: tunnel --protocol http2 run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-      TUNNEL_PROTOCOL: http2
     deploy:
       resources:
         limits:
