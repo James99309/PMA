@@ -207,6 +207,31 @@ services:
     command: tunnel run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+      # 强制 TCP(7844)，不用默认的 QUIC/UDP。
+      # 背景：国内出口 UDP 被限速，cloudflared 反复报
+      # "failed to dial to edge with quic: timeout: no recent network activity"
+      # 导致边缘连接不断重建。ingress 无 UDP/warp-routing，http2 无副作用。
+      TUNNEL_PROTOCOL: http2
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 32M
+    networks:
+      - pma-network
+
+  # Cloudflare Tunnel 备份副本（同一 token = 同一隧道的第二组边缘连接）
+  # 作用：主容器重建时 Replicas 从 2 掉到 1 而非 0，外网零中断。
+  # 2026-07-25 前它是手工 docker run 的游离容器，未进版本控制；现纳入 compose。
+  cloudflared-backup:
+    image: cloudflare/cloudflared:latest
+    container_name: pma-cloudflared-backup
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+      TUNNEL_PROTOCOL: http2
     deploy:
       resources:
         limits:

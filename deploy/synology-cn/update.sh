@@ -104,6 +104,10 @@ if [ -f "$DEPLOY_DIR/docker-compose.yml" ]; then
 fi
 
 NEED_REBUILD=false
+COMPOSE_CHANGED=false
+if [ "$OLD_COMPOSE_HASH" != "$NEW_COMPOSE_HASH" ] && [ -n "$OLD_COMPOSE_HASH" ]; then
+    COMPOSE_CHANGED=true
+fi
 if [ "$FORCE_BUILD" = true ]; then
     NEED_REBUILD=true
     echo -e "${CYAN}[检测] 强制重建模式${NC}"
@@ -140,6 +144,49 @@ else
     # 代码通过 bind mount 已实时更新，重启 Flask 即可生效
     $DOCKER restart pma-app
     echo -e "${GREEN}✓ 容器已重启${NC}"
+fi
+
+# ── 同步隧道容器 ──────────────────────────────────────────────────────────────
+# 背景：上面的 [2/4] 只处理 pma 服务，compose 里 cloudflared 等其它 service 的
+#       改动（如 TUNNEL_PROTOCOL）永远不会落地。此步补齐。
+# 零中断：主备两个容器共用同一 token（= 同一隧道的两组边缘连接），
+#         先重建主容器、等它 Registered 后再重建备份，Replicas 始终 ≥1。
+if [ "$COMPOSE_CHANGED" = true ]; then
+    echo -e "\n${YELLOW}[2.5/4] 同步隧道容器（compose 已变化）...${NC}"
+
+    # 一次性迁移：2026-07-25 前 pma-cloudflared-backup 是手工 docker run 的游离容器，
+    # 无 compose 标签会与 compose 抢占同名容器；检测到就先移除，交给 compose 接管。
+    if $DOCKER inspect pma-cloudflared-backup >/dev/null 2>&1 && \
+       [ -z "$($DOCKER inspect pma-cloudflared-backup \
+              --format '{{index .Config.Labels "com.docker.compose.service"}}' 2>/dev/null)" ]; then
+        echo -e "  ${CYAN}移除手工创建的旧 backup 容器，交由 compose 管理${NC}"
+        $DOCKER rm -f pma-cloudflared-backup >/dev/null 2>&1 || true
+    fi
+
+    echo -e "  重建主隧道 cloudflared（备份容器仍在服务）..."
+    $DOCKER_COMPOSE up -d --no-deps cloudflared
+
+    echo -e "  等待主隧道注册到 Cloudflare 边缘..."
+    TUNNEL_OK=false
+    for i in $(seq 1 20); do
+        if $DOCKER logs --since 90s pma-cloudflared 2>&1 | grep -q "Registered tunnel connection"; then
+            TUNNEL_OK=true
+            break
+        fi
+        sleep 3
+    done
+    if [ "$TUNNEL_OK" = true ]; then
+        echo -e "  ${GREEN}✓ 主隧道已注册${NC}"
+    else
+        echo -e "  ${RED}⚠️  主隧道 60s 内未注册，跳过备份容器重建以保住现有连接${NC}"
+        echo -e "  ${RED}   请检查: $DOCKER logs --tail=30 pma-cloudflared${NC}"
+    fi
+
+    if [ "$TUNNEL_OK" = true ]; then
+        echo -e "  重建备份隧道 cloudflared-backup..."
+        $DOCKER_COMPOSE up -d --no-deps cloudflared-backup
+        echo -e "  ${GREEN}✓ 隧道容器已同步${NC}"
+    fi
 fi
 
 echo -e "\n${YELLOW}[3/4] 等待容器健康检查...${NC}"
