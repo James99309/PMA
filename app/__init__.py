@@ -306,6 +306,7 @@ def create_app(config_class=Config):
         TrainingStreak, TrainingApplicationSubmission,
     )
     from app.models.course import InteractiveCourse
+    from app.models.video_watch import VideoWatchState
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp

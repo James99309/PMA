@@ -84,6 +84,7 @@
 
 <script>
   var COURSE = {{ course|tojson }};
+  var WATCH = {{ watch|tojson }};
   var VIDEO = document.getElementById('vpVideo');
   var CH = COURSE.chapters || [];
 
@@ -114,11 +115,10 @@
     });
   }
 
-  // ── 续播 + 看完记录(step 4 接后端;此处先本地存,后端就绪自动切)──
-  var PKEY = 'vp.pos.' + COURSE.key;
+  // ── 续播(用后端记录)+ 看完记录上报后端 ──
   var lastReport = 0;
   VIDEO.addEventListener('loadedmetadata', function(){
-    var saved = 0; try{ saved = parseFloat(localStorage.getItem(PKEY)||'0'); }catch(e){}
+    var saved = WATCH.last_position || 0;
     if(saved > 5 && saved < VIDEO.duration - 10){
       document.getElementById('vpResumeTxt').textContent = '{{ _("上次看到") }} ' + fmt(saved);
       document.getElementById('vpResume').style.display = 'flex';
@@ -131,19 +131,31 @@
   VIDEO.addEventListener('timeupdate', function(){
     hlChapter();
     var now = Date.now();
-    if(now - lastReport > 15000){   // 每 15 秒记一次
+    if(now - lastReport > 15000){   // 每 15 秒上报一次
       lastReport = now;
-      try{ localStorage.setItem(PKEY, String(VIDEO.currentTime)); }catch(e){}
-      vpReportProgress(VIDEO.currentTime, VIDEO.duration);   // step 4: 上报后端
+      vpReportProgress(VIDEO.currentTime, VIDEO.duration);
     }
   });
-  VIDEO.addEventListener('ended', function(){
-    try{ localStorage.removeItem(PKEY); }catch(e){}
-    vpReportProgress(VIDEO.duration, VIDEO.duration);
+  VIDEO.addEventListener('pause', function(){ vpReportProgress(VIDEO.currentTime, VIDEO.duration); });
+  VIDEO.addEventListener('ended', function(){ vpReportProgress(VIDEO.duration, VIDEO.duration); });
+  // 关页/切走时补一次(用 sendBeacon,不阻塞卸载)
+  window.addEventListener('pagehide', function(){
+    if(!VIDEO.duration) return;
+    try{
+      var blob = new Blob([JSON.stringify({position:VIDEO.currentTime, duration:VIDEO.duration})],
+                          {type:'application/json'});
+      navigator.sendBeacon('/wiki/video/' + COURSE.key + '/progress', blob);
+    }catch(e){}
   });
 
-  // step 4 会实现真正的后端上报;先留空实现,前端逻辑已就位
-  function vpReportProgress(cur, dur){ /* TODO step 4: POST 进度 */ }
+  function vpReportProgress(cur, dur){
+    if(!dur) return;
+    fetch('/wiki/video/' + COURSE.key + '/progress', {
+      method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({position: cur, duration: dur})
+    }).catch(function(){});   // 上报失败静默,不打扰观看
+  }
 </script>
 </body>
 </html>

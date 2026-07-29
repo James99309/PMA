@@ -242,7 +242,10 @@ def play_video(course_key):
     row = _find_media_course(course_key, 'video')
     if not row:
         abort(404)
-    return render_template('knowledge/at_video_player.html', course=row.to_dict())
+    from app.models.video_watch import VideoWatchState
+    st = VideoWatchState.query.filter_by(user_id=current_user.id, course_key=row.key).first()
+    watch = st.to_dict() if st else {'last_position': 0, 'max_progress': 0, 'completed': False}
+    return render_template('knowledge/at_video_player.html', course=row.to_dict(), watch=watch)
 
 
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/asset')
@@ -338,6 +341,37 @@ def course_video(course_key):
     if range_header:
         headers['Content-Range'] = f'bytes {start}-{end}/{total}'
     return Response(stream_with_context(generate()), status=status, headers=headers)
+
+
+@knowledge_wiki_bp.route('/wiki/video/<course_key>/progress', methods=['POST'])
+@login_required
+def video_progress(course_key):
+    """上报视频观看进度:记续播位置 + 看过最大进度,>=90% 标完成。"""
+    row = _find_media_course(course_key, 'video')
+    if not row:
+        return jsonify({'success': False}), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        cur = max(0.0, float(data.get('position', 0)))
+        dur = max(0.0, float(data.get('duration', 0)))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': '参数无效'}), 400
+    pct = (cur / dur) if dur > 0 else 0.0
+
+    from app.models.video_watch import VideoWatchState
+    from datetime import datetime
+    st = VideoWatchState.query.filter_by(user_id=current_user.id, course_key=row.key).first()
+    if not st:
+        st = VideoWatchState(user_id=current_user.id, course_key=row.key)
+        db.session.add(st)
+    st.last_position = cur
+    if pct > (st.max_progress or 0):
+        st.max_progress = pct
+    if pct >= 0.9 and not st.completed:
+        st.completed = True
+        st.completed_at = datetime.now()
+    db.session.commit()
+    return jsonify({'success': True, 'completed': st.completed})
 
 
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/download')
