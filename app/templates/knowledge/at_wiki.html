@@ -126,6 +126,21 @@
   .kb-csub { font-size:11.5px; color:var(--accent); font-weight:500; min-height:15px; }
   .kb-cdesc { font-size:12.5px; color:var(--ink-3); line-height:1.5; min-height:38px;
               display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  /* ── 互动课程三子 tab(AT 统一下划线风格)── */
+  .cst-bar { display:flex; align-items:stretch; border-bottom:1px solid var(--line); }
+  .cst-tab { display:inline-flex; align-items:center; gap:6px; padding:11px 18px; font-size:13px; font-weight:400;
+             border:0; border-bottom:2px solid transparent; margin-bottom:-1px; background:transparent;
+             cursor:pointer; color:var(--ink-3); white-space:nowrap; transition:all 120ms; }
+  .cst-tab.is-on { color:var(--accent); font-weight:500; border-bottom-color:var(--accent); }
+  .cst-count { font-size:11px; padding:0 6px; border-radius:99px; line-height:18px; color:var(--ink-4); }
+  /* ── 视频/下载封面角标 ── */
+  .kb-play { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  .kb-play .material-symbols-outlined { font-size:52px; color:#fff; opacity:.9;
+    filter:drop-shadow(0 2px 8px rgba(0,0,0,.4)); transition:transform .15s; }
+  .kb-card:hover .kb-play .material-symbols-outlined { transform:scale(1.12); }
+  .kb-dur { position:absolute; bottom:8px; right:8px; padding:2px 7px; border-radius:5px; font-size:11.5px;
+    font-weight:600; color:#fff; background:rgba(0,0,0,.62); letter-spacing:.02em; }
+
   /* 课程管理:按钮 / 表单 / 卡片悬停操作 */
   /* 与 AT 标准按钮 at_btn 对齐;带 body.at-page 前缀压过全局按钮重置(at-theme.css: body.at-page button{...}) */
   body.at-page .cm-btn { display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 14px;
@@ -409,56 +424,155 @@
     </div>
   </div>
 
-  {# ══════════ 互动课程 tab ══════════ #}
+  {# ══════════ 互动课程 tab(内含三子 tab:视频/互动课件/PPT 下载)══════════ #}
   <div data-tab-panel="courses" style="height:100%;overflow-y:auto;">
     <main style="max-width:1280px;margin:0 auto;padding:0 36px;">
       <div style="padding-top:24px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;">
         <div>
           <div class="at-dim" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;">KNOWLEDGE · {{ _('互动课程') }}</div>
           <h1 class="at-serif" style="margin:6px 0 0;font-size:22px;font-weight:600;">{{ _('互动课程') }}</h1>
-          <div class="at-dim" style="font-size:13px;margin-top:6px;">{{ _('点击课程卡片,在新标签页中播放互动课件并完成考核。') }}</div>
+          <div class="at-dim" style="font-size:13px;margin-top:6px;">{{ _('看视频、玩互动课件、或下载原始 PPT —— 一份知识,三种方式。') }}</div>
+        </div>
+      </div>
+
+      {# ── 三子 tab 切换条(下划线风格,占满宽)+ 右侧上传按钮同排 ── #}
+      <div style="margin-top:18px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
+        <div class="cst-bar" role="tablist" style="flex:1;">
+          <button type="button" class="cst-tab is-on" data-cst="video" onclick="cstSwitch('video')">
+            <span class="material-symbols-outlined" style="font-size:16px;">play_circle</span>{{ _('视频课程') }}
+            <span class="cst-count">{{ courses_video|length }}</span></button>
+          <button type="button" class="cst-tab" data-cst="html" onclick="cstSwitch('html')">
+            <span class="material-symbols-outlined" style="font-size:16px;">slideshow</span>{{ _('互动课件') }}
+            <span class="cst-count">{{ courses_html|length }}</span></button>
+          <button type="button" class="cst-tab" data-cst="ppt" onclick="cstSwitch('ppt')">
+            <span class="material-symbols-outlined" style="font-size:16px;">description</span>{{ _('PPT 下载') }}
+            <span class="cst-count">{{ courses_ppt|length }}</span></button>
         </div>
         {% if is_admin %}
-        <button class="cm-btn cm-btn-primary" onclick="cmOpenUpload()">
-          <span class="material-symbols-outlined">upload_file</span>{{ _('上传课程') }}
-        </button>
+        <div style="display:flex;gap:8px;padding-bottom:6px;">
+          <button class="cm-btn cm-btn-primary" data-cst-upl="video" onclick="cmRegisterMedia('video')" style="display:inline-flex;">
+            <span class="material-symbols-outlined">video_call</span>{{ _('登记视频') }}</button>
+          <button class="cm-btn cm-btn-primary" data-cst-upl="html" onclick="cmOpenUpload()" style="display:none;">
+            <span class="material-symbols-outlined">upload_file</span>{{ _('上传课件') }}</button>
+          <button class="cm-btn cm-btn-primary" data-cst-upl="ppt" onclick="cmRegisterMedia('ppt')" style="display:none;">
+            <span class="material-symbols-outlined">upload_file</span>{{ _('登记 PPT') }}</button>
+        </div>
         {% endif %}
       </div>
-      {% if courses %}
-      <div class="kb-grid">
-        {% for c in courses %}
-        <div class="kb-card-wrap" style="position:relative;">
-          <a class="kb-card" href="{{ url_for('knowledge_wiki.play_course', course_key=c.key) }}" target="_blank" rel="noopener">
-            <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};">
-              {% if c.has_thumbs %}
-              <img src="{{ url_for('knowledge_wiki.course_thumb', course_key=c.key, page=c.cover_page) }}"
-                   alt="{{ c.title }}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
-              {% else %}
-              <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
-              {% endif %}
+
+      {# ── 视频课程 ── #}
+      <div class="cst-panel" data-cst-panel="video" style="margin-top:20px;">
+        {% if courses_video %}
+        <div class="kb-grid">
+          {% for c in courses_video %}
+          <div class="kb-card-wrap" style="position:relative;">
+            <a class="kb-card" href="{{ url_for('knowledge_wiki.play_video', course_key=c.key) }}" target="_blank" rel="noopener">
+              <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};position:relative;">
+                {% if c.has_thumbs %}
+                <img src="{{ url_for('knowledge_wiki.course_thumb', course_key=c.key, page=c.cover_page) }}"
+                     alt="{{ c.title }}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
+                {% else %}
+                <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
+                {% endif %}
+                <div class="kb-play"><span class="material-symbols-outlined">play_arrow</span></div>
+                {% if c.duration %}<div class="kb-dur">{{ '%d:%02d'|format(c.duration//60, c.duration%60) }}</div>{% endif %}
+              </div>
+              <div class="kb-cbody">
+                <div class="kb-csub">{{ c.subtitle }}</div>
+                <div class="kb-ctitle">{{ c.title }}</div>
+                <div class="kb-cdesc">{{ c.desc }}</div>
+              </div>
+            </a>
+            {% if is_admin %}
+            <div class="kb-card-ops">
+              <button title="{{ _('编辑') }}" onclick='cmOpenEdit({{ c|tojson }})'>
+                <span class="material-symbols-outlined">edit</span></button>
+              <button title="{{ _('删除') }}" onclick='cmConfirmDelete({{ c.id }}, {{ c.title|tojson }})'>
+                <span class="material-symbols-outlined">delete</span></button>
             </div>
-            <div class="kb-cbody">
-              <div class="kb-csub">{{ c.subtitle }}</div>
-              <div class="kb-ctitle">{{ c.title }}</div>
-              <div class="kb-cdesc">{{ c.desc }}</div>
-            </div>
-          </a>
-          {% if is_admin %}
-          <div class="kb-card-ops">
-            <button title="{{ _('编辑') }}" onclick='cmOpenEdit({{ c|tojson }})'>
-              <span class="material-symbols-outlined">edit</span></button>
-            <button title="{{ _('生成缩略图') }}" onclick="cmGenThumbs({{ c.id }})">
-              <span class="material-symbols-outlined">image</span></button>
-            <button title="{{ _('删除') }}" onclick='cmConfirmDelete({{ c.id }}, {{ c.title|tojson }})'>
-              <span class="material-symbols-outlined">delete</span></button>
+            {% endif %}
           </div>
-          {% endif %}
+          {% endfor %}
         </div>
-        {% endfor %}
+        {% else %}
+        <div class="at-dim" style="padding:60px 0;text-align:center;font-size:13px;">{{ _('暂无视频课程') }}{% if is_admin %}，{{ _('点右上角登记视频') }}{% endif %}</div>
+        {% endif %}
       </div>
-      {% else %}
-      <div class="at-dim" style="padding:60px 0;text-align:center;font-size:13px;">{{ _('暂无互动课程,点右上角上传') }}</div>
-      {% endif %}
+
+      {# ── 互动课件(现有 HTML deck,保持不变)── #}
+      <div class="cst-panel" data-cst-panel="html" style="margin-top:20px;display:none;">
+        {% if courses_html %}
+        <div class="kb-grid">
+          {% for c in courses_html %}
+          <div class="kb-card-wrap" style="position:relative;">
+            <a class="kb-card" href="{{ url_for('knowledge_wiki.play_course', course_key=c.key) }}" target="_blank" rel="noopener">
+              <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};">
+                {% if c.has_thumbs %}
+                <img src="{{ url_for('knowledge_wiki.course_thumb', course_key=c.key, page=c.cover_page) }}"
+                     alt="{{ c.title }}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
+                {% else %}
+                <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
+                {% endif %}
+              </div>
+              <div class="kb-cbody">
+                <div class="kb-csub">{{ c.subtitle }}</div>
+                <div class="kb-ctitle">{{ c.title }}</div>
+                <div class="kb-cdesc">{{ c.desc }}</div>
+              </div>
+            </a>
+            {% if is_admin %}
+            <div class="kb-card-ops">
+              <button title="{{ _('编辑') }}" onclick='cmOpenEdit({{ c|tojson }})'>
+                <span class="material-symbols-outlined">edit</span></button>
+              <button title="{{ _('生成缩略图') }}" onclick="cmGenThumbs({{ c.id }})">
+                <span class="material-symbols-outlined">image</span></button>
+              <button title="{{ _('删除') }}" onclick='cmConfirmDelete({{ c.id }}, {{ c.title|tojson }})'>
+                <span class="material-symbols-outlined">delete</span></button>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="at-dim" style="padding:60px 0;text-align:center;font-size:13px;">{{ _('暂无互动课件') }}{% if is_admin %}，{{ _('点右上角上传') }}{% endif %}</div>
+        {% endif %}
+      </div>
+
+      {# ── PPT 下载 ── #}
+      <div class="cst-panel" data-cst-panel="ppt" style="margin-top:20px;display:none;">
+        {% if courses_ppt %}
+        <div class="kb-grid">
+          {% for c in courses_ppt %}
+          <div class="kb-card-wrap" style="position:relative;">
+            <a class="kb-card" href="{{ url_for('knowledge_wiki.course_download', course_key=c.key) }}">
+              <div class="kb-cover" style="background:{{ c.accent or '#1A0E3D' }};position:relative;">
+                <div class="kb-mark">EVERTAC<small>{{ c.subtitle.split('·')[0]|trim if c.subtitle else '' }}</small></div>
+                <div class="kb-play"><span class="material-symbols-outlined">download</span></div>
+              </div>
+              <div class="kb-cbody">
+                <div class="kb-csub">{{ c.subtitle }}</div>
+                <div class="kb-ctitle">{{ c.title }}</div>
+                <div class="kb-cdesc">{{ c.desc }}</div>
+                {% if c.file_size %}<div class="at-dim" style="font-size:11.5px;margin-top:4px;">
+                  <span class="material-symbols-outlined" style="font-size:13px;vertical-align:-2px;">description</span>
+                  {{ (c.file_size/1048576)|round(1) }} MB</div>{% endif %}
+              </div>
+            </a>
+            {% if is_admin %}
+            <div class="kb-card-ops">
+              <button title="{{ _('编辑') }}" onclick='cmOpenEdit({{ c|tojson }})'>
+                <span class="material-symbols-outlined">edit</span></button>
+              <button title="{{ _('删除') }}" onclick='cmConfirmDelete({{ c.id }}, {{ c.title|tojson }})'>
+                <span class="material-symbols-outlined">delete</span></button>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="at-dim" style="padding:60px 0;text-align:center;font-size:13px;">{{ _('暂无 PPT 文件') }}{% if is_admin %}，{{ _('点右上角登记') }}{% endif %}</div>
+        {% endif %}
+      </div>
     </main>
 
   </div>
@@ -502,6 +616,23 @@
 {% endif %}
 
 <script>
+  // ── 互动课程三子 tab 切换 ──
+  function cstSwitch(key){
+    document.querySelectorAll('.cst-tab').forEach(function(b){ b.classList.toggle('is-on', b.dataset.cst===key); });
+    document.querySelectorAll('[data-cst-panel]').forEach(function(p){ p.style.display = (p.dataset.cstPanel===key)?'block':'none'; });
+    document.querySelectorAll('[data-cst-upl]').forEach(function(b){ b.style.display = (b.dataset.cstUpl===key)?'inline-flex':'none'; });
+    try{ localStorage.setItem('cst.active', key); }catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var k; try{ k=localStorage.getItem('cst.active'); }catch(e){}
+    if(k && document.querySelector('[data-cst="'+k+'"]')) cstSwitch(k);
+  });
+  // 视频/PPT 登记入口(step 5 接真实表单;先占位提示)
+  function cmRegisterMedia(kind){
+    if(window.atToast) atToast((kind==='video'?'视频':'PPT')+'登记表单即将上线');
+    else alert((kind==='video'?'视频':'PPT')+'登记表单即将上线');
+  }
+
   function cmShow(id){ document.getElementById(id).style.display='flex'; }
   function cmClose(id){ document.getElementById(id).style.display='none'; }
   function cmVal(id){ var e=document.getElementById(id); return e? e.value : ''; }

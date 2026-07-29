@@ -164,6 +164,16 @@ def _list_courses():
     return [c.to_dict() for c in rows]
 
 
+def _list_courses_grouped():
+    """按 media_type 分三组:video / html(互动课件) / ppt。每组新→旧。"""
+    rows = InteractiveCourse.query.order_by(InteractiveCourse.created_at.desc()).all()
+    grouped = {'video': [], 'html': [], 'ppt': []}
+    for r in rows:
+        d = r.to_dict()
+        grouped.get(d['media_type'], grouped['html']).append(d)
+    return grouped
+
+
 def _is_package(safe_key):
     """多文件离线包:存在 course_assets/<key>/index.html(目录形态)。"""
     return os.path.isfile(os.path.join(COURSE_ASSETS_DIR, safe_key, 'index.html'))
@@ -196,9 +206,13 @@ def _find_course(course_key):
 def at_wiki_page():
     """AT 版知识库 —— 文章库(复用 wikiApp)+ 互动课程。"""
     ensure_wiki_structure()
+    grouped = _list_courses_grouped()
     return render_template(
         'knowledge/at_wiki.html',
         courses=_list_courses(),
+        courses_video=grouped['video'],
+        courses_html=grouped['html'],
+        courses_ppt=grouped['ppt'],
         is_admin=_is_admin(),
         is_dept_manager=getattr(current_user, 'is_department_manager', False),
         current_user_id=current_user.id,
@@ -219,6 +233,16 @@ def play_course(course_key):
     else:
         asset_url = url_for('knowledge_wiki.course_asset', course_key=course['key'])
     return render_template('knowledge/at_course_player.html', course=course, pages=pages, asset_url=asset_url)
+
+
+@knowledge_wiki_bp.route('/wiki/video/<course_key>')
+@login_required
+def play_video(course_key):
+    """视频课程播放页 —— HTML5 <video> + 章节列表 + 看完记录。"""
+    row = _find_media_course(course_key, 'video')
+    if not row:
+        abort(404)
+    return render_template('knowledge/at_video_player.html', course=row.to_dict())
 
 
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/asset')
