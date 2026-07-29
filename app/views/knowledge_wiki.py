@@ -553,6 +553,55 @@ def create_course():
                                 if pages else '已创建(课件无分页,无知识析出/缩略图)')})
 
 
+@knowledge_wiki_bp.route('/wiki/courses/media', methods=['POST'])
+@login_required
+def register_media_course():
+    """登记视频/PPT 课程 —— 文件已在 NAS WebDAV,这里只存元信息 + media_url。
+
+    JSON: {media_type:'video'|'ppt', title, media_url, subtitle?, desc?, topic?,
+           accent?, duration?(video 秒), file_size?(字节)}
+    """
+    if not _is_admin():
+        return jsonify({'success': False, 'message': '仅管理员可登记'}), 403
+    data = request.get_json(silent=True) or {}
+    media_type = (data.get('media_type') or '').strip()
+    if media_type not in ('video', 'ppt'):
+        return jsonify({'success': False, 'message': 'media_type 必须为 video 或 ppt'}), 400
+    title = (data.get('title') or '').strip()
+    media_url = (data.get('media_url') or '').strip()
+    if not title:
+        return jsonify({'success': False, 'message': '请填写标题'}), 400
+    if not media_url:
+        return jsonify({'success': False, 'message': '请填写 NAS 文件路径'}), 400
+
+    raw_key = (data.get('key') or '').strip() or os.path.splitext(media_url.split('/')[-1])[0]
+    base = secure_filename(raw_key) or media_type
+    key, n = base, 2
+    while InteractiveCourse.query.filter_by(key=key).first():
+        key, n = f'{base}-{n}', n + 1
+
+    def _int(v):
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return None
+
+    row = InteractiveCourse(
+        key=key, title=title,
+        subtitle=(data.get('subtitle') or '').strip(),
+        desc=(data.get('desc') or '').strip(),
+        topic=(data.get('topic') or '产品技术').strip(),
+        accent=(data.get('accent') or '#1A0E3D').strip(),
+        media_type=media_type, media_url=media_url,
+        duration=_int(data.get('duration')) if media_type == 'video' else None,
+        file_size=_int(data.get('file_size')),
+        cover_page=1, page_count=0, has_thumbs=False, owner_id=current_user.id)
+    db.session.add(row)
+    db.session.commit()
+    return jsonify({'success': True, 'data': row.to_dict(),
+                    'message': f'已登记{"视频" if media_type == "video" else "PPT"}课程'})
+
+
 @knowledge_wiki_bp.route('/wiki/courses/<int:cid>', methods=['PATCH', 'POST'])
 @login_required
 def update_course(cid):

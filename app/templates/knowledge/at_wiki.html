@@ -613,6 +613,25 @@
     <div id="cmE_err" style="color:var(--danger);font-size:12.5px;display:none;"></div>
   </div>
 {% endcall %}
+
+{# ── 登记视频 / PPT 模态(文件已在 NAS,只填元信息+路径)── #}
+{% set _rm_footer %}<button type="button" class="cm-btn" onclick="cmClose('cmMediaModal')">{{ _('取消') }}</button><button type="button" class="cm-btn cm-btn-primary" onclick="cmSubmitMedia(this)">{{ _('登记') }}</button>{% endset %}
+{% call at_modal_shell('cmMediaModal', _('登记媒体课程'), icon='video_call', width=520, footer_html=_rm_footer) %}
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div id="cmM_hint" class="at-dim" style="font-size:12px;padding:9px 11px;background:var(--bg-page);border-radius:8px;line-height:1.5;">
+      {{ _('文件请先通过 NAS(File Station / Tailscale) 上传到 WebDAV 目录,此处只登记路径。') }}</div>
+    {% call at_field(_('NAS 文件路径'), required=true) %}<input id="cmM_url" class="cm-in" placeholder="/pma-media/courses/elv.mp4">{% endcall %}
+    {% call at_field(_('标题'), required=true) %}<input id="cmM_title" class="cm-in">{% endcall %}
+    {% call at_field(_('副标题')) %}<input id="cmM_subtitle" class="cm-in" placeholder="PNR2100 · 视频课程">{% endcall %}
+    {% call at_field(_('简介')) %}<textarea id="cmM_desc" class="cm-in" rows="2"></textarea>{% endcall %}
+    <div style="display:flex;gap:12px;">
+      <div style="flex:1;">{% call at_field(_('分类 topic')) %}<input id="cmM_topic" class="cm-in" value="产品技术">{% endcall %}</div>
+      <div id="cmM_dur_wrap" style="width:150px;">{% call at_field(_('时长(秒)')) %}<input type="number" min="0" id="cmM_duration" class="cm-in" placeholder="1951">{% endcall %}</div>
+      <div style="width:110px;">{% call at_field(_('封面底色')) %}<input type="color" id="cmM_accent" class="cm-in" value="#1A0E3D" style="height:34px;padding:2px;">{% endcall %}</div>
+    </div>
+    <div id="cmM_err" style="color:var(--danger);font-size:12.5px;display:none;"></div>
+  </div>
+{% endcall %}
 {% endif %}
 
 <script>
@@ -627,10 +646,32 @@
     var k; try{ k=localStorage.getItem('cst.active'); }catch(e){}
     if(k && document.querySelector('[data-cst="'+k+'"]')) cstSwitch(k);
   });
-  // 视频/PPT 登记入口(step 5 接真实表单;先占位提示)
+  // ── 视频/PPT 登记 ──
   function cmRegisterMedia(kind){
-    if(window.atToast) atToast((kind==='video'?'视频':'PPT')+'登记表单即将上线');
-    else alert((kind==='video'?'视频':'PPT')+'登记表单即将上线');
+    window._cmMediaKind = kind;
+    cmSet('cmM_url',''); cmSet('cmM_title',''); cmSet('cmM_subtitle','');
+    cmSet('cmM_desc',''); cmSet('cmM_topic','产品技术'); cmSet('cmM_duration','');
+    cmSet('cmM_accent','#1A0E3D'); cmErr('cmM_err','');
+    // 视频才显示时长字段;PPT 提示路径示例不同
+    document.getElementById('cmM_dur_wrap').style.display = (kind==='video')?'block':'none';
+    var urlIn = document.getElementById('cmM_url');
+    if(urlIn) urlIn.placeholder = (kind==='video')?'/pma-media/courses/elv.mp4':'/pma-media/courses/elv.pptx';
+    var modal = document.getElementById('cmMediaModal');
+    var titleEl = modal && modal.querySelector('.at-modal-title, [data-modal-title], h3, .modal-title');
+    cmShow('cmMediaModal');
+  }
+  function cmSubmitMedia(btn){
+    var kind = window._cmMediaKind || 'video';
+    if(!cmVal('cmM_url').trim()){ cmErr('cmM_err','请填写 NAS 文件路径'); return; }
+    if(!cmVal('cmM_title').trim()){ cmErr('cmM_err','请填写标题'); return; }
+    btn.disabled=true; btn.textContent='登记中…'; cmErr('cmM_err','');
+    var payload = { media_type:kind, media_url:cmVal('cmM_url').trim(), title:cmVal('cmM_title').trim(),
+      subtitle:cmVal('cmM_subtitle'), desc:cmVal('cmM_desc'), topic:cmVal('cmM_topic'), accent:cmVal('cmM_accent') };
+    if(kind==='video') payload.duration = cmVal('cmM_duration');
+    fetch('/wiki/courses/media',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(function(r){return r.json();}).then(function(j){ if(!j.success) throw new Error(j.message||'登记失败'); location.reload(); })
+      .catch(function(e){ btn.disabled=false; btn.textContent='登记'; cmErr('cmM_err', e.message); });
   }
 
   function cmShow(id){ document.getElementById(id).style.display='flex'; }
