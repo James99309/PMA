@@ -26,6 +26,13 @@ class InteractiveCourse(db.Model):
     desc = Column(Text, nullable=True)
     accent = Column(String(20), nullable=True, default='#1A0E3D')       # 封面底色(无缩略图时)
 
+    # 内容类型分流:html=deck 课件(默认,存量不变) / video=视频课程 / ppt=PPT/PDF 下载
+    media_type = Column(String(20), nullable=False, default='html')
+    media_url = Column(String(500), nullable=True)   # video/ppt: NAS WebDAV 相对路径;html 留空(走 course_assets)
+    duration = Column(Integer, nullable=True)        # 视频时长(秒)
+    file_size = Column(Integer, nullable=True)       # 文件字节数(ppt 下载显示大小)
+    chapters = Column(Text, nullable=True)           # 视频章节 JSON: [{"page":1,"start":0,"title":"..."}]
+
     topic = Column(String(100), nullable=True, default='产品技术')        # 知识析出归到哪个 wiki topic
     cover_page = Column(Integer, nullable=False, default=1)              # 封面取第几页缩略图
     page_count = Column(Integer, nullable=False, default=0)
@@ -37,6 +44,13 @@ class InteractiveCourse(db.Model):
     updated_at = Column(DateTime, default=_local_now, onupdate=_local_now, nullable=False)
 
     def to_dict(self):
+        import json as _json
+        chapters = []
+        if self.chapters:
+            try:
+                chapters = _json.loads(self.chapters)
+            except (ValueError, TypeError):
+                chapters = []
         return {
             'id': self.id,
             'key': self.key,
@@ -44,6 +58,11 @@ class InteractiveCourse(db.Model):
             'subtitle': self.subtitle or '',
             'desc': self.desc or '',
             'accent': self.accent or '#1A0E3D',
+            'media_type': self.media_type or 'html',
+            'media_url': self.media_url or '',
+            'duration': self.duration or 0,
+            'file_size': self.file_size or 0,
+            'chapters': chapters,
             'topic': self.topic or '产品技术',
             'cover_page': self.cover_page or 1,
             'page_count': self.page_count or 0,
