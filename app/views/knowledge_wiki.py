@@ -27,7 +27,7 @@ import os
 import re
 import threading
 
-from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort, url_for
+from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort, url_for, Response, stream_with_context
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename, safe_join
 
@@ -229,6 +229,121 @@ def course_asset(course_key):
     if not course:
         abort(404)
     return send_file(path, mimetype='text/html')
+
+
+def _find_media_course(course_key, media_type):
+    """按 key 读 DB 课程并校验 media_type;video/ppt 无本地文件,只需 media_url。
+    返回 InteractiveCourse 行或 None。"""
+    safe_key = secure_filename(course_key)
+    if not safe_key:
+        return None
+    row = InteractiveCourse.query.filter_by(key=safe_key).first()
+    if not row or (row.media_type or 'html') != media_type or not row.media_url:
+        return None
+    return row
+
+
+def _parse_range(range_header, total):
+    """解析 'bytes=start-end' → (start, end)。end 可省(到文件尾)。越界夹紧。"""
+    try:
+        unit, _, rng = range_header.partition('=')
+        if unit.strip() != 'bytes':
+            return 0, total - 1
+        start_s, _, end_s = rng.strip().partition('-')
+        if not start_s:
+            # suffix range: bytes=-N → 最后 N 字节
+            n = int(end_s) if end_s else 0
+            start = max(0, total - n)
+            return start, total - 1
+        start = int(start_s)
+        end = int(end_s) if end_s else total - 1
+        start = max(0, start)
+        end = min(end, total - 1)
+        if start > end:
+            start, end = 0, total - 1
+        return start, end
+    except (ValueError, AttributeError):
+        return 0, total - 1
+
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>/video')
+@login_required
+def course_video(course_key):
+    """视频课程流式代理 —— 支持 HTTP Range,分块从 NAS WebDAV 取,不整块进内存。
+
+    浏览器 <video> 拖动进度会发 Range 请求,只拉需要那段;服务器同时只持 512KB。
+    """
+    row = _find_media_course(course_key, 'video')
+    if not row:
+        abort(404)
+
+    from app.utils.synology_webdav_client import get_synology_webdav_client
+    client = get_synology_webdav_client()
+    if not client.is_configured:
+        abort(503, description='存储未配置')
+
+    info = client.get_file_info(row.media_url)
+    if not info or not info.get('content_length'):
+        abort(404, description='视频文件不存在')
+    total = int(info['content_length'])
+    CHUNK = 1024 * 512  # 512KB/块,恒定内存
+
+    range_header = request.headers.get('Range')
+    if range_header:
+        start, end = _parse_range(range_header, total)
+    else:
+        start, end = 0, total - 1
+
+    def generate():
+        pos = start
+        while pos <= end:
+            n = min(CHUNK, end - pos + 1)
+            chunk = client.download_file_range(row.media_url, pos, pos + n - 1)
+            if not chunk:
+                break
+            yield chunk
+            pos += n
+
+    status = 206 if range_header else 200
+    headers = {
+        'Accept-Ranges': 'bytes',
+        'Content-Length': str(end - start + 1),
+        'Content-Type': 'video/mp4',
+        'Cache-Control': 'private, max-age=3600',
+    }
+    if range_header:
+        headers['Content-Range'] = f'bytes {start}-{end}/{total}'
+    return Response(stream_with_context(generate()), status=status, headers=headers)
+
+
+@knowledge_wiki_bp.route('/wiki/play/<course_key>/download')
+@login_required
+def course_download(course_key):
+    """PPT/PDF 下载 —— 从 NAS WebDAV 流式下发,强制另存。"""
+    row = _find_media_course(course_key, 'ppt')
+    if not row:
+        abort(404)
+    from app.utils.synology_webdav_client import get_synology_webdav_client
+    client = get_synology_webdav_client()
+    if not client.is_configured:
+        abort(503, description='存储未配置')
+    from urllib.parse import quote
+    fname = row.media_url.split('/')[-1]
+    ext = os.path.splitext(fname)[1].lower()
+    ctype = {'.pdf': 'application/pdf',
+             '.ppt': 'application/vnd.ms-powerpoint',
+             '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+             }.get(ext, 'application/octet-stream')
+
+    def generate():
+        for chunk in client.download_file_stream(row.media_url, chunk_size=1024 * 512):
+            if chunk:
+                yield chunk
+
+    return Response(stream_with_context(generate()), mimetype=ctype, headers={
+        'Content-Disposition': f"attachment; filename*=UTF-8''{quote(fname)}",
+        'Cache-Control': 'private, max-age=3600',
+    })
 
 
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/pkg/<path:rel>')
