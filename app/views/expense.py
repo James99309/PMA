@@ -691,17 +691,21 @@ def expense_list():
 def at_view_expense(id):
     """AT 风格报销详情页(支持 ?action=edit 进入编辑态)"""
     from app.utils.related_data import RelatedDataService
-    from app.utils.access_control import get_viewable_data
+    from app.utils.access_control import get_viewable_data, has_approval_permission
     from app.models.expense import Expense as E, EXPENSE_CATEGORIES
 
     e = E.query.get_or_404(id)
     if e.is_deleted:
         from flask import abort
         abort(404)
-    # 权限:走 viewable 过滤 — 不在范围内则 403
+    # 权限:走 viewable 过滤 — 不在范围内再看是否为审批人
+    # 报销的 get_viewable_data 是财务隐私专用逻辑(只认 admin/权限级别/owner/attributed_to),
+    # 不认"我是这单的审批人"。审批人要看发票才能审,所以补一道审批人回退,
+    # 与 expense_detail(TW 版详情)的三层判定保持一致。
     if not get_viewable_data(E, current_user, [E.id == id]).first():
-        from flask import abort
-        abort(403)
+        if not has_approval_permission(current_user, e):
+            from flask import abort
+            abort(403)
 
     related = RelatedDataService.fetch_all('expense', id, current_user, limit=5)
 
