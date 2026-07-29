@@ -28,7 +28,9 @@ class InteractiveCourse(db.Model):
 
     # 内容类型分流:html=deck 课件(默认,存量不变) / video=视频课程 / ppt=PPT/PDF 下载
     media_type = Column(String(20), nullable=False, default='html')
-    media_url = Column(String(500), nullable=True)   # video/ppt: NAS WebDAV 相对路径;html 留空(走 course_assets)
+    # 视频来源:webdav=NAS WebDAV 流(默认,走隧道) / gdrive=Google Drive iframe(境外用户,绕隧道)
+    video_source = Column(String(20), nullable=True, default='webdav')
+    media_url = Column(String(500), nullable=True)   # webdav:NAS 相对路径 / gdrive:Drive 文件ID / ppt:NAS路径;html 留空
     duration = Column(Integer, nullable=True)        # 视频时长(秒)
     file_size = Column(Integer, nullable=True)       # 文件字节数(ppt 下载显示大小)
     chapters = Column(Text, nullable=True)           # 视频章节 JSON: [{"page":1,"start":0,"title":"..."}]
@@ -59,6 +61,7 @@ class InteractiveCourse(db.Model):
             'desc': self.desc or '',
             'accent': self.accent or '#1A0E3D',
             'media_type': self.media_type or 'html',
+            'video_source': self.video_source or 'webdav',
             'media_url': self.media_url or '',
             'duration': self.duration or 0,
             'file_size': self.file_size or 0,

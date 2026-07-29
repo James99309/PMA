@@ -68,6 +68,13 @@
   </div>
   <div class="vp-body">
     <div class="vp-stage" style="position:relative;">
+      {% if course.video_source == 'gdrive' %}
+      {# Google Drive 内嵌:视频流由 Google CDN 直供,绕开隧道;播放器为 Google 原生 #}
+      <iframe id="vpGframe" class="vp-video" style="border:0;"
+              src="https://drive.google.com/file/d/{{ course.media_url }}/preview"
+              allow="autoplay; fullscreen" allowfullscreen></iframe>
+      {% else %}
+      {# WebDAV 流:自有 <video> + Range 分段,续播/看完记录 #}
       <video id="vpVideo" class="vp-video" controls preload="metadata" playsinline
              src="{{ url_for('knowledge_wiki.course_video', course_key=course.key) }}"></video>
       <div class="vp-resume" id="vpResume">
@@ -75,6 +82,7 @@
         <button onclick="vpDoResume()">{{ _('继续观看') }}</button>
         <button class="x" onclick="document.getElementById('vpResume').style.display='none'">✕</button>
       </div>
+      {% endif %}
     </div>
     {% if course.chapters %}
     <aside class="vp-aside" id="vpAside">
@@ -91,8 +99,23 @@
 <script>
   var COURSE = {{ course|tojson }};
   var WATCH = {{ watch|tojson }};
-  var VIDEO = document.getElementById('vpVideo');
+  var VIDEO = document.getElementById('vpVideo');   // gdrive 模式下为 null(用 iframe)
   var CH = COURSE.chapters || [];
+
+  // 全屏按钮:gdrive 用 Google 自带全屏,隐藏我方按钮
+  if(!VIDEO){
+    var fsBtn = document.querySelector('button[onclick="vpFullscreen()"]');
+    if(fsBtn) fsBtn.style.display = 'none';
+  }
+  function vpFullscreen(){
+    if(!VIDEO) return;
+    var el = VIDEO;
+    if(document.fullscreenElement || document.webkitFullscreenElement){
+      (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);
+    } else if(el.requestFullscreen){ el.requestFullscreen(); }
+    else if(el.webkitRequestFullscreen){ el.webkitRequestFullscreen(); }
+    else if(el.webkitEnterFullscreen){ el.webkitEnterFullscreen(); }
+  }
 
   function fmt(s){ s=Math.max(0,Math.floor(s||0)); var m=Math.floor(s/60), x=s%60; return m+':'+(x<10?'0':'')+x; }
 
@@ -110,21 +133,11 @@
     }).join('');
   })();
 
-  function vpSeek(t){ VIDEO.currentTime = t; VIDEO.play().catch(function(){}); }
-
-  // ── 全屏(对视频元素,兼容 Safari webkit)──
-  function vpFullscreen(){
-    var el = VIDEO;
-    if(document.fullscreenElement || document.webkitFullscreenElement){
-      (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);
-    } else if(el.requestFullscreen){ el.requestFullscreen(); }
-    else if(el.webkitRequestFullscreen){ el.webkitRequestFullscreen(); }
-    else if(el.webkitEnterFullscreen){ el.webkitEnterFullscreen(); }  // iOS Safari
-  }
+  function vpSeek(t){ if(VIDEO){ VIDEO.currentTime = t; VIDEO.play().catch(function(){}); } }
 
   // ── 当前章节高亮(跟随播放进度)──
   function hlChapter(){
-    if(!CH.length) return;
+    if(!CH.length || !VIDEO) return;
     var t = VIDEO.currentTime, idx = 0;
     for(var i=0;i<CH.length;i++){ if((CH[i].start||0) <= t+0.3) idx=i; else break; }
     document.querySelectorAll('.vp-chap').forEach(function(el){
@@ -132,38 +145,37 @@
     });
   }
 
-  // ── 续播(用后端记录)+ 看完记录上报后端 ──
-  var lastReport = 0;
-  VIDEO.addEventListener('loadedmetadata', function(){
-    var saved = WATCH.last_position || 0;
-    if(saved > 5 && saved < VIDEO.duration - 10){
-      document.getElementById('vpResumeTxt').textContent = '{{ _("上次看到") }} ' + fmt(saved);
-      document.getElementById('vpResume').style.display = 'flex';
-      window._vpResumeTo = saved;
-    }
-  });
-  function vpDoResume(){ if(window._vpResumeTo) VIDEO.currentTime = window._vpResumeTo;
-    document.getElementById('vpResume').style.display='none'; VIDEO.play().catch(function(){}); }
+  function vpDoResume(){ if(VIDEO && window._vpResumeTo) VIDEO.currentTime = window._vpResumeTo;
+    var r=document.getElementById('vpResume'); if(r) r.style.display='none';
+    if(VIDEO) VIDEO.play().catch(function(){}); }
 
-  VIDEO.addEventListener('timeupdate', function(){
-    hlChapter();
-    var now = Date.now();
-    if(now - lastReport > 15000){   // 每 15 秒上报一次
-      lastReport = now;
-      vpReportProgress(VIDEO.currentTime, VIDEO.duration);
-    }
-  });
-  VIDEO.addEventListener('pause', function(){ vpReportProgress(VIDEO.currentTime, VIDEO.duration); });
-  VIDEO.addEventListener('ended', function(){ vpReportProgress(VIDEO.duration, VIDEO.duration); });
-  // 关页/切走时补一次(用 sendBeacon,不阻塞卸载)
-  window.addEventListener('pagehide', function(){
-    if(!VIDEO.duration) return;
-    try{
-      var blob = new Blob([JSON.stringify({position:VIDEO.currentTime, duration:VIDEO.duration})],
-                          {type:'application/json'});
-      navigator.sendBeacon('/wiki/video/' + COURSE.key + '/progress', blob);
-    }catch(e){}
-  });
+  // ── 续播 + 看完记录(仅 webdav 的 <video> 模式;gdrive iframe 跨域无法监听)──
+  var lastReport = 0;
+  if(VIDEO){
+    VIDEO.addEventListener('loadedmetadata', function(){
+      var saved = WATCH.last_position || 0;
+      if(saved > 5 && saved < VIDEO.duration - 10){
+        document.getElementById('vpResumeTxt').textContent = '{{ _("上次看到") }} ' + fmt(saved);
+        document.getElementById('vpResume').style.display = 'flex';
+        window._vpResumeTo = saved;
+      }
+    });
+    VIDEO.addEventListener('timeupdate', function(){
+      hlChapter();
+      var now = Date.now();
+      if(now - lastReport > 15000){ lastReport = now; vpReportProgress(VIDEO.currentTime, VIDEO.duration); }
+    });
+    VIDEO.addEventListener('pause', function(){ vpReportProgress(VIDEO.currentTime, VIDEO.duration); });
+    VIDEO.addEventListener('ended', function(){ vpReportProgress(VIDEO.duration, VIDEO.duration); });
+    window.addEventListener('pagehide', function(){
+      if(!VIDEO.duration) return;
+      try{
+        var blob = new Blob([JSON.stringify({position:VIDEO.currentTime, duration:VIDEO.duration})],
+                            {type:'application/json'});
+        navigator.sendBeacon('/wiki/video/' + COURSE.key + '/progress', blob);
+      }catch(e){}
+    });
+  }
 
   function vpReportProgress(cur, dur){
     if(!dur) return;

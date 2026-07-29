@@ -569,10 +569,14 @@ def register_media_course():
         return jsonify({'success': False, 'message': 'media_type 必须为 video 或 ppt'}), 400
     title = (data.get('title') or '').strip()
     media_url = (data.get('media_url') or '').strip()
+    # 视频来源:webdav(NAS 路径) / gdrive(Google Drive 文件ID)
+    video_source = (data.get('video_source') or 'webdav').strip()
+    if media_type == 'video' and video_source not in ('webdav', 'gdrive'):
+        video_source = 'webdav'
     if not title:
         return jsonify({'success': False, 'message': '请填写标题'}), 400
     if not media_url:
-        return jsonify({'success': False, 'message': '请填写 NAS 文件路径'}), 400
+        return jsonify({'success': False, 'message': '请填写文件路径或 Google Drive 文件ID'}), 400
 
     raw_key = (data.get('key') or '').strip() or os.path.splitext(media_url.split('/')[-1])[0]
     base = secure_filename(raw_key) or media_type
@@ -593,6 +597,7 @@ def register_media_course():
         topic=(data.get('topic') or '产品技术').strip(),
         accent=(data.get('accent') or '#1A0E3D').strip(),
         media_type=media_type, media_url=media_url,
+        video_source=video_source if media_type == 'video' else None,
         duration=_int(data.get('duration')) if media_type == 'video' else None,
         file_size=_int(data.get('file_size')),
         cover_page=1, page_count=0, has_thumbs=False, owner_id=current_user.id)
