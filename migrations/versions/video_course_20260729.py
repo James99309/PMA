@@ -5,14 +5,14 @@
 幂等:ADD COLUMN IF NOT EXISTS,可重复执行(应对 create_all 抢建表与多 head 场景)。
 
 Revision ID: video_course_20260729
-Revises: weekly_reports_20260723
+Revises: pricing_facevalue_backfill_20260715
 Create Date: 2026-07-29
 """
 from alembic import op
 
 
 revision = 'video_course_20260729'
-down_revision = 'weekly_reports_20260723'
+down_revision = 'pricing_facevalue_backfill_20260715'
 branch_labels = None
 depends_on = None
 
