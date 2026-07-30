@@ -624,13 +624,23 @@
   </div>
 {% endcall %}
 
-{# ── 登记视频 / PPT 模态(文件已在 NAS,只填元信息+路径)── #}
+{# ── 登记视频(Google Drive 链接) / 上传 PPT(直传+封面)模态 ── #}
 {% set _rm_footer %}<button type="button" class="cm-btn" onclick="cmClose('cmMediaModal')">{{ _('取消') }}</button><button type="button" class="cm-btn cm-btn-primary" onclick="cmSubmitMedia(this)">{{ _('登记') }}</button>{% endset %}
 {% call at_modal_shell('cmMediaModal', ('Add Media Course' if _en else '登记媒体课程'), icon='video_call', width=520, footer_html=_rm_footer) %}
   <div style="display:flex;flex-direction:column;gap:12px;">
-    <div id="cmM_hint" class="at-dim" style="font-size:12px;padding:9px 11px;background:var(--bg-page);border-radius:8px;line-height:1.5;">
-      {{ 'Upload the file to the WebDAV directory first (via NAS File Station / Tailscale); here you only register its path.' if _en else '文件请先通过 NAS(File Station / Tailscale) 上传到 WebDAV 目录,此处只登记路径。' }}</div>
-    {% call at_field(('NAS file path' if _en else 'NAS 文件路径'), required=true) %}<input id="cmM_url" class="cm-in" placeholder="/courses/elv.mp4">{% endcall %}
+    <div id="cmM_hint" class="at-dim" style="font-size:12px;padding:9px 11px;background:var(--bg-page);border-radius:8px;line-height:1.5;"></div>
+
+    {# 视频:粘贴 Google Drive 分享链接,后端存文件ID,播放走 Google 内嵌(绕隧道) #}
+    <div id="cmM_grp_video" style="display:none;">
+      {% call at_field(('Google Drive link' if _en else 'Google Drive 链接'), required=true) %}<input id="cmM_gdrive" class="cm-in" placeholder="https://drive.google.com/file/d/…/view">{% endcall %}
+    </div>
+
+    {# PPT:直接上传文件到 NAS;封面可选(不传则用底色) #}
+    <div id="cmM_grp_ppt" style="display:none;">
+      {% call at_field(('PPT / PDF file' if _en else 'PPT / PDF 文件'), required=true) %}<input type="file" id="cmM_file" class="cm-in" accept=".ppt,.pptx,.pdf">{% endcall %}
+      {% call at_field(('Cover image (optional)' if _en else '封面图片(可选)')) %}<input type="file" id="cmM_cover" class="cm-in" accept="image/*">{% endcall %}
+    </div>
+
     {% call at_field(('Title' if _en else '标题'), required=true) %}<input id="cmM_title" class="cm-in">{% endcall %}
     {% call at_field(('Subtitle' if _en else '副标题')) %}<input id="cmM_subtitle" class="cm-in" placeholder="PNR2100 · Video">{% endcall %}
     {% call at_field(('Description' if _en else '简介')) %}<textarea id="cmM_desc" class="cm-in" rows="2"></textarea>{% endcall %}
@@ -661,29 +671,67 @@
   // ── 视频/PPT 登记 ──
   function cmRegisterMedia(kind){
     window._cmMediaKind = kind;
-    cmSet('cmM_url',''); cmSet('cmM_title',''); cmSet('cmM_subtitle','');
+    cmSet('cmM_gdrive',''); cmSet('cmM_title',''); cmSet('cmM_subtitle','');
     cmSet('cmM_desc',''); cmSet('cmM_topic','产品技术'); cmSet('cmM_duration','');
     cmSet('cmM_accent','#1A0E3D'); cmErr('cmM_err','');
-    // 视频才显示时长字段;PPT 提示路径示例不同
-    document.getElementById('cmM_dur_wrap').style.display = (kind==='video')?'block':'none';
-    var urlIn = document.getElementById('cmM_url');
-    if(urlIn) urlIn.placeholder = (kind==='video')?'/courses/elv.mp4':'/courses/elv.pptx';
-    var modal = document.getElementById('cmMediaModal');
-    var titleEl = modal && modal.querySelector('.at-modal-title, [data-modal-title], h3, .modal-title');
+    var fileIn = document.getElementById('cmM_file'); if(fileIn) fileIn.value='';
+    var covIn = document.getElementById('cmM_cover'); if(covIn) covIn.value='';
+    var isV = (kind==='video');
+    // 分组显隐:视频=Google Drive 链接 / PPT=文件上传+封面
+    document.getElementById('cmM_grp_video').style.display = isV ? 'block' : 'none';
+    document.getElementById('cmM_grp_ppt').style.display   = isV ? 'none'  : 'block';
+    document.getElementById('cmM_dur_wrap').style.display  = isV ? 'block' : 'none';
+    document.getElementById('cmM_hint').textContent = isV
+      ? _t('把 Google Drive 视频设为「知道链接的人可查看」,粘贴分享链接即可(播放走 Google,绕隧道)。',
+           'Set the Google Drive video to "Anyone with the link", then paste the share link (playback is served by Google, bypassing the tunnel).')
+      : _t('直接上传 PPT / PDF 到 NAS,可选上传封面图片;不传封面则用底色。',
+           'Upload the PPT / PDF directly to the NAS. A cover image is optional; the accent color is used if none is provided.');
     cmShow('cmMediaModal');
+  }
+  // 从 Google Drive 分享链接抽取文件ID:/file/d/<ID>/ 或 ?id=<ID> 或纯ID
+  function cmDriveId(s){
+    s = (s||'').trim(); if(!s) return '';
+    var m = s.match(/\/d\/([a-zA-Z0-9_-]{20,})/) || s.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+    if(m) return m[1];
+    if(/^[a-zA-Z0-9_-]{20,}$/.test(s)) return s;   // 已是纯 ID
+    return '';
   }
   function cmSubmitMedia(btn){
     var kind = window._cmMediaKind || 'video';
-    if(!cmVal('cmM_url').trim()){ cmErr('cmM_err', _t('请填写 NAS 文件路径','Please enter the NAS file path')); return; }
     if(!cmVal('cmM_title').trim()){ cmErr('cmM_err', _t('请填写标题','Please enter a title')); return; }
-    btn.disabled=true; btn.textContent=_t('登记中…','Saving…'); cmErr('cmM_err','');
-    var payload = { media_type:kind, media_url:cmVal('cmM_url').trim(), title:cmVal('cmM_title').trim(),
-      subtitle:cmVal('cmM_subtitle'), desc:cmVal('cmM_desc'), topic:cmVal('cmM_topic'), accent:cmVal('cmM_accent') };
-    if(kind==='video') payload.duration = cmVal('cmM_duration');
-    fetch('/wiki/courses/media',{method:'POST',credentials:'same-origin',
-      headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-      .then(function(r){return r.json();}).then(function(j){ if(!j.success) throw new Error(j.message|| _t('登记失败','Registration failed')); location.reload(); })
-      .catch(function(e){ btn.disabled=false; btn.textContent=_t('登记','Add'); cmErr('cmM_err', e.message); });
+    cmErr('cmM_err','');
+    var restore = function(){ btn.disabled=false; btn.textContent=_t('登记','Add'); };
+    var done = function(j){ if(!j.success) throw new Error(j.message || _t('登记失败','Registration failed')); location.reload(); };
+    var fail = function(e){ restore(); cmErr('cmM_err', e.message || String(e)); };
+
+    if(kind==='video'){
+      var fid = cmDriveId(cmVal('cmM_gdrive'));
+      if(!fid){ cmErr('cmM_err', _t('Google Drive 链接无效,请粘贴完整分享链接','Invalid Google Drive link — please paste the full share link')); return; }
+      btn.disabled=true; btn.textContent=_t('登记中…','Saving…');
+      var payload = { media_type:'video', video_source:'gdrive', media_url:fid,
+        title:cmVal('cmM_title').trim(), subtitle:cmVal('cmM_subtitle'), desc:cmVal('cmM_desc'),
+        topic:cmVal('cmM_topic'), accent:cmVal('cmM_accent'), duration:cmVal('cmM_duration') };
+      fetch('/wiki/courses/media',{method:'POST',credentials:'same-origin',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+        .then(function(r){return r.json();}).then(done).catch(fail);
+      return;
+    }
+
+    // PPT:multipart 直传文件(+可选封面)
+    var fileIn = document.getElementById('cmM_file');
+    if(!fileIn || !fileIn.files || !fileIn.files[0]){ cmErr('cmM_err', _t('请选择 PPT / PDF 文件','Please choose a PPT / PDF file')); return; }
+    btn.disabled=true; btn.textContent=_t('上传中…','Uploading…');
+    var fd = new FormData();
+    fd.append('file', fileIn.files[0]);
+    fd.append('title', cmVal('cmM_title').trim());
+    fd.append('subtitle', cmVal('cmM_subtitle'));
+    fd.append('desc', cmVal('cmM_desc'));
+    fd.append('topic', cmVal('cmM_topic'));
+    fd.append('accent', cmVal('cmM_accent'));
+    var covIn = document.getElementById('cmM_cover');
+    if(covIn && covIn.files && covIn.files[0]) fd.append('cover', covIn.files[0]);
+    fetch('/wiki/courses/ppt',{method:'POST',credentials:'same-origin',body:fd})
+      .then(function(r){return r.json();}).then(done).catch(fail);
   }
 
   function cmShow(id){ document.getElementById(id).style.display='flex'; }

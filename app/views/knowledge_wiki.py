@@ -607,6 +607,119 @@ def register_media_course():
                     'message': f'已登记{"视频" if media_type == "video" else "PPT"}课程'})
 
 
+def _upload_to_webdav(file_storage, subdir):
+    """把上传的文件存到 NAS WebDAV 的 subdir 下,返回相对路径(如 /courses/xxx.pptx)。失败返回 None。"""
+    from app.utils.synology_webdav_client import get_synology_webdav_client
+    client = get_synology_webdav_client()
+    if not client.is_configured:
+        return None, '存储未配置'
+    fname = secure_filename(file_storage.filename or 'file')
+    if not fname:
+        return None, '文件名无效'
+    # 冲突加时间戳
+    from datetime import datetime
+    stem, ext = os.path.splitext(fname)
+    remote = f'/{subdir}/{stem}{ext}'
+    content = file_storage.read()
+    ok = client.upload_file(content, remote)
+    if not ok:
+        # 重名冲突时加时间戳重试
+        remote = f'/{subdir}/{stem}_{datetime.now().strftime("%H%M%S")}{ext}'
+        ok = client.upload_file(content, remote)
+    return (remote, len(content)) if ok else (None, '上传失败')
+
+
+@knowledge_wiki_bp.route('/wiki/courses/ppt', methods=['POST'])
+@login_required
+def upload_ppt_course():
+    """上传 PPT/PDF 课程 —— 文件直传到 NAS WebDAV(SG nginx 无限制),可选封面图。
+
+    multipart: file(必), title(必), cover(可选图), subtitle?, desc?, topic?, accent?
+    """
+    if not _is_admin():
+        return jsonify({'success': False, 'message': '仅管理员可上传'}), 403
+    f = request.files.get('file')
+    if not f or not (f.filename or '').lower().endswith(('.ppt', '.pptx', '.pdf')):
+        return jsonify({'success': False, 'message': '请上传 .ppt / .pptx / .pdf 文件'}), 400
+    title = (request.form.get('title') or '').strip()
+    if not title:
+        return jsonify({'success': False, 'message': '请填写标题'}), 400
+
+    remote, size_or_err = _upload_to_webdav(f, 'courses')
+    if not remote:
+        return jsonify({'success': False, 'message': f'文件上传失败: {size_or_err}'}), 500
+
+    # 可选封面
+    cover_url = None
+    cover = request.files.get('cover')
+    if cover and (cover.filename or '').lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        cover_remote, _ = _upload_to_webdav(cover, 'courses/covers')
+        cover_url = cover_remote
+
+    raw_key = (request.form.get('key') or '').strip() or os.path.splitext(secure_filename(f.filename))[0]
+    base = secure_filename(raw_key) or 'ppt'
+    key, n = base, 2
+    while InteractiveCourse.query.filter_by(key=key).first():
+        key, n = f'{base}-{n}', n + 1
+
+    row = InteractiveCourse(
+        key=key, title=title,
+        subtitle=(request.form.get('subtitle') or '').strip(),
+        desc=(request.form.get('desc') or '').strip(),
+        topic=(request.form.get('topic') or '产品技术').strip(),
+        accent=(request.form.get('accent') or '#1A0E3D').strip(),
+        media_type='ppt', media_url=remote, cover_url=cover_url,
+        file_size=size_or_err if isinstance(size_or_err, int) else None,
+        cover_page=1, page_count=0, has_thumbs=False, owner_id=current_user.id)
+    db.session.add(row)
+    db.session.commit()
+    return jsonify({'success': True, 'data': row.to_dict(), 'message': '已上传 PPT 课程'})
+
+
+@knowledge_wiki_bp.route('/wiki/courses/<int:cid>/cover', methods=['POST'])
+@login_required
+def upload_course_cover(cid):
+    """给已有课程(video/ppt)上传/更换封面图。multipart: cover(图)。"""
+    if not _is_admin():
+        return jsonify({'success': False, 'message': '仅管理员可操作'}), 403
+    row = InteractiveCourse.query.get_or_404(cid)
+    cover = request.files.get('cover')
+    if not cover or not (cover.filename or '').lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        return jsonify({'success': False, 'message': '请上传 jpg/png/webp 图片'}), 400
+    remote, err = _upload_to_webdav(cover, 'courses/covers')
+    if not remote:
+        return jsonify({'success': False, 'message': f'封面上传失败: {err}'}), 500
+    row.cover_url = remote
+    db.session.commit()
+    return jsonify({'success': True, 'data': row.to_dict(), 'message': '封面已更新'})
+
+
+@knowledge_wiki_bp.route('/wiki/courses/<course_key>/cover')
+@login_required
+def course_cover(course_key):
+    """课程自定义封面图 —— 从 NAS WebDAV 流式下发。"""
+    safe = secure_filename(course_key)
+    row = InteractiveCourse.query.filter_by(key=safe).first()
+    if not row or not row.cover_url:
+        abort(404)
+    from app.utils.synology_webdav_client import get_synology_webdav_client
+    client = get_synology_webdav_client()
+    if not client.is_configured:
+        abort(503)
+    from urllib.parse import quote
+    ext = os.path.splitext(row.cover_url)[1].lower()
+    ctype = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+             '.webp': 'image/webp'}.get(ext, 'application/octet-stream')
+
+    def generate():
+        for chunk in client.download_file_stream(row.cover_url, chunk_size=1024 * 256):
+            if chunk:
+                yield chunk
+
+    return Response(stream_with_context(generate()), mimetype=ctype,
+                    headers={'Cache-Control': 'private, max-age=86400'})
+
+
 @knowledge_wiki_bp.route('/wiki/courses/<int:cid>', methods=['PATCH', 'POST'])
 @login_required
 def update_course(cid):
