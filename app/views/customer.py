@@ -346,15 +346,15 @@ def get_dealer_apply_flow(company_id):
 
     company = Company.query.get(company_id)
     if not company:
-        return jsonify({'success': False, 'message': '客户不存在'}), 404
+        return jsonify({'success': False, 'message': _('客户不存在')}), 404
     # 与详情页一致:审批人即使无该客户数据权限也要能看流程
     if not can_view_company(current_user, company) and \
             not is_current_approver('dealer_apply', company_id, current_user.id):
-        return jsonify({'success': False, 'message': '无权访问该客户'}), 403
+        return jsonify({'success': False, 'message': _('无权访问该客户')}), 403
 
     result = build_object_approval_flow(
         'dealer_apply', company_id, business_object=company,
-        user_id=current_user.id, no_approval_message='该客户暂无渠道身份审批')
+        user_id=current_user.id, no_approval_message=_('该客户暂无渠道身份审批'))
     if isinstance(result, tuple):
         return jsonify(result[0]), result[1]
 
@@ -363,16 +363,16 @@ def get_dealer_apply_flow(company_id):
         snap = (inst.template_snapshot or {}) if inst else {}
         initiator = User.query.get(snap.get('dealer_initiator_id')) if snap.get('dealer_initiator_id') else None
         target = snap.get('dealer_target')
-        target_label = '经销商' if target == 'dealer' else ('分销商' if target == 'distributor' else (target or '—'))
+        target_label = _('经销商') if target == 'dealer' else (_('分销商') if target == 'distributor' else (target or '—'))
         from app.utils.dictionary_helpers import company_type_label
         # 原身份优先取发起时的快照(通过后 company_type 已是目标身份,实时读会显示「经销 → 经销商」);
         # 老实例无此快照字段 → 退回实时值,并在与目标相同时省略箭头
         _from = snap.get('dealer_from_type', company.company_type) or ''
-        from_label = company_type_label(_from) if _from else '未设置'
+        from_label = company_type_label(_from) if _from else _('未设置')
         reason = (snap.get('dealer_reason') or '').strip()
         # 审批人要判断的核心信息:申请把这个客户从「什么身份」改成「什么身份」,理由是什么
-        comment = (f'申请渠道身份:{target_label}' if _from == target
-                   else f'申请渠道身份:{from_label} → {target_label}')
+        comment = (_('申请渠道身份:%(to)s', to=target_label) if _from == target
+                   else _('申请渠道身份:%(frm)s → %(to)s', frm=from_label, to=target_label))
         if reason:
             comment = f'{comment}\n{reason}'
         prepend_origin_node(result, initiator=initiator,
