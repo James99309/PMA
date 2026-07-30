@@ -128,6 +128,9 @@ def submit_dealer_apply(company, target_type, user_id, reason=''):
 
     snap = instance.template_snapshot or {}
     snap['dealer_target'] = target_type
+    # 发起时的原身份要快照:通过后 company_type 就被改成目标身份了,事后回看
+    # 若实时去读就会显示成「经销 → 经销商」这种自己变自己的废话
+    snap['dealer_from_type'] = company.company_type or ''
     snap['dealer_reason'] = (reason or '').strip()
     snap['dealer_initiator_id'] = user_id
     instance.template_snapshot = snap

@@ -1,4 +1,5 @@
 {% from 'components/at_base.html' import at_icon, at_pill, at_btn %}
+{% from 'components/at_approval_dropdown.html' import at_approval_dropdown %}
 {% from 'components/at_favorite.html' import at_fav_star %}
 {% from 'components/at_sidebar.html' import at_sidebar with context %}
 {% from 'components/at_detail.html' import at_detail_styles, at_detail_section,
@@ -28,6 +29,7 @@
 <script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/favorite-star.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-search-picker.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
@@ -109,11 +111,16 @@
           {{ company.company_name }}
         </h1>
         {{ at_pill(tm.label, tone=tm.tone) }}
-        {# 渠道身份审批中:目标身份待 商务助理→渠道经理→总经理 审批通过后生效 #}
-        {% if company.pending_company_type %}
-        <span title="{{ _('渠道身份审批中(商务助理→渠道经理→总经理),通过后生效;可在审批中心查看进度') }}">
-          {{ at_pill((_('代理商') if company.pending_company_type == 'dealer' else _('分销商')) ~ ' · ' ~ _('审批中'), tone='warn', dot=true) }}
-        </span>
+        {# 渠道身份审批 chip — 点击就地展开三级流程(商务助理→渠道总监→总经理)+ 内联同意/驳回。
+           审核中=黄色;已核准=绿色(保留入口回看审批记录)。#}
+        {% if dealer_chip_status %}
+        {{ at_approval_dropdown(
+              object_type='dealer_apply', object_id=company.id,
+              status=dealer_chip_status, status_scope='dealer_apply',
+              api_base='/customer/api/dealer-apply',
+              chip_title=_('渠道身份审批:点击查看审批流程'),
+              meta={'customer_name': company.company_name or '', 'title': company.company_name or ''}
+            ) }}
         {% endif %}
       </div>
       <div style="margin-top:8px;color:var(--ink-3);font-size:13px;

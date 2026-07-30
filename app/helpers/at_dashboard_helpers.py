@@ -112,7 +112,7 @@ def _build_todos(user):
         'purchase_order':  lambda i: f'/purchase-order/{i}#approval',
         'pricing_order':   lambda i: f'/pricing_order/{i}/at-edit',   # 批价单详情(批价编辑页),原缺失致点击不跳
         'sales_order':     lambda i: f'/sales-order/{i}',                # 客户订单详情
-        'dealer_apply':    None,   # 占位:下面按实例跳审批中心
+        'dealer_apply':    lambda i: f'/customer/{i}/at_view#approval-dealer_apply',  # 客户详情 + 渠道身份 chip
     }
     try:
         from app.helpers.approval_helpers import get_user_pending_approvals
@@ -126,11 +126,19 @@ def _build_todos(user):
             url_builder = at_url_map.get(ai.object_type)
             # 兜底:未配专属详情的类型(薪资/客户/未来新增)一律进通用 AT 审批详情,杜绝死链('#')
             route_url = url_builder(ai.object_id) if url_builder else f'/approval/at-detail/{ai.id}'
-            if ai.object_type in ('dealer_apply',):
-                # 渠道身份审批:跳通用 AT 审批详情(流程图+审批操作)
-                route_url = f'/approval/at-detail/{ai.id}'
             # 标题:审批流程名称 + 关联项目/对象名称(项目类带项目名;搁置/失败区分)
             title = f'{obj_label} #{ai.object_id}'
+            if ai.object_type == 'dealer_apply':
+                # 渠道身份审批:进客户详情页并自动展开审批 chip(裸 #931 认不出是谁,必须带客户名)
+                from app.models.customer import Company as _Co
+                _co = _Co.query.get(ai.object_id)
+                _tgt = (ai.template_snapshot or {}).get('dealer_target')
+                _tgt_label = _t('经销商') if _tgt == 'dealer' else (_t('分销商') if _tgt == 'distributor' else '')
+                if _co:
+                    title = f'{obj_label} · {_co.company_name}'
+                    if _tgt_label:
+                        title = f'{title} → {_tgt_label}'
+                route_url = f'/customer/{ai.object_id}/at_view#approval-dealer_apply'
             if ai.object_type == 'perf_settlement':
                 # 绩效结算:标题=姓名·年Q季 绩效结算;点击进个人绩效页并自动展开审批 chip
                 from app.models.performance_settlement import PerformanceSettlement

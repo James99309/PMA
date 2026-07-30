@@ -569,6 +569,18 @@ def convert_approval_item(item, tab):
                     result['detail_url'] = f'/user/at-config/performance?user={_st.user_id}&settle_q={_st.quarter}'
                 else:
                     result['approval_number'] = f'APV-{item.id}'
+            elif result['object_type'] == 'dealer_apply' and hasattr(item, 'object_id'):
+                # 客户渠道身份:编号 DLR-<客户id> + 客户名(原先整行无任何客户信息,认不出是谁);
+                # 点击进客户详情并自动展开渠道身份审批 chip
+                from app.models.customer import Company as _Co
+                _co = _Co.query.get(item.object_id)
+                _tgt = (item.template_snapshot or {}).get('dealer_target') if hasattr(item, 'template_snapshot') else None
+                _tgt_label = _('经销商') if _tgt == 'dealer' else (_('分销商') if _tgt == 'distributor' else '')
+                result['approval_number'] = f'DLR-{item.object_id}'
+                if _co:
+                    result['project_name'] = (f'{_co.company_name} → {_tgt_label}' if _tgt_label
+                                              else _co.company_name)
+                result['detail_url'] = f'/customer/{item.object_id}/at_view#approval-dealer_apply'
             elif result['object_type'] == 'salary_run' and hasattr(item, 'object_id'):
                 # 月度薪资审批:编号 + 跳薪资审批 tab(锁定公司/年/月)
                 from app.models.salary_structure import SalaryRun
@@ -813,6 +825,29 @@ def at_detail(instance_id):
                     lines.append((_('锁定报价单'), f"{_q.quotation_number or ('#' + str(_q.id))} · {_sym}{float(_q.amount or 0):,.2f}"))
             if snap.get('wl_reason'):
                 lines.append((_('锁定理由'), snap.get('wl_reason')))
+            summary['lines'] = lines
+    elif instance.object_type == 'dealer_apply':
+        # 主入口已改为客户详情页的审批 chip;这里仅作旧书签/直链的兜底,至少把客户和目标身份写清楚
+        from app.models.customer import Company as _Co
+        from app.utils.dictionary_helpers import company_type_label
+        _co = _Co.query.get(instance.object_id)
+        snap = instance.template_snapshot or {}
+        if _co:
+            _tgt = snap.get('dealer_target')
+            _tgt_label = _('经销商') if _tgt == 'dealer' else (_('分销商') if _tgt == 'distributor' else (_tgt or '—'))
+            summary['title'] = f"{_co.company_name} · {_('渠道身份申请')}"
+            lines = []
+            initor = User.query.get(snap.get('dealer_initiator_id')) if snap.get('dealer_initiator_id') else None
+            if initor:
+                lines.append((_('发起人'), initor.real_name or initor.username))
+            # 原身份优先取发起时快照(通过后 company_type 已是目标身份)
+            _from = snap.get('dealer_from_type', _co.company_type) or ''
+            lines.append((_('申请身份'),
+                          _tgt_label if _from == _tgt else
+                          f"{company_type_label(_from) if _from else _('未设置')} → {_tgt_label}"))
+            if snap.get('dealer_reason'):
+                lines.append((_('申请理由'), snap.get('dealer_reason')))
+            lines.append((_('客户详情'), f"/customer/{_co.id}/at_view"))
             summary['lines'] = lines
     if 'title' not in summary:
         summary['title'] = f"{summary['type']} #{instance.object_id}"

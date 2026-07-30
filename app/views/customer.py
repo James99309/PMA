@@ -257,8 +257,30 @@ def at_view_company(company_id):
 
     company = Company.query.get_or_404(company_id)
     if not can_view_company(current_user, company):
-        from flask import abort
-        abort(403)
+        # 渠道身份审批人放行:审批链上的商务助理/渠道总监/总经理未必有该客户的数据权限,
+        # 若一律 403,待办点进来就是死路(与 project 的 _get_project_approval_flow_impl 同思路)
+        from app.helpers.approval_helpers import is_current_approver
+        if not is_current_approver('dealer_apply', company_id, current_user.id):
+            from flask import abort
+            abort(403)
+
+    # ─── 渠道身份审批(dealer_apply) chip 上下文 ───
+    # pending → 黄色「经销/分销资格审核中」可点开流程并内联审批
+    # approved → 绿色「已核准」保留入口,供事后回看三级审批记录(合规追溯)
+    dealer_chip_status = None
+    try:
+        from app.helpers.approval_helpers import get_object_approval_instance
+        _d_inst = get_object_approval_instance('dealer_apply', company_id)
+        if _d_inst:
+            from app.models.approval import ApprovalStatus
+            _d_target = (_d_inst.template_snapshot or {}).get('dealer_target')
+            if _d_target in ('dealer', 'distributor'):
+                if _d_inst.status == ApprovalStatus.PENDING:
+                    dealer_chip_status = _d_target
+                elif _d_inst.status == ApprovalStatus.APPROVED:
+                    dealer_chip_status = f'approved_{_d_target}'
+    except Exception as _de:
+        logger.warning(f"取渠道身份审批状态失败 (company {company_id}): {_de}")
 
     # 关联数据(按权限+归属自动过滤,无权限模块自动跳过)
     related = RelatedDataService.fetch_all('company', company_id, current_user, limit=5)
@@ -303,7 +325,70 @@ def at_view_company(company_id):
                            perms=perms,
                            shareable_users_tree=shareable_users_tree,
                            shared_users=shared_users,
+                           dealer_chip_status=dealer_chip_status,
                            is_favorited=_is_fav(current_user.id, FAV_CUSTOMER, company.id))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 客户渠道身份审批 (object_type='dealer_apply') —— AT chip 的流程数据端点
+# 审批动作本身由 at-approval-dropdown.js 统一打 /approval/approve/<instance_id>,
+# 这里只提供 chip 展开所需的 flow / editable-fields(组件并发拉取,缺一个会报错)。
+# ─────────────────────────────────────────────────────────────────────────────
+
+@customer.route('/api/dealer-apply/<int:company_id>/flow')
+@login_required
+@permission_required('customer', 'view')
+def get_dealer_apply_flow(company_id):
+    """渠道身份审批流程 — 通用 builder + 前置「发起申请」节点(发起人/目标身份/理由)。"""
+    from app.helpers.approval_helpers import get_object_approval_instance, is_current_approver
+    from app.helpers.at_approval_flow_builder import (build_object_approval_flow,
+                                                     prepend_origin_node)
+
+    company = Company.query.get(company_id)
+    if not company:
+        return jsonify({'success': False, 'message': '客户不存在'}), 404
+    # 与详情页一致:审批人即使无该客户数据权限也要能看流程
+    if not can_view_company(current_user, company) and \
+            not is_current_approver('dealer_apply', company_id, current_user.id):
+        return jsonify({'success': False, 'message': '无权访问该客户'}), 403
+
+    result = build_object_approval_flow(
+        'dealer_apply', company_id, business_object=company,
+        user_id=current_user.id, no_approval_message='该客户暂无渠道身份审批')
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+
+    try:
+        inst = get_object_approval_instance('dealer_apply', company_id)
+        snap = (inst.template_snapshot or {}) if inst else {}
+        initiator = User.query.get(snap.get('dealer_initiator_id')) if snap.get('dealer_initiator_id') else None
+        target = snap.get('dealer_target')
+        target_label = '经销商' if target == 'dealer' else ('分销商' if target == 'distributor' else (target or '—'))
+        from app.utils.dictionary_helpers import company_type_label
+        # 原身份优先取发起时的快照(通过后 company_type 已是目标身份,实时读会显示「经销 → 经销商」);
+        # 老实例无此快照字段 → 退回实时值,并在与目标相同时省略箭头
+        _from = snap.get('dealer_from_type', company.company_type) or ''
+        from_label = company_type_label(_from) if _from else '未设置'
+        reason = (snap.get('dealer_reason') or '').strip()
+        # 审批人要判断的核心信息:申请把这个客户从「什么身份」改成「什么身份」,理由是什么
+        comment = (f'申请渠道身份:{target_label}' if _from == target
+                   else f'申请渠道身份:{from_label} → {target_label}')
+        if reason:
+            comment = f'{comment}\n{reason}'
+        prepend_origin_node(result, initiator=initiator,
+                            started_at=inst.started_at if inst else None,
+                            comment=comment)
+    except Exception as e:
+        logger.warning(f"渠道身份审批前置发起节点失败 (company {company_id}): {e}")
+    return jsonify(result)
+
+
+@customer.route('/api/dealer-apply/<int:company_id>/editable-fields')
+@login_required
+@permission_required('customer', 'view')
+def get_dealer_apply_editable_fields(company_id):
+    """渠道身份审批无「审核修改」场景,返回空字段(供下拉组件并发拉取)。"""
+    return jsonify({'success': True, 'fields': [], 'editable_fields': []})
 
 
 @customer.route('/at_list')

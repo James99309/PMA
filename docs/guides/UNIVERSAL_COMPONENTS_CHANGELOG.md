@@ -22,6 +22,26 @@
 
 ## 修改历史
 
+### 2026-07-30 - 审批中心「关联业务」徽章补齐缺失类型
+**修改人员**: Claude AI Assistant
+**批准人员**: nijie（待确认）
+**修改原因**: `render_tw_business_type_badge` 的 `type_config` 只登记了 6 种 object_type，
+其余类型走 fallback，把英文 key 原样当中文标签显示（审批中心里 `dealer_apply` 直接显示成
+"dealer_apply"，`project_hold` 显示成 "project_hold"）。
+
+**具体修改**: `app/templates/macros/ui_helpers.html:9134` 的 `type_config` 字典**新增** 6 个键：
+`dealer_apply` / `project_hold` / `project_win_lock` / `perf_settlement` / `salary_run` / `rd_product`。
+
+**影响范围分析**:
+- 纯新增字典项，**未改动任何既有键的 class/zh/en/icon**，已登记的 6 种类型渲染结果零变化
+- 使用方：`app/templates/approval/tw_center_rows.html:80+`（审批中心列表「关联业务」列）
+- 无 JS/CSS 变更，无 API 变更
+
+**测试验证情况**: 本地 5097（pma_local）审批中心列表渲染验证；`dealer_apply` 行由
+"dealer_apply" 变为「渠道身份」青色徽章，`project` / `expense` / `pricing_order` 等既有类型显示不变。
+
+---
+
 ### 2025-07-26 - 蓝色边框问题修复
 **修改人员**: Claude AI Assistant  
 **批准人员**: nijie  

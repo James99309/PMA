@@ -157,10 +157,21 @@ PROJECT_HOLD_STATUS_META = {
     'lost':   (_l('失败审核中'), 'danger'),
 }
 
+# 客户渠道身份审批 chip
+#   审核中:值 = 申请的目标身份(dealer/distributor),同 project_hold「target 决定文案」范式
+#   已核准:值 = 'approved_' + 目标身份 —— 通过后 chip 不消失,改绿色供回看审批历史
+DEALER_APPLY_STATUS_META = {
+    'dealer':               (_l('经销资格审核中'), 'warn'),
+    'distributor':          (_l('分销资格审核中'), 'warn'),
+    'approved_dealer':      (_l('经销资格已核准'), 'success'),
+    'approved_distributor': (_l('分销资格已核准'), 'success'),
+}
+
 # ─── 注册表 ─────────────────────────────────────────────────
 _REGISTRY = {
     'approval':            APPROVAL_STATUS_META,
     'project_hold':        PROJECT_HOLD_STATUS_META,
+    'dealer_apply':        DEALER_APPLY_STATUS_META,
     'quotation_approval':  QUOTATION_APPROVAL_STATUS_META,
     'purchase_order':   PURCHASE_ORDER_STATUS_META,
     'sales_order':      SALES_ORDER_STATUS_META,

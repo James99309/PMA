@@ -9137,7 +9137,14 @@ document.addEventListener('DOMContentLoaded', function() {
         'customer': {'class': 'tw-badge-cyan', 'zh': '客户', 'en': 'Customer', 'icon': 'contacts'},
         'purchase_order': {'class': 'tw-badge-rose', 'zh': '采购订单', 'en': 'Order', 'icon': 'shopping_cart'},
         'pricing_order': {'class': 'tw-badge-amber', 'zh': '批价单', 'en': 'Pricing', 'icon': 'receipt_long'},
-        'expense': {'class': 'tw-badge-orange', 'zh': '报销单', 'en': 'Expense', 'icon': 'payments'}
+        'expense': {'class': 'tw-badge-orange', 'zh': '报销单', 'en': 'Expense', 'icon': 'payments'},
+        {# 以下类型此前未登记,fallback 会把英文 object_type 原样当中文标签显示 #}
+        'dealer_apply': {'class': 'tw-badge-cyan', 'zh': '渠道身份', 'en': 'Channel', 'icon': 'handshake'},
+        'project_hold': {'class': 'tw-badge-gray', 'zh': '项目搁置/失败', 'en': 'Hold', 'icon': 'pause_circle'},
+        'project_win_lock': {'class': 'tw-badge-teal', 'zh': '成功锁定', 'en': 'Win Lock', 'icon': 'emoji_events'},
+        'perf_settlement': {'class': 'tw-badge-purple', 'zh': '绩效结算', 'en': 'Perf', 'icon': 'assessment'},
+        'salary_run': {'class': 'tw-badge-amber', 'zh': '月度薪资', 'en': 'Salary', 'icon': 'account_balance_wallet'},
+        'rd_product': {'class': 'tw-badge-rose', 'zh': '研发产品', 'en': 'R&D', 'icon': 'science'}
     } -%}
     {%- set config = type_config.get(object_type, {'class': 'tw-badge-gray', 'zh': object_type or '未知', 'en': object_type or 'Unknown', 'icon': 'help'}) -%}
     {%- set lang = session.get('language', 'zh') -%}

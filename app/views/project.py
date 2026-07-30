@@ -4319,7 +4319,8 @@ def _get_project_approval_flow_impl(project_id, object_type='project'):
     object_type:'project'(报备审批,默认) 或 'project_hold'(失败/搁置审核)。
     两者共用同一套流程构建逻辑,只是审批实例命名空间不同。
 
-    跟 `purchase_order_routes._get_approval_flow_impl` 对齐范式,供:
+    流程组装本体已抽到 `helpers/at_approval_flow_builder.build_object_approval_flow`
+    (与 dealer_apply 共用),本函数只负责项目侧的取对象 + 权限校验。供:
       • `get_project_approval_flow` endpoint(thin jsonify wrapper)
       • `at_view_project` 视图(同步预渲染审批卡,无需 fetch)
 
@@ -4347,146 +4348,12 @@ def _get_project_approval_flow_impl(project_id, object_type='project'):
         if not project_obj:
             return ({'success': False, 'message': '项目不存在或无权限访问'}, 404)
 
-        # 获取审批实例
-        from app.helpers.approval_helpers import get_object_approval_instance
-        approval_instance = get_object_approval_instance(object_type, project_id)
-
-        if not approval_instance:
-            return {'success': True, 'has_approval': False, 'message': '项目暂无审批流程'}
-
-        # 获取审批流程数据 - 使用与报销相同的格式
-        from app.helpers.approval_helpers import can_recall_approval, can_resubmit_approval
-        from app.models.approval import ApprovalRecord, ApprovalStep
-
-        # 获取审批步骤（从模板获取）
-        steps = approval_instance.get_steps()
-        if not steps:
-            return {'success': False, 'message': '审批流程配置错误'}
-        
-        # 获取已有的审批记录
-        records = ApprovalRecord.query.filter_by(
-            instance_id=approval_instance.id
-        ).order_by(ApprovalRecord.timestamp.asc()).all()
-        
-        # 构建审批阶段数据
-        stages_data = []
-        current_step_value = approval_instance.current_step
-        matched_step_order = None
-
-        # 先尝试用 step_order 匹配
-        for step in steps:
-            if step.get('step_order') == current_step_value:
-                matched_step_order = current_step_value
-                break
-
-        # 如果 step_order 匹配不到，尝试用 step_id 匹配
-        if matched_step_order is None:
-            for step in steps:
-                if step.get('step_id') == current_step_value:
-                    matched_step_order = step.get('step_order')
-                    break
-
-        current_step_order = matched_step_order
-
-        # 预评估执行条件：对尚未到达的步骤检查条件，不满足条件的不显示
-        from app.helpers.approval_helpers import get_step_actual_approver, _check_step_execution_condition
-        target_object_for_condition = project_obj
-
-        for i, step in enumerate(steps):
-            # 确定审批人
-            actual_approver = get_step_actual_approver(step, approval_instance)
-
-            # 获取这个步骤的审批记录
-            step_records = []
-            if step.get('step_id'):
-                step_records = [r for r in records if r.step_id == step['step_id']]
-
-            # 兜底：模板快照模式（动态生成的step_id写入记录时为NULL）
-            if not step_records and records:
-                approve_records = [r for r in records if r.action in ('approve', 'reject')]
-                if approve_records and all(r.step_id is None for r in approve_records):
-                    step_order = step.get('step_order', i + 1)
-                    if step_order <= len(approve_records):
-                        step_records = [approve_records[step_order - 1]]
-
-            # 对尚未到达的步骤，评估执行条件，不满足条件的不显示
-            if not step_records and step['step_order'] != current_step_order:
-                exec_condition = step.get('execution_condition')
-                if exec_condition and isinstance(exec_condition, dict):
-                    should_execute = _check_step_execution_condition(step, target_object_for_condition)
-                    if should_execute is False:
-                        continue
-
-            stage_data = {
-                'id': step['step_id'],
-                'stage_name': step['step_name'],
-                'stage_order': step['step_order'],
-                'approver_name': actual_approver.real_name if actual_approver else '待确定',
-                'approver_id': actual_approver.id if actual_approver else None,
-                'status': 'pending',
-                'completed_time': None,
-                'comment': None,
-                'action': None,
-                'arrived_at': None,
-                'can_approve': False
-            }
-
-            # 处理审批记录
-            if step_records:
-                latest_record = step_records[-1]
-                if latest_record.action == 'skipped':
-                    # 已跳过的步骤也不显示
-                    continue
-                else:
-                    stage_data.update({
-                        'status': 'approved' if latest_record.action == 'approve' else 'rejected',
-                        'completed_time': latest_record.timestamp.isoformat(),
-                        'comment': latest_record.comment,
-                        'action': latest_record.action,
-                        'arrived_at': latest_record.timestamp.isoformat()
-                    })
-            elif step['step_order'] == current_step_order:
-                stage_data['status'] = 'current'
-                stage_data['can_approve'] = (actual_approver and actual_approver.id == current_user.id)
-            elif current_step_order and step['step_order'] < current_step_order:
-                stage_data['status'] = 'approved'
-
-            stages_data.append(stage_data)
-        
-        # 获取实际状态
-        from app.models.approval import ApprovalStatus
-        actual_status = approval_instance.status.value if hasattr(approval_instance.status, 'value') else str(approval_instance.status).lower()
-        
-        # 检查是否被召回
-        last_record = records[-1] if records else None
-        if last_record and last_record.action == 'recall':
-            actual_status = 'recalled'
-        
-        _can_approve = any(stage.get('can_approve', False) for stage in stages_data)
-        _can_recall = can_recall_approval(object_type, project_id, current_user.id)
-        _can_resubmit = can_resubmit_approval(object_type, project_id, current_user.id)
-        return {
-            'success': True,
-            'has_approval': True,
-            'approval_flow': {
-                'instance_id': approval_instance.id,
-                'stages': stages_data,
-                'current_stage': current_step_order,
-                'can_approve': _can_approve,    # 保留旧位置(向后兼容老前端)
-                'status': actual_status,
-                'can_recall': _can_recall,
-                'can_resubmit': _can_resubmit,
-                'is_creator': approval_instance.created_by == current_user.id,
-                'creator_id': approval_instance.created_by,
-                'started_at': approval_instance.started_at.strftime('%Y-%m-%d %H:%M') if approval_instance.started_at else None
-            },
-            # 对齐 PO 范式:control_info 顶层独立字段(at_approval_helpers.build_approval_data 期望位置)
-            'control_info': {
-                'can_approve':  _can_approve,
-                'can_recall':   _can_recall,
-                'can_resubmit': _can_resubmit,
-            },
-        }
+        # 流程组装统一交给通用 builder(project / project_hold / dealer_apply 共用),
+        # 本函数只保留项目侧的「取对象 + 权限校验」。
+        from app.helpers.at_approval_flow_builder import build_object_approval_flow
+        return build_object_approval_flow(
+            object_type, project_id, business_object=project_obj,
+            user_id=current_user.id, no_approval_message='项目暂无审批流程')
     except Exception as e:
         logging.error(f"获取项目审批流程失败：{str(e)}")
         return ({'success': False, 'message': f'获取失败：{str(e)}'}, 500)
@@ -4633,27 +4500,19 @@ def get_project_hold_flow(project_id):
     if isinstance(result, tuple):
         return jsonify(result[0]), result[1]
 
-    # 前置「发起申请」节点:展示发起人 + 强制理由
-    if result.get('success') and result.get('has_approval') and result.get('approval_flow'):
-        try:
-            from app.helpers.approval_helpers import get_object_approval_instance
-            from app.models.user import User as _U
-            inst = get_object_approval_instance('project_hold', project_id, include_rejected=True)
-            snap = (inst.template_snapshot or {}) if inst else {}
-            initiator = _U.query.get(snap.get('hold_initiator_id')) if snap.get('hold_initiator_id') else None
-            started = inst.started_at.isoformat() if inst and inst.started_at else None
-            origin_node = {
-                'id': 'initiator', 'stage_name': '发起申请', 'stage_order': 0,
-                'approver_name': (initiator.real_name or initiator.username) if initiator else '发起人',
-                'approver_id': initiator.id if initiator else None,
-                'status': 'approved', 'completed_time': started,
-                'comment': snap.get('hold_reason') or '', 'action': 'submit',
-                'arrived_at': started, 'can_approve': False,
-            }
-            result['approval_flow'].setdefault('stages', [])
-            result['approval_flow']['stages'].insert(0, origin_node)
-        except Exception as _e:
-            logging.warning(f"前置发起节点失败: {_e}")
+    # 前置「发起申请」节点:展示发起人 + 强制理由(与 dealer_apply 共用同一实现)
+    try:
+        from app.helpers.approval_helpers import get_object_approval_instance
+        from app.helpers.at_approval_flow_builder import prepend_origin_node
+        from app.models.user import User as _U
+        inst = get_object_approval_instance('project_hold', project_id, include_rejected=True)
+        snap = (inst.template_snapshot or {}) if inst else {}
+        initiator = _U.query.get(snap.get('hold_initiator_id')) if snap.get('hold_initiator_id') else None
+        prepend_origin_node(result, initiator=initiator,
+                            started_at=inst.started_at if inst else None,
+                            comment=snap.get('hold_reason') or '')
+    except Exception as _e:
+        logging.warning(f"前置发起节点失败: {_e}")
     return jsonify(result)
 
 
