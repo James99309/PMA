@@ -1,5 +1,6 @@
 {% extends 'components/at_person_layout.html' %}
 {% set person_active = 'performance' %}
+{% from 'components/at_kpi_detail_modal.html' import at_kpi_detail_modal %}
 
 {% block person_title %}{{ _('绩效目标 · 个人覆盖') }}{% endblock %}
 {% block person_desc %}{{ _('显示有效目标(个人覆盖 > 角色默认);只有改动过的项目会写入个人覆盖,未动的保持继承;行尾出现「↺ 继承」即该项已自定义,点击确认后恢复角色默认。') }}{% endblock %}
@@ -7,6 +8,9 @@
 {% block extra_head %}
 <script src="{{ url_for('static', filename='js/at-target-sheet.js') }}"></script>
 <script src="{{ url_for('static', filename='js/at-approval-dropdown.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-kpi-detail.js') }}"></script>
+{# 支持下钻的 KPI 清单来自后端注册表,前端不硬编码 code #}
+<script>window.ATKpiDetailCodes = {{ kpi_detail_codes | tojson }};</script>
 <style>.ppspin{animation:ppspin 1s linear infinite}@keyframes ppspin{to{transform:rotate(360deg)}}</style>
 {% endblock %}
 
@@ -258,6 +262,11 @@
     inverseCodes: ['fail_rate', 'team_fail_rate', 'channel_fail_rate'],
     levelCodes: ['se_sales_support'],  // 水平/对齐型计数:年度=每季度目标,不均分(销售配合广度)
     onManualEdit: (it, ctx) => meOpen(it, ctx),
+    // 实际值下钻:HR/审批人点季度实际值,看这个数字由哪些项目/报价单/产品构成
+    onKpiDetail: (ctx) => ATKpiDetail.open({
+      userId: _userId, year: parseInt(yearSel.value),
+      quarter: ctx.quarter, code: ctx.code, cellText: ctx.cellText
+    }),
     onChange: () => {
       const n = sheet.getDirty().length;
       document.getElementById('ppDirty').textContent = n ? I.dirtyFmt.replace('{n}', n) : '';
@@ -774,4 +783,7 @@
     ppSelect(pick);
   }
 </script>
+
+{# KPI 实际值下钻明细弹层(通用组件,数据驱动;新增 KPI 只需后端加 provider) #}
+{{ at_kpi_detail_modal() }}
 {% endblock %}

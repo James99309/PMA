@@ -10,6 +10,10 @@ _KPI_ACTUAL_FNS[code](user, start, end) -> float:本期窗口实际值;
   新建客户/项目走合格过滤(_qualified_*_filters)。
 所有依赖均函数内惰性 import,避免循环依赖。
 """
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def _sum_money(query, amount_col, currency_col):
     """金额按各记录币种换算到本实例默认币种后求和(公共组件 MultiCurrencyAggregationService)。
@@ -306,9 +310,12 @@ def _act_pm_implant(user, s, e):
         Quotation.created_at >= s, Quotation.created_at < e)
     return _sum_money(q, QuotationDetail.implant_subtotal, Quotation.currency)
 
-# SE 五项:一次 SQL 出全窗口(口径照抄 performance_service SE CTE)
-_SE_WINDOW_SQL = """
-    WITH se_users AS (
+# ── SE 归属口径(唯一定义)────────────────────────────────────────────────
+# 「配合主方」的判定只此一份:总额(_SE_WINDOW_SQL)与明细下钻(_SE_IMPLANT_DETAIL_SQL)
+# 都拼这段,物理上不可能分叉。改口径只改这里。
+# ⚠️ 不要复制这段去别处写新统计 —— 见 memory「KPI实际采集唯一后端」。
+_SE_SCOPE_CTE = """
+    se_users AS (
         SELECT id FROM users WHERE role = 'solution_manager'
     ),
     collab AS (
@@ -338,7 +345,11 @@ _SE_WINDOW_SQL = """
     se_projects AS (
         -- 仅「我作为配合主方」的项目计入植入额/批价额,避免共享项目重复计入
         SELECT project_id FROM primary_se WHERE se_id = :uid
-    ),
+    )
+"""
+
+# SE 五项:一次 SQL 出全窗口(口径照抄 performance_service SE CTE)
+_SE_WINDOW_SQL = "WITH " + _SE_SCOPE_CTE + """,
     c AS (
         SELECT COUNT(*) AS cnt
         FROM quotations
@@ -1217,3 +1228,163 @@ def kpi_actual_breakdown(user, code, s, e):
             peer_conv = pval
     return {'merged': merged, 'local': local, 'has_peer': True,
             'peer': pval, 'peer_converted': peer_conv, 'peer_currency': peer_cur}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# KPI 实际值「下钻明细」—— 回答 HR/审批人「这个数字是怎么来的」
+#
+# 铁律:明细与总额必须共用同一段归属 CTE(_SE_SCOPE_CTE),不允许另写一份 SQL。
+# 另写一份的下场见 memory「工作项→跟进记录同步」:两套互不知情的实现并存半年,
+# 数字对不上时无人能解释,最后只能靠考古 git 找根因。
+#
+# 新增一个 KPI 的下钻 = 加一个 provider + 在 _KPI_DETAIL_FNS 注册一行,
+# 前端组件数据驱动、零改动。注册表里没有的 code,前端不显示下钻入口。
+# ═══════════════════════════════════════════════════════════════════════════
+
+# 明细:与 _SE_WINDOW_SQL 的 im CTE 同源,去掉 SUM/GROUP BY 摊到行
+_SE_IMPLANT_DETAIL_SQL = "WITH " + _SE_SCOPE_CTE + """
+    SELECT pj.id           AS project_id,
+           pj.project_name AS project_name,
+           q.id            AS quotation_id,
+           q.quotation_number,
+           q.currency      AS currency,
+           qd.product_mn,
+           qd.product_name,
+           qd.product_model,
+           qd.quantity     AS quantity,
+           qd.market_price AS market_price
+    FROM quotation_details qd
+    JOIN quotations   q  ON qd.quotation_id = q.id
+    JOIN se_projects  sp ON q.project_id = sp.project_id
+    JOIN projects     pj ON pj.id = q.project_id
+    JOIN products     p  ON qd.product_mn = p.product_mn
+    WHERE p.is_vendor_product = true
+      AND q.created_at >= :s AND q.created_at < :e
+    ORDER BY pj.project_name, q.id, qd.id
+"""
+
+
+def _fmt_amount(v):
+    """基础币种金额 → 与绩效表格单元格同口径的展示串(如「¥1,832.89」)。
+
+    两条约束:
+    ① **必须 2 位小数**:表格单元格用 fmt=Math.round(v*100)/100 显示(如 1832.89),
+       下钻合计要能与用户刚点的数字逐位对上,否则会被当成两个数。
+    ② **不拼单位**:表格的「单位」是独立一列,数字格是纯数字。而且 get_amount_unit()
+       在英文语境返回 '0K',拼上去会得到「¥1,832.890K」这种废串。单位单独给。
+    """
+    from config import Config
+    from app.utils.currency_helpers import get_currency_symbol
+    return f"{get_currency_symbol()}{v / float(Config.AMOUNT_DIVISOR):,.2f}"
+
+
+def _fmt_amount_raw(v):
+    """原始金额(不缩放),供交叉核对 —— 「¥1,832.89 万元」到底是多少钱一眼可见。"""
+    from app.utils.currency_helpers import get_currency_symbol
+    return f"{get_currency_symbol()}{v:,.0f}"
+
+
+def _detail_se_implant(user, s, e):
+    """方案植入额明细:项目 › 报价单 › 产品行。"""
+    from sqlalchemy import text
+    from app import db
+    from flask_babel import gettext as _g
+
+    rows = db.session.execute(
+        text(_SE_IMPLANT_DETAIL_SQL), {'uid': user.id, 's': s, 'e': e}).fetchall()
+
+    projects, total, n_quo, n_rows = {}, 0.0, set(), 0
+    for r in rows:
+        amt = _conv_money(float(r.quantity or 0) * float(r.market_price or 0), r.currency)
+        total += amt
+        n_quo.add(r.quotation_id)
+        n_rows += 1
+        pg = projects.setdefault(r.project_id, {
+            'label': r.project_name or _g('(未命名项目)'), 'value': 0.0, '_q': {}})
+        pg['value'] += amt
+        qg = pg['_q'].setdefault(r.quotation_id, {
+            'label': r.quotation_number or f'#{r.quotation_id}', 'value': 0.0, 'rows': []})
+        qg['value'] += amt
+        qg['rows'].append({
+            'name': r.product_name or r.product_model or r.product_mn or '—',
+            'sub': r.product_mn or '',
+            'qty': float(r.quantity or 0),
+            'value': amt,
+            # 明细行用原始金额(元),不用万元:一行 1400 元缩成「¥0.14」会被读成一毛四,
+            # 单位只在顶部标一次,下面全靠隐式继承 —— 必错。用元还能和报价单原始数字对上。
+            'value_display': _fmt_amount_raw(amt),
+        })
+
+    groups = []
+    for pg in sorted(projects.values(), key=lambda x: -x['value']):
+        quos = sorted(pg['_q'].values(), key=lambda x: -x['value'])
+        # 项目/报价单小计同样用元:与产品行同单位才能直接相加,且各项目之和 == 顶部的
+        # total_raw_display(¥18,328,899),核对链条闭合。只有顶部合计用万元(与绩效单元格对齐)。
+        g = {'label': pg['label'], 'value': pg['value'],
+             'value_display': _fmt_amount_raw(pg['value'])}
+        if len(quos) == 1:
+            # 97% 的项目只有一张报价单(实测本地库 686 中 668) —— 这层不分叉时纯属噪音,
+            # 多一次展开换不来任何信息。单号降为副标题,产品行直接挂项目下。
+            g['sub'] = quos[0]['label']
+            g['rows'] = quos[0]['rows']
+        else:
+            g['children'] = [{
+                'label': qg['label'],
+                'value': qg['value'],
+                'value_display': _fmt_amount_raw(qg['value']),
+                'rows': qg['rows'],
+            } for qg in quos]
+        groups.append(g)
+
+    from config import Config
+    return {
+        'title': _g('方案植入额'),
+        'total': total,
+        # 单位单独给,前端小字附在数字后。**必须用 Config.AMOUNT_UNIT,不能用
+        # currency_helpers.get_amount_unit()** —— 后者会按界面语言把「万元」换成「0K」,
+        # 而绩效模块的既定约定是「单位由数据库类型决定,与语言解耦」
+        # (见 performance_config.get_performance_unit_config 的 docstring),
+        # 表格的单位列走的就是 Config.AMOUNT_UNIT。用错会出现表格「万元」/弹层「0K」。
+        'unit': Config.AMOUNT_UNIT,
+        'total_display': _fmt_amount(total),
+        'total_raw_display': _fmt_amount_raw(total),
+        'meta': _g('%(p)d 个项目 · %(q)d 张报价单 · %(r)d 行',
+                   p=len(projects), q=len(n_quo), r=n_rows),
+        # 这行不是装饰:植入额有 4 处反直觉口径,不写清楚 HR 拿去跟销售对账必吵
+        'basis': _g('归属:项目配合主方 · 仅厂商产品 · 市场价 × 数量 · 期内全部报价单'),
+        'groups': groups,
+    }
+
+
+# code → provider。没注册的 code 前端不显示下钻入口。
+_KPI_DETAIL_FNS = {
+    'se_implant_amount': _detail_se_implant,
+}
+
+
+def has_actual_detail(code):
+    """该 KPI 是否支持下钻(供前端决定要不要给单元格加可点样式)。"""
+    return code in _KPI_DETAIL_FNS
+
+
+def get_actual_detail(user, code, s, e):
+    """取某人某期某 KPI 的实际值明细。不支持下钻的 code 返回 None。
+
+    返回统一信封 {title,total,total_display,meta,basis,groups[]},
+    groups 可递归含 children / rows,前端组件对结构无假设。
+    """
+    fn = _KPI_DETAIL_FNS.get(code)
+    if not fn:
+        return None
+    d = fn(user, s, e)
+    # 自检:明细合计必须等于总额采集器的结果(换算是线性的,理应恒等)。
+    # 不等 = 两边口径已分叉,必须立刻发现,不能等 HR 来问。
+    try:
+        agg = kpi_actual(user, code, s, e)
+        if agg and abs(d['total'] - agg) / max(abs(agg), 1e-9) > 0.005:
+            logger.error('[kpi_detail] %s 明细合计 %.2f 与总额 %.2f 不一致(口径分叉!)',
+                         code, d['total'], agg)
+            d['mismatch'] = {'detail': d['total'], 'aggregate': agg}
+    except Exception as _e:
+        logger.warning('[kpi_detail] %s 自检失败: %s', code, _e)
+    return d

@@ -2883,6 +2883,43 @@ def api_user_actuals(user_id, year):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@performance_config_bp.route('/api/user/<int:user_id>/actual-detail/<int:year>/<int:quarter>')
+@login_required
+def api_user_actual_detail(user_id, year, quarter):
+    """KPI 实际值下钻明细 —— 回答「这个数字是怎么来的」。
+
+    薄壳:鉴权 + 换算期间窗口,计算全在 kpi_actual_service(与总额同源 CTE)。
+    未注册下钻的 code 返回 404,前端据此不显示入口。
+    """
+    if not _can_read_person_perf(user_id, year):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    if quarter not in (1, 2, 3, 4):
+        return jsonify({'success': False, 'message': '季度无效'}), 400
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        from app.services.kpi_actual_service import get_actual_detail
+        # 窗口口径与 api_user_actuals 完全一致(季度左闭右开)
+        sm = (quarter - 1) * 3 + 1
+        s = datetime(year, sm, 1)
+        e = datetime(year + 1, 1, 1) if quarter == 4 else datetime(year, sm + 3, 1)
+
+        code = (request.args.get('code') or '').strip()
+        data = get_actual_detail(user, code, s, e)
+        if data is None:
+            return jsonify({'success': False, 'message': '该指标暂不支持明细'}), 404
+
+        data['period'] = f'{year} Q{quarter}'
+        data['person'] = user.real_name or user.username
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        logger.error(f"获取 KPI 明细失败 (user={user_id} code={request.args.get('code')}): {e}",
+                     exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @performance_config_bp.route('/api/user/<int:user_id>/settlement', methods=['POST'])
 @login_required
 @permission_required('config_management', 'edit')

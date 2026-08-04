@@ -84,6 +84,12 @@
       .cm-sheet td[data-act-cls="act-ok"]::before { color: var(--success); font-weight: 600; }
       .cm-sheet td[data-act-cls="act-no"]::before { color: var(--warn); font-weight: 600; }
       .cm-sheet td[data-act-cls="act-na"]::before { color: var(--ink-3); }
+      /* 可下钻的实际值:虚线下划提示「这个数字点得开」,hover 才实线,不喧宾夺主 */
+      .cm-sheet td[data-kpidetail] { cursor: pointer; }
+      .cm-sheet td[data-kpidetail]::before { text-decoration: underline dotted;
+                                             text-underline-offset: 2px; }
+      .cm-sheet td[data-kpidetail]:hover { background: var(--bg-hover); }
+      .cm-sheet td[data-kpidetail]:hover::before { text-decoration: underline; }
       .cm-sheet td[data-mecell]:hover { background: var(--bg-hover); }
       .cm-sheet .me-act { display: block; font-size: 11px; line-height: 1.5; min-height: 17px;
                           cursor: pointer; border-radius: 4px; color: var(--ink-3); }
@@ -192,10 +198,21 @@
       return { v, implied, cls, hasT: !isNaN(t) };
     }
 
+    // 该 KPI 是否支持下钻明细。清单由后端注册表(kpi_actual_service._KPI_DETAIL_FNS)下发,
+    // 前端不硬编码 code —— 后端加 provider 即自动出现入口,不用改这里。
+    function drillAttr(it, kind, idx) {
+      if (kind !== 'q') return '';                       // 明细接口按季度取,月/年暂不支持
+      if (canEdit && editing) return '';                 // 编辑态单元格要可 contenteditable,不抢点击
+      const codes = window.ATKpiDetailCodes || [];
+      if (!codes.includes(it.item_code)) return '';
+      return ` data-kpidetail="${it.item_code}|${idx}"`;
+    }
+
     function actAttr(it, kind, idx, target) {
       const f = actInfo(it, kind, idx, target);
       if (!f || f.v == null) return '';
-      return ` data-act="${Math.round(f.v)}" data-act-cls="${f.cls}"` +
+      return drillAttr(it, kind, idx) +
+             ` data-act="${Math.round(f.v)}" data-act-cls="${f.cls}"` +
              (f.hasT ? ' data-act-frac="1"' : '') +
              (f.implied != null ? ` data-act-impl="${fmt(f.implied)}" title="${_t('目标未分摊到{p},按年度{m}推导;点击可填写显式目标').replace('{p}', kind === 'q' ? _t('季') : _t('月')).replace('{m}', isLevel(it) ? _t('水平') : _t('均分'))}"` : '');
     }
@@ -413,7 +430,9 @@
     function render() {
       const monthMode = items.some(it => it.gran === 'M');   // 任一行月考才显示月份表头
       const personCol = mode === 'person';
-      const ceAttr = canEdit ? 'contenteditable spellcheck="false"' : '';
+      // contenteditable 必须与 editing 同步:非编辑态显示的是 fmtTgt()(未设目标为「—」),
+      // 往里打字本就无意义,却一直可写 —— 既有的不一致。且它会与「实际值下钻」抢点击焦点。
+      const ceAttr = (canEdit && editing) ? 'contenteditable spellcheck="false"' : '';
       const periodCols = monthMode ? 12 : 4;
       const totalCols = 5 + periodCols + (personCol ? 1 : 0);
 
@@ -607,6 +626,14 @@
                    : kind === 'q' ? lockedQ.has(parseInt(idx)) : false;
           if (lk) { g.ATToast && ATToast.error(_t('该季度已结算锁定,不可修改')); return; }
           cfg.onManualEdit && cfg.onManualEdit(items[parseInt(i)], { kind, idx: parseInt(idx) });
+        }));
+      // 实际值下钻:回答「这个数字是怎么来的」。onKpiDetail 由宿主页面传入(需知道 userId/year)。
+      el.querySelectorAll('[data-kpidetail]').forEach(td =>
+        td.addEventListener('click', () => {
+          const [code, q] = td.dataset.kpidetail.split('|');
+          cfg.onKpiDetail && cfg.onKpiDetail({
+            code, quarter: parseInt(q), cellText: td.getAttribute('data-act')
+          });
         }));
       el.querySelectorAll('[data-enable]').forEach(c =>
         c.addEventListener('change', () => {

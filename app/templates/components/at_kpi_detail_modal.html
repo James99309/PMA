@@ -1,0 +1,97 @@
+{#
+  KPI 实际值下钻明细模态(AT 设计系统)
+
+  回答「绩效上这个数字是怎么来的」。HR/审批人在目标表格点实际值单元格唤起。
+
+  用法:
+    1. 页面底部 include 一次:{{ at_kpi_detail_modal() }}
+    2. 加载 JS:<script src="{{ url_for('static', filename='js/at-kpi-detail.js') }}"></script>
+    3. 调用 ATKpiDetail.open({userId, year, quarter, code})
+
+  **组件对数据结构不做任何假设** —— 后端(kpi_actual_service 的 provider)吐什么就画什么:
+    { title, total_display, meta, basis, period, person,
+      groups: [ { label, sub?, value_display, rows?[], children?[] } ] }
+  group 可以直接带 rows(两层),也可以带 children 再带 rows(三层),递归渲染。
+  这样新增 KPI 下钻 = 后端加 provider,本组件零改动。
+#}
+{% from 'components/at_base.html' import at_icon %}
+
+{% macro at_kpi_detail_modal(modal_id='atKpiDetail') %}
+  <div id="{{ modal_id }}"
+       onclick="if (event.target === this) ATKpiDetail.close()"
+       style="position:fixed;inset:0;z-index:100;display:none;
+              background:rgba(31,30,27,0.32);backdrop-filter:blur(2px);
+              align-items:center;justify-content:center;padding:20px;
+              animation:at-fade-in 180ms ease;">
+    <div style="width:100%;max-width:720px;max-height:90vh;
+                display:flex;flex-direction:column;
+                background:var(--bg-elev);border-radius:12px;
+                box-shadow:0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px var(--line);
+                animation:at-scale-in 200ms cubic-bezier(.2,.7,.2,1);
+                overflow:hidden;">
+
+      <header style="padding:18px 22px 12px;display:flex;align-items:center;gap:10px;">
+        <span style="width:30px;height:30px;border-radius:7px;flex-shrink:0;
+                     background:var(--accent-tint);color:var(--accent);
+                     display:inline-flex;align-items:center;justify-content:center;">
+          {{ at_icon('chart', 16) }}
+        </span>
+        <div style="flex:1;min-width:0;">
+          <h3 class="at-serif" id="{{ modal_id }}Title"
+              style="margin:0;font-size:18px;font-weight:500;letter-spacing:0.01em;"></h3>
+          <div id="{{ modal_id }}Sub" class="at-dim" style="font-size:11.5px;margin-top:1px;"></div>
+        </div>
+        <button onclick="ATKpiDetail.close()"
+                style="color:var(--ink-3);padding:4px;border-radius:6px;flex-shrink:0;">
+          {{ at_icon('close', 18) }}
+        </button>
+      </header>
+
+      {# 合计条:必须与用户刚点的那个单元格逐位一致,否则会被当成两个数 #}
+      <div id="{{ modal_id }}Total"
+           style="padding:2px 22px 14px;display:flex;align-items:baseline;gap:12px;
+                  border-bottom:1px solid var(--line);"></div>
+
+      <div id="{{ modal_id }}Body"
+           style="padding:4px 22px 8px;overflow-y:auto;flex:1;min-height:0;"></div>
+
+      {# 口径脚注不是装饰:植入额有 4 处反直觉口径(配合主方归属/仅厂商产品/市场价非成交价/
+         期内全部报价单),不写清楚,HR 拿这个数去跟销售对账必然吵起来 #}
+      <div id="{{ modal_id }}Basis" class="at-dim"
+           style="padding:10px 22px;font-size:11px;line-height:1.6;
+                  border-top:1px solid var(--line);background:var(--bg-page);"></div>
+
+      <footer style="padding:10px 22px 18px;display:flex;justify-content:flex-end;gap:8px;">
+        <button onclick="ATKpiDetail.close()"
+                style="height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;
+                       background:transparent;color:var(--ink);border:1px solid var(--line-2);
+                       border-radius:6px;font-size:13px;font-weight:500;letter-spacing:0.01em;">
+          {{ _('关闭') }}
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <style>
+    /* 分组行:细线分隔,无色块 —— 跟 AT 其他列表一致 */
+    #{{ modal_id }} .kd-g       { border-top:1px solid var(--line); }
+    #{{ modal_id }} .kd-g:first-child { border-top:0; }
+    #{{ modal_id }} .kd-gh      { padding:11px 4px;display:flex;align-items:center;gap:10px;
+                                  cursor:pointer;font-size:12.5px;color:var(--ink); }
+    #{{ modal_id }} .kd-gh:hover{ background:var(--bg-page); }
+    #{{ modal_id }} .kd-cr      { transition:transform 140ms ease;color:var(--ink-4);flex-shrink:0;
+                                  display:inline-flex; }
+    #{{ modal_id }} .kd-g.on .kd-cr { transform:rotate(90deg); }
+    #{{ modal_id }} .kd-gv      { flex-shrink:0;font-weight:500; }
+    #{{ modal_id }} .kd-body    { display:none;padding:0 4px 10px 22px; }
+    #{{ modal_id }} .kd-g.on .kd-body { display:block; }
+    #{{ modal_id }} .kd-sub     { font-size:11px;color:var(--ink-4);padding:4px 0 2px; }
+    #{{ modal_id }} .kd-row     { display:flex;align-items:center;gap:10px;padding:5px 0;
+                                  font-size:12px;color:var(--ink-2); }
+    #{{ modal_id }} .kd-row .nm { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+                                  white-space:nowrap; }
+    #{{ modal_id }} .kd-row .mn { font-size:10.5px;color:var(--ink-4);flex-shrink:0; }
+    #{{ modal_id }} .kd-row .qt { font-size:11px;color:var(--ink-4);flex-shrink:0; }
+    #{{ modal_id }} .kd-row .vl { flex-shrink:0;min-width:92px;text-align:right; }
+  </style>
+{% endmacro %}
