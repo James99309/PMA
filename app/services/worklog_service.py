@@ -687,21 +687,48 @@ def get_item_detail(user, item_id):
 
 
 def sync_work_item_action(work_item, user):
-    """工作项关联项目 → 维护一条「跟进记录」(Action);评论作为其 ActionReply。
-    返回 action_id 或 None。无 project_id 不建。需在 work_item 已 flush(有 id)后调用。"""
-    if not work_item.project_id:
+    """工作项 → 维护一条「跟进记录」(Action);评论作为其 ActionReply。
+    返回 action_id 或 None。需在 work_item 已 flush(有 id)后调用。
+
+    **本函数是工作项→跟进记录的唯一写入口**(create/update/complete 三处都调它)。
+    历史上 complete_item 另有一套裸 Action 直写(sync_action 开关),不写 related_action_id
+    因而无法追溯/去重/随删除撤销,已并入此处 —— 不要再开第二条路。
+
+    三道门槛,全满足才落跟进记录:
+      1. 挂了客户或项目 —— 否则跟进记录无处归属
+      2. 有实质描述 —— 只填标题的空行程不进客户档案
+      3. 已完成 或 计划日期已到/已过 —— 挡住「排个下周的拜访就算已跟进」刷 KPI
+         (不依赖点「完成」,因为完成率低且移动端漏传;已完成的不受日期限制)
+
+    幂等:已有指针则原地更新;内容与归属都没变则直接返回,不产生无谓写入。
+    """
+    if not (work_item.project_id or work_item.customer_id):
         return work_item.related_action_id
-    comm = '[工作项] ' + (work_item.title or '').strip()
-    if work_item.description:
-        comm += '\n' + work_item.description.strip()
+    text = (work_item.description or '').strip()
+    if not text:
+        return work_item.related_action_id
+    if work_item.status != 'completed' and work_item.planned_date > date.today():
+        return work_item.related_action_id
+
+    comm = '[工作项] ' + (work_item.title or '').strip() + '\n' + text
+    act_date = work_item.end_date or work_item.planned_date
+
     if work_item.related_action_id:
         act = Action.query.get(work_item.related_action_id)
         if act:
+            if (act.communication == comm and act.date == act_date
+                    and act.company_id == work_item.customer_id
+                    and act.contact_id == work_item.contact_id
+                    and act.project_id == work_item.project_id):
+                return act.id                      # 一致 → 不动
             act.communication = comm
+            act.date = act_date
             act.company_id = work_item.customer_id
             act.contact_id = work_item.contact_id
+            act.project_id = work_item.project_id
             return act.id
-    act = Action(date=work_item.planned_date, project_id=work_item.project_id,
+
+    act = Action(date=act_date, project_id=work_item.project_id,
                  company_id=work_item.customer_id, contact_id=work_item.contact_id,
                  communication=comm, owner_id=user.id, is_shared=True)
     db.session.add(act)
@@ -787,7 +814,7 @@ def create_item(user, data):
     )
     db.session.add(work_item)
     db.session.flush()
-    sync_work_item_action(work_item, user)   # 关联项目 → 生成跟进记录
+    sync_work_item_action(work_item, user)   # 挂客户/项目且有描述 → 生成跟进记录
     db.session.commit()
 
     if shared_with_users:
@@ -912,7 +939,7 @@ def update_item(user, item_id, data):
         else:
             work_item.shared_with_users = None
 
-    sync_work_item_action(work_item, user)   # 关联项目 → 维护跟进记录(标题/描述变更同步)
+    sync_work_item_action(work_item, user)   # 维护跟进记录(标题/描述/归属变更同步)
     db.session.commit()
 
     from app.models.message import Message
@@ -953,6 +980,19 @@ def delete_item(user, item_id):
     if work_item.sync_source == 'dingtalk':
         raise WorklogItemError(_('钉钉日程请到钉钉 App 删除'), 403)
 
+    # 派生的跟进记录(Action)随工作项一并撤销 —— 否则客户/项目下残留「幽灵跟进」:
+    # 日历上行程已删/已作废,客户档案里那条跟进却还在充数(还会被 KPI 合格新客户计入)。
+    # 评论真身在 WorkItemComment 表,这里删掉的 ActionReply 只是镜像(cascade 自动清理)。
+    if work_item.related_action_id:
+        _aid = work_item.related_action_id
+        # 必须先解引用并 flush:work_items.related_action_id 有 FK 指向 actions,
+        # 反序会撞 ForeignKeyViolation(别依赖 SQLAlchemy 的 UPDATE 先于 DELETE)。
+        work_item.related_action_id = None
+        db.session.flush()
+        act = Action.query.get(_aid)
+        if act:
+            db.session.delete(act)
+
     from datetime import date as date_type
     today = date_type.today()
 
@@ -976,7 +1016,7 @@ def delete_item(user, item_id):
 
 
 def complete_item(user, item_id, data):
-    """标记完成(忠实 complete_item:状态+智能工时+worklog关联+可选Action同步+完成通知)。返回 WorkItem。"""
+    """标记完成(状态+智能工时+worklog关联+跟进记录同步+完成通知)。返回 WorkItem。"""
     work_item = WorkItem.query.get(item_id)
     if not work_item or work_item.is_deleted:
         raise WorklogItemError(_('工作项不存在'), 404)
@@ -1001,20 +1041,10 @@ def complete_item(user, item_id, data):
     work_item.worklog_id = worklog.id
     worklog.total_hours = worklog.calculate_smart_hours()
 
-    # 同步行动记录(关联客户/项目且有内容)
-    sync_action = data.get('sync_action', False)
-    action_content = description or work_item.description
-    if sync_action and action_content and (work_item.customer_id or work_item.project_id):
-        action_date = work_item.end_date or work_item.planned_date
-        db.session.add(Action(
-            date=action_date,
-            contact_id=work_item.contact_id,
-            company_id=work_item.customer_id,
-            project_id=work_item.project_id,
-            communication=action_content,
-            owner_id=user.id,
-            is_shared=True
-        ))
+    # 同步行动记录 —— 统一走 sync_work_item_action(唯一写入口,幂等,写 related_action_id)。
+    # 原先此处是裸 Action 直写 + 前端 sync_action 开关,与 create/update 的同步机制并行且互不
+    # 知情:不写指针→无法去重/撤销,开关只有 web 日历传→移动端点完成永远漏同步。已废弃。
+    sync_work_item_action(work_item, user)
 
     db.session.commit()
 

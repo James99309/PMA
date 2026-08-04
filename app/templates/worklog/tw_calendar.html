@@ -3043,8 +3043,7 @@ function workCalendar() {
                             body: JSON.stringify({
                                 actual_hours: hours,
                                 execution_notes: '',
-                                description: description,  // 传递行动记录内容
-                                sync_action: hasRelation   // 是否同步到客户/项目
+                                description: description   // 行动记录内容;跟进记录同步由后端 sync_work_item_action 统一判定
                             })
                         });
                         const data = await response.json();
