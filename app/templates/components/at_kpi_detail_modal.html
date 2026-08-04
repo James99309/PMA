@@ -52,6 +52,12 @@
            style="padding:2px 22px 14px;display:flex;align-items:baseline;gap:12px;
                   border-bottom:1px solid var(--line);"></div>
 
+      {# 跨实例合并说明条:合计含对端(SG)部分,但下方只列得出本端明细 —— 对端数据在另一个
+         数据库取不到。不声明的话「合计 1490 / 明细加起来 930」会被当成数字有错。#}
+      <div id="{{ modal_id }}Peer" class="at-dim"
+           style="display:none;padding:8px 22px;gap:10px;align-items:center;font-size:11.5px;
+                  background:var(--warn-soft, var(--bg-page));border-bottom:1px solid var(--line);"></div>
+
       <div id="{{ modal_id }}Body"
            style="padding:4px 22px 8px;overflow-y:auto;flex:1;min-height:0;"></div>
 

@@ -98,6 +98,24 @@
       + (d.total_raw_display ? ' · ' + esc(d.total_raw_display) : '') + '</span>'
       + warn;
 
+    // 跨实例合并:合计含对端(SG)部分,但下面只能列本端明细 —— 必须讲清楚,
+    // 否则「合计 1490 / 明细加起来 930」会被当成数字有错。
+    var pb = $(MODAL_ID + 'Peer');
+    if (d.has_peer) {
+      pb.style.display = 'flex';
+      pb.innerHTML =
+        '<span>' + (w.__I18N_KPI_LOCAL || '本端明细') + ' <b style="color:var(--ink);">'
+        + esc(d.local_display) + '</b></span>'
+        + '<span style="color:var(--ink-4);">+</span>'
+        + '<span>' + (w.__I18N_KPI_PEER || '对端合并') + ' <b style="color:var(--ink);">'
+        + esc(d.peer_display) + '</b>'
+        + (d.peer_note ? ' <span style="color:var(--ink-4);">· ' + esc(d.peer_note) + '</span>' : '')
+        + '</span>';
+    } else {
+      pb.style.display = 'none';
+      pb.innerHTML = '';
+    }
+
     $(MODAL_ID + 'Body').innerHTML = groupsHtml(d.groups);
     $(MODAL_ID + 'Basis').textContent = d.basis || '';
   }

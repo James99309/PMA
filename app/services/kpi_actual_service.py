@@ -1377,14 +1377,30 @@ def get_actual_detail(user, code, s, e):
     if not fn:
         return None
     d = fn(user, s, e)
-    # 自检:明细合计必须等于总额采集器的结果(换算是线性的,理应恒等)。
-    # 不等 = 两边口径已分叉,必须立刻发现,不能等 HR 来问。
+
+    # ── 跨实例合并的处理(关键)──────────────────────────────────────────
+    # 绩效表格单元格显示的是 kpi_actual() = 本端 + 对端(SG) 合并值,而明细只能列本端 ——
+    # 对端数据在另一个数据库,本实例取不到。若不声明,HR 会看到「单元格 1490.05万 /
+    # 明细合计 929.92万」而认为数字有错。故:合计对齐单元格(合并值),并显式拆出对端部分。
     try:
-        agg = kpi_actual(user, code, s, e)
-        if agg and abs(d['total'] - agg) / max(abs(agg), 1e-9) > 0.005:
-            logger.error('[kpi_detail] %s 明细合计 %.2f 与总额 %.2f 不一致(口径分叉!)',
-                         code, d['total'], agg)
-            d['mismatch'] = {'detail': d['total'], 'aggregate': agg}
+        from flask_babel import gettext as _g
+        bd = kpi_actual_breakdown(user, code, s, e)
+        local = float(bd.get('local') or 0)
+        # 自检比【本端】值 —— 明细天然只覆盖本端,拿合并值比会永远误报
+        if local and abs(d['total'] - local) / max(abs(local), 1e-9) > 0.005:
+            logger.error('[kpi_detail] %s 明细合计 %.2f 与本端总额 %.2f 不一致(口径分叉!)',
+                         code, d['total'], local)
+            d['mismatch'] = {'detail': d['total'], 'aggregate': local}
+
+        if bd.get('has_peer'):
+            merged = float(bd.get('merged') or 0)
+            peer = merged - local
+            d['has_peer'] = True
+            d['local_display'] = d['total_display']          # 本端(有明细)
+            d['peer_display'] = _fmt_amount(peer)            # 对端(无明细)
+            d['total'] = merged
+            d['total_display'] = _fmt_amount(merged)         # 合计对齐单元格
+            d['peer_note'] = _g('对端实例合并,明细需在对端系统查看')
     except Exception as _e:
-        logger.warning('[kpi_detail] %s 自检失败: %s', code, _e)
+        logger.warning('[kpi_detail] %s 自检/合并信息获取失败: %s', code, _e)
     return d
