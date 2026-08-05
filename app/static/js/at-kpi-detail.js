@@ -3,7 +3,7 @@
  *
  * 回答「绩效上这个数字是怎么来的」。搭配 components/at_kpi_detail_modal.html 使用。
  *
- *   ATKpiDetail.open({ userId, year, quarter, code, cellText })
+ *   ATKpiDetail.open({ userId, year, gran, idx, code, cellText })  gran: 'q'|'m'|'y'
  *
  * cellText(可选):用户刚点的那个单元格上显示的文本。传了会在合计旁边做一次校验 ——
  * 对不上就当场标红,不等 HR 来问。这是本组件存在的意义:让数字可被追溯,而不是可被怀疑。
@@ -60,7 +60,8 @@
         + (w.__I18N_KPI_DETAIL_EMPTY || '本期无明细') + '</div>';
     }
     return groups.map(function (g) {
-      return '<div class="kd-g">'
+      // tone='warn' → 未达标组:标题与金额转警示色,和「计入」的组一眼分开
+      return '<div class="kd-g' + (g.tone === 'warn' ? ' kd-warn' : '') + '">'
         + '<div class="kd-gh" onclick="this.parentNode.classList.toggle(\'on\')">'
         + CHEV
         + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
@@ -133,7 +134,7 @@
         '<div class="at-dim" style="text-align:center;padding:34px 0;font-size:12.5px;">…</div>';
 
       var url = '/performance/config/api/user/' + o.userId
-        + '/actual-detail/' + o.year + '/' + o.quarter
+        + '/actual-detail/' + o.year + '/' + (o.gran || 'q') + '/' + o.idx
         + '?code=' + encodeURIComponent(o.code);
       fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function (r) { return r.json(); })

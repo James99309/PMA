@@ -265,7 +265,7 @@
     // 实际值下钻:HR/审批人点季度实际值,看这个数字由哪些项目/报价单/产品构成
     onKpiDetail: (ctx) => ATKpiDetail.open({
       userId: _userId, year: parseInt(yearSel.value),
-      quarter: ctx.quarter, code: ctx.code, cellText: ctx.cellText
+      gran: ctx.gran, idx: ctx.idx, code: ctx.code, cellText: ctx.cellText
     }),
     onChange: () => {
       const n = sheet.getDirty().length;

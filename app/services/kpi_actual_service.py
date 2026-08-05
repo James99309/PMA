@@ -30,27 +30,57 @@ def _conv_money(amount, from_currency):
 
 
 
-def _act_sales(user, s, e):
+# ── 销售额 / 植入额 的基础查询(唯一定义)─────────────────────────────────
+# 采集器(_act_*)与明细下钻(_detail_*)共用同一个 query builder,口径物理上不可分叉。
+# scope: 'own'(本人) | 'team'(本部门成员) | 'channel'(渠道项目按厂商销售负责人)
+# ⚠️ 改口径只改这两个函数;不要在别处另写一份 —— 见 memory「KPI实际采集唯一后端」。
+
+def _q_sales(user, s, e, scope='own'):
+    """已批准批价单。归属:批价单创建人(渠道口径除外,渠道看项目的厂商销售负责人)。"""
     from app import db
     from app.models.pricing_order import PricingOrder
-    q = db.session.query(PricingOrder).filter(
-        PricingOrder.status == 'approved', PricingOrder.created_by == user.id,
-        PricingOrder.approved_at >= s, PricingOrder.approved_at < e)
-    return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
+    from app.models.project import Project
+    q = db.session.query(PricingOrder)
+    if scope == 'channel':
+        q = (q.join(Project, Project.id == PricingOrder.project_id)
+              .filter(*_channel_project_filter(user)))
+    elif scope == 'team':
+        q = q.filter(PricingOrder.created_by.in_(_dept_member_ids(user)))
+    else:
+        q = q.filter(PricingOrder.created_by == user.id)
+    return q.filter(PricingOrder.status == 'approved',
+                    PricingOrder.approved_at >= s, PricingOrder.approved_at < e)
 
-def _act_implant(user, s, e):
-    """植入额(2026-06-30 口径修正):
+
+def _q_implant(user, s, e, scope='own'):
+    """植入额口径(2026-06-30 修正):
        ① 归属按【项目拥有人】(Project.owner_id),不看报价 owner(SE/他人代写报价不影响归属);
-       ② 仅计【有确认过】的报价(confirmed_by 留痕),不看当前徽章状态('reconfirm' 仍算)。"""
+       ② 仅计【有确认过】的报价(confirmed_by 留痕),不看当前徽章状态('reconfirm' 仍算)。
+       注意与 se_implant_amount 同名不同义 —— 后者按「项目配合主方 + 仅厂商产品 +
+       市场价×数量」算,两者数值不可比,下钻的 basis 脚注会讲清楚。"""
     from app import db
     from app.models.quotation import Quotation
     from app.models.project import Project
-    q = (db.session.query(Quotation)
-         .join(Project, Project.id == Quotation.project_id)
-         .filter(Project.owner_id == user.id,
-                 Quotation.confirmed_by.isnot(None),
-                 Quotation.created_at >= s, Quotation.created_at < e))
-    return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
+    q = db.session.query(Quotation).join(Project, Project.id == Quotation.project_id)
+    if scope == 'channel':
+        q = q.filter(*_channel_project_filter(user))
+    elif scope == 'team':
+        q = q.filter(Project.owner_id.in_(_dept_member_ids(user)))
+    else:
+        q = q.filter(Project.owner_id == user.id)
+    return q.filter(Quotation.confirmed_by.isnot(None),
+                    Quotation.created_at >= s, Quotation.created_at < e)
+
+
+def _act_sales(user, s, e):
+    from app.models.pricing_order import PricingOrder
+    return _sum_money(_q_sales(user, s, e, 'own'),
+                      PricingOrder.pricing_total_amount, PricingOrder.currency)
+
+def _act_implant(user, s, e):
+    from app.models.quotation import Quotation
+    return _sum_money(_q_implant(user, s, e, 'own'),
+                      Quotation.implant_total_amount, Quotation.currency)
 
 # ── 合格「新建客户/项目」统一口径(2026-06-21,个人/团队/渠道共用) ──
 def _qualified_customer_filters():
@@ -664,26 +694,16 @@ def _dept_member_ids(user):
 
 
 def _act_team_sales(user, s, e):
-    from app import db
     from app.models.pricing_order import PricingOrder
-    q = db.session.query(PricingOrder).filter(
-        PricingOrder.status == 'approved',
-        PricingOrder.created_by.in_(_dept_member_ids(user)),
-        PricingOrder.approved_at >= s, PricingOrder.approved_at < e)
-    return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
+    return _sum_money(_q_sales(user, s, e, 'team'),
+                      PricingOrder.pricing_total_amount, PricingOrder.currency)
 
 
 def _act_team_implant(user, s, e):
-    """团队植入额(2026-06-30 口径修正):按【项目拥有人 ∈ 本部门成员】归属 + 仅计有确认过的报价。"""
-    from app import db
+    """团队植入额:按【项目拥有人 ∈ 本部门成员】归属 + 仅计有确认过的报价(口径见 _q_implant)。"""
     from app.models.quotation import Quotation
-    from app.models.project import Project
-    q = (db.session.query(Quotation)
-         .join(Project, Project.id == Quotation.project_id)
-         .filter(Project.owner_id.in_(_dept_member_ids(user)),
-                 Quotation.confirmed_by.isnot(None),
-                 Quotation.created_at >= s, Quotation.created_at < e))
-    return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
+    return _sum_money(_q_implant(user, s, e, 'team'),
+                      Quotation.implant_total_amount, Quotation.currency)
 
 
 def _act_team_new_projects(user, s, e):
@@ -779,29 +799,17 @@ def _channel_project_filter(user):
 
 
 def _act_channel_sales(user, s, e):
-    from app import db
     from app.models.pricing_order import PricingOrder
-    from app.models.project import Project
-    q = (db.session.query(PricingOrder)
-         .join(Project, Project.id == PricingOrder.project_id)
-         .filter(*_channel_project_filter(user),
-                 PricingOrder.status == 'approved',
-                 PricingOrder.approved_at >= s, PricingOrder.approved_at < e))
-    return _sum_money(q, PricingOrder.pricing_total_amount, PricingOrder.currency)
+    return _sum_money(_q_sales(user, s, e, 'channel'),
+                      PricingOrder.pricing_total_amount, PricingOrder.currency)
 
 
 def _act_channel_implant(user, s, e):
     """渠道植入额:渠道项目(report_source=channel + 厂商销售负责人为本人)中有确认过的报价
-       (confirmed_by 留痕)的植入额之和。2026-07-03 归属口径由全渠道改为按厂商负责人。"""
-    from app import db
+       的植入额之和(2026-07-03 归属口径由全渠道改为按厂商负责人;口径见 _q_implant)。"""
     from app.models.quotation import Quotation
-    from app.models.project import Project
-    q = (db.session.query(Quotation)
-         .join(Project, Project.id == Quotation.project_id)
-         .filter(*_channel_project_filter(user),
-                 Quotation.confirmed_by.isnot(None),
-                 Quotation.created_at >= s, Quotation.created_at < e))
-    return _sum_money(q, Quotation.implant_total_amount, Quotation.currency)
+    return _sum_money(_q_implant(user, s, e, 'channel'),
+                      Quotation.implant_total_amount, Quotation.currency)
 
 
 def _act_channel_new_projects(user, s, e):
@@ -1264,18 +1272,34 @@ _SE_IMPLANT_DETAIL_SQL = "WITH " + _SE_SCOPE_CTE + """
 """
 
 
+def _unit_display(kind='amount'):
+    """与绩效表格「单位」列**逐字一致**的单位串。
+
+    口径来源:app/views/performance_config.py:1458-1461(那里是表格的单位来源)——
+      金额 = 币种符号 + 量级,CN「¥万」/ SG「$M」(带符号,去掉 CNY 的「元」冗余)
+      计数 = Config.COUNT_UNIT「个」/「pcs」
+    **与界面语言解耦**(绩效模块既定约定,见 get_performance_unit_config docstring)。
+    早先误用 currency_helpers.get_amount_unit(),英文界面会返回「0K」;后来改用
+    Config.AMOUNT_UNIT 得到「万元」,又与表格的「¥万」对不上 —— 现按表格为准。
+    """
+    from config import Config
+    if kind == 'count':
+        return Config.COUNT_UNIT
+    mag = '万' if Config.DEFAULT_CURRENCY == 'CNY' else Config.AMOUNT_UNIT
+    return f"{Config.CURRENCY_SYMBOL}{mag}"
+
+
 def _fmt_amount(v):
-    """基础币种金额 → 与绩效表格单元格同口径的展示串(如「¥1,832.89」)。
+    """缩放后的金额数字,**不带货币符号**(如「1,832.89」)。
 
     两条约束:
     ① **必须 2 位小数**:表格单元格用 fmt=Math.round(v*100)/100 显示(如 1832.89),
        下钻合计要能与用户刚点的数字逐位对上,否则会被当成两个数。
-    ② **不拼单位**:表格的「单位」是独立一列,数字格是纯数字。而且 get_amount_unit()
-       在英文语境返回 '0K',拼上去会得到「¥1,832.890K」这种废串。单位单独给。
+    ② **不带符号也不拼单位**:表格是「数字格 + 独立单位列」,单位串本身已含 ¥
+       (「¥万」),这里再带符号会得到「¥1,832.89 ¥万」。
     """
     from config import Config
-    from app.utils.currency_helpers import get_currency_symbol
-    return f"{get_currency_symbol()}{v / float(Config.AMOUNT_DIVISOR):,.2f}"
+    return f"{v / float(Config.AMOUNT_DIVISOR):,.2f}"
 
 
 def _fmt_amount_raw(v):
@@ -1339,13 +1363,14 @@ def _detail_se_implant(user, s, e):
     from config import Config
     return {
         'title': _g('方案植入额'),
+        'kind': 'amount',
         'total': total,
         # 单位单独给,前端小字附在数字后。**必须用 Config.AMOUNT_UNIT,不能用
         # currency_helpers.get_amount_unit()** —— 后者会按界面语言把「万元」换成「0K」,
         # 而绩效模块的既定约定是「单位由数据库类型决定,与语言解耦」
         # (见 performance_config.get_performance_unit_config 的 docstring),
         # 表格的单位列走的就是 Config.AMOUNT_UNIT。用错会出现表格「万元」/弹层「0K」。
-        'unit': Config.AMOUNT_UNIT,
+        'unit': _unit_display('amount'),
         'total_display': _fmt_amount(total),
         'total_raw_display': _fmt_amount_raw(total),
         'meta': _g('%(p)d 个项目 · %(q)d 张报价单 · %(r)d 行',
@@ -1363,8 +1388,20 @@ _KPI_DETAIL_FNS = {
 
 
 def has_actual_detail(code):
-    """该 KPI 是否支持下钻(供前端决定要不要给单元格加可点样式)。"""
-    return code in _KPI_DETAIL_FNS
+    """该 KPI 是否支持下钻(供前端决定要不要给单元格加可点样式)。
+
+    必须走 _MERGE_ALIAS 解析:绩效表格里「销售额」这一行的 item_code 是 **sales_target**
+    (定义表口径),而采集器/明细注册用的是 sales_amount(看板口径)。不解析就会出现
+    「注册表里有 sales_amount,李华伟的销售额却点不开」。
+    """
+    return _MERGE_ALIAS.get(code, code) in _KPI_DETAIL_FNS
+
+
+def detail_supported_codes():
+    """下发给前端的可下钻 code 清单 —— 含别名,使表格 item_code 能直接命中。"""
+    codes = set(_KPI_DETAIL_FNS)
+    codes |= {alias for alias, real in _MERGE_ALIAS.items() if real in _KPI_DETAIL_FNS}
+    return sorted(codes)
 
 
 def get_actual_detail(user, code, s, e):
@@ -1373,6 +1410,7 @@ def get_actual_detail(user, code, s, e):
     返回统一信封 {title,total,total_display,meta,basis,groups[]},
     groups 可递归含 children / rows,前端组件对结构无假设。
     """
+    code = _MERGE_ALIAS.get(code, code)        # sales_target → sales_amount
     fn = _KPI_DETAIL_FNS.get(code)
     if not fn:
         return None
@@ -1395,12 +1433,466 @@ def get_actual_detail(user, code, s, e):
         if bd.get('has_peer'):
             merged = float(bd.get('merged') or 0)
             peer = merged - local
+            # 计数类与金额类的展示格式不同(「4 个」vs「¥560.13」),按信封声明的 kind 走
+            _kind = d.get('kind')
+            _f = (lambda v: f'{round(v)}') if _kind == 'count' \
+                else (lambda v: f'{round(v, 1)}') if _kind == 'rate' \
+                else _fmt_amount
             d['has_peer'] = True
             d['local_display'] = d['total_display']          # 本端(有明细)
-            d['peer_display'] = _fmt_amount(peer)            # 对端(无明细)
+            d['peer_display'] = _f(peer)                     # 对端(无明细)
             d['total'] = merged
-            d['total_display'] = _fmt_amount(merged)         # 合计对齐单元格
+            d['total_display'] = _f(merged)
             d['peer_note'] = _g('对端实例合并,明细需在对端系统查看')
     except Exception as _e:
         logger.warning('[kpi_detail] %s 自检/合并信息获取失败: %s', code, _e)
     return d
+
+
+# ── 合格新客户 / 新项目 的下钻 ──────────────────────────────────────────
+# 这类指标 HR 最无从自证:「建了 10 个客户为什么只算 6 个」的答案全藏在
+# _qualified_customer_filters / _qualified_project_filters 的硬性条件里。
+# 所以本组 provider 不只列合格项,更要列【未达标项 + 每个缺哪一条】——
+# 让核查工具同时变成销售的整改清单。
+#
+# 窗口口径与采集器一致:合格按 qualified_at(达标盖戳,冻结历史)落窗口;
+# 未达标项没有 qualified_at,改按 created_at 落窗口(= 本期新建但还没达标的)。
+
+def _fmt_dt(v):
+    return v.strftime('%Y-%m-%d') if v else '—'
+
+
+def _detail_new_customers(scope):
+    """scope(user) -> (SQL 片段, 参数)。返回合格 + 未达标(带缺项)两组。"""
+    def _fn(user, s, e):
+        from sqlalchemy import text
+        from app import db
+        from flask_babel import gettext as _g
+        where, params = scope(user)
+        params.update({'s': s, 'e': e})
+        rows = db.session.execute(text(f"""
+            SELECT c.id, c.company_name, c.created_at, c.qualified_at,
+                   (c.address      IS NOT NULL AND btrim(c.address)      <> '') AS has_addr,
+                   (c.company_type IS NOT NULL AND btrim(c.company_type) <> '') AS has_type,
+                   (c.company_name IS NOT NULL AND btrim(c.company_name) <> '') AS has_name,
+                   EXISTS (SELECT 1 FROM contacts ct WHERE ct.company_id = c.id) AS has_contact,
+                   (SELECT count(*) FROM actions a WHERE a.company_id = c.id)    AS act_cnt
+            FROM companies c
+            WHERE c.is_deleted = false AND ({where})
+              AND ( (c.qualified_at >= :s AND c.qualified_at < :e)
+                 OR (c.qualified_at IS NULL AND c.created_at >= :s AND c.created_at < :e) )
+            ORDER BY c.qualified_at NULLS LAST, c.created_at
+        """), params).fetchall()
+
+        ok, bad = [], []
+        for r in rows:
+            if r.qualified_at:
+                ok.append({'name': r.company_name or f'#{r.id}',
+                           'sub': _g('达标 %(d)s', d=_fmt_dt(r.qualified_at)),
+                           'value_display': ''})
+            else:
+                miss = []
+                if not r.has_name:    miss.append(_g('客户名称'))
+                if not r.has_addr:    miss.append(_g('地址'))
+                if not r.has_type:    miss.append(_g('客户类型'))
+                if not r.has_contact: miss.append(_g('联系人'))
+                if (r.act_cnt or 0) < 1: miss.append(_g('跟进记录'))
+                bad.append({'name': r.company_name or f'#{r.id}',
+                            'sub': _g('缺:') + '、'.join(miss) if miss else _g('待盖戳'),
+                            'value_display': ''})
+        return _count_envelope(
+            _g('合格新客户'), ok, bad,
+            _g('合格 = 名称/地址/客户类型齐全 + ≥1 联系人 + ≥1 条跟进记录;'
+               '按首次达标时间计入当期,达标后不因资料变动回溯'))
+    return _fn
+
+
+def _detail_new_projects(scope):
+    def _fn(user, s, e):
+        from sqlalchemy import text
+        from app import db
+        from flask_babel import gettext as _g
+        where, params = scope(user)
+        params.update({'s': s, 'e': e})
+        rows = db.session.execute(text(f"""
+            SELECT p.id, p.project_name, p.created_at, p.qualified_at,
+                   (p.authorization_code IS NOT NULL AND btrim(p.authorization_code) <> '') AS has_auth,
+                   EXISTS (SELECT 1 FROM actions a WHERE a.project_id = p.id) AS has_act,
+                   EXISTS (SELECT 1 FROM project_customer_associations pca
+                            WHERE pca.project_id = p.id) AS has_cust,
+                   EXISTS (SELECT 1 FROM quotations q WHERE q.project_id = p.id) AS has_quo
+            FROM projects p
+            WHERE p.is_deleted = false AND ({where})
+              AND ( (p.qualified_at >= :s AND p.qualified_at < :e)
+                 OR (p.qualified_at IS NULL AND p.created_at >= :s AND p.created_at < :e) )
+            ORDER BY p.qualified_at NULLS LAST, p.created_at
+        """), params).fetchall()
+
+        ok, bad = [], []
+        for r in rows:
+            if r.qualified_at:
+                ok.append({'name': r.project_name or f'#{r.id}',
+                           'sub': _g('达标 %(d)s', d=_fmt_dt(r.qualified_at)),
+                           'value_display': ''})
+            else:
+                miss = []
+                if not r.has_auth: miss.append(_g('报备授权编号'))
+                if not r.has_act:  miss.append(_g('跟进记录'))
+                if not r.has_cust: miss.append(_g('关联客户'))
+                if not r.has_quo:  miss.append(_g('报价单'))
+                bad.append({'name': r.project_name or f'#{r.id}',
+                            'sub': _g('缺:') + '、'.join(miss) if miss else _g('待盖戳'),
+                            'value_display': ''})
+        return _count_envelope(
+            _g('合格新项目'), ok, bad,
+            _g('合格 = 报备通过(有授权编号) + ≥1 条跟进 + ≥1 个关联客户 + ≥1 张报价单;'
+               '按首次达标时间计入当期,达标后不因资料变动回溯'))
+    return _fn
+
+
+def _count_envelope(title, ok, bad, basis):
+    """计数类信封:合格组(计入) + 未达标组(不计入,带缺项)。"""
+    from flask_babel import gettext as _g
+    groups = []
+    if ok:
+        groups.append({'label': _g('已达标 · 计入本期'), 'value': len(ok),
+                       'value_display': f'{len(ok)} {_unit_display("count")}', 'rows': ok})
+    if bad:
+        groups.append({'label': _g('未达标 · 不计入'), 'value': len(bad),
+                       'value_display': f'{len(bad)} {_unit_display("count")}',
+                       'tone': 'warn', 'rows': bad})
+    return {
+        'title': title,
+        'kind': 'count',
+        'total': float(len(ok)),
+        'total_display': str(len(ok)),
+        'unit': _unit_display('count'),
+        'meta': _g('本期新增 %(t)d 个,达标 %(o)d,未达标 %(b)d',
+                   t=len(ok) + len(bad), o=len(ok), b=len(bad)),
+        'basis': basis,
+        'groups': groups,
+    }
+
+
+def _scope_own_company(user):
+    return 'c.owner_id = :uid', {'uid': user.id}
+
+
+def _scope_team_company(user):
+    return 'c.owner_id = ANY(:uids)', {'uids': _dept_member_ids(user)}
+
+
+def _scope_own_project(user):
+    return 'p.owner_id = :uid', {'uid': user.id}
+
+
+def _scope_team_project(user):
+    return 'p.owner_id = ANY(:uids)', {'uids': _dept_member_ids(user)}
+
+
+def _scope_channel_project(user):
+    # 渠道项目归属看厂商销售负责人,不看 owner(代理商上报的项目 owner 常为他人)
+    return "p.report_source = 'channel' AND p.vendor_sales_manager_id = :uid", {'uid': user.id}
+
+
+_KPI_DETAIL_FNS.update({
+    'new_customers':          _detail_new_customers(_scope_own_company),
+    'team_new_customers':     _detail_new_customers(_scope_team_company),
+    'channel_new_customers':  _detail_new_customers(_scope_own_company),   # 渠道口径同个人
+    'new_projects':           _detail_new_projects(_scope_own_project),
+    'team_new_projects':      _detail_new_projects(_scope_team_project),
+    'channel_new_projects':   _detail_new_projects(_scope_channel_project),
+})
+
+
+# ── 销售额 / 植入额 的下钻(个人 / 团队 / 渠道)────────────────────────────
+# 明细与采集器共用 _q_sales / _q_implant 同一个 query builder,口径不可分叉。
+# 形态:项目 › 单据(批价单 / 报价单)。金额一律用元,顶部合计用万元(对齐绩效单元格)。
+
+def _group_by_project(recs, label_of, amount_of, currency_of, sub_of):
+    """把单据按项目归组。recs: [(project_name, 记录)];无项目的归到「(无关联项目)」。"""
+    from flask_babel import gettext as _g
+    buckets, total = {}, 0.0
+    for proj_name, r in recs:
+        amt = _conv_money(float(amount_of(r) or 0), currency_of(r))
+        total += amt
+        b = buckets.setdefault(proj_name or _g('(无关联项目)'), {'value': 0.0, 'rows': []})
+        b['value'] += amt
+        b['rows'].append({'name': label_of(r), 'sub': sub_of(r),
+                          'value': amt, 'value_display': _fmt_amount_raw(amt)})
+    groups = []
+    for name, b in sorted(buckets.items(), key=lambda kv: -kv[1]['value']):
+        g = {'label': name, 'value': b['value'],
+             'value_display': _fmt_amount_raw(b['value'])}
+        if len(b['rows']) == 1:
+            # 单据只有一张时不值得多点一次展开,单号降为副标题(与植入额明细同一取舍)
+            g['sub'] = b['rows'][0]['name']
+            g['rows'] = b['rows']
+        else:
+            g['rows'] = b['rows']
+        groups.append(g)
+    return groups, total
+
+
+def _amount_envelope(title, groups, total, meta, basis):
+    return {
+        'title': title, 'kind': 'amount',
+        'total': total,
+        'total_display': _fmt_amount(total),
+        'total_raw_display': _fmt_amount_raw(total),
+        'unit': _unit_display('amount'),
+        'meta': meta, 'basis': basis, 'groups': groups,
+    }
+
+
+def _detail_sales(scope, title_key, basis_key):
+    def _fn(user, s, e):
+        from flask_babel import gettext as _g
+        from app.models.pricing_order import PricingOrder
+        rows = (_q_sales(user, s, e, scope)
+                .order_by(PricingOrder.approved_at).all())
+        recs = [((po.project.project_name if po.project else None), po) for po in rows]
+        groups, total = _group_by_project(
+            recs,
+            label_of=lambda po: po.order_number or f'#{po.id}',
+            amount_of=lambda po: po.pricing_total_amount,
+            currency_of=lambda po: po.currency,
+            sub_of=lambda po: _g('批准 %(d)s', d=_fmt_dt(po.approved_at)))
+        return _amount_envelope(
+            _g(title_key), groups, total,
+            _g('%(p)d 个项目 · %(n)d 张批价单', p=len(groups), n=len(rows)),
+            _g(basis_key))
+    return _fn
+
+
+def _detail_implant(scope, title_key, basis_key):
+    def _fn(user, s, e):
+        from flask_babel import gettext as _g
+        from app.models.quotation import Quotation
+        rows = (_q_implant(user, s, e, scope)
+                .order_by(Quotation.created_at).all())
+        recs = [((q.project.project_name if q.project else None), q) for q in rows]
+        groups, total = _group_by_project(
+            recs,
+            label_of=lambda q: q.quotation_number or f'#{q.id}',
+            amount_of=lambda q: q.implant_total_amount,
+            currency_of=lambda q: q.currency,
+            sub_of=lambda q: _g('确认 %(d)s', d=_fmt_dt(q.confirmed_at)))
+        return _amount_envelope(
+            _g(title_key), groups, total,
+            _g('%(p)d 个项目 · %(n)d 张报价单', p=len(groups), n=len(rows)),
+            _g(basis_key))
+    return _fn
+
+
+_S_BASIS_OWN  = '归属:批价单创建人本人 · 仅已批准 · 按批准时间落期'
+_S_BASIS_TEAM = '归属:本部门成员创建的批价单 · 仅已批准 · 按批准时间落期'
+_S_BASIS_CHAN = '归属:渠道项目(报备来源=渠道)且厂商销售负责人为本人 · 仅已批准批价单'
+# 植入额与「方案植入额」同名不同义,basis 必须点破,否则 HR 对不上两个数
+_I_BASIS_OWN  = ('归属:项目拥有人本人(非报价创建人) · 仅计确认过的报价 · 按报价创建时间落期;'
+                 '与「方案植入额」口径不同,两者不可直接比较')
+_I_BASIS_TEAM = ('归属:项目拥有人 ∈ 本部门成员 · 仅计确认过的报价 · 按报价创建时间落期')
+_I_BASIS_CHAN = ('归属:渠道项目且厂商销售负责人为本人 · 仅计确认过的报价')
+
+_KPI_DETAIL_FNS.update({
+    'sales_amount':           _detail_sales('own',     '销售额',   _S_BASIS_OWN),
+    'team_sales_amount':      _detail_sales('team',    '团队销售额', _S_BASIS_TEAM),
+    'channel_sales_amount':   _detail_sales('channel', '渠道销售额', _S_BASIS_CHAN),
+    'implant_amount':         _detail_implant('own',     '植入额',   _I_BASIS_OWN),
+    'team_implant_amount':    _detail_implant('team',    '团队植入额', _I_BASIS_TEAM),
+    'channel_implant_amount': _detail_implant('channel', '渠道植入额', _I_BASIS_CHAN),
+})
+
+
+# ── 活跃度类(率)的下钻 ──────────────────────────────────────────────────
+# 率类 = 分子/分母。明细的价值全在【不计入分子的那部分】—— 哪些客户睡了、
+# 哪些项目拖了多久。所以按状态分组,达标组折叠、拖后腿的组标警示色并列出天数。
+#
+# ⚠️ 这三项都是【快照型】:采集器完全不看 s/e(见各 _act_* 实现),点 Q1 和点 Q3
+# 得到的是同一份当前状态。basis 必须写明,否则 HR 会以为各季度应该不同。
+
+_CUST_ACTIVE = ('highly_active', 'active', 'normal')     # 计入分子的客户状态
+_PROJ_STALE_DAYS = 20                                    # 项目跟进超期阈值(与待办提醒同口径)
+
+
+def _rate_envelope(title, num, den, groups, basis, meta_extra=''):
+    from flask_babel import gettext as _g
+    pct = round(num / den * 100, 1) if den else 100.0
+    meta = _g('分母 %(d)d · 计入 %(n)d', d=den, n=num)
+    return {
+        'title': title, 'kind': 'rate',
+        'total': pct,
+        'total_display': f'{pct}',
+        'unit': '%',
+        'meta': meta + (' · ' + meta_extra if meta_extra else ''),
+        'basis': basis, 'groups': groups,
+    }
+
+
+def _detail_customer_activity(scope_filters):
+    def _fn(user, s, e):
+        from flask_babel import gettext as _g
+        from sqlalchemy import func
+        from app import db
+        from app.models.customer import Company
+        from app.models.action import Action
+        rows = (Company.query.filter(Company.is_deleted == False,   # noqa: E712
+                                     *scope_filters(user)).all())
+        den = len(rows)
+        num = sum(1 for c in rows if c.status in _CUST_ACTIVE)
+        # 最后跟进日:让「为什么睡了」可执行
+        last = {}
+        if rows:
+            ids = [c.id for c in rows]
+            last = dict(db.session.query(Action.company_id, func.max(Action.date))
+                        .filter(Action.company_id.in_(ids)).group_by(Action.company_id).all())
+        from datetime import date as _date
+        today = _date.today()
+
+        buckets = {}
+        for c in rows:
+            buckets.setdefault(c.status or 'unknown', []).append(c)
+        order = list(_CUST_ACTIVE) + sorted(k for k in buckets if k not in _CUST_ACTIVE)
+        groups = []
+        for st in order:
+            lst = buckets.get(st)
+            if not lst:
+                continue
+            rws = []
+            for c in sorted(lst, key=lambda x: (last.get(x.id) or _date.min)):
+                ld = last.get(c.id)
+                rws.append({'name': c.company_name or f'#{c.id}',
+                            'sub': (_g('最后跟进 %(d)s · %(n)d 天前',
+                                       d=ld.isoformat(), n=(today - ld).days)
+                                    if ld else _g('从无跟进记录')),
+                            'value_display': ''})
+            g = {'label': _company_status_label(st), 'value': len(lst),
+                 'value_display': f'{len(lst)} {_unit_display("count")}', 'rows': rws}
+            if st not in _CUST_ACTIVE:
+                g['tone'] = 'warn'          # 不计入分子 = 拖后腿的,标警示色
+            groups.append(g)
+        return _rate_envelope(
+            _g('客户活跃度'), num, den, groups,
+            _g('活跃度 = 状态为「高度活跃/活跃/正常」的客户数 ÷ 名下客户总数;'
+               '状态由每日 01:00 跑批按跟进新鲜度维护。'
+               '【快照型指标】反映当前状态,与所选季度无关,各期数值相同'))
+    return _fn
+
+
+def _company_status_label(st):
+    """客户活跃状态中文名 —— 复用 activity_tracker.ACTIVITY_STATUS 这份权威映射,
+    不自己维护第二份(实际取值是 churned/to_follow/dormant,与直觉的 lost/pending 不同)。"""
+    from flask_babel import gettext as _g
+    from app.utils.activity_tracker import ACTIVITY_STATUS
+    if st in ACTIVITY_STATUS:
+        return _g(ACTIVITY_STATUS[st])
+    return _g('未标记') if st in (None, '', 'unknown') else st
+
+
+def _detail_project_activity(proj_query):
+    def _fn(user, s, e):
+        from flask_babel import gettext as _g
+        from sqlalchemy import func
+        from datetime import datetime as _dt, date as _date
+        from app import db
+        from app.models.action import Action
+        from app.models.projectpm_stage_history import ProjectStageHistory
+        projs = proj_query(user)
+        den = len(projs)
+        if not den:
+            return _rate_envelope(_g('项目活跃度'), 0, 0, [], _PROJ_ACT_BASIS())
+        pids = [p.id for p in projs]
+        last_act = dict(db.session.query(Action.project_id, func.max(Action.date))
+                        .filter(Action.project_id.in_(pids)).group_by(Action.project_id).all())
+        no_act = [pid for pid in pids if pid not in last_act]
+        since = {}
+        if no_act:
+            since = dict(db.session.query(ProjectStageHistory.project_id,
+                                          func.max(ProjectStageHistory.change_date))
+                         .filter(ProjectStageHistory.project_id.in_(no_act))
+                         .group_by(ProjectStageHistory.project_id).all())
+        today, now = _date.today(), _dt.now()
+        fresh, stale = [], []
+        for p in projs:
+            ld = last_act.get(p.id)
+            if ld:
+                days = (today - ld).days
+                sub = _g('最后跟进 %(d)s · %(n)d 天前', d=ld.isoformat(), n=days)
+            else:
+                b = since.get(p.id) or p.created_at
+                days = (now - b).days if b else 0
+                sub = _g('从无跟进 · 建档/推进后 %(n)d 天', n=days)
+            row = {'name': p.project_name or f'#{p.id}', 'sub': sub,
+                   'value': days, 'value_display': ''}
+            (stale if days >= _PROJ_STALE_DAYS else fresh).append(row)
+        num = len(fresh)
+        groups = []
+        if fresh:
+            groups.append({'label': _g('跟进及时 · 计入'), 'value': len(fresh),
+                           'value_display': f'{len(fresh)} {_unit_display("count")}',
+                           'rows': sorted(fresh, key=lambda r: -r['value'])})
+        if stale:
+            groups.append({'label': _g('超期未跟进 · 不计入'), 'value': len(stale),
+                           'value_display': f'{len(stale)} {_unit_display("count")}',
+                           'tone': 'warn',
+                           'rows': sorted(stale, key=lambda r: -r['value'])})
+        worst = max((r['value'] for r in stale), default=0)
+        return _rate_envelope(
+            _g('项目活跃度'), num, den, groups, _PROJ_ACT_BASIS(),
+            _g('最久 %(n)d 天未跟进', n=worst) if worst else '')
+    return _fn
+
+
+def _PROJ_ACT_BASIS():
+    from flask_babel import gettext as _g
+    return _g('活跃度 = 最后跟进 <20 天的项目数 ÷ 在跟项目数(已排除 签约/暂停/失败);'
+              '无跟进记录的按建档或最近阶段推进时间起算。'
+              '【快照型指标】反映当前状态,与所选季度无关,各期数值相同')
+
+
+def _cust_scope_own(user):
+    from app.models.customer import Company
+    return [Company.owner_id == user.id]
+
+
+def _cust_scope_team(user):
+    from app.models.customer import Company
+    return [Company.owner_id.in_(_dept_member_ids(user))]
+
+
+def _proj_q_own(user):
+    from sqlalchemy import or_
+    from app.models.project import Project
+    return Project.query.filter(
+        Project.is_deleted == False,                       # noqa: E712
+        ~Project.current_stage.in_(('signed', 'paused', 'lost')),
+        or_(Project.owner_id == user.id,
+            Project.vendor_sales_manager_id == user.id)).all()
+
+
+def _proj_q_team(user):
+    from sqlalchemy import or_
+    from app.models.project import Project
+    ids = _dept_member_ids(user)
+    return Project.query.filter(
+        Project.is_deleted == False,                       # noqa: E712
+        ~Project.current_stage.in_(('signed', 'paused', 'lost')),
+        or_(Project.owner_id.in_(ids),
+            Project.vendor_sales_manager_id.in_(ids))).all()
+
+
+def _proj_q_channel(user):
+    from app.models.project import Project
+    return Project.query.filter(
+        *_channel_project_filter(user),
+        ~Project.current_stage.in_(('signed', 'paused', 'lost'))).all()
+
+
+_KPI_DETAIL_FNS.update({
+    'customer_activity_rate':         _detail_customer_activity(_cust_scope_own),
+    'team_customer_activity_rate':    _detail_customer_activity(_cust_scope_team),
+    'channel_customer_activity_rate': _detail_customer_activity(_cust_scope_own),  # 渠道口径同个人
+    'project_activity_rate':          _detail_project_activity(_proj_q_own),
+    'team_project_activity_rate':     _detail_project_activity(_proj_q_team),
+    'channel_project_activity_rate':  _detail_project_activity(_proj_q_channel),
+})

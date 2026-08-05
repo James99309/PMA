@@ -99,5 +99,10 @@
     #{{ modal_id }} .kd-row .mn { font-size:10.5px;color:var(--ink-4);flex-shrink:0; }
     #{{ modal_id }} .kd-row .qt { font-size:11px;color:var(--ink-4);flex-shrink:0; }
     #{{ modal_id }} .kd-row .vl { flex-shrink:0;min-width:92px;text-align:right; }
+    /* 未达标组(不计入本期):标题与计数转警示色;明细行的「缺:xxx」也着色 —— 这组是
+       整改清单,不是成绩单,视觉上必须和「已达标」一眼分开 */
+    #{{ modal_id }} .kd-g.kd-warn .kd-gh { color:var(--warn); }
+    #{{ modal_id }} .kd-g.kd-warn .kd-gv { color:var(--warn); }
+    #{{ modal_id }} .kd-g.kd-warn .kd-row .mn { color:var(--warn); }
   </style>
 {% endmacro %}

@@ -3114,7 +3114,7 @@ def at_person_performance():
                           PerformanceMetricsDefinition.metric_code.in_(_MANUAL)).all()]
 
     from app.utils.dictionary_helpers import get_default_currency, get_currency_symbol
-    from app.services.kpi_actual_service import _KPI_DETAIL_FNS
+    from app.services.kpi_actual_service import detail_supported_codes
     return render_template('user/at_person_performance.html',
                            users_data=users_data,
                            companies=companies,
@@ -3125,7 +3125,7 @@ def at_person_performance():
                            approver_mode=(not _has_cfg),  # 审批人进入:仅审批,隐藏切换/其他 tab
                            currency_symbol=get_currency_symbol(get_default_currency()),  # 结算金额按实例币种显示
                            # 支持「实际值下钻明细」的 KPI:清单由后端注册表下发,前端不硬编码
-                           kpi_detail_codes=list(_KPI_DETAIL_FNS.keys()),
+                           kpi_detail_codes=detail_supported_codes(),
                            can_edit=current_user.has_permission('config_management', 'edit'))
 
 

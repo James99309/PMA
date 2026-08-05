@@ -2883,35 +2883,50 @@ def api_user_actuals(user_id, year):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@performance_config_bp.route('/api/user/<int:user_id>/actual-detail/<int:year>/<int:quarter>')
+@performance_config_bp.route('/api/user/<int:user_id>/actual-detail/<int:year>/<gran>/<int:idx>')
 @login_required
-def api_user_actual_detail(user_id, year, quarter):
+def api_user_actual_detail(user_id, year, gran, idx):
     """KPI 实际值下钻明细 —— 回答「这个数字是怎么来的」。
 
-    薄壳:鉴权 + 换算期间窗口,计算全在 kpi_actual_service(与总额同源 CTE)。
+    gran/idx:'q'/1-4(季)、'm'/1-12(月)、'y'/0(年)。**必须支持月**:考核项的
+    季/月粒度是每人可配的(李华伟的植入额就是月考),只做季会让月考行点不开。
+    薄壳:鉴权 + 换算期间窗口,计算全在 kpi_actual_service(与总额同源查询)。
     未注册下钻的 code 返回 404,前端据此不显示入口。
     """
     if not _can_read_person_perf(user_id, year):
         return jsonify({'success': False, 'message': '无权限'}), 403
-    if quarter not in (1, 2, 3, 4):
-        return jsonify({'success': False, 'message': '季度无效'}), 400
     try:
+        # 窗口口径与 api_user_actuals 完全一致(左闭右开),否则明细与单元格对不上
+        if gran == 'q':
+            if idx not in (1, 2, 3, 4):
+                return jsonify({'success': False, 'message': '季度无效'}), 400
+            sm = (idx - 1) * 3 + 1
+            s = datetime(year, sm, 1)
+            e = datetime(year + 1, 1, 1) if idx == 4 else datetime(year, sm + 3, 1)
+            period = f'{year} Q{idx}'
+        elif gran == 'm':
+            if not 1 <= idx <= 12:
+                return jsonify({'success': False, 'message': '月份无效'}), 400
+            s = datetime(year, idx, 1)
+            e = datetime(year + 1, 1, 1) if idx == 12 else datetime(year, idx + 1, 1)
+            period = f'{year}-{idx:02d}'
+        elif gran == 'y':
+            s, e = datetime(year, 1, 1), datetime(year + 1, 1, 1)
+            period = str(year)
+        else:
+            return jsonify({'success': False, 'message': '粒度无效'}), 400
+
         user = User.query.get(user_id)
         if not user:
             return jsonify({'success': False, 'message': '用户不存在'}), 404
 
         from app.services.kpi_actual_service import get_actual_detail
-        # 窗口口径与 api_user_actuals 完全一致(季度左闭右开)
-        sm = (quarter - 1) * 3 + 1
-        s = datetime(year, sm, 1)
-        e = datetime(year + 1, 1, 1) if quarter == 4 else datetime(year, sm + 3, 1)
-
         code = (request.args.get('code') or '').strip()
         data = get_actual_detail(user, code, s, e)
         if data is None:
             return jsonify({'success': False, 'message': '该指标暂不支持明细'}), 404
 
-        data['period'] = f'{year} Q{quarter}'
+        data['period'] = period
         data['person'] = user.real_name or user.username
         return jsonify({'success': True, 'data': data})
     except Exception as e:

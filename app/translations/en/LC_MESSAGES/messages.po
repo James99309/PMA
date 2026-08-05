@@ -37968,3 +37968,96 @@ msgstr "Files"
 msgid "退出全屏"
 msgstr "Exit fullscreen"
 
+
+msgid "缺:"
+msgstr "Missing: "
+
+msgid "报备授权编号"
+msgstr "Authorization Code"
+
+msgid "已达标 · 计入本期"
+msgstr "Qualified · counted this period"
+
+msgid "未达标 · 不计入"
+msgstr "Not qualified · excluded"
+
+msgid "合格新客户"
+msgstr "Qualified New Customers"
+
+msgid "合格新项目"
+msgstr "Qualified New Projects"
+
+msgid "待盖戳"
+msgstr "Pending stamp"
+
+msgid "(未命名项目)"
+msgstr "(Unnamed project)"
+
+msgid "对端实例合并,明细需在对端系统查看"
+msgstr "Merged from peer instance — view its detail in the peer system"
+
+msgid "达标 %(d)s"
+msgstr "Qualified %(d)s"
+
+msgid "%(n)d 个"
+msgstr "%(n)d"
+
+msgid "%(p)d 个项目 · %(q)d 张报价单 · %(r)d 行"
+msgstr "%(p)d projects · %(q)d quotations · %(r)d lines"
+
+msgid "本期新增 %(t)d 个,达标 %(o)d,未达标 %(b)d"
+msgstr "%(t)d added this period — %(o)d qualified, %(b)d not"
+
+msgid "归属:项目配合主方 · 仅厂商产品 · 市场价 × 数量 · 期内全部报价单"
+msgstr "Attribution: primary collaborating SE · vendor products only · market price x qty · all quotations in period"
+
+msgid "合格 = 名称/地址/客户类型齐全 + ≥1 联系人 + ≥1 条跟进记录;按首次达标时间计入当期,达标后不因资料变动回溯"
+msgstr "Qualified = name/address/type complete + >=1 contact + >=1 activity; counted at first-qualified time, never recalculated afterwards"
+
+msgid "合格 = 报备通过(有授权编号) + ≥1 条跟进 + ≥1 个关联客户 + ≥1 张报价单;按首次达标时间计入当期,达标后不因资料变动回溯"
+msgstr "Qualified = registered (has authorization code) + >=1 activity + >=1 linked customer + >=1 quotation; counted at first-qualified time, never recalculated afterwards"
+
+msgid "团队销售额"
+msgstr "Team Sales Amount"
+
+msgid "渠道销售额"
+msgstr "Channel Sales Amount"
+
+msgid "团队植入额"
+msgstr "Team Implant Amount"
+
+msgid "渠道植入额"
+msgstr "Channel Implant Amount"
+
+msgid "(无关联项目)"
+msgstr "(No linked project)"
+
+msgid "批准 %(d)s"
+msgstr "Approved %(d)s"
+
+msgid "确认 %(d)s"
+msgstr "Confirmed %(d)s"
+
+msgid "%(p)d 个项目 · %(n)d 张批价单"
+msgstr "%(p)d projects · %(n)d pricing orders"
+
+msgid "%(p)d 个项目 · %(n)d 张报价单"
+msgstr "%(p)d projects · %(n)d quotations"
+
+msgid "归属:批价单创建人本人 · 仅已批准 · 按批准时间落期"
+msgstr "Attribution: pricing orders you created · approved only · counted at approval time"
+
+msgid "归属:本部门成员创建的批价单 · 仅已批准 · 按批准时间落期"
+msgstr "Attribution: pricing orders created by your department · approved only · counted at approval time"
+
+msgid "归属:渠道项目(报备来源=渠道)且厂商销售负责人为本人 · 仅已批准批价单"
+msgstr "Attribution: channel-sourced projects where you are the vendor sales owner · approved pricing orders only"
+
+msgid "归属:项目拥有人本人(非报价创建人) · 仅计确认过的报价 · 按报价创建时间落期;与「方案植入额」口径不同,两者不可直接比较"
+msgstr "Attribution: projects you own (not the quotation author) · confirmed quotations only · counted at quotation creation time; this differs from Solution Implant Amount — the two are not directly comparable"
+
+msgid "归属:项目拥有人 ∈ 本部门成员 · 仅计确认过的报价 · 按报价创建时间落期"
+msgstr "Attribution: projects owned by your department members · confirmed quotations only · counted at quotation creation time"
+
+msgid "归属:渠道项目且厂商销售负责人为本人 · 仅计确认过的报价"
+msgstr "Attribution: channel projects where you are the vendor sales owner · confirmed quotations only"
