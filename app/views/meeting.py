@@ -25,6 +25,7 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.customer import Company
 from app.utils.access_control import get_viewable_data
+from app.services.claude_vision_ocr import first_text
 
 logger = logging.getLogger(__name__)
 
@@ -1168,7 +1169,7 @@ def api_realtime_translate(recording_id):
                     ],
                     messages=[{'role': 'user', 'content': user_msg}],
                 )
-                translation_text = (ant_resp.content[0].text or '').strip()
+                translation_text = first_text(ant_resp).strip()
             except Exception as e:
                 # Claude 失败兜底回 OpenAI（实时翻译不能中断）
                 current_app.logger.warning(f"[realtime-translate] Claude 翻译失败，兜底 OpenAI: {e}")
@@ -1523,7 +1524,7 @@ def api_translate_segments(recording_id):
                 ],
                 messages=[{'role': 'user', 'content': user_msg}],
             )
-            raw = (resp.content[0].text or '').strip()
+            raw = first_text(resp).strip()
             if raw.startswith('```'):
                 raw = raw.split('```', 2)[1]
                 if raw.startswith('json'):
@@ -1622,7 +1623,7 @@ def api_translate_minutes(recording_id):
             ],
             messages=[{'role': 'user', 'content': user_msg}],
         )
-        raw = (resp.content[0].text or '').strip()
+        raw = first_text(resp).strip()
         if raw.startswith('```'):
             raw = raw.split('```', 2)[1]
             if raw.startswith('json'):
@@ -1877,7 +1878,7 @@ def api_ai_chat(recording_id):
                 ],
                 messages=messages,
             )
-            answer = resp.content[0].text.strip()
+            answer = first_text(resp).strip()
         return jsonify({'success': True, 'answer': answer})
     except Exception as e:
         logger.error(f'AI chat 失败 recording={recording_id}: {e}', exc_info=True)

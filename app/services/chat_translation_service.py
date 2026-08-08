@@ -8,6 +8,7 @@ import os
 import logging
 
 import anthropic
+from app.services.claude_vision_ocr import first_text
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def _translate_with_claude(text, source_lang, target_lang):
                 ),
             }],
         )
-        return message.content[0].text.strip() or None
+        return first_text(message).strip() or None
     except anthropic.APIStatusError as e:
         logger.error(f'Claude 翻译 API 错误: {e.status_code}')
         return None

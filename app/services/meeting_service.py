@@ -22,6 +22,7 @@ import hashlib
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple, Any
 from flask import current_app
+from app.services.claude_vision_ocr import first_text
 
 logger = logging.getLogger(__name__)
 
@@ -692,7 +693,7 @@ class MeetingService:
                     ]
                 )
                 # 解析响应
-                content = response.content[0].text
+                content = first_text(response)
                 result = json.loads(content)
                 return result.get('speakers', [])
 
@@ -1023,7 +1024,7 @@ class MeetingService:
                     {"role": "user", "content": prompt}
                 ]
             )
-            content = response.content[0].text
+            content = first_text(response)
 
             # 尝试提取 JSON
             try:
@@ -1275,7 +1276,7 @@ class MeetingService:
                     ],
                     messages=[{'role': 'user', 'content': user_msg}],
                 )
-                raw = (resp.content[0].text or '').strip()
+                raw = first_text(resp).strip()
                 # 容错剥离 ```json ... ```
                 if raw.startswith('```'):
                     raw = raw.split('```', 2)[1]

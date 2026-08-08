@@ -189,7 +189,7 @@ def _ai_analysis(ctx, lang):
         import os, json
         if not os.environ.get('ANTHROPIC_API_KEY'):
             return _rule()
-        from app.services.claude_vision_ocr import get_client
+        from app.services.claude_vision_ocr import get_client, first_text
         # 精简喂给 AI 的事实(只给诊断结论,不给原始库)
         facts = {'score': ctx.get('total_score'),
                  'under_target': [{'name': it['name'], 'target': it['target'], 'actual': it['actual'], 'rate': it['rate']} for it in under],
@@ -206,7 +206,7 @@ def _ai_analysis(ctx, lang):
             system=(sys_en if lang == 'en' else sys_zh),
             messages=[{'role': 'user', 'content': json.dumps(facts, ensure_ascii=False)}],
         )
-        raw = (msg.content[0].text if msg.content else '').strip()
+        raw = first_text(msg).strip()
         raw = raw.strip('`').lstrip('json').strip()
         arr = json.loads(raw)
         pts = [str(x).strip() for x in arr if str(x).strip()]

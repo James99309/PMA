@@ -1240,7 +1240,7 @@ def generate_daily_draft(user, target_date):
     无 key → 503;无数据 → 400;调用失败 → 502。返回草稿文本。"""
     import os
     import anthropic
-    from app.services.claude_vision_ocr import get_client
+    from app.services.claude_vision_ocr import get_client, first_text
     try:
         from app.utils.i18n import get_current_language
         lang = get_current_language()
@@ -1299,7 +1299,7 @@ def generate_daily_draft(user, target_date):
             model=model, max_tokens=1200, system=system,
             messages=[{'role': 'user', 'content': data_block}],
         )
-        text = (msg.content[0].text if msg.content else '').strip()
+        text = first_text(msg).strip()
         if not text:
             raise WorklogItemError(_('AI 生成失败,请稍后重试或手动填写'), 502)
         return text

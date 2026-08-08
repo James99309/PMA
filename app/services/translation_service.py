@@ -13,7 +13,7 @@ import re
 import logging
 
 import anthropic
-from app.services.claude_vision_ocr import get_client, detect_prefer_lang
+from app.services.claude_vision_ocr import get_client, detect_prefer_lang, first_text
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ def translate_to(text: str, target_lang: str) -> str:
             system=system,
             messages=[{'role': 'user', 'content': src[:1000]}],
         )
-        out = (msg.content[0].text if msg.content else '').strip()
+        out = first_text(msg).strip()
         out = out.strip('"\'\n').strip()
         return out or text
     except anthropic.APIStatusError as e:

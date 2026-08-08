@@ -11,7 +11,7 @@ import os
 import logging
 
 import anthropic
-from app.services.claude_vision_ocr import get_client
+from app.services.claude_vision_ocr import get_client, first_text
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ def generate_title(description: str, fallback: str = '未命名',
                 'content': desc,
             }],
         )
-        raw = (msg.content[0].text if msg.content else '').strip()
+        raw = first_text(msg).strip()
         # 防御: 去掉可能的引号 / 句号 / 多行
         title = raw.strip('"\'\n。.： :「」').split('\n')[0].strip()
         if 1 <= len(title) <= 60:  # 英文标题更长, 放宽到 60

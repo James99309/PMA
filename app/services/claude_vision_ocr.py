@@ -33,6 +33,22 @@ def _vision_conf():
     return api_key, base_url, use_bearer
 
 
+def first_text(msg) -> str:
+    """从 Anthropic 响应里取第一个 text 块的内容,取不到返回 ''。
+
+    背景:推理型模型(gpt-5.x / 开启 extended thinking 的 Claude)会先返回
+    ThinkingBlock,它没有 .text 属性。直接写 msg.content[0].text 会抛
+    AttributeError,而调用方普遍是 `except Exception -> 返回兜底值`,
+    于是 AI 功能静默失效(标题退回模板、翻译原样返回),界面上看不出报错。
+
+    所有走 Anthropic SDK 取文本的地方都应该用这个函数,不要索引 content[0]。
+    """
+    for block in (getattr(msg, 'content', None) or []):
+        if getattr(block, 'type', None) == 'text':
+            return getattr(block, 'text', None) or ''
+    return ''
+
+
 def get_client():
     """复用 chat_translation_service 同款客户端构造逻辑 — base_url + 可选 bearer。
     视觉端点独立于文本端点(见 _vision_conf)。"""
@@ -129,13 +145,8 @@ def extract_with_schema(
                 ],
             }],
         )
-        # 取第一个 text 块 — 跳过 reasoning 模型(gpt-5.x 等)可能先返回的 thinking 块,
-        # 否则 content[0] 是 ThinkingBlock(无 .text 属性)会抛异常
-        raw = ''
-        for _block in (msg.content or []):
-            if getattr(_block, 'type', None) == 'text' and getattr(_block, 'text', None):
-                raw = _block.text.strip()
-                break
+        # 取第一个 text 块 — 跳过 reasoning 模型可能先返回的 thinking 块(见 first_text)
+        raw = first_text(msg).strip()
         # 防御性: 有时模型会包 ```json ... ```
         if raw.startswith('```'):
             raw = raw.strip('`').lstrip('json').strip()

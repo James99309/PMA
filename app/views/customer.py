@@ -38,6 +38,7 @@ from app.utils.query_filters import (
     extract_filter_params, apply_filters_to_query, extract_sort_params,
     extract_pagination_params, build_list_query, build_ajax_response
 )
+from app.services.claude_vision_ocr import first_text
 
 # ============================================================
 # 客户管理筛选配置
@@ -4064,7 +4065,7 @@ def ai_enrich_company():
             max_tokens=512,
             messages=[{'role': 'user', 'content': prompt}],
         )
-        raw = msg.content[0].text.strip()
+        raw = first_text(msg).strip()
         raw = re.sub(r'^```(?:json)?\s*', '', raw)
         raw = re.sub(r'\s*```\s*$', '', raw)
         parsed = json.loads(raw.strip())
