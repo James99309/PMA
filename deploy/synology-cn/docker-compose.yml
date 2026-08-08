@@ -51,6 +51,11 @@ services:
     image: pma-app:latest
     container_name: pma-app
     restart: unless-stopped
+    # WebDAV 跑在本机宿主上，用 host-gateway 别名寻址，
+    # 避免绑定随 DHCP 变动的 LAN 地址（2026-08-04 IP 漂移事故：.107→.124，
+    # 老附件全部 404。配套 .env 的 SYNOLOGY_WEBDAV_*_URL 已改 host.docker.internal）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${PMA_PORT:-5001}:5000"
     environment:
@@ -69,8 +74,8 @@ services:
 
       # 群晖 WebDAV 存储（DS925+ 本机）
       MEETING_STORAGE_TYPE: synology
-      SYNOLOGY_WEBDAV_URL: ${SYNOLOGY_WEBDAV_URL:-http://192.168.31.91:5005}
-      SYNOLOGY_WEBDAV_INTERNAL_URL: ${SYNOLOGY_WEBDAV_INTERNAL_URL:-http://192.168.31.91:5005}
+      SYNOLOGY_WEBDAV_URL: ${SYNOLOGY_WEBDAV_URL:-http://host.docker.internal:5005}
+      SYNOLOGY_WEBDAV_INTERNAL_URL: ${SYNOLOGY_WEBDAV_INTERNAL_URL:-http://host.docker.internal:5005}
       SYNOLOGY_WEBDAV_EXTERNAL_URL: ${SYNOLOGY_WEBDAV_EXTERNAL_URL:-}
       SYNOLOGY_WEBDAV_USER: ${SYNOLOGY_WEBDAV_USER:-pma-storage}
       SYNOLOGY_WEBDAV_PASSWORD: ${SYNOLOGY_WEBDAV_PASSWORD}
