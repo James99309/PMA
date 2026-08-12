@@ -167,17 +167,26 @@ def pull_usage_from_macmini(timeout=15):
     db.session.commit()
 
     # 更细粒度地拉每个用户的 14 天历史用量
-    for token, user in users_by_token.items():
-        _pull_user_daily_usage(user, token, days=14)
+    # 复用同一个 Session(keep-alive): N 个 token 走一条 TCP 连接而非 N 条。
+    # 否则每轮同步在 Mac mini 侧留下 N 个 TIME_WAIT，CN/SG/本地三实例叠加
+    # 曾堆到 1.2 万、耗尽临时端口，导致所有反代 502。
+    with requests.Session() as sess:
+        for token, user in users_by_token.items():
+            _pull_user_daily_usage(user, token, days=14, session=sess)
 
     return True, updated
 
 
-def _pull_user_daily_usage(user, token, days=14):
-    """从 Mac mini /api/usage?ip=<token>&days=N 拉取指定用户的每日用量并落库。"""
+def _pull_user_daily_usage(user, token, days=14, session=None):
+    """从 Mac mini /api/usage?ip=<token>&days=N 拉取指定用户的每日用量并落库。
+
+    session: 可选的 requests.Session，批量调用时传入以复用 TCP 连接
+             (避免每 token 一条新连接在对端堆 TIME_WAIT)。
+    """
     url = _admin_url().rstrip('/') + '/api/usage'
+    getter = session.get if session is not None else requests.get
     try:
-        resp = requests.get(url, params={'ip': token, 'days': days}, timeout=10)
+        resp = getter(url, params={'ip': token, 'days': days}, timeout=10)
         if resp.status_code != 200:
             return
         d = resp.json()

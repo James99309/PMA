@@ -455,9 +455,11 @@ def start_scheduler(run_time="01:00"):
     schedule.every().day.at("09:00").do(run_geo_monitor_daily)
     logger.info("GEO Monitor 跑批任务已注册: 每日 09:00")
 
-    # Claude AI 代理用量同步（每 5 分钟从 Mac mini 拉取）
-    schedule.every(5).minutes.do(run_claude_usage_pull)
-    logger.info("Claude AI 用量同步任务已注册: 每 5 分钟")
+    # Claude AI 代理用量同步（每 30 分钟从 Mac mini 拉取）
+    # 频率从 5 分钟下调为 30 分钟：CN/SG/本地三实例 × 33 token 逐个请求，
+    # 曾把 Mac mini 的 TIME_WAIT 堆到 1.2 万、临时端口耗尽导致所有反代 502。
+    schedule.every(30).minutes.do(run_claude_usage_pull)
+    logger.info("Claude AI 用量同步任务已注册: 每 30 分钟")
 
     # 合格新客户/项目「达标时间」盖戳（每小时 :20,幂等,冻结历史归属）
     schedule.every().hour.at(":20").do(run_qualified_at_stamp)
