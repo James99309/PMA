@@ -9129,7 +9129,10 @@ document.addEventListener('DOMContentLoaded', function() {
     <span class="tw-badge {{ config.class }}">{{ display_text }}</span>
 {% endmacro %}
 
-{# 审批业务类型徽章 - Tailwind 风格（带图标） #}
+{# 审批业务类型徽章 - Tailwind 风格（带图标）
+   注意:Jinja 不允许在语句块(set 等)表达式内部写注释,写了整个文件都无法解析,
+   说明一律写在宏外面。dealer_apply 及其后的类型此前未登记,
+   fallback 会把英文 object_type 原样当中文标签显示。#}
 {% macro render_tw_business_type_badge(object_type) %}
     {%- set type_config = {
         'project': {'class': 'tw-badge-teal', 'zh': '项目', 'en': 'Project', 'icon': 'cases'},
@@ -9138,7 +9141,6 @@ document.addEventListener('DOMContentLoaded', function() {
         'purchase_order': {'class': 'tw-badge-rose', 'zh': '采购订单', 'en': 'Order', 'icon': 'shopping_cart'},
         'pricing_order': {'class': 'tw-badge-amber', 'zh': '批价单', 'en': 'Pricing', 'icon': 'receipt_long'},
         'expense': {'class': 'tw-badge-orange', 'zh': '报销单', 'en': 'Expense', 'icon': 'payments'},
-        {# 以下类型此前未登记,fallback 会把英文 object_type 原样当中文标签显示 #}
         'dealer_apply': {'class': 'tw-badge-cyan', 'zh': '渠道身份', 'en': 'Channel', 'icon': 'handshake'},
         'project_hold': {'class': 'tw-badge-gray', 'zh': '项目搁置/失败', 'en': 'Hold', 'icon': 'pause_circle'},
         'project_win_lock': {'class': 'tw-badge-teal', 'zh': '成功锁定', 'en': 'Win Lock', 'icon': 'emoji_events'},
