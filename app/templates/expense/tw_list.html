@@ -75,7 +75,8 @@
         {% if page_slot == 'header' %}
             <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('报销管理') }}</h1>
             <div class="flex flex-wrap items-center gap-2">
-                {% if has_permission('expense', 'create') %}
+                {# 门槛是 view,理由同 at_new_expense 路由注释 #}
+                {% if has_permission('expense', 'view') %}
                 <button type="button" onclick="openAddExpenseModal()"
                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
                     <span class="material-symbols-outlined" style="font-size: 20px;">add</span>

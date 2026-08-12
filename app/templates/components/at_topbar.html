@@ -127,7 +127,8 @@
         {% if has_permission('quotation', 'create') %}
           {{ qc('pen', _('新建报价'), url_for('quotation.at_new_quotation')) }}
         {% endif %}
-        {% if has_permission('expense', 'create') %}
+        {# 门槛是 view:新建的报销单 owner 恒为自己,属个人事务,与路由 at_new_expense 一致 #}
+        {% if has_permission('expense', 'view') %}
           {{ qc('money', _('提交报销'), url_for('expense.at_new_expense')) }}
         {% endif %}
 

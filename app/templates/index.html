@@ -334,7 +334,8 @@
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('最近报销') }}</h3>
                             <div class="flex items-center gap-2">
-                                {% if has_permission('expense', 'create') %}
+                                {# 门槛是 view,理由同 at_new_expense 路由注释 #}
+                                {% if has_permission('expense', 'view') %}
                                 <a href="{{ url_for('expense.expense_list', action='create') }}" class="flex items-center justify-center gap-1.5 rounded-md h-8 px-3 bg-primary text-white text-xs font-bold hover:bg-primary/90">
                                     <span class="material-symbols-outlined text-sm">add</span>
                                     <span>{{ _('新建报销') }}</span>

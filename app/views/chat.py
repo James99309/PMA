@@ -1720,7 +1720,8 @@ def _handle_create_expense(form_data, conversation_id, user):
     from app.permissions import has_permission
     from datetime import date, datetime, timezone
 
-    if not has_permission('expense', 'create'):
+    # 门槛是 view:建出来的单子 owner 恒为当前用户,属个人事务,与 at_new_expense 路由一致
+    if not has_permission('expense', 'view'):
         return jsonify({'success': False, 'message': '没有创建报销单的权限'}), 403
 
     expense_category = (form_data.get('expense_category') or '').strip()

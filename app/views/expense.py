@@ -918,7 +918,11 @@ def export_pdf(id):
 
 @expense.route('/at_new', methods=['GET'])
 @login_required
-@permission_required('expense', 'create')
+# 注意：门槛是 view 而非 create — 新建的报销单 owner 恒为当前用户(见 create_expense),
+# 属个人财务事务,与本模块 edit/delete/submit 一律"自己的单子自己处理"的设计一致。
+# 角色的 expense.create 位控制的是业务数据创建权,用在此处会把 permission_level=company
+# 的财务角色(能看全公司报销)反而挡在自己的报销单外。
+@permission_required('expense', 'view')
 def at_new_expense():
     """AT 风格新建报销 — 渲染空白详情页,保存时复用 /expense/create 落库。
 
@@ -1285,7 +1289,9 @@ def expense_list_ajax():
 
 @expense.route('/create', methods=['GET', 'POST'])
 @login_required
-@permission_required('expense', 'create')
+# 注意：门槛是 view 而非 create — 落库时 owner_id 恒为 current_user.id,不存在代他人建单,
+# 理由同 at_new_expense。
+@permission_required('expense', 'view')
 def create_expense():
     """创建报销单"""
     if request.method == 'POST':
@@ -2750,7 +2756,8 @@ def api_exchange_rate():
 
 @expense.route('/api/ocr-invoice', methods=['POST'])
 @login_required
-@permission_required('expense', 'create')
+# 新建链路辅助接口(仅识别不落盘),门槛与 at_new_expense 对齐
+@permission_required('expense', 'view')
 def api_ocr_invoice():
     """AT 报销表单 — 发票 OCR 识别(仅识别,不落盘)。
 
@@ -2785,7 +2792,8 @@ def api_ocr_invoice():
 
 @expense.route('/api/invoices/group', methods=['POST'])
 @login_required
-@permission_required('expense', 'create')
+# 新建链路辅助接口(纯计算不落库),门槛与 at_new_expense 对齐
+@permission_required('expense', 'view')
 def api_group_invoices():
     """发票分组合并 — 共用逻辑(services/expense_detail_service),web/mobile 同调,前端不再各自分组。
 
@@ -2808,7 +2816,9 @@ def api_group_invoices():
 
 @expense.route('/api/upload_invoice_temp', methods=['POST'])
 @login_required
-@permission_required('expense', 'edit')
+# 新建/编辑链路辅助接口(临时落盘,随表单保存才归档),门槛与 at_new_expense 对齐 —
+# 编辑自己的报销单本就不查权限位(见 edit_expense),原 'edit' 门槛会挡住财务角色新建。
+@permission_required('expense', 'view')
 def upload_invoice_temp():
     """临时上传发票图片（用于编辑页面新增明细）"""
     try:
