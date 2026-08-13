@@ -44,8 +44,12 @@
                             <td class="px-3">{{ render_owner(contact.owner) }}</td>
                             <td class="px-3">{{ render_date(contact.created_at) }}</td>
                             <td class="px-3">
+                                {% if has_permission('customer', 'create') %}
                                 {{ render_button('行动', url_for('customer.add_action_for_company', company_id=company.id) ~ '?contact_id=' ~ contact.id, color='info', icon='fas fa-comment', size='sm', extra_class='me-1') }}
+                                {% endif %}
+                                {% if has_permission('customer', 'edit') %}
                                 {{ render_button('编辑', url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', icon='fas fa-edit', size='sm', extra_class='me-1' + (' disabled' if company.owner_id != current_user.id and current_user.role != 'admin' else '')) }}
+                                {% endif %}
                                 {{ render_button('删除', '#', color='danger', icon='fas fa-trash', size='sm', attrs=("onclick=\"deleteContact('" ~ company.id ~ "','" ~ contact.id ~ "')\"" if company.owner_id == current_user.id or current_user.role == 'admin' else 'onclick="showPermissionError()" disabled title="您没有权限删除此联系人"')) }}
                             </td>
                         </tr>

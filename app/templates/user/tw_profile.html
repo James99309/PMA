@@ -404,7 +404,9 @@
                         <div class="flex-1">
                             <h4 class="font-medium text-slate-900 dark:text-white">{{ _('绩效目标设置') }}</h4>
                             <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ _('设置和管理我的绩效目标') }}</p>
-                            {% if has_permission('performance', 'create') or has_permission('performance', 'edit') %}
+                            {# 门禁必须跟 performance.target_settings 路由的 config_management.edit 一致,
+                               原来写的 performance.create/edit 会让人看得见按钮却点出 403 #}
+                            {% if has_permission('config_management', 'edit') %}
                             <div class="mt-4">
                                 {{ tw_btn(_('设置目标'), href=url_for('performance.target_settings'), icon='settings', variant='success', size='sm') }}
                             </div>

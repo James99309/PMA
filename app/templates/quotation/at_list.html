@@ -40,8 +40,10 @@
         style="display:none;height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--line-2);
                background:var(--bg-elev);color:var(--ink-2);font-size:13px;font-weight:500;
                align-items:center;gap:6px;cursor:pointer;">{{ _('取消') }}</button>
+{% if has_permission('quotation', 'create') %}
 {{ at_btn(_('新建报价'), variant='primary', icon_l='plus', tag='a',
           href=url_for('quotation.at_new_quotation')) }}
+{% endif %}
 {% endblock %}
 
 {% block tabs %}

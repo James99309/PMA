@@ -13,8 +13,10 @@
 {% endblock %}
 
 {% block page_actions %}
+{% if has_permission('system_diagram', 'create') %}
 {{ at_btn(_('新建系统图'), variant='primary', icon_l='plus', tag='a',
           href=url_for('system_diagram.new_editor')) }}
+{% endif %}
 {% endblock %}
 
 {% block tabs %}

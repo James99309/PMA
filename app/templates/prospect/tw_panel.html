@@ -343,11 +343,13 @@
     class="h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
     {{ _('取消申领') }}
 </button>
+{% if has_permission('project', 'create') %}
 <a href="{{ url_for('project.add_project') }}?from_prospect={{ p.id }}"
     class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
     <span class="material-symbols-outlined" style="font-size:16px;">add</span>
     {{ _('转入项目') }}
 </a>
+{% endif %}
 {% elif not p.claimed_by %}
 {# 未申领 → 可申领 #}
 <button type="button"
