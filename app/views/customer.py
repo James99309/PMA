@@ -284,7 +284,7 @@ def at_view_company(company_id):
         logger.warning(f"取渠道身份审批状态失败 (company {company_id}): {_de}")
 
     # 关联数据(按权限+归属自动过滤,无权限模块自动跳过)
-    related = RelatedDataService.fetch_all('company', company_id, current_user, limit=5)
+    related = RelatedDataService.fetch_all('company', company_id, current_user)
 
     # 联系人(直接查,无需走 service — 联系人权限继承客户访问权)
     contacts = Contact.query.filter_by(company_id=company_id).order_by(
@@ -560,6 +560,37 @@ def at_list_view():
     except Exception as _fe:
         logger.warning(f'客户未跟进天数计算失败: {_fe}')
 
+    # ── 有效项目数:当前页客户名后的 [N] ──
+    # 口径:该客户关联的、当前用户「可见」的、未删除且未失败未暂停的项目数。
+    #   · 走 get_viewable_data → 与客户详情页关联项目卡的可见范围一致(不泄露越权数据)
+    #   · current_stage 为 NULL/空 视为进行中(不排除),只排除明确的 lost / paused
+    #   · 一次 group_by 批量取,不逐行查(同上面「未跟进天数」的做法,避免 N+1)
+    PROJECT_INACTIVE_STAGES = ('lost', 'paused')
+    project_counts = {}     # company_id → 有效项目数
+    try:
+        from app.models.project import Project
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        _cids = [c.id for c in pagination.items]
+        if _cids:
+            _viewable_pids = get_viewable_data(Project, current_user, [
+                Project.is_deleted == False,
+                or_(Project.current_stage.is_(None),
+                    Project.current_stage == '',
+                    ~Project.current_stage.in_(PROJECT_INACTIVE_STAGES)),
+            ]).with_entities(Project.id).subquery()
+            project_counts = dict(
+                db.session.query(
+                    ProjectCustomerAssociation.company_id,
+                    func.count(func.distinct(ProjectCustomerAssociation.project_id)),
+                )
+                .filter(ProjectCustomerAssociation.company_id.in_(_cids))
+                .filter(ProjectCustomerAssociation.project_id.in_(
+                    db.session.query(_viewable_pids.c.id)))
+                .group_by(ProjectCustomerAssociation.company_id).all()
+            )
+    except Exception as _pe:
+        logger.warning(f'客户有效项目数计算失败: {_pe}')
+
     list_qs = {}
     if search:
         list_qs['search'] = search
@@ -589,6 +620,7 @@ def at_list_view():
                            geo_options=geo_options,
                            geo_values=geo_values,
                            followup_overdue=followup_overdue,
+                           project_counts=project_counts,
                            fav_ids=fav_ids,
                            fav_only=fav_only,
                            list_qs=list_qs)

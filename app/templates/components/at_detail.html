@@ -51,6 +51,16 @@
   .at-row-eq { display:grid; align-items:stretch; }
   .at-row-eq > .at-section { margin-bottom:0;height:100%;display:flex;flex-direction:column; }
   .at-row-eq > .at-section > .at-section-body { flex:1;min-height:0;overflow-y:auto; }
+  /* 卡内滚动(at_detail_section 传 max_height 时启用)— 关联数据不再截断,
+     表头 sticky 吸顶,滚动时列名始终可见 */
+  .at-section-body.at-scroll { overflow-y:auto;overscroll-behavior:contain; }
+  .at-section-body.at-scroll .at-mini-table thead th { position:sticky;top:0;z-index:1;
+                                                        background:var(--bg-elev); }
+  /* 细滚动条,避免抢视觉 */
+  .at-section-body.at-scroll::-webkit-scrollbar { width:8px; }
+  .at-section-body.at-scroll::-webkit-scrollbar-thumb { background:var(--line-2);border-radius:4px; }
+  .at-section-body.at-scroll::-webkit-scrollbar-thumb:hover { background:var(--ink-4); }
+  .at-section-body.at-scroll::-webkit-scrollbar-track { background:transparent; }
 </style>
 {% endmacro %}
 
@@ -63,9 +73,11 @@
    create_label: 按钮文字(默认 '+ 新建')
    body_padding: 'default'(14/18) | 'none'(0,适合 table 贴边)
 #}
+{# max_height: 传入 CSS 高度(如 '280px')→ 卡片体固定高度、内部滚动、表头吸顶。
+   默认 none = 不限高(保持原行为,不影响产品明细/备注等非关联卡片)。#}
 {% macro at_detail_section(title, count=none, has_more=false,
                            create_url=none, create_label=_('+ 新建'),
-                           body_padding='none', action_html='') %}
+                           body_padding='none', action_html='', max_height=none) %}
 <section class="at-section">
   <header class="at-section-h">
     <h3 class="at-section-title">{{ title }}</h3>
@@ -80,7 +92,8 @@
     {% endif %}
     {% if action_html %}{{ action_html|safe }}{% endif %}
   </header>
-  <div class="at-section-body" style="{{ 'padding:0;' if body_padding == 'none' else '' }}">
+  <div class="at-section-body{{ ' at-scroll' if max_height else '' }}"
+       style="{{ 'padding:0;' if body_padding == 'none' else '' }}{{ 'max-height:%s;' % max_height if max_height else '' }}">
     {{ caller() }}
   </div>
 </section>

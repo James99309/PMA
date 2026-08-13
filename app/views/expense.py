@@ -707,7 +707,7 @@ def at_view_expense(id):
             from flask import abort
             abort(403)
 
-    related = RelatedDataService.fetch_all('expense', id, current_user, limit=5)
+    related = RelatedDataService.fetch_all('expense', id, current_user)
 
     # 货币符号(按报销实际币种取,全币种支持:IDR→Rp 等)
     currency_sym = get_currency_symbol(e.currency or 'CNY')

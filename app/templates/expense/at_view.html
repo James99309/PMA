@@ -622,7 +622,8 @@
   {% if not _editable and related and related.expense and related.expense['items'] %}
     {% call at_detail_section(_('同项目其他报销'),
                               count=related.expense['items']|length,
-                              has_more=related.expense.has_more) %}
+                              has_more=related.expense.has_more,
+                              max_height='320px') %}
       {{ render_minitable('expense', related.expense['items']) }}
     {% endcall %}
   {% endif %}

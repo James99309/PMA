@@ -76,7 +76,8 @@ def _register_company():
     RelatedDataService.register(
         'company', 'quotation', _company_quotations, 'quotation',
         sort_clause=Quotation.updated_at.desc(),
-        eager_options=[joinedload(Quotation.owner)],
+        # minitable 渲染 q.project.project_name — 不 eager 会 N+1(不限条数后放大)
+        eager_options=[joinedload(Quotation.owner), joinedload(Quotation.project)],
     )
     RelatedDataService.register(
         'company', 'pricing_order', _company_pricing_orders, 'pricing_order',
@@ -86,6 +87,8 @@ def _register_company():
     RelatedDataService.register(
         'company', 'sales_order', _company_sales_orders, 'sales_order',
         sort_clause=SalesOrder.created_at.desc(),
+        # minitable 渲染 o.created_by(SalesOrder 无 owner 关系)
+        eager_options=[joinedload(SalesOrder.created_by)],
     )
     RelatedDataService.register(
         'company', 'purchase_order', _company_purchase_orders, 'order',
@@ -137,17 +140,18 @@ def _register_project():
     RelatedDataService.register(
         'project', 'quotation', _project_quotations, 'quotation',
         sort_clause=Quotation.updated_at.desc(),
-        eager_options=[joinedload(Quotation.owner)],
+        eager_options=[joinedload(Quotation.owner), joinedload(Quotation.project)],
     )
     RelatedDataService.register(
         'project', 'pricing_order', _project_pricing_orders, 'pricing_order',
         sort_clause=PricingOrder.created_at.desc(),
-        eager_options=[joinedload(PricingOrder.creator)],
+        eager_options=[joinedload(PricingOrder.creator), joinedload(PricingOrder.project)],
     )
     if hasattr(SalesOrder, 'project_id'):
         RelatedDataService.register(
             'project', 'sales_order', _project_sales_orders, 'sales_order',
             sort_clause=SalesOrder.created_at.desc(),
+            eager_options=[joinedload(SalesOrder.created_by)],
         )
     RelatedDataService.register(
         'project', 'expense', _project_expenses, 'expense',
@@ -190,12 +194,12 @@ def _register_quotation():
     RelatedDataService.register(
         'quotation', 'quotation', _quotation_sibling_quotations, 'quotation',
         sort_clause=Quotation.updated_at.desc(),
-        eager_options=[joinedload(Quotation.owner)],
+        eager_options=[joinedload(Quotation.owner), joinedload(Quotation.project)],
     )
     RelatedDataService.register(
         'quotation', 'pricing_order', _quotation_pricing_orders, 'pricing_order',
         sort_clause=PricingOrder.created_at.desc(),
-        eager_options=[joinedload(PricingOrder.creator)],
+        eager_options=[joinedload(PricingOrder.creator), joinedload(PricingOrder.project)],
     )
 
 

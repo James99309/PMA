@@ -139,8 +139,17 @@
   </td>
   <td style="padding:0 16px;border-bottom:{{ cell_bd }};max-width:280px;">
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
-      <span style="font-size:13px;font-weight:500;color:var(--ink);
-                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.company_name }}</span>
+      {# 公司名 + 有效项目数 [N](排除失败/暂停;为 0 时不显示,避免整列都是 [0] 噪声)
+         名称占位可伸缩并省略号,计数固定不被截断 #}
+      {% set _pc = project_counts.get(c.id) if project_counts else none %}
+      <span style="display:flex;align-items:baseline;gap:5px;min-width:0;">
+        <span style="font-size:13px;font-weight:500;color:var(--ink);
+                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.company_name }}</span>
+        {% if _pc %}
+        <span class="at-mono at-tab-num" title="{{ _('有效项目数(不含失败/暂停)') }}"
+              style="flex-shrink:0;font-size:11px;color:var(--ink-4);">[{{ _pc }}]</span>
+        {% endif %}
+      </span>
       {# 未跟进提醒(橙):有编号跟在编号后,否则单独占名称下一行 #}
       {% set _fd = followup_overdue.get(c.id) if followup_overdue else none %}
       {% if c.company_code %}

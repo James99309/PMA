@@ -786,7 +786,7 @@ def at_view_quotation(id):
         if from_project_obj and not can_view_project(current_user, from_project_obj):
             from_project_obj = None
 
-    related = RelatedDataService.fetch_all('quotation', id, current_user, limit=5)
+    related = RelatedDataService.fetch_all('quotation', id, current_user)
     actions = []
     if q.project_id:
         actions = get_viewable_data(Action, current_user,

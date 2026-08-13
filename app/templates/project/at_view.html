@@ -447,7 +447,8 @@
             meta.label,
             count=data['items']|length,
             has_more=data.has_more,
-            create_url=meta.create_url if data.can_create else none) %}
+            create_url=meta.create_url if data.can_create else none,
+            max_height='320px') %}
         {% if data['items'] %}
           {{ render_minitable(key, data['items']) }}
         {% else %}

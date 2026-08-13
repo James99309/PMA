@@ -1548,7 +1548,8 @@
     {% if data['items'] %}
     {% set meta = _module_meta.get(key, {'label': key}) %}
     <div style="min-width:0;">
-      {% call at_detail_section(meta.label, count=data['items']|length, has_more=data.has_more) %}
+      {% call at_detail_section(meta.label, count=data['items']|length, has_more=data.has_more,
+                                max_height='320px') %}
         {{ render_minitable(key, data['items']) }}
       {% endcall %}
     </div>

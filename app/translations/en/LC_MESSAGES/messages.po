@@ -38061,3 +38061,6 @@ msgstr "Attribution: projects owned by your department members · confirmed quot
 
 msgid "归属:渠道项目且厂商销售负责人为本人 · 仅计确认过的报价"
 msgstr "Attribution: channel projects where you are the vendor sales owner · confirmed quotations only"
+
+msgid "有效项目数(不含失败/暂停)"
+msgstr "Active projects (excl. lost/paused)"

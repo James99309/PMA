@@ -41,12 +41,16 @@ class RelatedDataService:
         )
 
     @classmethod
-    def fetch_all(cls, entity_type, entity_id, user, limit=5):
+    def fetch_all(cls, entity_type, entity_id, user, limit=None):
         """拉取该实体的所有可见关联(一次性 6-8 次 SQL,~100ms 量级)。
 
+        Args:
+            limit: None(默认)= 不截断,全部返回,由前端卡内滚动承载;
+                   传整数则截断到该条数并置 has_more。
+
         Returns: {module_key: {
-            'items':      [...],          # 列表(已排序、已 limit)
-            'has_more':   bool,           # 是否还有更多(用于显示"查看全部")
+            'items':      [...],          # 列表(已排序)
+            'has_more':   bool,           # 是否被截断(limit=None 时恒 False)
             'can_view':   True,           # 一定 True(否则 key 不存在)
             'can_create': bool,           # 是否能新建该模块数据
         }}
@@ -64,11 +68,16 @@ class RelatedDataService:
                 q = q.options(opt)
             if sort is not None:
                 q = q.order_by(sort)
-            # 多拉 1 条用于判断 has_more,省一次 count
-            items = q.limit(limit + 1).all()
-            has_more = len(items) > limit
+            if limit is None:
+                items = q.all()
+                has_more = False
+            else:
+                # 多拉 1 条用于判断 has_more,省一次 count
+                items = q.limit(limit + 1).all()
+                has_more = len(items) > limit
+                items = items[:limit]
             result[mk] = {
-                'items':      items[:limit],
+                'items':      items,
                 'has_more':   has_more,
                 'can_view':   True,
                 'can_create': user.has_permission(pm, 'create'),

@@ -322,7 +322,7 @@ def at_view_project(project_id):
         from flask import abort
         abort(403)
 
-    related = RelatedDataService.fetch_all('project', project_id, current_user, limit=5)
+    related = RelatedDataService.fetch_all('project', project_id, current_user)
 
     # 关联客户(双向多对多)— 返回 [(company, association_id)] 供模板移除按钮用
     _assoc_rows = db.session.query(
