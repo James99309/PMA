@@ -5,7 +5,7 @@ from flask_jwt_extended import (
 )
 from app.api.v1 import api_v1_bp
 from app.api.v1.utils import api_response
-from app.models.user import User, Permission
+from app.models.user import User
 from app import db
 from app.utils.email import send_admin_notification
 import time
@@ -84,16 +84,20 @@ def login():
                 message="账号未激活，请联系管理员"
             )
     
-    # 检查用户是否有权限设置，如果没有则分配默认权限
-    is_first_login = user.last_login is None or user.last_login == 0
-    has_permissions = Permission.query.filter_by(user_id=user.id).first() is not None
-    
-    if first_login or is_first_login or not has_permissions:
-        # 导入权限工具
-        from app.utils.permissions import assign_user_default_permissions
-        assign_result = assign_user_default_permissions(user)
-        logger.info(f"已为用户 {user.username} 分配默认权限: {'成功' if assign_result else '失败'}")
-    
+    # 【已移除】原先这里会在"用户没有个人权限行"时调用 assign_user_default_permissions()。
+    # 那是个权限杀手:
+    #   1. 个人权限表为空是**合法状态**,语义是"跟随角色权限"(User.has_permission 的 else 分支),
+    #      也正是「重置为角色默认」端点(config_management.api_reset_user_permissions)的目的;
+    #      把它当成"未初始化"是根本性误判。
+    #   2. assign_user_default_permissions 按一张早已腐烂的角色表重建:它只认
+    #      admin/sales/product/product_manager/solution/service/business_admin,
+    #      现役的 sales_manager、Treasurer、finace_director 等一律落到"只读"默认分支;
+    #      模块清单也停留在旧命名(user/permission/order/settlement),没有 expense 等。
+    #   3. 个人权限完全覆盖角色权限 → 管理员刚重置好的人,一登手机端就被打回只读。
+    # 实际后果:李华伟(sales_manager)、张琰(finace_director)、沈燕(Treasurer) 反复丢失
+    # 新建客户/项目等权限,管理员每次"重置为角色默认"恰恰是给这个陷阱重新上膛。
+    # 现在移动端与网页端一致:登录不再改动任何权限数据,权限只由角色配置和管理员显式配置决定。
+
     # 同步语言设置：优先使用用户偏好，其次使用cookie，最后默认中文
     from flask import session
     cookie_language = request.cookies.get('language')

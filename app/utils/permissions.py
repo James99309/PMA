@@ -20,8 +20,19 @@ def assign_user_default_permissions(user):
         bool: 操作是否成功
     """
     try:
-        logger.info(f"为用户 {user.username} (ID: {user.id}) 分配默认权限")
-        
+        # ⚠️ 取证日志:本函数会「删光该用户全部个人权限」再按一张**过时的角色表**重建
+        # (只认 admin/sales/product/product_manager/solution/service/business_admin,
+        #  现役的 sales_manager/Treasurer/finace_director 等一律变只读;模块清单也是旧命名)。
+        # 2026-08-13 已摘除唯一的运行时调用方(移动端登录 app/api/v1/auth.py),正常情况下
+        # 不该再被调到。若日志里出现这行,说明有未知调用方在冲掉管理员配好的权限 —— 顺着
+        # 调用栈去查。详见 config_management.api_reset_user_permissions 与本文件顶部说明。
+        import traceback
+        caller = ''.join(traceback.format_stack(limit=6)[:-1]).strip()
+        logger.warning(
+            f"[权限重建] 正在删除并重建用户 {user.username} (ID: {user.id}, 角色: {user.role}) "
+            f"的全部个人权限,调用栈:\n{caller}"
+        )
+
         # 定义模块列表
         modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission', 'inventory', 'settlement', 'order', 'system_diagram']
         
