@@ -691,6 +691,7 @@ def at_new_quotation():
     src_currency = Config.DEFAULT_CURRENCY   # 随环境(ovs=USD / sp8d=CNY),不再写死 CNY
     src_customer_id = None
     src_customer = None
+    src_project_customers = []   # 来源项目的全部关联客户,供页面下拉选择
     if src_project_id:
         src_project = Project.query.filter_by(id=src_project_id, is_deleted=False).first()
         if src_project and not can_view_project(current_user, src_project):
@@ -705,14 +706,32 @@ def at_new_quotation():
             ).first() is not None
             if has_existing_quotation:
                 src_currency = (getattr(src_project, 'quotation_currency', None) or Config.DEFAULT_CURRENCY)
-            # 预填客户:取第一个关联客户
+            # 项目的全部关联客户 — 供页面下拉选择(项目可关联多个客户,不能只给一个)。
+            # 按关联记录 id 排序保证顺序确定(原先 .first() 无 order_by,Postgres 下取到哪条不保证)。
             from app.models.project_customer_association import ProjectCustomerAssociation
             from app.models.customer import Company
-            first_assoc = ProjectCustomerAssociation.query.filter_by(
-                project_id=src_project.id
-            ).first()
-            if first_assoc:
-                src_customer_id = first_assoc.company_id
+            _assocs = (ProjectCustomerAssociation.query
+                       .filter_by(project_id=src_project.id)
+                       .order_by(ProjectCustomerAssociation.id.asc()).all())
+            _seen = set()
+            for _a in _assocs:
+                if _a.company_id in _seen:
+                    continue
+                _co = Company.query.filter_by(id=_a.company_id, is_deleted=False).first()
+                if not _co:
+                    continue
+                _seen.add(_co.id)
+                # 类型标签取 company.company_type — 关联表的 customer_type 已废弃(新建恒为 None)
+                from app.utils.dictionary_helpers import company_type_label as _ct_label
+                from app.utils.i18n import get_current_language as _cur_lang
+                src_project_customers.append({
+                    'id': _co.id,
+                    'name': _co.company_name,
+                    'type': _ct_label(_co.company_type, _cur_lang()) if _co.company_type else '',
+                })
+            # 默认选中第一个(与原行为一致,只是顺序now确定)
+            if src_project_customers:
+                src_customer_id = src_project_customers[0]['id']
                 src_customer = Company.query.get(src_customer_id)
     # 客户详情来源(无 project_id)— 只预填客户
     elif src_customer_arg:
@@ -745,6 +764,7 @@ def at_new_quotation():
         'quotation/at_view.html',
         quotation=stub,
         is_new=True,
+        project_customers=src_project_customers,
         from_project=None,
         related={},
         actions=[],

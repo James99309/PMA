@@ -420,15 +420,30 @@
             <input type="hidden" id="qNewProjectId" value="{{ quotation.project.id if _has_src_proj else '' }}">
           </div>
         </div>
-        {# 关联客户 — 来源项目时锁定(若有预填)否则可搜 #}
+        {# 关联客户 —
+           · 从项目详情进来:项目可关联多个客户,渲染下拉在这些客户之间选(范围限定在项目关联客户内)
+           · 无来源项目:保持自由搜索 picker #}
+        {% set _proj_customers = project_customers | default([], true) %}
         <div>
-          <label style="{{ _label }}">{{ _('关联客户') }} {% if not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">{{ _('(同上)') }}</span>{% endif %}</label>
+          <label style="{{ _label }}">{{ _('关联客户') }}
+            {% if _has_src_proj and _proj_customers | length > 1 %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">{{ _('(该项目关联 %(n)d 个客户,可切换)', n=_proj_customers|length) }}</span>
+            {% elif not _has_src_proj %}<span class="at-dim" style="text-transform:none;letter-spacing:0;font-size:10.5px;">{{ _('(同上)') }}</span>{% endif %}
+          </label>
+          {% if _has_src_proj and _proj_customers %}
+          {# select 直接用 qNewCustomerId 作为 id,原有读取 .value 的逻辑无需改动 #}
+          <select id="qNewCustomerId" style="{{ _inp }};color:var(--ink);">
+            {% for c in _proj_customers %}
+            <option value="{{ c.id }}" {% if c.id == quotation.customer_id %}selected{% endif %}>
+              {{ c.name }}{% if c.type %} · {{ c.type }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          {% else %}
           <div style="position:relative;">
             <input type="text" id="qNewCustomerSearch" autocomplete="off"
                    placeholder="{{ _('输入 2 个以上字符搜索客户名称…') }}"
                    value="{{ quotation.customer.company_name if quotation.customer else '' }}"
-                   {% if _has_src_proj and quotation.customer %}readonly{% endif %}
-                   style="{{ _ro_inp if (_has_src_proj and quotation.customer) else _inp }};padding-right:30px;">
+                   style="{{ _inp }};padding-right:30px;">
             <button type="button" id="qNewCustomerClear"
                     style="display:none;position:absolute;top:50%;right:6px;transform:translateY(-50%);
                            width:22px;height:22px;border:0;border-radius:50%;background:transparent;
@@ -440,6 +455,7 @@
                         max-height:240px;overflow-y:auto;"></div>
             <input type="hidden" id="qNewCustomerId" value="{{ quotation.customer.id if quotation.customer else '' }}">
           </div>
+          {% endif %}
         </div>
         <div>
           <label style="{{ _label }}">{{ _('联系人') }}</label>
@@ -802,12 +818,23 @@
           if (!(parseInt(document.getElementById('qNewCustomerId').value) || 0)) {
             fetch(`/quotation/get_project_customers/${p.id}`).then(r=>r.json()).then(res=>{
               const items = (res.customers || []).map(c => ({ id: c.id, name: c.company_name || c.name }));
-              if (items.length === 1) _qNewCustomerPicker.pick(items[0]);
+              // 下拉态没有 picker(从项目详情进来时客户是 select),这里必须判空
+              if (items.length === 1 && _qNewCustomerPicker) _qNewCustomerPicker.pick(items[0]);
             });
           }
         },
         onClear: () => { document.getElementById('qNewProjectType').value = ''; },
       });
+      // 来源项目态:客户是 <select>(只在项目关联客户里选),没有搜索框,不建 picker。
+      // 切换客户要同步刷新联系人下拉,否则会留着上一个客户的联系人。
+      const _custSel = document.getElementById('qNewCustomerId');
+      if (_custSel && _custSel.tagName === 'SELECT') {
+        _custSel.addEventListener('change', () => {
+          document.getElementById('qNewContactId').value = '';
+          _qNewLoadContacts(parseInt(_custSel.value) || 0);
+        });
+      }
+      if (document.getElementById('qNewCustomerSearch'))
       _qNewCustomerPicker = ATSearchPicker({
         inputId: 'qNewCustomerSearch', hiddenIdId: 'qNewCustomerId',
         clearId: 'qNewCustomerClear', dropdownId: 'qNewCustomerDropdown', label: '{{ _("客户") }}',
@@ -1013,7 +1040,6 @@
     // 旧 SM 确认 handlers(atQuoteConfirmSM / atQuoteRejectSM / atQuoteRecallSM)
     // 已统一迁到标准 ApprovalInstance 流程,通过 chip dropdown 操作
 
-    // 删除报价单 — 复用后端 form POST /{id}/delete(后端 redirect 到列表 + flash)
     // SM 一键技术确认 = 自动跑完审批流(建实例+自审通过),徽章由审批结果驱动
     window.atQuoteDirectConfirm = function() {
       const csrf = document.querySelector('meta[name="csrf-token"]').content;
@@ -1037,16 +1063,20 @@
         message: '{{ _("此操作不可撤销,确认删除当前报价单及其全部明细?") }}',
         variant: 'danger', icon: 'warn', confirmText: '{{ _("删除") }}', cancelText: '{{ _("取消") }}',
         onConfirm: () => {
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.action = `/quotation/${QUOTATION_ID}/delete`;
-          const csrf = document.createElement('input');
-          csrf.type = 'hidden';
-          csrf.name = 'csrf_token';
-          csrf.value = document.querySelector('meta[name="csrf-token"]').content;
-          form.appendChild(csrf);
-          document.body.appendChild(form);
-          form.submit();
+          // 用 fetch 而非 form POST:后端删除成功后 redirect 到旧 TW 列表(且 AT 列表
+          // 不渲染 flash,提示会被吞掉)。这里忽略其 redirect,自己 toast + 回 AT 列表,
+          // 与报销 AT 详情页(expense/at_view.html)的删除写法保持一致。
+          const csrf = document.querySelector('meta[name="csrf-token"]').content;
+          fetch(`/quotation/${QUOTATION_ID}/delete`, {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest'},
+          }).then(r => {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            if (window.ATToast) ATToast.success('{{ _("已删除") }}', '{{ _("跳转列表中…") }}');
+            setTimeout(() => { location.href = '{{ url_for("quotation.at_list_view") }}'; }, 400);
+          }).catch(e => {
+            if (window.ATToast) ATToast.error('{{ _("删除失败") }}', e.message || '');
+          });
         },
       });
     };

@@ -38064,3 +38064,6 @@ msgstr "Attribution: channel projects where you are the vendor sales owner · co
 
 msgid "有效项目数(不含失败/暂停)"
 msgstr "Active projects (excl. lost/paused)"
+
+msgid "(该项目关联 %(n)d 个客户,可切换)"
+msgstr "(this project has %(n)d linked customers — switchable)"
