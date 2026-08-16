@@ -325,19 +325,42 @@ def _act_quotation_count(user, s, e):
         Quotation.owner_id == user.id,
         Quotation.created_at >= s, Quotation.created_at < e).scalar() or 0
 
-def _act_pm_implant(user, s, e):
-    from sqlalchemy import func
+# ── PM 归属口径(唯一定义)────────────────────────────────────────────────
+# 产品经理三个指标各有一套归属判定(既有实现,本次只抽取不改口径):
+#   植入额     = 分类负责人(managed_categories)                    → _q_pm_implant
+#   产品批价额 = 产品 owner 或分类负责人,且该人 role=product_manager → _PM_PRODUCT_PM_CTE
+#   新品上市   = 产品 owner 或分类负责人(不看 role)                 → _PM_LAUNCH_WHERE
+# 采集器(_act_pm_*)与明细下钻(_detail_pm_*)共用下面这三段,物理上不可能分叉。
+# ⚠️ 三套口径不一致是既有事实(同一个人在三个指标里的归属范围不同),各自的
+#    basis 文案会逐条写明,让差异在界面上可见。要统一口径另开一轮,别在这里顺手改。
+
+def _q_pm_implant(user, s, e):
+    """产品植入额的基础查询(已 join/filter、未聚合)。无分管分类时返回 None。
+
+    ⚠️ **不要**补 is_vendor_product 过滤:implant_subtotal 对非厂商产品恒为 0,
+    但对旧数据「品牌=和源通信、无 product_mn」的行是有值的
+    (见 QuotationDetail.calculate_implant_subtotal_only 的兼容分支),
+    补过滤会把这批旧数据漏掉,明细合计立刻对不上单元格。
+    同理 quotations 表没有 is_deleted 列,不存在漏加软删除的问题。
+    """
     from app import db
     from app.models.quotation import Quotation, QuotationDetail
     from app.models.product import Product
     cat_ids = [c.id for c in getattr(user, 'managed_categories', [])]
     if not cat_ids:
-        return 0
-    q = db.session.query(QuotationDetail).join(
+        return None
+    return db.session.query(QuotationDetail).join(
         Quotation, Quotation.id == QuotationDetail.quotation_id).join(
         Product, Product.product_mn == QuotationDetail.product_mn).filter(
         Product.category_id.in_(cat_ids),
         Quotation.created_at >= s, Quotation.created_at < e)
+
+
+def _act_pm_implant(user, s, e):
+    from app.models.quotation import Quotation, QuotationDetail
+    q = _q_pm_implant(user, s, e)
+    if q is None:
+        return 0
     return _sum_money(q, QuotationDetail.implant_subtotal, Quotation.currency)
 
 # ── SE 归属口径(唯一定义)────────────────────────────────────────────────
@@ -615,13 +638,9 @@ _KPI_ACTUAL_FNS = {
     # 未注册(快照/口径未定):customer_activity_rate / high_price_amount → actual 0
 }
 
-def _act_pm_sales(user, s, e):
-    """产品批价额:我(产品 owner 或分类负责人)名下厂商产品的已批价明细金额
-    —— 口径照抄 performance_service.calculate_pm_yearly_statistics_batch 的 pm_sales CTE"""
-    from sqlalchemy import text
-    from app import db
-    r = db.session.execute(text("""
-        WITH product_pm AS (
+# 产品→产品经理的归属映射。总额(_act_pm_sales)与明细(_detail_pm_sales)拼同一段。
+_PM_PRODUCT_PM_CTE = """
+        product_pm AS (
             SELECT p.product_mn,
                    CASE WHEN u_owner.role = 'product_manager' THEN p.owner_id
                         WHEN u_cat_mgr.role = 'product_manager' THEN pc.manager_id
@@ -631,7 +650,19 @@ def _act_pm_sales(user, s, e):
             LEFT JOIN product_categories pc ON p.category_id = pc.id
             LEFT JOIN users u_cat_mgr ON pc.manager_id = u_cat_mgr.id
             WHERE p.is_vendor_product = true
-        )
+        )"""
+
+# 新品上市的归属条件(products 表别名 p、product_categories 别名 pc)。
+# 注意与上面 product_pm 不同:这里不要求归属人的 role 是 product_manager。
+_PM_LAUNCH_WHERE = "(p.owner_id = :uid OR pc.manager_id = :uid)"
+
+
+def _act_pm_sales(user, s, e):
+    """产品批价额:我(产品 owner 或分类负责人)名下厂商产品的已批价明细金额
+    —— 口径照抄 performance_service.calculate_pm_yearly_statistics_batch 的 pm_sales CTE"""
+    from sqlalchemy import text
+    from app import db
+    r = db.session.execute(text("WITH " + _PM_PRODUCT_PM_CTE + """
         SELECT po.currency AS cur, COALESCE(SUM(pod.total_price), 0) AS amt
         FROM pricing_order_details pod
         JOIN pricing_orders po ON pod.pricing_order_id = po.id
@@ -648,14 +679,14 @@ _KPI_ACTUAL_FNS['pm_sales_amount'] = _act_pm_sales
 
 def _act_pm_new_launch(user, s, e):
     """新品上市:负责范围(产品归属人/分类负责人)本期新建的在产厂商产品数"""
-    from sqlalchemy import func, or_, text
+    from sqlalchemy import text
     from app import db
-    r = db.session.execute(text("""
+    r = db.session.execute(text(f"""
         SELECT COUNT(*) FROM products p
         LEFT JOIN product_categories pc ON p.category_id = pc.id
         WHERE p.is_vendor_product = true AND p.status = 'active'
           AND p.created_at >= :s AND p.created_at < :e
-          AND (p.owner_id = :uid OR pc.manager_id = :uid)
+          AND {_PM_LAUNCH_WHERE}
     """), {'uid': user.id, 's': s, 'e': e}).scalar()
     return int(r or 0)
 
@@ -1895,4 +1926,395 @@ _KPI_DETAIL_FNS.update({
     'project_activity_rate':          _detail_project_activity(_proj_q_own),
     'team_project_activity_rate':     _detail_project_activity(_proj_q_team),
     'channel_project_activity_rate':  _detail_project_activity(_proj_q_channel),
+})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 产品经理(product_manager)下钻明细
+# 形态:金额类 = 分类 › 产品 › 单据(三层);新品上市/任务类 = 分组 + 行(两层)。
+# 每个 provider 的数据来源都与对应采集器共用同一段口径(见「PM 归属口径」注释块)。
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _pm_basis(kind):
+    """各 PM 指标的口径说明。**三个指标归属口径互不相同**(见「PM 归属口径」注释块),
+    不逐条写清楚,HR 拿两个数字横向对比必然得出错误结论。"""
+    from flask_babel import gettext as _g
+    return {
+        'implant': _g('归属:分管产品分类 · 金额取报价单植入小计(该字段仅对厂商产品置数)'
+                      ' · 期内全部报价单,按报价创建时间落期'),
+        'sales':   _g('归属:产品归属人或分类负责人,且该人角色为产品经理 · 仅厂商产品'
+                      ' · 仅已批准批价单,按批准时间落期'),
+        'launch':  _g('计入:期内新建 + 厂商产品 + 状态为在产;'
+                      '归属为产品归属人或分类负责人(不限该人角色)'),
+    }[kind]
+
+
+def _pm_amount_envelope(title, cats, total, meta, basis):
+    """金额类三层信封:分类 › 产品 › 单据。
+
+    cats: {分类名: {'value': float, 'prods': {产品键: {'label','sub','value','rows'}}}}
+
+    只分管一个分类时(实测:张贺只管「应用」,苏文 2 个,施裕庚 4 个)把分类层降为
+    副标题,产品直接上浮成顶层组 —— 沿用 SE 明细「不分叉的层不让用户多点一次」的
+    既有约定,否则单分类的人每次都要先点开一个恒为全部的壳。
+    """
+
+    def _prod_groups(cat_name, cat):
+        out = []
+        for p in sorted(cat['prods'].values(), key=lambda x: -x['value']):
+            g = {'label': p['label'], 'value': p['value'],
+                 'value_display': _fmt_amount_raw(p['value']), 'rows': p['rows']}
+            if p.get('sub') or cat_name:
+                g['sub'] = ' · '.join(x for x in (p.get('sub'), cat_name) if x)
+            out.append(g)
+        return out
+
+    ordered = sorted(cats.items(), key=lambda kv: -kv[1]['value'])
+    if len(ordered) == 1:
+        groups = _prod_groups(ordered[0][0], ordered[0][1])
+    else:
+        groups = [{
+            'label': name,
+            'value': cat['value'],
+            'value_display': _fmt_amount_raw(cat['value']),
+            'children': _prod_groups('', cat),
+        } for name, cat in ordered]
+
+    return {
+        'title': title,
+        'kind': 'amount',
+        'total': total,
+        'unit': _unit_display('amount'),
+        'total_display': _fmt_amount(total),
+        'total_raw_display': _fmt_amount_raw(total),
+        'meta': meta,
+        'basis': basis,
+        'groups': groups,
+    }
+
+
+def _detail_pm_implant(user, s, e):
+    """产品植入额明细:分类 › 产品 › 报价单。
+
+    金额取 **implant_subtotal**(与采集器同字段)。不是 SE 那样的 quantity ×
+    market_price —— 两者在有整单折扣/旧数据时并不相等,换字段会当场对不上。
+    """
+    from flask_babel import gettext as _g
+    from app.models.quotation import Quotation, QuotationDetail
+    from app.models.product import Product
+    from app.models.product_code import ProductCategory
+    from app.models.project import Project
+
+    q = _q_pm_implant(user, s, e)
+    if q is None:
+        return _pm_amount_envelope(
+            _g('产品植入额'), {}, 0.0,
+            _g('未分管任何产品分类'), _pm_basis('implant'))
+
+    rows = q.outerjoin(
+        ProductCategory, ProductCategory.id == Product.category_id).outerjoin(
+        Project, Project.id == Quotation.project_id).with_entities(
+        ProductCategory.name.label('cat_name'),
+        Product.product_mn.label('p_mn'),
+        Product.product_name.label('p_name'),
+        Project.project_name.label('proj_name'),
+        Quotation.quotation_number.label('q_no'),
+        Quotation.currency.label('currency'),
+        QuotationDetail.quantity.label('qty'),
+        QuotationDetail.implant_subtotal.label('amt'),
+    ).all()
+
+    cats, total, n_prod, n_quo = {}, 0.0, set(), set()
+    for r in rows:
+        amt = _conv_money(float(r.amt or 0), r.currency)
+        if not amt:
+            continue          # 非厂商产品行 implant_subtotal 恒为 0,列出来纯噪音
+        total += amt
+        cat_name = r.cat_name or _g('(未分类)')
+        cat = cats.setdefault(cat_name, {'value': 0.0, 'prods': {}})
+        cat['value'] += amt
+        key = r.p_mn or r.p_name or '—'
+        n_prod.add(key)
+        n_quo.add(r.q_no)
+        pg = cat['prods'].setdefault(key, {
+            'label': r.p_name or r.p_mn or '—', 'sub': r.p_mn or '',
+            'value': 0.0, 'rows': []})
+        pg['value'] += amt
+        pg['rows'].append({
+            'name': r.proj_name or _g('(无关联项目)'),
+            'sub': r.q_no or '',
+            'qty': float(r.qty or 0),
+            'value': amt,
+            'value_display': _fmt_amount_raw(amt),
+        })
+
+    return _pm_amount_envelope(
+        _g('产品植入额'), cats, total,
+        _g('%(c)d 个分类 · %(p)d 个产品 · %(q)d 张报价单',
+           c=len(cats), p=len(n_prod), q=len(n_quo)),
+        _pm_basis('implant'))
+
+
+def _detail_pm_sales(user, s, e):
+    """产品批价额明细:分类 › 产品 › 批价单(按批准时间落窗口)。"""
+    from sqlalchemy import text
+    from app import db
+    from flask_babel import gettext as _g
+
+    rows = db.session.execute(text("WITH " + _PM_PRODUCT_PM_CTE + """
+        SELECT COALESCE(pc.name, '') AS cat_name,
+               pod.product_mn        AS p_mn,
+               COALESCE(NULLIF(pod.product_name, ''), pod.product_mn) AS p_name,
+               pj.project_name       AS proj_name,
+               po.order_number       AS o_no,
+               po.approved_at        AS approved_at,
+               po.currency           AS currency,
+               pod.quantity          AS qty,
+               pod.total_price       AS amt
+        FROM pricing_order_details pod
+        JOIN pricing_orders po ON pod.pricing_order_id = po.id
+        JOIN product_pm pp     ON pod.product_mn = pp.product_mn
+        LEFT JOIN products p          ON p.product_mn = pod.product_mn
+        LEFT JOIN product_categories pc ON pc.id = p.category_id
+        LEFT JOIN projects pj         ON pj.id = po.project_id
+        WHERE pp.pm_id = :uid AND po.status = 'approved'
+          AND po.approved_at >= :s AND po.approved_at < :e
+        ORDER BY pc.name, pod.product_mn, po.approved_at
+    """), {'uid': user.id, 's': s, 'e': e}).fetchall()
+
+    cats, total, n_prod, n_ord = {}, 0.0, set(), set()
+    for r in rows:
+        amt = _conv_money(float(r.amt or 0), r.currency)
+        total += amt
+        cat_name = r.cat_name or _g('(未分类)')
+        cat = cats.setdefault(cat_name, {'value': 0.0, 'prods': {}})
+        cat['value'] += amt
+        key = r.p_mn or r.p_name or '—'
+        n_prod.add(key)
+        n_ord.add(r.o_no)
+        pg = cat['prods'].setdefault(key, {
+            'label': r.p_name or r.p_mn or '—', 'sub': r.p_mn or '',
+            'value': 0.0, 'rows': []})
+        pg['value'] += amt
+        pg['rows'].append({
+            'name': r.proj_name or _g('(无关联项目)'),
+            # 批价单带批准时间:窗口是按 approved_at 切的,不标出来无法核对边界
+            'sub': ' · '.join(x for x in (r.o_no, _fmt_dt(r.approved_at)) if x),
+            'qty': float(r.qty or 0),
+            'value': amt,
+            'value_display': _fmt_amount_raw(amt),
+        })
+
+    return _pm_amount_envelope(
+        _g('产品批价额'), cats, total,
+        _g('%(c)d 个分类 · %(p)d 个产品 · %(o)d 张批价单',
+           c=len(cats), p=len(n_prod), o=len(n_ord)),
+        _pm_basis('sales'))
+
+
+def _detail_pm_new_launch(user, s, e):
+    """新品上市明细:按分类列出期内新建的厂商产品。
+
+    未计入组列的是**期内新建但状态不在产**的产品(停产/下架/草稿)—— 采集器只数
+    status='active',不把被排除的那部分摆出来,「为什么只算了 14 个」就没法自查。
+    """
+    from sqlalchemy import text
+    from app import db
+    from flask_babel import gettext as _g
+
+    rows = db.session.execute(text(f"""
+        SELECT COALESCE(pc.name, '') AS cat_name,
+               p.product_mn          AS p_mn,
+               p.product_name        AS p_name,
+               p.status              AS status,
+               p.created_at          AS created_at,
+               (p.owner_id = :uid)   AS by_owner
+        FROM products p
+        LEFT JOIN product_categories pc ON pc.id = p.category_id
+        WHERE p.is_vendor_product = true
+          AND p.created_at >= :s AND p.created_at < :e
+          AND {_PM_LAUNCH_WHERE}
+        ORDER BY pc.name, p.created_at
+    """), {'uid': user.id, 's': s, 'e': e}).fetchall()
+
+    ok_by_cat, bad = {}, []
+    n_ok = 0
+    for r in rows:
+        item = {
+            'name': r.p_name or r.p_mn or '—',
+            'sub': ' · '.join(x for x in (
+                r.p_mn,
+                _fmt_dt(r.created_at),
+                # 归属来源:同一个人可能既是产品归属人又是分类负责人,标出来才能解释
+                # 「这个产品凭什么算我的」
+                _g('本人归属') if r.by_owner else _g('分管分类'),
+            ) if x),
+            'value_display': '',
+        }
+        if r.status == 'active':
+            n_ok += 1
+            cat = r.cat_name or _g('(未分类)')
+            ok_by_cat.setdefault(cat, []).append(item)
+        else:
+            item['sub'] += ' · ' + _g('状态 %(st)s', st=r.status or '—')
+            bad.append(item)
+
+    groups = []
+    for cat, items in sorted(ok_by_cat.items(), key=lambda kv: -len(kv[1])):
+        groups.append({'label': cat, 'value': len(items),
+                       'value_display': f'{len(items)} {_unit_display("count")}',
+                       'rows': items})
+    if bad:
+        groups.append({'label': _g('非在产 · 不计入'), 'value': len(bad),
+                       'value_display': f'{len(bad)} {_unit_display("count")}',
+                       'tone': 'warn', 'rows': bad})
+
+    return {
+        'title': _g('新品上市'),
+        'kind': 'count',
+        'total': float(n_ok),
+        'total_display': str(n_ok),
+        'unit': _unit_display('count'),
+        'meta': _g('本期新建 %(t)d 个,在产 %(o)d,非在产 %(b)d',
+                   t=len(rows), o=n_ok, b=len(bad)),
+        'basis': _pm_basis('launch'),
+        'groups': groups,
+    }
+
+
+def _task_score_label(w):
+    """三档评价的显示名。与 _act_task_count_reviewed 的 review_score 同源
+    (旧数据无评价兜底 1.0)。**必须写成字面量 msgid**,_g(变量) pybabel 提取不到。"""
+    from flask_babel import gettext as _g
+    if w <= 0.5:
+        return _g('低于预期')
+    if w >= 1.5:
+        return _g('超出预期')
+    return _g('符合预期')
+
+
+def _detail_pm_task(task_type, title_fn):
+    """任务类明细(研发/质量/上市支持):三组 —— 已通过(计入) / 已完成待审核 / 进行中。
+
+    ⚠️ 这三个指标的实际值**不是任务条数,是按评价档位加权求和**(低于预期 0.5 /
+    符合 1 / 超出 1.5,旧数据兜底 1.0)。所以每行必须标出该条的权重,否则会出现
+    「1 条任务却显示 1.50」而被当成算错(实测张贺 2026Q2 正是这种情况)。
+
+    后两组不计入分子,但必须列 —— 点开一个 0 时能立刻区分「根本没建任务」/
+    「建了没完成」/「完成了没人审核」,前两者是业务问题,第三者是流程卡壳。
+    """
+    def _fn(user, s, e):
+        from datetime import datetime as _dtm
+        from flask_babel import gettext as _g
+        from app.models.task import Task
+        from app.models.user import User
+
+        base = Task.query.filter(
+            Task.assignee_id == user.id,
+            Task.task_type == task_type,
+            Task.is_deleted == False)
+
+        # 计入组:与采集器逐字同条件(审核通过 + 有完成时间 + 完成时间落窗口)
+        done = base.filter(
+            Task.review_status == 'approved',
+            Task.completed_at.isnot(None),
+            Task.completed_at >= s, Task.completed_at < e,
+        ).order_by(Task.completed_at).all()
+
+        # 未计入组只按完成/创建时间粗筛到本期,不要求审核通过
+        pending = base.filter(
+            Task.status == 'completed',
+            (Task.review_status.is_(None)) | (Task.review_status != 'approved'),
+            Task.completed_at.isnot(None),
+            Task.completed_at >= s, Task.completed_at < e,
+        ).order_by(Task.completed_at).all()
+
+        doing = base.filter(
+            Task.status != 'completed',
+            Task.created_at < e,
+        ).order_by(Task.due_date.is_(None), Task.due_date).all()
+
+        reviewers = {}
+        rids = [t.reviewer_id for t in done if t.reviewer_id]
+        if rids:
+            reviewers = {u.id: (u.real_name or u.username)
+                         for u in User.query.filter(User.id.in_(rids)).all()}
+
+        today = _dtm.now()
+        total = 0.0
+        ok_rows = []
+        for t in done:
+            w = float(t.review_score if t.review_score is not None else 1.0)
+            total += w
+            label = _task_score_label(w)
+            ok_rows.append({
+                'name': t.title,
+                'sub': ' · '.join(x for x in (
+                    f'{label} ×{w:g}',
+                    _g('完成 %(d)s', d=_fmt_dt(t.completed_at)),
+                    _g('审核 %(n)s', n=reviewers[t.reviewer_id]) if t.reviewer_id in reviewers else '',
+                ) if x),
+                'value_display': f'{w:g}',
+            })
+
+        pend_rows = [{
+            'name': t.title,
+            'sub': ' · '.join([_g('完成 %(d)s', d=_fmt_dt(t.completed_at)),
+                               _g('已等 %(n)d 天', n=max(0, (today - t.completed_at).days))]),
+            'value_display': '',
+        } for t in pending]
+
+        # 状态走 status_meta 的统一映射 —— 直接印 t.status 会把 in_progress 这种
+        # 原始 code 摆到用户面前,也与全站徽章文案对不上。
+        from app.utils.status_meta import get_status_label
+        doing_rows = []
+        for t in doing:
+            # 创建时间必须标:本组不按窗口下界切(列的是「截至期末仍未完成」的快照),
+            # 看历史季度时会混进更早创建的老任务,不标日期没法判断是不是积压。
+            bits = [get_status_label(t.status, 'task'),
+                    _g('建于 %(d)s', d=_fmt_dt(t.created_at))]
+            if t.due_date:
+                overdue = (today - t.due_date).days
+                bits.append(_g('逾期 %(n)d 天', n=overdue) if overdue > 0
+                            else _g('截止 %(d)s', d=_fmt_dt(t.due_date)))
+            doing_rows.append({'name': t.title, 'sub': ' · '.join(bits),
+                               'value_display': ''})
+
+        groups = []
+        if ok_rows:
+            groups.append({'label': _g('已审核通过 · 计入本期'), 'value': total,
+                           'value_display': f'{total:g}', 'rows': ok_rows})
+        if pend_rows:
+            groups.append({'label': _g('已完成 · 待审核(不计入)'), 'value': len(pend_rows),
+                           'value_display': f'{len(pend_rows)} {_unit_display("count")}',
+                           'tone': 'warn', 'rows': pend_rows})
+        if doing_rows:
+            groups.append({'label': _g('进行中 · 未完成(不计入)'), 'value': len(doing_rows),
+                           'value_display': f'{len(doing_rows)} {_unit_display("count")}',
+                           'tone': 'warn', 'rows': doing_rows})
+
+        return {
+            'title': title_fn(),
+            'kind': 'count',
+            'total': total,
+            'total_display': f'{total:g}',
+            'unit': _unit_display('count'),
+            'meta': _g('计入 %(o)d 条(加权 %(w)s)· 待审核 %(p)d · 进行中 %(d)d',
+                       o=len(ok_rows), w=f'{total:g}', p=len(pend_rows), d=len(doing_rows)),
+            'basis': _g('计入:本人为负责人 + 已完成 + 审核通过,按完成时间落期;'
+                        '数值为评价加权和(低于预期 0.5 / 符合 1 / 超出 1.5,无评价按 1)'),
+            'groups': groups,
+        }
+    return _fn
+
+
+from flask_babel import gettext as _gt   # 注册表里 lambda 用
+
+_KPI_DETAIL_FNS.update({
+    'pm_implant_amount': _detail_pm_implant,
+    'pm_sales_amount':   _detail_pm_sales,
+    'pm_new_launch':     _detail_pm_new_launch,
+    'pm_dev_rate':       _detail_pm_task('pm_rd', lambda: _gt('研发任务')),
+    'pm_quality_rate':   _detail_pm_task('pm_quality', lambda: _gt('质量处理')),
+    'pm_support_count':  _detail_pm_task('pm_launch_support', lambda: _gt('上市支持')),
 })

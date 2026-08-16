@@ -1348,14 +1348,19 @@ def get_default_metrics_definitions():
             'metric_name_en': 'Product Implant Amount',
             'metric_category': '产品管理',
             'data_type': 'amount',
-            'description': '产品经理名下产品的报价单植入金额（仅厂商产品）',
-            'description_en': 'Quotation implant amount for products owned by product manager (vendor products only)',
+            # ⚠️ 口径以 kpi_actual_service._q_pm_implant 为准:按**分管产品分类**归属
+            # (user.managed_categories),不是按 product.owner_id —— 实测厂商产品的
+            # owner 有 140 个挂在 admin 名下,按 owner 算会让多数产品经理直接归零。
+            # 金额取 quotation_details.implant_subtotal(该字段仅对厂商产品置数),
+            # 不是 quantity × market_price(有整单折扣/旧数据时两者不等)。
+            'description': '分管产品分类下产品的报价单植入小计（仅厂商产品自动置数）',
+            'description_en': 'Quotation implant subtotal for products in the categories this manager owns (vendor products only)',
             'is_system_metric': True,
             'available_sources': {
                 'model': 'QuotationDetail',
-                'field': 'quantity * market_price',
+                'field': 'implant_subtotal',
                 'aggregate': 'sum',
-                'filter': {'product.owner_id': '{user_id}', 'product.is_vendor_product': True},
+                'filter': {'product.category_id': '{managed_category_ids}'},
                 'date_field': 'quotation.created_at'
             }
         },

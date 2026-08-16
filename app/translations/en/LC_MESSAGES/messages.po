@@ -38067,3 +38067,101 @@ msgstr "Active projects (excl. lost/paused)"
 
 msgid "(该项目关联 %(n)d 个客户,可切换)"
 msgstr "(this project has %(n)d linked customers — switchable)"
+
+# ── 产品经理 KPI 下钻明细(kpi_actual_service._detail_pm_*)──────────────
+
+#: app/services/kpi_actual_service.py
+msgid "%(c)d 个分类 · %(p)d 个产品 · %(q)d 张报价单"
+msgstr "%(c)d categories · %(p)d products · %(q)d quotations"
+
+#: app/services/kpi_actual_service.py
+msgid "%(c)d 个分类 · %(p)d 个产品 · %(o)d 张批价单"
+msgstr "%(c)d categories · %(p)d products · %(o)d pricing orders"
+
+#: app/services/kpi_actual_service.py
+msgid "(未分类)"
+msgstr "(Uncategorized)"
+
+#: app/services/kpi_actual_service.py
+msgid "未分管任何产品分类"
+msgstr "No product category managed"
+
+#: app/services/kpi_actual_service.py
+msgid "新品上市"
+msgstr "New Product Launch"
+
+#: app/services/kpi_actual_service.py
+msgid "本人归属"
+msgstr "Owned by self"
+
+#: app/services/kpi_actual_service.py
+msgid "分管分类"
+msgstr "Managed category"
+
+#: app/services/kpi_actual_service.py
+msgid "状态 %(st)s"
+msgstr "Status %(st)s"
+
+#: app/services/kpi_actual_service.py
+msgid "非在产 · 不计入"
+msgstr "Not active · Not counted"
+
+#: app/services/kpi_actual_service.py
+msgid "本期新建 %(t)d 个,在产 %(o)d,非在产 %(b)d"
+msgstr "%(t)d created this period · %(o)d active · %(b)d inactive"
+
+#: app/services/kpi_actual_service.py
+msgid "已审核通过 · 计入本期"
+msgstr "Review approved · Counted this period"
+
+#: app/services/kpi_actual_service.py
+msgid "已完成 · 待审核(不计入)"
+msgstr "Completed · Awaiting review (not counted)"
+
+#: app/services/kpi_actual_service.py
+msgid "进行中 · 未完成(不计入)"
+msgstr "In progress · Incomplete (not counted)"
+
+#: app/services/kpi_actual_service.py
+msgid "完成 %(d)s"
+msgstr "Completed %(d)s"
+
+#: app/services/kpi_actual_service.py
+msgid "审核 %(n)s"
+msgstr "Reviewed by %(n)s"
+
+#: app/services/kpi_actual_service.py
+msgid "已等 %(n)d 天"
+msgstr "Waiting %(n)d days"
+
+#: app/services/kpi_actual_service.py
+msgid "建于 %(d)s"
+msgstr "Created %(d)s"
+
+#: app/services/kpi_actual_service.py
+msgid "截止 %(d)s"
+msgstr "Due %(d)s"
+
+#: app/services/kpi_actual_service.py
+msgid "逾期 %(n)d 天"
+msgstr "%(n)d days overdue"
+
+#: app/services/kpi_actual_service.py
+msgid "计入 %(o)d 条(加权 %(w)s)· 待审核 %(p)d · 进行中 %(d)d"
+msgstr "%(o)d counted (weighted %(w)s) · %(p)d awaiting review · %(d)d in progress"
+
+#: app/services/kpi_actual_service.py
+msgid "归属:分管产品分类 · 金额取报价单植入小计(该字段仅对厂商产品置数) · 期内全部报价单,按报价创建时间落期"
+msgstr "Attribution: managed product categories · Amount from quotation implant subtotal (populated for vendor products only) · All quotations in the period, dated by quotation creation time"
+
+#: app/services/kpi_actual_service.py
+msgid "归属:产品归属人或分类负责人,且该人角色为产品经理 · 仅厂商产品 · 仅已批准批价单,按批准时间落期"
+msgstr "Attribution: product owner or category manager, and that person is a product manager · Vendor products only · Approved pricing orders only, dated by approval time"
+
+#: app/services/kpi_actual_service.py
+msgid "计入:期内新建 + 厂商产品 + 状态为在产;归属为产品归属人或分类负责人(不限该人角色)"
+msgstr "Counted: created in the period + vendor product + status active; attributed to the product owner or category manager (their role is not required to be product manager)"
+
+#: app/services/kpi_actual_service.py
+msgid "计入:本人为负责人 + 已完成 + 审核通过,按完成时间落期;数值为评价加权和(低于预期 0.5 / 符合 1 / 超出 1.5,无评价按 1)"
+msgstr "Counted: assigned to self + completed + review approved, dated by completion time; the value is the weighted sum of ratings (below expectation 0.5 / meets 1 / exceeds 1.5; unrated counts as 1)"
