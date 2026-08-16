@@ -168,35 +168,52 @@ METRIC_I18N = {
     },
 
     # ── 产品经理 ─────────────────────────────────────────────
+    # ⚠️ 以下 6 条说明的口径以 kpi_actual_service 的采集器为准,改说明前先看那边。
+    #    三个任务类(pm_dev_rate/pm_quality_rate/pm_support_count)在 c70e5dd1 之后
+    #    已改为「按审核通过的任务加权计数」,此前的说明写的是「按月录入」——
+    #    产品经理照着等录入入口,自然不会去建任务(实测全库 pm_quality /
+    #    pm_launch_support 任务各 0 条)。说明必须与实现一致,否则等于误导用户不产数。
     'pm_implant_amount': {
         'name': {'zh': '产品植入额', 'en': 'Product implant value'},
-        'desc': {'zh': '你负责产品在报价单中的植入金额(仅厂商产品)。',
-                 'en': 'Implant value of your products in quotations (vendor products only).'},
+        'desc': {'zh': '你分管的产品分类下,产品在报价单中的植入小计(该金额仅对厂商产品置数);'
+                       '按报价单创建时间落期。',
+                 'en': 'Implant subtotal of products in the categories you manage, taken from quotations '
+                       '(the amount is populated for vendor products only); dated by quotation creation time.'},
     },
     'pm_sales_amount': {
         'name': {'zh': '产品批价额', 'en': 'Product deal amount'},
-        'desc': {'zh': '你负责产品的已审批批价单金额(仅厂商产品)。',
-                 'en': 'Approved pricing-order amount for your products (vendor products only).'},
+        'desc': {'zh': '你作为产品归属人或分类负责人的厂商产品,其已审批批价单金额;'
+                       '按批准时间落期。',
+                 'en': 'Approved pricing-order amount for vendor products where you are the product owner '
+                       'or the category manager; dated by approval time.'},
     },
     'pm_dev_rate': {
         'name': {'zh': '研发计划达成', 'en': 'R&D plan completion'},
-        'desc': {'zh': '当期研发/迭代里程碑按计划完成的比例(按月录入,可附凭证)。',
-                 'en': 'Share of R&D/iteration milestones completed on plan (entered monthly, evidence optional).'},
+        'desc': {'zh': '你名下已完成且审核通过的研发任务,按评价加权计分'
+                       '(低于预期 0.5 / 符合 1 / 超出 1.5)。需在任务中心建「研发任务」并由审核人通过。',
+                 'en': 'Your completed and review-approved R&D tasks, scored by rating weight '
+                       '(below 0.5 / meets 1 / exceeds 1.5). Create "R&D task" items and have a reviewer approve them.'},
     },
     'pm_new_launch': {
         'name': {'zh': '新品上市', 'en': 'New product launches'},
-        'desc': {'zh': '你负责范围内本期新上市的在产产品数量。',
-                 'en': 'Number of products newly launched under your scope in the period.'},
+        'desc': {'zh': '你作为产品归属人或分类负责人,本期新建且状态为在产的厂商产品数量'
+                       '(按产品创建时间计,非实际上市时间)。',
+                 'en': 'Count of vendor products created in the period with status active, where you are the '
+                       'product owner or the category manager (dated by product creation time, not actual launch date).'},
     },
     'pm_quality_rate': {
         'name': {'zh': '质量处理', 'en': 'Quality pass rate'},
-        'desc': {'zh': '生产批次合格率(按月录入,可上传质检报告)。',
-                 'en': 'Production batch pass rate (entered monthly, QC report optional).'},
+        'desc': {'zh': '你名下已完成且审核通过的质量处理任务,按评价加权计分'
+                       '(低于预期 0.5 / 符合 1 / 超出 1.5)。需在任务中心建「质量任务」并由审核人通过。',
+                 'en': 'Your completed and review-approved quality tasks, scored by rating weight '
+                       '(below 0.5 / meets 1 / exceeds 1.5). Create "Quality task" items and have a reviewer approve them.'},
     },
     'pm_support_count': {
         'name': {'zh': '上市支持', 'en': 'Launch support'},
-        'desc': {'zh': '培训/产品资料/技术支持的产出次数(按月录入)。',
-                 'en': 'Count of training / product-material / technical-support outputs (entered monthly).'},
+        'desc': {'zh': '你名下已完成且审核通过的上市支持任务,按评价加权计分'
+                       '(低于预期 0.5 / 符合 1 / 超出 1.5)。需在任务中心建「上市支持」并由审核人通过。',
+                 'en': 'Your completed and review-approved launch-support tasks, scored by rating weight '
+                       '(below 0.5 / meets 1 / exceeds 1.5). Create "Launch support" items and have a reviewer approve them.'},
     },
 
     # ── 人事经理 / HRBP ──────────────────────────────────────
