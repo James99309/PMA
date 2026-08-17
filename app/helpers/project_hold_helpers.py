@@ -198,13 +198,62 @@ def submit_project_hold(project, target, reason, user_id):
 # 缺位直达)→ 总经理终审;授权编号在整条通过时按项目类型自动生成
 # (channel_follow→CPJ / sales_focus→SPJ / business_opportunity→APJ),
 # 取代旧 branch 步骤的人工选择。旧模板停用,进行中的旧实例按各自快照走完。
+#
+# 2026-08-17 用户确认:报备升为**三级** —— 所有业务线(渠道/销售/服务)先过「商务初审」
+# (商务助理 business_admin,当前 CN 唯一在职者=童蕾),再到业务线经理,最后总经理。
+# 只改报备:失败/搁置审核(resolve_hold_approvers)与成功锁定审核不变,仍是两级/单级。
 # ─────────────────────────────────────────────────────────────────────────────
 
 REPORT_TEMPLATE_NAME = '项目报备审批(业务线)'
 
+# 商务初审角色链(与业务线无关,所有报备统一先过这一级);按序找在职用户,缺位则跳过该级
+REPORT_PRE_REVIEW_ROLES = ('business_admin',)
+
+# 三级步骤名(顺序即 step_order 1/2/3)
+REPORT_STEP_NAMES = ('商务初审', '业务线经理审批', '总经理审批')
+
+
+def resolve_report_approvers(project):
+    """解析报备审批三级审批人。
+
+    Returns: (pre_reviewer_or_None, biz_manager_or_None, ceo, error_msg)
+      - 商务初审/业务线经理都可为 None(缺位),由调用方跳过该级;总经理必需。
+      - SG(ovs) 组织扁平:无商务/业务线经理层,直达总经理
+        (与 resolve_hold_approvers 的 ovs 分支一致)。
+    """
+    import os
+    from app.models.user import User
+
+    biz_mgr, ceo, err = resolve_hold_approvers(project)   # 业务线分流复用同一规则
+    if err:
+        return None, None, None, err
+
+    _db_type = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+    if _db_type == 'ovs':
+        return None, None, ceo, None
+
+    owner = project.owner
+    pre = None
+    for role in REPORT_PRE_REVIEW_ROLES:
+        q = User.query.filter(User.role == role, User._is_active.is_(True))
+        pre = ((q.filter(User.company_name == owner.company_name).first() if owner else None)
+               or q.first())
+        if pre:
+            break
+    return pre, biz_mgr, ceo, None
+
 
 def get_or_create_report_template(created_by=None):
-    """幂等确保业务线报备模板 + 两步 submitter_designate 存在。"""
+    """幂等确保业务线报备模板 + 三步 submitter_designate 存在。
+
+    Returns: (template, step1商务初审, step2业务线经理, step3总经理)
+
+    2026-08-17 从两步(业务线经理→总经理)升级为三步。旧模板**原地升级**:原两步
+    step_order 后移一位,新增「商务初审」为第 1 步。进行中的实例不受影响 ——
+    ApprovalInstance.get_steps() 优先读 template_snapshot(发起时的两步定义),
+    current_step 也是对快照里的 step_order 取值,所以在办单按旧两步走完;它们都停在
+    总经理这一级,与新流程的末级一致,不会被"退回"业务线经理。
+    """
     from app import db
     from app.models.approval import ApprovalProcessTemplate, ApprovalStep
     from app.models.user import User
@@ -222,39 +271,56 @@ def get_or_create_report_template(created_by=None):
         db.session.add(tpl)
         db.session.flush()
 
+    def _mk(order, name):
+        s = ApprovalStep(process_id=tpl.id, step_order=order, step_name=name,
+                         approver_type='submitter_designate', send_email=True)
+        db.session.add(s)
+        return s
+
     steps = (ApprovalStep.query.filter_by(process_id=tpl.id)
              .order_by(ApprovalStep.step_order).all())
-    if len(steps) < 2:
+    if len(steps) == 2:
+        # 旧两步模板原地升级:不删旧步(其 id 被历史 approval_record 引用),只后移顺序
+        steps[0].step_order, steps[0].step_name = 2, REPORT_STEP_NAMES[1]
+        steps[1].step_order, steps[1].step_name = 3, REPORT_STEP_NAMES[2]
+        steps = [_mk(1, REPORT_STEP_NAMES[0])] + steps
+        db.session.flush()
+        db.session.commit()   # 模板独立落库,防内部 rollback 冲掉
+    elif len(steps) != 3:
         for s in steps:
             db.session.delete(s)
         db.session.flush()
-        step1 = ApprovalStep(process_id=tpl.id, step_order=1, step_name='业务线经理审批',
-                             approver_type='submitter_designate', send_email=True)
-        step2 = ApprovalStep(process_id=tpl.id, step_order=2, step_name='总经理审批',
-                             approver_type='submitter_designate', send_email=True)
-        db.session.add_all([step1, step2])
+        steps = [_mk(i + 1, n) for i, n in enumerate(REPORT_STEP_NAMES)]
         db.session.flush()
-        steps = [step1, step2]
-        db.session.commit()   # 模板独立落库,防内部 rollback 冲掉
-    return tpl, steps[0], steps[1]
+        db.session.commit()
+    return tpl, steps[0], steps[1], steps[2]
 
 
 def submit_project_report_approval(project, user_id):
-    """发起业务线路由的项目报备审批。Returns (instance, err)。"""
+    """发起报备审批(三级:商务初审 → 业务线经理 → 总经理)。Returns (instance, err)。"""
     from app import db
     from sqlalchemy.orm.attributes import flag_modified
     from app.helpers.approval_helpers import start_approval_process
     from app.models.approval import ApprovalRecord
 
-    first, ceo, err = resolve_hold_approvers(project)   # 与失败审核同一分流规则
+    pre, biz, ceo, err = resolve_report_approvers(project)
     if err:
         return None, err
 
-    tpl, step1, step2 = get_or_create_report_template(created_by=user_id)
-    step1_approver = first if (first and first.id != user_id and first.id != ceo.id) else None
-    designated = {str(step2.id): ceo.id}
-    if step1_approver:
-        designated[str(step1.id)] = step1_approver.id
+    tpl, step1, step2, step3 = get_or_create_report_template(created_by=user_id)
+
+    # 逐级有效性:存在、不是发起人、不与后面各级重复 —— 否则该级自动跳过(不能自审/重复审)
+    taken = {ceo.id}
+    biz_ok = bool(biz) and biz.id != user_id and biz.id not in taken
+    if biz_ok:
+        taken.add(biz.id)
+    pre_ok = bool(pre) and pre.id != user_id and pre.id not in taken
+
+    designated = {str(step3.id): ceo.id}
+    if biz_ok:
+        designated[str(step2.id)] = biz.id
+    if pre_ok:
+        designated[str(step1.id)] = pre.id
 
     instance = start_approval_process(
         'project', project.id, tpl.id, user_id,
@@ -262,21 +328,43 @@ def submit_project_report_approval(project, user_id):
     if not instance:
         return None, '发起审批失败(可能已存在审批流程)'
 
+    SKIP_REASON = {
+        step1.id: '商务初审人缺位或与发起人/后续审批人重复，自动跳过该级审批',
+        step2.id: '业务线经理缺位或与发起人/终审人重复，自动跳过该级审批',
+    }
+    chain = [(step1, pre if pre_ok else None), (step2, biz if biz_ok else None), (step3, ceo)]
+    invalid_ids = {st.id: SKIP_REASON[st.id] for st, approver in chain if not approver}
+
+    # 无效级在**本实例快照**里显式标记 auto_skip:引擎推进时才会跳过它。
+    # (submitter_designate 步没指定审批人时引擎默认不跳 → 会卡在"无人可审"。
+    #  中间级失效就是这种情况,例如业务线经理本人发起报备。)
     snap = instance.template_snapshot or {}
     snap['biz_line_route'] = True
+    for st_data in snap.get('steps', []):
+        _reason = invalid_ids.get(st_data.get('step_id'))
+        if _reason:
+            st_data['auto_skip'] = True
+            st_data['skip_reason'] = _reason
     instance.template_snapshot = snap
     flag_modified(instance, 'template_snapshot')
 
-    # 业务线经理缺位/重复 → 跳级直达总经理
-    if not step1_approver:
+    # 开头连续的无效级:start_approval_process 已把 current_step 定成 1 并通知了首步,
+    # 标记来不及生效(标记发生在它返回之后),所以这里手工记 skipped + 推进 + 补发通知。
+    # 中间级的无效由上面的 auto_skip 标记在推进时由引擎处理。
+    start_step = None
+    for st, approver in chain:
+        if approver:
+            start_step = st
+            break
         db.session.add(ApprovalRecord(
-            instance_id=instance.id, step_id=step1.id, approver_id=user_id,
-            action='skipped',
-            comment='业务线经理缺位或与发起人/终审人重复，自动跳过该级审批'))
-        instance.current_step = step2.step_order
+            instance_id=instance.id, step_id=st.id, approver_id=user_id,
+            action='skipped', comment=SKIP_REASON[st.id]))
+
+    if start_step is not step1:
+        instance.current_step = start_step.step_order
         try:
             from app.services.approval_message_service import ApprovalMessageService
-            ApprovalMessageService.send_approval_notification(instance, step2)
+            ApprovalMessageService.send_approval_notification(instance, start_step)
         except Exception:
             pass
     return instance, None

@@ -4224,6 +4224,13 @@ def _check_step_execution_condition(step, target_object, instance=None):
         False → 条件不满足/自审应跳过，跳过此步骤
         None  → 无条件（未设置条件），正常执行
     """
+    # 实例快照里被**显式标记**自动跳过的步:发起时已判定该级缺位/自审/与他级重复
+    # (见 project_hold_helpers.submit_project_report_approval)。
+    # 只认快照内的显式标记 —— submitter_designate 步没指定审批人时引擎本来不会跳,
+    # 若改成"无人就跳"会让漏指定审批人变成静默越权跳级,故必须显式标记才跳。
+    if isinstance(step, dict) and step.get('auto_skip'):
+        return False
+
     # 发起人审自己的纯审核步 → 自动跳过 (详见 _is_self_review_auto_skip)
     if _is_self_review_auto_skip(step, instance):
         return False
@@ -4320,10 +4327,13 @@ def _advance_to_next_executable_step(instance, current_step_order, steps, target
             # 条件满足或无条件 → 执行此步骤
             return next_step
         # 条件不满足/自审 → 创建跳过记录，继续找下一步
+        # 快照里带 skip_reason 的显式跳过步优先用该原因(比"条件不满足"可读)
+        _marked_reason = next_step.get('skip_reason') if isinstance(next_step, dict) else None
         _create_skip_record(instance, next_step,
-            "无上级审批人(发起人为最高层)，自动跳过" if _is_next_level_no_approver(next_step, instance)
-            else "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(next_step, instance)
-            else "条件不满足，自动跳过")
+            _marked_reason
+            or ("无上级审批人(发起人为最高层)，自动跳过" if _is_next_level_no_approver(next_step, instance)
+                else "发起人本人，审核步自动跳过" if _is_self_review_auto_skip(next_step, instance)
+                else "条件不满足，自动跳过"))
         next_order += 1
         next_step = _find_step_by_order(steps, next_order)
 
@@ -5564,8 +5574,11 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                                 'business_opportunity': 'business_authorization',
                             }
                             _ba = _BRANCH_BY_TYPE.get(project.project_type)
-                            # 渠道项目报备通过:厂商销售负责人为空时,回填为本次批准的渠道经理。
-                            # (代理商提交、内部无厂商销售 → 用批准的渠道经理作归属,供后续 KPI/跟进。)
+                            # 渠道项目报备通过:厂商销售负责人为空时,回填为在职渠道负责人。
+                            # (代理商提交、内部无厂商销售 → 用渠道负责人作归属,供后续 KPI/跟进。)
+                            # 2026-08-17:原先是"扫审批记录里角色属渠道线的审批人",报备加了
+                            # 商务初审(business_admin)一级后该判据会随人事/流程调整静默失效 ——
+                            # 改为与"谁审批"解耦,直接取在职渠道总监(缺位退渠道经理)。
                             # 置于 _handle 之前,借其 db.session.commit() 一并落库。
                             try:
                                 # 业务线判据收口:只看项目类型,不再掺 report_source
@@ -5573,20 +5586,19 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                                 from app.helpers.biz_line_routing import biz_line_of, CHANNEL_APPROVER_ROLES
                                 _is_channel = biz_line_of(project) == 'channel'
                                 if _is_channel and not project.vendor_sales_manager_id:
-                                    from app.models.approval import ApprovalRecord as _AR
                                     from app.models.user import User as _U
+                                    _owner = project.owner
                                     _cm = None
-                                    for _r in (_AR.query.filter_by(instance_id=instance.id, action='approve')
-                                               .order_by(_AR.timestamp).all()):
-                                        _u = _U.query.get(_r.approver_id)
-                                        # 渠道总监也算(渠道审批负责人已改为总监,只认经理会导致回填失效)
-                                        if _u and (_u.role or '') in CHANNEL_APPROVER_ROLES:
-                                            _cm = _u
+                                    for _r in CHANNEL_APPROVER_ROLES:
+                                        _q = _U.query.filter(_U.role == _r, _U._is_active.is_(True))
+                                        _cm = ((_q.filter(_U.company_name == _owner.company_name).first()
+                                                if _owner else None) or _q.first())
+                                        if _cm:
                                             break
                                     if _cm:
                                         project.vendor_sales_manager_id = _cm.id
                                         current_app.logger.info(
-                                            f"渠道项目 {project.id} 报备通过,回填厂商销售负责人=渠道线审批人 {_cm.username}")
+                                            f"渠道项目 {project.id} 报备通过,回填厂商销售负责人=在职渠道负责人 {_cm.username}")
                             except Exception as _vsm_err:
                                 current_app.logger.warning(f"回填渠道经理为厂商销售负责人失败: {_vsm_err}")
                             try:

@@ -737,12 +737,14 @@ def at_flows():
     BUILTIN_SPECS = {
         'project': {
             'tag': '动态路由', 'steps': {
-                1: '按业务线分流:渠道(report_source=channel)→渠道经理,缺位由营销总监代理;'
-                   '服务类(负责人属服务部门)→服务经理,缺位直达总经理;其余→营销总监,缺位直达总经理',
-                2: '总经理(role=ceo,优先同公司);终审必经',
+                1: '商务初审:商务助理(business_admin,优先同公司);所有业务线统一先过这一级,缺位自动跳级',
+                2: '按业务线分流(只看项目类型):渠道跟进→渠道总监,缺位退渠道经理→营销总监;'
+                   '业务机会/负责人属服务部门→服务经理;其余→营销总监。缺位自动跳级',
+                3: '总经理(role=ceo,优先同公司);终审必经',
             },
             'notes': ['整条通过时按项目类型自动生成授权编号:渠道跟进→CPJ / 销售重点→SPJ / 业务机会→APJ',
-                      '第一步人选与发起人或总经理重复时自动跳级',
+                      '任一级人选与发起人或后续审批人重复时自动跳级',
+                      '渠道项目通过后,厂商销售负责人为空则回填为在职渠道总监(与谁审批无关)',
                       '旧的 7 个可配置报备模板已全部停用,进行中的旧实例按各自快照走完'],
         },
         'project_hold': {
@@ -767,16 +769,18 @@ def at_flows():
         },
     }
 
-    # SG(ovs)组织扁平:报备/失败搁置无业务线经理层,自动跳过第一步直达总经理(与
-    # project_hold_helpers.resolve_hold_approvers 的 ovs 分支一致),展示上也隐去第一步。
+    # SG(ovs)组织扁平:报备/失败搁置无商务初审/业务线经理层,自动跳过直达总经理(与
+    # project_hold_helpers 的 ovs 分支一致),展示上也隐去这些被跳过的前置步。
     import os
     _is_ovs = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d')) == 'ovs'
+    # ovs 下被自动跳过、展示上隐去的步骤序号
+    OVS_HIDDEN_STEPS = {'project': (1, 2), 'project_hold': (1,)}
     if _is_ovs:
-        for _k in ('project', 'project_hold'):
+        for _k in OVS_HIDDEN_STEPS:
             _spec = BUILTIN_SPECS.get(_k)
             if _spec:
-                _spec['notes'] = ['SG 组织扁平:无业务线经理层,发起后自动跳过第一步,直达总经理(ceo)审批'] + [
-                    n for n in _spec['notes'] if '第一步人选' not in n]
+                _spec['notes'] = ['SG 组织扁平:无商务/业务线经理层,发起后自动跳过前置步,直达总经理(ceo)审批'] + [
+                    n for n in _spec['notes'] if '人选' not in n]
 
     tpls = (ApprovalProcessTemplate.query
             .order_by(ApprovalProcessTemplate.is_active.desc(), ApprovalProcessTemplate.object_type,
@@ -798,9 +802,11 @@ def at_flows():
                         desc = f'固定审批人:{u.real_name or u.username}'
             items.append({'order': st.step_order, 'name': st.step_name,
                           'desc': desc, 'email': bool(st.send_email)})
-        # SG:报备/失败搁置隐去被自动跳过的「业务线经理」首步,总经理重排为第 1 步
-        if _is_ovs and t.is_active and t.object_type in ('project', 'project_hold'):
-            items = [it for it in items if it['order'] != 1]
+        # SG:报备/失败搁置隐去被自动跳过的前置步(报备=商务初审+业务线经理,失败搁置=业务线经理),
+        # 剩下的总经理重排为第 1 步
+        if _is_ovs and t.is_active and t.object_type in OVS_HIDDEN_STEPS:
+            _hidden = OVS_HIDDEN_STEPS[t.object_type]
+            items = [it for it in items if it['order'] not in _hidden]
             for _i, it in enumerate(items, 1):
                 it['order'] = _i
         flows.append({
