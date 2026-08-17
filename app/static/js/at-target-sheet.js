@@ -491,12 +491,16 @@
             return v != null ? (Math.round(v * 10) / 10) : '—';
           };
           const _ttl = _t('本期确认报价的植入品质均值(只读)·及格3→50% / 良好5→100% / 优秀7');
+          // 档位/积分两种行型的格子是自绘只读格,不走 actAttr() —— 下钻属性必须单独补,
+          // 否则这两类指标的实际值看得见却点不开(产品经理的质量处理/新品上市/上市支持
+          // 全是积分制,曾整体缺失下钻入口)。只补 drillAttr、不补 data-act:数字的
+          // 呈现方式保持原样,只多出可点态。
           if (it.gran === 'Y') {
-            cells = `<td colspan="${periodCols}" class="at-dim" style="text-align:center;" title="${_ttl}">${_av('y', 0)}</td>`;
+            cells = `<td colspan="${periodCols}" class="at-dim"${drillAttr(it, 'y', 0)} style="text-align:center;" title="${_ttl}">${_av('y', 0)}</td>`;
           } else if (isM) {
-            for (let m = 1; m <= 12; m++) cells += `<td class="at-dim" style="text-align:center;" title="${_ttl}">${_av('m', m)}</td>`;
+            for (let m = 1; m <= 12; m++) cells += `<td class="at-dim"${drillAttr(it, 'm', m)} style="text-align:center;" title="${_ttl}">${_av('m', m)}</td>`;
           } else {
-            for (let q = 1; q <= 4; q++) cells += `<td ${monthMode ? 'colspan="3"' : ''} class="at-dim" style="text-align:center;" title="${_ttl}">${_av('q', q)}</td>`;
+            for (let q = 1; q <= 4; q++) cells += `<td ${monthMode ? 'colspan="3"' : ''} class="at-dim"${drillAttr(it, 'q', q)} style="text-align:center;" title="${_ttl}">${_av('q', q)}</td>`;
           }
         } else if (isCumulative(it)) {
           // 积分制:按当前粒度(年/季/月)显示该期实际完成数(只读);得分=min(实际×单项得分, 权重)。年度列填单项得分。
@@ -507,11 +511,11 @@
           };
           const _ttl = _t('该期完成数(自动累计)·得分=min(实际×单项得分, 权重)');
           if (it.gran === 'Y') {
-            cells = `<td colspan="${periodCols}" class="at-dim" style="text-align:center;" title="${_ttl}">${_av('y', 0)}</td>`;
+            cells = `<td colspan="${periodCols}" class="at-dim"${drillAttr(it, 'y', 0)} style="text-align:center;" title="${_ttl}">${_av('y', 0)}</td>`;
           } else if (isM) {
-            for (let m = 1; m <= 12; m++) cells += `<td class="at-dim" style="text-align:center;" title="${_ttl}">${_av('m', m)}</td>`;
+            for (let m = 1; m <= 12; m++) cells += `<td class="at-dim"${drillAttr(it, 'm', m)} style="text-align:center;" title="${_ttl}">${_av('m', m)}</td>`;
           } else {
-            for (let q = 1; q <= 4; q++) cells += `<td ${monthMode ? 'colspan="3"' : ''} class="at-dim" style="text-align:center;" title="${_ttl}">${_av('q', q)}</td>`;
+            for (let q = 1; q <= 4; q++) cells += `<td ${monthMode ? 'colspan="3"' : ''} class="at-dim"${drillAttr(it, 'q', q)} style="text-align:center;" title="${_ttl}">${_av('q', q)}</td>`;
           }
         } else if (it.gran === 'Y') {
           // 年粒度:数据区合并一格,只回显年度数(年度列编辑);手工行点击弹录入
