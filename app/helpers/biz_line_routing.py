@@ -19,7 +19,13 @@
 # 业务线 → 审批角色链(按优先级;逐个找在职用户,找不到就退下一个)
 APPROVER_ROLE_CHAIN = {
     'service': ['service_manager', 'sales_director'],
-    'channel': ['channel_director', 'channel_manager', 'sales_director'],
+    # 2026-08-31 用户确认:渠道线审批统一走商务(business_admin=童蕾)。
+    # 渠道总监(刘军)已停用、渠道经理(徐侠)不再参与审批 —— 把 business_admin 置于
+    # 渠道链首位,而不是删模板步骤:人事是暂时空缺,将来渠道岗补齐只需摘掉这一位,
+    # 流程结构不动。销售/服务两线不受影响。
+    # 副作用(已确认为期望行为):报备三级里商务初审与业务线经理会解析成同一人,
+    # submit_project_report_approval 的逐级去重会自动跳过商务初审级,童蕾只批一次。
+    'channel': ['business_admin', 'channel_director', 'channel_manager', 'sales_director'],
     'sales':   ['sales_director'],
 }
 
