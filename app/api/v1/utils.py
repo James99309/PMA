@@ -1,5 +1,6 @@
 from functools import wraps
 from flask import json, request
+from flask_babel import gettext as _
 
 # Flask 2.3+ JSON兼容层
 try:
@@ -218,7 +219,7 @@ def handle_image_ocr_upload(file_storage, owner_id, business_type, ocr_fn,
     logger = _logging.getLogger(__name__)
 
     if not file_storage:
-        return False, {'file_url': None}, 400, '未提供图片'
+        return False, {'file_url': None}, 400, _('未提供图片')
 
     blob = file_storage.read()
     try:
@@ -226,7 +227,7 @@ def handle_image_ocr_upload(file_storage, owner_id, business_type, ocr_fn,
     except Exception:
         pass
     if not blob:
-        return False, {'file_url': None}, 400, '图片为空'
+        return False, {'file_url': None}, 400, _('图片为空')
 
     # 1) 存到 NAS 的 chat 桶 (复用现有 attachment 通道)
     # 按 blob magic bytes 判 file_type, 否则 SupabaseStorageClient 按 image 白名单拒收 PDF
@@ -268,7 +269,7 @@ def handle_image_ocr_upload(file_storage, owner_id, business_type, ocr_fn,
     # 2) 调 OCR
     ocr_result = ocr_fn(blob)
     if not ocr_result.get('success'):
-        return False, {'file_url': file_url}, 500, ocr_result.get('message', '识别失败')
+        return False, {'file_url': file_url}, 500, ocr_result.get('message') or _('识别失败')
 
     fields = ocr_result['data']
     return True, {

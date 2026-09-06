@@ -30,7 +30,12 @@ def image_block(base64_data: str, media_type: str = 'image/png') -> dict:
 
 
 def document_block(base64_data: str, media_type: str = 'application/pdf') -> dict:
-    """文档块 — Claude 原生 PDF 解析"""
+    """文档块 — Claude 原生 PDF 解析
+
+    ⚠️ 仅在后端是 Anthropic 原生时可用。走 Codex 代理(cli-proxy-api)时这个块会被
+    **静默丢弃**(模型收不到内容, 上游仍返 200)。当前无调用方 —— PDF 请改用
+    claude_vision_ocr.pdf_to_png_pages 栅格化后走 image_block。
+    """
     return {
         'type': 'document',
         'source': {'type': 'base64', 'media_type': media_type, 'data': base64_data},

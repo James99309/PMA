@@ -38165,3 +38165,82 @@ msgstr "Counted: created in the period + vendor product + status active; attribu
 #: app/services/kpi_actual_service.py
 msgid "计入:本人为负责人 + 已完成 + 审核通过,按完成时间落期;数值为评价加权和(低于预期 0.5 / 符合 1 / 超出 1.5,无评价按 1)"
 msgstr "Counted: assigned to self + completed + review approved, dated by completion time; the value is the weighted sum of ratings (below expectation 0.5 / meets 1 / exceeds 1.5; unrated counts as 1)"
+
+# ─── AT 报销表单 发票 OCR / 合并 modal (at-expense-form.js) ───
+
+msgid "多张发票 — 如何处理?"
+msgstr "Multiple invoices — how to handle?"
+
+msgid "已识别"
+msgstr "Recognized"
+
+msgid "张 · 按类别+货币分为"
+msgstr "receipts, grouped by category + currency into"
+
+msgid "张识别失败, 请手动填写"
+msgstr "failed to recognize, please fill in manually"
+
+msgid "可合并"
+msgstr "mergeable"
+
+msgid "全部合并 (1 行)"
+msgstr "Merge all (1 row)"
+
+msgid "全部独立"
+msgstr "Keep separate"
+
+msgid "按类别合并"
+msgstr "Merge by category"
+
+msgid "识别完成"
+msgstr "Recognition complete"
+
+msgid "识别失败"
+msgstr "Recognition failed"
+
+msgid "请手动填写"
+msgstr "Please fill in manually"
+
+msgid "请核对字段(低置信度已飘黄)"
+msgstr "Please verify the fields (low-confidence ones highlighted)"
+
+# ─── 发票/名片 OCR 错误文案 (claude_vision_ocr / api utils / expense view) ───
+
+msgid "图片为空"
+msgstr "Image is empty"
+
+msgid "未配置视觉端点 API Key (CLAUDE_VISION_API_KEY / ANTHROPIC_API_KEY)"
+msgstr "Vision endpoint API key not configured (CLAUDE_VISION_API_KEY / ANTHROPIC_API_KEY)"
+
+msgid "PDF 解析失败, 请改传图片"
+msgstr "Failed to read the PDF, please upload an image instead"
+
+msgid "未能从文件中识别出内容, 请手动填写"
+msgstr "Nothing could be recognized in this file, please fill in manually"
+
+msgid "AI 返回格式异常: %(err)s"
+msgstr "Unexpected AI response format: %(err)s"
+
+msgid "AI 服务错误 (%(code)s)"
+msgstr "AI service error (%(code)s)"
+
+msgid "识别超时, 请重试"
+msgstr "Recognition timed out, please try again"
+
+msgid "识别失败: %(err)s"
+msgstr "Recognition failed: %(err)s"
+
+msgid "未提供图片"
+msgstr "No image provided"
+
+msgid "未提供文件"
+msgstr "No file provided"
+
+msgid "文件为空"
+msgstr "File is empty"
+
+msgid "文件过大 (>10MB)"
+msgstr "File too large (>10MB)"
+
+msgid "OCR 识别失败"
+msgstr "OCR recognition failed"

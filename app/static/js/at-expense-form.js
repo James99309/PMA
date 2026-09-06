@@ -436,6 +436,11 @@
     var groups = (_gr && _gr.groups) || [];
     var groupKeys = groups;  // 下方仅用到 .length
 
+    // 计数按"真识别到的"算 — 后端把空结果判为失败(见 claude_vision_ocr._is_blank_result),
+    // 这里再照实说明, 别把失败张数混进"已识别 N 张"
+    var okCount = results.filter(function (r) { return r.success; }).length;
+    var failCount = results.length - okCount;
+
     var overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9998;' +
                             'display:flex;align-items:center;justify-content:center;padding:20px;';
@@ -448,7 +453,8 @@
         '<h3 class="at-serif" style="margin:0;font-size:18px;font-weight:500;color:var(--ink);">' +
           t('多张发票 — 如何处理?') + '</h3>' +
         '<p style="margin:6px 0 0;font-size:12.5px;color:var(--ink-3);">' +
-          t('已识别') + ' ' + results.length + ' ' + t('张 · 按类别+货币分为') + ' ' + groupKeys.length + ' ' + t('组') + '</p>' +
+          t('已识别') + ' ' + okCount + ' ' + t('张 · 按类别+货币分为') + ' ' + groupKeys.length + ' ' + t('组') +
+          (failCount ? ' · ' + failCount + ' ' + t('张识别失败, 请手动填写') : '') + '</p>' +
       '</div>';
 
     var listHtml = '<div style="padding:14px 22px;overflow-y:auto;flex:1;">';
@@ -471,8 +477,11 @@
             return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;">' +
                      '<span style="color:var(--ink-2);flex:1;">' + esc(r.fields.seller || r.file.name) + '</span>' +
                      '<span class="at-mono" style="color:var(--ink-3);">' + (r.fields.date || '—') + '</span>' +
-                     '<span class="at-mono" style="color:var(--ink);min-width:70px;text-align:right;">' +
-                       Number(r.fields.invoice_amount || 0).toFixed(2) + '</span>' +
+                     (r.success
+                       ? '<span class="at-mono" style="color:var(--ink);min-width:70px;text-align:right;">' +
+                           Number(r.fields.invoice_amount || 0).toFixed(2) + '</span>'
+                       : '<span style="min-width:70px;text-align:right;font-size:11px;color:var(--danger,#c0392b);">' +
+                           t('识别失败') + '</span>') +
                    '</div>';
           }).join('') +
         '</div>';

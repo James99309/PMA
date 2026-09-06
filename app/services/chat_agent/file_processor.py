@@ -4,7 +4,7 @@ Chat 文件处理器：把 ChatMessage 附件转成 Claude content block
 
 支持：
     - 图片 (jpg/png/webp/gif) → image content block (Claude Vision)
-    - PDF → document content block (Claude 原生解析，文字+扫描都行)
+    - PDF → 文字层 text block；扫描件 → 逐页 image block (Claude Vision)
     - docx → 提取文本 → text content block
 """
 from __future__ import annotations
@@ -23,6 +23,8 @@ MAX_FILES_PER_MESSAGE = 5
 MAX_IMAGE_SIZE = 20 * 1024 * 1024   # 20 MB (Claude 限制)
 MAX_PDF_SIZE = 32 * 1024 * 1024     # 32 MB
 MAX_SPREADSHEET_ROWS = 500  # 表格最多读取行数，避免 token 爆炸
+MAX_PDF_TEXT_CHARS = 60000  # PDF 文字层最多送这么多字符
+MAX_PDF_SCAN_PAGES = 5      # 扫描件(无文字层)栅格化的页数上限
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 PDF_EXTS = {'.pdf'}
 DOCX_EXTS = {'.docx'}
@@ -61,9 +63,7 @@ def build_file_content_blocks(file_messages: list) -> list[dict]:
     blocks: list[dict] = []
     for msg in file_messages:
         try:
-            block = _process_single_file(msg)
-            if block:
-                blocks.append(block)
+            blocks.extend(_process_single_file(msg))
         except Exception:
             logger.warning(f'[FileProcessor] 处理文件失败 msg_id={msg.id}', exc_info=True)
     return blocks
@@ -77,31 +77,34 @@ def mark_files_processed(file_messages: list) -> None:
 
 # ─── 内部实现 ──────────────────────────────────────────────────────────
 
-def _process_single_file(msg) -> dict | None:
-    """处理单条文件消息，返回一个 content block 或 None。"""
+def _process_single_file(msg) -> list[dict]:
+    """处理单条文件消息，返回 content block 列表(PDF 扫描件会拆成多页图)。"""
     file_name = msg.file_name or ''
     ext = Path(file_name).suffix.lower()
 
     if ext not in SUPPORTED_EXTS:
         logger.info(f'[FileProcessor] 跳过不支持的文件类型: {file_name} ({ext})')
-        return None
+        return []
 
     file_bytes = _read_file_bytes(msg.file_url)
     if not file_bytes:
         logger.warning(f'[FileProcessor] 无法读取文件: {msg.file_url}')
-        return None
+        return []
+
+    if ext in PDF_EXTS:
+        return _build_pdf_blocks(file_bytes, file_name)
 
     if ext in IMAGE_EXTS:
-        return _build_image_block(file_bytes, ext)
-    elif ext in PDF_EXTS:
-        return _build_pdf_block(file_bytes)
+        block = _build_image_block(file_bytes, ext)
     elif ext in DOCX_EXTS:
-        return _build_docx_block(file_bytes, file_name)
+        block = _build_docx_block(file_bytes, file_name)
     elif ext in EXCEL_EXTS:
-        return _build_excel_block(file_bytes, file_name)
+        block = _build_excel_block(file_bytes, file_name)
     elif ext in CSV_EXTS:
-        return _build_csv_block(file_bytes, file_name)
-    return None
+        block = _build_csv_block(file_bytes, file_name)
+    else:
+        block = None
+    return [block] if block else []
 
 
 def _read_file_bytes(file_url: str) -> bytes | None:
@@ -150,12 +153,55 @@ def _build_image_block(data: bytes, ext: str) -> dict | None:
     return conv.image_block(b64, media_type)
 
 
-def _build_pdf_block(data: bytes) -> dict | None:
+def _build_pdf_blocks(data: bytes, file_name: str) -> list[dict]:
+    """PDF → 文字层 text block；无文字层(扫描件)→ 前几页 image block。
+
+    不能用 conv.document_block(Claude 原生 PDF 解析)：当前 AI 后端是 Codex 代理
+    (cli-proxy-api 把 /v1/messages 翻成 /v1/responses)，document 块会被**静默丢弃** —
+    模型什么都收不到，上游却照样返 200(2026-09-06 实测)。
+    """
     if len(data) > MAX_PDF_SIZE:
         logger.warning(f'[FileProcessor] PDF 超过 {MAX_PDF_SIZE // 1024 // 1024}MB 限制，跳过')
-        return None
-    b64 = base64.b64encode(data).decode('ascii')
-    return conv.document_block(b64, 'application/pdf')
+        return []
+
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        logger.warning('[FileProcessor] PyMuPDF 未安装，无法处理 PDF')
+        return []
+
+    try:
+        doc = fitz.open(stream=data, filetype='pdf')
+    except Exception:
+        logger.warning(f'[FileProcessor] PDF 打开失败: {file_name}', exc_info=True)
+        return []
+    try:
+        page_count = doc.page_count
+        text = '\n'.join(doc[i].get_text() for i in range(page_count)).strip()
+    except Exception:
+        logger.warning(f'[FileProcessor] PDF 取文字失败: {file_name}', exc_info=True)
+        page_count, text = 0, ''
+    finally:
+        doc.close()
+
+    if text:
+        header = f'[文件: {file_name}] ({page_count} 页)'
+        if len(text) > MAX_PDF_TEXT_CHARS:
+            text = text[:MAX_PDF_TEXT_CHARS]
+            header += f'（内容过长，仅显示前 {MAX_PDF_TEXT_CHARS} 字）'
+        return [conv.text_block(f'{header}\n{text}')]
+
+    # 无文字层 = 扫描件/图片型 PDF，栅格化后让模型看图
+    from app.services.claude_vision_ocr import pdf_to_png_pages
+    pages = pdf_to_png_pages(data, max_pages=MAX_PDF_SCAN_PAGES)
+    if not pages:
+        logger.warning(f'[FileProcessor] PDF 既无文字层也无法栅格化: {file_name}')
+        return []
+    if page_count > len(pages):
+        logger.info(f'[FileProcessor] 扫描件 {file_name} 共 {page_count} 页，'
+                    f'仅送前 {len(pages)} 页')
+    return [conv.image_block(base64.b64encode(p).decode('ascii'), 'image/png')
+            for p in pages]
 
 
 def _build_docx_block(data: bytes, file_name: str) -> dict | None:

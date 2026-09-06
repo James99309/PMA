@@ -2771,12 +2771,12 @@ def api_ocr_invoice():
     from flask import session as flask_session
     f = request.files.get('file')
     if not f:
-        return jsonify({'success': False, 'message': '未提供文件'}), 400
+        return jsonify({'success': False, 'message': _('未提供文件')}), 400
     blob = f.read()
     if not blob:
-        return jsonify({'success': False, 'message': '文件为空'}), 400
+        return jsonify({'success': False, 'message': _('文件为空')}), 400
     if len(blob) > 10 * 1024 * 1024:
-        return jsonify({'success': False, 'message': '文件过大 (>10MB)'}), 400
+        return jsonify({'success': False, 'message': _('文件过大 (>10MB)')}), 400
 
     from app.services.expense_invoice_ocr import extract_invoice
     lang = 'en' if flask_session.get('language') == 'en' else 'zh'
@@ -2784,9 +2784,9 @@ def api_ocr_invoice():
         result = extract_invoice(blob, lang=lang)
     except Exception as e:
         logger.error(f"发票 OCR 失败: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': _('识别失败: %(err)s', err=str(e)[:80])}), 500
     if not result.get('success'):
-        return jsonify({'success': False, 'message': result.get('message') or 'OCR 识别失败'})
+        return jsonify({'success': False, 'message': result.get('message') or _('OCR 识别失败')})
     return jsonify({'success': True, 'fields': result.get('data', {})})
 
 

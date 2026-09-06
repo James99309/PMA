@@ -12,6 +12,7 @@ import base64
 import logging
 
 import anthropic
+from flask_babel import gettext as _
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,84 @@ def detect_prefer_lang() -> str:
     return 'en' if db_type == 'ovs' else 'zh'
 
 
+PDF_RASTER_MAX_PAGES = 3        # 发票基本 1 页, 留点余量; 再多纯属烧 token
+PDF_RASTER_DPI = 150
+IMAGE_MAX_EDGE = 1568           # Anthropic 建议的长边上限, 更大只会被上游缩回去
+
+
+def pdf_to_png_pages(pdf_blob: bytes, max_pages: int = PDF_RASTER_MAX_PAGES,
+                     dpi: int = PDF_RASTER_DPI) -> list:
+    """PDF → 每页 PNG 字节流(最多 max_pages 页)。
+
+    为什么不把 PDF 原样丢给模型: Anthropic 原生支持 type='document' 直接吃 PDF,
+    但当前视觉后端是 Codex 代理(cli-proxy-api 把 /v1/messages 翻译成 Codex 的
+    /v1/responses), 它会把 document 块**静默丢弃** —— 上游照样返 200, 模型手里
+    却什么都没有(2026-09-06 实测: 模型直接回 NO_DOCUMENT_RECEIVED), 字段全 null
+    反被当成"识别成功"。栅格化成图片走 image 块则一切正常。
+
+    解析失败不抛异常, 返回空列表交调用方处理(PDF 可能加密/损坏)。
+    """
+    try:
+        import fitz  # PyMuPDF, 见 requirements.txt
+    except ImportError:
+        logger.error('PyMuPDF(fitz) 未安装, PDF 无法栅格化')
+        return []
+
+    try:
+        doc = fitz.open(stream=pdf_blob, filetype='pdf')
+    except Exception as e:
+        logger.error(f'PDF 打开失败: {e}')
+        return []
+
+    pages = []
+    try:
+        for idx in range(min(max_pages, doc.page_count)):
+            page = doc[idx]
+            scale = dpi / 72.0
+            long_edge = max(page.rect.width, page.rect.height) or 1
+            if long_edge * scale > IMAGE_MAX_EDGE:
+                scale = IMAGE_MAX_EDGE / long_edge
+            pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+            pages.append(pix.tobytes('png'))
+    except Exception as e:
+        logger.error(f'PDF 栅格化失败(已渲染 {len(pages)} 页): {e}')
+    finally:
+        doc.close()
+    return pages
+
+
+def _image_block(blob: bytes, media_type: str) -> dict:
+    """构造 Anthropic image content block。"""
+    return {
+        'type': 'image',
+        'source': {
+            'type': 'base64',
+            'media_type': media_type,
+            'data': base64.standard_b64encode(blob).decode('ascii'),
+        },
+    }
+
+
+def _is_blank_result(data: dict) -> bool:
+    """schema 字段全空 = 什么都没识别到。
+
+    为什么要判: 上游可能返 200 + 一个字段全 null 的合法 JSON(比如图片/文档没真正
+    送达模型)。若照旧当成功返回, 前端会把一行 0.00 当成"识别完成"展示 —— 识别失败
+    伪装成识别成功, 比直接报错更难排查(2026-09-06 PDF 静默失效就是这么被掩盖的)。
+    """
+    if not isinstance(data, dict):
+        return True
+    for key, value in data.items():
+        if key == 'confidence' or value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        if isinstance(value, (list, dict)) and not value:
+            continue
+        return False
+    return True
+
+
 def extract_with_schema(
     image_blob: bytes,
     system_prompt: str,
@@ -109,27 +188,26 @@ def extract_with_schema(
         失败    → {'success': False, 'message': '...'}
     """
     if not image_blob:
-        return {'success': False, 'message': '图片为空'}
+        return {'success': False, 'message': _('图片为空')}
 
     api_key = _vision_conf()[0]
     if not api_key:
-        return {'success': False, 'message': '未配置视觉端点 API Key (CLAUDE_VISION_API_KEY / ANTHROPIC_API_KEY)'}
+        return {'success': False,
+                'message': _('未配置视觉端点 API Key (CLAUDE_VISION_API_KEY / ANTHROPIC_API_KEY)')}
 
     media_type = detect_image_type(image_blob)
-    is_pdf = media_type == 'application/pdf'
-    image_b64 = base64.standard_b64encode(image_blob).decode('ascii')
     if model is None:
         model = os.environ.get('CLAUDE_VISION_MODEL', 'claude-haiku-4-5-20251001')
 
-    # Claude 支持 type=image 和 type=document, document 用于 PDF (会自动 OCR 每页)
-    content_block = {
-        'type': 'document' if is_pdf else 'image',
-        'source': {
-            'type': 'base64',
-            'media_type': media_type,
-            'data': image_b64,
-        },
-    }
+    # PDF 一律先栅格化成图片再送 —— 当前视觉后端(Codex 代理)会丢弃 document 块,
+    # 详见 pdf_to_png_pages 注释
+    if media_type == 'application/pdf':
+        png_pages = pdf_to_png_pages(image_blob)
+        if not png_pages:
+            return {'success': False, 'message': _('PDF 解析失败, 请改传图片')}
+        content_blocks = [_image_block(p, 'image/png') for p in png_pages]
+    else:
+        content_blocks = [_image_block(image_blob, media_type)]
 
     raw = ''
     try:
@@ -139,8 +217,7 @@ def extract_with_schema(
             system=system_prompt,
             messages=[{
                 'role': 'user',
-                'content': [
-                    content_block,
+                'content': content_blocks + [
                     {'type': 'text', 'text': user_text},
                 ],
             }],
@@ -156,19 +233,26 @@ def extract_with_schema(
         if start >= 0 and end > start:
             raw = raw[start:end + 1]
         data = json.loads(raw)
+        if _is_blank_result(data):
+            logger.warning(f'Vision OCR 结果全空(model={model}, media={media_type}) '
+                           f'— 视为识别失败')
+            return {'success': False, 'message': _('未能从文件中识别出内容, 请手动填写')}
         # 标准化 confidence 字典
         if not isinstance(data.get('confidence'), dict):
             data['confidence'] = {}
         return {'success': True, 'data': data}
     except json.JSONDecodeError as je:
         logger.error(f'Vision OCR JSON 解析失败: {je}, raw={raw[:200] if raw else ""}')
-        return {'success': False, 'message': f'AI 返回格式异常: {str(je)[:80]}'}
+        return {'success': False,
+                'message': _('AI 返回格式异常: %(err)s', err=str(je)[:80])}
     except anthropic.APIStatusError as e:
         logger.error(f'Claude vision API 错误: {e.status_code}')
-        return {'success': False, 'message': f'AI 服务错误 ({e.status_code})'}
+        return {'success': False,
+                'message': _('AI 服务错误 (%(code)s)', code=e.status_code)}
     except anthropic.APITimeoutError:
         logger.error('Claude vision API 超时')
-        return {'success': False, 'message': '识别超时, 请重试'}
+        return {'success': False, 'message': _('识别超时, 请重试')}
     except Exception as e:
         logger.error(f'Vision OCR 异常: {e}', exc_info=True)
-        return {'success': False, 'message': f'识别失败: {str(e)[:80]}'}
+        return {'success': False,
+                'message': _('识别失败: %(err)s', err=str(e)[:80])}
