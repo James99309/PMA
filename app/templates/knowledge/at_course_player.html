@@ -72,11 +72,18 @@
   .cp-notes-body { padding:12px 18px 16px; overflow-y:auto; font-size:14px; line-height:1.75;
                    color:var(--ink); white-space:pre-wrap; }
   .cp-notes-empty { color:var(--ink-3); font-size:13px; }
+
+  /* 文档型课件(解析不出分页:标准全文阅读器 / 视频 / 可下载附件):
+     翻页条、逐页说明、考核都无意义 —— 考核接口对无分页课件本来就返回
+     「课件无讲解内容,无法出题」,按钮留着只会把人导进死路。DOM 保留只隐藏,
+     避免 JS 取不到元素报错。 */
+  .cp-docmode #cpNotes, .cp-docmode #cpNotesToggle, .cp-docmode #cpExam { display:none !important; }
+
   .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
 </style>
 </head>
 <body class="at-page">
-<div class="cp-wrap">
+<div class="cp-wrap{% if not pages %} cp-docmode{% endif %}">
 
   <div class="cp-bar">
     <a class="cp-back" href="{{ url_for('knowledge_wiki.at_wiki_page') }}">
