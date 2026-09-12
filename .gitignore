@@ -206,3 +206,7 @@ app/course_assets/*.thumbs/
 # 投放/更新:deploy/sync-website-preview.sh
 app/website_cn_preview/
 app/website_en_preview/
+
+# 知识库内容发布包：输入数据必须进 git（上面有全局 build/ 和 *.json 忽略，这里放行）
+!deploy/knowledge-content/assets/**
+deploy/knowledge-content/.build/
