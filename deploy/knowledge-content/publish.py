@@ -89,9 +89,18 @@ def build_reader(target):
 
 
 def place_assets(target, html):
-    """投放课件 + 封面到 app/course_assets/。"""
+    """投放课件 + 封面到 app/course_assets/。
+
+    ⚠️ 容器里 /app/app 是**只读**挂载，这一步只能在宿主机做（见
+    publish-on-nas.sh）。容器内跑请加 --skip-assets。
+    """
     c = COURSES[target]
     dst_dir = P.COURSE_ASSETS()
+    if not os.access(os.path.dirname(dst_dir), os.W_OK):
+        raise SystemExit(
+            f'❌ {dst_dir} 不可写（容器里 /app/app 是只读挂载）。\n'
+            f'   课件请在宿主机投放，容器内本步骤加 --skip-assets 跳过；\n'
+            f'   NAS 上用 deploy/knowledge-content/publish-on-nas.sh 一条命令跑完整流程。')
     os.makedirs(dst_dir, exist_ok=True)
     shutil.copy2(html, os.path.join(dst_dir, c['key'] + '.html'))
     print(f"   ✅ 课件 → app/course_assets/{c['key']}.html  ({os.path.getsize(html)//1024} KB)")
@@ -144,6 +153,10 @@ def main():
     ap.add_argument('target', choices=['cn', 'en'])
     ap.add_argument('--commit', action='store_true', help='真正写库（缺省只构建 + 预览）')
     ap.add_argument('--scope', default='company', choices=['personal', 'department', 'company', 'system'])
+    ap.add_argument('--skip-assets', action='store_true',
+                    help='跳过课件/封面投放（容器内 /app/app 只读时用，由宿主机侧投放）')
+    ap.add_argument('--has-thumbs', action='store_true',
+                    help='配合 --skip-assets：宿主机已放好封面，登记时置 has_thumbs=true')
     args = ap.parse_args()
 
     if not os.environ.get('DATABASE_URL'):
@@ -155,8 +168,12 @@ def main():
     html = build_reader(args.target)
 
     if args.commit:
-        print('\n[2/4] 投放课件与封面')
-        has_thumbs = place_assets(args.target, html)
+        if args.skip_assets:
+            print('\n[2/4] 课件投放：--skip-assets，由宿主机侧完成')
+            has_thumbs = args.has_thumbs
+        else:
+            print('\n[2/4] 投放课件与封面')
+            has_thumbs = place_assets(args.target, html)
         print('\n[3/4] 登记课程')
         sys.path.insert(0, P.project_root())
         register_course(args.target, has_thumbs)
