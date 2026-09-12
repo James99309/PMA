@@ -61,9 +61,12 @@ echo
 echo "[3/4] 取回产物并投放到宿主机 course_assets（容器内 /app/app 只读）"
 ASSETS="$REPO/app/course_assets"
 sudo mkdir -p "$ASSETS/$KEY.thumbs"
-$DOCKER cp "$APP_CONTAINER:/app/deploy/knowledge-content/.build/$TARGET/$KEY.html" "/tmp/$KEY.html"
-sudo cp "/tmp/$KEY.html" "$ASSETS/$KEY.html"
-rm -f "/tmp/$KEY.html"
+# docker cp 走 sudo，落地的临时文件是 root 属主 —— 清理也必须 sudo，否则
+# set -e 会在这里中断（课件其实已经投放成功，但后面的入库不会跑）
+TMP_HTML="/tmp/$KEY.$$.html"
+$DOCKER cp "$APP_CONTAINER:/app/deploy/knowledge-content/.build/$TARGET/$KEY.html" "$TMP_HTML"
+sudo cp "$TMP_HTML" "$ASSETS/$KEY.html"
+sudo rm -f "$TMP_HTML"
 COVER="$PKG/assets/covers/$KEY.png"
 HAS_THUMBS=""
 if [ -f "$COVER" ]; then
