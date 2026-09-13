@@ -63,11 +63,12 @@ class PublishApacDcSgTest(unittest.TestCase):
         )
         self.assertEqual(owner.id, 21)
 
-    def test_packaged_ppt_is_exact_30_slide_original_with_notes(self):
+    def test_packaged_ppt_keeps_26_modules_and_adds_one_closing_slide(self):
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         ppt_path = MANIFEST_PATH.parent / manifest["source_ppt"]
-        expected_hash = "819b78d88aeeda46cdc209eca72a9b9d29bd138bee3c7cf6eecfe400221ffdab"
+        expected_hash = "82784f409c7d36dd5f53b868f1a31b8acda691b3e1fb135b3302b73643f3393e"
 
+        self.assertEqual(manifest["source_slide_count"], 27)
         self.assertEqual(hashlib.sha256(ppt_path.read_bytes()).hexdigest(), expected_hash)
         with ZipFile(ppt_path) as archive:
             slide_names = [
@@ -78,8 +79,8 @@ class PublishApacDcSgTest(unittest.TestCase):
                 name for name in archive.namelist()
                 if name.startswith("ppt/notesSlides/notesSlide") and name.endswith(".xml")
             ]
-            self.assertEqual(len(slide_names), 30)
-            self.assertEqual(len(notes_names), 30)
+            self.assertEqual(len(slide_names), 27)
+            self.assertEqual(len(notes_names), 27)
             for index in range(1, 27):
                 root = ElementTree.fromstring(
                     archive.read(f"ppt/notesSlides/notesSlide{index}.xml")
@@ -92,8 +93,13 @@ class PublishApacDcSgTest(unittest.TestCase):
                 self.assertEqual(
                     "\n".join(text_runs).rstrip(), manifest["pages"][index - 1]["notes"]
                 )
+            closing = ElementTree.fromstring(archive.read("ppt/slides/slide27.xml"))
+            closing_text = " ".join(" ".join(
+                node.text or "" for node in closing.iter() if node.tag.endswith("}t")
+            ).split())
+            self.assertIn("Thank You", closing_text)
 
-    def test_sg_download_metadata_reports_all_30_source_slides(self):
+    def test_sg_download_metadata_reports_all_27_download_slides(self):
         manifest = {
             "key": "apac-data-center-critical-comms-en",
             "download_key": "apac-data-center-critical-comms-en-ppt",
@@ -102,7 +108,7 @@ class PublishApacDcSgTest(unittest.TestCase):
             "desc": "English training deck",
             "topic": "Industry Knowledge",
             "accent": "#0C5663",
-            "source_slide_count": 30,
+            "source_slide_count": 27,
             "pages": [{} for _ in range(26)],
         }
         row = SimpleNamespace()
@@ -112,7 +118,7 @@ class PublishApacDcSgTest(unittest.TestCase):
             "/courses/covers/apac-data-center-critical-comms-en.png",
         )
 
-        self.assertEqual(row.subtitle, "PPT · 30 slides")
+        self.assertEqual(row.subtitle, "PPT · 27 slides")
         self.assertEqual(row.page_count, 0)
 
     def test_sg_package_selects_the_named_uploader_as_owner(self):

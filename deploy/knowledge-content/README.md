@@ -25,13 +25,13 @@ CN NAS 上完成正式发布：
 ## APAC data center critical communications — English training
 
 `assets/apac-dc-en/` contains the 26 formal presentation modules, their English
-speaker notes, a PowerPoint-native cover and the complete 30-slide source PPT.
-Slides 27–30 remain in the downloadable PPT as SIRIM interview backup material;
-they are intentionally excluded from the formal interactive course.
+speaker notes, a PowerPoint-native cover and a 27-slide downloadable PPT. The
+download adds a dedicated closing slide and excludes the former SIRIM interview
+backup visuals; the interactive course remains the 26 formal modules.
 
 - Interactive course: `/wiki/play/apac-data-center-critical-comms-en`
 - Wiki article: derived from all 26 module notes under `Industry-Knowledge`
-- PPT download: the original 30-slide deck, with its speaker notes intact
+- PPT download: 26 formal slides plus a dedicated closing slide (27 slides total)
 
 Build locally without storage or database writes:
 
