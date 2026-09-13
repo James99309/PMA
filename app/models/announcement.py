@@ -18,6 +18,22 @@ def get_local_time():
     return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
 
 
+def _website_preview_ready(link):
+    """/website-preview/<lang>/ 的站点快照在不在本机。
+
+    资产投放见 deploy/sync-website-preview.sh;目录与首页文件名以
+    website_preview_routes._SITES 为准,不在这里重复定义。
+    """
+    import os
+    from app.routes.website_preview_routes import _SITES, _APP_DIR
+    parts = [p for p in link.split('/') if p]          # ['website-preview', 'cn', ...]
+    lang = parts[1] if len(parts) > 1 else ''
+    site = _SITES.get(lang)
+    if not site:
+        return False
+    return os.path.isfile(os.path.join(_APP_DIR, site[0], site[1]))
+
+
 class Announcement(db.Model):
     """公告模型"""
     __tablename__ = 'announcements'
@@ -47,6 +63,16 @@ class Announcement(db.Model):
     created_by = Column(Integer, ForeignKey('users.id'), nullable=False)
     creator = db.relationship('User', backref='created_announcements')
 
+    # ── 首页横幅 ──
+    # 勾选后这条公告会出现在仪表盘顶部的轮播横幅里。没有"已读即消失"的机制,
+    # 撤下靠管理员取消勾选 —— 所以查询侧必须限条数(见 banner_items)。
+    show_on_banner = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
+    # 点击跳转地址。为空 = 纯告知(渲染成不可点的 div)。
+    # 只存站内相对路径(如 /wiki/play/xxx)或 https:// 外链 —— 绝不存内网 IP 或
+    # 公网域名:用户从内网/Tailscale/Cloudflare 进来的都有,写死地址会把人踢走,
+    # 且 CN/SG 域名不同、IP 还会漂(见 .107→.124 那次)。校验在 views 层。
+    banner_link = Column(String(500), nullable=True)
+
     # 系统字段
     created_at = Column(DateTime, default=get_local_time, index=True)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
@@ -61,6 +87,37 @@ class Announcement(db.Model):
     __table_args__ = (
         Index('ix_announcements_status_published', 'status', 'published_at'),
     )
+
+    # 首页横幅最多滚几条。没有已读淘汰,条目只会越攒越多,滚到第 8 条时没人会等。
+    BANNER_LIMIT = 5
+
+    @classmethod
+    def banner_items(cls, user):
+        """仪表盘顶部横幅要滚的条目(新→旧)。
+
+        规则:已发布 + 未删 + 勾了横幅 + (全员 或 该用户在目标名单里)。
+        指向 /website-preview/ 的条目额外体检一次本机资产 —— 官网快照每份 140M+
+        不进 git、按区域单独投放(CN 只有中文站、SG 只有英文站),某台缺资产时
+        点进去就是 404。这是目前唯一按机器投放的资产,故只此一条规则。
+        """
+        rows = cls.query.filter(
+            cls.status == 'published',
+            cls.is_deleted == False,          # noqa: E712
+            cls.show_on_banner == True,       # noqa: E712
+        ).order_by(cls.published_at.desc().nullslast(), cls.id.desc()).all()
+
+        items = []
+        for a in rows:
+            targets = a.target_users or []
+            if targets and user and user.id not in targets:
+                continue
+            if a.banner_link and a.banner_link.startswith('/website-preview/') \
+                    and not _website_preview_ready(a.banner_link):
+                continue
+            items.append({'id': a.id, 'title': a.title, 'link': a.banner_link or ''})
+            if len(items) >= cls.BANNER_LIMIT:
+                break
+        return items
 
     @property
     def is_readonly(self):
@@ -108,6 +165,8 @@ class Announcement(db.Model):
             'target_users': self.target_users,
             'target_users_info': self.target_users_info,
             'status': self.status,
+            'show_on_banner': bool(self.show_on_banner),
+            'banner_link': self.banner_link or '',
             'scheduled_time': self.scheduled_time.isoformat() if self.scheduled_time else None,
             'published_at': self.published_at.isoformat() if self.published_at else None,
             'created_by': self.created_by,

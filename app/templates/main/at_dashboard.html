@@ -46,6 +46,44 @@
   .dash-card.scope-team .dash-card-title { color:var(--info, #2A5F8F); }
   /* 全局:hidden 属性强制隐藏(覆盖 inline display:flex/grid 等)*/
   [hidden] { display:none !important; }
+
+  /* —— 顶部通知横幅(轮播) ——
+     条目 absolute 叠放、容器给固定行高:避免不同长度的通知切换时整页跳动。*/
+  .dash-banner { position:relative; width:100%; box-sizing:border-box; min-height:27px;
+                 background:color-mix(in srgb, var(--accent) 50%, transparent);
+                 transition:background 120ms; overflow:hidden; }
+  .dash-banner:hover { background:color-mix(in srgb, var(--accent) 65%, transparent); }
+  .dash-banner-item { position:absolute; inset:0; display:flex; align-items:center;
+                      padding:5px 96px 5px 36px; box-sizing:border-box;
+                      color:#ffffff; text-decoration:none;
+                      font-size:12.5px; line-height:1.35; letter-spacing:0.02em;
+                      opacity:0; pointer-events:none; transition:opacity 400ms ease; }
+  .dash-banner-item.is-active { opacity:1; pointer-events:auto; }
+  /* 纯告知条:无跳转地址,不给手型光标 */
+  .dash-banner-item.is-static { cursor:default; }
+  /* 只有一条时不需要绝对定位撑高,回到静态流,行高与改造前一致 */
+  .dash-banner[data-count="1"] { min-height:0; }
+  .dash-banner[data-count="1"] .dash-banner-item { position:static; opacity:1; pointer-events:auto; }
+
+  .dash-banner-dots { position:absolute; right:30px; top:50%; transform:translateY(-50%);
+                      display:flex; align-items:center; gap:2px; }
+  /* ⚠️ 必须带 body.at-page 前缀压过全局按钮重置(at-theme.css:108
+     body.at-page button{background:none;padding:0}),否则未选中的点根本不显示
+     ——同文件 183/204 行也是为这个坑加的前缀。
+     未选中用比底色更深的主色:白色半透明压在浅橘底上几乎看不见;
+     padding + content-box 把 7px 的点撑成 15px 热区,免得点不中。*/
+  body.at-page .dash-banner-dot {
+      width:7px; height:7px; padding:4px; border:0; border-radius:50%;
+      background:color-mix(in srgb, var(--accent) 85%, transparent);
+      background-clip:content-box; box-sizing:content-box;
+      cursor:pointer; transition:background 160ms; }
+  body.at-page .dash-banner-dot:hover { background:var(--accent); background-clip:content-box; }
+  body.at-page .dash-banner-dot.is-active { background:#ffffff; background-clip:content-box; }
+
+  /* 系统设了"减少动态效果"时不做淡入淡出(JS 侧同时停掉自动轮播) */
+  @media (prefers-reduced-motion: reduce) {
+    .dash-banner-item { transition:none; }
+  }
 </style>
 </head>
 <body class="at-page">
@@ -57,17 +95,33 @@
 
   {{ at_topbar() }}
 
-  {# ── 官网预览通知条(通栏,紧贴工具栏底部,无间隙,系统主橘色50%透明;每次登录出现) ── #}
-  {# 站点按区域投放(CN=中文站/SG=英文站,快照不进 git);本机没有对应资产就不显示入口 #}
-  {% if website_preview_available %}
-  <a href="{{ url_for('website_preview.home', lang=website_preview_lang) }}" target="_blank" rel="noopener"
-     style="display:block;width:100%;box-sizing:border-box;padding:5px 36px;text-decoration:none;
-            background:color-mix(in srgb, var(--accent) 50%, transparent);color:#ffffff;
-            font-size:12.5px;line-height:1.35;letter-spacing:0.02em;text-align:left;transition:background 120ms;"
-     onmouseover="this.style.background='color-mix(in srgb, var(--accent) 65%, transparent)'"
-     onmouseout="this.style.background='color-mix(in srgb, var(--accent) 50%, transparent)'">
-    {{ _('公司官网预览') }}　{{ _('请点击跳转') }}
-  </a>
+  {# ── 通知横幅(通栏,紧贴工具栏底部,无间隙,系统主橘色50%透明) ── #}
+  {# 内容来自公告系统:勾了"首页横幅展示"的已发布公告(官网预览入口也是其中一条)。#}
+  {# 多条时淡入淡出轮播;只有 1 条时不轮播也不出圆点,视觉与改造前一致。#}
+  {% if banner_items %}
+  <div id="dashBanner" class="dash-banner" data-count="{{ banner_items|length }}">
+    {% for it in banner_items %}
+      {% if it.link %}
+      <a class="dash-banner-item{% if loop.first %} is-active{% endif %}" href="{{ it.link }}"
+         {% if it.link.startswith('http') %}target="_blank" rel="noopener"{% endif %}>
+        {{ it.title }}　{{ _('请点击跳转') }}
+      </a>
+      {% else %}
+      {# 纯告知:没有跳转地址就不是链接,不给手型光标、不给"请点击跳转"的假暗示 #}
+      <div class="dash-banner-item is-static{% if loop.first %} is-active{% endif %}">{{ it.title }}</div>
+      {% endif %}
+    {% endfor %}
+
+    {% if banner_items|length > 1 %}
+    <div class="dash-banner-dots" role="tablist" aria-label="{{ _('通知') }}">
+      {% for it in banner_items %}
+      <button type="button" class="dash-banner-dot{% if loop.first %} is-active{% endif %}"
+              data-idx="{{ loop.index0 }}" role="tab"
+              aria-label="{{ _('第 %(n)d 条', n=loop.index) }}"></button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
   {% endif %}
 
   <main style="width:100%;box-sizing:border-box;max-width:1480px;margin:0 auto;padding:24px 36px 80px;">
@@ -1089,6 +1143,51 @@
 
 {# 工作记录文本可点击展开(超出 2 行时)#}
 <script src="{{ url_for('static', filename='js/at-clamp-expand.js') }}"></script>
+
+{# 顶部通知横幅轮播 #}
+<script>
+(function () {
+  var wrap = document.getElementById('dashBanner');
+  if (!wrap) return;
+  var items = wrap.querySelectorAll('.dash-banner-item');
+  if (items.length < 2) return;            // 单条不轮播,也不会有圆点
+
+  var dots = wrap.querySelectorAll('.dash-banner-dot');
+  var idx = 0, timer = null;
+  var INTERVAL = 6000;
+  // 系统开了"减少动态效果"就不自动播,只留圆点手动切
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function show(n) {
+    idx = (n + items.length) % items.length;
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle('is-active', i === idx);
+      if (dots[i]) dots[i].classList.toggle('is-active', i === idx);
+    }
+  }
+  function start() { if (!reduced && !timer) timer = setInterval(function () { show(idx + 1); }, INTERVAL); }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+
+  // 鼠标移上去停住:让人有时间读完/点进去
+  wrap.addEventListener('mouseenter', stop);
+  wrap.addEventListener('mouseleave', start);
+  // 键盘焦点进入时同样停住(无障碍)
+  wrap.addEventListener('focusin', stop);
+  wrap.addEventListener('focusout', start);
+  // 标签页切到后台时停掉,回来再续:省得回来时正好在切换中途
+  document.addEventListener('visibilitychange', function () {
+    document.hidden ? stop() : start();
+  });
+
+  for (var d = 0; d < dots.length; d++) {
+    (function (n) {
+      dots[n].addEventListener('click', function () { show(n); stop(); start(); });
+    })(d);
+  }
+
+  start();
+})();
+</script>
 
 </body>
 </html>

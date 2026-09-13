@@ -444,7 +444,9 @@
                         title: data.title,
                         content: data.content,
                         announcement_type: data.announcement_type,
-                        scheduled_time: data.scheduled_time ? data.scheduled_time.slice(0, 16) : ''
+                        scheduled_time: data.scheduled_time ? data.scheduled_time.slice(0, 16) : '',
+                        show_on_banner: !!data.show_on_banner,
+                        banner_link: data.banner_link || ''
                     }
                 });
             } else {
@@ -467,6 +469,8 @@
         const content = document.getElementById('content').value.trim();
         const announcement_type = document.getElementById('announcement_type').value;
         const scheduled_time = document.getElementById('scheduled_time').value;
+        const show_on_banner = document.getElementById('show_on_banner').checked;
+        const banner_link = document.getElementById('banner_link').value.trim();
 
         if (!title) {
             showToast('{{ _("请输入公告标题") }}', 'warning');
@@ -497,7 +501,9 @@
                     content,
                     announcement_type,
                     scheduled_time: scheduled_time || null,
-                    target_users: selectedUsers.map(u => u.id)
+                    target_users: selectedUsers.map(u => u.id),
+                    show_on_banner,
+                    banner_link
                 })
             });
 
