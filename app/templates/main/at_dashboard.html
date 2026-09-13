@@ -49,9 +49,10 @@
 
   /* —— 顶部通知横幅(轮播) ——
      条目 absolute 叠放、容器给固定行高:避免不同长度的通知切换时整页跳动。*/
+  /* overflow 必须 visible:悬停展开的详情面板要能溢出这条 27px 的带子 */
   .dash-banner { position:relative; width:100%; box-sizing:border-box; min-height:27px;
                  background:color-mix(in srgb, var(--accent) 50%, transparent);
-                 transition:background 120ms; overflow:hidden; }
+                 transition:background 120ms; overflow:visible; z-index:30; }
   .dash-banner:hover { background:color-mix(in srgb, var(--accent) 65%, transparent); }
   .dash-banner-item { position:absolute; inset:0; display:flex; align-items:center;
                       padding:5px 96px 5px 36px; box-sizing:border-box;
@@ -59,6 +60,24 @@
                       font-size:12.5px; line-height:1.35; letter-spacing:0.02em;
                       opacity:0; pointer-events:none; transition:opacity 400ms ease; }
   .dash-banner-item.is-active { opacity:1; pointer-events:auto; }
+  /* 标题占满整行:长标题省略号收尾,不把 27px 的行高撑开 */
+  .dash-banner-title { display:block; width:100%;
+                       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* —— 悬停展开的详情(公告正文) ——
+     绝对定位悬浮在下方内容之上,不挤占版面:若改成把页面推下去,鼠标一划过顶栏
+     整页就跳一下,还会甩掉光标。面板本身也在 <a> 里,所以在面板上点击照常跳转。*/
+  .dash-banner-detail { position:absolute; top:100%; left:0; right:0;
+                        display:block; max-height:0; overflow:hidden;
+                        opacity:0; visibility:hidden;
+                        box-sizing:border-box; padding:0 36px;
+                        background:var(--bg-elev); color:var(--ink);
+                        font-size:12.5px; line-height:1.7; white-space:pre-wrap;
+                        border-bottom:1px solid var(--line);
+                        box-shadow:0 10px 24px rgba(0,0,0,0.10);
+                        transition:max-height 220ms ease, opacity 180ms ease, padding 220ms ease; }
+  .dash-banner.is-open .dash-banner-item.is-active .dash-banner-detail {
+      max-height:40vh; overflow-y:auto; opacity:1; visibility:visible; padding:12px 36px 14px; }
   /* 纯告知条:无跳转地址,不给手型光标 */
   .dash-banner-item.is-static { cursor:default; }
   /* 只有一条时不需要绝对定位撑高,回到静态流,行高与改造前一致 */
@@ -104,11 +123,15 @@
       {% if it.link %}
       <a class="dash-banner-item{% if loop.first %} is-active{% endif %}" href="{{ it.link }}"
          {% if it.link.startswith('http') %}target="_blank" rel="noopener"{% endif %}>
-        {{ it.title }}　{{ _('请点击跳转') }}
+        <span class="dash-banner-title">{{ it.title }}　{{ _('请点击跳转') }}</span>
+        {% if it.content %}<span class="dash-banner-detail">{{ it.content }}</span>{% endif %}
       </a>
       {% else %}
       {# 纯告知:没有跳转地址就不是链接,不给手型光标、不给"请点击跳转"的假暗示 #}
-      <div class="dash-banner-item is-static{% if loop.first %} is-active{% endif %}">{{ it.title }}</div>
+      <div class="dash-banner-item is-static{% if loop.first %} is-active{% endif %}">
+        <span class="dash-banner-title">{{ it.title }}</span>
+        {% if it.content %}<span class="dash-banner-detail">{{ it.content }}</span>{% endif %}
+      </div>
       {% endif %}
     {% endfor %}
 
@@ -1150,7 +1173,6 @@
   var wrap = document.getElementById('dashBanner');
   if (!wrap) return;
   var items = wrap.querySelectorAll('.dash-banner-item');
-  if (items.length < 2) return;            // 单条不轮播,也不会有圆点
 
   var dots = wrap.querySelectorAll('.dash-banner-dot');
   var idx = 0, timer = null;
@@ -1165,18 +1187,34 @@
       if (dots[i]) dots[i].classList.toggle('is-active', i === idx);
     }
   }
-  function start() { if (!reduced && !timer) timer = setInterval(function () { show(idx + 1); }, INTERVAL); }
+  // 鼠标/键盘还停在横幅上时不许恢复自动轮播。
+  // 否则点圆点(必然是悬停着点的)会调 start() 把定时器重启,人还没看完就被切走。
+  var held = 0;
+  // 单条时不起定时器(只有一条可切,空转没意义);但悬停展开仍然要能用,
+  // 所以整段逻辑不能像原来那样在 items<2 时直接 return。
+  function start() {
+    if (held > 0 || items.length < 2 || reduced || timer) return;
+    timer = setInterval(function () { show(idx + 1); }, INTERVAL);
+  }
   function stop() { if (timer) { clearInterval(timer); timer = null; } }
 
-  // 鼠标移上去停住:让人有时间读完/点进去
-  wrap.addEventListener('mouseenter', stop);
-  wrap.addEventListener('mouseleave', start);
-  // 键盘焦点进入时同样停住(无障碍)
-  wrap.addEventListener('focusin', stop);
-  wrap.addEventListener('focusout', start);
+  // 悬停:停住轮播 + 展开当前条的正文。
+  // 开有 180ms 延迟 —— 顶栏是鼠标高频经过的地方,不延迟的话划过去就闪一下面板。
+  var openTimer = null;
+  function open(delay) {
+    clearTimeout(openTimer);
+    openTimer = setTimeout(function () { wrap.classList.add('is-open'); }, delay || 0);
+  }
+  function close() { clearTimeout(openTimer); wrap.classList.remove('is-open'); }
+
+  wrap.addEventListener('mouseenter', function () { held++; stop(); open(180); });
+  wrap.addEventListener('mouseleave', function () { held = Math.max(0, held - 1); close(); start(); });
+  // 键盘走到这里时同样停住并展开(无障碍:悬停交互对键盘用户不可达)
+  wrap.addEventListener('focusin', function () { held++; stop(); open(0); });
+  wrap.addEventListener('focusout', function () { held = Math.max(0, held - 1); close(); start(); });
   // 标签页切到后台时停掉,回来再续:省得回来时正好在切换中途
   document.addEventListener('visibilitychange', function () {
-    document.hidden ? stop() : start();
+    if (document.hidden) { close(); stop(); } else { start(); }
   });
 
   for (var d = 0; d < dots.length; d++) {

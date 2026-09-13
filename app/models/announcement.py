@@ -114,7 +114,13 @@ class Announcement(db.Model):
             if a.banner_link and a.banner_link.startswith('/website-preview/') \
                     and not _website_preview_ready(a.banner_link):
                 continue
-            items.append({'id': a.id, 'title': a.title, 'link': a.banner_link or ''})
+            # content 与 title 相同时不给详情(种子/短通知常把两者写成同一句,
+            # 悬停展开看到重复的一行反而像 bug)
+            detail = (a.content or '').strip()
+            if detail == (a.title or '').strip():
+                detail = ''
+            items.append({'id': a.id, 'title': a.title,
+                          'link': a.banner_link or '', 'content': detail})
             if len(items) >= cls.BANNER_LIMIT:
                 break
         return items
