@@ -64,9 +64,9 @@ class Announcement(db.Model):
     creator = db.relationship('User', backref='created_announcements')
 
     # ── 首页横幅 ──
-    # 勾选后这条公告会出现在仪表盘顶部的轮播横幅里。没有"已读即消失"的机制,
-    # 撤下靠管理员取消勾选 —— 所以查询侧必须限条数(见 banner_items)。
-    show_on_banner = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
+    # 不另设"要不要上横幅"的开关:发布即上、撤回即下。曾经加过一个勾选框,
+    # 结果两次都栽在同一件事上 —— 发了公告却不出现,因为没人记得去勾。
+    # 代价是所有已发布公告都会滚,靠 BANNER_LIMIT 限条数 + 发布时间倒序自然淘汰。
     # 点击跳转地址。为空 = 纯告知(渲染成不可点的 div)。
     # 只存站内相对路径(如 /wiki/play/xxx)或 https:// 外链 —— 绝不存内网 IP 或
     # 公网域名:用户从内网/Tailscale/Cloudflare 进来的都有,写死地址会把人踢走,
@@ -95,7 +95,10 @@ class Announcement(db.Model):
     def banner_items(cls, user):
         """仪表盘顶部横幅要滚的条目(新→旧)。
 
-        规则:已发布 + 未删 + 勾了横幅 + (全员 或 该用户在目标名单里)。
+        规则:已发布 + 未删 + (全员 / 该用户在目标名单里 / 该用户是发布人)。
+
+        发布人无条件可见:发公告的人天然不会把自己勾进发布范围,结果就是
+        永远看不到自己发的横幅、没法自查 —— 实测两次都栽在这里。
         指向 /website-preview/ 的条目额外体检一次本机资产 —— 官网快照每份 140M+
         不进 git、按区域单独投放(CN 只有中文站、SG 只有英文站),某台缺资产时
         点进去就是 404。这是目前唯一按机器投放的资产,故只此一条规则。
@@ -103,13 +106,12 @@ class Announcement(db.Model):
         rows = cls.query.filter(
             cls.status == 'published',
             cls.is_deleted == False,          # noqa: E712
-            cls.show_on_banner == True,       # noqa: E712
         ).order_by(cls.published_at.desc().nullslast(), cls.id.desc()).all()
 
         items = []
         for a in rows:
             targets = a.target_users or []
-            if targets and user and user.id not in targets:
+            if targets and user and user.id not in targets and a.created_by != user.id:
                 continue
             if a.banner_link and a.banner_link.startswith('/website-preview/') \
                     and not _website_preview_ready(a.banner_link):
@@ -171,7 +173,6 @@ class Announcement(db.Model):
             'target_users': self.target_users,
             'target_users_info': self.target_users_info,
             'status': self.status,
-            'show_on_banner': bool(self.show_on_banner),
             'banner_link': self.banner_link or '',
             'scheduled_time': self.scheduled_time.isoformat() if self.scheduled_time else None,
             'published_at': self.published_at.isoformat() if self.published_at else None,

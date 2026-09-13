@@ -142,7 +142,6 @@ def api_create():
             content=data['content'],
             announcement_type=data.get('announcement_type', 'system'),
             target_users=data.get('target_users', []),
-            show_on_banner=bool(data.get('show_on_banner')),
             banner_link=banner_link,
             status='draft',
             created_by=current_user.id
@@ -172,41 +171,41 @@ def api_update(announcement_id):
         announcement = Announcement.query.get_or_404(announcement_id)
 
         data = request.get_json()
+        published = announcement.is_readonly
 
-        # 横幅两项不受"已发布不可编辑"限制 —— 否则一条已发布公告挂上首页后
-        # 就再也撤不下来,只能删公告(连带消息中心里的记录一起没了)。
-        if 'show_on_banner' in data:
-            announcement.show_on_banner = bool(data['show_on_banner'])
-        if 'banner_link' in data:
-            banner_link, err = _normalize_banner_link(data.get('banner_link'))
-            if err:
-                return jsonify({'success': False, 'message': err}), 400
-            announcement.banner_link = banner_link
-
-        # 其余字段:已发布后只读
-        if announcement.is_readonly:
-            db.session.commit()
-            return jsonify({'success': True, 'message': '横幅设置已更新（已发布公告的其它字段不可编辑）'})
-
-        # 更新字段
+        # 已发布也能改的:改这几项不影响 announcement_reads 与目标名单的对应关系。
+        # (横幅不需要开关:发布即上、撤回即下)
+        # 原先已发布一律拒绝编辑,结果改个错字只能删了重发 —— 已读记录和消息中心
+        # 里的那条一起没;挂上首页横幅后更是撤不下来。
         if 'title' in data:
             announcement.title = data['title']
         if 'content' in data:
             announcement.content = data['content']
         if 'announcement_type' in data:
             announcement.announcement_type = data['announcement_type']
-        if 'target_users' in data:
-            announcement.target_users = data['target_users']
-        if 'scheduled_time' in data:
-            from datetime import datetime
-            if data['scheduled_time']:
-                announcement.scheduled_time = datetime.fromisoformat(data['scheduled_time'])
-            else:
-                announcement.scheduled_time = None
+        if 'banner_link' in data:
+            banner_link, err = _normalize_banner_link(data.get('banner_link'))
+            if err:
+                return jsonify({'success': False, 'message': err}), 400
+            announcement.banner_link = banner_link
+
+        # 发布范围与定时:发布后锁死。
+        # 改 target_users 会让已读记录与名单对不上(加人缺记录、减人留孤儿),
+        # 要改请先「撤回」到草稿(会清空已读记录,重新发布时重建)。
+        if not published:
+            if 'target_users' in data:
+                announcement.target_users = data['target_users']
+            if 'scheduled_time' in data:
+                from datetime import datetime
+                if data['scheduled_time']:
+                    announcement.scheduled_time = datetime.fromisoformat(data['scheduled_time'])
+                else:
+                    announcement.scheduled_time = None
 
         db.session.commit()
 
-        return jsonify({'success': True, 'message': '公告更新成功'})
+        msg = '公告更新成功' if not published else '已更新（发布范围需先撤回才能修改）'
+        return jsonify({'success': True, 'message': msg})
 
     except Exception as e:
         db.session.rollback()
@@ -256,6 +255,36 @@ def api_publish(announcement_id):
         logger.error(f"发布公告失败: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': f'发布失败: {str(e)}'}), 500
 
+
+@announcement_bp.route('/api/recall/<int:announcement_id>', methods=['POST'])
+@login_required
+@permission_required('announcement', 'edit')
+def api_recall(announcement_id):
+    """撤回已发布的公告 → 回到草稿,可完整编辑后重新发布。
+
+    必须清空 announcement_reads:该表有 UNIQUE(announcement_id, user_id),
+    重新发布时 api_publish 会为每个目标用户插一条,不清就撞唯一约束。
+    代价是所有人的已读状态归零、重新发布后会再收到一次未读提醒 —— 这个
+    在前端确认框里明说,不能默默干。
+    """
+    try:
+        announcement = Announcement.query.get_or_404(announcement_id)
+        if announcement.status != 'published':
+            return jsonify({'success': False, 'message': '只有已发布的公告才能撤回'}), 400
+
+        removed = AnnouncementRead.query.filter_by(announcement_id=announcement.id).delete()
+        announcement.status = 'draft'
+        announcement.published_at = None
+        db.session.commit()
+
+        logger.info(f'[公告] user={current_user.id} 撤回 id={announcement_id},清已读记录 {removed} 条')
+        return jsonify({'success': True,
+                        'message': f'已撤回为草稿，清除 {removed} 条已读记录'})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"撤回公告失败: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': f'撤回失败: {str(e)}'}), 500
 
 @announcement_bp.route('/api/delete/<int:announcement_id>', methods=['POST'])
 @login_required
