@@ -185,11 +185,18 @@
                                     <span class="material-symbols-outlined text-lg">visibility</span>
                                 </button>
                                 {% endif %}
-                                {% if not item.is_readonly %}
+                                {# 已发布的也能编辑：标题/内容/横幅设置可改，发布范围需先撤回。
+                                   原先已发布一律不给编辑，改个错字只能删了重发。 #}
                                 <button type="button" onclick="openEditModal({{ item.id }})"
                                     class="p-1.5 text-slate-400 hover:text-primary transition-colors"
                                     title="{{ _('编辑') }}">
                                     <span class="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                {% if item.is_readonly %}
+                                <button type="button" onclick="recallAnnouncement({{ item.id }})"
+                                    class="p-1.5 text-slate-400 hover:text-amber-500 transition-colors"
+                                    title="{{ _('撤回为草稿') }}">
+                                    <span class="material-symbols-outlined text-lg">undo</span>
                                 </button>
                                 {% endif %}
                                 {% if item.status == 'draft' %}
@@ -259,10 +266,21 @@
     {{ tw_confirm_modal(
         modal_id='publishConfirmModal',
         title=_('确认发布'),
-        message=_('确定要发布此公告吗？发布后将无法编辑。'),
+        message=_('确定要发布此公告吗？发布后仍可修改标题、内容与横幅设置；发布范围需先撤回才能改。'),
         confirm_text=_('发布'),
         cancel_text=_('取消'),
         variant='info'
+    ) }}
+
+    <!-- 撤回确认模态框：清已读记录是硬要求(announcement_reads 有唯一约束,
+         不清则重新发布时撞主键),代价要在这里说明白,不能默默干 -->
+    {{ tw_confirm_modal(
+        modal_id='recallConfirmModal',
+        title=_('确认撤回'),
+        message=_('撤回后公告回到草稿：会从消息中心与首页横幅撤下，并清空所有人的已读状态。重新发布时大家会再收到一次未读提醒。'),
+        confirm_text=_('撤回'),
+        cancel_text=_('取消'),
+        variant='warning'
     ) }}
 
     <!-- 删除确认模态框 -->
@@ -393,8 +411,23 @@
     });
 
     // 打开创建模态框
+    // 已发布公告的字段锁:发布范围/定时发布不可改 —— 改 target_users 会让
+    // announcement_reads 与名单对不上(加人缺记录、减人留孤儿)。要改先撤回。
+    function applyPublishedLock(locked) {
+        const sched = document.getElementById('scheduled_time');
+        if (sched) sched.disabled = locked;
+        const scope = document.getElementById('selectedUsersDisplay');
+        if (scope) {
+            scope.classList.toggle('opacity-50', locked);
+            scope.classList.toggle('pointer-events-none', locked);
+        }
+        const hint = document.getElementById('publishedLockHint');
+        if (hint) hint.classList.toggle('hidden', !locked);
+    }
+
     function openCreateModal() {
         currentAnnouncementId = null;
+        applyPublishedLock(false);
         // 清空用户选择
         selectedUsers = [];
         renderSelectedUsers();
@@ -435,9 +468,13 @@
                 }
                 loadAttachments(data.attachments);
 
+                // 已发布:发布范围与定时发布锁死(改了会让已读记录与名单对不上),
+                // 其余字段照常可改。要改范围请先撤回。
+                applyPublishedLock(!!data.is_readonly);
+
                 // 使用 tw_form_modal 组件打开，通过 data 选项自动填充表单
                 openFormModal('announcementFormModal', {
-                    title: '{{ _("编辑公告") }}',
+                    title: data.is_readonly ? '{{ _("编辑公告（已发布）") }}' : '{{ _("编辑公告") }}',
                     onSubmit: saveAnnouncement,
                     data: {
                         announcement_id: data.id,
@@ -445,7 +482,6 @@
                         content: data.content,
                         announcement_type: data.announcement_type,
                         scheduled_time: data.scheduled_time ? data.scheduled_time.slice(0, 16) : '',
-                        show_on_banner: !!data.show_on_banner,
                         banner_link: data.banner_link || ''
                     }
                 });
@@ -469,7 +505,6 @@
         const content = document.getElementById('content').value.trim();
         const announcement_type = document.getElementById('announcement_type').value;
         const scheduled_time = document.getElementById('scheduled_time').value;
-        const show_on_banner = document.getElementById('show_on_banner').checked;
         const banner_link = document.getElementById('banner_link').value.trim();
 
         if (!title) {
@@ -502,7 +537,6 @@
                     announcement_type,
                     scheduled_time: scheduled_time || null,
                     target_users: selectedUsers.map(u => u.id),
-                    show_on_banner,
                     banner_link
                 })
             });
@@ -553,6 +587,32 @@
     }
 
     // 发布公告
+    // 撤回已发布的公告 → 草稿(可完整编辑后重新发布)
+    function recallAnnouncement(id) {
+        openConfirmModal('recallConfirmModal', {
+            onConfirm: async function() {
+                try {
+                    const response = await fetch(`/announcement/api/recall/${id}`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                        }
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        showToast(result.message, 'success');
+                        location.reload();
+                    } else {
+                        showToast(result.message, 'error');
+                    }
+                } catch (error) {
+                    console.error('撤回失败:', error);
+                    showToast('{{ _("撤回失败") }}', 'error');
+                }
+            }
+        });
+    }
+
     function publishAnnouncement(id) {
         openConfirmModal('publishConfirmModal', {
             onConfirm: async function() {

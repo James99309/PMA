@@ -759,6 +759,11 @@ function {{ modal_id }}Data() {
         },
 
         async saveSelection() {
+            // saving 必须在 finally 里复位:走自定义回调那条路时,成功后只关窗口就
+            // return 了 —— 原来没有 finally,saving 停在 true,下次打开选择器按钮
+            // 就已经是"保存中..."并永远转下去(默认那条路最后 location.reload(),
+            // 整页重载把状态冲掉,所以只有带 save_callback 的页面会暴露:
+            // 公告发布对象 / 工作日历协助人 / 归属关系配置)。
             this.saving = true;
             try {
                 // 如果提供了自定义回调，使用回调
@@ -785,6 +790,7 @@ function {{ modal_id }}Data() {
             } catch (error) {
                 console.error('保存失败:', error);
                 alert('{{ _("保存失败，请重试") }}');
+            } finally {
                 this.saving = false;
             }
         },
