@@ -417,11 +417,9 @@
     });
 
     // 打开创建模态框
-    // 已发布公告的字段锁:发布范围/定时发布不可改 —— 改 target_users 会让
+    // 已发布公告的字段锁:发布范围不可改 —— 改 target_users 会让
     // announcement_reads 与名单对不上(加人缺记录、减人留孤儿)。要改先撤回。
     function applyPublishedLock(locked) {
-        const sched = document.getElementById('scheduled_time');
-        if (sched) sched.disabled = locked;
         const scope = document.getElementById('selectedUsersDisplay');
         if (scope) {
             scope.classList.toggle('opacity-50', locked);
@@ -487,7 +485,6 @@
                         title: data.title,
                         content: data.content,
                         announcement_type: data.announcement_type,
-                        scheduled_time: data.scheduled_time ? data.scheduled_time.slice(0, 16) : '',
                         banner_link: data.banner_link || ''
                     }
                 });
@@ -510,7 +507,6 @@
         const title = document.getElementById('title').value.trim();
         const content = document.getElementById('content').value.trim();
         const announcement_type = document.getElementById('announcement_type').value;
-        const scheduled_time = document.getElementById('scheduled_time').value;
         const banner_link = document.getElementById('banner_link').value.trim();
 
         if (!title) {
@@ -541,7 +537,6 @@
                     title,
                     content,
                     announcement_type,
-                    scheduled_time: scheduled_time || null,
                     target_users: selectedUsers.map(u => u.id),
                     banner_link
                 })

@@ -223,18 +223,12 @@ def api_update(announcement_id):
                 return jsonify({'success': False, 'message': err}), 400
             announcement.banner_link = banner_link
 
-        # 发布范围与定时:发布后锁死。
+        # 发布范围:发布后锁死。
         # 改 target_users 会让已读记录与名单对不上(加人缺记录、减人留孤儿),
         # 要改请先「撤回」到草稿(会清空已读记录,重新发布时重建)。
         if not published:
             if 'target_users' in data:
                 announcement.target_users = data['target_users']
-            if 'scheduled_time' in data:
-                from datetime import datetime
-                if data['scheduled_time']:
-                    announcement.scheduled_time = datetime.fromisoformat(data['scheduled_time'])
-                else:
-                    announcement.scheduled_time = None
 
         db.session.commit()
 
