@@ -38180,5 +38180,72 @@ msgstr "Recall to draft"
 msgid "撤回后公告回到草稿：会从消息中心与首页横幅撤下，并清空所有人的已读状态。重新发布时大家会再收到一次未读提醒。"
 msgstr "Recalling returns the notice to draft: it is removed from the message centre and the dashboard banner, and everyone's read status is cleared. Republishing notifies them again."
 
+msgid "公告创建成功"
+msgstr "Notice created"
+
+msgid "公告已发布"
+msgstr "This notice is already published"
+
+msgid "请先选择发布对象"
+msgstr "Please choose who receives this notice"
+
+msgid "只有已发布的公告才能撤回"
+msgstr "Only a published notice can be recalled"
+
+msgid "公告已删除"
+msgstr "Notice deleted"
+
+msgid "公告不存在"
+msgstr "Notice not found"
+
+msgid "已发布的公告不可添加附件"
+msgstr "Attachments cannot be added to a published notice"
+
+msgid "已发布的公告不可删除附件"
+msgstr "Attachments cannot be removed from a published notice"
+
+msgid "创建失败: %(err)s"
+msgstr "Create failed: %(err)s"
+
+msgid "更新失败: %(err)s"
+msgstr "Update failed: %(err)s"
+
+msgid "发布失败: %(err)s"
+msgstr "Publish failed: %(err)s"
+
+msgid "撤回失败: %(err)s"
+msgstr "Recall failed: %(err)s"
+
+msgid "删除失败: %(err)s"
+msgstr "Delete failed: %(err)s"
+
+msgid "上传失败: %(err)s"
+msgstr "Upload failed: %(err)s"
+
+msgid "预览失败: %(err)s"
+msgstr "Preview failed: %(err)s"
+
+msgid "不支持的文件类型: %(ext)s"
+msgstr "Unsupported file type: %(ext)s"
+
+msgid "公告已发布，共通知 %(n)d 人"
+msgid_plural "公告已发布，共通知 %(n)d 人"
+msgstr[0] "Notice published; %(n)d person notified"
+msgstr[1] "Notice published; %(n)d people notified"
+
+msgid "已撤回为草稿，清除 %(n)d 条已读记录"
+msgid_plural "已撤回为草稿，清除 %(n)d 条已读记录"
+msgstr[0] "Recalled to draft; %(n)d read record cleared"
+msgstr[1] "Recalled to draft; %(n)d read records cleared"
+
+msgid "跳转地址不合法"
+msgstr "That link is not allowed"
+
+msgid "跳转地址请填站内路径（以 / 开头，如 /wiki/at）或 https:// 外链"
+msgstr "Enter a path inside PMA (starting with /, e.g. /wiki/at) or a full https:// address"
+
+msgid "“%(host)s”不是本系统的地址，http:// 外链也不安全。要跳本系统的页面请只填路径：%(path)s"
+msgstr "\"%(host)s\" is not this system, and plain http:// links are not safe either. To link to a page in PMA, enter just the path: %(path)s"
+
 msgid "第 %(n)d 条"
 msgstr "Item %(n)d"

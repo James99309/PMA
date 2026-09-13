@@ -4,6 +4,7 @@
 """
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
+from flask_babel import gettext as _, ngettext
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
@@ -80,7 +81,7 @@ def _normalize_banner_link(raw):
 
     for bad in ('javascript:', 'data:', 'vbscript:', 'file:'):
         if low.startswith(bad):
-            return None, '跳转地址不合法'
+            return None, _('跳转地址不合法')
 
     if link.startswith('/') and not link.startswith('//'):
         return link, None
@@ -97,10 +98,11 @@ def _normalize_banner_link(raw):
         if low.startswith('https://'):
             return link, None
         # http:// 且不是本站:多半是别台机器的内网地址,发给同事就是 404
-        return None, ('“{}”不是本系统的地址,http:// 外链也不安全。'
-                      '要跳本系统的页面请只填路径:{}').format(parts.netloc, path)
+        return None, _('“%(host)s”不是本系统的地址，http:// 外链也不安全。'
+                        '要跳本系统的页面请只填路径：%(path)s',
+                        host=parts.netloc, path=path)
 
-    return None, '跳转地址请填站内路径(以 / 开头,如 /wiki/at)或 https:// 外链'
+    return None, _('跳转地址请填站内路径（以 / 开头，如 /wiki/at）或 https:// 外链')
 
 
 def _users_tree_with_self(user):
@@ -220,9 +222,9 @@ def api_create():
 
         # 验证必填字段
         if not data.get('title'):
-            return jsonify({'success': False, 'message': '请输入公告标题'}), 400
+            return jsonify({'success': False, 'message': _('请输入公告标题')}), 400
         if not data.get('content'):
-            return jsonify({'success': False, 'message': '请输入公告内容'}), 400
+            return jsonify({'success': False, 'message': _('请输入公告内容')}), 400
 
         banner_link, err = _normalize_banner_link(data.get('banner_link'))
         if err:
@@ -244,14 +246,14 @@ def api_create():
 
         return jsonify({
             'success': True,
-            'message': '公告创建成功',
+            'message': _('公告创建成功'),
             'data': {'id': announcement.id}
         })
 
     except Exception as e:
         db.session.rollback()
         logger.error(f"创建公告失败: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'创建失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _('创建失败: %(err)s', err=str(e))}), 500
 
 
 @announcement_bp.route('/api/update/<int:announcement_id>', methods=['POST'])
@@ -296,7 +298,7 @@ def api_update(announcement_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"更新公告失败: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _('更新失败: %(err)s', err=str(e))}), 500
 
 
 @announcement_bp.route('/api/publish/<int:announcement_id>', methods=['POST'])
@@ -308,13 +310,13 @@ def api_publish(announcement_id):
         announcement = Announcement.query.get_or_404(announcement_id)
 
         if announcement.status == 'published':
-            return jsonify({'success': False, 'message': '公告已发布'}), 400
+            return jsonify({'success': False, 'message': _('公告已发布')}), 400
 
         # 获取目标用户列表
         target_user_ids = announcement.target_users or []
 
         if not target_user_ids:
-            return jsonify({'success': False, 'message': '请先选择发布对象'}), 400
+            return jsonify({'success': False, 'message': _('请先选择发布对象')}), 400
 
         # 更新公告状态
         announcement.status = 'published'
@@ -333,13 +335,14 @@ def api_publish(announcement_id):
 
         return jsonify({
             'success': True,
-            'message': f'公告已发布，共通知{len(target_user_ids)}人'
+            'message': ngettext('公告已发布，共通知 %(n)d 人', '公告已发布，共通知 %(n)d 人',
+                                         len(target_user_ids), n=len(target_user_ids))
         })
 
     except Exception as e:
         db.session.rollback()
         logger.error(f"发布公告失败: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'发布失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _('发布失败: %(err)s', err=str(e))}), 500
 
 
 @announcement_bp.route('/api/recall/<int:announcement_id>', methods=['POST'])
@@ -356,7 +359,7 @@ def api_recall(announcement_id):
     try:
         announcement = Announcement.query.get_or_404(announcement_id)
         if announcement.status != 'published':
-            return jsonify({'success': False, 'message': '只有已发布的公告才能撤回'}), 400
+            return jsonify({'success': False, 'message': _('只有已发布的公告才能撤回')}), 400
 
         removed = AnnouncementRead.query.filter_by(announcement_id=announcement.id).delete()
         announcement.status = 'draft'
@@ -365,12 +368,14 @@ def api_recall(announcement_id):
 
         logger.info(f'[公告] user={current_user.id} 撤回 id={announcement_id},清已读记录 {removed} 条')
         return jsonify({'success': True,
-                        'message': f'已撤回为草稿，清除 {removed} 条已读记录'})
+                        'message': ngettext('已撤回为草稿，清除 %(n)d 条已读记录',
+                                                  '已撤回为草稿，清除 %(n)d 条已读记录',
+                                                  removed, n=removed)})
 
     except Exception as e:
         db.session.rollback()
         logger.error(f"撤回公告失败: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'撤回失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _('撤回失败: %(err)s', err=str(e))}), 500
 
 @announcement_bp.route('/api/delete/<int:announcement_id>', methods=['POST'])
 @login_required
@@ -382,12 +387,12 @@ def api_delete(announcement_id):
         announcement.is_deleted = True
         db.session.commit()
 
-        return jsonify({'success': True, 'message': '公告已删除'})
+        return jsonify({'success': True, 'message': _('公告已删除')})
 
     except Exception as e:
         db.session.rollback()
         logger.error(f"删除公告失败: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _('删除失败: %(err)s', err=str(e))}), 500
 
 
 @announcement_bp.route('/api/get/<int:announcement_id>')
@@ -398,7 +403,7 @@ def api_get(announcement_id):
         announcement = Announcement.query.get_or_404(announcement_id)
 
         if announcement.is_deleted:
-            return jsonify({'success': False, 'message': '公告不存在'}), 404
+            return jsonify({'success': False, 'message': _('公告不存在')}), 404
 
         return jsonify({
             'success': True,
@@ -419,14 +424,14 @@ def api_upload_attachment(announcement_id):
         announcement = Announcement.query.get_or_404(announcement_id)
 
         if announcement.is_readonly:
-            return jsonify({'success': False, 'message': '已发布的公告不可添加附件'}), 400
+            return jsonify({'success': False, 'message': _('已发布的公告不可添加附件')}), 400
 
         if 'file' not in request.files:
-            return jsonify({'success': False, 'message': '未选择文件'}), 400
+            return jsonify({'success': False, 'message': _('未选择文件')}), 400
 
         file = request.files['file']
         if file.filename == '':
-            return jsonify({'success': False, 'message': '未选择文件'}), 400
+            return jsonify({'success': False, 'message': _('未选择文件')}), 400
 
         # 验证文件类型
         allowed_extensions = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
@@ -435,7 +440,7 @@ def api_upload_attachment(announcement_id):
         file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
 
         if file_ext not in allowed_extensions:
-            return jsonify({'success': False, 'message': f'不支持的文件类型: {file_ext}'}), 400
+            return jsonify({'success': False, 'message': _('不支持的文件类型: %(ext)s', ext=file_ext)}), 400
 
         # 获取文件大小
         file.seek(0, 2)
@@ -457,7 +462,7 @@ def api_upload_attachment(announcement_id):
         )
 
         if not result:
-            return jsonify({'success': False, 'message': '文件上传失败'}), 500
+            return jsonify({'success': False, 'message': _('文件上传失败')}), 500
 
         # 创建附件记录
         attachment = AnnouncementAttachment(
@@ -474,14 +479,14 @@ def api_upload_attachment(announcement_id):
 
         return jsonify({
             'success': True,
-            'message': '附件上传成功',
+            'message': _('附件上传成功'),
             'data': attachment.to_dict()
         })
 
     except Exception as e:
         db.session.rollback()
         logger.error(f"上传附件失败: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'上传失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _('上传失败: %(err)s', err=str(e))}), 500
 
 
 @announcement_bp.route('/api/delete_attachment/<int:attachment_id>', methods=['POST'])
@@ -494,7 +499,7 @@ def api_delete_attachment(attachment_id):
         announcement = attachment.announcement
 
         if announcement.is_readonly:
-            return jsonify({'success': False, 'message': '已发布的公告不可删除附件'}), 400
+            return jsonify({'success': False, 'message': _('已发布的公告不可删除附件')}), 400
 
         # 尝试删除云端文件
         try:
@@ -508,12 +513,12 @@ def api_delete_attachment(attachment_id):
         db.session.delete(attachment)
         db.session.commit()
 
-        return jsonify({'success': True, 'message': '附件已删除'})
+        return jsonify({'success': True, 'message': _('附件已删除')})
 
     except Exception as e:
         db.session.rollback()
         logger.error(f"删除附件失败: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _('删除失败: %(err)s', err=str(e))}), 500
 
 
 @announcement_bp.route('/api/preview_attachment/<int:attachment_id>')
@@ -573,7 +578,7 @@ def api_preview_attachment(attachment_id):
                     }
                     return Response(file_content, headers=headers)
                 else:
-                    return jsonify({'success': False, 'message': '文件获取失败'}), 404
+                    return jsonify({'success': False, 'message': _('文件获取失败')}), 404
 
         # 云端文件（Supabase URL），代理下载
         elif url and (url.startswith('http://') or url.startswith('https://')):
@@ -585,13 +590,13 @@ def api_preview_attachment(attachment_id):
                 }
                 return Response(resp.content, headers=headers)
             else:
-                return jsonify({'success': False, 'message': '文件获取失败'}), 404
+                return jsonify({'success': False, 'message': _('文件获取失败')}), 404
         else:
-            return jsonify({'success': False, 'message': '无效的文件URL'}), 400
+            return jsonify({'success': False, 'message': _('无效的文件URL')}), 400
 
     except Exception as e:
         logger.error(f"预览附件失败: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'预览失败: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': _('预览失败: %(err)s', err=str(e))}), 500
 
 
 @announcement_bp.route('/api/read_stats/<int:announcement_id>')
@@ -624,7 +629,7 @@ def api_mark_read(announcement_id):
         AnnouncementRead.mark_as_read(announcement_id, current_user.id)
         db.session.commit()
 
-        return jsonify({'success': True, 'message': '已标记为已读'})
+        return jsonify({'success': True, 'message': _('已标记为已读')})
 
     except Exception as e:
         db.session.rollback()
