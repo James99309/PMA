@@ -38147,12 +38147,6 @@ msgstr "File too large (>10MB)"
 msgid "OCR 识别失败"
 msgstr "OCR recognition failed"
 
-msgid "首页横幅展示"
-msgstr "Show on dashboard banner"
-
-msgid "发布后滚动显示在仪表盘顶部"
-msgstr "Rotates in the banner at the top of the dashboard once published"
-
 msgid "跳转地址"
 msgstr "Link"
 
@@ -38161,6 +38155,30 @@ msgstr "Notices"
 
 msgid "留空则只显示文字、不可点击。站内请填以 / 开头的路径（如 /wiki/at），外部网站填 https:// 开头的完整地址；不要填 IP 或域名。"
 msgstr "Leave blank for a text-only notice that cannot be clicked. For pages inside PMA use a path starting with / (e.g. /wiki/at); for an external site use a full https:// address. Do not enter an IP address or a domain name."
+
+msgid "横幅跳转地址"
+msgstr "Banner link"
+
+msgid "发布后本公告会显示在仪表盘顶部横幅"
+msgstr "Once published, this notice appears in the dashboard banner"
+
+msgid "这条公告已发布：标题、内容与横幅跳转地址可以修改；发布范围已锁定——改动它会让已读记录对不上，需要先「撤回」为草稿。"
+msgstr "This notice is published. You can still edit the title, body and banner link; the audience is locked, because changing it would break the read records. Recall it to draft first."
+
+msgid "编辑公告（已发布）"
+msgstr "Edit notice (published)"
+
+msgid "确定要发布此公告吗？发布后仍可修改标题、内容与横幅设置；发布范围需先撤回才能改。"
+msgstr "Publish this notice? You can still edit the title, body and banner link afterwards; changing the audience requires recalling it first."
+
+msgid "确认撤回"
+msgstr "Confirm recall"
+
+msgid "撤回为草稿"
+msgstr "Recall to draft"
+
+msgid "撤回后公告回到草稿：会从消息中心与首页横幅撤下，并清空所有人的已读状态。重新发布时大家会再收到一次未读提醒。"
+msgstr "Recalling returns the notice to draft: it is removed from the message centre and the dashboard banner, and everyone's read status is cleared. Republishing notifies them again."
 
 msgid "第 %(n)d 条"
 msgstr "Item %(n)d"

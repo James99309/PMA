@@ -53,9 +53,6 @@ class Announcement(db.Model):
     # 发布状态: draft(草稿), published(已发布)
     status = Column(String(20), nullable=False, default='draft', index=True)
 
-    # 定时发布时间（为空则立即发布）
-    scheduled_time = Column(DateTime, nullable=True)
-
     # 实际发布时间
     published_at = Column(DateTime, nullable=True)
 
@@ -174,7 +171,6 @@ class Announcement(db.Model):
             'target_users_info': self.target_users_info,
             'status': self.status,
             'banner_link': self.banner_link or '',
-            'scheduled_time': self.scheduled_time.isoformat() if self.scheduled_time else None,
             'published_at': self.published_at.isoformat() if self.published_at else None,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name or self.creator.username if self.creator else None,

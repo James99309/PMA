@@ -5,7 +5,6 @@
 包含字段：
 - 公告标题（必填）
 - 公告类型
-- 定时发布时间
 - 发布范围（用户选择）
 - 公告内容（必填）
 - 附件上传
@@ -29,26 +28,18 @@
         placeholder="{{ _('请输入公告标题') }}">
 </div>
 
-{# 公告类型和定时发布 #}
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div>
-        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            {{ _('公告类型') }}
-        </label>
-        <select id="announcement_type" name="announcement_type"
-            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
-            <option value="system">{{ _('系统通知') }}</option>
-            <option value="business">{{ _('业务公告') }}</option>
-            <option value="urgent">{{ _('紧急通知') }}</option>
-        </select>
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            {{ _('定时发布') }}
-        </label>
-        <input type="datetime-local" id="scheduled_time" name="scheduled_time"
-            class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
-    </div>
+{# 公告类型。原来这里还有个「定时发布」——那个字段全仓库只写不读、
+   没有任何定时任务去处理它,填了时间照样立即发布,纯属误导,已撤掉。 #}
+<div>
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ _('公告类型') }}
+    </label>
+    <select id="announcement_type" name="announcement_type"
+        class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent">
+        <option value="system">{{ _('系统通知') }}</option>
+        <option value="business">{{ _('业务公告') }}</option>
+        <option value="urgent">{{ _('紧急通知') }}</option>
+    </select>
 </div>
 
 {# 发布范围 #}
@@ -72,7 +63,7 @@
 
 {# 已发布时的说明:发布范围/定时发布为什么点不动 #}
 <div id="publishedLockHint" class="hidden rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-    {{ _('这条公告已发布：标题、内容与横幅设置可以修改；发布范围和定时发布已锁定——改动发布范围会让已读记录对不上，需要先「撤回」为草稿。') }}
+    {{ _('这条公告已发布：标题、内容与横幅跳转地址可以修改；发布范围已锁定——改动它会让已读记录对不上，需要先「撤回」为草稿。') }}
 </div>
 
 {# 横幅跳转地址:公告一经发布就会滚在仪表盘顶部通栏里(撤回即下架),
