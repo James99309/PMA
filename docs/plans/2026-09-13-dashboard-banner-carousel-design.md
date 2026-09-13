@@ -95,3 +95,18 @@ app/templates/announcement/tw_list.html       表单读写接上
 `at-theme.css:108` 有全局 `body.at-page button { background:none; padding:0 }`，
 把圆点的背景和热区 padding 全压掉了 —— 未选中的点直接不可见。样式必须带
 `body.at-page` 前缀才压得过（同文件 183/204 行也是为这个坑加的前缀）。
+
+同一类坑还中了第二次：`at-theme.css:124` 的 `body.at-page a { color: inherit }`
+特异性 (0,1,1) 压过裸类名 (0,1,0)，于是**有链接的条目（`<a>`）字色被继承成深色、
+纯告知的条目（`<div>`）还是白色** —— 同一条带子上两种字色。
+
+而加前缀时又犯了反向错误：`body.at-page .dash-banner-item`（0,2,1）反超了
+`.dash-banner-item.is-active`（0,2,0），`opacity:0` 把所有条目盖成空白。
+**提特异性必须整组一起提**，只提基础规则会把状态类压死。
+
+## 面板配色
+
+面板与横幅同色同字色（白字压橘底），展开后看着是同一块延伸下来。底色用
+`color-mix(in srgb, var(--accent) 65%, var(--bg-page))` —— 混 `--bg-page` 而不是
+混 `transparent`：渲染出的颜色和横幅 hover 态一致，但**不透明**。半透明会把下面的
+卡片透出来，长段正文压在卡片纹理上没法读。

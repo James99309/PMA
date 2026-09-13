@@ -54,12 +54,16 @@
                  background:color-mix(in srgb, var(--accent) 50%, transparent);
                  transition:background 120ms; overflow:visible; z-index:30; }
   .dash-banner:hover { background:color-mix(in srgb, var(--accent) 65%, transparent); }
-  .dash-banner-item { position:absolute; inset:0; display:flex; align-items:center;
+  /* ⚠️ 必须带 body.at-page 前缀:at-theme.css:124 有 body.at-page a{color:inherit},
+     特异性(0,1,1)压过裸类名(0,1,0) —— 不加前缀的话有链接的条目(<a>)会继承成深色,
+     纯告知的条目(<div>)仍是白色,同一条带子上两种字色。*/
+  body.at-page .dash-banner-item {
+                      position:absolute; inset:0; display:flex; align-items:center;
                       padding:5px 96px 5px 36px; box-sizing:border-box;
                       color:#ffffff; text-decoration:none;
                       font-size:12.5px; line-height:1.35; letter-spacing:0.02em;
                       opacity:0; pointer-events:none; transition:opacity 400ms ease; }
-  .dash-banner-item.is-active { opacity:1; pointer-events:auto; }
+  body.at-page .dash-banner-item.is-active { opacity:1; pointer-events:auto; }
   /* 标题占满整行:长标题省略号收尾,不把 27px 的行高撑开 */
   .dash-banner-title { display:block; width:100%;
                        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -67,22 +71,26 @@
   /* —— 悬停展开的详情(公告正文) ——
      绝对定位悬浮在下方内容之上,不挤占版面:若改成把页面推下去,鼠标一划过顶栏
      整页就跳一下,还会甩掉光标。面板本身也在 <a> 里,所以在面板上点击照常跳转。*/
+  /* 面板与横幅同色同字色,展开后看着是同一块延伸下来,而不是两套配色。
+     底色用 accent 混 --bg-page(而非混 transparent):渲染出的颜色和横幅 hover 态
+     (accent 65% 压在页面底色上)一致,但不透明 —— 半透明会把下面的卡片透出来,
+     长段正文压在卡片纹理上没法读。*/
   .dash-banner-detail { position:absolute; top:100%; left:0; right:0;
                         display:block; max-height:0; overflow:hidden;
                         opacity:0; visibility:hidden;
                         box-sizing:border-box; padding:0 36px;
-                        background:var(--bg-elev); color:var(--ink);
+                        background:color-mix(in srgb, var(--accent) 65%, var(--bg-page));
+                        color:#ffffff;
                         font-size:12.5px; line-height:1.7; white-space:pre-wrap;
-                        border-bottom:1px solid var(--line);
-                        box-shadow:0 10px 24px rgba(0,0,0,0.10);
+                        box-shadow:0 10px 24px rgba(0,0,0,0.14);
                         transition:max-height 220ms ease, opacity 180ms ease, padding 220ms ease; }
   .dash-banner.is-open .dash-banner-item.is-active .dash-banner-detail {
       max-height:40vh; overflow-y:auto; opacity:1; visibility:visible; padding:12px 36px 14px; }
   /* 纯告知条:无跳转地址,不给手型光标 */
-  .dash-banner-item.is-static { cursor:default; }
+  body.at-page .dash-banner-item.is-static { cursor:default; }
   /* 只有一条时不需要绝对定位撑高,回到静态流,行高与改造前一致 */
   .dash-banner[data-count="1"] { min-height:0; }
-  .dash-banner[data-count="1"] .dash-banner-item { position:static; opacity:1; pointer-events:auto; }
+  body.at-page .dash-banner[data-count="1"] .dash-banner-item { position:static; opacity:1; pointer-events:auto; }
 
   .dash-banner-dots { position:absolute; right:30px; top:50%; transform:translateY(-50%);
                       display:flex; align-items:center; gap:2px; }
