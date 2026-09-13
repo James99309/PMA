@@ -60,6 +60,17 @@ def _require_admin():
     return None
 
 
+def _can_manage_course(course: InteractiveCourse) -> bool:
+    """课程的管理操作只属于实际上传者；管理员身份本身不授予代管权限。"""
+    return _is_admin() and course.owner_id == current_user.id
+
+
+def _require_course_owner(course: InteractiveCourse):
+    if not _can_manage_course(course):
+        return jsonify({'success': False, 'message': '仅课程上传者可执行此操作'}), 403
+    return None
+
+
 def _reject_if_unsuitable_for_wiki(raw_path: str):
     """文件落盘后调用：检查是否适合入 wiki。
     若不合适：unlink 该文件，返回 (jsonify_response, status_code)；适合则返回 None。
@@ -680,9 +691,10 @@ def upload_ppt_course():
 @login_required
 def upload_course_cover(cid):
     """给已有课程(video/ppt)上传/更换封面图。multipart: cover(图)。"""
-    if not _is_admin():
-        return jsonify({'success': False, 'message': '仅管理员可操作'}), 403
     row = InteractiveCourse.query.get_or_404(cid)
+    denied = _require_course_owner(row)
+    if denied:
+        return denied
     cover = request.files.get('cover')
     if not cover or not (cover.filename or '').lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
         return jsonify({'success': False, 'message': '请上传 jpg/png/webp 图片'}), 400
@@ -724,9 +736,10 @@ def course_cover(course_key):
 @login_required
 def update_course(cid):
     """编辑课程元数据;可选替换课件 HTML(multipart 带 file → 重解析+重析出+重生成缩略图)。"""
-    if not _is_admin():
-        return jsonify({'success': False, 'message': '仅管理员可编辑'}), 403
     row = InteractiveCourse.query.get_or_404(cid)
+    denied = _require_course_owner(row)
+    if denied:
+        return denied
     is_multipart = 'multipart' in (request.content_type or '')
     data = request.form if is_multipart else (request.get_json(silent=True) or {})
     for fld in ('title', 'subtitle', 'desc', 'topic', 'accent'):
@@ -768,9 +781,10 @@ def update_course(cid):
 @login_required
 def gen_course_thumbs(cid):
     """生成/重生成逐页缩略图(需服务端 Playwright + Chromium)。"""
-    if not _is_admin():
-        return jsonify({'success': False, 'message': '仅管理员可操作'}), 403
     row = InteractiveCourse.query.get_or_404(cid)
+    denied = _require_course_owner(row)
+    if denied:
+        return denied
     _, path = _find_course(row.key)
     if not path:
         return jsonify({'success': False, 'message': '课件文件缺失'}), 404
@@ -794,10 +808,11 @@ def gen_course_thumbs(cid):
 @login_required
 def delete_course(cid):
     """删除课程 + 连带:课件/缩略图/题库文件 + 析出的知识文章(深链会随课程失效,故一并删)。"""
-    if not _is_admin():
-        return jsonify({'success': False, 'message': '仅管理员可删除'}), 403
     import shutil
     row = InteractiveCourse.query.get_or_404(cid)
+    denied = _require_course_owner(row)
+    if denied:
+        return denied
     key = row.key
 
     # 连带删除析出的知识文章(优先按 article_id,兜底按 <key>-deck slug)+ 其 .md 文件

@@ -33,6 +33,7 @@ def app_ctx(wiki_root):
 @pytest.fixture
 def test_articles(app_ctx):
     from app import db
+    from app.models import User
     from app.models.knowledge import KnowledgeWikiArticle
     from app.services.wiki.storage import write_article
 
@@ -41,6 +42,7 @@ def test_articles(app_ctx):
         KnowledgeWikiArticle.slug.like('test-l-%')
     ).delete(synchronize_session=False)
     db.session.commit()
+    admin = User.query.filter_by(role='admin').first()
 
     write_article('product', 'test-l-gp328p', '# GP328P\n\n内容\n')
     a1 = KnowledgeWikiArticle(
@@ -48,6 +50,7 @@ def test_articles(app_ctx):
         file_path='wiki/product/test-l-gp328p.md',
         summary='VHF 5W 对讲机',
         outbound_refs=['product/test-l-ghost'],  # 坏链接
+        owner_id=admin.id,
     )
     write_article('product', 'test-l-gp538', '# GP538\n\n内容\n')
     a2 = KnowledgeWikiArticle(
@@ -55,6 +58,7 @@ def test_articles(app_ctx):
         file_path='wiki/product/test-l-gp538.md',
         summary='',  # 空 summary
         outbound_refs=[],
+        owner_id=admin.id,
     )
     db.session.add_all([a1, a2])
     db.session.commit()
@@ -71,6 +75,7 @@ def test_articles(app_ctx):
 # ══════════════════════════════════════════════════════════════════
 
 def test_lint_reports_issues_without_auto_fix(app_ctx, wiki_root, test_articles):
+    from app.models.knowledge import KnowledgeWikiArticle
     from app.services.wiki.linter import lint_wiki
 
     fake_payload = {
@@ -105,11 +110,12 @@ def test_lint_reports_issues_without_auto_fix(app_ctx, wiki_root, test_articles)
     fake_client = MagicMock()
     fake_client.complete.return_value = fake_resp
 
+    expected_article_count = KnowledgeWikiArticle.query.count()
     result = lint_wiki(apply_auto_fixes=False, claude=fake_client)
 
     assert len(result['issues']) == 2
     assert result['auto_fixes_applied'] == 0  # 没有应用
-    assert result['article_count'] == 2
+    assert result['article_count'] == expected_article_count
 
     # 磁盘文件没被修改
     content = (wiki_root / 'wiki' / 'product' / 'test-l-gp328p.md').read_text()
@@ -154,7 +160,7 @@ def test_lint_applies_auto_fixes(app_ctx, wiki_root, test_articles):
 def test_lint_empty_wiki(app_ctx):
     from app.services.wiki.linter import lint_wiki
     fake_client = MagicMock()
-    result = lint_wiki(claude=fake_client)
+    result = lint_wiki(topic='test-empty-wiki', claude=fake_client)
     fake_client.complete.assert_not_called()
     assert result['article_count'] == 0
     assert result['issues'] == []

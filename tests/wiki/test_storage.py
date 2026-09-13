@@ -190,6 +190,7 @@ def test_validate_topic_rejects_traversal(app_ctx):
     validate_topic('product')
     validate_topic('competitor_v2')
     validate_topic('test-123')
+    validate_topic('产品')
 
     # 非法
     for bad in [
@@ -200,7 +201,6 @@ def test_validate_topic_rejects_traversal(app_ctx):
         '',
         ' product ',
         'foo bar',
-        '产品',  # CJK 不允许在 topic
         'a' * 101,  # 超长
         None,
     ]:
@@ -214,6 +214,7 @@ def test_validate_slug_rejects_traversal(app_ctx):
     validate_slug('gp328p-overview')
     validate_slug('v2.1')
     validate_slug('abc_def')
+    validate_slug('产品')
 
     for bad in [
         '../secrets',
@@ -221,7 +222,6 @@ def test_validate_slug_rejects_traversal(app_ctx):
         '',
         ' slug ',
         'has/slash',
-        '产品',
         'a' * 201,
     ]:
         with pytest.raises(WikiPathError):

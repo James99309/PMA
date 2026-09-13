@@ -33,6 +33,7 @@ def app_ctx(wiki_root):
 def test_articles(app_ctx):
     """塞几篇测试文章到 DB + 磁盘，yield 前先清理残留，yield 后再清理。"""
     from app import db
+    from app.models import User
     from app.models.knowledge import KnowledgeWikiArticle
     from app.services.wiki.storage import write_article
 
@@ -44,6 +45,7 @@ def test_articles(app_ctx):
 
     # 前置清理 —— 防止上一次失败的测试残留卡 unique constraint
     _cleanup()
+    admin = User.query.filter_by(role='admin').first()
 
     fixtures = [
         ('product', 'test-q-gp328p', 'GP328P 产品概述',
@@ -62,6 +64,7 @@ def test_articles(app_ctx):
             topic=topic, slug=slug, title=title, file_path=fp,
             summary=summary, content_length=len(content),
             source_raw_ids=[], outbound_refs=[],
+            owner_id=admin.id,
         )
         db.session.add(art)
     db.session.commit()
@@ -138,7 +141,7 @@ def test_query_empty_wiki_returns_no_data(app_ctx):
     from app.services.wiki.querier import query_wiki
 
     fake_client = MagicMock()
-    result = query_wiki('任何问题', claude=fake_client)
+    result = query_wiki('任何问题', topic='test-empty-wiki', claude=fake_client)
 
     fake_client.complete.assert_not_called()
     assert '暂无任何文章' in result['answer']

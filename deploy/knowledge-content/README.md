@@ -1,4 +1,28 @@
-# AT 知识库内容发布包 —— DG/TJ 08—2406—2022
+# AT 知识库内容发布包
+
+## 亚太数据中心关键通信中文培训
+
+`assets/apac-dc-cn/` 保存 26 页课程画面、逐页中文讲义和原始 PPT。发布后形成三项相互关联的内容：
+
+- 互动课件：`/wiki/play/apac-data-center-critical-comms-cn`
+- Wiki 文章：由 26 页讲义析出，归入 `行业知识`，支持搜索、问答和页码深链
+- PPT 下载：在“互动课程 → PPT 下载”中显示，原始文件保留讲义备注
+
+本地只构建和检查，不写数据库：
+
+```bash
+python3 deploy/knowledge-content/publish_apac_dc.py
+```
+
+CN NAS 上完成正式发布：
+
+```bash
+./deploy/knowledge-content/publish-apac-dc-on-nas.sh --commit
+```
+
+该脚本仅适用于中国 NAS（SP8D / `pma_synology`），会使用现有 CN WebDAV 配置存放原始 PPT。
+
+## DG/TJ 08—2406—2022
 
 把上海市工程建设规范《专用数字无线对讲通信系统工程技术标准》上架到 AT 知识库：
 一个交互阅读器（互动课程）+ 一套可检索文章（文章库）。中英文各一份。

@@ -73,4 +73,5 @@ class InteractiveCourse(db.Model):
             'page_count': self.page_count or 0,
             'has_thumbs': bool(self.has_thumbs),
             'article_id': self.article_id,
+            'owner_id': self.owner_id,
         }

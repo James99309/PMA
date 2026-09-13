@@ -81,6 +81,7 @@ def test_raw_file(app_ctx):
         raw_path=raw_path,
         title='GP328P 产品技术白皮书（测试用）',
         added_by=admin.id,
+        owner_id=admin.id,
     )
     db.session.add(raw)
     db.session.commit()
@@ -202,11 +203,13 @@ def test_ingest_creates_new_article(app_ctx, wiki_root, test_raw_file):
 
 def test_ingest_update_existing_article(app_ctx, wiki_root, test_raw_file):
     from app import db
+    from app.models import User
     from app.models.knowledge import KnowledgeWikiArticle
     from app.services.wiki.compiler import ingest_raw_file
     from app.services.wiki.storage import write_article
 
     raw_id = test_raw_file
+    admin = User.query.filter_by(role='admin').first()
 
     # 先手动建一篇已有文章
     file_path = write_article(
@@ -221,6 +224,7 @@ def test_ingest_update_existing_article(app_ctx, wiki_root, test_raw_file):
         content_length=10,
         source_raw_ids=[999],  # 假设的历史 raw_id
         outbound_refs=[],
+        owner_id=admin.id,
     )
     db.session.add(existing)
     db.session.commit()
@@ -424,8 +428,10 @@ def test_ingest_rollback_restores_file_on_failure(app_ctx, wiki_root, test_raw_f
     from app.services.wiki.compiler import ingest_raw_file, IngestError
     from app.services.wiki.storage import write_article
     from app.models.knowledge import KnowledgeWikiArticle
+    from app.models import User
 
     raw_id = test_raw_file
+    admin = User.query.filter_by(role='admin').first()
 
     # 先建一篇已有文章
     original_content = '# GP328P 原版\n\n这是原来的内容。\n'
@@ -434,6 +440,7 @@ def test_ingest_rollback_restores_file_on_failure(app_ctx, wiki_root, test_raw_f
         topic='product', slug='test-gp328p-orig', title='GP328P 原版',
         file_path=fp, summary='原始', content_length=len(original_content),
         source_raw_ids=[], outbound_refs=[],
+        owner_id=admin.id,
     )
     db.session.add(art)
     db.session.commit()
