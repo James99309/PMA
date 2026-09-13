@@ -380,10 +380,16 @@
 
     // 打开用户选择器模态框
     function openUserSelectorModal() {
-        // 更新模态框中的已选用户状态
+        // 把当前已选回填进选择器,否则每次打开都是空的、等于重选一遍。
+        // ⚠️ modalEl.__x 是 Alpine v2 的 API,本项目用的是 v3(vendor/alpine 3.14.8)——
+        // 原来那句 if (modalEl.__x) 永远不成立,这段回填从来没执行过。
+        // v3 取组件数据用 Alpine.$data(el),回退到 _x_dataStack[0]。
         const modalEl = document.getElementById('userSelectorModal');
-        if (modalEl && modalEl.__x) {
-            modalEl.__x.$data.selectedUsers = [...selectedUsers];
+        if (modalEl) {
+            const data = (window.Alpine && Alpine.$data)
+                ? Alpine.$data(modalEl)
+                : (modalEl._x_dataStack ? modalEl._x_dataStack[0] : null);
+            if (data) data.selectedUsers = [...selectedUsers];
         }
         window.dispatchEvent(new CustomEvent('open-user-selector-modal'));
     }

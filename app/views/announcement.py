@@ -45,6 +45,40 @@ def _normalize_banner_link(raw):
     return None, '跳转地址请填站内路径(以 / 开头,如 /wiki/at)或 https:// 外链,不要填 IP 或域名'
 
 
+def _users_tree_with_self(user):
+    """发布对象的可选用户树 —— 把自己也放进去。
+
+    get_shareable_users 里写死 User.id != current_user.id 排除了自己,这对
+    「共享给别人」是对的(没人需要共享给自己),但用在「公告发布对象」上就变成
+    **作者永远没法把自己选进去** —— 于是发了公告自己收不到、也看不到,没法自查。
+    实测连着栽了两次。
+
+    不动 sharing.py(那是共享语义,影响面大),只在公告这个场景把自己补进树里,
+    勾不勾由管理员自己决定。
+    """
+    tree = get_shareable_users_tree(user, 'announcement') or []
+    node = {'id': f'user_{user.id}', 'name': (user.real_name or user.username),
+            'type': 'user', 'selectable': True, 'user_id': user.id}
+
+    company_name = user.company_name or '未指定公司'
+    for company in tree:
+        if company.get('name') != company_name:
+            continue
+        # 有部门就进部门,没部门挂在公司下
+        if user.department:
+            for child in company.get('children', []):
+                if child.get('type') == 'department' and child.get('name') == user.department:
+                    child.setdefault('children', []).insert(0, node)
+                    return tree
+        company.setdefault('children', []).insert(0, node)
+        return tree
+
+    # 自己所在公司还没出现在树里(比如同公司没有其他可选用户):补一个公司节点
+    tree.insert(0, {'id': f'company_self_{user.id}', 'name': company_name,
+                    'type': 'company', 'selectable': True, 'children': [node]})
+    return tree
+
+
 @announcement_bp.route('/list')
 @login_required
 @permission_required('announcement', 'view')
@@ -99,7 +133,7 @@ def list_view():
     ]
 
     # 获取用户树数据（用于用户选择器）
-    shareable_users_tree = get_shareable_users_tree(current_user, 'announcement')
+    shareable_users_tree = _users_tree_with_self(current_user)
 
     return render_template(
         'announcement/tw_list.html',
