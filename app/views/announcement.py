@@ -13,6 +13,7 @@ from app.models.user import User
 from app.utils.supabase_client import get_supabase_client
 from app.utils.sharing import get_shareable_users_tree
 from app.utils.permissions import get_accessible_users_by_permission_only
+from urllib.parse import urlsplit
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,22 +28,79 @@ announcement_bp = Blueprint('announcement', __name__, url_prefix='/announcement'
 # 只放行:站内相对路径 /xxx、真外链 https://。
 # 不放行裸域名和内网 IP —— 用户从内网/Tailscale/Cloudflare 进来的都有,
 # 写死绝对地址会把人踢到另一个入口,且 CN/SG 域名不同、IP 会漂。
+_LOOPBACK_HOSTS = {'127.0.0.1', 'localhost', '::1', '[::1]'}
+
+
+def _canon_netloc(netloc):
+    """把 host[:port] 归一到可比较的形式,回环地址的几种写法算同一个。"""
+    netloc = (netloc or '').strip().lower()
+    if not netloc:
+        return ''
+    if netloc.count(':') == 1:           # 只切 host:port,不碰裸 IPv6
+        host, port = netloc.split(':')
+    else:
+        host, port = netloc, ''
+    if host in _LOOPBACK_HOSTS:
+        host = 'localhost'
+    return '{}:{}'.format(host, port) if port else host
+
+
+def _points_at_this_site(netloc):
+    """这个 host[:port] 是不是当前这台实例自己。
+
+    反代/Cloudflare 隧道后面 request.host 可能是容器内地址,所以把
+    X-Forwarded-Host 一并算上。
+    """
+    target = _canon_netloc(netloc)
+    if not target:
+        return False
+    known = {_canon_netloc(request.host)}
+    for h in (request.headers.get('X-Forwarded-Host') or '').split(','):
+        h = _canon_netloc(h)
+        if h:
+            known.add(h)
+    return target in known
+
+
 def _normalize_banner_link(raw):
-    """返回 (link, error)。空值合法,表示纯告知。"""
+    """返回 (link, error)。空值合法,表示纯告知。
+
+    存进库的只有两种形态:以 / 开头的站内路径,或 https:// 外链。绝对地址不存
+    是有原因的 —— 用户从内网、Tailscale、公网域名三种入口进来,写死任一个另外
+    两种就得绕路;CN/SG 域名本就不同;而这个项目的 NAS 换过 IP(.107→.124,
+    WebDAV 老附件全 404 四天才发现)。公告是长期沉淀的数据,绑死地址等于埋雷。
+
+    但"从地址栏整条复制"是最自然的动作,所以指向本站的绝对地址不报错,直接
+    削成路径存 —— 目的地本来就对,错的只是写法,没有理由让人自己去删前缀。
+    """
     link = (raw or '').strip()
     if not link:
         return '', None
     low = link.lower()
-    if low.startswith('https://'):
-        return link, None
-    if link.startswith('/') and not link.startswith('//'):
-        return link, None
-    if low.startswith('http://'):
-        return None, '跳转地址请用 https:// 外链,或以 / 开头的站内路径'
+
     for bad in ('javascript:', 'data:', 'vbscript:', 'file:'):
         if low.startswith(bad):
             return None, '跳转地址不合法'
-    return None, '跳转地址请填站内路径(以 / 开头,如 /wiki/at)或 https:// 外链,不要填 IP 或域名'
+
+    if link.startswith('/') and not link.startswith('//'):
+        return link, None
+
+    if low.startswith('http://') or low.startswith('https://'):
+        parts = urlsplit(link)
+        path = parts.path or '/'
+        if parts.query:
+            path += '?' + parts.query
+        if parts.fragment:
+            path += '#' + parts.fragment
+        if _points_at_this_site(parts.netloc):
+            return path, None
+        if low.startswith('https://'):
+            return link, None
+        # http:// 且不是本站:多半是别台机器的内网地址,发给同事就是 404
+        return None, ('“{}”不是本系统的地址,http:// 外链也不安全。'
+                      '要跳本系统的页面请只填路径:{}').format(parts.netloc, path)
+
+    return None, '跳转地址请填站内路径(以 / 开头,如 /wiki/at)或 https:// 外链'
 
 
 def _users_tree_with_self(user):
