@@ -38153,8 +38153,8 @@ msgstr "Link"
 msgid "通知"
 msgstr "Notices"
 
-msgid "留空则只显示文字、不可点击。站内请填以 / 开头的路径（如 /wiki/at），外部网站填 https:// 开头的完整地址；不要填 IP 或域名。"
-msgstr "Leave blank for a text-only notice that cannot be clicked. For pages inside PMA use a path starting with / (e.g. /wiki/at); for an external site use a full https:// address. Do not enter an IP address or a domain name."
+msgid "留空则只显示文字、不可点击。本系统的页面填路径即可（如 /wiki/at）；直接粘贴本站完整网址也行，会自动存成路径。外部网站请填 https:// 开头的完整地址。"
+msgstr "Leave blank for a text-only notice that cannot be clicked. For pages inside PMA a path is enough (e.g. /wiki/at); pasting a full URL of this site also works — it is stored as a path. For an external site use a full https:// address."
 
 msgid "横幅跳转地址"
 msgstr "Banner link"
