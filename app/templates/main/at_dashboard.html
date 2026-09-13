@@ -50,66 +50,70 @@
   /* —— 顶部通知横幅(轮播) ——
      条目 absolute 叠放、容器给固定行高:避免不同长度的通知切换时整页跳动。*/
   /* overflow 必须 visible:悬停展开的详情面板要能溢出这条 27px 的带子 */
-  .dash-banner { position:relative; width:100%; box-sizing:border-box; min-height:27px;
-                 background:color-mix(in srgb, var(--accent) 50%, transparent);
-                 transition:background 120ms; overflow:visible; z-index:30; }
-  .dash-banner:hover { background:color-mix(in srgb, var(--accent) 65%, transparent); }
+  /* ── 通知横幅:整条连续横向滚动,条与条之间隔一大段空白 ──
+     底色用实色渐变而不是 accent 压透明:原来是 accent 50% 压在 --bg-page 上,
+     实际渲染成 #E0AF9B,白字对比度只有 1.95 —— 既不醒目也不达标。现在两端
+     #A8482A / #BE5730 对白字是 5.79 / 4.57,过 WCAG AA。
+     这两个值在明暗两套主题里都直接写死:横幅是自带底色的一条带子,不是跟着
+     页面深浅走的表面;暗色主题的 --accent(#E08A6C)偏亮,白字只有 2.62。*/
+  .dash-banner { position:relative; width:100%; box-sizing:border-box;
+                 background:linear-gradient(100deg, #A8482A 0%, #BE5730 60%, #A8482A 100%);
+                 z-index:30; }
+  /* 只有跑道需要裁剪;裁在外层会把展开的正文面板一起切掉 */
+  .dash-banner-viewport { overflow:hidden; height:29px; }
+  .dash-banner-track { display:flex; align-items:center; height:100%; width:max-content;
+                       will-change:transform;
+                       animation:dash-banner-scroll var(--marquee-duration, 40s) linear infinite; }
+  .dash-banner.is-paused .dash-banner-track { animation-play-state:paused; }
+  @keyframes dash-banner-scroll {
+    from { transform:translateX(0); }
+    to   { transform:translateX(calc(-1 * var(--marquee-shift, 50%))); }
+  }
+  /* 组本身也得是 flex:条目是 display:flex 的块级元素,放在普通块容器里会竖着堆 */
+  .dash-banner-group { display:flex; align-items:center; height:100%; flex:0 0 auto; }
+
   /* ⚠️ 必须带 body.at-page 前缀:at-theme.css:124 有 body.at-page a{color:inherit},
      特异性(0,1,1)压过裸类名(0,1,0) —— 不加前缀的话有链接的条目(<a>)会继承成深色,
      纯告知的条目(<div>)仍是白色,同一条带子上两种字色。*/
   body.at-page .dash-banner-item {
-                      position:absolute; inset:0; display:flex; align-items:center;
-                      padding:5px 96px 5px 36px; box-sizing:border-box;
+                      display:flex; align-items:center; flex:0 0 auto;
                       color:#ffffff; text-decoration:none;
-                      font-size:12.5px; line-height:1.35; letter-spacing:0.02em;
-                      opacity:0; pointer-events:none; transition:opacity 400ms ease; }
-  body.at-page .dash-banner-item.is-active { opacity:1; pointer-events:auto; }
-  /* 标题占满整行:长标题省略号收尾,不把 27px 的行高撑开 */
-  .dash-banner-title { display:block; width:100%;
-                       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+                      font-size:12.5px; font-weight:500; line-height:1.35; letter-spacing:0.02em;
+                      white-space:nowrap; }
+  body.at-page .dash-banner-item:hover { text-decoration:underline; text-underline-offset:3px; }
+  /* 纯告知条:无跳转地址,不给手型光标、也不给下划线的"可点"暗示 */
+  body.at-page .dash-banner-item.is-static { cursor:default; }
+  body.at-page .dash-banner-item.is-static:hover { text-decoration:none; }
+  .dash-banner-cta { opacity:0.82; margin-left:12px; font-size:11.5px; }
+  /* 条目间距全靠这一处:每条前面垫一段空白,两条之间因此隔着 220–420px。
+     留这么宽是有意的 —— 挨太近时两条标题在同一行上争视线,读哪条都被旁边打断;
+     隔开之后宽屏上同时出现两三条也各自成段。
+     纯空白,不放任何符号:带子上只该有通知本身,分隔靠留白就够了。*/
+  .dash-banner-gap { flex:0 0 auto; width:clamp(220px, 22vw, 420px); }
 
   /* —— 悬停展开的详情(公告正文) ——
      绝对定位悬浮在下方内容之上,不挤占版面:若改成把页面推下去,鼠标一划过顶栏
-     整页就跳一下,还会甩掉光标。面板本身也在 <a> 里,所以在面板上点击照常跳转。*/
-  /* 面板与横幅同色同字色,展开后看着是同一块延伸下来,而不是两套配色。
-     底色用 accent 混 --bg-page(而非混 transparent):渲染出的颜色和横幅 hover 态
-     (accent 65% 压在页面底色上)一致,但不透明 —— 半透明会把下面的卡片透出来,
-     长段正文压在卡片纹理上没法读。*/
-  .dash-banner-detail { position:absolute; top:100%; left:0; right:0;
+     整页就跳一下,还会甩掉光标。
+     面板是一块共享的浮层(不在跑道里),因为条目在动 —— 面板若跟着条目走,
+     展开的正文会横着漂走。悬停哪条就把哪条的正文灌进来,href 一并换掉,
+     所以在面板上点击照常跳到那条的地址。*/
+  body.at-page .dash-banner-detail {
+                        position:absolute; top:100%; left:0; right:0;
                         display:block; max-height:0; overflow:hidden;
                         opacity:0; visibility:hidden;
                         box-sizing:border-box; padding:0 36px;
-                        background:color-mix(in srgb, var(--accent) 65%, var(--bg-page));
-                        color:#ffffff;
+                        background:#A8482A; color:#ffffff; text-decoration:none;
                         font-size:12.5px; line-height:1.7; white-space:pre-wrap;
-                        box-shadow:0 10px 24px rgba(0,0,0,0.14);
+                        box-shadow:0 10px 24px rgba(0,0,0,0.18);
                         transition:max-height 220ms ease, opacity 180ms ease, padding 220ms ease; }
-  .dash-banner.is-open .dash-banner-item.is-active .dash-banner-detail {
+  .dash-banner.is-open .dash-banner-detail {
       max-height:40vh; overflow-y:auto; opacity:1; visibility:visible; padding:12px 36px 14px; }
-  /* 纯告知条:无跳转地址,不给手型光标 */
-  body.at-page .dash-banner-item.is-static { cursor:default; }
-  /* 只有一条时不需要绝对定位撑高,回到静态流,行高与改造前一致 */
-  .dash-banner[data-count="1"] { min-height:0; }
-  body.at-page .dash-banner[data-count="1"] .dash-banner-item { position:static; opacity:1; pointer-events:auto; }
 
-  .dash-banner-dots { position:absolute; right:30px; top:50%; transform:translateY(-50%);
-                      display:flex; align-items:center; gap:2px; }
-  /* ⚠️ 必须带 body.at-page 前缀压过全局按钮重置(at-theme.css:108
-     body.at-page button{background:none;padding:0}),否则未选中的点根本不显示
-     ——同文件 183/204 行也是为这个坑加的前缀。
-     未选中用比底色更深的主色:白色半透明压在浅橘底上几乎看不见;
-     padding + content-box 把 7px 的点撑成 15px 热区,免得点不中。*/
-  body.at-page .dash-banner-dot {
-      width:7px; height:7px; padding:4px; border:0; border-radius:50%;
-      background:color-mix(in srgb, var(--accent) 85%, transparent);
-      background-clip:content-box; box-sizing:content-box;
-      cursor:pointer; transition:background 160ms; }
-  body.at-page .dash-banner-dot:hover { background:var(--accent); background-clip:content-box; }
-  body.at-page .dash-banner-dot.is-active { background:#ffffff; background-clip:content-box; }
-
-  /* 系统设了"减少动态效果"时不做淡入淡出(JS 侧同时停掉自动轮播) */
+  /* 系统设了"减少动态效果"时不滚动(JS 侧同时不复制副本),
+     改成可以自己横向拖动的一条,信息一条不少 */
   @media (prefers-reduced-motion: reduce) {
-    .dash-banner-item { transition:none; }
+    .dash-banner-track { animation:none; }
+    .dash-banner-viewport { overflow-x:auto; }
   }
 </style>
 </head>
@@ -122,36 +126,34 @@
 
   {{ at_topbar() }}
 
-  {# ── 通知横幅(通栏,紧贴工具栏底部,无间隙,系统主橘色50%透明) ── #}
-  {# 内容来自公告系统:勾了"首页横幅展示"的已发布公告(官网预览入口也是其中一条)。#}
-  {# 多条时淡入淡出轮播;只有 1 条时不轮播也不出圆点,视觉与改造前一致。#}
+  {# ── 通知横幅(通栏,紧贴工具栏底部) ── #}
+  {# 内容来自公告系统:已发布且发给我的公告(官网预览入口也是其中一条),撤回即下架。#}
+  {# 整条连续横向滚动,条与条之间隔一大段空白;悬停停住并原地展开正文,点击跳转。#}
   {% if banner_items %}
   <div id="dashBanner" class="dash-banner" data-count="{{ banner_items|length }}">
-    {% for it in banner_items %}
-      {% if it.link %}
-      <a class="dash-banner-item{% if loop.first %} is-active{% endif %}" href="{{ it.link }}"
-         {% if it.link.startswith('http') %}target="_blank" rel="noopener"{% endif %}>
-        <span class="dash-banner-title">{{ it.title }}　{{ _('请点击跳转') }}</span>
-        {% if it.content %}<span class="dash-banner-detail">{{ it.content }}</span>{% endif %}
-      </a>
-      {% else %}
-      {# 纯告知:没有跳转地址就不是链接,不给手型光标、不给"请点击跳转"的假暗示 #}
-      <div class="dash-banner-item is-static{% if loop.first %} is-active{% endif %}">
-        <span class="dash-banner-title">{{ it.title }}</span>
-        {% if it.content %}<span class="dash-banner-detail">{{ it.content }}</span>{% endif %}
+    <div class="dash-banner-viewport">
+      {# 这一份是真身(可聚焦、进无障碍树);JS 会按视口宽度在后面补若干份哑副本做无缝循环 #}
+      <div class="dash-banner-track" id="dashBannerTrack">
+        <div class="dash-banner-group">
+          {% for it in banner_items %}
+          <span class="dash-banner-gap" aria-hidden="true"></span>
+          {% if it.link %}
+          <a class="dash-banner-item" href="{{ it.link }}" data-detail="{{ it.content }}"
+             {% if it.link.startswith('http') %}target="_blank" rel="noopener"{% endif %}>
+            <span class="dash-banner-text">{{ it.title }}</span>
+            <span class="dash-banner-cta">{{ _('请点击跳转') }}</span>
+          </a>
+          {% else %}
+          {# 纯告知:没有跳转地址就不是链接,不给手型光标、不给"请点击跳转"的假暗示 #}
+          <div class="dash-banner-item is-static" data-detail="{{ it.content }}">
+            <span class="dash-banner-text">{{ it.title }}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
       </div>
-      {% endif %}
-    {% endfor %}
-
-    {% if banner_items|length > 1 %}
-    <div class="dash-banner-dots" role="tablist" aria-label="{{ _('通知') }}">
-      {% for it in banner_items %}
-      <button type="button" class="dash-banner-dot{% if loop.first %} is-active{% endif %}"
-              data-idx="{{ loop.index0 }}" role="tab"
-              aria-label="{{ _('第 %(n)d 条', n=loop.index) }}"></button>
-      {% endfor %}
     </div>
-    {% endif %}
+    <a class="dash-banner-detail" id="dashBannerDetail"></a>
   </div>
   {% endif %}
 
@@ -1180,58 +1182,83 @@
 (function () {
   var wrap = document.getElementById('dashBanner');
   if (!wrap) return;
-  var items = wrap.querySelectorAll('.dash-banner-item');
-
-  var dots = wrap.querySelectorAll('.dash-banner-dot');
-  var idx = 0, timer = null;
-  var INTERVAL = 6000;
-  // 系统开了"减少动态效果"就不自动播,只留圆点手动切
+  var track  = document.getElementById('dashBannerTrack');
+  var detail = document.getElementById('dashBannerDetail');
+  var group  = track.querySelector('.dash-banner-group');
+  var SPEED  = 80;        // px/秒。再快标题读不完,再慢一轮要等太久
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function show(n) {
-    idx = (n + items.length) % items.length;
-    for (var i = 0; i < items.length; i++) {
-      items[i].classList.toggle('is-active', i === idx);
-      if (dots[i]) dots[i].classList.toggle('is-active', i === idx);
+  // 无缝循环:把这一组重复到"总宽 ≥ 视口宽 + 一组宽",再让轨道往左平移正好一组宽。
+  // 平移一组之后,下一组恰好落在上一组原来的位置上,肉眼看不出接缝。
+  // 副本对无障碍是噪音,标 aria-hidden 并摘掉 tab 焦点,只留真身那一组可聚焦。
+  function layout() {
+    if (reduced) return;
+    var groupW = group.getBoundingClientRect().width;
+    if (!groupW) return;                       // 还没排版好,等 fonts.ready 再来
+    var copies = Math.max(2, Math.ceil((wrap.clientWidth + groupW) / groupW));
+    while (track.children.length > 1) track.removeChild(track.lastChild);
+    for (var i = 1; i < copies; i++) {
+      var clone = group.cloneNode(true);
+      clone.setAttribute('aria-hidden', 'true');
+      var links = clone.querySelectorAll('a');
+      for (var j = 0; j < links.length; j++) links[j].setAttribute('tabindex', '-1');
+      track.appendChild(clone);
     }
+    track.style.setProperty('--marquee-shift', groupW + 'px');
+    track.style.setProperty('--marquee-duration', (groupW / SPEED) + 's');
   }
-  // 鼠标/键盘还停在横幅上时不许恢复自动轮播。
-  // 否则点圆点(必然是悬停着点的)会调 start() 把定时器重启,人还没看完就被切走。
-  var held = 0;
-  // 单条时不起定时器(只有一条可切,空转没意义);但悬停展开仍然要能用,
-  // 所以整段逻辑不能像原来那样在 items<2 时直接 return。
-  function start() {
-    if (held > 0 || items.length < 2 || reduced || timer) return;
-    timer = setInterval(function () { show(idx + 1); }, INTERVAL);
-  }
-  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+  layout();
+  // 字体是异步加载的,首次量到的可能是 fallback 字体的宽度,就绪后按真实宽度重排一次。
+  // 用 fonts.ready 而不是 window.load —— 后者还要等图片,那时轮播早跑偏了。
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer); resizeTimer = setTimeout(layout, 200);
+  });
 
-  // 悬停:停住轮播 + 展开当前条的正文。
+  // 悬停:停住滚动 + 把这一条的正文灌进共享面板。
   // 开有 180ms 延迟 —— 顶栏是鼠标高频经过的地方,不延迟的话划过去就闪一下面板。
   var openTimer = null;
-  function open(delay) {
+  function openFor(item, delay) {
     clearTimeout(openTimer);
-    openTimer = setTimeout(function () { wrap.classList.add('is-open'); }, delay || 0);
+    var text = item.getAttribute('data-detail') || '';
+    if (!text) { close(); return; }            // 正文与标题相同的短通知,后端已置空
+    openTimer = setTimeout(function () {
+      detail.textContent = text;
+      var href = item.getAttribute('href');
+      if (href) {
+        detail.setAttribute('href', href);
+        detail.style.cursor = 'pointer';
+        if (item.getAttribute('target')) { detail.setAttribute('target', '_blank'); detail.setAttribute('rel', 'noopener'); }
+        else { detail.removeAttribute('target'); detail.removeAttribute('rel'); }
+      } else {
+        detail.removeAttribute('href');        // 无 href 的 <a> 就是段普通文字
+        detail.style.cursor = 'default';
+      }
+      wrap.classList.add('is-open');
+    }, delay || 0);
   }
   function close() { clearTimeout(openTimer); wrap.classList.remove('is-open'); }
 
-  wrap.addEventListener('mouseenter', function () { held++; stop(); open(180); });
-  wrap.addEventListener('mouseleave', function () { held = Math.max(0, held - 1); close(); start(); });
-  // 键盘走到这里时同样停住并展开(无障碍:悬停交互对键盘用户不可达)
-  wrap.addEventListener('focusin', function () { held++; stop(); open(0); });
-  wrap.addEventListener('focusout', function () { held = Math.max(0, held - 1); close(); start(); });
-  // 标签页切到后台时停掉,回来再续:省得回来时正好在切换中途
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { close(); stop(); } else { start(); }
+  // 事件委托 —— 副本是 JS 造的,逐个绑监听会漏掉它们
+  wrap.addEventListener('mouseover', function (e) {
+    wrap.classList.add('is-paused');           // 进了横幅就停,哪怕指针落在两条之间的空白上
+    var item = e.target.closest && e.target.closest('.dash-banner-item');
+    if (item) openFor(item, 180);
   });
-
-  for (var d = 0; d < dots.length; d++) {
-    (function (n) {
-      dots[n].addEventListener('click', function () { show(n); stop(); start(); });
-    })(d);
-  }
-
-  start();
+  wrap.addEventListener('mouseleave', function () { wrap.classList.remove('is-paused'); close(); });
+  // 键盘走到这里时同样停住并展开(无障碍:悬停交互对键盘用户不可达)
+  wrap.addEventListener('focusin', function (e) {
+    wrap.classList.add('is-paused');
+    var item = e.target.closest && e.target.closest('.dash-banner-item');
+    if (item) openFor(item, 0);
+  });
+  wrap.addEventListener('focusout', function () { wrap.classList.remove('is-paused'); close(); });
+  // 标签页切到后台时停掉:后台标签页的动画会被节流,回来容易看到跳帧
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { close(); wrap.classList.add('is-paused'); }
+    else { wrap.classList.remove('is-paused'); }
+  });
 })();
 </script>
 
