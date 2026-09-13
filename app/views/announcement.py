@@ -22,6 +22,29 @@ announcement_bp = Blueprint('announcement', __name__, url_prefix='/announcement'
 
 # ========== 页面路由 ==========
 
+# 横幅跳转地址白名单校验。这是管理员自由输入、直接进 <a href> 的值,
+# 不校验就是个 XSS 口子(javascript: / data:)。
+# 只放行:站内相对路径 /xxx、真外链 https://。
+# 不放行裸域名和内网 IP —— 用户从内网/Tailscale/Cloudflare 进来的都有,
+# 写死绝对地址会把人踢到另一个入口,且 CN/SG 域名不同、IP 会漂。
+def _normalize_banner_link(raw):
+    """返回 (link, error)。空值合法,表示纯告知。"""
+    link = (raw or '').strip()
+    if not link:
+        return '', None
+    low = link.lower()
+    if low.startswith('https://'):
+        return link, None
+    if link.startswith('/') and not link.startswith('//'):
+        return link, None
+    if low.startswith('http://'):
+        return None, '跳转地址请用 https:// 外链,或以 / 开头的站内路径'
+    for bad in ('javascript:', 'data:', 'vbscript:', 'file:'):
+        if low.startswith(bad):
+            return None, '跳转地址不合法'
+    return None, '跳转地址请填站内路径(以 / 开头,如 /wiki/at)或 https:// 外链,不要填 IP 或域名'
+
+
 @announcement_bp.route('/list')
 @login_required
 @permission_required('announcement', 'view')
@@ -109,12 +132,18 @@ def api_create():
         if not data.get('content'):
             return jsonify({'success': False, 'message': '请输入公告内容'}), 400
 
+        banner_link, err = _normalize_banner_link(data.get('banner_link'))
+        if err:
+            return jsonify({'success': False, 'message': err}), 400
+
         # 创建公告
         announcement = Announcement(
             title=data['title'],
             content=data['content'],
             announcement_type=data.get('announcement_type', 'system'),
             target_users=data.get('target_users', []),
+            show_on_banner=bool(data.get('show_on_banner')),
+            banner_link=banner_link,
             status='draft',
             created_by=current_user.id
         )
@@ -142,11 +171,22 @@ def api_update(announcement_id):
     try:
         announcement = Announcement.query.get_or_404(announcement_id)
 
-        # 检查是否可编辑
-        if announcement.is_readonly:
-            return jsonify({'success': False, 'message': '已发布的公告不可编辑'}), 400
-
         data = request.get_json()
+
+        # 横幅两项不受"已发布不可编辑"限制 —— 否则一条已发布公告挂上首页后
+        # 就再也撤不下来,只能删公告(连带消息中心里的记录一起没了)。
+        if 'show_on_banner' in data:
+            announcement.show_on_banner = bool(data['show_on_banner'])
+        if 'banner_link' in data:
+            banner_link, err = _normalize_banner_link(data.get('banner_link'))
+            if err:
+                return jsonify({'success': False, 'message': err}), 400
+            announcement.banner_link = banner_link
+
+        # 其余字段:已发布后只读
+        if announcement.is_readonly:
+            db.session.commit()
+            return jsonify({'success': True, 'message': '横幅设置已更新（已发布公告的其它字段不可编辑）'})
 
         # 更新字段
         if 'title' in data:

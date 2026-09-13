@@ -222,11 +222,16 @@ def index():
     )
     layout = role_layout(current_user)
 
+    # 顶部横幅要滚的公告(勾了"首页横幅展示"的已发布公告;含官网入口那条)
+    from app.models.announcement import Announcement
+    banner_items = Announcement.banner_items(current_user)
+
     # ?legacy=1 fallback 到老 tw 仪表盘(过渡期保留,出问题可回退)
     template = 'index.html' if request.args.get('legacy') == '1' else 'main/at_dashboard.html'
 
     return render_template(template,
                          now=datetime.now(),
+                         banner_items=banner_items,
                          recent_projects=recent_projects,
                          recent_quotations=recent_quotations,
                          recent_expenses=recent_expenses,
