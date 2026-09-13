@@ -90,6 +90,35 @@ class BuildApacDcCourseTest(unittest.TestCase):
             with self.assertRaisesRegex(FileNotFoundError, "missing.webp"):
                 build_course_html(manifest_path, root / "course.html")
 
+    def test_builds_english_course_chrome_from_manifest_language(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "slide-01.webp").write_bytes(b"RIFFfake-webp")
+            manifest_path = root / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "lang": "en",
+                        "title": "Critical Communications",
+                        "pages": [
+                            {
+                                "label": "One campus, one architecture",
+                                "notes": "Plan the core before the buildings.",
+                                "image": "slide-01.webp",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            build_course_html(manifest_path, root / "course.html")
+
+            output = (root / "course.html").read_text(encoding="utf-8")
+            self.assertIn('<html lang="en">', output)
+            self.assertIn('aria-label="Previous slide"', output)
+            self.assertIn('aria-label="Next slide"', output)
+
 
 if __name__ == "__main__":
     unittest.main()

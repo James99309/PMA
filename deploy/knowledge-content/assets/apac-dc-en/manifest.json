@@ -1,0 +1,172 @@
+{
+  "key": "apac-data-center-critical-comms-en",
+  "download_key": "apac-data-center-critical-comms-en-ppt",
+  "lang": "en",
+  "owner_username": "nijie",
+  "title": "Critical Communications for APAC Data Centers: From Infrastructure to Intelligent Operations",
+  "subtitle": "APAC data center critical communications training · 26 modules",
+  "desc": "English training for data center owners, consultants, system integrators and commercial teams, covering scalable fiber architecture, multi-network design, compliance by design, and data- and AI-enabled operations.",
+  "topic": "Industry-Knowledge",
+  "accent": "#0C5663",
+  "cover": "cover.png",
+  "source_ppt": "From Infrastructure to Intelligent Operations.pptx",
+  "source_slide_count": 30,
+  "pages": [
+    {
+      "label": "Critical Communications for APAC Data Centers: From Infrastructure to Intelligent Operations",
+      "notes": "For these 30 minutes I don't want to introduce a radio. I want to talk about this: critical communications in a data center have moved from a purchase line item to an infrastructure capability that must be considered at the planning stage. It has to answer fast construction, campus expansion, spectrum and compliance — and it is becoming the entry point for field operations data.",
+      "image": "slides/slide-01.webp",
+      "thumb": "thumbs/page-01.png"
+    },
+    {
+      "label": "From Planning and Coverage to Spectrum, Compliance and Expansion",
+      "notes": "First, why we are standing here. For more than three years we have been continuously involved in APAC data center projects: from early planning, coverage design and frequency application to type approval, compliance and later expansion. Mainly Johor and Kuala Lumpur in Malaysia, plus Thailand, Singapore and Indonesia. Along the way our role shifted from equipment supply to critical communications solution partner. Every challenge in this deck comes from those real projects.",
+      "image": "slides/slide-02.webp",
+      "thumb": "thumbs/page-02.png"
+    },
+    {
+      "label": "Leading Data Centers Now Procure Critical Communications as Infrastructure",
+      "notes": "In April 2025 CSE Global disclosed via SGX that its US subsidiary won critical communications orders worth USD 15 million from a major data center hyperscaler. What matters is not the value but what was bought: engineering design, installation and ongoing maintenance, covering both mission-critical two-way radio and a distributed antenna system, across the Americas, APAC and Europe, executing from 2025 to 2028. The conclusion is clear — leading customers are no longer buying a batch of terminals, they are buying a cross-region, full-lifecycle communications infrastructure capability.",
+      "image": "slides/slide-03.webp",
+      "thumb": "thumbs/page-03.png"
+    },
+    {
+      "label": "Why Data Centers Still Need Independent, Reliable Critical Communications",
+      "notes": "Two facts. First, Uptime Institute: nearly 40% of organisations had a major outage caused by human error in the past three years, and 85% of those relate to procedures not being followed or procedures that were flawed. When something goes wrong, procedure alone is not enough — the site needs real-time execution support. Second, a data center is not an easy RF environment: racks, heavy structure, battery rooms, power floors and roof cooling all create weak zones. A Santa Clara campus of more than 500,000 sq ft across three buildings finally solved coverage with a single, fiber-linked ERRCS design. Both facts point the same way: communications cannot be added after the system is built.",
+      "image": "slides/slide-04.webp",
+      "thumb": "thumbs/page-04.png"
+    },
+    {
+      "label": "What Operators Still Face After Go-Live",
+      "notes": "This page shows two things we meet again and again in live projects. First, coverage gaps: a system exists, but that does not mean critical areas are usable. Second, fragmentation after expansion: one building working does not make the campus one system. For operators the question is no longer \"can we talk\" but \"can the whole campus talk as one system\".",
+      "image": "slides/slide-05.webp",
+      "thumb": "thumbs/page-05.png"
+    },
+    {
+      "label": "Challenge 1: The Campus Is Growing Faster Than Traditional Communications Can Scale",
+      "notes": "The build logic of data centers has changed. A typical large campus expects multiple buildings built and brought online in phases within about twelve months. Phase 1 is live while Phase 2 is still under construction; designers, main contractor, integrators and equipment vendors all run in parallel. Add cross-border replication and the spectrum, certification and supply-chain conditions differ in every market. Each issue alone is solvable; stacked together, the communications system is the one most easily pushed to the end of the schedule.",
+      "image": "slides/slide-06.webp",
+      "thumb": "thumbs/page-06.png"
+    },
+    {
+      "label": "Each Building Works. The Campus Does Not Operate as One.",
+      "notes": "Traditional professional communications is built building by building. One system for the first, another for the second, a fresh plan for the third. Individually each works; combined into a campus the problems arrive together: roaming breaks between buildings, frequencies are re-applied for, O&M platforms are fragmented, models and spares cannot be reused. Local optimisation ends as loss of global control.",
+      "image": "slides/slide-07.webp",
+      "thumb": "thumbs/page-07.png"
+    },
+    {
+      "label": "One Campus, One Core Architecture",
+      "notes": "Our first change is to move from building-centric to campus-centric. Put the signal source, channel plan, talkgroups and ORU/OMU in one core, then use the campus fiber backbone to distribute coverage to every building. When a new building completes, you add a remote coverage node, not another standalone system. Phase 2 construction does not disturb the live Phase 1 network, and future expansion joins the same channels, identities and ORU OMU.",
+      "image": "slides/slide-08.webp",
+      "thumb": "thumbs/page-08.png"
+    },
+    {
+      "label": "Do Not Replicate Equipment—Replicate the Standard",
+      "notes": "The answer to the first challenge is not building more systems faster, but defining the standard first. On the first building we fix the architecture, the frequency and channel plan, the BOM, and the installation and acceptance standards. Later buildings are not redesigned — they replicate that standard; in another country only the local frequency and compliance parameters change. What is truly replicable is not the equipment but the whole build standard.",
+      "image": "slides/slide-09.webp",
+      "thumb": "thumbs/page-09.png"
+    },
+    {
+      "label": "Challenge 2: Limited Licensed Spectrum Cannot Carry Every Communication Need",
+      "notes": "The second challenge is spectrum. Regulation differs in every country: available bands, licence types, who may apply, power limits, approval timelines. In Malaysia application and approval typically takes three to six months; in Thailand every frequency pair carries an additional cost; in Singapore the assignable professional spectrum is limited. For a project meant to be replicated across borders, the same design cannot simply be carried over. So the question should be reversed: why should every conversation go onto one heavyweight private radio network?",
+      "image": "slides/slide-10.webp",
+      "thumb": "thumbs/page-10.png"
+    },
+    {
+      "label": "Use Licensed Spectrum Where It Matters Most",
+      "notes": "Since licensed spectrum is limited, the answer is not to get more of it but to let it do only what it must. DMR private carries mission-critical communications — security, emergency, critical operations — where secure, independent and controlled matter. Wi-Fi and the internal IP network carry on-site digital work: tasks, inspection, data, indoor collaboration, reusing broadband that is already on site. 4G LTE carries wide area: campus perimeter, cross-campus, cross-city. Demand for licensed spectrum drops sharply, and cross-border replication becomes genuinely feasible.",
+      "image": "slides/slide-11.webp",
+      "thumb": "thumbs/page-11.png"
+    },
+    {
+      "label": "Multiple Networks. One Terminal.",
+      "notes": "Networks can divide the work, but the user should not therefore carry three devices or decide in the field which network to use. PNR2100 puts DMR and LTE in one terminal: DMR for mission-critical voice, dedicated and private; 4G LTE for wide-area communication, data and virtual channels; GPS and BLE for location and task collaboration. The network behind can change — the user never changes device.",
+      "image": "slides/slide-12.webp",
+      "thumb": "thumbs/page-12.png"
+    },
+    {
+      "label": "Different Networks, Different Tasks",
+      "notes": "This page is an interactive demo: click the device or the knob to switch channels. CH1 DMR private — security and emergency, independent, encrypted, no dependence on the public network. CH2 Wi-Fi / internal IP — inspection and task data, reusing on-site bandwidth, no spectrum licence needed. CH3 4G LTE — cross-building and cross-campus dispatch, wide-area coverage, virtual channels that consume no licensed spectrum. Three networks, one terminal; the user never has to decide which network to use.",
+      "image": "slides/slide-13.webp",
+      "thumb": "thumbs/page-13.png"
+    },
+    {
+      "label": "Challenge 3: A System Is Only Valuable If It Can Be Legally Deployed",
+      "notes": "The third challenge is compliance. Many projects only handle type approval, spectrum licensing and import conditions when the building is nearly finished. The real risk is not a slow process — it is discovering at that point that the available band, permitted power, certification route or even import requirements do not match the original design. What has to change then is not just paperwork but possibly the BOM, the architecture, even work already installed. So compliance must be a design precondition: regulatory check, approval and licence, design freeze, and only then delivery.",
+      "image": "slides/slide-14.webp",
+      "thumb": "thumbs/page-14.png"
+    },
+    {
+      "label": "Once the System Is Built, the Value of Communications Has Only Just Begun",
+      "notes": "So far we covered how the system is built. Now the question operators care about more: once it is built, what else can it do? The earliest value of professional communications was connection — letting people talk in real time. Today it reaches a second layer: collaboration, where people, location and tasks flow through one system. One layer further is operation: events, data, analysis. This page takes thirty seconds; its purpose is to say that from here on I am talking about how you use it every day.",
+      "image": "slides/slide-15.webp",
+      "thumb": "thumbs/page-15.png"
+    },
+    {
+      "label": "Voice and Data Take Different Paths but Work Together",
+      "notes": "Even in DMR mode, LTE can carry business data at the same time: voice over DMR, data over LTE. Radios will separate into secure communication channels and non-secure business channels — security needs go to the private network, business needs go to LTE virtual channels. It is a rebalancing of resources and technology.",
+      "image": "slides/slide-16.webp",
+      "thumb": "thumbs/page-16.png"
+    },
+    {
+      "label": "Behind One Terminal, a Complete Communications Ecosystem",
+      "notes": "The radio is only the user interface. Behind it sits the full system: base station, fiber distribution, antennas, the NetFlex platform and the local server.",
+      "image": "slides/slide-17.webp",
+      "thumb": "thumbs/page-17.png"
+    },
+    {
+      "label": "NetFlex Turns Communication into Operational Workflows",
+      "notes": "Chapter four: the NetFlex operations platform. The radio is only the entry point; NetFlex is what turns communication into an operable business. The screen cycles the platform's five core views: project overview, real-time location, patrol with AI voice, map dispatch and work-order closure, and device health warning — people, voice and assets closing the loop on one map.",
+      "image": "slides/slide-18.webp",
+      "thumb": "thumbs/page-18.png"
+    },
+    {
+      "label": "Know Where Your People Are—One Map Answers It",
+      "notes": "Location and trajectory: outdoor GIS and indoor floor plans switch seamlessly; search by department, name, staff ID or radio ID, with one-click tracking of key personnel; historical tracks replay segment by segment, with dwell points and time per zone counted automatically.",
+      "image": "slides/slide-19.webp",
+      "thumb": "thumbs/page-19.png"
+    },
+    {
+      "label": "Inspections Become Traceable, Not Just Completed",
+      "notes": "Patrol and AI voice: during execution the map marks completed and outstanding checkpoints in real time; field voice is aggregated onto the task timeline, where AI reads the conversation, flags anomalies and prompts, and an anomaly becomes a work order in one click.",
+      "image": "slides/slide-20.webp",
+      "thumb": "thumbs/page-20.png"
+    },
+    {
+      "label": "From Detection to Closure: One Continuous Workflow",
+      "notes": "Work order loop: an issue found during inspection becomes a work order in one click, the system dispatches it to the nearest radio by map position, and field staff accept and execute it on PNR2100 and report the result — a complete chain from detection to closure.",
+      "image": "slides/slide-21.webp",
+      "thumb": "thumbs/page-21.png"
+    },
+    {
+      "label": "Manage the Communication System Like Critical Infrastructure",
+      "notes": "System health and topology: a health score quantifies system state in real time; master units, remotes, antenna feeds and beacons are monitored online, with optical path, ALC and VSWR alarms resolving to specific devices; the topology view shows link relationships and fault location at a glance.",
+      "image": "slides/slide-22.webp",
+      "thumb": "thumbs/page-22.png"
+    },
+    {
+      "label": "Communication Starts Creating Operational Data",
+      "notes": "Only now do we talk about turning field information into an asset. When the terminal is on DMR, LTE and Wi-Fi at once, what it produces is not only voice but who said what, where people were, what was done, and whether the system is healthy. All of it lands on the customer's own local server — important for data center clients: the data stays local. This information used to vanish as it happened; now it can be recorded, linked and reviewed.",
+      "image": "slides/slide-23.webp",
+      "thumb": "thumbs/page-23.png"
+    },
+    {
+      "label": "The Future of Professional Communications Goes Beyond Voice",
+      "notes": "The future of professional communications goes beyond voice. Reliable voice, location, task and device data are becoming the foundation of field intelligence. The order matters: communication data first, then operational context, and only then AI assistance. AI does not replace field judgement; it helps managers understand the site faster.",
+      "image": "slides/slide-24.webp",
+      "thumb": "thumbs/page-24.png"
+    },
+    {
+      "label": "From Infrastructure to Operations",
+      "notes": "One transition line: next, a short video showing how the complete system runs in a live data center. The open area in the middle is where the video goes (play it here, or switch to a player).",
+      "image": "slides/slide-25.webp",
+      "thumb": "thumbs/page-25.png"
+    },
+    {
+      "label": "Interview with SIRIM: Data Center Communication Compliance",
+      "notes": "After the video we move into the SIRIM interview. Opening line: the video shows the ideal state, but before any of it holds there is a more basic question — can these devices be legally used here? The four slides that follow are on-call visuals; there is no need to present them page by page.",
+      "image": "slides/slide-26.webp",
+      "thumb": "thumbs/page-26.png"
+    }
+  ]
+}

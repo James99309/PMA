@@ -477,6 +477,31 @@ class SynologyWebDAVClient:
             logger.error(f"检查文件存在异常: {str(e)}")
             return False
 
+    def file_exists_strict(self, remote_path: str) -> bool:
+        """严格检查文件是否存在；只有明确的 404 才返回 False。
+
+        发布/覆盖流程必须区分“不存在”和“无法确认”，避免网络或权限故障
+        被误判为不存在后，在回滚中删除原文件。
+        """
+        if not self.is_configured:
+            raise RuntimeError("WebDAV未配置")
+
+        try:
+            response = self.session.head(
+                self._build_url(remote_path),
+                timeout=self.timeout,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"WebDAV文件存在性检查异常: {remote_path}: {exc}") from exc
+
+        if response.status_code == 200:
+            return True
+        if response.status_code == 404:
+            return False
+        raise RuntimeError(
+            f"WebDAV文件存在性检查失败: {remote_path}: HTTP {response.status_code}"
+        )
+
     def list_directory(self, remote_path: str = '', depth: int = 1) -> list:
         """列出目录内容
 

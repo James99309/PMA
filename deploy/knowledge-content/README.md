@@ -22,6 +22,32 @@ CN NAS 上完成正式发布：
 
 该脚本仅适用于中国 NAS（SP8D / `pma_synology`），会使用现有 CN WebDAV 配置存放原始 PPT。
 
+## APAC data center critical communications — English training
+
+`assets/apac-dc-en/` contains the 26 formal presentation modules, their English
+speaker notes, a PowerPoint-native cover and the complete 30-slide source PPT.
+Slides 27–30 remain in the downloadable PPT as SIRIM interview backup material;
+they are intentionally excluded from the formal interactive course.
+
+- Interactive course: `/wiki/play/apac-data-center-critical-comms-en`
+- Wiki article: derived from all 26 module notes under `Industry-Knowledge`
+- PPT download: the original 30-slide deck, with its speaker notes intact
+
+Build locally without storage or database writes:
+
+```bash
+python3 deploy/knowledge-content/publish_apac_dc.py --market sg
+```
+
+Publish from the SG NAS checkout:
+
+```bash
+./deploy/knowledge-content/publish-apac-dc-on-sg-nas.sh --commit
+```
+
+The SG wrapper fails closed unless the application identifies itself as OVS and
+its database URL ends in `/pma_sa`.
+
 ## DG/TJ 08—2406—2022
 
 把上海市工程建设规范《专用数字无线对讲通信系统工程技术标准》上架到 AT 知识库：

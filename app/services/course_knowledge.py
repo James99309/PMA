@@ -71,7 +71,7 @@ def deck_to_markdown(course, pages):
     return "\n".join(out)
 
 
-def ingest_course_knowledge(course, pages, topic, owner_id, scope='company'):
+def ingest_course_knowledge(course, pages, topic, owner_id, scope='company', commit=True):
     """把 deck 析出的 Markdown 写成 Wiki 文章(已存在则 update)。返回文章。"""
     if not pages:
         raise ValueError('课件无逐页内容,无法析出知识')
@@ -128,6 +128,9 @@ def ingest_course_knowledge(course, pages, topic, owner_id, scope='company'):
             image_manifest=None,
         )
         db.session.add(art)
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    else:
+        db.session.flush()
     logger.info('[deck-extract] %s → 文章 %s/%s (id=%s)', key, topic, slug, art.id)
     return art

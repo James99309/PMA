@@ -47,10 +47,14 @@ def build_course_html(manifest_path, output_path):
 
     title = html.escape(manifest.get("title") or "互动课件")
     subtitle = html.escape(manifest.get("subtitle") or "")
+    is_english = manifest.get("lang") == "en"
+    document_lang = "en" if is_english else "zh-CN"
+    previous_label = "Previous slide" if is_english else "上一页"
+    next_label = "Next slide" if is_english else "下一页"
     pages_json = json.dumps(embedded, ensure_ascii=False).replace("</", "<\\/")
     template_json = json.dumps(_notes_template(pages), ensure_ascii=False).replace("</", "<\\/")
     document = f"""<!doctype html>
-<html lang="zh-CN">
+<html lang="{document_lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
@@ -73,7 +77,7 @@ def build_course_html(manifest_path, output_path):
 </head>
 <body aria-label="{title}">
 <main id="deck" aria-live="polite"></main>
-<button id="left" aria-label="上一页"></button><button id="right" aria-label="下一页"></button>
+<button id="left" aria-label="{previous_label}"></button><button id="right" aria-label="{next_label}"></button>
 <div id="label"></div><div id="hud"></div>
 <script type="__bundler/template">{template_json}</script>
 <script>
