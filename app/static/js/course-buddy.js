@@ -860,8 +860,8 @@
     if (answered) {
       var head = res.correct ? '<b class="cb-ok">' + esc(t('right')) + ' +' + (res.gained || 0) + '</b>'
         : '<b class="cb-no">' + esc(t('wrong')) + '</b> · ' + esc(t('wrong_tip'));
-      var src = res.source_page ? ' <span class="cb-src">(' + esc(t('see_page', { n: res.source_page })) + ')</span>' : '';
-      h += '<div class="cb-explain">' + head + (res.explain || src ? '<br>' + esc(res.explain || '') + src : '') + '</div>';
+      var src = res.source_page ? ' <span class="cb-src">(' + linkPages(esc(t('see_page', { n: res.source_page }))) + ')</span>' : '';
+      h += '<div class="cb-explain">' + head + (res.explain || src ? '<br>' + linkPages(esc(res.explain || '')) + src : '') + '</div>';
       if (res.just_perfect) h += '<div class="cb-cheer">🏆 ' + esc(t('perfect')) + '</div>';
       else if (res.just_passed) h += '<div class="cb-cheer">🎉 ' + esc(t('passed')) + '</div>';
       h += noteHtml();
@@ -875,6 +875,7 @@
     body.innerHTML = h;
     setFoot(footHtml);
     bindBack();
+    bindPageLinks();
     if (answered) {
       // 结果态把解析滚进可视区
       var exEl = body.querySelector('.cb-explain');
@@ -909,6 +910,29 @@
         nextQuestion(key);
       };
     }
+  }
+
+  // 解析里的「第 N 页 / 第 5、8 页 / 第 23–24 页」→ 页码变成可点链接(先转义再替换,只注入数字)
+  var PAGE_REF = /\u7b2c\s*((?:\d+\s*(?:[\u3001,\uff0c\/\uff0f\u2013\-~]|\u548c|\u53ca)\s*)*\d+)\s*\u9875/g;
+  function linkPages(escaped) {
+    return escaped.replace(PAGE_REF, function (whole, nums) {
+      return whole.replace(/\d+/g, function (n) {
+        return '<a href="#' + n + '" class="cb-pg" data-page="' + n + '">' + n + '</a>';
+      });
+    });
+  }
+  function gotoPage(n) {
+    n = parseInt(n, 10);
+    if (!n) return;
+    // 课程播放器里且考的就是本课 → 直接翻页;否则打开该课并定位
+    if (typeof window.cpJump === 'function' && course && exKey === course.key) { window.cpJump(n); return; }
+    var base = safeUrl((examCourse && examCourse.play_url) || (course && course.play_url) || '');
+    if (base) location.href = base.split('#')[0] + '#' + n;
+  }
+  function bindPageLinks() {
+    body.querySelectorAll('.cb-pg').forEach(function (a) {
+      a.onclick = function (e) { e.preventDefault(); gotoPage(a.dataset.page); };
+    });
   }
 
   function bindBack() {

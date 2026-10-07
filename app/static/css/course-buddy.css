@@ -214,3 +214,5 @@
   .cb-wrap .cb-breathe,.cb-wrap.cb-sleeping .cb-zz,.cb-panel .cb-typing i{animation:none}
   .cb-wrap,.cb-panel,.cb-wrap .cb-bubble{transition:none}
 }
+
+.cb-panel .cb-explain .cb-pg{color:var(--accent);text-decoration:underline;text-underline-offset:2px;font-weight:600;cursor:pointer}
