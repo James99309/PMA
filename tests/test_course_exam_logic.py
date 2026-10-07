@@ -128,3 +128,19 @@ def test_unlock_needs_time_and_all_pages():
     assert not L.is_unlocked({'1': 60}, pages)        # 第 2 页没开过
     assert L.is_unlocked({'1': 20, '2': 10}, pages)
     assert not L.is_unlocked({'1': 10, '2': 10}, pages)
+
+
+def test_bank_health():
+    qs = [{'difficulty': 3, 'qtype': 'single'}] * 30 + [{'difficulty': 1, 'qtype': 'judge'}] * 5
+    h = L.bank_health(qs)
+    assert h['total'] == 35 and h['max_score'] == 95 and not h['ok']
+    assert h['by_difficulty'] == {1: 5, 2: 0, 3: 30}
+    assert h['by_type'] == {'single': 30, 'multi': 0, 'judge': 5}
+
+
+def test_empirical_difficulty():
+    assert L.empirical_difficulty(9, 10) == 1
+    assert L.empirical_difficulty(6, 10) == 2
+    assert L.empirical_difficulty(3, 10) == 3
+    assert L.empirical_difficulty(5, 9) is None               # 样本不足 10
+    assert L.suspicious(1, 10) and not L.suspicious(3, 10)

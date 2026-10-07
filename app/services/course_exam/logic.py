@@ -140,3 +140,29 @@ def is_unlocked(page_seconds, pages, override=None):
     if any(ps.get(str(i), 0) <= 0 for i in range(1, len(pages) + 1)):
         return False
     return effective_read_seconds(ps) >= required_read_seconds(pages, override)
+
+
+MIN_SAMPLES = 10
+
+
+def bank_health(questions):
+    by_d = {1: 0, 2: 0, 3: 0}
+    by_t = {'single': 0, 'multi': 0, 'judge': 0}
+    for q in questions:
+        by_d[q['difficulty']] += 1
+        by_t[q['qtype']] = by_t.get(q['qtype'], 0) + 1
+    max_score = sum(POINTS[d] * n for d, n in by_d.items())
+    return {'total': len(questions), 'by_difficulty': by_d, 'by_type': by_t,
+            'max_score': max_score, 'ok': max_score >= FULL_SCORE}
+
+
+def empirical_difficulty(correct_first, n_first):
+    """首次作答正确率 → 实测难度;样本 < 10 返回 None。"""
+    if not n_first or n_first < MIN_SAMPLES:
+        return None
+    rate = correct_first / n_first
+    return 1 if rate > 0.85 else (2 if rate >= 0.5 else 3)
+
+
+def suspicious(correct_first, n_first):
+    return bool(n_first and n_first >= MIN_SAMPLES and correct_first / n_first < 0.2)
