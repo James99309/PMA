@@ -1006,6 +1006,27 @@
    "status": "active",
    "ai_difficulty": 2,
    "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 1,
+   "question": "PNR2100 可以工作在以下哪几种通信模式？",
+   "options": [
+    "DMR 专网：加密专网，封闭空间无盲区通信",
+    "4G LTE 公网：跨城跨区广域调度，免频率许可",
+    "卫星直连：无地面网络时经卫星兜底通话",
+    "双模智能守候：专网公网同时在线，自动选网"
+   ],
+   "answer": [
+    0,
+    1,
+    3
+   ],
+   "explain": "第 3 页：同一台终端三种通信模态——DMR 专网安全保障（加密、封闭空间无盲区）、4G LTE 公网广域语音（跨城跨区、免频率许可）、双模智能守候（专网公网同时在线、自动选网不掉线）。课件未提供卫星通信能力。",
+   "source_page": 3,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
   }
  ]
 }
