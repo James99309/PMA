@@ -1027,6 +1027,31 @@
    "status": "active",
    "ai_difficulty": 1,
    "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 1,
+   "question": "以下哪些是 PNR2100 的核心特点？",
+   "options": [
+    "支持 DMR 专网数字通信",
+    "支持 4G LTE 公网广域语音",
+    "GPS + BLE 室内外精准定位",
+    "与 NetFlex 云平台任务联动",
+    "IP67 工业三防机身",
+    "Android 系统，可装第三方 App"
+   ],
+   "answer": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "explain": "第 2 页：PNR2100 的核心特点是 DMR 专网数字通信、4G LTE 公网广域语音、GPS + BLE 室内外精准定位、NetFlex 云平台任务联动、IP67 工业三防机身。操作系统是 RTOS（第 11 页规格），不是 Android，不能安装第三方 App。",
+   "source_page": 2,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
   }
  ]
 }
