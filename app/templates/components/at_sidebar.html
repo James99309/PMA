@@ -298,6 +298,7 @@
           {% set _cb_on = cb_buddy_enabled() %}
           <button type="button" id="atBuddyToggle" role="switch" aria-checked="{{ 'true' if _cb_on else 'false' }}"
                   data-url="{{ url_for('learning.buddy_toggle') }}" data-csrf="{{ csrf_token() }}"
+                  data-csrf-url="{{ url_for('learning.csrf_token') }}"
                   style="{{ _menu_link_style }}width:100%;border:0;background:transparent;cursor:pointer;font:inherit;text-align:left;"
                   onmouseover="this.style.background='var(--bg-page)'"
                   onmouseout="this.style.background='transparent'"
@@ -311,6 +312,8 @@
                            background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left 150ms;"></span>
             </span>
           </button>
+          <div id="atBuddyToggleErr" role="alert" hidden
+               style="padding:2px 10px 6px 34px;font-size:12px;line-height:1.4;color:var(--danger);"></div>
           {% endif %}
           <div style="height:1px;background:var(--line);margin:4px 4px;"></div>
           <a href="{{ url_for('auth.logout') }}"
@@ -358,20 +361,55 @@
         window.atToggleBuddy = function(btn) {
           if (btn.dataset.busy) return;
           const on = btn.getAttribute('aria-checked') !== 'true';
+          const errBox = document.getElementById('atBuddyToggleErr');
+          const MSG = {
+            expired: {{ _('登录已过期，请刷新页面')|tojson }},
+            network: {{ _('网络异常，请稍后再试')|tojson }},
+            generic: {{ _('操作失败，请稍后再试')|tojson }}
+          };
           btn.dataset.busy = '1';
+          if (errBox) { errBox.hidden = true; errBox.textContent = ''; }
           window.atBuddySwitchPaint(btn, on);
-          fetch(btn.dataset.url, {
-            method: 'POST', credentials: 'same-origin',
-            headers: {'Content-Type': 'application/json', 'Accept': 'application/json',
-                      'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': window.CB_CSRF || btn.dataset.csrf},
-            body: JSON.stringify({enabled: on})
-          }).then(function(r) { return r.json(); }).then(function(j) {
-            if (!j || !j.success) throw new Error('toggle');
-            location.reload();
-          }).catch(function() {
+          const hdr = {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'};
+          // 返回 JSON;被重定向到登录页 / 拿到 HTML → 视为会话过期
+          function getJson(r) {
+            const ct = r.headers.get('content-type') || '';
+            if (r.redirected || r.status === 401 || ct.indexOf('application/json') < 0) {
+              const e = new Error('expired'); e.kind = 'expired'; throw e;
+            }
+            return r.json();
+          }
+          function post(token) {
+            return fetch(btn.dataset.url, {
+              method: 'POST', credentials: 'same-origin',
+              headers: Object.assign({'Content-Type': 'application/json', 'X-CSRFToken': token}, hdr),
+              body: JSON.stringify({enabled: on})
+            }).then(getJson);
+          }
+          function fail(e) {
             delete btn.dataset.busy;
             window.atBuddySwitchPaint(btn, !on);
-          });
+            const msg = (e && e.kind === 'expired') ? MSG.expired
+              : (e && e.kind === 'api') ? (e.message || MSG.generic)
+              : (e && e.kind) ? MSG.generic : MSG.network;
+            if (window.ATToast) window.ATToast.error(msg);
+            if (errBox) { errBox.textContent = msg; errBox.hidden = false; }
+          }
+          post(window.CB_CSRF || btn.dataset.csrf).then(function(j) {
+            if (j && j.error === 'csrf') {          // token 过期:换新 token 重试一次
+              return fetch(btn.dataset.csrfUrl, {credentials: 'same-origin', headers: hdr}).then(getJson)
+                .then(function(t) {
+                  if (!t || !t.token) { const e = new Error('csrf'); e.kind = 'csrf'; throw e; }
+                  btn.dataset.csrf = t.token;
+                  if (window.CB_CSRF) window.CB_CSRF = t.token;
+                  return post(t.token);
+                });
+            }
+            return j;
+          }).then(function(j) {
+            if (!j || !j.success) { const e = new Error((j && j.message) || ''); e.kind = 'api'; throw e; }
+            location.reload();
+          }).catch(fail);
         };
         // 在小源面板里隐藏后,同步开关显示
         window.addEventListener('cb:toggled', function(e) {

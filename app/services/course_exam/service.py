@@ -148,6 +148,13 @@ def record_read(user_id, course_key, pages, page, seconds):
 
 # ---------- 考核:断点题 / 提交 / 下一题 ----------
 
+def bank_ready(course_key):
+    """本课 active 题库是否健康(满分可达 100)。学员端考核门禁用。"""
+    rows = (db.session.query(CourseQuizQuestion.qtype, CourseQuizQuestion.difficulty)
+            .filter(CourseQuizQuestion.course_key == course_key, CourseQuizQuestion.status == 'active').all())
+    return L.bank_health([{'qtype': t, 'difficulty': d} for t, d in rows])['ok']
+
+
 def _active_bank(course_key):
     return CourseQuizQuestion.query.filter_by(course_key=course_key, status='active').all()
 

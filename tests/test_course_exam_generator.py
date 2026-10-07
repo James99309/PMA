@@ -224,5 +224,15 @@ def test_replace_abort_reason_text():
     assert '2 批生成失败' in r and '实际 30/计划 100' in r and '旧题库保持不变' in r
 
 
-def test_stale_hours():
-    assert G.STALE_HOURS == 6
+def test_stale_minutes():
+    # 每块调用后都有心跳,单次调用最长 600s → 20 分钟无心跳即视为僵死
+    assert G.STALE_MINUTES == 20
+
+
+def test_generate_course_heartbeat_after_every_chunk():
+    batch = '{"questions":[{"type":"judge","question":"总部在上海","answer":true,"page":1}]}'
+    review = '{"reviews":[{"index":0,"difficulty":1,"answer_ok":true}]}'
+    beats = []
+    G.generate_course(PAGES, plan={1: 1, 2: 1}, client=FakeClient([batch, 'garbage', review]),
+                      on_progress=lambda: beats.append(1))
+    assert len(beats) == 3          # 2 批出题(含失败批)+ 1 组复核

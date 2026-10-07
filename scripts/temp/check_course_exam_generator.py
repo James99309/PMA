@@ -176,14 +176,47 @@ with app.app_context():
               '任务结束后标记被清除')
         check(any(r.question == '互斥题一' for r in rows()), '后台线程任务已落库')
 
-        # ---- 过期标记(> STALE_HOURS)可被接管 ----
-        s = setting(); s.generating_since = get_local_time() - timedelta(hours=G.STALE_HOURS + 1); s.generating_by = u.id
+        # ---- 心跳:每块调用后刷新 generating_since,令牌不变 ----
+        seen = {}
+
+        class HBClient(FakeClient):
+            def complete(self, *a, **kw):
+                if len(self.calls) == 1:            # 第 2 次调用(复核)前:看出题批之后的心跳
+                    row = CourseExamSetting.query.filter_by(course_key=KEY).populate_existing().first()
+                    seen.update(since=row.generating_since, token=row.generating_token)
+                return super().complete(*a, **kw)
+        gate = threading.Event()
+        ok_hb = G.start_generation(app, KEY, PAGES, u.id, plan={1: 1},
+                                   client=HBClient([batch(('心跳题', 1)), review_ok(1)], gate=gate))
+        s = setting()
+        token0 = s.generating_token
+        check(ok_hb and token0 is not None and s.generating_since == token0, '抢标记时写入令牌 generating_token')
+        s.generating_since = get_local_time() - timedelta(minutes=15)      # 模拟单批跑了很久
+        db.session.commit()
+        check(G.is_running(KEY), f'15 分钟未心跳仍算生成中(< {G.STALE_MINUTES} 分钟)')
+        t_mark = get_local_time()
+        gate.set()
+        check(wait_idle() and seen.get('since') is not None and seen['since'] >= t_mark - timedelta(seconds=1)
+              and seen.get('token') == token0, f'出题批之后心跳刷新 since、令牌不变 {seen}')
+        check(setting().generating_since is None and setting().generating_token is None, '心跳任务结束后按令牌释放')
+
+        # ---- 过期标记(> STALE_MINUTES 无心跳)可被接管;旧主人的心跳/释放不影响新主人 ----
+        old_t = get_local_time() - timedelta(minutes=G.STALE_MINUTES + 1)
+        s = setting(); s.generating_since = old_t; s.generating_token = old_t; s.generating_by = u.id
         db.session.commit()
         check(not G.is_running(KEY), '过期标记不算生成中')
+        gate2 = threading.Event()
         ok2 = G.start_generation(app, KEY, PAGES, u.id, plan={1: 1},
-                                 client=FakeClient([batch(('接管题', 1)), review_ok(1)]))
-        check(ok2 and wait_idle() and setting().generating_since is None
-              and any(r.question == '接管题' for r in rows()), '过期标记被接管,任务完成后释放')
+                                 client=FakeClient([batch(('接管题', 1)), review_ok(1)], gate=gate2))
+        new_token = setting().generating_token
+        check(ok2 and new_token is not None and new_token != old_t, '过期标记被接管,换新令牌')
+        check(G._heartbeat(KEY, old_t) is False and setting().generating_token == new_token,
+              '旧令牌心跳无效')
+        G._release(KEY, old_t)
+        check(setting().generating_token == new_token and G.is_running(KEY), '旧令牌释放不清新主人的标记')
+        gate2.set()
+        check(wait_idle() and setting().generating_since is None
+              and any(r.question == '接管题' for r in rows()), '接管任务完成后释放')
     finally:
         db.session.rollback()
         wait_idle(5)

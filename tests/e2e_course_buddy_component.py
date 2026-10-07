@@ -22,6 +22,7 @@
 import argparse
 import os
 import sys
+import tempfile
 
 
 def get_project_root():
@@ -48,7 +49,7 @@ QPREFIX = 'ZZE2E-'
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--port', type=int, default=5094)
-ap.add_argument('--shots', default=os.path.join(ROOT, 'data', 'temp', 'cb-shots'))
+ap.add_argument('--shots', default=os.path.join(tempfile.gettempdir(), 'pma-e2e-shots', 'cb-shots'))
 ap.add_argument('--headed', action='store_true')
 args = ap.parse_args()
 os.makedirs(args.shots, exist_ok=True)
@@ -325,6 +326,8 @@ def run_browser():
         page.click('#cbWrap .cb-pet')
         page.wait_for_timeout(500)
         check(page.locator('#cbPanel [data-tab=exam]').is_disabled(), '未解锁:考核标签禁用(显示阅读进度环)')
+        check(page.locator('#cbPanel [data-tab=exam]').get_attribute('title') == '题库准备中，暂不能考核',
+              '本课题库未就绪:考核标签悬停提示「题库准备中」')
         shot(page, '10-course-locked')
         page.keyboard.press('Escape')
         page.evaluate("() => window.CourseBuddy.onPage(2)")
@@ -332,6 +335,27 @@ def run_browser():
             page.mouse.move(600 + _ * 3, 400)
             page.wait_for_timeout(1000)
         check(any(s == 200 for s in pings), f'阅读计时 15s 内上报 read-ping({pings})')
+
+        # ---- 5a. 已读完但题库准备中:考核标签锁住并显示「准备中」 ----
+        nr = ctx.new_page()
+        nr.on('pageerror', lambda e: errors.append(f'pageerror[notready]: {e}'))
+        nr.route('**/api/learning/zz-not-ready/progress', lambda route: route.fulfill(
+            status=200, content_type='application/json',
+            body='{"success": true, "data": {"read": {"percent": 100, "unlocked": true, "page_seconds": {}, '
+                 '"required_seconds": 1, "effective_seconds": 1, "pages_seen": 1, "pages_total": 1}, '
+                 '"exam": {"score": 0, "passed": false, "perfect": false, "available": false}}}'))
+        nr.goto(BASE + '/')
+        nr.wait_for_selector('#cbWrap .cb-pet', state='visible', timeout=15000)
+        nr.evaluate("() => window.CourseBuddy.setCourse({key: 'zz-not-ready', title: 'NR', totalPages: 1})")
+        nr.wait_for_timeout(800)
+        nr.click('#cbWrap .cb-pet')
+        nr.wait_for_timeout(500)
+        tb = nr.locator('#cbPanel [data-tab=exam]')
+        check(tb.is_disabled() and '准备中' in tb.inner_text() and tb.get_attribute('title') == '题库准备中，暂不能考核'
+              and 'cb-on' not in (tb.get_attribute('class') or ''),
+              f'已解锁但题库准备中:考核标签禁用并显示「{tb.inner_text()}」')
+        shot(nr, '10b-bank-not-ready')
+        nr.close()
 
         # ---- 5b. 面板「⋯」隐藏小源 → 侧栏头像菜单开关找回 ----
         h = ctx.new_page()
@@ -373,10 +397,28 @@ def run_browser():
         check(h.locator('#atBuddyToggle').is_visible() and h.locator('#atBuddyToggle').get_attribute('aria-checked') == 'false',
               '头像菜单里「学习伙伴」开关为关')
         shot(h, '17-user-menu-off')
+        # 会话过期(拿到 HTML):开关复原 + 明确提示,不静默
+        h.route('**/api/learning/buddy/toggle', lambda route: route.fulfill(
+            status=200, content_type='text/html', body='<html><body>login</body></html>'))
+        h.click('#atBuddyToggle')
+        h.wait_for_selector('#atBuddyToggleErr:not([hidden])', timeout=10000)
+        err_txt = h.locator('#atBuddyToggleErr').inner_text()
+        check('登录已过期' in err_txt and h.locator('#atBuddyToggle').get_attribute('aria-checked') == 'false',
+              f'开关遇会话过期:复原为关并提示「{err_txt}」')
+        shot(h, '17b-user-menu-expired')
+        h.unroute('**/api/learning/buddy/toggle')
+        # CSRF token 失效:自动换新 token 重试一次后成功
+        probe = h.evaluate("""() => fetch(document.getElementById('atBuddyToggle').dataset.url, {method: 'POST',
+            credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-CSRFToken': 'stale-token'},
+            body: JSON.stringify({enabled: false})}).then(r => r.json()).then(j => j.error)""")
+        check(probe == 'csrf', f'服务端确实拒绝失效 CSRF token(error={probe})')
+        h.evaluate("() => { document.getElementById('atBuddyToggle').dataset.csrf = 'stale-token'; delete window.CB_CSRF; }")
+        if not h.locator('#atBuddyToggle').is_visible():
+            h.click('#atUserMenuTrigger')
         with h.expect_navigation(timeout=15000):
             h.click('#atBuddyToggle')
         h.wait_for_selector('#cbWrap .cb-pet', state='visible', timeout=15000)
-        check(True, '打开开关 → 页面刷新后小源重新出现')
+        check(True, '打开开关(旧 CSRF token 自动换新重试)→ 页面刷新后小源重新出现')
         h.click('#atUserMenuTrigger')
         h.wait_for_timeout(300)
         check(h.locator('#atBuddyToggle').get_attribute('aria-checked') == 'true', '头像菜单开关为开')

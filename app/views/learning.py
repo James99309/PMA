@@ -43,6 +43,7 @@ _ERROR_STATUS = {
     'bad_params': 400,
     'regenerate_failed': 422,
     'busy': 409,
+    'bank_not_ready': 403,
 }
 
 
@@ -76,6 +77,8 @@ def _error_message(code):
         return _('AI 重出失败，请稍后再试')
     if code == 'busy':
         return _('这道题正在 AI 重出，请稍候')
+    if code == 'bank_not_ready':
+        return _('题库准备中，暂不能考核')
     if code == 'no_pages':
         return _('该课程没有逐页讲解，无法出题')
     return _('操作失败')
@@ -108,12 +111,17 @@ def _course_or_404(key):
 
 
 def _exam_gate(course_key, pages):
-    """考核前置:无页面 → 403 unavailable;未达阅读要求 → 403 locked;通过返回 None。只读,不插行。"""
+    """考核前置:无页面 → 403 unavailable;未达阅读要求 → 403 locked;
+    题库不健康(active 满分 < 100)→ 403 bank_not_ready;通过返回 None。不插进度行。
+    健康判断前先尝试导入种子题库(首访自动导入)。"""
     if not pages:
         return _fail('unavailable', 403)
     p = S.get_progress(current_user.id, course_key)
     if p is None or p.unlocked_at is None:
         return _fail('locked', 403)
+    _seed_quietly([course_key])
+    if not S.bank_ready(course_key):
+        return _fail('bank_not_ready', 403)
     return None
 
 
@@ -174,6 +182,10 @@ def progress(key):
     data = S.read_status(current_user.id, ck, pages)
     if not pages:
         data['read']['unavailable'] = True
+        data['exam']['available'] = False
+    else:
+        _seed_quietly([ck])
+        data['exam']['available'] = S.bank_ready(ck)    # 题库准备中 → 前端锁住考核标签
     return jsonify({'success': True, 'data': data})
 
 
@@ -201,7 +213,6 @@ def exam_current(key):
     blocked = _exam_gate(ck, pages)
     if blocked:
         return blocked
-    _seed_quietly([ck])
     return jsonify({'success': True, 'data': S.current_question(current_user.id, ck)})
 
 
@@ -226,7 +237,6 @@ def exam_next(key):
     blocked = _exam_gate(ck, pages)
     if blocked:
         return blocked
-    _seed_quietly([ck])
     return jsonify({'success': True, 'data': S.next_question(current_user.id, ck)})
 
 

@@ -364,12 +364,13 @@ def _review_chunk(client, pages, chunk):
                 for q in chunk], False
 
 
-def generate_course(pages, plan=DEFAULT_PLAN, client=None, existing_questions=None):
+def generate_course(pages, plan=DEFAULT_PLAN, client=None, existing_questions=None, on_progress=None):
     """三档分批出题 → 去重 → 复核。返回 (questions, stats)。
 
     questions:带 status/ai_difficulty/review_note 的题目 dict 列表;
     stats:{requested, generated(去重后、复核前), failed_batches, review_failed_chunks}。
     existing_questions:课程里会保留的题干(用于防重复提示 + 去重)。
+    on_progress:每完成一批出题 / 一组复核(成功或失败)后调用一次,后台任务用来给生成标记续心跳。
     """
     plan = validate_plan(plan)
     own = client is None
@@ -390,8 +391,10 @@ def generate_course(pages, plan=DEFAULT_PLAN, client=None, existing_questions=No
                 except Exception:
                     failures += 1
                     logger.exception('出题调用失败:难度 %s,本批 %d 题', d, k)
-                    continue
+                    got = []
                 made.extend(got)
+                if on_progress:
+                    on_progress()
         if not made:
             raise ValueError('AI 未生成有效题目' + (f'(失败 {failures} 批)' if failures else ''))
         out, review_failed = [], 0
@@ -399,6 +402,8 @@ def generate_course(pages, plan=DEFAULT_PLAN, client=None, existing_questions=No
             got, ok = _review_chunk(client, pages, made[i:i + REVIEW_SIZE])
             out.extend(got)
             review_failed += 0 if ok else 1
+            if on_progress:
+                on_progress()
         stats = {'requested': sum(plan.values()), 'generated': len(made),
                  'failed_batches': failures, 'review_failed_chunks': review_failed}
         return out, stats
@@ -435,10 +440,12 @@ def regenerate_one(pages, q, client=None, existing_questions=None):
 
 # ---------- 后台任务 ----------
 # 跨进程互斥(gunicorn 多 worker):course_exam_settings.generating_since 非空且未过期 = 生成中。
-# 线程异常退出 / 进程被杀留下的旧标记,超过 STALE_HOURS 即可被接管。
+# generating_token = 抢到标记时的时间,作为本次任务的令牌(心跳 / 释放都按令牌匹配);
+# generating_since = 最近一次心跳,每完成一块 AI 调用刷新一次。
+# 线程异常退出 / 进程被杀后心跳停止,超过 STALE_MINUTES 即可被接管。
 
-# 标记过期时限:须大于最坏耗时(约 20 次调用 × 600s 超时 ≈ 3.3h),留足余量
-STALE_HOURS = 6
+# 无心跳过期时限:须大于单次 AI 调用最长耗时(600s 超时),留足余量
+STALE_MINUTES = 20
 MIN_REPLACE_YIELD = 0.5      # 重建题库时因批次失败导致产出低于计划一半 → 不动旧题库
 
 
@@ -460,7 +467,7 @@ def _now():
 
 def _stale_before():
     from datetime import timedelta
-    return _now() - timedelta(hours=STALE_HOURS)
+    return _now() - timedelta(minutes=STALE_MINUTES)
 
 
 def _ensure_setting(course_key):
@@ -493,9 +500,27 @@ def _acquire(course_key, user_id):
         CourseExamSetting.course_key == course_key,
         db.or_(CourseExamSetting.generating_since.is_(None),
                CourseExamSetting.generating_since < _stale_before()),
-    ).update({'generating_since': token, 'generating_by': user_id}, synchronize_session=False)
+    ).update({'generating_since': token, 'generating_token': token, 'generating_by': user_id},
+             synchronize_session=False)
     db.session.commit()
     return token if n else None
+
+
+def _heartbeat(course_key, token):
+    """续心跳:令牌仍是自己的才刷新 generating_since。返回是否刷新成功;失败只记日志。"""
+    from app import db
+    from app.models.course_exam import CourseExamSetting
+    try:
+        n = CourseExamSetting.query.filter(
+            CourseExamSetting.course_key == course_key,
+            CourseExamSetting.generating_token == token,
+        ).update({'generating_since': _now()}, synchronize_session=False)
+        db.session.commit()
+        return bool(n)
+    except Exception:
+        db.session.rollback()
+        logger.exception('出题标记心跳失败 %s', course_key)
+        return False
 
 
 def _release(course_key, token):
@@ -506,8 +531,9 @@ def _release(course_key, token):
         db.session.rollback()
         CourseExamSetting.query.filter(
             CourseExamSetting.course_key == course_key,
-            CourseExamSetting.generating_since == token,
-        ).update({'generating_since': None, 'generating_by': None}, synchronize_session=False)
+            CourseExamSetting.generating_token == token,
+        ).update({'generating_since': None, 'generating_token': None, 'generating_by': None},
+                 synchronize_session=False)
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -560,7 +586,9 @@ def run_generation_job(app, course_key, pages, user_id, plan=DEFAULT_PLAN, repla
             existing = [r.question for r in keep.all()]
             db.session.rollback()       # 出题耗时数分钟,别挂着空闲事务
 
-            qs, stats = generate_course(pages, plan=plan, client=client, existing_questions=existing)
+            beat = (lambda: _heartbeat(course_key, lock_token)) if lock_token is not None else None
+            qs, stats = generate_course(pages, plan=plan, client=client, existing_questions=existing,
+                                        on_progress=beat)
             abort = replace_abort_reason(stats) if replace else None
             if abort:
                 logger.warning('题库重建中止 %s:%s', course_key, stats)

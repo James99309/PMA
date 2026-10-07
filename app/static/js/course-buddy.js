@@ -495,6 +495,8 @@
   function unavailable() { return !!(prog && prog.read && prog.read.unavailable); }
   function score() { return prog && prog.exam ? (prog.exam.score || 0) : 0; }
   function perfect() { return !!(prog && prog.exam && prog.exam.perfect); }
+  // 题库准备中(active 满分 < 100):考核标签锁住并提示;只有进度接口带 available,read-ping 不带时沿用旧值
+  function notReady() { return !!(prog && prog.exam && prog.exam.available === false); }
 
   function ring(p) {
     var c = 2 * Math.PI * 6;
@@ -504,10 +506,14 @@
 
   function renderHead() {
     var hidden = !!course && (!prog || unavailable() || (perfect() && !keepExam));
-    var disabled = !!course && !hidden && !unlocked();
+    var waiting = !!course && !hidden && notReady();
+    var disabled = !!course && !hidden && (waiting || !unlocked());
     examBtn.hidden = hidden;
     examBtn.disabled = disabled;
-    examBtn.innerHTML = disabled ? ring(readPercent()) + esc(t('read')) + ' ' + readPercent() + '%'
+    if (waiting) examBtn.title = t('bank_not_ready'); else examBtn.removeAttribute('title');
+    // 未读完仍显示阅读进度(阅读照常计时);读完了题库还没好才显示「准备中」
+    examBtn.innerHTML = (waiting && unlocked()) ? esc(t('exam')) + ' · ' + esc(t('not_ready_short'))
+      : disabled ? ring(readPercent()) + esc(t('read')) + ' ' + readPercent() + '%'
       : esc(t('exam')) + (course ? ' ' + score() + '/100' : '');
     if (tab === 'exam' && (hidden || disabled)) tab = 'ask';
     panel.querySelectorAll('.cb-seg button').forEach(function (b) {
@@ -672,7 +678,9 @@
   function syncExamScore(d) {
     if (!d || !course || exKey !== course.key) return;
     prog = prog || { read: { percent: 100, unlocked: true }, exam: {} };
+    var avail = prog.exam ? prog.exam.available : undefined;
     prog.exam = { score: d.score || 0, passed: !!d.passed, perfect: !!d.perfect };
+    if (avail !== undefined) prog.exam.available = avail;
     syncPet();
   }
 
@@ -692,6 +700,7 @@
       exNote = err.message;
       if (course && err.error === 'locked' && prog) { prog.read.unlocked = false; }
       if (course && err.error === 'unavailable' && prog) { prog.read.unavailable = true; }
+      if (course && err.error === 'bank_not_ready' && prog && prog.exam) { prog.exam.available = false; }
       if (open && tab === 'exam') render();
     });
   }
@@ -890,7 +899,7 @@
       exBusy = false;
       exNote = err.message;
       if (err.error === 'stale_question' || err.error === 'no_question' || err.error === 'already_answered') { picked = null; loadExam(true); }
-      else if (err.error === 'locked' || err.error === 'unavailable') { ex = { error: true }; }
+      else if (err.error === 'locked' || err.error === 'unavailable' || err.error === 'bank_not_ready') { ex = { error: true }; }
       renderExam();
     });
   }
@@ -905,7 +914,7 @@
     }, function (err) {
       if (exKey !== key) return;
       exBusy = false; exNote = err.message;
-      if (err.error === 'locked' || err.error === 'unavailable') ex = { error: true };
+      if (err.error === 'locked' || err.error === 'unavailable' || err.error === 'bank_not_ready') ex = { error: true };
       renderExam();
     });
   }
@@ -971,10 +980,13 @@
   function applyProgress(d, initial) {
     if (!d || !d.read) return;
     var wasUnlocked = unlocked();
+    if (d.exam && d.exam.available === undefined && prog && prog.exam && prog.exam.available !== undefined) {
+      d.exam.available = prog.exam.available;
+    }
     prog = d;
     if (unavailable() || unlocked()) stopTimer();
     if (!initial) {
-      if (!wasUnlocked && unlocked()) { hop(18); jelly(); say(t('unlock'), 4200); }
+      if (!wasUnlocked && unlocked()) { hop(18); jelly(); say(notReady() ? t('bank_not_ready') : t('unlock'), 4200); }
       else if (!unlocked() && !unavailable()) {
         var q = Math.floor(readPercent() / 25) * 25;
         if (q > lastCheer && q > 0) { lastCheer = q; say(t('read_cheer', { p: readPercent() })); }

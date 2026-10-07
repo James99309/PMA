@@ -78,7 +78,8 @@ class CourseExamSetting(db.Model):
     course_key = Column(String(80), primary_key=True)
     min_read_seconds = Column(Integer, nullable=True)   # 考核解锁所需有效阅读秒数;空=按讲解字数自动估算
     # AI 出题任务跨进程互斥(gunicorn 多 worker):非空且未过期 = 正在生成
-    generating_since = Column(DateTime, nullable=True)
+    generating_since = Column(DateTime, nullable=True)     # 最近一次心跳
+    generating_token = Column(DateTime, nullable=True)     # 本次任务令牌(抢到标记的时间),心跳/释放按它匹配
     generating_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     updated_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)

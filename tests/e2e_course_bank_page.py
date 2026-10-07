@@ -21,6 +21,7 @@
 import argparse
 import os
 import sys
+import tempfile
 
 
 def get_project_root():
@@ -46,7 +47,7 @@ QPREFIX = 'ZZE2B-'
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--port', type=int, default=5094)
-ap.add_argument('--shots', default=os.path.join(ROOT, 'data', 'temp', 'bank-shots'))
+ap.add_argument('--shots', default=os.path.join(tempfile.gettempdir(), 'pma-e2e-shots', 'bank-shots'))
 ap.add_argument('--headed', action='store_true')
 args = ap.parse_args()
 os.makedirs(args.shots, exist_ok=True)

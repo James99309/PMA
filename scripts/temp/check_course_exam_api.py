@@ -208,6 +208,21 @@ with app.app_context():
         db.session.commit()
         d, bc = buddy_course(client)
         check(d['enabled'] is True and bc is None, '小源:默认开启;题库不健康(3 题)不列本课')
+        # 题库不健康时即便已解锁也不能进考核(上线前收尾:题库健康门禁)
+        p = prog()
+        p.unlocked_at = get_local_time()
+        db.session.commit()
+        for m, path in (('get', '/exam/current'), ('post', '/exam/next'), ('post', '/exam/answer')):
+            r = getattr(client, m)(base + path, **({'json': {'answer': 0}} if path.endswith('answer') else {}))
+            jj = r.get_json() or {}
+            check(r.status_code == 403 and jj.get('error') == 'bank_not_ready' and jj.get('message') == '题库准备中，暂不能考核',
+                  f'题库不健康:{path} → 403 bank_not_ready(实际 {r.status_code} {jj.get("error")})')
+        jj = client.get(base + '/progress').get_json()
+        check(jj['data']['exam'].get('available') is False, '题库不健康:progress exam.available=False')
+        check(prog().current_question_id is None, '题库不健康:未抽题落盘')
+        p = prog()
+        p.unlocked_at = None
+        db.session.commit()
         for i in range(4, 35):                           # 34 道难题 × 3 分 = 102 ≥ 100
             add_q(i)
         db.session.commit()
@@ -220,6 +235,8 @@ with app.app_context():
         p = prog()
         p.unlocked_at = get_local_time()
         db.session.commit()
+        check(client.get(base + '/progress').get_json()['data']['exam'].get('available') is True,
+              '题库健康:progress exam.available=True')
         r = client.get(base + '/exam/current')
         j = r.get_json()
         leaked = find_keys(j, {'answer', 'explain', 'correct_answer'})
@@ -246,6 +263,14 @@ with app.app_context():
         check(r.status_code == 200 and j['data']['question']['id'] != qid and not j['data']['answered'],
               'exam/next 换题')
         check(not find_keys(j, {'answer', 'explain', 'correct_answer'}), 'exam/next 响应不泄露答案')
+
+        # ---- 旧版考核接口已下线:410,不出题不判分不给答案 ----
+        for m, path in (('get', f'/wiki/play/{KEY}/quiz/questions'), ('post', f'/wiki/play/{KEY}/quiz/submit')):
+            r = getattr(client, m)(path, **({'json': {'answers': {}}} if m == 'post' else {}))
+            jj = r.get_json() or {}
+            check(r.status_code == 410 and jj.get('success') is False and jj.get('message') == '旧版考核已下线'
+                  and not find_keys(jj, {'answer', 'answers', 'questions', 'correct_answer', 'explain', 'details'}),
+                  f'旧接口 {path} → 410 且无题目/答案(实际 {r.status_code})')
 
         # ---- 非对象 JSON 提交答案不 500 ----
         for body in ([1], 'x'):
