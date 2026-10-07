@@ -4,6 +4,8 @@
 并发:所有会改进度行的入口都先 SELECT ... FOR UPDATE 锁住本人本课那一行,
 避免同一用户多标签页/重复点击时重复计时、重复加分、断点被覆盖。
 """
+import random
+
 from sqlalchemy.exc import IntegrityError
 
 from app import db
@@ -80,3 +82,144 @@ def _force_last_ping(user_id, course_key, seconds_ago):
     p = _locked_progress(user_id, course_key)
     p.last_ping_at = get_local_time() - timedelta(seconds=seconds_ago)
     db.session.commit()
+
+
+# ---------- 考核:断点题 / 提交 / 下一题 ----------
+
+def _active_bank(course_key):
+    return CourseQuizQuestion.query.filter_by(course_key=course_key, status='active').all()
+
+
+def _user_history(user_id, course_key):
+    """本人在本课题库的作答:已答对题 id 集合 + 按时间旧→新的作答 id 列表。"""
+    rows = (TrainingQuizAttempt.query
+            .filter_by(user_id=user_id, course_slug=course_key, module_slug=MODULE_SLUG)
+            .order_by(TrainingQuizAttempt.attempted_at, TrainingQuizAttempt.id).all())
+    correct = {int(r.question_id) for r in rows if r.is_correct}
+    recent = [int(r.question_id) for r in rows]
+    return correct, recent
+
+
+def public_question(q, order):
+    """给前端的题面:绝不含 answer / explain;选项按本人乱序后的顺序给出。"""
+    d = {'id': q.id, 'qtype': q.qtype, 'difficulty': q.difficulty,
+         'points': L.POINTS[q.difficulty], 'question': q.question}
+    if q.qtype != 'judge':
+        d['options'] = [q.options[i] for i in order]
+    return d
+
+
+def _clear_current(p):
+    p.current_question_id = None
+    p.current_option_order = None
+    p.current_answered = False
+    p.current_result = None
+
+
+def _needs_draw(p, q):
+    # 停用且未作答 → 换题;已作答的保留结果展示
+    return q is None or (q.status != 'active' and not p.current_answered)
+
+
+def _is_stale(p, q):
+    """断点题在作答期间被删/停用/改了选项数 → 断点失效。"""
+    if q is None or q.status != 'active':
+        return True
+    if q.qtype == 'judge':
+        return p.current_option_order is not None
+    order = p.current_option_order
+    return not isinstance(order, list) or len(order) != len(q.options or [])
+
+
+def _exam_base(p):
+    return {'score': p.score, 'passed': bool(p.passed_at), 'perfect': bool(p.perfect_at)}
+
+
+def current_question(user_id, course_key, rng=None):
+    """取断点题;没有就抽一题并落盘(幂等:反复打开看到同一题同一选项顺序)。"""
+    p = get_or_create_progress(user_id, course_key)
+    if p.perfect_at:
+        return dict(_exam_base(p), done=True)
+    q = db.session.get(CourseQuizQuestion, p.current_question_id) if p.current_question_id else None
+    if _needs_draw(p, q):
+        p = _locked_progress(user_id, course_key)     # 加锁后重判,防并发重复抽题
+        q = db.session.get(CourseQuizQuestion, p.current_question_id) if p.current_question_id else None
+        if _needs_draw(p, q):
+            rng = rng or random.SystemRandom()
+            bank = [x.as_logic() for x in _active_bank(course_key)]
+            correct, recent = _user_history(user_id, course_key)
+            picked = L.pick_question(bank, p.score, correct, recent, rng)
+            if not picked:
+                _clear_current(p)
+                db.session.commit()
+                return dict(_exam_base(p), done=True, exhausted=True)
+            q = db.session.get(CourseQuizQuestion, picked['id'])
+            p.current_question_id = q.id
+            p.current_option_order = L.option_order_for(q.as_logic(), rng)
+            p.current_answered = False
+            p.current_result = None
+        db.session.commit()
+    return dict(_exam_base(p), question=public_question(q, p.current_option_order),
+                answered=p.current_answered, result=p.current_result)
+
+
+def submit_answer(user_id, course_key, shown_answer):
+    """服务端判分。shown_answer 为「显示位」(single=int / multi=[int] / judge=bool)。"""
+    p = _locked_progress(user_id, course_key)
+    if not p.current_question_id:
+        db.session.commit()
+        return {'error': 'no_question'}
+    if p.current_answered:
+        db.session.commit()
+        return {'error': 'already_answered'}
+    q = db.session.get(CourseQuizQuestion, p.current_question_id)
+    if _is_stale(p, q):
+        # 题目在作答期间被改/停用:作废断点,下次 current_question 重新抽
+        _clear_current(p)
+        db.session.commit()
+        return {'error': 'bad_answer', 'message': '题目已更新,请重新作答'}
+    try:
+        original = L.to_original(q.qtype, shown_answer, p.current_option_order,
+                                 n_options=len(q.options or []) if q.qtype != 'judge' else None)
+    except ValueError as e:
+        # 断点本身完好,只是提交值非法:不清断点(否则可借乱填跳过难题)
+        db.session.commit()
+        return {'error': 'bad_answer', 'message': str(e)}
+    ok = L.is_correct(q.as_logic(), original)
+    before = p.score
+    if ok:
+        p.score = L.apply_score(p.score, q.difficulty)
+    flags = L.crossed(before, p.score)
+    now = get_local_time()
+    if p.score >= L.PASS_SCORE and not p.passed_at:
+        p.passed_at = now
+    if p.score >= L.FULL_SCORE and not p.perfect_at:
+        p.perfect_at = now
+    order = p.current_option_order
+    if q.qtype == 'judge':
+        shown_correct = q.answer
+    elif q.qtype == 'single':
+        shown_correct = order.index(q.answer)
+    else:
+        shown_correct = sorted(order.index(i) for i in q.answer)
+    result = {'correct': ok, 'gained': p.score - before, 'score': p.score,
+              'correct_answer': shown_correct, 'your_answer': shown_answer,
+              'explain': q.explain or '', 'source_page': q.source_page,
+              'just_passed': flags['passed'], 'just_perfect': flags['perfect']}
+    p.current_answered = True
+    p.current_result = result
+    db.session.add(TrainingQuizAttempt(
+        user_id=user_id, course_slug=course_key, module_slug=MODULE_SLUG, chapter=1,
+        question_id=str(q.id), question_text=q.question, question_type=q.qtype,
+        user_answer=str(original), correct_answer=str(q.answer), is_correct=ok, attempted_at=now))
+    db.session.commit()
+    return result
+
+
+def next_question(user_id, course_key):
+    """已作答才推进;未作答直接返回当前题。"""
+    p = _locked_progress(user_id, course_key)
+    if p.current_answered:
+        _clear_current(p)
+    db.session.commit()
+    return current_question(user_id, course_key)
