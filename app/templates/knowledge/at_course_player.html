@@ -231,6 +231,7 @@
     document.getElementById('cpNext').disabled = (idx >= cpTotal);
     // 小源阅读计时:页码 1-based,与服务端 _get_course_pages 的顺序一致
     if (window.CourseBuddy) window.CourseBuddy.onPage(idx);
+    if (cpSeen && !cpSeen[idx]) { cpSeen[idx] = 1; cpPaintUnseen(); }
   }
 
   function cpSyncFromFrame() {
@@ -272,6 +273,47 @@
     setTimeout(cpSyncFromFrame, 60);
   }
   window.cpJump = cpJump;
+
+  // 未看过的页:在课件缩略图栏(deck-stage 影子 DOM 的 .rail > .thumb)加虚线高亮外框。
+  // 数据来自小源进度广播(cb:progress);翻到的页本地立即去掉,解锁后全部清除。
+  var cpSeen = null;            // null = 不高亮(未拿到进度 / 已解锁 / 不计时)
+  function cpRail() {
+    try {
+      var st = cpFrame.contentDocument.querySelector('deck-stage');
+      var sr = st && st.shadowRoot;
+      if (!sr) return null;
+      if (!sr.getElementById('cpUnseenStyle')) {
+        var css = document.createElement('style');
+        css.id = 'cpUnseenStyle';
+        css.textContent = '.thumb[data-cp-unseen] .frame{outline:2px dashed #E0A040;outline-offset:2px}' +
+          '.thumb[data-cp-unseen] .num{color:#E0A040;font-weight:700}';
+        sr.appendChild(css);
+      }
+      return sr.querySelectorAll('.rail > .thumb');
+    } catch (e) { return null; }
+  }
+  function cpPaintUnseen(tries) {
+    var thumbs = cpRail();
+    if (!thumbs || !thumbs.length) {           // 课件还没渲染出缩略图栏:稍后重试几次
+      tries = tries || 0;
+      if (tries < 10) setTimeout(function () { cpPaintUnseen(tries + 1); }, 1000);
+      return;
+    }
+    for (var i = 0; i < thumbs.length; i++) {
+      if (cpSeen && !cpSeen[i + 1]) thumbs[i].setAttribute('data-cp-unseen', '');
+      else thumbs[i].removeAttribute('data-cp-unseen');
+    }
+  }
+  window.addEventListener('cb:progress', function (e) {
+    var d = e.detail || {};
+    if (d.key !== {{ course.key|tojson }}) return;
+    if (d.unlocked || d.unavailable) { cpSeen = null; cpPaintUnseen(); return; }
+    var seen = cpSeen || {};
+    (d.seen || []).forEach(function (n) { seen[n] = 1; });
+    if (cpCur) seen[cpCur] = 1;
+    cpSeen = seen;
+    cpPaintUnseen();
+  });
 
   // 外壳 URL 的 #N 变化(如小源回答里点课件缩略图,同页只改 hash 不会重载)→ 跳到该页
   window.addEventListener('hashchange', function () {

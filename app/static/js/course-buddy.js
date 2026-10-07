@@ -1016,6 +1016,12 @@
     }
     prog = d;
     if (unavailable() || unlocked()) stopTimer();
+    // 广播给播放器:用于在课件缩略图上高亮「还没看过」的页
+    try {
+      window.dispatchEvent(new CustomEvent('cb:progress', { detail: {
+        key: course && course.key, unlocked: unlocked(), unavailable: unavailable(),
+        seen: Object.keys((d.read && d.read.page_seconds) || {}).map(Number) } }));
+    } catch (e) { /* 忽略 */ }
     if (!initial) {
       if (!wasUnlocked && unlocked()) { hop(18); jelly(); say(notReady() ? t('bank_not_ready') : t('unlock'), 4200); }
       else if (!unlocked() && !unavailable()) {
