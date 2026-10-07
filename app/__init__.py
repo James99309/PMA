@@ -547,6 +547,10 @@ def create_app(config_class=Config):
     app.register_blueprint(knowledge_wiki_bp)
     csrf.exempt(knowledge_wiki_bp)
 
+    # 学习伙伴小源 + 课程考核学员端 API(不豁免 CSRF,前端带 X-CSRFToken)
+    from app.views.learning import learning_bp
+    app.register_blueprint(learning_bp)
+
     # 团队 Skills 商店（内嵌 Cowork marketplace，不搬动本体）
     from app.views.skills_marketplace import skills_marketplace_bp
     app.register_blueprint(skills_marketplace_bp)
