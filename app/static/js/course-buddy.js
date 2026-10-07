@@ -249,8 +249,19 @@
   if (DEBUG) window.__cbFrames = window.__cbFrames || 0;
   function idleStill() { return Date.now() - Math.max(mouse.t, lastKick) >= WANDER_MS; }
   function updatePetRect() { petRect = pet.getBoundingClientRect(); }
+  // 休息态:彻底静止时连呼吸(无限 CSS 动画)也暂停 —— 合成器未接管时它会在主线程逐帧重排
+  var restTimer = 0;
+  function setResting(on) { wrap.classList.toggle('cb-resting', on); }
+  function scheduleRest() {
+    clearTimeout(restTimer);
+    var wait = WANDER_MS - (Date.now() - Math.max(mouse.t, lastKick));
+    restTimer = setTimeout(function () { if (!rafId && idleStill()) setResting(true); else if (!rafId) scheduleRest(); },
+      Math.max(0, wait) + 50);
+  }
   function kick() {
     lastKick = Date.now();
+    clearTimeout(restTimer);
+    setResting(false);
     if (!rafId && !destroyed && !document.hidden) rafId = requestAnimationFrame(frame);
   }
   function frame(now) {
@@ -279,6 +290,7 @@
     R.lean.style.transform = 'rotate(' + lean.toFixed(2) + 'deg)';
     R.antenna.style.transform = 'rotate(' + (reduce ? 0 : ant).toFixed(2) + 'deg)';
     if (!settled) rafId = requestAnimationFrame(frame);
+    else scheduleRest();
   }
   addEventListener('pointermove', function (e) {
     mouse.x = e.clientX; mouse.y = e.clientY; mouse.t = Date.now();

@@ -49,7 +49,7 @@
 .cb-tucked .cb-bubble,.cb-dragging .cb-bubble{opacity:0}
 /* 呼吸放在 HTML 包裹层上做合成层 transform,不让含 feTurbulence 滤镜的 SVG 每帧重新栅格化 */
 .cb-wrap .cb-breathe{display:block;width:100%;height:100%;transform-origin:50% 88%;animation:cb-breath 3.4s ease-in-out infinite;will-change:transform}
-.cb-wrap.cb-tucked .cb-breathe,.cb-wrap.cb-paused .cb-breathe,.cb-wrap.cb-dragging .cb-breathe{animation-play-state:paused}
+.cb-wrap.cb-tucked .cb-breathe,.cb-wrap.cb-paused .cb-breathe,.cb-wrap.cb-resting .cb-breathe,.cb-wrap.cb-dragging .cb-breathe{animation-play-state:paused}
 @keyframes cb-breath{0%,100%{transform:scale(1,1)}50%{transform:scale(1.018,1.035)}}
 #cb-squash,#cb-lean,#cb-hop,#cb-antenna,#cb-eyes,#cb-shadow{transform-box:view-box}
 #cb-squash,#cb-lean,#cb-hop{transform-origin:100px 176px}

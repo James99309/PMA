@@ -152,6 +152,13 @@ def run_browser():
         check(idle['LayoutCount'] <= 2 and idle['RecalcStyleCount'] <= 6,
               f'空闲时重排/样式重算接近 0(Layout {idle["LayoutCount"]}, RecalcStyle {idle["RecalcStyleCount"]})')
         cdp.detach()
+        # 呼吸动画(无限 CSS 动画)空闲时也必须暂停:合成器未接管时它会在主线程逐帧重排(偶发 600 次/5s)
+        breath = page.evaluate("() => { const a = document.querySelector('#cbWrap .cb-breathe').getAnimations(); return a.length ? a[0].playState : 'none'; }")
+        check(breath == 'paused', f'空闲时呼吸动画暂停(playState {breath})')
+        page.mouse.move(720, 470)
+        page.wait_for_timeout(300)
+        breath = page.evaluate("() => { const a = document.querySelector('#cbWrap .cb-breathe').getAnimations(); return a.length ? a[0].playState : 'none'; }")
+        check(breath == 'running', f'有操作后呼吸动画恢复(playState {breath})')
 
         page.wait_for_timeout(2500)        # 等登录落地页上的首次问候跑完,再清状态,避免竞态
         page.evaluate("""() => { sessionStorage.removeItem('cb-hello');
