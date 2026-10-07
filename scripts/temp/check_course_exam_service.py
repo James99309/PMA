@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _report_flow_testkit import make_app
 
 KEY = 'zz-exam-test'
+LEGACY_KEY = 'zz-exam-test-legacy'     # 旧题库导入用独立课,避免干扰上面的抽题池
 PAGES = [{'label': 'p1', 'notes': ''}, {'label': 'p2', 'notes': ''}]   # required = 28s,单页封顶 60s
 
 app = make_app()
@@ -126,15 +127,36 @@ with app.app_context():
         # 满分后无题可抽
         prog = S.get_or_create_progress(u.id, KEY); prog.score = 100; prog.perfect_at = get_local_time(); db.session.commit()
         check(S.current_question(u.id, KEY).get('done'), '满分后 done=True')
+
+        # ---- 旧 quiz.json 导入 ----
+        import json, tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(tmpdir, LEGACY_KEY + '.quiz.json'), 'w', encoding='utf-8') as f:
+                json.dump({'questions': [
+                    {'type': 'single', 'question': 'LS', 'options': ['a', 'b', 'c', 'd'], 'answer': 2, 'explain': 'x'},
+                    {'type': 'judge', 'question': 'LJ', 'answer': False, 'explain': 'y'},
+                    {'type': 'single', 'question': 'BAD', 'options': ['a', 'b'], 'answer': 5},   # 下标越界 → 跳过
+                    {'type': 'scenario', 'question': 'SC'},                                       # 不支持题型 → 跳过
+                ]}, f, ensure_ascii=False)
+            n1 = S.import_legacy_json(LEGACY_KEY, tmpdir)
+            n2 = S.import_legacy_json(LEGACY_KEY, tmpdir)
+            check(S.import_legacy_json(KEY + '-nofile', tmpdir) == 0, '无 quiz.json → 导入 0')
+        rows = CourseQuizQuestion.query.filter_by(course_key=LEGACY_KEY).order_by(CourseQuizQuestion.id).all()
+        check(n1 == 2 and n2 == 0 and len(rows) == 2, f'只导入合法的 2 道且不重复导入 (n1={n1}, n2={n2})')
+        check(all(r.origin == 'legacy' and r.difficulty == 2 and r.status == 'active' for r in rows),
+              "origin='legacy'、difficulty=2、active")
+        check(rows[0].answer == 2 and rows[0].options == ['a', 'b', 'c', 'd']
+              and rows[1].answer is False and rows[1].options is None, '答案/选项按原始下标原样入库')
     finally:
         db.session.rollback()
         CourseLearningProgress.query.filter_by(course_key=KEY).delete()
         TrainingQuizAttempt.query.filter_by(course_slug=KEY, module_slug='bank').delete()
-        CourseQuizQuestion.query.filter_by(course_key=KEY).delete()
+        CourseQuizQuestion.query.filter(CourseQuizQuestion.course_key.in_([KEY, LEGACY_KEY])).delete(
+            synchronize_session=False)
         db.session.commit()
-        left = (CourseLearningProgress.query.filter_by(course_key=KEY).count()
-                + TrainingQuizAttempt.query.filter_by(course_slug=KEY).count()
-                + CourseQuizQuestion.query.filter_by(course_key=KEY).count())
+        left = (CourseLearningProgress.query.filter(CourseLearningProgress.course_key.like('zz-exam-test%')).count()
+                + TrainingQuizAttempt.query.filter(TrainingQuizAttempt.course_slug.like('zz-exam-test%')).count()
+                + CourseQuizQuestion.query.filter(CourseQuizQuestion.course_key.like('zz-exam-test%')).count())
         check(left == 0, f'清理完成,残留 {left} 行')
     print('FAILS:', fails)
     sys.exit(1 if fails else 0)

@@ -223,3 +223,51 @@ def next_question(user_id, course_key):
         _clear_current(p)
     db.session.commit()
     return current_question(user_id, course_key)
+
+
+# ---------- 旧题库导入 ----------
+
+def import_legacy_json(course_key, course_assets_dir):
+    """旧版 <key>.quiz.json → 题库(仅当本课题库为空时)。返回导入条数。
+
+    每题过 normalize_question,不合法的跳过;难度统一按 2(中)。
+    """
+    import json
+    import os
+    from sqlalchemy import text
+    path = os.path.join(course_assets_dir, course_key + '.quiz.json')
+    if not os.path.isfile(path):
+        return 0
+    if db.engine.dialect.name == 'postgresql':
+        # 同课并发首访只让一个事务导入,防重复导入(事务结束自动释放)
+        db.session.execute(text('SELECT pg_advisory_xact_lock(hashtext(:k))'),
+                           {'k': 'course_exam_import:' + course_key})
+    if CourseQuizQuestion.query.filter_by(course_key=course_key).first():
+        db.session.commit()
+        return 0
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        db.session.commit()
+        return 0
+    n = 0
+    for raw in (data.get('questions') or []) if isinstance(data, dict) else []:
+        if not isinstance(raw, dict) or raw.get('type') not in ('single', 'judge'):
+            continue
+        question = str(raw.get('question') or '').strip()
+        if not question:
+            continue
+        try:
+            norm = L.normalize_question({'qtype': raw['type'], 'difficulty': 2,
+                                         'options': raw.get('options'), 'answer': raw.get('answer')})
+        except ValueError:
+            continue
+        db.session.add(CourseQuizQuestion(
+            course_key=course_key, qtype=norm['qtype'], difficulty=norm['difficulty'],
+            question=question, options=norm['options'] if norm['qtype'] != 'judge' else None,
+            answer=norm['answer'], explain=raw.get('explain') or None,
+            status='active', origin='legacy'))
+        n += 1
+    db.session.commit()
+    return n
