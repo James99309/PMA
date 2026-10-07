@@ -1,7 +1,7 @@
 {
  "course_key": "apac-data-center-critical-comms-cn",
- "version": 1,
- "generated": "2026-10-07",
+ "version": 2,
+ "generated": "2026-10-08",
  "questions": [
   {
    "qtype": "single",
@@ -61,23 +61,6 @@
    ],
    "answer": 2,
    "explain": "第 3 页：大型数据中心客户总值 1500 万美元的关键通信订单。",
-   "source_page": 3,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "CSE Global 这笔数据中心关键通信订单的执行周期是？",
-   "options": [
-    "2025 年到 2027 年",
-    "2026 年到 2030 年",
-    "2024 年到 2026 年",
-    "2025 年到 2028 年"
-   ],
-   "answer": 3,
-   "explain": "第 3 页：覆盖美洲、亚太和欧洲，执行周期从 2025 年到 2028 年。",
    "source_page": 3,
    "status": "active",
    "ai_difficulty": 1,
@@ -406,23 +389,6 @@
    "review_note": null
   },
   {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "课件列出的「一台终端背后的通信生态」中，不包括以下哪项？",
-   "options": [
-    "合路平台",
-    "公有云服务器",
-    "光纤远端",
-    "NetFlex 平台"
-   ],
-   "answer": 1,
-   "explain": "第 17 页：生态包括基站、合路平台、光纤远端、天线、NetFlex 平台以及本地服务器。",
-   "source_page": 17,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
    "qtype": "judge",
    "difficulty": 1,
    "question": "NetFlex 平台把人员、语音、位置、任务和设备状态组织到同一个界面里。",
@@ -433,23 +399,6 @@
    "status": "active",
    "ai_difficulty": 1,
    "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "NetFlex 查找人员时，以下哪项不是课件提到的检索条件？",
-   "options": [
-    "终端 ID",
-    "部门",
-    "工号",
-    "车牌号"
-   ],
-   "answer": 3,
-   "explain": "第 19 页：可按部门、姓名、工号或终端 ID 快速找到人员。",
-   "source_page": 19,
-   "status": "review",
-   "ai_difficulty": 1,
-   "review_note": "答案/干扰项存疑；干扰项设计反了：'车牌号'在人员检索条件中一眼异类，答案无需记忆即可选出；建议换成'手机号''岗位'等近似项"
   },
   {
    "qtype": "judge",
@@ -522,23 +471,6 @@
    "answer": 0,
    "explain": "第 24 页：先有可靠的语音、位置、任务和设备数据，再形成运营语境，最后才谈 AI 辅助。",
    "source_page": 24,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "课件总结的三种「确定性」不包括以下哪项？",
-   "options": [
-    "价格确定性",
-    "通信确定性",
-    "交付确定性",
-    "架构确定性"
-   ],
-   "answer": 0,
-   "explain": "第 25 页：三种确定性是架构确定性、通信确定性、交付确定性。",
-   "source_page": 25,
    "status": "active",
    "ai_difficulty": 1,
    "review_note": null
@@ -1310,6 +1242,69 @@
    "source_page": 25,
    "status": "active",
    "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "课件提到数据中心里哪些区域容易形成无线弱区？",
+   "options": [
+    "办公区、大堂和访客会议室",
+    "电池区、动力层和屋顶冷却区",
+    "园区道路、停车场和门卫室",
+    "员工食堂、宿舍和培训中心"
+   ],
+   "answer": 1,
+   "explain": "第 4 页：机柜、重型结构、电池区、动力层和屋顶冷却区都容易形成弱区。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "按课件的建设标准思路，首栋建筑就要确定下来、后续楼宇沿用的内容包括哪项？",
+   "options": [
+    "各期施工队伍人员名单",
+    "终端采购单价与折扣",
+    "系统的测试和验收标准",
+    "业主运维部门组织架构"
+   ],
+   "answer": 2,
+   "explain": "第 9 页：首栋建筑要把系统架构、频率和频道规划、BOM、安装方法、测试和验收标准确定下来，后续沿用。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "人员从室外走进楼宇后，NetFlex 上的位置会中断，需要等楼内重新定位后才能看到。",
+   "options": null,
+   "answer": false,
+   "explain": "第 19 页：室外 GIS 地图和室内楼层图可以连续切换，人员进入楼宇以后位置不会断开。",
+   "source_page": 19,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "用 NetFlex 管理周期巡检，管理者能直接看到哪些执行情况？",
+   "options": [
+    "完成、遗漏和延误情况",
+    "巡检员的考勤与加班时长",
+    "各巡检点的能耗读数",
+    "巡检员的绩效排名"
+   ],
+   "answer": 0,
+   "explain": "第 20 页：模板固定路线、点位和频次后系统自动生成周期任务，管理者可以看到完成、遗漏和延误情况。",
+   "source_page": 20,
+   "status": "active",
+   "ai_difficulty": 1,
    "review_note": null
   }
  ]

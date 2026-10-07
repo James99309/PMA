@@ -1,7 +1,7 @@
 {
  "course_key": "smart-task-intercom",
- "version": 1,
- "generated": "2026-10-07",
+ "version": 2,
+ "generated": "2026-10-08",
  "questions": [
   {
    "qtype": "single",
@@ -640,26 +640,6 @@
    "review_note": null
   },
   {
-   "qtype": "multi",
-   "difficulty": 2,
-   "question": "以下哪些是课件第 10 页明确列出的适合行业场景？",
-   "options": [
-    "港口码头装卸调度",
-    "商场 · 写字楼 · 物业",
-    "医院后勤保障与护工呼叫",
-    "地铁车站运营与站务调度"
-   ],
-   "answer": [
-    0,
-    1
-   ],
-   "explain": "第 10 页：列出制造、物流、港口码头、商场写字楼物业、矿业山区海岛；地铁、医院虽是协作场景，但课件未列出。",
-   "source_page": 10,
-   "status": "review",
-   "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
-  },
-  {
    "qtype": "single",
    "difficulty": 2,
    "question": "关于 PNR2100 的公网频段，哪种说法正确？",
@@ -984,6 +964,27 @@
    "status": "review",
    "ai_difficulty": 2,
    "review_note": "难度不一致:标注 3 / 复核 2；规格查表（第 7/11 页），属记忆+对照，不是场景综合"
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "判断一个行业客户是否属于 PNR2100 瞄准的任务协作型场景，可以看哪些特征？",
+   "options": [
+    "人员分散在多个站点或楼层",
+    "现场环境复杂，有盲区或恶劣条件",
+    "任务需要下发并回执形成闭环",
+    "主要诉求是高清视频回传与移动办公"
+   ],
+   "answer": [
+    0,
+    1,
+    2
+   ],
+   "explain": "第 10 页：任务协作型行业的共同点是人员分散、环境复杂、任务需要闭环；第 2 页定位为高安全、高指令传达效率的任务协作，并非视频办公终端。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
   }
  ]
 }

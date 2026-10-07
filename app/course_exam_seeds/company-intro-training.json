@@ -1,25 +1,8 @@
 {
  "course_key": "company-intro-training",
- "version": 1,
- "generated": "2026-10-07",
+ "version": 2,
+ "generated": "2026-10-08",
  "questions": [
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "培训共四章，其中被定为今天培训重点（实操重点）的是哪一章？",
-   "options": [
-    "行业与成功案例篇",
-    "NetFlex 运营平台篇",
-    "产品与系统架构篇",
-    "认识 EVERTAC 公司篇"
-   ],
-   "answer": 1,
-   "explain": "第 2 页：建议时长 45 分钟，第四章 NetFlex 运营平台为实操重点。",
-   "source_page": 2,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
   {
    "qtype": "single",
    "difficulty": 1,
@@ -33,40 +16,6 @@
    "answer": 1,
    "explain": "第 3 页：和源通信（上海）股份有限公司成立于 2003 年，总部位于中国上海。",
    "source_page": 3,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "「我们的努力」一页提出，和源要建立怎样的专业通信，让团队协作更进一步？",
-   "options": [
-    "低成本广覆盖的公网通信",
-    "免许可的公网通信",
-    "顺畅高效的专业通信",
-    "大功率远距离的通信"
-   ],
-   "answer": 2,
-   "explain": "第 4 页：建立顺畅高效的专业通信，让团队协作更进一步。",
-   "source_page": 4,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "全生命周期服务的四个阶段，正确顺序是？",
-   "options": [
-    "系统设计→整体交付→生产制造→运营保障",
-    "系统设计→生产制造→运营保障→整体交付",
-    "生产制造→系统设计→整体交付→运营保障",
-    "系统设计→生产制造→整体交付→运营保障"
-   ],
-   "answer": 3,
-   "explain": "第 5 页：01 系统设计、02 生产制造、03 整体交付、04 运营保障，由同一支原厂团队负责。",
-   "source_page": 5,
    "status": "active",
    "ai_difficulty": 1,
    "review_note": null
@@ -101,91 +50,6 @@
    "answer": 2,
    "explain": "第 7 页：SIRIM 认证与 IMDA 设备注册的适用产品均为 Mark1000 MAX。",
    "source_page": 7,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "「方案价值」页的三个场景中，「工业现场」场景的核心是？",
-   "options": [
-    "信号引入与全域覆盖",
-    "可靠性设计与精准传达",
-    "跨城跨区广域调度",
-    "突发事件通信保障"
-   ],
-   "answer": 1,
-   "explain": "第 8 页：工业现场——可靠性设计与精准传达（冗余链路、防爆合规、指令精准送达）。",
-   "source_page": 8,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "第二章开篇数据显示，和源累计落地项目超过多少个？",
-   "options": [
-    "1500 个",
-    "800 个",
-    "2000 个",
-    "1000 个"
-   ],
-   "answer": 0,
-   "explain": "第 9 页：1500+ 项目落地、15 类关键行业场景、20+ 年行业深耕。",
-   "source_page": 9,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "第二章提到，和源的项目覆盖多少类关键行业场景？",
-   "options": [
-    "12 类",
-    "20 类",
-    "15 类",
-    "8 类"
-   ],
-   "answer": 2,
-   "explain": "第 9 页：15 类关键行业场景。",
-   "source_page": 9,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "行业矩阵页介绍和源服务的是几大行业？",
-   "options": [
-    "六大行业",
-    "八大行业",
-    "十二大行业",
-    "十大行业"
-   ],
-   "answer": 1,
-   "explain": "第 10 页：八大行业，一套端到端能力。",
-   "source_page": 10,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "项目分布地图显示，交付项目覆盖了多少座城市？",
-   "options": [
-    "45 座",
-    "26 座",
-    "36 座",
-    "16 座"
-   ],
-   "answer": 1,
-   "explain": "第 11 页：超过 120 个交付项目、覆盖 26 座城市。",
-   "source_page": 11,
    "status": "active",
    "ai_difficulty": 1,
    "review_note": null
@@ -397,23 +261,6 @@
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "和源的「产品全家桶」共分为几大类？",
-   "options": [
-    "六大类",
-    "五大类",
-    "八大类",
-    "四大类"
-   ],
-   "answer": 0,
-   "explain": "第 28 页：产品全家桶 六大类 · 一个系统。",
-   "source_page": 28,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
    "question": "信源基站中，作为核心语音与数据交换单元、可按需选配组柜的是？",
    "options": [
     "MARK1000 MAX 信道机",
@@ -458,23 +305,6 @@
    "answer": 3,
    "explain": "第 31 页：Smart LT 直放站可轻松部署于光纤与射频的组合场景，快速连接所有区域。",
    "source_page": 31,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "以下哪项不属于光纤直放站的三个系列？",
-   "options": [
-    "Smart LT 智能系列",
-    "防爆隔离型",
-    "室外壁挂型",
-    "数字智能系列"
-   ],
-   "answer": 1,
-   "explain": "第 32 页：光纤直放站三系列为 Smart LT 智能系列、数字智能系列、室外壁挂型。",
-   "source_page": 32,
    "status": "active",
    "ai_difficulty": 1,
    "review_note": null
@@ -567,40 +397,6 @@
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "第四章的核心观点：「对讲机是入口，____ 才是这套系统的操作系统」。空白处是？",
-   "options": [
-    "NetFlex",
-    "PNR2100",
-    "MARK1000 MAX",
-    "DistriNET"
-   ],
-   "answer": 0,
-   "explain": "第 40 页：对讲机是入口，NetFlex 才是这套系统的操作系统。",
-   "source_page": 40,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
-   "question": "NetFlex「一键查找人员」功能中，以下哪项不是课件列出的搜索条件？",
-   "options": [
-    "车牌号",
-    "工号",
-    "部门",
-    "对讲机 ID"
-   ],
-   "answer": 0,
-   "explain": "第 41 页：按部门 / 姓名 / 工号 / 对讲机 ID 搜索。",
-   "source_page": 41,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "single",
-   "difficulty": 1,
    "question": "NetFlex 工单是按什么规则派发的？",
    "options": [
     "全员广播，由最先响应者接单",
@@ -645,18 +441,6 @@
    "answer": 3,
    "explain": "第 45 页：健康度评分用一个分数量化系统整体状态。",
    "source_page": 45,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "judge",
-   "difficulty": 1,
-   "question": "课件中作为全楼层覆盖标杆提到的上海中心大厦高度为 632 米。",
-   "options": null,
-   "answer": true,
-   "explain": "第 3 页：632 m 上海中心大厦全楼层覆盖。",
-   "source_page": 3,
    "status": "active",
    "ai_difficulty": 1,
    "review_note": null
@@ -717,18 +501,6 @@
    "answer": true,
    "explain": "第 46 页：本地部署数据不出场区，服务器与业务全部落在客户内网。",
    "source_page": 46,
-   "status": "active",
-   "ai_difficulty": 1,
-   "review_note": null
-  },
-  {
-   "qtype": "judge",
-   "difficulty": 1,
-   "question": "在「方案价值」页中，「消防救援」场景的核心是突发事件通信保障。",
-   "options": null,
-   "answer": false,
-   "explain": "第 8 页：消防救援的核心是信号引入与全域覆盖；突发事件通信保障属于场馆运营场景。",
-   "source_page": 8,
    "status": "active",
    "ai_difficulty": 1,
    "review_note": null
@@ -1639,6 +1411,234 @@
    "status": "review",
    "ai_difficulty": 2,
    "review_note": "难度不一致:标注 3 / 复核 2"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "覆盖半径设计中，覆盖边缘的有效场强门限按多少设计？",
+   "options": [
+    "−55 dBm",
+    "−45 dBm",
+    "−75 dBm",
+    "−120 dBm"
+   ],
+   "answer": 2,
+   "explain": "第 21 页：下行边缘有效场强、上行有效场强门限均为 −75 dBm。",
+   "source_page": 21,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 的工作温度范围是？",
+   "options": [
+    "-10 ~ +45°C",
+    "-20 ~ +55°C",
+    "-30 ~ +60°C",
+    "0 ~ +50°C"
+   ],
+   "answer": 1,
+   "explain": "第 37 页：PNR2100 环境与结构参数，工作温度 -20 ~ +55°C。",
+   "source_page": 37,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2000 的信道容量是？",
+   "options": [
+    "16 信道 / 1 分区",
+    "32 信道 / 2 分区",
+    "64 信道 / 4 分区",
+    "128 信道 / 8 分区"
+   ],
+   "answer": 1,
+   "explain": "第 36 页：PNR2000 信道容量 32 信道 / 2 分区。",
+   "source_page": 36,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "MAEX 防爆型智能天馈的防爆范围是？",
+   "options": [
+    "仅 IIC 气体防爆",
+    "仅 IIIC 粉尘防爆",
+    "IIB 气体 + IIIB 粉尘防爆",
+    "IIC 气体 + IIIC 粉尘双重防爆"
+   ],
+   "answer": 3,
+   "explain": "第 33 页：MAEX 防爆型号具备 IIC 气体 / IIIC 粉尘双重防爆，适用化工能源等易燃易爆环境。",
+   "source_page": 33,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "NetFlex 定位中，人员从室外走进楼内时，地图会怎样显示？",
+   "options": [
+    "室内外地图自动切换，位置连续不断点",
+    "进楼后定位中断，出楼后再恢复显示",
+    "只显示所在楼栋，不显示具体楼层位置",
+    "需管理员手动切换到室内楼层平面"
+   ],
+   "answer": 0,
+   "explain": "第 41 页：室内外一张图，室外 GIS 地图与室内楼层平面自动切换，人员进出楼宇位置连续不断点。",
+   "source_page": 41,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "NetFlex 的模板化周期巡检，主要帮管理者解决什么问题？",
+   "options": [
+    "巡检中发现的异常自动转成工单",
+    "一次配置，周期任务自动生成不遗漏",
+    "按实时位置把任务派给最近的人员",
+    "自动识别巡检语音中的风险与异常"
+   ],
+   "answer": 1,
+   "explain": "第 42 页：用模板一次配置，系统自动生成周期性巡检任务，路线、点位与频次固定下来不遗漏。",
+   "source_page": 42,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 1 / 复核 2；干扰项为NetFlex其他真实功能(转工单/就近派单/AI识别)，需区分功能归属"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "DistriNET 智能天线由谁供电？",
+   "options": [
+    "每个天线配独立电源适配器",
+    "天线内置可充电电池",
+    "ORU 为天线供电",
+    "另布 PoE 网线供电"
+   ],
+   "answer": 2,
+   "explain": "第 24 页：ORU 为天线供电（同缆馈电，无需额外布线）。",
+   "source_page": 24,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "NetFlex 工单闭环中，事后责任认定靠的是什么？",
+   "options": [
+    "执行位置与通话语音全程跟踪归档",
+    "一线人员现场手写的纸质处置记录",
+    "班组长每日汇总的口头汇报内容",
+    "系统健康度评分的历史变化曲线"
+   ],
+   "answer": 0,
+   "explain": "第 43 页：执行位置与通话语音全程可跟踪，处置完成自动闭环归档，责任认定有据可查。",
+   "source_page": 43,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "全生命周期中的系统设计阶段，和源会做什么？",
+   "options": [
+    "原厂团队督导安装，逐点实测场强出报告",
+    "软硬件一体化制造，元器件筛选与全流程质检",
+    "现场勘测，定制覆盖与通信分区并预留扩展",
+    "依托 NetFlex 可视化运维，7×24 快速响应"
+   ],
+   "answer": 2,
+   "explain": "第 5 页：系统设计阶段深入现场勘测，定制信号覆盖与通信分区方案，预留冗余与扩展能力。",
+   "source_page": 5,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 1 / 复核 2；干扰项为其余三阶段的真实描述，需区分阶段"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 演示中，需要打透地下、每层都联得上的地下管廊工程组用哪种模式？",
+   "options": [
+    "4G LTE 公网频道",
+    "DMR + 4G 双模",
+    "DMR 专网",
+    "模拟常规模式"
+   ],
+   "answer": 2,
+   "explain": "第 38 页：CH2 工程组·地下管廊走 DMR 专网，打透地下，每一层都联得上。",
+   "source_page": 38,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "DistriNET 是如何实现区域内与跨区域通信的？",
+   "options": [
+    "每层楼单独配一台大功率基站覆盖",
+    "全楼共用一个频点做统一广播",
+    "依靠 4G 公网把各楼层连接起来",
+    "将建筑划分为不同的通信区域"
+   ],
+   "answer": 3,
+   "explain": "第 13 页：DistriNET 创新地将建筑划分为不同的通信区域，实现区域内与跨区域通信。",
+   "source_page": 13,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "NetFlex 云部署 + 边缘网关模式中，边缘网关负责什么？",
+   "options": [
+    "汇聚多个项目统一运营",
+    "现场实时性与断网自治",
+    "保证数据完全不出场区",
+    "远程遥毙丢失的对讲终端"
+   ],
+   "answer": 1,
+   "explain": "第 46 页：边缘网关保障现场实时性与断网自治，云端负责汇聚多项目统一运营。",
+   "source_page": 46,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 1 / 复核 2；干扰项分别取自云端职责与本地部署特点，似是而非"
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "整体交付阶段，由原厂团队督导安装调试，并按验收网格逐点实测场强、出具覆盖验收报告。",
+   "options": null,
+   "answer": true,
+   "explain": "第 5 页：整体交付由原厂团队督导安装调试，按验收网格逐点实测场强，出具可追溯的覆盖验收报告。",
+   "source_page": 5,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "NetFlex 的 AI 语音识别只把语音转成文字，不会提示其中的状态与异常。",
+   "options": null,
+   "answer": false,
+   "explain": "第 42 页：AI 自动识别语音内容，展示并预判其中的状态提示与异常，帮助管理人员更早关注现场。",
+   "source_page": 42,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
   }
  ]
 }
