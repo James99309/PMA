@@ -98,3 +98,33 @@ def test_is_correct():
     assert L.is_correct({'qtype': 'multi', 'answer': [0, 3]}, [3, 0])
     assert not L.is_correct({'qtype': 'multi', 'answer': [0, 3]}, [0])
     assert L.is_correct({'qtype': 'judge', 'answer': False}, False)
+
+
+def test_page_estimate_and_required():
+    pages = [{'notes': ''}, {'notes': 'x' * 500}]
+    assert L.page_estimate(pages[0]) == 20          # 下限 20s
+    assert L.page_estimate(pages[1]) == 100         # 500 字 / 5
+    assert L.required_read_seconds(pages) == 84     # (20+100)*0.7
+    assert L.required_read_seconds(pages, override=30) == 30
+
+
+def test_ping_seconds_clamped_by_wall_clock():
+    assert L.accept_ping_seconds(15, elapsed=16) == 15
+    assert L.accept_ping_seconds(60, elapsed=16) == 18    # elapsed + 2s 容差
+    assert L.accept_ping_seconds(-3, elapsed=10) == 0
+    assert L.accept_ping_seconds(15, elapsed=None) == 15  # 首次上报
+    assert L.accept_ping_seconds(500, elapsed=None) == L.MAX_PING_SECONDS
+
+
+def test_add_page_seconds_caps_per_page():
+    pages = [{'notes': ''}, {'notes': ''}]            # 每页估算 20s → 上限 60s
+    ps = L.add_page_seconds({}, 1, 50, pages)
+    ps = L.add_page_seconds(ps, 1, 50, pages)
+    assert ps == {'1': 60}
+
+
+def test_unlock_needs_time_and_all_pages():
+    pages = [{'notes': ''}, {'notes': ''}]            # required = 28
+    assert not L.is_unlocked({'1': 60}, pages)        # 第 2 页没开过
+    assert L.is_unlocked({'1': 20, '2': 10}, pages)
+    assert not L.is_unlocked({'1': 10, '2': 10}, pages)

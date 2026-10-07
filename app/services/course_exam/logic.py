@@ -91,3 +91,52 @@ def is_correct(q, original):
     if q['qtype'] == 'multi':
         return sorted(original) == sorted(q['answer'])
     return original == q['answer']
+
+
+CHARS_PER_SEC = 5
+MIN_PAGE_SEC = 20
+READ_RATIO = 0.7
+PAGE_CAP_FACTOR = 3
+MAX_PING_SECONDS = 20       # 前端 15s 一报,留余量
+PING_TOLERANCE = 2
+
+
+def page_estimate(page):
+    return max(MIN_PAGE_SEC, len(page.get('notes') or '') // CHARS_PER_SEC)
+
+
+def required_read_seconds(pages, override=None):
+    if override:
+        return int(override)
+    return int(sum(page_estimate(p) for p in pages) * READ_RATIO)
+
+
+def accept_ping_seconds(seconds, elapsed):
+    """服务端只认:不超过距上次上报真实间隔(+容差),且不超过单次上限。"""
+    s = max(0, int(seconds or 0))
+    s = min(s, MAX_PING_SECONDS)
+    if elapsed is not None:
+        s = min(s, max(0, int(elapsed) + PING_TOLERANCE))
+    return s
+
+
+def add_page_seconds(page_seconds, page, seconds, pages):
+    """page 为 1 基页号;单页累计封顶 = 该页估算 × 3。返回新 dict。"""
+    ps = dict(page_seconds or {})
+    if not 1 <= page <= len(pages):
+        return ps
+    cap = page_estimate(pages[page - 1]) * PAGE_CAP_FACTOR
+    key = str(page)
+    ps[key] = min(cap, ps.get(key, 0) + seconds)
+    return ps
+
+
+def effective_read_seconds(page_seconds):
+    return sum((page_seconds or {}).values())
+
+
+def is_unlocked(page_seconds, pages, override=None):
+    ps = page_seconds or {}
+    if any(ps.get(str(i), 0) <= 0 for i in range(1, len(pages) + 1)):
+        return False
+    return effective_read_seconds(ps) >= required_read_seconds(pages, override)
