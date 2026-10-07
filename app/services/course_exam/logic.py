@@ -251,12 +251,27 @@ def add_page_seconds(page_seconds, page, seconds, pages):
     return ps
 
 
-def record_ping(page_seconds, pages, page, seconds, elapsed):
-    """处理一次阅读上报:校验页号 → 校验时长 → 累加。返回新 dict。"""
+def record_ping(page_seconds, pages, page, seconds, elapsed, visited=None):
+    """处理一次阅读上报:校验页号 → 校验时长 → 累加。返回新 dict。
+
+    visited:本次上报区间内翻过的页(快速翻过、不足 1 秒的页也算「看过」),只登记为 0 秒,
+    不加时长 —— 「每页都看过」与「总时长达标」分开计,快翻不会被判成没看。
+    """
+    ps = norm_page_seconds(page_seconds)
+    if isinstance(visited, list):
+        for v in visited[:len(pages)]:
+            vp = _as_int(v)
+            if vp is not None and 1 <= vp <= len(pages):
+                ps.setdefault(str(vp), 0)
     p = _as_int(page)
     if p is None or not 1 <= p <= len(pages):
-        return norm_page_seconds(page_seconds)
-    return add_page_seconds(page_seconds, p, accept_ping_seconds(seconds, elapsed), pages)
+        return ps
+    return add_page_seconds(ps, p, accept_ping_seconds(seconds, elapsed), pages)
+
+
+def _seen_count(ps, pages):
+    """看过的页数 = 有记录的页(0 秒也算)。"""
+    return sum(1 for i in range(1, len(pages) + 1) if str(i) in ps)
 
 
 def _pages_total(page_seconds, pages):
@@ -275,7 +290,7 @@ def is_unlocked(page_seconds, pages, override=None):
     if not pages:
         return False
     ps = norm_page_seconds(page_seconds)
-    if any(ps.get(str(i), 0) <= 0 for i in range(1, len(pages) + 1)):
+    if _seen_count(ps, pages) < len(pages):
         return False
     return _pages_total(ps, pages) >= required_read_seconds(pages, override)
 
@@ -290,7 +305,7 @@ def read_percent(page_seconds, pages, override=None):
     ps = norm_page_seconds(page_seconds)
     required = required_read_seconds(pages, override)
     time_pct = 100 if required <= 0 else _pages_total(ps, pages) * 100 // required
-    seen = sum(1 for i in range(1, len(pages) + 1) if ps.get(str(i), 0) > 0)
+    seen = _seen_count(ps, pages)
     page_pct = seen * 100 // len(pages)
     return min(99, int(time_pct), page_pct)
 

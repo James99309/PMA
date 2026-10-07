@@ -120,7 +120,7 @@ def progress_dict(p, pages, override=None):
     return {
         'read': {'percent': percent, 'unlocked': unlocked, 'page_seconds': ps,
                  'required_seconds': required, 'effective_seconds': eff,
-                 'pages_seen': sum(1 for i in range(1, len(pages) + 1) if ps.get(str(i), 0) > 0),
+                 'pages_seen': L._seen_count(ps, pages),
                  'pages_total': len(pages)},
         'exam': _exam_base(p),
     }
@@ -131,14 +131,14 @@ def read_status(user_id, course_key, pages):
     return progress_dict(get_progress(user_id, course_key), pages, get_min_read_seconds(course_key))
 
 
-def record_read(user_id, course_key, pages, page, seconds):
-    """阅读上报。page/seconds 原样透传给 logic.record_ping 校验,这里不做 int()。"""
+def record_read(user_id, course_key, pages, page, seconds, visited=None):
+    """阅读上报。page/seconds/visited 原样透传给 logic.record_ping 校验,这里不做 int()。"""
     override = get_min_read_seconds(course_key)
     p = _locked_progress(user_id, course_key)
     if not p.unlocked_at:
         now = get_local_time()
         elapsed = (now - p.last_ping_at).total_seconds() if p.last_ping_at else None
-        p.page_seconds = L.record_ping(p.page_seconds, pages, page, seconds, elapsed)
+        p.page_seconds = L.record_ping(p.page_seconds, pages, page, seconds, elapsed, visited)
         p.last_ping_at = now
         if L.is_unlocked(p.page_seconds, pages, override):
             p.unlocked_at = now

@@ -927,7 +927,7 @@
 
   /* ===================== 阅读计时(仅 setCourse 后) ===================== */
   var lastActivity = Date.now();
-  var timer = { iv: null, page: 1, pending: 0, lastFlush: 0 };
+  var timer = { iv: null, page: 1, pending: 0, lastFlush: 0, visited: {} };   // visited:本区间翻过的页(快翻不足 1 秒也算看过)
 
   function markActivity() {
     lastActivity = Date.now();
@@ -935,6 +935,7 @@
   }
   function startTimer() {
     if (timer.iv || !course || expired) return;
+    timer.visited[timer.page] = 1;
     timer.lastFlush = Date.now();
     timer.iv = setInterval(tick, 1000);
   }
@@ -944,20 +945,26 @@
   // 已知取舍:秒数按整秒累计,翻页/上报时不足 1 秒的零头丢弃,每页最多少记约 1 秒,对解锁判断影响可忽略
   function tick() {
     var now = Date.now();
-    if (timer.pending > 0 && now - timer.lastFlush >= PING_MS) flush(false);
+    if ((timer.pending > 0 || hasVisited()) && now - timer.lastFlush >= PING_MS) flush(false);
     if (now - lastActivity >= IDLE_MS) { sleep(); return; }
     if (document.visibilityState === 'visible') timer.pending += 1;
   }
   // 每次上报只针对一页:翻页时先把上一页的累计报掉,保证上报秒数不超过距上次上报的真实间隔
+  function hasVisited() { for (var k in timer.visited) { return true; } return false; }
   function flush(final) {
     timer.lastFlush = Date.now();
-    if (!course || timer.pending <= 0 || expired) return;
-    var payload = { page: timer.page, seconds: timer.pending };
+    if (!course || expired || (timer.pending <= 0 && !hasVisited())) return;
+    var visited = Object.keys(timer.visited).map(Number);
+    var payload = { page: timer.page, seconds: timer.pending, visited: visited };
     timer.pending = 0;
+    timer.visited = {};
     var key = course.key;
     api('POST', courseUrl(key, '/read-ping'), payload, { keepalive: !!final }).then(function (d) {
       if (!final && course && course.key === key) applyProgress(d);
-    }, function () { /* 上报失败忽略,下个周期继续 */ });
+    }, function () {
+      // 上报失败:秒数丢弃(防刷规则下补报也会被截断),翻过的页留到下次再报
+      if (course && course.key === key) visited.forEach(function (n) { timer.visited[n] = 1; });
+    });
   }
   addEventListener('pagehide', function () { if (timer.iv) flush(true); });
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && timer.iv) flush(false); });
@@ -1050,7 +1057,7 @@
       if (course && course.key === o.key) { course.title = o.title || course.title; course.totalPages = o.totalPages || course.totalPages; return; }
       if (course) { flush(false); stopTimer(); }
       course = { key: String(o.key), title: o.title || '', totalPages: o.totalPages || 0 };
-      prog = null; examCourse = null; ex = null; exKey = null; timer.pending = 0; timer.page = parseInt(o.currentPage, 10) || 1;
+      prog = null; examCourse = null; ex = null; exKey = null; timer.pending = 0; timer.visited = {}; timer.page = parseInt(o.currentPage, 10) || 1;
       tab = 'exam';
       markActivity();
       applyPos();
@@ -1071,7 +1078,8 @@
       n = parseInt(n, 10);
       markActivity();
       if (!n || n < 1) return;
-      if (n !== timer.page) { if (timer.iv) flush(false); timer.page = n; }
+      if (course) timer.visited[n] = 1;
+      if (n !== timer.page) { if (timer.iv && timer.pending > 0) flush(false); timer.page = n; }
     },
     activity: function () { markActivity(); },
     reflow: function () { applyPos(); }

@@ -199,9 +199,9 @@ def read_ping(key):
         data['read']['unavailable'] = True
         return jsonify({'success': True, 'data': data})
     data = _json_obj()
-    # page / seconds 原样透传,由 logic.record_ping 校验(非法值忽略,不报错)
+    # page / seconds / visited 原样透传,由 logic.record_ping 校验(非法值忽略,不报错)
     return jsonify({'success': True, 'data': S.record_read(
-        current_user.id, ck, pages, data.get('page'), data.get('seconds'))})
+        current_user.id, ck, pages, data.get('page'), data.get('seconds'), data.get('visited'))})
 
 
 # ---------- 单课:考核 ----------

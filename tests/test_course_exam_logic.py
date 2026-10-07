@@ -293,3 +293,26 @@ def test_read_percent_is_min_of_time_and_pages():
     assert L.read_percent({'1': 5, '2': 5, '3': 5, '4': 5}, pages) == 35   # 页都看过,时长 20/56
     assert L.read_percent({'1': 60, '2': 60, '3': 60, '4': 60}, pages) == 99  # 未解锁前封顶 99
     assert L.read_percent({'1': 10}, []) == 0
+
+
+def test_quick_flip_counts_as_seen():
+    pages = [{'notes': ''}] * 4                         # required = 56
+    # 快速翻过 2、3、4 页(0 秒):仍算看过
+    ps = L.record_ping({}, pages, 1, 15, None, visited=[2, 3, 4])
+    assert ps == {'1': 15, '2': 0, '3': 0, '4': 0}
+    assert L.read_percent(ps, pages) == 26               # 页 100%,时长 15/56
+    # 时长达标后解锁,不要求每页 >0 秒
+    ps = L.record_ping(ps, pages, 1, 20, 20)
+    ps = L.record_ping(ps, pages, 1, 20, 20)
+    assert ps['1'] == 55 and not L.is_unlocked(ps, pages)
+    ps = L.record_ping(ps, pages, 2, 5, 5)
+    assert L.is_unlocked(ps, pages)
+
+
+def test_visited_is_validated():
+    pages = [{'notes': ''}] * 3
+    ps = L.record_ping({}, pages, 1, 5, None, visited=[2, '3', 0, 9, True, 'x', None, 2.5])
+    assert ps == {'1': 5, '2': 0, '3': 0}
+    assert L.record_ping({}, pages, 1, 5, None, visited='notalist') == {'1': 5}
+    # 已有时长不被 visited 覆盖成 0
+    assert L.record_ping({'2': 30}, pages, 1, 5, None, visited=[2]) == {'1': 5, '2': 30}
