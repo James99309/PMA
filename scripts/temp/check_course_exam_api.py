@@ -137,6 +137,16 @@ with app.app_context():
         s['_fresh'] = True
         s['role'] = u.role           # 全局 check_login 会比对 session 角色,不一致即强制登出(302)
 
+    # 本课若已有真实题(如试用实例导入的种子),临时停用,结束原样恢复 —— 保持「题库只有 ZZTEST 题」前提
+    _parked = {q.id: q.status for q in CourseQuizQuestion.query.filter(
+        CourseQuizQuestion.course_key == KEY, CourseQuizQuestion.status != 'disabled',
+        ~CourseQuizQuestion.question.like(PREFIX + '%')).all()}
+    if _parked:
+        CourseQuizQuestion.query.filter(CourseQuizQuestion.id.in_(list(_parked))).update(
+            {'status': 'disabled'}, synchronize_session=False)
+        db.session.commit()
+        print('INFO 临时停用本课已有题:', len(_parked))
+
     try:
         # ---- 未登录 ----
         anon = app.test_client()
@@ -329,6 +339,8 @@ with app.app_context():
                                         CourseQuizQuestion.question.like(PREFIX + '%')).delete(
             synchronize_session=False)
         LearningBuddyPref.query.filter_by(user_id=UID).delete()
+        for _qid, _st in _parked.items():          # 恢复临时停用的真实题
+            CourseQuizQuestion.query.filter_by(id=_qid).update({'status': _st}, synchronize_session=False)
         db.session.commit()
         left = (CourseLearningProgress.query.filter_by(user_id=UID, course_key=KEY).count()
                 + CourseQuizQuestion.query.filter(CourseQuizQuestion.question.like(PREFIX + '%')).count()
