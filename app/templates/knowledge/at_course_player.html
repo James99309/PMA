@@ -74,10 +74,9 @@
   .cp-notes-empty { color:var(--ink-3); font-size:13px; }
 
   /* 文档型课件(解析不出分页:标准全文阅读器 / 视频 / 可下载附件):
-     翻页条、逐页说明、考核都无意义 —— 考核接口对无分页课件本来就返回
-     「课件无讲解内容,无法出题」,按钮留着只会把人导进死路。DOM 保留只隐藏,
-     避免 JS 取不到元素报错。 */
-  .cp-docmode #cpNotes, .cp-docmode #cpNotesToggle, .cp-docmode #cpExam { display:none !important; }
+     翻页条、逐页说明无意义。DOM 保留只隐藏,避免 JS 取不到元素报错。
+     考核入口已移到学习伙伴「小源」(阅读计时达标后解锁),无分页课件小源自动不显示考核。 */
+  .cp-docmode #cpNotes, .cp-docmode #cpNotesToggle { display:none !important; }
 
   .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
 </style>
@@ -98,12 +97,6 @@
       <span class="material-symbols-outlined" id="cpNotesIcon">expand_less</span>
       <span>{{ _('说明') }}</span>
     </button>
-    <a class="cp-btn" id="cpExam" href="{{ url_for('knowledge_wiki.course_quiz_page', course_key=course.key) }}"
-       style="border-color:var(--accent);color:var(--accent);" data-locked="1"
-       title="{{ _('看完全部页面后解锁') }}">
-      <span class="material-symbols-outlined">quiz</span>
-      <span id="cpExamLabel">{{ _('开始考核') }}</span>
-    </a>
   </div>
 
   <div class="cp-notes" id="cpNotes">
@@ -139,6 +132,8 @@
 
 </div>
 
+{# 小源挂载放在播放器脚本之前:先定义 window.CourseBuddy 排队桩,下面的 setCourse/onPage 才不会落空 #}
+{% include 'components/at_course_buddy.html' %}
 <script>
   // 每页备注(取自课件 data-speaker-notes,服务端解析)
   var CP_PAGES = {{ pages|tojson }};
@@ -234,7 +229,8 @@
     body.textContent = p.notes || '';
     document.getElementById('cpPrev').disabled = (idx <= 1);
     document.getElementById('cpNext').disabled = (idx >= cpTotal);
-    cpCheckExam(idx);
+    // 小源阅读计时:页码 1-based,与服务端 _get_course_pages 的顺序一致
+    if (window.CourseBuddy) window.CourseBuddy.onPage(idx);
   }
 
   function cpSyncFromFrame() {
@@ -264,37 +260,29 @@
     icon.textContent = willHide ? 'expand_more' : 'expand_less';
   }
 
-  // 考核解锁:翻到最后一页(看完)才允许进考核;无逐页备注则直接可考
-  var cpExamUnlocked = false;
-  function cpCheckExam(idx) {
-    if (cpExamUnlocked) return;
-    if (!cpTotal || idx >= cpTotal) cpUnlockExam();
-  }
-  function cpUnlockExam() {
-    cpExamUnlocked = true;
-    var a = document.getElementById('cpExam');
-    a.removeAttribute('data-locked');
-    a.style.opacity = '';
-    a.title = '{{ _('开始考核') }}';
-  }
-  (function () {
-    var a = document.getElementById('cpExam');
-    a.style.opacity = '0.5';
-    a.addEventListener('click', function (e) {
-      if (a.getAttribute('data-locked') === '1') {
-        e.preventDefault();
-        alert('{{ _('请先翻到最后一页(看完课程)再开始考核') }}');
-      }
-    });
-  })();
-
   // 监听 deck 自身翻页(hash 变化)+ 轮询兜底(初始 #1 及焦点在 iframe 内时)
+  // 学习伙伴「小源」:进入课程上下文(启用阅读计时);模板里有排队桩,脚本未加载时调用也不丢
+  if (window.CourseBuddy) {
+    window.CourseBuddy.setCourse({ key: {{ course.key|tojson }}, title: {{ course.title|tojson }}, totalPages: cpTotal,
+                                   currentPage: 1 });
+  }
+  function cpActivity() { if (window.CourseBuddy) window.CourseBuddy.activity(); }
+  // 课件 iframe 同源:把里面的指针/键盘/滚轮活动转发给小源(iframe 内事件不会冒泡到外层);
+  // 每次 iframe 加载(含 deck 自身重载)都重新绑定;跨域包课件取不到 document 时只靠外层与翻页事件
+  function cpBindFrameActivity() {
+    try {
+      var d = cpFrame.contentWindow.document;
+      ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) {
+        d.addEventListener(ev, cpActivity, { passive: true, capture: true });
+      });
+    } catch (e) {}
+  }
   cpFrame.addEventListener('load', function () {
     try { cpFrame.contentWindow.addEventListener('hashchange', cpSyncFromFrame); } catch (e) {}
+    cpBindFrameActivity();
   });
   setInterval(cpSyncFromFrame, 300);
   cpRender(cpTotal ? 1 : 0);
 </script>
-{% include 'components/at_course_buddy.html' %}
 </body>
 </html>

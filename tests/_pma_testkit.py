@@ -31,3 +31,137 @@ def make_app(db_type='sp8d'):
     from config import LocalConfig
     from app import create_app
     return create_app(LocalConfig)
+
+
+# ───────────── 浏览器 e2e 共用:临时实例 / 临时账号 / 临时题库 ─────────────
+
+MAIN_ASSETS = os.path.normpath(os.path.join(get_project_root(), '..', '..', 'app', 'course_assets'))
+
+_SERVER_CODE = r'''
+import os, sys
+sys.path.insert(0, os.path.join(os.getcwd(), 'tests'))
+from _pma_testkit import make_app
+flask_app = make_app()
+import app.views.knowledge_wiki as KW
+main_assets = sys.argv[2]
+if not os.path.isfile(KW._course_html_path(sys.argv[3])) and os.path.isdir(main_assets):
+    KW.COURSE_ASSETS_DIR = main_assets      # worktree 没有课件(gitignored),只读借用主仓
+flask_app.run(host='127.0.0.1', port=int(sys.argv[1]), use_reloader=False, threaded=True)
+'''
+
+
+def start_server(port, log_path, probe_course_key):
+    """后台起一个本机 pma_local 实例(PORT 派生独立 cookie 名);返回 Popen,须配 stop_server。"""
+    import subprocess
+    import time
+    import urllib.request
+    env = dict(os.environ)
+    env.update({'PORT': str(port), 'DYLD_FALLBACK_LIBRARY_PATH': '/opt/homebrew/lib',
+                'DATABASE_URL': 'postgresql://nijie@localhost:5432/pma_local',
+                'PMA_DB_TYPE': 'sp8d', 'FORCE_LOCAL_STORAGE': 'true'})
+    log = open(log_path, 'w')
+    proc = subprocess.Popen([sys.executable, '-c', _SERVER_CODE, str(port), MAIN_ASSETS, probe_course_key],
+                            cwd=get_project_root(), env=env, stdout=log, stderr=subprocess.STDOUT,
+                            start_new_session=True)
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError('服务进程提前退出,见 ' + log_path)
+        try:
+            urllib.request.urlopen(f'http://127.0.0.1:{port}/auth/login', timeout=3)
+            return proc
+        except Exception:
+            time.sleep(1)
+    stop_server(proc)
+    raise RuntimeError('服务启动超时')
+
+
+def stop_server(proc):
+    import signal
+    if proc and proc.poll() is None:
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+            proc.wait(timeout=15)
+        except Exception:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except Exception:
+                pass
+
+
+def create_temp_user(app, username, password, role='sales_manager'):
+    from app import db
+    from app.models.user import User
+    from sqlalchemy import text
+    with app.app_context():
+        company = db.session.execute(text(
+            "SELECT company_name FROM users WHERE company_name IS NOT NULL AND company_name<>'' "
+            "GROUP BY company_name ORDER BY count(*) DESC LIMIT 1")).scalar() or 'ZZ'
+        u = User(username=username, real_name='ZZ ' + username, company_name=company,
+                 email=username + '@example.invalid', role=role)
+        u.set_password(password)
+        u._is_active = True
+        db.session.add(u)
+        db.session.commit()
+        return u.id
+
+
+def delete_temp_user(app, username):
+    """硬删临时账号及其所有外键关联行 + 作答留痕(无外键)。返回是否已删干净。"""
+    from app import db
+    from sqlalchemy import text
+    with app.app_context():
+        uid = db.session.execute(text('SELECT id FROM users WHERE username=:u'), {'u': username}).scalar()
+        if uid:
+            fks = db.session.execute(text("""
+                SELECT tc.table_name, kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+                JOIN information_schema.constraint_column_usage ccu
+                  ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+                WHERE tc.constraint_type = 'FOREIGN KEY' AND ccu.table_name = 'users'
+                  AND ccu.column_name = 'id' AND tc.table_schema = 'public'""")).fetchall()
+            db.session.execute(text("DELETE FROM training_quiz_attempt WHERE user_id=:u"), {'u': uid})
+            for _ in range(3):           # 关联表之间可能互相引用,多轮删到干净
+                for table, col in fks:
+                    if table == 'users':
+                        continue
+                    try:
+                        with db.session.begin_nested():
+                            db.session.execute(text(f'DELETE FROM "{table}" WHERE "{col}" = :u'), {'u': uid})
+                    except Exception:
+                        pass
+            db.session.execute(text('DELETE FROM users WHERE id=:u'), {'u': uid})
+        db.session.commit()
+        return not db.session.execute(text('SELECT count(*) FROM users WHERE username=:u'),
+                                      {'u': username}).scalar()
+
+
+def add_temp_bank(app, course_key, prefix):
+    """给课程插 34 道难题(3 分,共 102 分 → 题库健康):30 单选 + 2 多选 + 2 判断。题干带 prefix 便于清理。"""
+    from app import db
+    from app.models.course_exam import CourseQuizQuestion
+    with app.app_context():
+        for i in range(30):
+            db.session.add(CourseQuizQuestion(course_key=course_key, qtype='single', difficulty=3,
+                                              question=f'{prefix}single {i}', options=['A1', 'B2', 'C3', 'D4'],
+                                              answer=0, explain='ZZ explain', source_page=2, status='active'))
+        for i in range(2):
+            db.session.add(CourseQuizQuestion(course_key=course_key, qtype='multi', difficulty=3,
+                                              question=f'{prefix}multi {i}', options=['M1', 'M2', 'M3', 'M4'],
+                                              answer=[0, 2], explain='ZZ explain', status='active'))
+            db.session.add(CourseQuizQuestion(course_key=course_key, qtype='judge', difficulty=3,
+                                              question=f'{prefix}judge {i}', options=None,
+                                              answer=True, explain='ZZ explain', status='active'))
+        db.session.commit()
+
+
+def delete_temp_bank(app, prefix):
+    from app import db
+    from sqlalchemy import text
+    with app.app_context():
+        db.session.execute(text("DELETE FROM course_quiz_questions WHERE question LIKE :p"), {'p': prefix + '%'})
+        db.session.commit()
+        return not db.session.execute(text("SELECT count(*) FROM course_quiz_questions WHERE question LIKE :p"),
+                                      {'p': prefix + '%'}).scalar()

@@ -107,7 +107,7 @@ def _inject_course_buddy():
             global _buddy_pref_warned
             if not _buddy_pref_warned:
                 _buddy_pref_warned = True
-                logger.debug('小源偏好查询失败,本页不挂载小源', exc_info=True)
+                logger.warning('小源偏好查询失败,本页不挂载小源(每进程只记一次)', exc_info=True)
             return False
     return {'cb_buddy_enabled': cb_buddy_enabled}
 

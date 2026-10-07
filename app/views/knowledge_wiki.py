@@ -27,7 +27,7 @@ import os
 import re
 import threading
 
-from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort, url_for, Response, stream_with_context
+from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort, url_for, Response, stream_with_context, redirect
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename, safe_join
 
@@ -854,11 +854,11 @@ def delete_course(cid):
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/quiz')
 @login_required
 def course_quiz_page(course_key):
-    """考核页外壳(题目走 AJAX 拉,避免首生成阻塞页面)。"""
-    course, _ = _find_course(course_key)
-    if not course:
-        abort(404)
-    return render_template('knowledge/at_course_quiz.html', course=course)
+    """旧考核页已下线:考核入口移到课程播放页的学习伙伴「小源」,旧链接/书签统一跳回课程。
+
+    旧的 quiz/questions、quiz/submit 接口暂保留不动(确认无引用后再清理)。
+    """
+    return redirect(url_for('knowledge_wiki.play_course', course_key=course_key))
 
 
 @knowledge_wiki_bp.route('/wiki/play/<course_key>/quiz/questions')
@@ -2080,6 +2080,19 @@ def query_endpoint():
     if not question:
         return jsonify({'success': False, 'message': '问题不能为空'}), 400
 
+    # 课程内提问(小源「本课程」范围)。querier 没有按文章过滤的参数,这里不改其内部,
+    # 「本课程」的实际含义是:
+    #   1) 检索范围收窄到该课析出知识所在的 wiki topic(请求没显式指定 topic 时);
+    #   2) 答案附带的课件页缩略图只取这门课,且不依赖课件文章是否被引用 ——
+    #      直接按问题在本课各页里找最相关的页。
+    # 课程不存在/课件缺失时忽略 course_key,按全库处理。
+    scope_course = None
+    course_key = (data.get('course_key') or '').strip() if isinstance(data.get('course_key'), str) else ''
+    if course_key:
+        scope_course, scope_path = _find_course(course_key)
+        if scope_course and not topic:
+            topic = scope_course.get('topic') or None
+
     try:
         result = querier.query_wiki(question, top_k=top_k, topic=topic,
                                     current_user_id=current_user.id)
@@ -2094,7 +2107,19 @@ def query_endpoint():
     try:
         from app.services import course_knowledge
         deck_pages, seen = [], set()
-        for ca in (result.get('cited_articles') or []):
+        if scope_course:
+            # 本课程范围:只给这门课的相关页
+            key = scope_course['key']
+            seen.add(key)
+            pages = _get_course_pages(key, scope_path)
+            for pg, lbl in course_knowledge.relevant_pages(question, pages, top=3):
+                deck_pages.append({
+                    'key': key, 'page': pg, 'label': lbl,
+                    'course_title': scope_course.get('title'),
+                    'thumb_url': url_for('knowledge_wiki.course_thumb', course_key=key, page=pg),
+                    'play_url': url_for('knowledge_wiki.play_course', course_key=key) + '#' + str(pg),
+                })
+        for ca in ([] if scope_course else (result.get('cited_articles') or [])):
             slug = ca.get('slug') or ''
             if not slug.endswith('-deck'):
                 continue

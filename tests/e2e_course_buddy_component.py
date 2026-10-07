@@ -20,13 +20,8 @@
 自清理:临时账号 zz_cb_e2e 及其所有关联行、ZZE2E- 临时题全部硬删;临时服务进程结束时终止。
 """
 import argparse
-import json
 import os
-import signal
-import subprocess
 import sys
-import time
-import urllib.request
 
 
 def get_project_root():
@@ -41,14 +36,14 @@ def get_project_root():
 
 ROOT = get_project_root()
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
-from _pma_testkit import make_app  # noqa: E402
+from _pma_testkit import (make_app, start_server, stop_server, create_temp_user,  # noqa: E402
+                          delete_temp_user, add_temp_bank, delete_temp_bank)
 
 USERNAME = 'zz_cb_e2e'
 PASSWORD = 'CbE2e-Only-2026!'
 EXAM_KEY = 'smart-task-intercom'       # 课程外考核:给临时账号解锁 + 临时题库
 LOCKED_KEY = 'evertac-pnr2100'         # 课程内:临时账号未解锁
 QPREFIX = 'ZZE2E-'
-MAIN_ASSETS = os.path.normpath(os.path.join(ROOT, '..', '..', 'app', 'course_assets'))
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--port', type=int, default=5094)
@@ -74,114 +69,20 @@ def check(cond, msg):
 
 
 def cleanup():
-    """硬删临时账号及其所有外键关联行 + 临时题。只动 zz_cb_e2e 和 ZZE2E- 前缀数据。"""
-    with app.app_context():
-        uid = db.session.execute(text('SELECT id FROM users WHERE username=:u'), {'u': USERNAME}).scalar()
-        if uid:
-            fks = db.session.execute(text("""
-                SELECT tc.table_name, kcu.column_name
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-                JOIN information_schema.constraint_column_usage ccu
-                  ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-                WHERE tc.constraint_type = 'FOREIGN KEY' AND ccu.table_name = 'users'
-                  AND ccu.column_name = 'id' AND tc.table_schema = 'public'""")).fetchall()
-            # 作答留痕没有外键,单独删
-            db.session.execute(text("DELETE FROM training_quiz_attempt WHERE user_id=:u"), {'u': uid})
-            for _ in range(3):           # 关联表之间可能互相引用,多轮删到干净
-                for table, col in fks:
-                    if table == 'users':
-                        continue
-                    try:
-                        with db.session.begin_nested():
-                            db.session.execute(text(f'DELETE FROM "{table}" WHERE "{col}" = :u'), {'u': uid})
-                    except Exception:
-                        pass
-            db.session.execute(text('DELETE FROM users WHERE id=:u'), {'u': uid})
-        db.session.execute(text("DELETE FROM course_quiz_questions WHERE question LIKE :p"), {'p': QPREFIX + '%'})
-        db.session.commit()
-        left = db.session.execute(text('SELECT count(*) FROM users WHERE username=:u'), {'u': USERNAME}).scalar()
-        leftq = db.session.execute(text("SELECT count(*) FROM course_quiz_questions WHERE question LIKE :p"),
-                                   {'p': QPREFIX + '%'}).scalar()
-        return left == 0 and leftq == 0
+    """硬删临时账号(含所有外键关联行)+ ZZE2E- 临时题。"""
+    return delete_temp_user(app, USERNAME) & delete_temp_bank(app, QPREFIX)
 
 
 def setup():
-    from app.models.user import User
-    from app.models.course_exam import CourseQuizQuestion, CourseLearningProgress
+    from app.models.course_exam import CourseLearningProgress
     from app.models.training import get_local_time
+    uid = create_temp_user(app, USERNAME, PASSWORD)
+    add_temp_bank(app, EXAM_KEY, QPREFIX)          # 题库健康,小源课程列表会列出该课
     with app.app_context():
-        company = db.session.execute(text(
-            "SELECT company_name FROM users WHERE company_name IS NOT NULL AND company_name<>'' "
-            "GROUP BY company_name ORDER BY count(*) DESC LIMIT 1")).scalar() or 'ZZ'
-        u = User(username=USERNAME, real_name='ZZ CB E2E', company_name=company,
-                 email='zz_cb_e2e@example.invalid', role='sales_manager')
-        u.set_password(PASSWORD)
-        u._is_active = True
-        db.session.add(u)
-        db.session.flush()
-        # 34 道难题(3 分)= 102 分,题库健康,小源课程列表会列出该课
-        for i in range(30):
-            db.session.add(CourseQuizQuestion(course_key=EXAM_KEY, qtype='single', difficulty=3,
-                                              question=f'{QPREFIX}single {i}', options=['A1', 'B2', 'C3', 'D4'],
-                                              answer=0, explain='ZZ explain', source_page=2, status='active'))
-        for i in range(2):
-            db.session.add(CourseQuizQuestion(course_key=EXAM_KEY, qtype='multi', difficulty=3,
-                                              question=f'{QPREFIX}multi {i}', options=['M1', 'M2', 'M3', 'M4'],
-                                              answer=[0, 2], explain='ZZ explain', status='active'))
-            db.session.add(CourseQuizQuestion(course_key=EXAM_KEY, qtype='judge', difficulty=3,
-                                              question=f'{QPREFIX}judge {i}', options=None,
-                                              answer=True, explain='ZZ explain', status='active'))
-        db.session.add(CourseLearningProgress(user_id=u.id, course_key=EXAM_KEY, page_seconds={},
+        db.session.add(CourseLearningProgress(user_id=uid, course_key=EXAM_KEY, page_seconds={},
                                               score=0, unlocked_at=get_local_time()))
         db.session.commit()
-        return u.id
-
-
-SERVER_CODE = r'''
-import os, sys
-sys.path.insert(0, os.path.join(os.getcwd(), 'tests'))
-from _pma_testkit import make_app
-flask_app = make_app()
-import app.views.knowledge_wiki as KW
-main_assets = sys.argv[2]
-if not os.path.isfile(KW._course_html_path(sys.argv[3])) and os.path.isdir(main_assets):
-    KW.COURSE_ASSETS_DIR = main_assets      # worktree 没有课件(gitignored),只读借用主仓
-flask_app.run(host='127.0.0.1', port=int(sys.argv[1]), use_reloader=False, threaded=True)
-'''
-
-
-def start_server():
-    env = dict(os.environ)
-    env.update({'PORT': str(args.port), 'DYLD_FALLBACK_LIBRARY_PATH': '/opt/homebrew/lib',
-                'DATABASE_URL': 'postgresql://nijie@localhost:5432/pma_local',
-                'PMA_DB_TYPE': 'sp8d', 'FORCE_LOCAL_STORAGE': 'true'})
-    log = open(os.path.join(args.shots, 'server.log'), 'w')
-    proc = subprocess.Popen([sys.executable, '-c', SERVER_CODE, str(args.port), MAIN_ASSETS, EXAM_KEY],
-                            cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-    deadline = time.time() + 120
-    while time.time() < deadline:
-        if proc.poll() is not None:
-            raise RuntimeError('服务进程提前退出,见 server.log')
-        try:
-            urllib.request.urlopen(BASE + '/auth/login', timeout=3)
-            return proc
-        except Exception:
-            time.sleep(1)
-    raise RuntimeError('服务启动超时')
-
-
-def stop_server(proc):
-    if proc and proc.poll() is None:
-        try:
-            os.killpg(proc.pid, signal.SIGTERM)
-            proc.wait(timeout=15)
-        except Exception:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except Exception:
-                pass
+    return uid
 
 
 def run_browser():
@@ -197,7 +98,7 @@ def run_browser():
         browser = pw.chromium.launch(headless=not args.headed)
         ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, locale='zh-CN')
         # 页面级 rAF 计数(含页面自身脚本),用于空闲开销对比
-        ctx.add_init_script("""(() => { window.__rafCalls = 0; const o = window.requestAnimationFrame.bind(window);
+        ctx.add_init_script("""(() => { window.CB_DEBUG = true; window.__rafCalls = 0; const o = window.requestAnimationFrame.bind(window);
             window.requestAnimationFrame = (cb) => o((t) => { window.__rafCalls++; cb(t); }); })()""")
         page = ctx.new_page()
 
@@ -302,6 +203,8 @@ def run_browser():
             page.wait_for_timeout(700)
 
         drag_to(400, 500)
+        sel = page.evaluate("() => window.getSelection().toString() + '|' + (document.documentElement.style.userSelect || '')")
+        check(sel == '|', f'拖动不选中页面文字且结束后恢复 user-select({sel!r})')
         b = wrap_box()
         check('cb-side-left' in b['cls'] and abs(b['left'] - (b['sb'] + 12)) < 3,
               f'拖到左半屏吸附左侧并贴侧栏右缘(left={b["left"]:.0f}, 侧栏右缘={b["sb"]:.0f})')
@@ -415,9 +318,9 @@ def run_browser():
         page.wait_for_function("() => !document.querySelector('#cbWrap .cb-badge').hidden", timeout=15000)
         badge = page.locator('#cbWrap .cb-badge').inner_text()
         check('%' in badge, f'课程内未解锁:头顶小牌显示阅读进度「{badge}」')
-        geo = page.evaluate("""() => { const n = document.getElementById('cpNotes'), w = document.getElementById('cbWrap');
-            return {nh: n && n.offsetParent ? n.offsetHeight : 0, bottom: parseFloat(w.style.bottom)}; }""")
-        check(geo['bottom'] >= geo['nh'] + 10 - 1, f'避让讲解栏(bottom={geo["bottom"]}, 讲解栏高={geo["nh"]})')
+        geo = page.evaluate("""() => { const r = document.getElementById('cbWrap').getBoundingClientRect();
+            return {bottom: innerHeight - r.bottom, top: r.top}; }""")
+        check(geo['bottom'] >= 11 and geo['top'] >= 0, f'播放页内小源完整可见、离底 ≥12px {geo}')
         page.click('#cbWrap .cb-pet')
         page.wait_for_timeout(500)
         check(page.locator('#cbPanel [data-tab=exam]').is_disabled(), '未解锁:考核标签禁用(显示阅读进度环)')
@@ -479,7 +382,7 @@ try:
     uid = setup()
     UID = uid
     print('INFO 临时账号 id', uid)
-    proc = start_server()
+    proc = start_server(args.port, os.path.join(args.shots, 'server.log'), EXAM_KEY)
     print('INFO 服务已启动', BASE)
     run_browser()
 finally:

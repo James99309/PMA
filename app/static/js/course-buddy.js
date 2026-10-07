@@ -241,7 +241,8 @@
      指针移动/跳动/果冻/说话/开关面板时 kick() 重启;无操作时游移最多 ~10s 后归位 */
   var mouse = { x: innerWidth * .4, y: innerHeight * .4, t: Date.now() }, look = { x: 0, y: 0 }, lean = 0;
   var rafId = 0, lastKick = Date.now(), petRect = null, WANDER_MS = 10000, EPS = 0.02;
-  window.__cbFrames = window.__cbFrames || 0;      // 调试计数:空闲时不应增长
+  var DEBUG = !!window.CB_DEBUG;                    // 仅调试/e2e 打开:暴露帧计数,空闲时不应增长
+  if (DEBUG) window.__cbFrames = window.__cbFrames || 0;
   function idleStill() { return Date.now() - Math.max(mouse.t, lastKick) >= WANDER_MS; }
   function updatePetRect() { petRect = pet.getBoundingClientRect(); }
   function kick() {
@@ -251,7 +252,7 @@
   function frame(now) {
     rafId = 0;
     if (destroyed || document.hidden) return;
-    window.__cbFrames++;
+    if (DEBUG) window.__cbFrames++;
     if (!petRect) updatePetRect();
     var r = petRect, cx = r.left + r.width / 2, cy = r.top + r.height * .55, tx, ty, wander = false;
     var t0 = Date.now(), mouseIdle = t0 - mouse.t > 4500;
@@ -299,11 +300,9 @@
     if (!r.width) return 12;
     return Math.max(0, r.right) + 12;
   }
-  function minBottom() {
-    // 课程播放器底部讲解栏
-    var n = document.getElementById('cpNotes');
-    return (n && n.offsetParent) ? n.offsetHeight + 10 : 12;
-  }
+  // 课程播放器的讲解栏(#cpNotes,含上一步/下一步)在顶栏下方而非页面底部,课件 iframe 一直铺到底、
+  // 右下角没有播放器自己的控件,所以不需要额外避让,统一离底 12px
+  function minBottom() { return 12; }
   function applyPos() {
     if (destroyed) return;
     var h = wrap.offsetHeight || 96;
@@ -330,7 +329,6 @@
   var drag = null, suppress = false;
   pet.addEventListener('pointerdown', function (e) {
     if (e.button !== 0) return;
-    e.preventDefault();          // 避免拖动时选中页面文字;click 照常触发
     var r = wrap.getBoundingClientRect();
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, moved: false };
   });
@@ -339,6 +337,11 @@
     if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
     if (!drag.moved) {
       drag.moved = true; wrap.classList.add('cb-dragging'); wrap.classList.remove('cb-tucked');
+      // 拖动期间临时禁止选中文字(不在 pointerdown 上 preventDefault,以免页面其他下拉收不到 mousedown 关闭)
+      drag.us = document.documentElement.style.userSelect;
+      document.documentElement.style.userSelect = 'none';
+      document.documentElement.style.webkitUserSelect = 'none';
+      try { var sel = window.getSelection(); if (sel) sel.removeAllRanges(); } catch (er) { /* 忽略 */ }
       try { pet.setPointerCapture(drag.id); } catch (er) { /* 忽略 */ }
       bubble.classList.add('cb-off'); if (open) toggle(false);
     }
@@ -348,7 +351,9 @@
   });
   function endDrag(e) {
     if (!drag || (e && e.pointerId !== drag.id)) return;
-    var moved = drag.moved; drag = null; if (!moved) return;
+    var moved = drag.moved, us = drag.us; drag = null; if (!moved) return;
+    document.documentElement.style.userSelect = us || '';
+    document.documentElement.style.webkitUserSelect = us || '';
     suppress = true; setTimeout(function () { suppress = false; }, 50);
     var r = wrap.getBoundingClientRect(), w = r.width;
     pos.side = r.left + w / 2 < innerWidth / 2 ? 'left' : 'right';
@@ -368,8 +373,6 @@
       s.addEventListener('transitionend', function (e) { if (e.target === s) applyPos(); });
       if (window.ResizeObserver) new ResizeObserver(function () { applyPos(); }).observe(s);
     }
-    var n = document.getElementById('cpNotes');
-    if (n && window.ResizeObserver) new ResizeObserver(function () { applyPos(); }).observe(n);
   })();
 
   pet.addEventListener('click', function () {
@@ -787,9 +790,15 @@
             var k = picked.indexOf(i); if (k >= 0) picked.splice(k, 1); else picked.push(i);
           } else picked = i;
           exNote = ''; renderExam();
+          focusSafe(body.querySelector('[data-i="' + i + '"]'));
         };
       });
-      body.querySelectorAll('[data-v]').forEach(function (b) { b.onclick = function () { picked = b.dataset.v === 'true'; exNote = ''; renderExam(); }; });
+      body.querySelectorAll('[data-v]').forEach(function (b) {
+        b.onclick = function () {
+          var v = b.dataset.v; picked = v === 'true'; exNote = ''; renderExam();
+          focusSafe(body.querySelector('[data-v="' + v + '"]'));
+        };
+      });
       var sb = foot.querySelector('#cbSubmit');
       if (sb) sb.onclick = function () { submitAnswer(key); };
     } else if (answered) {
