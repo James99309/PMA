@@ -93,6 +93,13 @@
       <span class="t">{{ course.title }}</span>
       <span class="s">{{ course.subtitle }}</span>
     </div>
+    {% if cb_can_manage_bank is defined and cb_can_manage_bank() %}
+    <a class="cp-btn" id="cpBankLink" href="{{ url_for('learning.bank_page', key=course.key) }}" target="_blank" rel="noopener"
+       title="{{ _('查看、审核、编辑本课考核题库') }}">
+      <span class="material-symbols-outlined">quiz</span>
+      <span>{{ _('题库管理') }}</span>
+    </a>
+    {% endif %}
     <button type="button" class="cp-btn" id="cpNotesToggle" onclick="cpToggleNotes()">
       <span class="material-symbols-outlined" id="cpNotesIcon">expand_less</span>
       <span>{{ _('说明') }}</span>

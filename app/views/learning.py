@@ -163,7 +163,11 @@ def _inject_course_buddy():
                 _buddy_pref_warned = True
                 logger.warning('小源偏好查询失败,本页不挂载小源(每进程只记一次)', exc_info=True)
             return False
-    return {'cb_buddy_enabled': cb_buddy_enabled}
+    def cb_can_manage_bank():
+        # 纯角色判断,不查库(admin / ceo / hr_manager)
+        return S.can_manage_bank(current_user)
+
+    return {'cb_buddy_enabled': cb_buddy_enabled, 'cb_can_manage_bank': cb_can_manage_bank}
 
 
 @learning_bp.route('/api/learning/csrf')
