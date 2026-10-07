@@ -234,6 +234,37 @@
     }, 120);
   }
   var bT;
+  /* ===================== 庆祝烟花(及格/满分;一次性 DOM,放完即删) ===================== */
+  var FW_COLORS = ['#F2B544', '#E0715A', '#4DA5C7', '#7BC47F', '#C78BE0', '#F28CB1'];
+  function fireworks(big) {
+    if (reduce || destroyed) return;
+    var x, y;
+    var mobileSheet = open && window.innerWidth <= 640;
+    if (mobileSheet) { var pr = panel.getBoundingClientRect(); x = pr.left + pr.width / 2; y = pr.top + 40; }
+    else { var r = pet.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height * .35; }
+    var layer = document.createElement('div');
+    layer.className = 'cb-fx';
+    layer.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(layer);
+    var bursts = big ? 5 : 3, n = big ? 26 : 20;
+    for (var b = 0; b < bursts; b++) {
+      // 首轮在小源处,后几轮向屏幕中上方散开(右下角贴边时也看得见)
+      var bx = b ? x - 80 - Math.random() * 260 : x, by = b ? y - 120 - Math.random() * 220 : y;
+      for (var i = 0; i < n; i++) {
+        var a = (Math.PI * 2 * i) / n + Math.random() * .3, dist = (big ? 120 : 95) + Math.random() * 70;
+        var sp = document.createElement('span');
+        sp.className = 'cb-spark';
+        sp.style.left = bx + 'px'; sp.style.top = by + 'px';
+        sp.style.setProperty('--dx', (Math.cos(a) * dist).toFixed(1) + 'px');
+        sp.style.setProperty('--dy', (Math.sin(a) * dist).toFixed(1) + 'px');
+        sp.style.background = sp.style.color = FW_COLORS[(i + b) % FW_COLORS.length];
+        sp.style.animationDelay = (b * 230) + 'ms';
+        layer.appendChild(sp);
+      }
+    }
+    setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, 1500 + bursts * 230);
+  }
+
   function say(text, ms) {
     if (open || destroyed) return;
     bubble.textContent = text; bubble.classList.remove('cb-off'); clearTimeout(bT);
@@ -863,7 +894,9 @@
       var src = res.source_page ? ' <span class="cb-src">(' + linkPages(esc(t('see_page', { n: res.source_page }))) + ')</span>' : '';
       h += '<div class="cb-explain">' + head + (res.explain || src ? '<br>' + linkPages(esc(res.explain || '')) + src : '') + '</div>';
       if (res.just_perfect) h += '<div class="cb-cheer">🏆 ' + esc(t('perfect')) + '</div>';
-      else if (res.just_passed) h += '<div class="cb-cheer">🎉 ' + esc(t('passed')) + '</div>';
+      else if (res.just_passed) h += '<div class="cb-cheer"><div>🎉 ' + esc(t('pass_title')) + ' ' + esc(t('pass_ask')) + '</div>' +
+        '<div class="cb-cheer-acts"><button type="button" class="cb-cheer-go" id="cbKeepGoing">' + esc(t('keep_going')) + '</button>' +
+        '<button type="button" class="cb-cheer-rest" id="cbTakeRest">' + esc(t('take_rest')) + '</button></div></div>';
       h += noteHtml();
       footHtml = '<button type="button" class="cb-primary" id="cbNext"' + (exBusy ? ' disabled' : '') + '>' + esc(sc >= 100 ? t('done') : t('next')) + '</button>';
     } else {
@@ -878,7 +911,8 @@
     bindPageLinks();
     if (answered) {
       // 结果态把解析滚进可视区
-      var exEl = body.querySelector('.cb-explain');
+      // 有庆祝条(及格/满分)时滚到庆祝条,否则滚到解析
+      var exEl = body.querySelector('.cb-cheer') || body.querySelector('.cb-explain');
       if (exEl && exEl.scrollIntoView) exEl.scrollIntoView({ block: 'nearest' });
     } else {
       body.scrollTop = keepScroll;
@@ -909,6 +943,9 @@
         if ((res.score || 0) >= 100 || ex.perfect) { finishExam(); return; }
         nextQuestion(key);
       };
+      var go = body.querySelector('#cbKeepGoing'), rest = body.querySelector('#cbTakeRest');
+      if (go) go.onclick = function () { nextQuestion(key); };
+      if (rest) rest.onclick = function () { toggle(false); say(t('rest_bye'), 4200); };
     }
   }
 
@@ -951,7 +988,8 @@
       if (!ex.question && r.question) ex.question = r.question;
       bumpScore = !!r.correct;
       syncExamScore(ex);
-      if (r.just_perfect) { keepExam = true; hop(18); jelly(); }
+      if (r.just_perfect) { keepExam = true; hop(18); jelly(); fireworks(true); }
+      else if (r.just_passed) { hop(18); jelly(); fireworks(false); }
       render();
     }, function (err) {
       if (exKey !== key) return;
