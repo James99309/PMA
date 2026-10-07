@@ -3,11 +3,53 @@
 
 题目在本模块里是 dict:{id, qtype, difficulty, options, answer, ...}
 answer:single=int / multi=list[int] / judge=bool(均为「原始选项下标」)。
+写库前须经 normalize_question 清洗。
 """
+import math
+
 POINTS = {1: 1, 2: 2, 3: 3}
 PASS_SCORE = 60
 FULL_SCORE = 100
+QTYPES = ('single', 'multi', 'judge')
 
+
+# ---------- 内部:输入清洗 ----------
+
+def _finite_number(x):
+    """转成有限 float;bool / 非数字 / NaN / inf 返回 None。"""
+    if isinstance(x, bool):
+        return None
+    try:
+        v = float(x)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    if math.isnan(v) or math.isinf(v):
+        return None
+    return v
+
+
+def _as_int(x):
+    """接受 int 或纯数字字符串(拒绝 bool / float / 其他),失败返回 None。"""
+    if isinstance(x, bool):
+        return None
+    if isinstance(x, int):
+        return x
+    if isinstance(x, str) and x.strip().isdigit():
+        return int(x.strip())
+    return None
+
+
+def _norm_page_seconds(page_seconds):
+    """键统一为 str(int 键合并进同名 str 键),值统一为 int >= 0。"""
+    out = {}
+    for k, v in (page_seconds or {}).items():
+        key = str(k)
+        n = _finite_number(v)
+        out[key] = out.get(key, 0) + (max(0, int(n)) if n is not None else 0)
+    return out
+
+
+# ---------- 计分 ----------
 
 def apply_score(score, difficulty):
     return min(FULL_SCORE, score + POINTS[difficulty])
@@ -27,6 +69,8 @@ def weights_for(score):
     return {1: 1, 2: 4, 3: 5}
 
 
+# ---------- 抽题 ----------
+
 WRONG_GAP = 5
 
 
@@ -34,7 +78,9 @@ def pick_question(bank, score, correct_ids, recent_ids, rng):
     """从题库抽一题。
 
     bank: active 题列表;correct_ids: 本人已答对题 id 集合;
-    recent_ids: 本人最近作答的题 id(旧→新),最近 WRONG_GAP 题内出现过的不抽(池不足时放宽)。
+    recent_ids: 本人最近作答的题 id,必须是有序列表(旧→新)。
+    已答对的题本就被移出,所以「最近」实际等于「最近答错」:
+    最近 WRONG_GAP 题内出现过的不抽;池不足时放宽,但池里多于 1 题时仍不重抽最后一题。
     """
     pool = [q for q in bank if q['id'] not in correct_ids]
     if not pool:
@@ -43,6 +89,8 @@ def pick_question(bank, score, correct_ids, recent_ids, rng):
     fresh = [q for q in pool if q['id'] not in recent]
     if fresh:
         pool = fresh
+    elif len(pool) > 1 and recent_ids:
+        pool = [q for q in pool if q['id'] != recent_ids[-1]] or pool
     by_d = {1: [], 2: [], 3: []}
     for q in pool:
         by_d[q['difficulty']].append(q)
@@ -58,6 +106,58 @@ def pick_question(bank, score, correct_ids, recent_ids, rng):
             return rng.choice(by_d[d])
 
 
+# ---------- 题目清洗 / 乱序 / 判分 ----------
+
+def normalize_question(q):
+    """校验并返回清洗后的副本;不合法抛 ValueError。"""
+    out = dict(q)
+    qtype = out.get('qtype')
+    if qtype not in QTYPES:
+        raise ValueError('qtype 须为 single/multi/judge')
+    d = _as_int(out.get('difficulty'))
+    if d not in POINTS:
+        raise ValueError('difficulty 须为 1..3')
+    out['difficulty'] = d
+
+    if qtype == 'judge':
+        a = out.get('answer')
+        if isinstance(a, str) and a.strip().lower() in ('true', 'false'):
+            a = a.strip().lower() == 'true'
+        if not isinstance(a, bool):
+            raise ValueError('judge 答案须为 bool')
+        out['answer'] = a
+        return out
+
+    opts = out.get('options')
+    if not isinstance(opts, list) or not all(isinstance(o, str) and o.strip() for o in opts):
+        raise ValueError('options 须为非空字符串列表')
+    min_opts = 3 if qtype == 'multi' else 2
+    if len(opts) < min_opts:
+        raise ValueError('选项数量不足')
+    n = len(opts)
+
+    if qtype == 'single':
+        a = _as_int(out.get('answer'))
+        if a is None or not 0 <= a < n:
+            raise ValueError('single 答案下标非法')
+        out['answer'] = a
+        return out
+
+    raw = out.get('answer')
+    if not isinstance(raw, list):
+        raise ValueError('multi 答案须为列表')
+    idx = set()
+    for x in raw:
+        i = _as_int(x)
+        if i is None or not 0 <= i < n:
+            raise ValueError('multi 答案下标非法')
+        idx.add(i)
+    if not 2 <= len(idx) < n:
+        raise ValueError('multi 正确项须 ≥2 且少于选项数')
+    out['answer'] = sorted(idx)
+    return out
+
+
 def shuffle_order(n, rng):
     order = list(range(n))
     rng.shuffle(order)
@@ -70,12 +170,24 @@ def option_order_for(q, rng):
     return shuffle_order(len(q['options']), rng)
 
 
-def to_original(qtype, shown, order):
-    """把前端提交的「显示位」换算成原始选项下标。非法输入抛 ValueError。"""
+def to_original(qtype, shown, order, n_options=None):
+    """把前端提交的「显示位」换算成原始选项下标。非法输入抛 ValueError。
+
+    order 须为 range(len(order)) 的排列;给了 n_options 时长度还须一致。
+    """
+    if qtype not in QTYPES:
+        raise ValueError('未知题型')
     if qtype == 'judge':
         if not isinstance(shown, bool):
             raise ValueError('judge 答案须为 bool')
         return shown
+    if not isinstance(order, list) or \
+            any(not isinstance(i, int) or isinstance(i, bool) for i in order) or \
+            sorted(order) != list(range(len(order))):
+        raise ValueError('选项顺序非法')
+    if n_options is not None and len(order) != n_options:
+        raise ValueError('选项顺序与题目选项数不符')
+
     def one(i):
         if not isinstance(i, int) or isinstance(i, bool) or not 0 <= i < len(order):
             raise ValueError('选项下标越界')
@@ -89,16 +201,17 @@ def to_original(qtype, shown, order):
 
 def is_correct(q, original):
     if q['qtype'] == 'multi':
-        return sorted(original) == sorted(q['answer'])
+        return set(original) == set(q['answer'])
     return original == q['answer']
 
+
+# ---------- 阅读时长 ----------
 
 CHARS_PER_SEC = 5
 MIN_PAGE_SEC = 20
 READ_RATIO = 0.7
 PAGE_CAP_FACTOR = 3
 MAX_PING_SECONDS = 20       # 前端 15s 一报,留余量
-PING_TOLERANCE = 2
 
 
 def page_estimate(page):
@@ -106,41 +219,68 @@ def page_estimate(page):
 
 
 def required_read_seconds(pages, override=None):
-    if override:
-        return int(override)
+    if override is not None:
+        return max(0, int(override))
     return int(sum(page_estimate(p) for p in pages) * READ_RATIO)
 
 
 def accept_ping_seconds(seconds, elapsed):
-    """服务端只认:不超过距上次上报真实间隔(+容差),且不超过单次上限。"""
-    s = max(0, int(seconds or 0))
+    """服务端只认:不超过距上次上报的真实间隔(向下取整,无容差),且不超过单次上限。
+
+    非法 seconds(非数字/NaN/inf/bool)记 0;elapsed 为 None 表示首次上报。
+    """
+    v = _finite_number(seconds)
+    s = max(0, int(v)) if v is not None else 0
     s = min(s, MAX_PING_SECONDS)
     if elapsed is not None:
-        s = min(s, max(0, int(elapsed) + PING_TOLERANCE))
+        e = _finite_number(elapsed)
+        s = min(s, max(0, math.floor(e)) if e is not None else 0)
     return s
 
 
 def add_page_seconds(page_seconds, page, seconds, pages):
-    """page 为 1 基页号;单页累计封顶 = 该页估算 × 3。返回新 dict。"""
-    ps = dict(page_seconds or {})
-    if not 1 <= page <= len(pages):
+    """page 为 1 基页号;单页累计封顶 = 该页估算 × 3。返回新 dict(键规范为 str)。"""
+    ps = _norm_page_seconds(page_seconds)
+    if not isinstance(page, int) or isinstance(page, bool) or not 1 <= page <= len(pages):
         return ps
+    v = _finite_number(seconds)
+    add = max(0, int(v)) if v is not None else 0
     cap = page_estimate(pages[page - 1]) * PAGE_CAP_FACTOR
     key = str(page)
-    ps[key] = min(cap, ps.get(key, 0) + seconds)
+    ps[key] = min(cap, ps.get(key, 0) + add)
     return ps
 
 
-def effective_read_seconds(page_seconds):
-    return sum((page_seconds or {}).values())
+def record_ping(page_seconds, pages, page, seconds, elapsed):
+    """处理一次阅读上报:校验页号 → 校验时长 → 累加。返回新 dict。"""
+    p = _as_int(page)
+    if p is None or not 1 <= p <= len(pages):
+        return dict(page_seconds or {})
+    return add_page_seconds(page_seconds, p, accept_ping_seconds(seconds, elapsed), pages)
+
+
+def _pages_total(page_seconds, pages):
+    """只累计 "1".."len(pages)" 的页,忽略过期的多余页。"""
+    ps = _norm_page_seconds(page_seconds)
+    return sum(ps.get(str(i), 0) for i in range(1, len(pages) + 1))
+
+
+def effective_read_seconds(page_seconds, pages=None):
+    if pages is not None:
+        return _pages_total(page_seconds, pages)
+    return sum(_norm_page_seconds(page_seconds).values())
 
 
 def is_unlocked(page_seconds, pages, override=None):
-    ps = page_seconds or {}
+    if not pages:
+        return False
+    ps = _norm_page_seconds(page_seconds)
     if any(ps.get(str(i), 0) <= 0 for i in range(1, len(pages) + 1)):
         return False
-    return effective_read_seconds(ps) >= required_read_seconds(pages, override)
+    return _pages_total(ps, pages) >= required_read_seconds(pages, override)
 
+
+# ---------- 题库健康 / 实测难度 ----------
 
 MIN_SAMPLES = 10
 

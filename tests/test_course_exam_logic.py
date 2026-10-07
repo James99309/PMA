@@ -110,7 +110,7 @@ def test_page_estimate_and_required():
 
 def test_ping_seconds_clamped_by_wall_clock():
     assert L.accept_ping_seconds(15, elapsed=16) == 15
-    assert L.accept_ping_seconds(60, elapsed=16) == 18    # elapsed + 2s 容差
+    assert L.accept_ping_seconds(60, elapsed=16) == 16    # 不加容差,按真实间隔封顶
     assert L.accept_ping_seconds(-3, elapsed=10) == 0
     assert L.accept_ping_seconds(15, elapsed=None) == 15  # 首次上报
     assert L.accept_ping_seconds(500, elapsed=None) == L.MAX_PING_SECONDS
@@ -144,3 +144,124 @@ def test_empirical_difficulty():
     assert L.empirical_difficulty(3, 10) == 3
     assert L.empirical_difficulty(5, 9) is None               # 样本不足 10
     assert L.suspicious(1, 10) and not L.suspicious(3, 10)
+
+
+# ---------- 评审修复:输入校验 + 阅读上报防刷 ----------
+import math
+import pytest
+
+
+def test_ping_rapid_fire_earns_nothing():
+    # C1:高频上报(间隔 0.1s)不得累积时长
+    assert sum(L.accept_ping_seconds(15, elapsed=0.1) for _ in range(10)) == 0
+
+
+def test_ping_rejects_garbage_seconds():
+    for bad in ('abc', None, float('nan'), float('inf'), True, False, [1], {}):
+        assert L.accept_ping_seconds(bad, elapsed=None) == 0
+    assert L.accept_ping_seconds('12', elapsed=None) == 12
+    assert L.accept_ping_seconds(15, elapsed=-5) == 0
+    assert L.accept_ping_seconds(15, elapsed=7.9) == 7
+    assert not hasattr(L, 'PING_TOLERANCE')
+
+
+def test_required_read_override_zero_and_negative():
+    pages = [{'notes': ''}]
+    assert L.required_read_seconds(pages, override=0) == 0
+    assert L.required_read_seconds(pages, override=-1) == 0
+
+
+def test_add_page_seconds_clamps_and_normalises_keys():
+    pages = [{'notes': ''}, {'notes': ''}]
+    assert L.add_page_seconds({}, 1, -10, pages) == {'1': 0}
+    assert L.add_page_seconds({1: 5, '1': 3}, 1, 2, pages) == {'1': 10}
+    assert L.add_page_seconds({2: 4}, 3, 5, pages) == {'2': 4}       # 越界页忽略但键已规范
+
+
+def test_record_ping_validates_page():
+    pages = [{'notes': ''}, {'notes': ''}]
+    assert L.record_ping({}, pages, 1, 15, None) == {'1': 15}
+    assert L.record_ping({}, pages, '2', 15, 10) == {'2': 10}
+    for bad in (True, 0, 3, 'x', '1.5', None, 1.0):
+        before = {'1': 5}
+        got = L.record_ping(before, pages, bad, 15, None)
+        assert got == {'1': 5} and got is not before
+    assert L.record_ping({}, pages, 1, 15, 0.1) == {'1': 0}
+
+
+def test_unlock_empty_pages_and_stale_keys():
+    assert not L.is_unlocked({}, [])
+    assert not L.is_unlocked({'1': 1, '99': 1000}, [{'notes': ''}])
+    assert L.effective_read_seconds({'1': 1, '99': 1000}, [{'notes': ''}]) == 1
+    assert L.effective_read_seconds({'1': 1, '99': 1000}) == 1001
+
+
+def _raw(**kw):
+    q = {'qtype': 'single', 'difficulty': 2, 'options': ['A', 'B', 'C'], 'answer': 1}
+    q.update(kw)
+    return q
+
+
+def test_normalize_question_ok():
+    q = L.normalize_question(_raw(difficulty='3', answer='2'))
+    assert q['difficulty'] == 3 and q['answer'] == 2
+    m = L.normalize_question(_raw(qtype='multi', answer=[2, 0, 2]))
+    assert m['answer'] == [0, 2]
+    j = L.normalize_question({'qtype': 'judge', 'difficulty': 1, 'answer': 'FALSE'})
+    assert j['answer'] is False
+    assert L.normalize_question({'qtype': 'judge', 'difficulty': 1, 'answer': True})['answer'] is True
+    src = _raw(difficulty='2')
+    L.normalize_question(src)
+    assert src['difficulty'] == '2'                      # 返回副本,不改原 dict
+
+
+@pytest.mark.parametrize('bad', [
+    _raw(qtype='essay'),
+    _raw(difficulty=0), _raw(difficulty=4), _raw(difficulty=True), _raw(difficulty='x'),
+    _raw(options=['A']), _raw(options=['A', '']), _raw(options='AB'), _raw(options=['A', 3]),
+    _raw(answer=3), _raw(answer=-1), _raw(answer=True), _raw(answer='x'), _raw(answer=None),
+    _raw(qtype='multi', options=['A', 'B'], answer=[0, 1]),      # multi 至少 3 个选项
+    _raw(qtype='multi', answer=[0]),                              # 至少 2 个正确项
+    _raw(qtype='multi', answer=[0, 0]),                           # 去重后不足 2
+    _raw(qtype='multi', answer=[0, 1, 2]),                        # 不能全选
+    _raw(qtype='multi', answer=[0, 5]),
+    _raw(qtype='multi', answer=[0, True]),
+    _raw(qtype='multi', answer=1),
+    {'qtype': 'judge', 'difficulty': 1, 'answer': 'yes'},
+    {'qtype': 'judge', 'difficulty': 1, 'answer': 1},
+])
+def test_normalize_question_rejects(bad):
+    with pytest.raises(ValueError):
+        L.normalize_question(bad)
+
+
+def test_is_correct_multi_as_sets():
+    assert L.is_correct({'qtype': 'multi', 'answer': [0, 3]}, [3, 0, 3])
+    assert not L.is_correct({'qtype': 'multi', 'answer': [0, 3]}, [0, 1])
+
+
+def test_to_original_validates_qtype_and_order():
+    with pytest.raises(ValueError):
+        L.to_original('essay', 0, [0, 1])
+    with pytest.raises(ValueError):
+        L.to_original('single', 0, None)
+    with pytest.raises(ValueError):
+        L.to_original('single', 0, [0, 0, 1])          # 非排列
+    with pytest.raises(ValueError):
+        L.to_original('multi', [0, 1], [1, 2, 3])      # 非 range(n) 排列
+    with pytest.raises(ValueError):
+        L.to_original('single', 0, [0, True])
+    with pytest.raises(ValueError):
+        L.to_original('single', 0, (1, 0))             # 须为 list
+    with pytest.raises(ValueError):
+        L.to_original('single', 0, [1, 0], n_options=3)
+    assert L.to_original('single', 0, [1, 0], n_options=2) == 1
+    assert L.to_original('judge', False, None, n_options=None) is False
+
+
+def test_pick_excludes_last_even_when_all_recent():
+    # 池里每题都在间隔内,仍不立刻重抽最后一题
+    bank = [_q(1, 1), _q(2, 1)]
+    rng = random.Random(5)
+    for _ in range(30):
+        assert L.pick_question(bank, 0, set(), recent_ids=[1, 2], rng=rng)['id'] == 1
