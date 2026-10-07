@@ -231,7 +231,10 @@ def run_browser():
         page.click('#cbPanel [data-tab=exam]')
         page.wait_for_selector('#cbBody .cb-qtext', timeout=15000)
         qtext = page.locator('#cbBody .cb-qtext').inner_text()
-        opts_before = page.evaluate("() => [...document.querySelectorAll('#cbBody .cb-opt, #cbBody .cb-judge button')].map(e => e.textContent)")
+        # 只比选项正文:键位字形在多选题作答前后不同(未作答 ''/'✓',作答后 A/B/C),不能一起比
+        OPTS_JS = ("() => [...document.querySelectorAll('#cbBody .cb-opt span:last-child, #cbBody .cb-judge button')]"
+                   ".map(e => e.textContent)")
+        opts_before = page.evaluate(OPTS_JS)
         if page.locator('#cbBody .cb-judge button').count():
             page.locator('#cbBody .cb-judge button').first.click()
         else:
@@ -254,7 +257,7 @@ def run_browser():
         page.wait_for_selector('#cbBody .cb-qtext', timeout=15000)
         page.wait_for_selector('#cbBody .cb-explain', timeout=15000)
         same_q = page.locator('#cbBody .cb-qtext').inner_text() == qtext
-        opts_after = page.evaluate("() => [...document.querySelectorAll('#cbBody .cb-opt, #cbBody .cb-judge button')].map(e => e.textContent)")
+        opts_after = page.evaluate(OPTS_JS)
         same_res = page.locator('#cbBody .cb-explain').inner_text() == result_before
         check(same_q and opts_after == opts_before and same_res, '刷新后续答:同一题、同一选项顺序、同一结果态')
         check(page.locator('#cbFoot #cbNext').is_visible(), '结果态底栏「下一题」可见')
