@@ -279,3 +279,8 @@ def test_as_int_rejects_superscript_digits():
 def test_record_ping_invalid_page_returns_cleaned_dict():
     pages = [{'notes': ''}, {'notes': ''}]
     assert L.record_ping({1: 5, '1': 3, '2': 'x'}, pages, 9, 15, None) == {'1': 8, '2': 0}
+
+
+def test_norm_page_seconds_is_public():
+    assert L.norm_page_seconds({1: 5, '1': 3, '2': -4, '3': 'x'}) == {'1': 8, '2': 0, '3': 0}
+    assert L.norm_page_seconds(None) == {}

@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""课程考核:题库 + 每人每课学习进度。设计见 docs/plans/2026-10-07-course-exam-bank-design.md"""
+"""课程考核:题库 + 每人每课学习进度 + 课程考核设置 + 小源开关。
+
+设计见 docs/plans/2026-10-07-course-exam-bank-design.md。
+零停机约束:update.sh 先重启 app 再跑 db upgrade,启动时 create_all 只会建新表不会加列,
+所以本功能只新增表,不对 users / interactive_courses 等热表 ALTER。
+"""
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Index
 
 from app import db
@@ -10,17 +15,17 @@ class CourseQuizQuestion(db.Model):
     __tablename__ = 'course_quiz_questions'
 
     id = Column(Integer, primary_key=True)
-    course_key = Column(String(80), nullable=False, index=True)
+    course_key = Column(String(80), nullable=False)        # 由 ix_cqq_course_status 前缀覆盖
     qtype = Column(String(10), nullable=False)               # single / multi / judge
-    difficulty = Column(Integer, nullable=False, default=2)   # 1 易 / 2 中 / 3 难(生效值)
+    difficulty = Column(Integer, nullable=False, default=2, server_default='2') # 1 易 / 2 中 / 3 难(生效值)
     ai_difficulty = Column(Integer, nullable=True)            # 复核 AI 独立评级
     question = Column(Text, nullable=False)
     options = Column(JSON, nullable=True)                     # judge 为空
     answer = Column(JSON, nullable=False)                     # int / [int] / bool,原始下标
     explain = Column(Text, nullable=True)
     source_page = Column(Integer, nullable=True)
-    status = Column(String(10), nullable=False, default='active', index=True)  # active/review/disabled
-    origin = Column(String(10), nullable=False, default='ai')  # ai / edited / legacy
+    status = Column(String(10), nullable=False, default='active', server_default='active', index=True)  # active/review/disabled
+    origin = Column(String(10), nullable=False, default='ai', server_default='ai')# ai / edited / legacy
     review_note = Column(Text, nullable=True)                 # 复核 AI 给出的存疑理由
     created_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     created_at = Column(DateTime, default=get_local_time, nullable=False)
@@ -45,17 +50,17 @@ class CourseLearningProgress(db.Model):
     __tablename__ = 'course_learning_progress'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)   # 由 ix_clp_user_course 前缀覆盖
     course_key = Column(String(80), nullable=False, index=True)
 
     page_seconds = Column(JSON, nullable=False, default=dict)  # {"1": 35, ...}
     last_ping_at = Column(DateTime, nullable=True)
     unlocked_at = Column(DateTime, nullable=True)
 
-    score = Column(Integer, nullable=False, default=0)
+    score = Column(Integer, nullable=False, default=0, server_default='0')
     current_question_id = Column(Integer, nullable=True)
     current_option_order = Column(JSON, nullable=True)
-    current_answered = Column(Boolean, nullable=False, default=False)
+    current_answered = Column(Boolean, nullable=False, default=False, server_default='false')
     current_result = Column(JSON, nullable=True)               # 已提交未点下一题时的结果快照
     passed_at = Column(DateTime, nullable=True)
     perfect_at = Column(DateTime, nullable=True)
@@ -64,3 +69,22 @@ class CourseLearningProgress(db.Model):
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
 
     __table_args__ = (Index('ix_clp_user_course', 'user_id', 'course_key', unique=True),)
+
+
+class CourseExamSetting(db.Model):
+    """每课考核设置(独立表,避免给 interactive_courses 加列)。"""
+    __tablename__ = 'course_exam_settings'
+
+    course_key = Column(String(80), primary_key=True)
+    min_read_seconds = Column(Integer, nullable=True)   # 考核解锁所需有效阅读秒数;空=按讲解字数自动估算
+    updated_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+
+
+class LearningBuddyPref(db.Model):
+    """学习伙伴小源显示开关(独立表,避免给 users 加列);无行 = 开启。"""
+    __tablename__ = 'learning_buddy_prefs'
+
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    enabled = Column(Boolean, nullable=False, default=True, server_default='true')
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)

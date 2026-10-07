@@ -39,7 +39,7 @@ def _as_int(x):
     return None
 
 
-def _norm_page_seconds(page_seconds):
+def norm_page_seconds(page_seconds):
     """键统一为 str(int 键合并进同名 str 键),值统一为 int >= 0。"""
     out = {}
     for k, v in (page_seconds or {}).items():
@@ -240,7 +240,7 @@ def accept_ping_seconds(seconds, elapsed):
 
 def add_page_seconds(page_seconds, page, seconds, pages):
     """page 为 1 基页号;单页累计封顶 = 该页估算 × 3。返回新 dict(键规范为 str)。"""
-    ps = _norm_page_seconds(page_seconds)
+    ps = norm_page_seconds(page_seconds)
     if not isinstance(page, int) or isinstance(page, bool) or not 1 <= page <= len(pages):
         return ps
     v = _finite_number(seconds)
@@ -255,26 +255,26 @@ def record_ping(page_seconds, pages, page, seconds, elapsed):
     """处理一次阅读上报:校验页号 → 校验时长 → 累加。返回新 dict。"""
     p = _as_int(page)
     if p is None or not 1 <= p <= len(pages):
-        return _norm_page_seconds(page_seconds)
+        return norm_page_seconds(page_seconds)
     return add_page_seconds(page_seconds, p, accept_ping_seconds(seconds, elapsed), pages)
 
 
 def _pages_total(page_seconds, pages):
     """只累计 "1".."len(pages)" 的页,忽略过期的多余页。"""
-    ps = _norm_page_seconds(page_seconds)
+    ps = norm_page_seconds(page_seconds)
     return sum(ps.get(str(i), 0) for i in range(1, len(pages) + 1))
 
 
 def effective_read_seconds(page_seconds, pages=None):
     if pages is not None:
         return _pages_total(page_seconds, pages)
-    return sum(_norm_page_seconds(page_seconds).values())
+    return sum(norm_page_seconds(page_seconds).values())
 
 
 def is_unlocked(page_seconds, pages, override=None):
     if not pages:
         return False
-    ps = _norm_page_seconds(page_seconds)
+    ps = norm_page_seconds(page_seconds)
     if any(ps.get(str(i), 0) <= 0 for i in range(1, len(pages) + 1)):
         return False
     return _pages_total(ps, pages) >= required_read_seconds(pages, override)

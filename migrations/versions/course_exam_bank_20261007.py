@@ -1,4 +1,7 @@
-"""课程考核题库 + 学习进度 + 小源开关
+"""课程考核题库 + 学习进度 + 课程考核设置 + 小源开关(纯新增表)
+
+零停机:update.sh 先重启 app 再 upgrade,其间启动 create_all 只建新表不加列,
+故本迁移只新增表,不 ALTER 任何已有表。
 
 Revision ID: course_exam_bank_20261007
 Revises: announcement_banner_20260913
@@ -14,10 +17,6 @@ depends_on = None
 
 def _has_table(name):
     return name in sa.inspect(op.get_bind()).get_table_names()
-
-
-def _has_column(table, col):
-    return col in [c['name'] for c in sa.inspect(op.get_bind()).get_columns(table)]
 
 
 def upgrade():
@@ -42,7 +41,6 @@ def upgrade():
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.Column('updated_at', sa.DateTime(), nullable=False),
         )
-        op.create_index('ix_course_quiz_questions_course_key', 'course_quiz_questions', ['course_key'])
         op.create_index('ix_course_quiz_questions_status', 'course_quiz_questions', ['status'])
         op.create_index('ix_cqq_course_status', 'course_quiz_questions', ['course_key', 'status'])
     if not _has_table('course_learning_progress'):
@@ -64,18 +62,27 @@ def upgrade():
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.Column('updated_at', sa.DateTime(), nullable=False),
         )
-        op.create_index('ix_course_learning_progress_user_id', 'course_learning_progress', ['user_id'])
         op.create_index('ix_course_learning_progress_course_key', 'course_learning_progress', ['course_key'])
         op.create_index('ix_clp_user_course', 'course_learning_progress', ['user_id', 'course_key'], unique=True)
-    if not _has_column('interactive_courses', 'min_read_seconds'):
-        op.add_column('interactive_courses', sa.Column('min_read_seconds', sa.Integer()))
-    if not _has_column('users', 'learning_buddy_enabled'):
-        op.add_column('users', sa.Column('learning_buddy_enabled', sa.Boolean(),
-                                         nullable=False, server_default='true'))
+    if not _has_table('course_exam_settings'):
+        op.create_table(
+            'course_exam_settings',
+            sa.Column('course_key', sa.String(80), primary_key=True),
+            sa.Column('min_read_seconds', sa.Integer()),
+            sa.Column('updated_by', sa.Integer(), sa.ForeignKey('users.id')),
+            sa.Column('updated_at', sa.DateTime(), nullable=False),
+        )
+    if not _has_table('learning_buddy_prefs'):
+        op.create_table(
+            'learning_buddy_prefs',
+            sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), primary_key=True),
+            sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
+            sa.Column('updated_at', sa.DateTime(), nullable=False),
+        )
 
 
 def downgrade():
-    op.drop_column('users', 'learning_buddy_enabled')
-    op.drop_column('interactive_courses', 'min_read_seconds')
-    op.drop_table('course_learning_progress')
-    op.drop_table('course_quiz_questions')
+    for name in ('learning_buddy_prefs', 'course_exam_settings',
+                 'course_learning_progress', 'course_quiz_questions'):
+        if _has_table(name):
+            op.drop_table(name)
