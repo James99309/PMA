@@ -39,7 +39,8 @@ DEFAULT_PLAN = {1: 50, 2: 30, 3: 20}
 BATCH_SIZE = 25          # 单次调用最多出多少题
 REVIEW_SIZE = 40         # 单次复核最多多少题
 EXISTING_LIMIT = 200     # 「已存在题干」最多附多少条
-MAX_PER_LEVEL = 100      # 每档上限,防误传超大值
+MAX_PLAN_TOTAL = 300     # 一次出题总量上限
+ECHO_LEN = 12            # 复核须回显题干前 12 字,用于校验 index 对位
 DUP_RATIO = 0.85
 
 _JSON_RULE = (
@@ -83,7 +84,7 @@ _EXAMPLES = {
 }
 _ANSWER_RULES = {
     'single': 'single 的 answer 是正确选项下标(从 0 起)',
-    'multi': 'multi 的 answer 是 ≥2 个正确选项下标的列表(且少于选项数,选项 4 个)',
+    'multi': 'multi 的 answer 是正确选项下标的列表(至少 3 个选项、2 个及以上正确答案、且不能全选)',
     'judge': 'judge 的 answer 是 true/false',
 }
 
@@ -142,8 +143,8 @@ def build_review_prompt(pages, qs):
             parts.append(f"   {letters[j] if j < len(letters) else j}. {o}")
         parts.append(f"   给定答案:{_answer_text(q)}")
     parts.append(
-        "\n逐题输出(index 与上面方括号编号一致,每题都要有):\n"
-        '{"reviews":[{"index":0,"difficulty":1,"answer_ok":true,"note":""}]}\n'
+        "\n逐题输出(index 与上面方括号编号一致,从 0 起,每题都要有;q 回显该题题干前 12 个字):\n"
+        '{"reviews":[{"index":0,"q":"题干前12个字","difficulty":1,"answer_ok":true,"note":""}]}\n'
         "difficulty 为你独立评定的难度 1/2/3;answer_ok 为 true 表示答案唯一正确、课件有依据且干扰项合理。"
     )
     return "\n".join(parts)
@@ -263,18 +264,39 @@ def dedupe(qs, existing=None):
     return out
 
 
+def _echo_key(s):
+    return re.sub(r'\s+', '', s or '')[:ECHO_LEN]
+
+
+def _echo_matches(r, question):
+    """复核回显的题干前缀与原题对得上(未回显视为对得上;互为前缀即可,容忍回显少于 12 字)。"""
+    echo = r.get('q')
+    if not isinstance(echo, str) or not echo.strip():
+        return True
+    a, b = _echo_key(echo), _echo_key(question)
+    return a.startswith(b) or b.startswith(a)
+
+
 def merge_review(qs, review):
-    """把复核结果并回题目:ai_difficulty 写入;答案无疑且难度一致 → active,否则 review。"""
+    """把复核结果并回题目:ai_difficulty 写入;答案无疑且难度一致 → active,否则 review。
+
+    index 对位容错:0 缺失而出现 len(qs) → 判定为从 1 起编号,整体 −1;
+    回显题干前缀对不上的复核视为缺失(宁可转人工,也不把别题的结论安到这题上)。
+    """
     by_idx = {}
     for r in ((review or {}).get('reviews') or []):
         if isinstance(r, dict):
             i = L._as_int(r.get('index'))
-            if i is not None and 0 <= i < len(qs) and i not in by_idx:
+            if i is not None and i not in by_idx:
                 by_idx[i] = r
+    if qs and 0 not in by_idx and len(qs) in by_idx:
+        by_idx = {i - 1: r for i, r in by_idx.items()}
     out = []
     for i, q in enumerate(qs):
         q = dict(q)
         r = by_idx.get(i)
+        if r is not None and not _echo_matches(r, q.get('question')):
+            r = None
         if r is None:
             q.update(status='review', ai_difficulty=None, review_note='复核未返回该题结果')
             out.append(q)
@@ -301,12 +323,18 @@ def merge_review(qs, review):
 
 # ---------- 编排 ----------
 
-def _clean_plan(plan):
+def validate_plan(plan):
+    """校验出题计划:键 ⊂ {1,2,3}、值为 ≥0 整数、总量 1..300;返回 {int: int},不合法抛 ValueError。"""
+    if not isinstance(plan, dict) or not plan:
+        raise ValueError('invalid plan')
     out = {}
-    for k, v in (plan or {}).items():
+    for k, v in plan.items():
         d, n = L._as_int(k), L._as_int(v)
-        if d in L.POINTS and n and n > 0:
-            out[d] = min(n, MAX_PER_LEVEL)
+        if d not in L.POINTS or n is None or n < 0:
+            raise ValueError('invalid plan')
+        out[d] = n
+    if not 1 <= sum(out.values()) <= MAX_PLAN_TOTAL:
+        raise ValueError('invalid plan')
     return out
 
 
@@ -328,19 +356,21 @@ def _review_chunk(client, pages, chunk):
             model=claude_client.QUERY_MODEL,
             max_tokens=min(16000, 1000 + len(chunk) * 150),
         )
-        return merge_review(chunk, parse_review(resp.text))
+        return merge_review(chunk, parse_review(resp.text)), True
     except Exception as e:      # 复核失败不丢题,整块转人工待审
         logger.exception('题目复核调用失败,本块 %d 题转待审', len(chunk))
         return [dict(q, status='review', ai_difficulty=None, review_note=f'复核失败:{str(e)[:100]}')
-                for q in chunk]
+                for q in chunk], False
 
 
 def generate_course(pages, plan=DEFAULT_PLAN, client=None, existing_questions=None):
-    """三档分批出题 → 去重 → 复核。返回带 status/ai_difficulty/review_note 的题目 dict 列表。
+    """三档分批出题 → 去重 → 复核。返回 (questions, stats)。
 
-    existing_questions:课程已有题干(追加出题时传入,防重复)。
+    questions:带 status/ai_difficulty/review_note 的题目 dict 列表;
+    stats:{requested, generated(去重后、复核前), failed_batches, review_failed_chunks}。
+    existing_questions:课程里会保留的题干(用于防重复提示 + 去重)。
     """
-    plan = _clean_plan(plan)
+    plan = validate_plan(plan)
     own = client is None
     if own:
         client = claude_client.WikiClaudeClient()
@@ -363,47 +393,119 @@ def generate_course(pages, plan=DEFAULT_PLAN, client=None, existing_questions=No
                 made.extend(got)
         if not made:
             raise ValueError('AI 未生成有效题目' + (f'(失败 {failures} 批)' if failures else ''))
-        out = []
+        out, review_failed = [], 0
         for i in range(0, len(made), REVIEW_SIZE):
-            out.extend(_review_chunk(client, pages, made[i:i + REVIEW_SIZE]))
-        return out
+            got, ok = _review_chunk(client, pages, made[i:i + REVIEW_SIZE])
+            out.extend(got)
+            review_failed += 0 if ok else 1
+        stats = {'requested': sum(plan.values()), 'generated': len(made),
+                 'failed_batches': failures, 'review_failed_chunks': review_failed}
+        return out, stats
     finally:
         if own:
             client.close()
 
 
-def regenerate_one(pages, q, client=None):
-    """单题 AI 重出:同难度、同页、换角度。返回清洗后的新题 dict;输出不可用抛 ValueError。"""
+def regenerate_one(pages, q, client=None, existing_questions=None):
+    """单题 AI 重出:同难度、同页、换角度。返回清洗后的新题 dict;输出不可用抛 ValueError。
+
+    existing_questions:本课其余题干,用于防重复提示 + 去重。
+    """
     d = L._as_int(q.get('difficulty'))
     if d not in L.POINTS:
         raise ValueError('原题难度非法')
     page = _page_no(q.get('source_page'), len(pages))
+    avoid = [t for t in (existing_questions or []) if t] + [q.get('question') or '']
     own = client is None
     if own:
         client = claude_client.WikiClaudeClient()
     try:
-        got = _gen_call(client, pages, d, 1, [q.get('question') or ''],
-                        focus_page=page, avoid=q.get('question') or '')
+        got = _gen_call(client, pages, d, 1, avoid, focus_page=page, avoid=q.get('question') or '')
     finally:
         if own:
             client.close()
-    got = dedupe(got, existing=[q.get('question') or ''])
+    got = dedupe(got, existing=avoid)
     if not got:
         raise ValueError('AI 未生成可用的新题')
     new = got[0]
-    new['source_page'] = page
+    new['source_page'] = page if page is not None else new.get('source_page')
     return new
 
 
 # ---------- 后台任务 ----------
+# 跨进程互斥(gunicorn 多 worker):course_exam_settings.generating_since 非空且未过期 = 生成中。
+# 线程异常退出 / 进程被杀留下的旧标记,超过 STALE_HOURS 即可被接管。
 
-_RUNNING = set()
-_LOCK = threading.Lock()
+STALE_HOURS = 2
+MIN_REPLACE_YIELD = 0.5      # 重建题库时产出低于计划一半 → 不动旧题库
+
+
+def _now():
+    from app.models.training import get_local_time
+    return get_local_time()
+
+
+def _stale_before():
+    from datetime import timedelta
+    return _now() - timedelta(hours=STALE_HOURS)
+
+
+def _ensure_setting(course_key):
+    """确保设置行存在;并发重复插入撞主键时回滚保存点后重新查。"""
+    from sqlalchemy.exc import IntegrityError
+    from app import db
+    from app.models.course_exam import CourseExamSetting
+    row = db.session.get(CourseExamSetting, course_key)
+    if row is not None:
+        return row
+    try:
+        with db.session.begin_nested():
+            row = CourseExamSetting(course_key=course_key)
+            db.session.add(row)
+        return row
+    except IntegrityError:
+        row = CourseExamSetting.query.filter_by(course_key=course_key).populate_existing().first()
+        if row is None:
+            raise
+        return row
+
+
+def _acquire(course_key, user_id):
+    """原子抢占生成标记;成功返回本次标记时间(释放时用作令牌),已被占用返回 None。会 commit。"""
+    from app import db
+    from app.models.course_exam import CourseExamSetting
+    _ensure_setting(course_key)
+    token = _now()
+    n = CourseExamSetting.query.filter(
+        CourseExamSetting.course_key == course_key,
+        db.or_(CourseExamSetting.generating_since.is_(None),
+               CourseExamSetting.generating_since < _stale_before()),
+    ).update({'generating_since': token, 'generating_by': user_id}, synchronize_session=False)
+    db.session.commit()
+    return token if n else None
+
+
+def _release(course_key, token):
+    """只清自己抢到的标记(过期被别人接管后不误清对方的)。独立小事务,失败只记日志。"""
+    from app import db
+    from app.models.course_exam import CourseExamSetting
+    try:
+        db.session.rollback()
+        CourseExamSetting.query.filter(
+            CourseExamSetting.course_key == course_key,
+            CourseExamSetting.generating_since == token,
+        ).update({'generating_since': None, 'generating_by': None}, synchronize_session=False)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception('清除出题标记失败 %s', course_key)
 
 
 def is_running(course_key):
-    with _LOCK:
-        return course_key in _RUNNING
+    """读库:有未过期的生成标记即视为生成中。"""
+    from app.models.course_exam import CourseExamSetting
+    row = CourseExamSetting.query.filter_by(course_key=course_key).populate_existing().first()
+    return bool(row and row.generating_since and row.generating_since >= _stale_before())
 
 
 def _notify(user_id, title, content, course_id):
@@ -414,67 +516,92 @@ def _notify(user_id, title, content, course_id):
         title=title, content=content, related_object_type='course', related_object_id=course_id))
 
 
-def run_generation_job(app, course_key, pages, user_id, plan=DEFAULT_PLAN, replace=False, client=None):
-    """后台线程体:出题 → (replace 时停用旧 AI 题)→ 落库 → 站内通知。异常写失败通知。"""
-    try:
-        with app.app_context():
-            from app import db
+def _summary(n_active, n_review, stats):
+    text = f'启用 {n_active} 题，待审 {n_review} 题'
+    if stats.get('failed_batches'):
+        text += f'；{stats["failed_batches"]} 批生成失败'
+    if stats.get('review_failed_chunks'):
+        text += f'；{stats["review_failed_chunks"]} 组复核失败(已转待审)'
+    return text
+
+
+def run_generation_job(app, course_key, pages, user_id, plan=DEFAULT_PLAN, replace=False,
+                       client=None, lock_token=None):
+    """后台线程体:出题 → (replace 时停用旧 AI 题)→ 落库 → 站内通知。
+
+    任何异常都记日志并写「题库生成失败」通知(尽力而为);lock_token 非空时最后释放生成标记。
+    """
+    with app.app_context():
+        from app import db
+        course_id, title = None, course_key
+        try:
             from app.models.course import InteractiveCourse
             from app.models.course_exam import CourseQuizQuestion
             course = InteractiveCourse.query.filter_by(key=course_key).first()
-            course_id = course.id if course else None
-            title = course.title if course else course_key
-            existing = []
-            if not replace:
-                existing = [r.question for r in CourseQuizQuestion.query.filter(
-                    CourseQuizQuestion.course_key == course_key,
-                    CourseQuizQuestion.status != 'disabled').all()]
+            if course is not None:
+                course_id, title = course.id, course.title
+            keep = CourseQuizQuestion.query.filter(CourseQuizQuestion.course_key == course_key,
+                                                   CourseQuizQuestion.status != 'disabled')
+            if replace:     # 重建只替换 AI 题,人工/导入题保留,出题时也要避开它们
+                keep = keep.filter(CourseQuizQuestion.origin != 'ai')
+            existing = [r.question for r in keep.all()]
             db.session.rollback()       # 出题耗时数分钟,别挂着空闲事务
-            try:
-                qs = generate_course(pages, plan=plan, client=client, existing_questions=existing)
-                if replace:
-                    CourseQuizQuestion.query.filter(
-                        CourseQuizQuestion.course_key == course_key,
-                        CourseQuizQuestion.origin == 'ai',
-                        CourseQuizQuestion.status != 'disabled',
-                    ).update({'status': 'disabled'}, synchronize_session=False)
-                for q in qs:
-                    db.session.add(CourseQuizQuestion(
-                        course_key=course_key, qtype=q['qtype'], difficulty=q['difficulty'],
-                        ai_difficulty=q.get('ai_difficulty'), question=q['question'],
-                        options=q.get('options'), answer=q['answer'], explain=q.get('explain') or None,
-                        source_page=q.get('source_page'), status=q['status'], origin='ai',
-                        review_note=q.get('review_note'), created_by=user_id))
-                n_active = sum(1 for q in qs if q['status'] == 'active')
-                _notify(user_id, '题库生成完成',
-                        f'{title}:启用 {n_active} 题,待审 {len(qs) - n_active} 题', course_id)
+
+            qs, stats = generate_course(pages, plan=plan, client=client, existing_questions=existing)
+            if replace and stats['generated'] < stats['requested'] * MIN_REPLACE_YIELD:
+                logger.warning('题库重建产出不足 %s:%d/%d,旧题库保持不变',
+                               course_key, stats['generated'], stats['requested'])
+                _notify(user_id, '题库生成失败',
+                        f'{title}：产出不足(实际 {stats["generated"]}/计划 {stats["requested"]})，旧题库保持不变',
+                        course_id)
                 db.session.commit()
-                logger.info('题库生成完成 %s:启用 %d,待审 %d', course_key, n_active, len(qs) - n_active)
-            except Exception as e:
+                return
+            if replace:
+                CourseQuizQuestion.query.filter(
+                    CourseQuizQuestion.course_key == course_key,
+                    CourseQuizQuestion.origin == 'ai',
+                    CourseQuizQuestion.status != 'disabled',
+                ).update({'status': 'disabled'}, synchronize_session=False)
+            for q in qs:
+                db.session.add(CourseQuizQuestion(
+                    course_key=course_key, qtype=q['qtype'], difficulty=q['difficulty'],
+                    ai_difficulty=q.get('ai_difficulty'), question=q['question'],
+                    options=q.get('options'), answer=q['answer'], explain=q.get('explain') or None,
+                    source_page=q.get('source_page'), status=q['status'], origin='ai',
+                    review_note=q.get('review_note'), created_by=user_id))
+            n_active = sum(1 for q in qs if q['status'] == 'active')
+            _notify(user_id, '题库生成完成', f'{title}：{_summary(n_active, len(qs) - n_active, stats)}',
+                    course_id)
+            db.session.commit()
+            logger.info('题库生成完成 %s:启用 %d,待审 %d,%s', course_key, n_active, len(qs) - n_active, stats)
+        except Exception as e:
+            logger.exception('题库生成失败 %s', course_key)
+            try:
                 db.session.rollback()
-                logger.exception('题库生成失败 %s', course_key)
-                try:
-                    _notify(user_id, '题库生成失败', f'{title}:{str(e)[:200]}', course_id)
-                    db.session.commit()
-                except Exception:
-                    db.session.rollback()
-                    logger.exception('题库生成失败通知写入失败 %s', course_key)
-    finally:
-        with _LOCK:
-            _RUNNING.discard(course_key)
+                _notify(user_id, '题库生成失败', f'{title}：{str(e)[:200]}', course_id)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                logger.exception('题库生成失败通知写入失败 %s', course_key)
+        finally:
+            if lock_token is not None:
+                _release(course_key, lock_token)
 
 
-def start_generation(app, course_key, pages, user_id, plan=DEFAULT_PLAN, replace=False):
-    """起后台线程出题;同一课已在生成中返回 False。app 须为真实对象(current_app._get_current_object())。"""
-    with _LOCK:
-        if course_key in _RUNNING:
-            return False
-        _RUNNING.add(course_key)
+def start_generation(app, course_key, pages, user_id, plan=DEFAULT_PLAN, replace=False, client=None):
+    """抢占跨进程生成标记后起后台线程出题;同一课已在生成中返回 False。
+
+    须在 app context 内调用(会 commit 当前 session);app 须为真实对象
+    (current_app._get_current_object())。plan 不合法时在抢标记前抛 ValueError。
+    """
+    plan = validate_plan(plan)
+    token = _acquire(course_key, user_id)
+    if token is None:
+        return False
     try:
         threading.Thread(target=run_generation_job, name=f'course-exam-gen-{course_key}', daemon=True,
-                         args=(app, course_key, pages, user_id, plan, replace)).start()
+                         args=(app, course_key, pages, user_id, plan, replace, client, token)).start()
     except Exception:
-        with _LOCK:
-            _RUNNING.discard(course_key)
+        _release(course_key, token)
         raise
     return True

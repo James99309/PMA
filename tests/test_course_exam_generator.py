@@ -88,9 +88,10 @@ def test_generate_course_runs_three_batches_then_review():
     replies = [batch % 1, batch % 2, batch % 3,
                '{"reviews":[{"index":0,"difficulty":1,"answer_ok":true},{"index":1,"difficulty":2,"answer_ok":true},{"index":2,"difficulty":3,"answer_ok":false,"note":"答案存疑"}]}']
     fc = FakeClient(replies)
-    out = G.generate_course(PAGES, plan={1: 1, 2: 1, 3: 1}, client=fc)
+    out, stats = G.generate_course(PAGES, plan={1: 1, 2: 1, 3: 1}, client=fc)
     assert len(fc.calls) == 4
     assert [q['status'] for q in out] == ['active', 'active', 'review']
+    assert stats == {'requested': 3, 'generated': 3, 'failed_batches': 0, 'review_failed_chunks': 0}
 
 
 def test_generate_course_chunks_and_passes_existing():
@@ -101,7 +102,7 @@ def test_generate_course_chunks_and_passes_existing():
     review = '{"reviews":[' + ','.join('{"index":%d,"difficulty":2,"answer_ok":true}' % i for i in range(40)) + ']}'
     replies = [batch(0, 25), batch(25, 5)] + [review]   # 30 题 → 2 次出题 + 1 次复核
     fc = FakeClient(replies)
-    out = G.generate_course(PAGES, plan={2: 30}, client=fc)
+    out, stats = G.generate_course(PAGES, plan={2: 30}, client=fc)
     assert len(fc.calls) == 3
     assert '第0题' in fc.calls[1]          # 第二批带上第一批题干防重复
     assert all(q['difficulty'] == 2 for q in out) and out and out[0]['status'] == 'active'
@@ -110,14 +111,15 @@ def test_generate_course_chunks_and_passes_existing():
 def test_generate_course_review_failure_marks_review():
     batch = '{"questions":[{"type":"judge","question":"总部在上海","answer":true,"page":1}]}'
     fc = FakeClient([batch, 'not json at all'])
-    out = G.generate_course(PAGES, plan={1: 1}, client=fc)
+    out, stats = G.generate_course(PAGES, plan={1: 1}, client=fc)
     assert out[0]['status'] == 'review' and out[0]['review_note']
+    assert stats['review_failed_chunks'] == 1
 
 
 def test_generate_course_salvages_truncated_review():
     batch = '{"questions":[{"type":"judge","question":"甲","answer":true},{"type":"judge","question":"乙乙乙乙","answer":false}]}'
     trunc = '{"reviews":[{"index":0,"difficulty":1,"answer_ok":true},{"index":1,"diffic'
-    out = G.generate_course(PAGES, plan={1: 2}, client=FakeClient([batch, trunc]))
+    out, _ = G.generate_course(PAGES, plan={1: 2}, client=FakeClient([batch, trunc]))
     assert [q['status'] for q in out] == ['active', 'review']
 
 
@@ -134,3 +136,68 @@ def test_regenerate_one_keeps_difficulty_and_page():
     assert '旧题干' in fc.calls[0]
     with pytest.raises(ValueError):
         G.regenerate_one(PAGES, old, client=FakeClient(['{"questions":[]}']))
+
+
+def test_generate_course_counts_failed_batches():
+    batch = '{"questions":[{"type":"judge","question":"总部在上海","answer":true,"page":1}]}'
+    review = '{"reviews":[{"index":0,"difficulty":1,"answer_ok":true}]}'
+    out, stats = G.generate_course(PAGES, plan={1: 1, 2: 1}, client=FakeClient([batch, 'garbage', review]))
+    assert len(out) == 1 and stats == {'requested': 2, 'generated': 1, 'failed_batches': 1,
+                                       'review_failed_chunks': 0}
+
+
+@pytest.mark.parametrize('plan', [{}, {4: 1}, {0: 1}, {1: -1}, {1: 0}, {1: 'x'}, {1: True},
+                                  {1: 200, 2: 101}, None, [1, 2]])
+def test_validate_plan_rejects(plan):
+    with pytest.raises(ValueError):
+        G.validate_plan(plan)
+
+
+def test_validate_plan_accepts_str_keys():
+    assert G.validate_plan({'1': 50, '2': '30', 3: 0}) == {1: 50, 2: 30, 3: 0}
+    assert G.validate_plan({1: 100, 2: 100, 3: 100}) == {1: 100, 2: 100, 3: 100}
+
+
+def test_generate_course_invalid_plan_raises_before_calls():
+    fc = FakeClient([])
+    with pytest.raises(ValueError):
+        G.generate_course(PAGES, plan={9: 1}, client=fc)
+    assert fc.calls == []
+
+
+def test_merge_review_shifts_one_based_index():
+    qs = [{'question': '甲题', 'difficulty': 1}, {'question': '乙题', 'difficulty': 2}]
+    review = {'reviews': [{'index': 1, 'difficulty': 1, 'answer_ok': True},
+                          {'index': 2, 'difficulty': 2, 'answer_ok': True}]}
+    assert [q['status'] for q in G.merge_review(qs, review)] == ['active', 'active']
+
+
+def test_merge_review_echo_prefix_mismatch_is_missing():
+    qs = [{'question': '和源通信总部位于哪个城市的哪个区', 'difficulty': 1},
+          {'question': '直放站 的作用', 'difficulty': 1}]
+    review = {'reviews': [{'index': 0, 'q': '直放站的作用', 'difficulty': 1, 'answer_ok': True},
+                          {'index': 1, 'q': '直放站的作用', 'difficulty': 1, 'answer_ok': True}]}
+    out = G.merge_review(qs, review)
+    assert out[0]['status'] == 'review' and out[0]['ai_difficulty'] is None
+    assert out[1]['status'] == 'active'          # 去空白后前缀一致
+
+
+def test_review_prompt_asks_for_question_echo():
+    qs = [{'qtype': 'judge', 'difficulty': 1, 'question': '题干', 'options': None, 'answer': True}]
+    assert '"q"' in G.build_review_prompt(PAGES, qs)
+
+
+def test_batch_prompt_multi_rule_matches_logic():
+    p = G.build_batch_prompt(PAGES, 2, 3)
+    assert '至少 3 个选项' in p and '不能全选' in p
+
+
+def test_regenerate_one_falls_back_to_model_page_and_uses_existing():
+    fc = FakeClient(['{"questions":[{"type":"single","question":"新题","options":["a","b","c"],"answer":1,"page":2}]}'])
+    q = G.regenerate_one(PAGES, {'qtype': 'single', 'difficulty': 1, 'question': '旧题'}, client=fc,
+                         existing_questions=['别的已有题'])
+    assert q['source_page'] == 2 and '别的已有题' in fc.calls[0]
+    fc = FakeClient(['{"questions":[{"type":"single","question":"别的已有题?","options":["a","b"],"answer":1}]}'])
+    with pytest.raises(ValueError):
+        G.regenerate_one(PAGES, {'qtype': 'single', 'difficulty': 1, 'question': '旧题'}, client=fc,
+                         existing_questions=['别的已有题'])

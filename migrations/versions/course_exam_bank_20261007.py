@@ -69,6 +69,8 @@ def upgrade():
             'course_exam_settings',
             sa.Column('course_key', sa.String(80), primary_key=True),
             sa.Column('min_read_seconds', sa.Integer()),
+            sa.Column('generating_since', sa.DateTime()),
+            sa.Column('generating_by', sa.Integer(), sa.ForeignKey('users.id')),
             sa.Column('updated_by', sa.Integer(), sa.ForeignKey('users.id')),
             sa.Column('updated_at', sa.DateTime(), nullable=False),
         )
