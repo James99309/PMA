@@ -41,6 +41,7 @@ class InteractiveCourse(db.Model):
     page_count = Column(Integer, nullable=False, default=0)
     has_thumbs = Column(Boolean, nullable=False, default=False)         # 缩略图是否已生成
     article_id = Column(Integer, nullable=True)                         # 析出的 wiki 文章 id
+    min_read_seconds = Column(Integer, nullable=True)   # 考核解锁所需有效阅读秒数;空=按讲解字数自动估算
 
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     created_at = Column(DateTime, default=_local_now, nullable=False)
@@ -73,5 +74,6 @@ class InteractiveCourse(db.Model):
             'page_count': self.page_count or 0,
             'has_thumbs': bool(self.has_thumbs),
             'article_id': self.article_id,
+            'min_read_seconds': self.min_read_seconds,
             'owner_id': self.owner_id,
         }

@@ -265,3 +265,17 @@ def test_pick_excludes_last_even_when_all_recent():
     rng = random.Random(5)
     for _ in range(30):
         assert L.pick_question(bank, 0, set(), recent_ids=[1, 2], rng=rng)['id'] == 1
+
+
+def test_as_int_rejects_superscript_digits():
+    # '²'.isdigit() 为真但 int('²') 抛错 —— 须判为非法而不是抛 ValueError 以外的异常
+    assert L._as_int('²') is None
+    assert L._as_int(' 12 ') == 12
+    assert L.record_ping({}, [{'notes': ''}], '²', 15, None) == {}
+    with pytest.raises(ValueError):
+        L.normalize_question({'qtype': 'single', 'difficulty': '²', 'options': ['A', 'B'], 'answer': 0})
+
+
+def test_record_ping_invalid_page_returns_cleaned_dict():
+    pages = [{'notes': ''}, {'notes': ''}]
+    assert L.record_ping({1: 5, '1': 3, '2': 'x'}, pages, 9, 15, None) == {'1': 8, '2': 0}

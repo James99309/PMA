@@ -34,7 +34,7 @@ def _as_int(x):
         return None
     if isinstance(x, int):
         return x
-    if isinstance(x, str) and x.strip().isdigit():
+    if isinstance(x, str) and x.strip().isdecimal():   # isdigit 会放过 '²' 致 int() 抛错
         return int(x.strip())
     return None
 
@@ -255,7 +255,7 @@ def record_ping(page_seconds, pages, page, seconds, elapsed):
     """处理一次阅读上报:校验页号 → 校验时长 → 累加。返回新 dict。"""
     p = _as_int(page)
     if p is None or not 1 <= p <= len(pages):
-        return dict(page_seconds or {})
+        return _norm_page_seconds(page_seconds)
     return add_page_seconds(page_seconds, p, accept_ping_seconds(seconds, elapsed), pages)
 
 

@@ -55,6 +55,7 @@ class User(db.Model, UserMixin):
 
     # 个人档案(用工资料)— HR 专属;元数据列表,每项 {filename,url,size,doc_type,uploaded_at,uploaded_by,uploaded_by_name}
     hr_documents = db.Column(db.JSON, nullable=True)
+    learning_buddy_enabled = db.Column(db.Boolean, nullable=False, default=True, server_default='true')  # 学习伙伴小源显示开关
 
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
