@@ -57,7 +57,12 @@
 ### 3.3 复用
 
 - `training_quiz_attempt`：逐题记录（`module_slug='bank'`，与旧版 `'main'` 区分），用于「已答对移出抽题池」、错题间隔、实测正确率。
-- `interactive_courses` 新增列 `min_read_seconds`（可空；空=按公式自动计算，非空=管理员覆盖）。
+### 3.4 设置类新表（2026-10-07 修订：零停机部署）
+
+生产 `update.sh` 先重启应用、后跑迁移；启动时 `create_all` 只建新表不加列。往热表（users / interactive_courses）加列会让重启到迁移之间所有相关查询报 UndefinedColumn。故本功能**只新增表、不改旧表**：
+
+- `course_exam_settings`：`course_key` 主键、`min_read_seconds`（空=按公式自动计算）、`updated_by`、`updated_at`。
+- `learning_buddy_prefs`：`user_id` 主键、`enabled`（默认 true，无记录视为开启）、`updated_at`。
 
 ## 4. 计分与抽题
 
@@ -155,7 +160,7 @@ AI 客户端沿用 `WikiClaudeClient` + 现有 JSON 容错解析（`_extract_jso
 - 新组件：`templates/components/at_course_buddy.html` + `static/js/course-buddy.js` + `static/css/course-buddy.css`。
 - 挂载点：`components/at_sidebar.html`（覆盖 27 个 AT 页面）+ 独立页补挂：`knowledge/at_course_player.html`、
   `approval/at_detail.html`、`user/at_person_affiliation.html`、`user/at_person_ai.html`。不挂登录页。
-- 个人设置「显示学习伙伴」开关（服务端存，默认开）。
+- 个人设置「显示学习伙伴」开关（存 `learning_buddy_prefs`，默认开）。
 - 课程播放器：移除「开始考核」按钮与「翻到最后一页解锁」逻辑；`at_course_quiz.html` 改为重定向回课程页。
 - 播放器通过 `window.CourseBuddy.setCourse({key, pages, currentPage})` 等接口把翻页/活动事件交给小源计时。
 
@@ -198,7 +203,7 @@ AI 客户端沿用 `WikiClaudeClient` + 现有 JSON 容错解析（`_extract_jso
 
 ## 13. 部署（CN）
 
-- 迁移：新增 2 表 + `interactive_courses.min_read_seconds`。注意 `create_all` 抢建表 → 必要时 `flask db stamp`。
+- 迁移：只新增 4 张表（幂等，`create_all` 先建也不冲突），不改旧表，部署无缺列空档。
 - 上线后管理员逐门课「生成题库」→ 审待审题 → 开放。
 - 旧 80 分制记录保留不迁移；新规则下所有人重新累计阅读时长。
 
