@@ -27,6 +27,7 @@
 17. [详情页卡片高度同步工具](#-详情页卡片高度同步工具)
 18. [签字板组件](#️-tailwind-签字板组件)
 19. [评分悬浮组件](#-tailwind-评分悬浮组件)
+20. [学习伙伴小源挂载组件](#-at-学习伙伴小源挂载组件)
 
 ---
 
@@ -2677,8 +2678,55 @@ QualityScorePopover.render(containerId, scoreData, options)
 
 ---
 
+## 🎓 AT 学习伙伴小源挂载组件
+
+### **组件概述**
+`components/at_course_buddy.html` 是学习伙伴「小源」的挂载片段:注入 `CB_CONFIG / CB_I18N / CB_CSRF`、样式 `css/course-buddy.css`、排队桩 `window.CourseBuddy` 与 `defer` 加载的 `js/course-buddy.js`。行为与 JS 接口见 [CLAUDE-JS-TOOLS.md](./CLAUDE-JS-TOOLS.md) 的 `course-buddy.js` 一节。
+
+片段自带挂载条件:**仅登录用户、且 `cb_buddy_enabled()` 为真**(个人未隐藏;无偏好行默认开启)时才输出任何内容,调用方不用再包 `if`。
+
+### **挂载规则**
+1. **带 AT 侧栏的页面:自动挂载** —— `at_sidebar` 宏末尾已 include,页面什么都不用做。
+2. **没有侧栏的独立页**(课程播放器 `knowledge/at_course_player.html`、审批详情 `approval/at_detail.html`):在 `</body>` 前手动 include;若页面脚本要调用 `CourseBuddy.*`,include 必须放在该脚本**之前**(排队桩先就位)。
+3. **禁止重复挂载** —— 已经调用 `at_sidebar` 的页面不要再 include;脚本有 `__cbLoaded` 防重,但重复 include 会重复注入配置与样式。
+4. 不要在页面里自己定义 `CB_CONFIG / CB_I18N / CB_CSRF`;新增文案加到片段的 `CB_I18N` 并用 `_()` 包裹。
+
+```jinja2
+{# 独立页示例(播放器):先 include,再写调用 CourseBuddy 的页面脚本 #}
+{% include 'components/at_course_buddy.html' %}
+<script>
+  if (window.CourseBuddy) window.CourseBuddy.setCourse({ key: {{ course.key|tojson }}, title: {{ course.title|tojson }} });
+</script>
+</body>
+```
+
+### **层级(z-index)**
+| 元素 | z-index | 说明 |
+|-----|---------|------|
+| `.cb-wrap`(小源本体) | 90 | 低于页面模态框/抽屉,打开系统弹窗时不挡 |
+| `.cb-scrim`(面板遮罩) | 960 | 面板打开时盖住页面 |
+| `.cb-panel`(对话面板) | 970 | 面板本身;「⋯」菜单在面板内部(相对 z-index 2) |
+
+页面自建浮层若需盖住打开的小源面板,z-index 须 > 970;只需盖住小源本体时 > 90 即可。
+
+### **隐藏 / 找回**
+- 用户在面板头部「⋯」→「隐藏小源」(面板内确认),写 `learning_buddy_prefs.enabled=false`,当前页立即移除小源,之后各页不再挂载。
+- 找回入口:侧栏左下角头像菜单里的「学习伙伴（小源）」开关(`#atBuddyToggle`,`role="switch"`),切换后刷新页面。
+- 接口:`POST /api/learning/buddy/toggle {enabled: bool}`(需 CSRF);模板判断用 context processor `cb_buddy_enabled()`(同一请求内只查一次库)。
+
+### **已使用页面**
+1. `components/at_sidebar.html` - 所有 AT 侧栏页面
+2. `knowledge/at_course_player.html` - 课程播放器
+3. `approval/at_detail.html` - 审批详情
+
+### **创建日期**
+2026-10-07
+
+---
+
 ## 📝 更新日志
 
+- **2026-10-07**: 新增学习伙伴小源挂载组件(`at_course_buddy.html`)文档:挂载规则、全局变量、层级、隐藏/找回
 - **2026-02-03**: 新增评分悬浮组件（`tw_quality_score_popover.html`），统一日历和消息预览的蜘蛛图显示，消除约 300 行重复代码
 - **2026-01-11**: 新增签字板组件（`tw_signature_pad.html`），支持手写签名、触摸屏、导出 base64
 - **2026-01-09**: 新增详情页卡片高度同步工具（`detail-card-sync.js`），支持多列布局底部对齐

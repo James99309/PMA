@@ -146,6 +146,7 @@
     '<g class="cb-trophy"><path d="M128 40 h22 v8 a11 11 0 0 1 -22 0z" fill="#F2B544"/><rect x="136" y="58" width="6" height="7" fill="#E39B1E"/><rect x="131" y="64" width="16" height="4" rx="2" fill="#E39B1E"/></g>' +
     '<text class="cb-zz" x="134" y="60" font-size="18" font-weight="700" fill="#2A6F8F">z</text>';
 
+  var DOTS = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
   var CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
   /* ===================== DOM ===================== */
@@ -178,6 +179,8 @@
   panel.setAttribute('aria-label', t('panel_label'));
   panel.innerHTML = '<div class="cb-grab"></div>' +
     '<div class="cb-head"><div class="cb-t"><h3 id="cbTitle"></h3><div class="cb-sub" id="cbSub"></div></div>' +
+    '<div class="cb-more-wrap"><button class="cb-more" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="cbMenu" aria-label="' + esc(t('more')) + '">' + DOTS + '</button>' +
+    '<div class="cb-menu" id="cbMenu" hidden></div></div>' +
     '<button class="cb-x" type="button" aria-label="' + esc(t('close')) + '">' + CLOSE + '</button></div>' +
     '<div class="cb-tabs"><div class="cb-seg" role="tablist"><button type="button" role="tab" data-tab="ask">' + esc(t('ask')) + '</button>' +
     '<button type="button" role="tab" data-tab="exam"></button></div></div>' +
@@ -403,13 +406,68 @@
         else focusSafe(panel.querySelector('button:not([disabled]):not([hidden]), [href], input:not([disabled])'));
       }, 60);
     } else if (was) {
+      if (!menuBusy) { menuState = null; menuErr = ''; renderMenu(); }
       focusSafe(pet);
     }
   }
   panel.querySelector('.cb-x').onclick = function () { toggle(false); };
   scrim.onclick = function () { toggle(false); };
+
+  /* ---------- 头部「⋯」菜单:隐藏小源(面板内确认,不用 window.confirm) ---------- */
+  var moreBtn = panel.querySelector('.cb-more'), menu = panel.querySelector('#cbMenu');
+  var menuState = null, menuErr = '', menuBusy = false;   // null=收起 / 'menu' / 'confirm'
+  function renderMenu() {
+    menu.hidden = !menuState;
+    moreBtn.setAttribute('aria-expanded', menuState ? 'true' : 'false');
+    if (!menuState) { menu.innerHTML = ''; return; }
+    if (menuState === 'menu') {
+      menu.setAttribute('role', 'menu');
+      menu.innerHTML = '<button type="button" role="menuitem" class="cb-mi" data-act="ask-hide">' + esc(t('hide')) + '</button>';
+    } else {
+      menu.setAttribute('role', 'group');
+      menu.innerHTML = '<div class="cb-mconfirm"><p>' + esc(t('hide_confirm')) + '</p>' +
+        (menuErr ? '<div class="cb-note">' + esc(menuErr) + '</div>' : '') +
+        '<div class="cb-mbtns"><button type="button" class="cb-mcancel" data-act="cancel">' + esc(t('cancel')) + '</button>' +
+        '<button type="button" class="cb-mdanger" data-act="hide"' + (menuBusy ? ' disabled' : '') + '>' + esc(t('hide_ok')) + '</button></div></div>';
+    }
+  }
+  function closeMenu(refocus) {
+    if (!menuState) return;
+    menuState = null; menuErr = ''; renderMenu();
+    if (refocus) focusSafe(moreBtn);
+  }
+  function hideBuddy() {
+    if (menuBusy) return;
+    menuBusy = true; menuErr = ''; renderMenu();
+    api('POST', API + '/buddy/toggle', { enabled: false }).then(function () {
+      if (course) flush(true);       // 已累计的阅读秒数先报掉(keepalive,不再回写界面)
+      try { window.dispatchEvent(new CustomEvent('cb:toggled', { detail: { enabled: false } })); } catch (e) { /* 忽略 */ }
+      destroy();
+    }, function (err) {
+      menuBusy = false; menuErr = (err && err.message) || t('err_generic'); renderMenu();
+    });
+  }
+  moreBtn.onclick = function (e) {
+    e.stopPropagation();
+    if (menuState) { closeMenu(false); return; }
+    menuState = 'menu'; renderMenu();
+    focusSafe(menu.querySelector('button'));
+  };
+  menu.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-act]');
+    if (!b || b.disabled) return;
+    var act = b.getAttribute('data-act');
+    if (act === 'ask-hide') { menuState = 'confirm'; renderMenu(); focusSafe(menu.querySelector('[data-act=cancel]')); }
+    else if (act === 'cancel') closeMenu(true);
+    else if (act === 'hide') hideBuddy();
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (menuState && !menuBusy && !moreBtn.parentNode.contains(e.target)) closeMenu(false);
+  }, true);
+
   addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && open) toggle(false);
+    if (e.key === 'Escape' && menuState && !menuBusy) closeMenu(true);
+    else if (e.key === 'Escape' && open) toggle(false);
     if (course) markActivity();
   });
   // 课程内活动来源(iframe 内的事件由 Task 13 的播放器转发给 CourseBuddy.activity)

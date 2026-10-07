@@ -60,6 +60,7 @@
 | map-picker.js | 地图位置选择器 | 弹窗地图选点、地址搜索（Google Maps） | 2 | ✅ 已文档化 🆕 |
 | address-picker.js | 通用地址选择器 | 地址输入框+地图定位，自动填充结构化数据 | 2 | ✅ 已文档化 🆕 |
 | QualityScorePopover | 评分悬浮组件 | 日志质量评分蜘蛛图悬浮显示 | 2 | ✅ 已文档化 🆕 |
+| course-buddy.js | 学习伙伴「小源」悬浮助手(全 AT 页挂载):知识库/本课问答 + 课程考核 + 阅读计时 + 隐藏开关 | AT 页面统一挂载;课程播放器进入课程上下文 | 3 | ✅ 已文档化 🆕 |
 
 > **说明**:
 > - ✅ 已文档化 - 有完整的API文档和使用示例
@@ -3791,3 +3792,70 @@ picker.refresh();   // 数据变化后刷新列表(仅菜单展开时)
 - 写入只认 `current_user.id`;toggle 前校验"你本来就能看到这个对象"。关注**不改变任何可见性**,读取侧一律配合 `get_viewable_data` 过滤。
 
 **创建日期**: 2026-07-15
+
+---
+
+### 🎓 学习伙伴类
+
+#### course-buddy.js
+
+**基本信息**
+- **文件路径**: `app/static/js/course-buddy.js`(样式 `app/static/css/course-buddy.css`,挂载片段 `app/templates/components/at_course_buddy.html`)
+- **功能描述**: 右下角悬浮的学习伙伴「小源」:问答(全部知识库 / 本课课件)、课程考核(断点续答、服务端判分)、课程内阅读计时、每日待考提醒、面板「⋯」隐藏自己
+- **使用场景**: 不需要页面手动初始化 —— 挂载片段注入配置与文案后脚本自启;只有课程播放器这类「课程上下文」页面需要调用下面的对外接口
+- **依赖**: 无框架依赖;Markdown 渲染按需懒加载 `vendor/marked` + `vendor/dompurify`;后端 `app/views/learning.py`(`/api/learning/*`)与 `/api/wiki/query`
+
+**已使用页面**
+1. 所有带 AT 侧栏的页面 —— `components/at_sidebar.html` 的 `at_sidebar` 宏统一 include 挂载片段
+2. `app/templates/knowledge/at_course_player.html` - 课程播放器(无侧栏,单独 include;调用 `setCourse/onPage/activity`)
+3. `app/templates/approval/at_detail.html` - 审批详情(无侧栏,单独 include)
+
+**API文档**
+```javascript
+CourseBuddy.setCourse({key, title, totalPages, currentPage})  // 进入课程上下文:取本课进度,未解锁则启用阅读计时
+CourseBuddy.onPage(pageNo)                                     // 课件翻页(切页前先上报上一页累计秒数;也算一次活动)
+CourseBuddy.activity()                                         // 指针/键盘/滚动等活动(唤醒、重置 2 分钟空闲计时)
+CourseBuddy.reflow()                                           // 布局变化后重算小源位置(侧栏展开/收起已自动处理)
+```
+挂载片段先放了排队桩:`defer` 脚本加载前调用的接口会排队,加载后按序回放,所以页面内联脚本可以直接调用。
+
+**参数说明**
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|-----|------|-----|--------|------|
+| setCourse.key | string | ✅ | - | 课程 key(`interactive_courses.key`),只支持 HTML 课件 |
+| setCourse.title | string | ❌ | '' | 面板副标题显示的课程名 |
+| setCourse.totalPages | number | ❌ | 0 | 课件总页数(仅展示用,页数以服务端解析为准) |
+| setCourse.currentPage | number | ❌ | 1 | 进入时所在页 |
+| onPage.pageNo | number | ✅ | - | 当前页号(1 起) |
+
+**挂载片段注入的全局变量**(由 `at_course_buddy.html` 生成,页面不要自己写)
+| 变量 | 说明 |
+|-----|------|
+| `window.CB_CONFIG` | `{enabled, uid, apiBase, csrfUrl, wikiQuery, loginUrl, markedSrc, purifySrc}` —— 接口地址全部 `url_for` 生成 |
+| `window.CB_I18N` | 全部界面文案(模板里 `_()` 包裹);**course-buddy.js 非注释行不得出现中文** |
+| `window.CB_CSRF` | CSRF token;失效时脚本自动 `GET /api/learning/csrf` 换新并重试一次 |
+
+**隐藏 / 找回**
+- 面板头部「⋯」→「隐藏小源」→ 面板内确认 → `POST /api/learning/buddy/toggle {enabled:false}` → 小源从页面移除,并派发 `window` 事件 `cb:toggled`(`detail.enabled=false`)
+- 找回:侧栏左下角头像菜单「学习伙伴（小源）」开关(同一接口,成功后刷新页面)
+- 偏好存表 `learning_buddy_prefs`(无行 = 开启);模板用 `cb_buddy_enabled()` 决定是否挂载
+
+**使用示例**
+```html
+{# 无侧栏的独立页:在页面脚本之前、</body> 之前 include(有侧栏的页面已自动挂载,不要再 include) #}
+{% include 'components/at_course_buddy.html' %}
+<script>
+  // 课程上下文页(参考 at_course_player.html)
+  if (window.CourseBuddy) {
+    window.CourseBuddy.setCourse({ key: {{ course.key|tojson }}, title: {{ course.title|tojson }},
+                                   totalPages: total, currentPage: 1 });
+  }
+  frameWindow.addEventListener('hashchange', function () { window.CourseBuddy.onPage(currentPageNo()); });
+  // 同源 iframe 内的事件不冒泡到外层,需要转发:
+  ['pointerdown', 'keydown', 'wheel', 'touchstart', 'touchmove', 'scroll'].forEach(function (ev) {
+    frameDocument.addEventListener(ev, function () { window.CourseBuddy.activity(); }, { passive: true, capture: true });
+  });
+</script>
+```
+
+**创建日期**: 2026-10-07

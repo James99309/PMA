@@ -293,6 +293,25 @@
             {{ at_icon('chart', 14) }} {{ _('绩效看板') }}
           </a>
           {% endif %}
+          {# 学习伙伴小源 显示开关(在面板「⋯」里隐藏后从这里找回;偏好存 learning_buddy_prefs) #}
+          {% if current_user.is_authenticated and cb_buddy_enabled is defined %}
+          {% set _cb_on = cb_buddy_enabled() %}
+          <button type="button" id="atBuddyToggle" role="switch" aria-checked="{{ 'true' if _cb_on else 'false' }}"
+                  data-url="{{ url_for('learning.buddy_toggle') }}" data-csrf="{{ csrf_token() }}"
+                  style="{{ _menu_link_style }}width:100%;border:0;background:transparent;cursor:pointer;font:inherit;text-align:left;"
+                  onmouseover="this.style.background='var(--bg-page)'"
+                  onmouseout="this.style.background='transparent'"
+                  onclick="atToggleBuddy(this)">
+            {{ at_icon('bot', 14) }}
+            <span style="flex:1;min-width:0;">{{ _('学习伙伴（小源）') }}</span>
+            <span class="at-buddy-sw" aria-hidden="true"
+                  style="position:relative;flex:none;width:28px;height:16px;border-radius:99px;transition:background 150ms;
+                         background:{{ 'var(--accent)' if _cb_on else 'var(--line)' }};">
+              <span style="position:absolute;top:2px;left:{{ '14px' if _cb_on else '2px' }};width:12px;height:12px;border-radius:50%;
+                           background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left 150ms;"></span>
+            </span>
+          </button>
+          {% endif %}
           <div style="height:1px;background:var(--line);margin:4px 4px;"></div>
           <a href="{{ url_for('auth.logout') }}"
              style="display:flex;align-items:center;gap:10px;padding:8px 10px;
@@ -327,6 +346,37 @@
             const p = document.getElementById('atUserMenuPopup');
             if (p) p.style.display = 'none';
           }
+        });
+        // 学习伙伴开关:写偏好后刷新页面(小源由模板按偏好决定是否挂载)
+        window.atBuddySwitchPaint = function(btn, on) {
+          btn.setAttribute('aria-checked', on ? 'true' : 'false');
+          const sw = btn.querySelector('.at-buddy-sw');
+          if (!sw) return;
+          sw.style.background = on ? 'var(--accent)' : 'var(--line)';
+          sw.firstElementChild.style.left = on ? '14px' : '2px';
+        };
+        window.atToggleBuddy = function(btn) {
+          if (btn.dataset.busy) return;
+          const on = btn.getAttribute('aria-checked') !== 'true';
+          btn.dataset.busy = '1';
+          window.atBuddySwitchPaint(btn, on);
+          fetch(btn.dataset.url, {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'Accept': 'application/json',
+                      'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': window.CB_CSRF || btn.dataset.csrf},
+            body: JSON.stringify({enabled: on})
+          }).then(function(r) { return r.json(); }).then(function(j) {
+            if (!j || !j.success) throw new Error('toggle');
+            location.reload();
+          }).catch(function() {
+            delete btn.dataset.busy;
+            window.atBuddySwitchPaint(btn, !on);
+          });
+        };
+        // 在小源面板里隐藏后,同步开关显示
+        window.addEventListener('cb:toggled', function(e) {
+          const btn = document.getElementById('atBuddyToggle');
+          if (btn && e.detail) window.atBuddySwitchPaint(btn, !!e.detail.enabled);
         });
       }
     </script>

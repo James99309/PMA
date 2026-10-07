@@ -13,7 +13,7 @@ import os
 import threading
 from collections import defaultdict
 
-from flask import Blueprint, jsonify, request, abort, url_for, render_template, current_app
+from flask import Blueprint, jsonify, request, abort, url_for, render_template, current_app, g
 from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from flask_wtf.csrf import CSRFError, generate_csrf
@@ -136,6 +136,15 @@ def _inject_course_buddy():
     def cb_buddy_enabled():
         if not current_user.is_authenticated:
             return False
+        # 侧栏开关 + 挂载片段同页各问一次,只查一次库;按用户 id 记,防 g 跨请求复用时串号
+        cached = getattr(g, '_cb_buddy_enabled', None)
+        if cached is not None and cached[0] == current_user.id:
+            return cached[1]
+        val = _query_buddy_enabled()
+        g._cb_buddy_enabled = (current_user.id, val)
+        return val
+
+    def _query_buddy_enabled():
         try:
             # 保存点包住查询:出错只回滚保存点,不波及页面所在请求的外层事务
             with db.session.begin_nested():
@@ -297,6 +306,7 @@ def buddy_toggle():
     if not isinstance(enabled, bool):
         return jsonify({'success': False, 'error': 'bad_params',
                         'message': _('参数不正确')}), 400
+    g.pop('_cb_buddy_enabled', None)
     return jsonify({'success': True, 'data': {'enabled': S.set_buddy_enabled(current_user.id, enabled)}})
 
 

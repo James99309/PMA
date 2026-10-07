@@ -80,6 +80,24 @@
 .cb-panel .cb-head .cb-sub{margin-top:4px;color:var(--cb-ink-3);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cb-panel .cb-x{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:var(--cb-fill);color:var(--cb-ink-2);cursor:pointer;display:grid;place-items:center;padding:0}
 .cb-panel .cb-x svg{width:18px;height:18px}
+.cb-panel .cb-x:focus-visible,.cb-panel .cb-more:focus-visible{outline:2px solid var(--cb-accent);outline-offset:2px}
+/* 头部「⋯」菜单(隐藏小源):浮在面板内容之上,面板 overflow:hidden 内足够放下 */
+.cb-panel .cb-more-wrap{position:relative;flex:none}
+.cb-panel .cb-more{width:36px;height:36px;border-radius:50%;border:0;background:var(--cb-fill);color:var(--cb-ink-2);cursor:pointer;display:grid;place-items:center;padding:0}
+.cb-panel .cb-more svg{width:18px;height:18px}
+.cb-panel .cb-more[aria-expanded="true"]{background:var(--cb-line);color:var(--cb-ink)}
+.cb-panel .cb-menu{position:absolute;top:42px;right:0;z-index:2;width:250px;max-width:calc(100vw - 60px);background:var(--cb-card);border-radius:14px;
+  box-shadow:0 10px 30px rgba(20,18,14,.18),0 0 0 1px var(--cb-line);padding:6px}
+.cb-panel .cb-mi{display:block;width:100%;text-align:left;border:0;background:none;font:inherit;font-size:13.5px;color:var(--cb-ink);padding:9px 11px;border-radius:9px;cursor:pointer}
+.cb-panel .cb-mi:hover,.cb-panel .cb-mi:focus-visible{background:var(--cb-fill);outline:none}
+.cb-panel .cb-mconfirm{padding:8px 8px 4px}
+.cb-panel .cb-mconfirm p{margin:0 0 10px;font-size:13px;line-height:1.55;color:var(--cb-ink-2)}
+.cb-panel .cb-mconfirm .cb-note{margin:0 0 10px}
+.cb-panel .cb-mbtns{display:flex;gap:8px;justify-content:flex-end}
+.cb-panel .cb-mbtns button{border:0;border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.cb-panel .cb-mcancel{background:var(--cb-fill);color:var(--cb-ink-2)}
+.cb-panel .cb-mdanger{background:var(--cb-bad);color:#fff}
+.cb-panel .cb-mdanger:disabled{opacity:.55;cursor:progress}
 .cb-panel .cb-seg{display:flex;background:var(--cb-fill);border:1px solid var(--cb-line-soft);border-radius:12px;padding:3px;gap:3px}
 .cb-panel .cb-seg button{flex:1;border:0;background:none;font:inherit;font-size:14px;color:var(--cb-ink-2);padding:9px 0;border-radius:9px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:6px}
