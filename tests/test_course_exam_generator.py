@@ -201,3 +201,28 @@ def test_regenerate_one_falls_back_to_model_page_and_uses_existing():
     with pytest.raises(ValueError):
         G.regenerate_one(PAGES, {'qtype': 'single', 'difficulty': 1, 'question': '旧题'}, client=fc,
                          existing_questions=['别的已有题'])
+
+
+def test_merge_review_echo_ignores_punctuation():
+    qs = [{'question': '总部在哪？「和源」', 'difficulty': 1}, {'question': '他说"你好"吗', 'difficulty': 1}]
+    review = {'reviews': [{'index': 0, 'q': '总部在哪?"和源"', 'difficulty': 1, 'answer_ok': True},
+                          {'index': 1, 'q': '他说「你好」吗', 'difficulty': 1, 'answer_ok': True}]}
+    assert [q['status'] for q in G.merge_review(qs, review)] == ['active', 'active']
+
+
+@pytest.mark.parametrize('stats,abort', [
+    ({'requested': 100, 'generated': 30, 'failed_batches': 0, 'review_failed_chunks': 0}, False),  # 课薄但无失败
+    ({'requested': 100, 'generated': 30, 'failed_batches': 2, 'review_failed_chunks': 0}, True),
+    ({'requested': 100, 'generated': 60, 'failed_batches': 1, 'review_failed_chunks': 0}, False),
+])
+def test_replace_abort_only_on_failures(stats, abort):
+    assert (G.replace_abort_reason(stats) is not None) == abort
+
+
+def test_replace_abort_reason_text():
+    r = G.replace_abort_reason({'requested': 100, 'generated': 30, 'failed_batches': 2, 'review_failed_chunks': 0})
+    assert '2 批生成失败' in r and '实际 30/计划 100' in r and '旧题库保持不变' in r
+
+
+def test_stale_hours():
+    assert G.STALE_HOURS == 6

@@ -112,15 +112,25 @@ with app.app_context():
               and '人工题:总部在上海' in fc.calls[0] and '总部在哪个城市' not in fc.calls[0],
               f'replace=True:旧 AI 题停用、人工题保留且只把人工题作已有题 (live={[r.question for r in lv]})')
 
-        # ---- replace 产出不足保护:计划 4 只出 1 → 不停用、不插入,发失败通知 ----
+        # ---- replace 课件薄但无失败批:计划 4 只出 1 → 照常替换 ----
+        fc = FakeClient([batch(('薄课唯一题', 1)), review_ok(1)])
+        G.run_generation_job(app, KEY, PAGES, u.id, plan={1: 4}, replace=True, client=fc)
+        lv = live()
+        m = new_msgs()
+        check(sorted(r.question for r in lv) == sorted(['人工题:总部在上海', '薄课唯一题'])
+              and m[-1].title == '题库生成完成',
+              f'产出少但无失败批:照常替换 (live={[r.question for r in lv]}, {m[-1].content})')
+
+        # ---- replace 失败批 + 产出不足:中止,题库一行不动 ----
         n_before, live_before = len(rows()), sorted(r.id for r in live())
-        G.run_generation_job(app, KEY, PAGES, u.id, plan={1: 4}, replace=True,
-                             client=FakeClient([batch(('孤零零一题', 1)), review_ok(1)]))
+        G.run_generation_job(app, KEY, PAGES, u.id, plan={1: 26}, replace=True,
+                             client=FakeClient(['garbage', batch(('孤零零一题', 1)), review_ok(1)]))
         m = new_msgs()
         check(len(rows()) == n_before and sorted(r.id for r in live()) == live_before,
-              '产出不足:题库一行不动')
-        check(m[-1].title == '题库生成失败' and '产出不足(实际 1/计划 4)，旧题库保持不变' in (m[-1].content or ''),
-              f'产出不足通知:{m[-1].content}')
+              '失败批 + 产出不足:题库一行不动')
+        check(m[-1].title == '题库生成失败' and '1 批生成失败' in (m[-1].content or '')
+              and '实际 1/计划 26' in (m[-1].content or '') and '旧题库保持不变' in (m[-1].content or ''),
+              f'中止通知:{m[-1].content}')
 
         # ---- AI 全部无效 → 失败通知 ----
         G.run_generation_job(app, KEY, PAGES, u.id, plan={1: 1}, replace=True, client=FakeClient(['{"questions":[]}']))
@@ -166,8 +176,8 @@ with app.app_context():
               '任务结束后标记被清除')
         check(any(r.question == '互斥题一' for r in rows()), '后台线程任务已落库')
 
-        # ---- 过期标记(>2h)可被接管 ----
-        s = setting(); s.generating_since = get_local_time() - timedelta(hours=3); s.generating_by = u.id
+        # ---- 过期标记(> STALE_HOURS)可被接管 ----
+        s = setting(); s.generating_since = get_local_time() - timedelta(hours=G.STALE_HOURS + 1); s.generating_by = u.id
         db.session.commit()
         check(not G.is_running(KEY), '过期标记不算生成中')
         ok2 = G.start_generation(app, KEY, PAGES, u.id, plan={1: 1},

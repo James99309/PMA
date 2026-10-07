@@ -265,15 +265,16 @@ def dedupe(qs, existing=None):
 
 
 def _echo_key(s):
-    return re.sub(r'\s+', '', s or '')[:ECHO_LEN]
+    return _norm_text(s)[:ECHO_LEN]       # 去标点空白:？/? 、「」/"" 之类差异不算错位
 
 
 def _echo_matches(r, question):
     """复核回显的题干前缀与原题对得上(未回显视为对得上;互为前缀即可,容忍回显少于 12 字)。"""
     echo = r.get('q')
-    if not isinstance(echo, str) or not echo.strip():
+    a = _echo_key(echo) if isinstance(echo, str) else ''
+    if not a:
         return True
-    a, b = _echo_key(echo), _echo_key(question)
+    b = _echo_key(question)
     return a.startswith(b) or b.startswith(a)
 
 
@@ -436,8 +437,20 @@ def regenerate_one(pages, q, client=None, existing_questions=None):
 # 跨进程互斥(gunicorn 多 worker):course_exam_settings.generating_since 非空且未过期 = 生成中。
 # 线程异常退出 / 进程被杀留下的旧标记,超过 STALE_HOURS 即可被接管。
 
-STALE_HOURS = 2
-MIN_REPLACE_YIELD = 0.5      # 重建题库时产出低于计划一半 → 不动旧题库
+# 标记过期时限:须大于最坏耗时(约 20 次调用 × 600s 超时 ≈ 3.3h),留足余量
+STALE_HOURS = 6
+MIN_REPLACE_YIELD = 0.5      # 重建题库时因批次失败导致产出低于计划一半 → 不动旧题库
+
+
+def replace_abort_reason(stats):
+    """重建题库是否中止:只有「有批次生成失败」且产出 < 计划一半才中止(课件内容少导致题少不算)。
+
+    返回中止原因文本,不中止返回 None。
+    """
+    if stats['failed_batches'] > 0 and stats['generated'] < stats['requested'] * MIN_REPLACE_YIELD:
+        return (f'{stats["failed_batches"]} 批生成失败，产出不足(实际 {stats["generated"]}/'
+                f'计划 {stats["requested"]})，旧题库保持不变')
+    return None
 
 
 def _now():
@@ -548,12 +561,10 @@ def run_generation_job(app, course_key, pages, user_id, plan=DEFAULT_PLAN, repla
             db.session.rollback()       # 出题耗时数分钟,别挂着空闲事务
 
             qs, stats = generate_course(pages, plan=plan, client=client, existing_questions=existing)
-            if replace and stats['generated'] < stats['requested'] * MIN_REPLACE_YIELD:
-                logger.warning('题库重建产出不足 %s:%d/%d,旧题库保持不变',
-                               course_key, stats['generated'], stats['requested'])
-                _notify(user_id, '题库生成失败',
-                        f'{title}：产出不足(实际 {stats["generated"]}/计划 {stats["requested"]})，旧题库保持不变',
-                        course_id)
+            abort = replace_abort_reason(stats) if replace else None
+            if abort:
+                logger.warning('题库重建中止 %s:%s', course_key, stats)
+                _notify(user_id, '题库生成失败', f'{title}：{abort}', course_id)
                 db.session.commit()
                 return
             if replace:
