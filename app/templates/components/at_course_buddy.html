@@ -1,0 +1,86 @@
+{#
+  小源 · 学习伙伴挂载片段
+  - 由 components/at_sidebar.html 的 at_sidebar 宏统一挂载(覆盖所有带侧栏的 AT 页);
+    没有侧栏的独立页(课程播放器、审批详情)在 </body> 前单独 include。
+  - 文案全部在此 _() 注入 window.CB_I18N,course-buddy.js 内不出现中文界面串。
+  - window.CourseBuddy 先放排队桩:页面内联脚本(如课程播放器)可在 defer 脚本加载前调用,加载后回放。
+#}
+{% if current_user and current_user.is_authenticated and cb_buddy_enabled is defined and cb_buddy_enabled() %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/course-buddy.css') }}">
+<script>
+  window.CB_CSRF = {{ csrf_token()|tojson }};
+  window.CB_CONFIG = {
+    enabled: true,
+    apiBase: '/api/learning',
+    csrfUrl: {{ url_for('learning.csrf_token')|tojson }},
+    wikiQuery: {{ url_for('knowledge_wiki.query_endpoint')|tojson }},
+    loginUrl: {{ url_for('auth.login')|tojson }},
+    markedSrc: {{ url_for('static', filename='vendor/marked/marked.min.js')|tojson }},
+    purifySrc: {{ url_for('static', filename='vendor/dompurify/purify.min.js')|tojson }}
+  };
+  window.CB_I18N = {
+    buddy: {{ _('小源')|tojson }},
+    open_label: {{ _('打开学习伙伴小源')|tojson }},
+    panel_label: {{ _('学习伙伴')|tojson }},
+    close: {{ _('关闭')|tojson }},
+    ask: {{ _('提问')|tojson }},
+    exam: {{ _('考核')|tojson }},
+    read: {{ _('阅读')|tojson }},
+    submit: {{ _('提交答案')|tojson }},
+    next: {{ _('下一题')|tojson }},
+    done: {{ _('完成')|tojson }},
+    passed: {{ _('已及格！可以继续冲 100 分')|tojson }},
+    perfect: {{ _('满分！这门课的考核完成了')|tojson }},
+    perfect_done: {{ _('这门课已经满分啦')|tojson }},
+    exhausted: {{ _('题库里的题暂时都答完了，稍后再来')|tojson }},
+    unlock: {{ _('解锁考核啦，来考考你？')|tojson }},
+    sleep: {{ _('休息中，翻页叫醒我')|tojson }},
+    hello: {{ _('有问题，问我～')|tojson }},
+    read_first: {{ _('认真看课，看完可以考核哦～')|tojson }},
+    read_cheer: {{ _('已读 %(p)s%%，加油～', p='{p}')|tojson }},
+    nag: {{ _('还有 %(n)s 门课考核没满分', n='{n}')|tojson }},
+    easy: {{ _('易')|tojson }},
+    mid: {{ _('中')|tojson }},
+    hard: {{ _('难')|tojson }},
+    points: {{ _('%(n)s 分', n='{n}')|tojson }},
+    multi: {{ _('多选')|tojson }},
+    judge: {{ _('判断')|tojson }},
+    yes: {{ _('正确')|tojson }},
+    no: {{ _('错误')|tojson }},
+    wrong: {{ _('答错了')|tojson }},
+    wrong_tip: {{ _('这题之后还会再出现')|tojson }},
+    right: {{ _('回答正确')|tojson }},
+    see_page: {{ _('课件第 %(n)s 页', n='{n}')|tojson }},
+    page_n: {{ _('第 %(n)s 页', n='{n}')|tojson }},
+    score: {{ _('累计得分')|tojson }},
+    pass_line: {{ _('及格')|tojson }},
+    placeholder: {{ _('问问这门课的内容…')|tojson }},
+    placeholder_all: {{ _('问问知识库里的内容…')|tojson }},
+    send: {{ _('发送')|tojson }},
+    thinking: {{ _('小源正在想…')|tojson }},
+    scope_course: {{ _('本课程')|tojson }},
+    scope_all: {{ _('全部知识库')|tojson }},
+    ask_intro_course: {{ _('有关于这门课的问题，直接问我～我会从课件里找答案，并告诉你在哪一页。')|tojson }},
+    ask_intro_all: {{ _('有问题直接问我～我会从知识库里找答案，相关课件页也会一起给你。')|tojson }},
+    no_answer: {{ _('没有找到相关内容，换个问法试试？')|tojson }},
+    pick_course: {{ _('选择一门课继续')|tojson }},
+    list_tip: {{ _('只列出没考满分的课；阅读未达标的课要先回到课程里看完。')|tojson }},
+    no_courses: {{ _('暂时没有待考核的课程')|tojson }},
+    loading: {{ _('加载中…')|tojson }},
+    title_ask: {{ _('问问小源')|tojson }},
+    title_exam: {{ _('课程考核')|tojson }},
+    err_generic: {{ _('出错了，请稍后再试')|tojson }},
+    err_network: {{ _('网络异常，请稍后再试')|tojson }},
+    expired: {{ _('登录已过期，')|tojson }},
+    relogin: {{ _('重新登录')|tojson }}
+  };
+  window.CourseBuddy = window.CourseBuddy || (function () {
+    var q = window.__cbQueue = window.__cbQueue || [], stub = { __stub: true };
+    ['setCourse', 'onPage', 'activity', 'reflow'].forEach(function (m) {
+      stub[m] = function () { q.push([m, Array.prototype.slice.call(arguments)]); };
+    });
+    return stub;
+  })();
+</script>
+<script src="{{ url_for('static', filename='js/course-buddy.js') }}" defer></script>
+{% endif %}

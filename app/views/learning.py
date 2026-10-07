@@ -88,6 +88,21 @@ def _exam_gate(course_key, pages):
     return None
 
 
+@learning_bp.app_context_processor
+def _inject_course_buddy():
+    """模板里判断是否挂载小源:cb_buddy_enabled() 仅在登录态下查一次偏好行(无行默认开启)。"""
+    def cb_buddy_enabled():
+        try:
+            if not current_user.is_authenticated:
+                return False
+            return S.buddy_enabled(current_user.id)
+        except Exception:
+            # 偏好查询失败不影响页面渲染,只是不显示小源
+            db.session.rollback()
+            return False
+    return {'cb_buddy_enabled': cb_buddy_enabled}
+
+
 @learning_bp.route('/api/learning/csrf')
 @login_required
 def csrf_token():
