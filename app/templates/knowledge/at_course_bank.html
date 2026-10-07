@@ -95,6 +95,9 @@
   .bk-opt .bk-input { flex:1; }
   .bk-opt-letter { width:16px; font-family:var(--font-mono); color:var(--ink-3); font-size:12px; }
   .bk-err { color:var(--danger); font-size:12px; min-height:16px; }
+  .bk-discard { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:8px;
+                background:var(--warn-soft); color:var(--warn); font-size:13px; }
+  .bk-discard span { flex:1; }
 </style>
 </head>
 <body class="at-page">
@@ -135,7 +138,18 @@
     <div class="bk-banner bk-banner-warn" id="bkHealthBanner" hidden>
       <span class="material-symbols-outlined">warning</span><span id="bkHealthText"></span></div>
 
-    <div class="bk-stats" id="bkStats"></div>
+    <div class="bk-stats" id="bkStats">
+      <div id="bkStatsCards" style="display:contents;"></div>
+      {# 阅读时长卡静态渲染:轮询刷新统计时不重建,避免冲掉正在输入的值 #}
+      <div class="bk-card" id="bkReadCard">
+        <div class="bk-card-label">{{ _('达标阅读时长(秒)') }}</div>
+        <div class="bk-read">
+          <input class="bk-input" id="bkReadInput" type="number" min="0" style="width:96px;">
+          <button type="button" class="bk-btn bk-btn-sm" id="bkReadSave">{{ _('保存') }}</button>
+        </div>
+        <div class="bk-card-sub" id="bkReadSub"></div>
+      </div>
+    </div>
 
     <div class="bk-filters">
       <select class="bk-select" id="bkFDiff" onchange="bkRender()">
@@ -217,6 +231,11 @@
       <textarea class="bk-textarea" id="bkEExplain" rows="2"></textarea></div>
     <div id="bkENote" class="bk-note" hidden></div>
     <div class="bk-err" id="bkEErr"></div>
+    <div class="bk-discard" id="bkEDiscard" hidden>
+      <span>{{ _('放弃修改？') }}</span>
+      <button type="button" class="bk-btn bk-btn-sm bk-btn-danger" id="bkEDiscardYes">{{ _('放弃') }}</button>
+      <button type="button" class="bk-btn bk-btn-sm" id="bkEDiscardNo">{{ _('继续编辑') }}</button>
+    </div>
   </div>
 {% endcall %}
 
@@ -272,10 +291,10 @@
     genDone: {{ _('题库生成任务已结束')|tojson }}, genTotal: {{ _('合计 %s 题，理论满分 %s 分')|tojson }},
     optsSingle: {{ _('选项(勾选唯一正确项)')|tojson }}, optsMulti: {{ _('选项(勾选全部正确项，至少 2 个且不能全选)')|tojson }},
     optPh: {{ _('选项内容')|tojson }}, needJudge: {{ _('请选择判断题答案')|tojson }},
-    netErr: {{ _('网络错误，请重试')|tojson }}, confirm: {{ _('确定')|tojson }}, page: {{ _('第 %s 页')|tojson }}
+    netErr: {{ _('网络错误，请重试')|tojson }}, pollStop: {{ _('题库状态刷新连续失败，已停止自动刷新，请稍后刷新页面')|tojson }}, confirm: {{ _('确定')|tojson }}, page: {{ _('第 %s 页')|tojson }}
   };
   var POINTS = {1: 1, 2: 2, 3: 3};
-  var state = {data: null, polling: null, wasGenerating: false, busy: {}};
+  var state = {data: null, polling: null, wasGenerating: false, busy: {}, sig: null, pollFails: 0, readServer: ''};
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -310,14 +329,32 @@
   function toastErr(j) { window.ATToast && ATToast.error(T.failed, (j && j.message) || ''); }
 
   // ── 数据 ──
-  function load() {
+  // fromPoll:轮询调用。失败连续 3 次停止轮询并只提示一次;数据没变(签名相同)不重绘
+  function load(fromPoll) {
     return req('GET', API + '/bank').then(function (j) {
-      if (!j.success) { toastErr(j); return; }
-      state.data = j.data;
-      renderStats();
-      bkRender();
+      if (!j.success) {
+        if (!fromPoll) { toastErr(j); return; }
+        state.pollFails++;
+        if (state.pollFails >= 3) {
+          stopPolling();
+          window.ATToast && ATToast.error(T.failed, T.pollStop);
+        }
+        return;
+      }
+      state.pollFails = 0;
+      var sig = JSON.stringify(j.data);
+      if (sig !== state.sig) {
+        state.sig = sig;
+        state.data = j.data;
+        renderStats();
+        bkRender();
+      }
       syncGenerating();
     });
+  }
+  function poll() { load(true); }
+  function stopPolling() {
+    if (state.polling) { clearInterval(state.polling); state.polling = null; }
   }
 
   function syncGenerating() {
@@ -326,10 +363,10 @@
     var btn = document.getElementById('bkGenBtn');
     if (btn) btn.disabled = on;
     if (on && !state.polling) {
-      state.polling = setInterval(load, 5000);
-    } else if (!on && state.polling) {
-      clearInterval(state.polling);
-      state.polling = null;
+      state.pollFails = 0;
+      state.polling = setInterval(poll, 5000);
+    } else if (!on) {
+      stopPolling();
     }
     if (state.wasGenerating && !on && window.ATToast) ATToast.success(T.genDone);
     state.wasGenerating = on;
@@ -361,17 +398,12 @@
                  esc(T.type.single + ' / ' + T.type.multi + ' / ' + T.type.judge));
     html += card(T.reviewN, c.review, '', false);
     html += card(T.maxScore, h.max_score, esc(T.maxScoreSub), !h.ok);
-    var eff = d.min_read_seconds != null ? d.min_read_seconds : d.auto_read_seconds;
-    html += '<div class="bk-card"><div class="bk-card-label">' + esc(T.readTime) + '</div>' +
-      '<div class="bk-read"><input class="bk-input" id="bkReadInput" type="number" min="0" style="width:96px;" ' +
-      'placeholder="' + esc(T.auto + ' ' + d.auto_read_seconds) + '" value="' + (d.min_read_seconds != null ? d.min_read_seconds : '') + '">' +
-      '<button type="button" class="bk-btn bk-btn-sm" id="bkReadSave">' + esc(T.save) + '</button></div>' +
-      '<div class="bk-card-sub">' + esc(T.current) + ' ' + esc(human(eff)) + ' · ' + esc(T.autoHint) + '</div></div>';
-    document.getElementById('bkStats').innerHTML = html;
-    document.getElementById('bkReadSave').onclick = saveRead;
+    document.getElementById('bkStatsCards').innerHTML = html;
+    renderRead();
 
+    // 无逐页讲解的课只显示「无法出题」提示,不叠加健康告警
     var hb = document.getElementById('bkHealthBanner');
-    hb.hidden = h.ok || c.total === 0 && !d.pages;
+    hb.hidden = h.ok || !d.pages;
     document.getElementById('bkHealthText').textContent = fmt(T.healthBad, h.max_score);
 
     var ab = document.getElementById('bkApproveAll');
@@ -381,15 +413,33 @@
     }
   }
 
+  // 阅读时长卡:输入框聚焦或有未保存修改时不改它的值,只刷新说明文字
+  function renderRead() {
+    var d = state.data, inp = document.getElementById('bkReadInput');
+    var server = d.min_read_seconds != null ? String(d.min_read_seconds) : '';
+    // readServer = 输入框里最后一次由服务端写入的值;与当前值不同 = 用户改过还没保存
+    var dirty = inp.value !== state.readServer;
+    if (!dirty && document.activeElement !== inp) {
+      inp.value = server;
+      state.readServer = server;
+    }
+    inp.placeholder = T.auto + ' ' + d.auto_read_seconds;
+    var eff = d.min_read_seconds != null ? d.min_read_seconds : d.auto_read_seconds;
+    document.getElementById('bkReadSub').textContent = T.current + ' ' + human(eff) + ' · ' + T.autoHint;
+  }
+
   function saveRead() {
-    var v = document.getElementById('bkReadInput').value.trim();
+    var inp = document.getElementById('bkReadInput'), v = inp.value.trim();
     req('POST', API + '/settings', {min_read_seconds: v === '' ? null : v}).then(function (j) {
       if (!j.success) { toastErr(j); return; }
       state.data.min_read_seconds = j.data.min_read_seconds;
-      renderStats();
+      inp.value = j.data.min_read_seconds != null ? String(j.data.min_read_seconds) : '';
+      state.readServer = inp.value;
+      renderRead();
       window.ATToast && ATToast.success(T.saved);
     });
   }
+  document.getElementById('bkReadSave').onclick = saveRead;
 
   function byId(id) {
     for (var i = 0; i < state.data.questions.length; i++) if (state.data.questions[i].id === id) return state.data.questions[i];
@@ -452,13 +502,13 @@
     var sel = '<select class="bk-select bk-diff-sel" data-act="diff" data-id="' + q.id + '">' +
       [1, 2, 3].map(function (d) { return '<option value="' + d + '"' + (d === q.difficulty ? ' selected' : '') + '>' + esc(T.diff[d]) + '</option>'; }).join('') +
       '</select>';
-    var busy = state.busy[q.id];
+    var busy = state.busy[q.id], anyBusy = Object.keys(state.busy).length > 0;
     var ops = '<div class="bk-ops">' +
       '<button type="button" class="bk-btn bk-btn-sm" data-act="edit" data-id="' + q.id + '"><span class="material-symbols-outlined">edit</span>' + esc(T.edit) + '</button>' +
       (q.status === 'disabled'
         ? '<button type="button" class="bk-btn bk-btn-sm" data-act="restore" data-id="' + q.id + '"><span class="material-symbols-outlined">undo</span>' + esc(T.restore) + '</button>'
         : '<button type="button" class="bk-btn bk-btn-sm bk-btn-danger" data-act="disable" data-id="' + q.id + '"><span class="material-symbols-outlined">block</span>' + esc(T.disable) + '</button>') +
-      '<button type="button" class="bk-btn bk-btn-sm" data-act="regen" data-id="' + q.id + '"' + (busy ? ' disabled' : '') + '>' +
+      '<button type="button" class="bk-btn bk-btn-sm" data-act="regen" data-id="' + q.id + '"' + (anyBusy ? ' disabled' : '') + '>' +
         (busy ? '<span class="bk-spin" style="width:11px;height:11px;"></span>' + esc(T.regenIng) : '<span class="material-symbols-outlined">auto_awesome</span>' + esc(T.regen)) + '</button>' +
       '</div>';
     return '<tr data-qid="' + q.id + '"' + (q.status === 'disabled' ? ' class="bk-off"' : '') + '>' +
@@ -501,10 +551,13 @@
     put(id, {difficulty: +el.value}).then(function (r) { if (!r) bkRender(); });
   });
 
+  // 同一时间只允许一题在重出(后端另有按题在途去重);进行中所有「AI 重出」按钮禁用
   function confirmRegen(q) {
+    if (Object.keys(state.busy).length) return;
     ATConfirm.show({
       title: T.regenTitle, message: T.regenMsg, confirmText: T.regen, variant: 'warn',
       onConfirm: function () {
+        if (Object.keys(state.busy).length) return;
         state.busy[q.id] = true;
         bkRender();
         req('POST', API + '/bank/' + q.id + '/regenerate').then(function (j) {
@@ -534,7 +587,52 @@
   };
 
   // ── 编辑弹窗 ──
-  var editing = null;
+  var editing = null, editSnapshot = null;
+
+  // 编辑弹窗表单快照:用来判断有无未保存修改
+  function formSnapshot() {
+    var j = document.querySelector('input[name=bkEJudge]:checked');
+    return JSON.stringify([
+      document.getElementById('bkEType').value, document.getElementById('bkEDiff').value,
+      document.getElementById('bkEStatus').value, document.getElementById('bkEPage').value,
+      document.getElementById('bkEQuestion').value, document.getElementById('bkEExplain').value,
+      j ? j.value : null, currentOpts()]);
+  }
+  function editOpen() { return document.getElementById('bkEditModal').style.display === 'flex'; }
+  function closeEdit() {
+    document.getElementById('bkEditModal').style.display = 'none';
+    document.getElementById('bkEDiscard').hidden = true;
+    editing = null;
+  }
+  // 点遮罩 / 右上角 × / Esc:有未保存修改时先在弹窗内确认「放弃修改？」
+  function requestCloseEdit() {
+    if (editing && formSnapshot() !== editSnapshot) {
+      document.getElementById('bkEDiscard').hidden = false;
+      document.getElementById('bkEDiscardNo').focus();
+    } else {
+      closeEdit();
+    }
+  }
+  document.getElementById('bkEDiscardYes').onclick = closeEdit;
+  document.getElementById('bkEDiscardNo').onclick = function () { document.getElementById('bkEDiscard').hidden = true; };
+  // 捕获阶段拦截:at_modal_shell 的遮罩 onclick 与 × 按钮会直接隐藏弹窗
+  window.addEventListener('click', function (e) {
+    if (!editOpen()) return;
+    var modal = document.getElementById('bkEditModal');
+    var isBackdrop = e.target === modal;
+    var isClose = !!e.target.closest && !!e.target.closest('#bkEditModal header button');
+    if (isBackdrop || isClose) {
+      e.stopPropagation();
+      e.preventDefault();
+      requestCloseEdit();
+    }
+  }, true);
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !editOpen()) return;
+    if (document.querySelector('[data-act=confirm]') && document.querySelector('[data-act=confirm]').offsetParent) return;
+    e.preventDefault();
+    requestCloseEdit();
+  });
   function openEdit(q) {
     editing = q;
     document.getElementById('bkEType').value = q.qtype;
@@ -554,7 +652,9 @@
       r.checked = q.qtype === 'judge' && String(q.answer) === r.value;
     });
     bkTypeChanged(true);
+    document.getElementById('bkEDiscard').hidden = true;
     document.getElementById('bkEditModal').style.display = 'flex';
+    editSnapshot = formSnapshot();
   }
 
   function currentOpts() {
@@ -627,7 +727,7 @@
       if (!j.success) { err.textContent = j.message || T.failed; return; }
       replaceQ(j.data);
       afterChange();
-      document.getElementById('bkEditModal').style.display = 'none';
+      closeEdit();
       window.ATToast && ATToast.success(T.saved);
     });
   };

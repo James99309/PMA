@@ -45,6 +45,8 @@ with app.app_context():
     assert course, '测试课程不存在'
     PAGES = KW._get_course_pages(KEY, path)
     assert PAGES, '测试课程没有页面'
+    OTHER = next(k for k in ('evertac-pnr2100', 'company-intro-training') if KW._find_course(k)[0])
+    import app.views.learning as LV
 
     fails = []
 
@@ -101,11 +103,16 @@ with app.app_context():
         from datetime import timedelta
         for i, uid in enumerate(uids):
             db.session.add(TrainingQuizAttempt(user_id=uid, course_slug=KEY, module_slug='bank', chapter=1,
-                                               question_id=str(q1.id), question_text='x', is_correct=i < 3,
+                                               question_id=str(q1.id), question_text=q1.question, is_correct=i < 3,
                                                attempted_at=t0))
         db.session.add(TrainingQuizAttempt(user_id=uids[5], course_slug=KEY, module_slug='bank', chapter=1,
-                                           question_id=str(q1.id), question_text='x', is_correct=True,
+                                           question_id=str(q1.id), question_text=q1.question, is_correct=True,
                                            attempted_at=t0 + timedelta(minutes=1)))
+        # 旧题干的作答(题目改过字):不应计入
+        for uid in uids[:4]:
+            db.session.add(TrainingQuizAttempt(user_id=uid, course_slug=KEY, module_slug='bank', chapter=1,
+                                               question_id=str(q1.id), question_text='旧题干', is_correct=True,
+                                               attempted_at=t0 - timedelta(minutes=5)))
         db.session.commit()
 
         # ---- 权限 ----
@@ -171,6 +178,14 @@ with app.app_context():
         q = db.session.get(CourseQuizQuestion, q1.id)
         check(r.status_code == 200 and q.options == ['x', 'y', 'z'] and q.answer == 2 and q.explain == '新解析'
               and q.origin == 'edited', '改题干/选项/答案 → origin=edited')
+        s1 = next(x for x in mc.get(base + '/bank').get_json()['data']['questions'] if x['id'] == q1.id)['stats']
+        check(s1['n_first'] == 0 and s1['empirical'] is None, f'改题干后旧题干作答不再计入实测 {s1}')
+        db.session.add(TrainingQuizAttempt(user_id=uids[0], course_slug=KEY, module_slug='bank', chapter=1,
+                                           question_id=str(q1.id), question_text=PREFIX + 'Q1 改', is_correct=True,
+                                           attempted_at=t0 + timedelta(minutes=2)))
+        db.session.commit()
+        s1 = next(x for x in mc.get(base + '/bank').get_json()['data']['questions'] if x['id'] == q1.id)['stats']
+        check(s1['n_first'] == 1 and s1['correct_first'] == 1, f'新题干作答计入 {s1}')
         r = mc.put(f'{base}/bank/{q1.id}', json={'qtype': 'judge', 'answer': False})
         db.session.expire_all()
         q = db.session.get(CourseQuizQuestion, q1.id)
@@ -185,6 +200,21 @@ with app.app_context():
         check(r.status_code == 400 and r.get_json()['error'] == 'bad_params', '非法状态 → 400')
         r = mc.put(f'{base}/bank/{q1.id}', json={'difficulty': 5})
         check(r.status_code == 400, '非法难度 → 400')
+        for bad in (0, -1, len(PAGES) + 1, 'x', 1.5, True):
+            r = mc.put(f'{base}/bank/{q1.id}', json={'source_page': bad})
+            check(r.status_code == 400 and r.get_json()['error'] == 'invalid_question', f'出处页非法 {bad!r} → 400')
+        r = mc.put(f'{base}/bank/{q1.id}', json={'source_page': str(len(PAGES))})
+        db.session.expire_all()
+        check(r.status_code == 200 and db.session.get(CourseQuizQuestion, q1.id).source_page == len(PAGES), '出处页=末页')
+        r = mc.put(f'{base}/bank/{q1.id}', json={'source_page': ''})
+        db.session.expire_all()
+        check(r.status_code == 200 and db.session.get(CourseQuizQuestion, q1.id).source_page is None, '出处页清空')
+        r = mc.put(f'/api/learning/{OTHER}/bank/{q1.id}', json={'status': 'disabled'})
+        check(r.status_code == 404 and r.get_json()['error'] == 'not_found', '跨课程 PUT → 404')
+        r = mc.post(f'/api/learning/{OTHER}/bank/{q1.id}/regenerate')
+        check(r.status_code == 404 and r.get_json()['error'] == 'not_found', '跨课程重出 → 404')
+        db.session.expire_all()
+        check(db.session.get(CourseQuizQuestion, q1.id).status == 'active', '跨课程请求未改动数据')
         r = mc.put(f'{base}/bank/999999999', json={'status': 'active'})
         check(r.status_code == 404 and r.get_json()['error'] == 'not_found', '不存在的题 → 404')
 
@@ -248,7 +278,7 @@ with app.app_context():
 
         # ---- 单题重出(打桩)----
         def fake_regen(pages, q, client=None, existing_questions=None):
-            calls['regen'] = dict(q=q, existing=list(existing_questions or []))
+            calls['regen'] = dict(q=q, existing=list(existing_questions or []), client=client)
             if calls.get('regen_fail') == 'value':
                 raise ValueError('AI 未生成可用的新题')
             if calls.get('regen_fail') == 'net':
@@ -256,21 +286,50 @@ with app.app_context():
             return {'qtype': 'single', 'difficulty': q['difficulty'], 'question': PREFIX + 'Q2 重出',
                     'options': ['n1', 'n2', 'n3'], 'answer': 1, 'explain': '新', 'source_page': 2}
         generator.regenerate_one = fake_regen
+        # 重出客户端:短超时;测试里换成哑客户端,记录 close
+        os.environ.setdefault('ANTHROPIC_API_KEY', 'zz-dummy')
+        real_client = LV._regen_client()
+        check(getattr(real_client, '_timeout', None) == LV.REGEN_TIMEOUT == 120, '重出客户端超时 120s')
+        real_client.close()
+
+        class DummyClient:
+            closed = 0
+            def close(self):
+                DummyClient.closed += 1
+        orig_client = LV._regen_client
+        LV._regen_client = lambda: DummyClient()
+        # 同题重出在途 → 409 busy
+        LV._REGEN_INFLIGHT.add(q2.id)
+        r = mc.post(f'{base}/bank/{q2.id}/regenerate')
+        check(r.status_code == 409 and r.get_json()['error'] == 'busy', '同题重出在途 → 409 busy')
+        LV._REGEN_INFLIGHT.discard(q2.id)
+        # 生成中 → 409 running
+        generator._ensure_setting(KEY).generating_since = get_local_time()
+        db.session.commit()
+        calls.pop('regen', None)
+        r = mc.post(f'{base}/bank/{q2.id}/regenerate')
+        check(r.status_code == 409 and r.get_json()['error'] == 'running' and 'regen' not in calls,
+              '题库生成中 → 重出 409 running(不调 AI)')
+        db.session.get(CourseExamSetting, KEY).generating_since = None
+        db.session.commit()
         r = mc.post(f'{base}/bank/{q2.id}/regenerate')
         db.session.expire_all()
         q = db.session.get(CourseQuizQuestion, q2.id)
         ex = calls['regen']['existing']
+        check(isinstance(calls['regen'].get('client'), DummyClient), '重出把短超时客户端传给 regenerate_one')
         check(r.status_code == 200 and q.question == PREFIX + 'Q2 重出' and q.qtype == 'single' and q.answer == 1
               and q.status == 'review' and q.review_note == '单题重出' and q.origin == 'ai' and q.source_page == 2
               and q.ai_difficulty is None, '重出成功:覆盖内容 + 待审')
         check(PREFIX + 'Q4' not in ex and PREFIX + 'Q2' not in ex and any(t.startswith(PREFIX + 'Q1') for t in ex),
-              '重出:防重复列表 = 本课其余未停用题')
+              f'重出:防重复列表 = 本课其余未停用题 {[t for t in ex if t.startswith(PREFIX)]}')
         calls['regen_fail'] = 'value'
         r = mc.post(f'{base}/bank/{q2.id}/regenerate')
         check(r.status_code == 422 and r.get_json()['error'] == 'regenerate_failed', '重出无可用结果 → 422')
         calls['regen_fail'] = 'net'
         r = mc.post(f'{base}/bank/{q2.id}/regenerate')
         check(r.status_code == 502 and r.get_json()['error'] == 'regenerate_failed', '重出调用异常 → 502')
+        check(not LV._REGEN_INFLIGHT and DummyClient.closed >= 3, f'重出结束释放在途标记 + 关闭客户端({DummyClient.closed})')
+        LV._regen_client = orig_client
         db.session.expire_all()
         check(db.session.get(CourseQuizQuestion, q2.id).question == PREFIX + 'Q2 重出', '重出失败不改原题')
 
@@ -281,6 +340,7 @@ with app.app_context():
         app.config['WTF_CSRF_ENABLED'] = False
     finally:
         generator.start_generation, generator.regenerate_one = orig_start, orig_regen
+        LV._REGEN_INFLIGHT.clear()
         app.config['WTF_CSRF_ENABLED'] = False
         db.session.rollback()
         qids = [str(i) for (i,) in db.session.query(CourseQuizQuestion.id).filter(

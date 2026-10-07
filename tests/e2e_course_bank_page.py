@@ -94,6 +94,24 @@ def seed():
         db.session.commit()
 
 
+def set_generating(on):
+    from app.models.course_exam import CourseExamSetting
+    from app.models.training import get_local_time
+    from app.services.course_exam import generator
+    with app.app_context():
+        row = generator._ensure_setting(KEY)
+        row.generating_since = get_local_time() if on else None
+        db.session.commit()
+
+
+def set_status(tag, status):
+    from app.models.course_exam import CourseQuizQuestion
+    with app.app_context():
+        q = CourseQuizQuestion.query.filter(CourseQuizQuestion.question.like(QPREFIX + tag + '%')).first()
+        q.status = status
+        db.session.commit()
+
+
 def restore_setting():
     from app.models.course_exam import CourseExamSetting
     with app.app_context():
@@ -101,6 +119,7 @@ def restore_setting():
         if saved_setting['exists']:
             if row is not None:
                 row.min_read_seconds = saved_setting['value']
+                row.generating_since = None
         elif row is not None:
             db.session.delete(row)
         db.session.commit()
@@ -225,6 +244,81 @@ def run_browser():
         page.wait_for_function("() => document.getElementById('bkApproveAll').disabled")
         check(q_row('review 1')['status'] == 'active' and q_row('review 2')['status'] == 'active',
               '全部通过待审 → 数据库 active')
+
+        # ---- 5b. 编辑弹窗:有未保存修改时关闭要确认 ----
+        r2 = q_row('review 2')
+        esel = f'#bkBody tr[data-qid="{r2["id"]}"] button[data-act=edit]'
+        page.click(esel)
+        page.wait_for_selector('#bkEditModal', state='visible')
+        page.mouse.click(30, 450)                       # 无修改:点遮罩直接关
+        page.wait_for_selector('#bkEditModal', state='hidden')
+        check(True, '无修改时点遮罩直接关闭')
+        page.click(esel)
+        page.wait_for_selector('#bkEditModal', state='visible')
+        page.fill('#bkEQuestion', 'ZZ 未保存的修改')
+        page.mouse.click(30, 450)
+        check(page.locator('#bkEditModal').is_visible() and page.locator('#bkEDiscard').is_visible(),
+              '有修改时点遮罩:弹窗不关,显示「放弃修改？」')
+        shot(page, '05-discard-confirm')
+        page.click('#bkEDiscardNo')
+        check(page.locator('#bkEditModal').is_visible() and page.locator('#bkEDiscard').is_hidden()
+              and page.input_value('#bkEQuestion') == 'ZZ 未保存的修改', '「继续编辑」保留输入')
+        page.keyboard.press('Escape')
+        check(page.locator('#bkEDiscard').is_visible(), 'Esc 同样先确认')
+        page.click('#bkEditModal header button')
+        check(page.locator('#bkEditModal').is_visible(), '右上角 × 同样先确认')
+        page.click('#bkEDiscardYes')
+        page.wait_for_selector('#bkEditModal', state='hidden')
+        check(q_row('review 2')['question'] == QPREFIX + 'review 2', '「放弃」后关闭且未保存')
+
+        # ---- 5c. 重出在途:所有「AI 重出」按钮禁用(拦住请求不放行)----
+        pending = []
+        page.route('**/regenerate', lambda route: pending.append(route))
+        s1 = q_row('single 1')
+        page.click(f'#bkBody tr[data-qid="{s1["id"]}"] button[data-act=regen]')
+        page.locator('button[data-act=confirm]').click()
+        page.wait_for_function("() => [...document.querySelectorAll('#bkBody button[data-act=regen]')].every(b => b.disabled)")
+        n_regen = page.locator('#bkBody button[data-act=regen]').count()
+        check(n_regen > 1 and page.locator('#bkBody button[data-act=regen]:disabled').count() == n_regen,
+              f'重出进行中:全部 {n_regen} 个「AI 重出」按钮禁用')
+        shot(page, '06-regen-inflight')
+        page.wait_for_timeout(300)
+        check(len(pending) == 1, '只发出一个重出请求')
+        if pending:
+            pending[0].fulfill(status=409, content_type='application/json',
+                               body='{"success":false,"error":"busy","message":"busy"}')
+        page.wait_for_function("() => [...document.querySelectorAll('#bkBody button[data-act=regen]')].every(b => !b.disabled)")
+        check(True, '重出结束(失败)后按钮恢复可用')
+        page.unroute('**/regenerate')
+
+        # ---- 5d. 生成中轮询:输入框不被冲掉;数据不变不重绘;连续失败 3 次停轮询 ----
+        set_generating(True)
+        page.reload()
+        page.wait_for_selector('#bkBody tr[data-qid]')
+        check(page.locator('#bkGenBanner').is_visible() and page.locator('#bkGenBtn').is_disabled(),
+              '生成中:横幅显示、生成按钮禁用')
+        page.fill('#bkReadInput', '77')
+        page.evaluate("() => { document.getElementById('bkReadInput').blur(); document.querySelector('#bkBody tr').__zz = 1; }")
+        page.wait_for_timeout(6500)
+        check(page.input_value('#bkReadInput') == '77', '轮询不覆盖未保存的阅读时长输入')
+        check(page.evaluate("() => document.querySelector('#bkBody tr').__zz === 1"), '数据未变:轮询不重绘表格')
+        set_status('single 2', 'disabled')
+        page.wait_for_timeout(6000)
+        check(page.evaluate("() => document.querySelector('#bkBody tr').__zz !== 1")
+              and page.input_value('#bkReadInput') == '77', '数据变化:表格重绘,输入框仍保留')
+        set_status('single 2', 'active')
+        bank_reqs = []
+        page.route('**/api/learning/*/bank', lambda route: (bank_reqs.append(1),
+                   route.fulfill(status=500, content_type='application/json', body='{"success":false}')))
+        page.wait_for_function("() => document.body.innerText.includes('已停止自动刷新')", timeout=30000)
+        n_fail = len(bank_reqs)
+        page.wait_for_timeout(6000)
+        check(n_fail == 3 and len(bank_reqs) == 3, f'连续失败 3 次后停止轮询并提示(请求 {len(bank_reqs)} 次)')
+        page.unroute('**/api/learning/*/bank')
+        set_generating(False)
+        page.reload()
+        page.wait_for_selector('#bkBody tr[data-qid]')
+        check(page.locator('#bkGenBanner').is_hidden(), '生成结束:横幅隐藏')
 
         # ---- 6. 生成弹窗 ----
         page.click('#bkGenBtn')

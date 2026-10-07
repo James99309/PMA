@@ -10,6 +10,7 @@ CSRF:本蓝图不豁免,前端 POST 统一带 X-CSRFToken 头;token 过期时返
 """
 import logging
 import os
+import threading
 from collections import defaultdict
 
 from flask import Blueprint, jsonify, request, abort, url_for, render_template, current_app
@@ -41,6 +42,7 @@ _ERROR_STATUS = {
     'running': 409,
     'bad_params': 400,
     'regenerate_failed': 422,
+    'busy': 409,
 }
 
 
@@ -72,6 +74,8 @@ def _error_message(code):
         return _('参数不正确')
     if code == 'regenerate_failed':
         return _('AI 重出失败，请稍后再试')
+    if code == 'busy':
+        return _('这道题正在 AI 重出，请稍候')
     if code == 'no_pages':
         return _('该课程没有逐页讲解，无法出题')
     return _('操作失败')
@@ -287,6 +291,14 @@ def buddy_toggle():
 # 权限见 S.can_manage_bank;页面无权 → 403 页,API 无权 → 403 JSON。
 
 _STATUSES = ('active', 'review', 'disabled')
+REGEN_TIMEOUT = 120             # 单题重出是同步请求,AI 调用超时收短,别长时间占住 worker
+_REGEN_INFLIGHT = set()         # 本进程在途的单题重出(按题 id),防重复点击并发出题
+_REGEN_LOCK = threading.Lock()
+
+
+def _regen_client():
+    from app.services.wiki.claude_client import WikiClaudeClient
+    return WikiClaudeClient(timeout=REGEN_TIMEOUT)
 _CONTENT_FIELDS = ('qtype', 'question', 'options', 'answer', 'explain')
 
 
@@ -300,13 +312,18 @@ def _bank_question(course_key, qid):
 
 
 def _first_attempt_stats(course_key):
-    """每人每题只看首次作答 → {question_id(str): (n_first, correct_first)}。"""
+    """每人每题只看首次作答 → {question_id(str): (n_first, correct_first)}。
+
+    只认作答时题干与当前题干一致的留痕:题目改过字 / AI 重出后,旧题的作答不再算进实测难度。
+    """
     rows = db.session.execute(text("""
         SELECT question_id, count(*) AS n, sum(CASE WHEN is_correct THEN 1 ELSE 0 END) AS c
-        FROM (SELECT DISTINCT ON (user_id, question_id) question_id, is_correct
-              FROM training_quiz_attempt
-              WHERE course_slug = :k AND module_slug = :m
-              ORDER BY user_id, question_id, attempted_at, id) first_try
+        FROM (SELECT DISTINCT ON (a.user_id, a.question_id) a.question_id, a.is_correct
+              FROM training_quiz_attempt a
+              JOIN course_quiz_questions q
+                ON q.id::text = a.question_id AND a.question_text = q.question
+              WHERE a.course_slug = :k AND a.module_slug = :m AND q.course_key = :k
+              ORDER BY a.user_id, a.question_id, a.attempted_at, a.id) first_try
         GROUP BY question_id"""), {'k': course_key, 'm': S.MODULE_SLUG}).fetchall()
     return {str(qid): (int(n), int(c or 0)) for qid, n, c in rows}
 
@@ -395,7 +412,7 @@ def bank_update(key, qid):
     denied = _bank_forbidden()
     if denied:
         return denied
-    ck, _pages = _course_or_404(key)
+    ck, pages = _course_or_404(key)
     q = _bank_question(ck, qid)
     if q is None:
         return _fail('not_found', 404)
@@ -414,6 +431,15 @@ def bank_update(key, qid):
             raise ValueError(_('题干不能为空'))
         if explain is not None and not isinstance(explain, str):
             raise ValueError(_('解析须为文本'))
+        source_page = q.source_page
+        if 'source_page' in data:
+            raw = data.get('source_page')
+            if raw is None or raw == '':
+                source_page = None
+            else:
+                source_page = L._as_int(raw)
+                if source_page is None or not 1 <= source_page <= len(pages):
+                    raise ValueError(_('出处页须为 1~%(n)s 的整数', n=len(pages)))
         if merged['qtype'] == 'judge':
             merged['options'] = None
         norm = L.normalize_question(merged)
@@ -430,9 +456,7 @@ def bank_update(key, qid):
     q.options = norm['options'] if norm['qtype'] != 'judge' else None
     q.answer = norm['answer']
     q.explain = explain
-    if 'source_page' in data:
-        sp = L._as_int(data.get('source_page')) if data.get('source_page') not in (None, '') else None
-        q.source_page = sp if sp and sp > 0 else None
+    q.source_page = source_page
     q.status = status
     if content_changed:
         q.origin = 'edited'      # 人工改过内容:重建题库时保留
@@ -447,30 +471,53 @@ def bank_regenerate(key, qid):
     if denied:
         return denied
     ck, pages = _course_or_404(key)
-    if not pages:
-        return _fail('no_pages', 400)
     q = _bank_question(ck, qid)
     if q is None:
         return _fail('not_found', 404)
+    if not pages:
+        return _fail('no_pages', 400)
     from app.services.course_exam import generator
-    src = q.to_admin_dict()
-    others = [t for (t,) in db.session.query(CourseQuizQuestion.question).filter(
-        CourseQuizQuestion.course_key == ck, CourseQuizQuestion.id != q.id,
-        CourseQuizQuestion.status != 'disabled').all()]
-    db.session.rollback()       # AI 调用耗时较长,别挂着空闲事务
+    if generator.is_running(ck):
+        # 整库生成(尤其 replace)会改动题库,期间不做单题重出
+        return _fail('running', 409)
+    with _REGEN_LOCK:
+        if qid in _REGEN_INFLIGHT:
+            return _fail('busy', 409)
+        _REGEN_INFLIGHT.add(qid)
     try:
-        new = generator.regenerate_one(pages, src, existing_questions=others)
-        norm = L.normalize_question({'qtype': new.get('qtype'), 'difficulty': new.get('difficulty'),
-                                     'options': new.get('options'), 'answer': new.get('answer')})
-        question = new.get('question')
-        if not isinstance(question, str) or not question.strip():
-            raise ValueError('empty question')
-    except ValueError:
-        logger.warning('单题重出无可用结果 %s#%s', ck, qid, exc_info=True)
-        return _fail('regenerate_failed', 422)
-    except Exception:
-        logger.exception('单题重出调用失败 %s#%s', ck, qid)
-        return _fail('regenerate_failed', 502)
+        src = q.to_admin_dict()
+        others = [t for (t,) in db.session.query(CourseQuizQuestion.question).filter(
+            CourseQuizQuestion.course_key == ck, CourseQuizQuestion.id != q.id,
+            CourseQuizQuestion.status != 'disabled').all()]
+        db.session.rollback()       # AI 调用耗时较长,别挂着空闲事务
+        client = None
+        try:
+            client = _regen_client()
+            new = generator.regenerate_one(pages, src, client=client, existing_questions=others)
+            norm = L.normalize_question({'qtype': new.get('qtype'), 'difficulty': new.get('difficulty'),
+                                         'options': new.get('options'), 'answer': new.get('answer')})
+            question = new.get('question')
+            if not isinstance(question, str) or not question.strip():
+                raise ValueError('empty question')
+        except ValueError:
+            logger.warning('单题重出无可用结果 %s#%s', ck, qid, exc_info=True)
+            return _fail('regenerate_failed', 422)
+        except Exception:
+            logger.exception('单题重出调用失败 %s#%s', ck, qid)
+            return _fail('regenerate_failed', 502)
+        finally:
+            if client is not None:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+        return _apply_regenerated(ck, qid, new, norm, question)
+    finally:
+        with _REGEN_LOCK:
+            _REGEN_INFLIGHT.discard(qid)
+
+
+def _apply_regenerated(ck, qid, new, norm, question):
     q = _bank_question(ck, qid)
     if q is None:
         return _fail('not_found', 404)
