@@ -165,3 +165,34 @@ def delete_temp_bank(app, prefix):
         db.session.commit()
         return not db.session.execute(text("SELECT count(*) FROM course_quiz_questions WHERE question LIKE :p"),
                                       {'p': prefix + '%'}).scalar()
+
+
+# ───────────── 种子题库:首访自动导入的清理 ─────────────
+# 小源面板 / 题库页 / 考核接口会把 app/course_exam_seeds/ 下的种子题库导入「题库为空」的课。
+# 浏览器 e2e 跑完要把本次导入的种子题删掉,pma_local 保持干净。
+
+def empty_seed_keys(app):
+    """有种子文件且当前题库为空的课(= 本次测试可能触发自动导入的课)。启动服务前调用。"""
+    from app import db
+    from app.models.course_exam import CourseQuizQuestion
+    from app.services.course_exam import service as S
+    if not os.path.isdir(S.SEED_DIR):
+        return []
+    keys = [f[:-5] for f in sorted(os.listdir(S.SEED_DIR)) if f.endswith('.json')]
+    with app.app_context():
+        have = {k for (k,) in db.session.query(CourseQuizQuestion.course_key)
+                .filter(CourseQuizQuestion.course_key.in_(keys)).distinct().all()} if keys else set()
+        db.session.rollback()
+    return [k for k in keys if k not in have]
+
+
+def delete_seed_imports(app, keys):
+    """硬删 keys(测试前为空的课)本次被自动导入的题;返回是否已清空。"""
+    from app import db
+    from app.models.course_exam import CourseQuizQuestion
+    if not keys:
+        return True
+    with app.app_context():
+        CourseQuizQuestion.query.filter(CourseQuizQuestion.course_key.in_(keys)).delete(synchronize_session=False)
+        db.session.commit()
+        return not CourseQuizQuestion.query.filter(CourseQuizQuestion.course_key.in_(keys)).count()

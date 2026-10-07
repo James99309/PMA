@@ -1,0 +1,1316 @@
+{
+ "course_key": "apac-data-center-critical-comms-cn",
+ "version": 1,
+ "generated": "2026-10-07",
+ "questions": [
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "课件主张关键通信应在哪个阶段纳入数据中心基础设施设计？",
+   "options": [
+    "机电安装完成后",
+    "规划阶段",
+    "投入运营后按需补充",
+    "项目交付前作为最后一项采购"
+   ],
+   "answer": 1,
+   "explain": "第 1 页：关键通信不能再作为最后采购的一项设备，而要在规划阶段就纳入基础设施设计。",
+   "source_page": 1,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "EVERTAC 过去三年多参与的马来西亚数据中心项目，主要集中在哪两地？",
+   "options": [
+    "槟城和吉隆坡",
+    "柔佛和吉隆坡",
+    "马六甲和柔佛",
+    "柔佛和槟城"
+   ],
+   "answer": 1,
+   "explain": "第 2 页：主要在马来西亚柔佛和吉隆坡，以及泰国、新加坡和印尼。",
+   "source_page": 2,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "EVERTAC 在亚太数据中心项目中的工作只限于设备供货。",
+   "options": null,
+   "answer": false,
+   "explain": "第 2 页：除供货外还包括前期规划、室内覆盖、频率申请、设备认证、合规落地和后续扩建。",
+   "source_page": 2,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "2025 年 4 月 CSE Global 披露其美国子公司拿到的数据中心关键通信订单，总值是多少？",
+   "options": [
+    "1000 万美元",
+    "2500 万美元",
+    "1500 万美元",
+    "1500 万新元"
+   ],
+   "answer": 2,
+   "explain": "第 3 页：大型数据中心客户总值 1500 万美元的关键通信订单。",
+   "source_page": 3,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "CSE Global 这笔数据中心关键通信订单的执行周期是？",
+   "options": [
+    "2025 年到 2027 年",
+    "2026 年到 2030 年",
+    "2024 年到 2026 年",
+    "2025 年到 2028 年"
+   ],
+   "answer": 3,
+   "explain": "第 3 页：覆盖美洲、亚太和欧洲，执行周期从 2025 年到 2028 年。",
+   "source_page": 3,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "根据 Uptime Institute 的研究，什么仍是数据中心重大中断的重要原因？",
+   "options": [
+    "无线信号干扰",
+    "人为因素",
+    "市电供应不稳",
+    "雷击等自然灾害"
+   ],
+   "answer": 1,
+   "explain": "第 4 页：人为因素仍是重大中断的重要原因，相当一部分与程序未被正确执行或程序本身有问题有关。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "美国 Santa Clara 那个超过 50 万平方英尺、三栋建筑的园区，最终用什么方案解决覆盖？",
+   "options": [
+    "园区 Wi-Fi 语音覆盖各个楼层",
+    "公网 4G 对讲加手机热点补盲",
+    "统一设计、光纤连接的 ERRCS",
+    "每栋楼各自独立部署的中继台"
+   ],
+   "answer": 2,
+   "explain": "第 4 页：该园区最终采用统一设计和光纤连接的 ERRCS 解决覆盖。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "课件认为 Uptime Institute 的数据可以直接证明对讲系统能降低停机率。",
+   "options": null,
+   "answer": false,
+   "explain": "第 4 页：这个数据不能直接证明对讲系统可以降低停机率，但说明异常时现场需要实时、明确的执行协同。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "数据中心投运后，课件说反复遇到的两类通信问题是？",
+   "options": [
+    "终端续航不足和电池老化过快",
+    "覆盖盲区和扩建后的碎片化",
+    "采购价格偏高和设备交期过长",
+    "频率干扰和机房底噪过高"
+   ],
+   "answer": 1,
+   "explain": "第 5 页：第一类是覆盖盲区，第二类是扩建后的碎片化。",
+   "source_page": 5,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "课件提到，大型数据中心园区可能要求在大约多长时间里完成多栋建筑的建设和分期投运？",
+   "options": [
+    "一年",
+    "半年",
+    "三年",
+    "两年"
+   ],
+   "answer": 0,
+   "explain": "第 6 页：可能要求在大约一年里完成多栋建筑的建设和分期投运。",
+   "source_page": 6,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "以下哪项不是「按单栋建筑各建一套通信」在园区层面带来的问题？",
+   "options": [
+    "频率重复申请",
+    "不同型号备件无法复用",
+    "单栋楼内部无法正常通话",
+    "跨楼漫游中断、呼叫组不能延续"
+   ],
+   "answer": 2,
+   "explain": "第 7 页：每一栋单独看都能正常通信，问题出在跨楼漫游、呼叫组、频率重复申请、运维分散和备件不能复用。",
+   "source_page": 7,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "在「以园区为中心」的架构下，后续新楼建成时增加的是什么？",
+   "options": [
+    "一套独立的新系统",
+    "远端覆盖节点",
+    "新的频率许可",
+    "新的核心信源"
+   ],
+   "answer": 1,
+   "explain": "第 8 页：新楼建成后增加的是远端覆盖节点，而不是重新建设一套独立系统。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "统一核心架构意味着整个园区只能依赖一台单点设备，无法做冗余。",
+   "options": null,
+   "answer": false,
+   "explain": "第 8 页：统一核心并不等于单点设备，仍可按可靠性要求做主备和光路冗余。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "课件说要实现快速复制，真正要复制的是什么？",
+   "options": [
+    "首期的供应商合同",
+    "一整套建设标准",
+    "首期原班施工队伍",
+    "首期选定的设备型号"
+   ],
+   "answer": 1,
+   "explain": "第 9 页：复制的不能只是设备型号，而应该是一整套建设标准。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "根据项目经验，哪个国家每对专业频率还会带来额外成本？",
+   "options": [
+    "马来西亚",
+    "印度尼西亚",
+    "新加坡",
+    "泰国"
+   ],
+   "answer": 3,
+   "explain": "第 10 页：泰国每对频率还会带来额外成本。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "在网络分工中，DMR 专网主要承担哪类业务？",
+   "options": [
+    "园区巡检路线和任务数据",
+    "跨园区、跨城市之间的调度协同",
+    "位置、状态等业务数据上传",
+    "安保、应急和关键设施操作"
+   ],
+   "answer": 3,
+   "explain": "第 11 页：DMR 专网承担安保、应急和关键设施操作，强调安全、独立、可控。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "跨园区、跨城市的协同，课件认为更适合哪种网络？",
+   "options": [
+    "园区 Wi-Fi",
+    "内部 IP 网络",
+    "DMR 专网",
+    "4G LTE"
+   ],
+   "answer": 3,
+   "explain": "第 11 页：跨园区、跨城市的协同更适合 4G LTE。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "园区内的巡检、任务和业务数据，可以充分利用已经建好的 Wi-Fi 和内部 IP 网络。",
+   "options": null,
+   "answer": true,
+   "explain": "第 11 页：巡检、任务和业务数据可以利用已建设好的 Wi-Fi 和内部 IP 网络。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 把哪两种网络放在同一台终端上？",
+   "options": [
+    "Wi-Fi 和 GPS",
+    "DMR 和 Wi-Fi",
+    "DMR 和 LTE",
+    "LTE 和 BLE"
+   ],
+   "answer": 2,
+   "explain": "第 12 页：PNR2100 把 DMR 和 LTE 放在同一台终端上。",
+   "source_page": 12,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 上的 GPS 和 BLE 主要用于什么？",
+   "options": [
+    "广域通信和虚拟频道",
+    "使命关键语音",
+    "频率申请",
+    "位置与任务协同"
+   ],
+   "answer": 3,
+   "explain": "第 12 页：GPS 和 BLE 用于位置与任务协同。",
+   "source_page": 12,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "课件主张让一线人员带几台不同设备，在现场自行判断该用哪张网络。",
+   "options": null,
+   "answer": false,
+   "explain": "第 12 页：用户不应带几台不同设备，也不应在现场判断该用哪张网络，始终是一台设备、一套操作习惯。",
+   "source_page": 12,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "机房内的安保和应急通信走 DMR 专网，关键通话不依赖公网。",
+   "options": null,
+   "answer": true,
+   "explain": "第 13 页：机房内的安保和应急通信走 DMR 专网，关键通话不依赖公网。",
+   "source_page": 13,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "在新加坡做项目，涉及的通信认证与许可机构是？",
+   "options": [
+    "IMDA",
+    "NBTC",
+    "SDPPI",
+    "MCMC"
+   ],
+   "answer": 0,
+   "explain": "第 14 页：新加坡 IMDA；马来西亚 MCMC 和 SIRIM；印尼 SDPPI；泰国 NBTC。",
+   "source_page": 14,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "在马来西亚落地，涉及的认证与许可机构包括 MCMC 和 SIRIM。",
+   "options": null,
+   "answer": true,
+   "explain": "第 14 页：例如马来西亚的 MCMC 和 SIRIM。",
+   "source_page": 14,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "专业通信最早解决的是「连接」，也就是人和人能够实时通话。",
+   "options": null,
+   "answer": true,
+   "explain": "第 15 页：专业通信最早解决的是连接，也就是人和人能够实时通话。",
+   "source_page": 15,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "多网络架构下关键语音继续走 DMR，是为了保证哪些特性？",
+   "options": [
+    "高带宽和视频能力",
+    "广域漫游覆盖",
+    "独占、可靠和私密",
+    "最低的终端成本"
+   ],
+   "answer": 2,
+   "explain": "第 16 页：关键语音继续走 DMR，保证独占、可靠和私密。",
+   "source_page": 16,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "课件列出的「一台终端背后的通信生态」中，不包括以下哪项？",
+   "options": [
+    "合路平台",
+    "公有云服务器",
+    "光纤远端",
+    "NetFlex 平台"
+   ],
+   "answer": 1,
+   "explain": "第 17 页：生态包括基站、合路平台、光纤远端、天线、NetFlex 平台以及本地服务器。",
+   "source_page": 17,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "NetFlex 平台把人员、语音、位置、任务和设备状态组织到同一个界面里。",
+   "options": null,
+   "answer": true,
+   "explain": "第 18 页：平台把人员、语音、位置、任务和设备状态组织到同一个界面里。",
+   "source_page": 18,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "NetFlex 查找人员时，以下哪项不是课件提到的检索条件？",
+   "options": [
+    "终端 ID",
+    "部门",
+    "工号",
+    "车牌号"
+   ],
+   "answer": 3,
+   "explain": "第 19 页：可按部门、姓名、工号或终端 ID 快速找到人员。",
+   "source_page": 19,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "答案/干扰项存疑；干扰项设计反了：'车牌号'在人员检索条件中一眼异类，答案无需记忆即可选出；建议换成'手机号''岗位'等近似项"
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "巡检可以通过模板固定路线、点位和频次，由系统自动生成周期任务。",
+   "options": null,
+   "answer": true,
+   "explain": "第 20 页：通过模板固定巡检路线、点位和频次，系统自动生成周期任务。",
+   "source_page": 20,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "巡检发现的异常转成工单时，会同时带上哪些信息？",
+   "options": [
+    "温度和湿度读数",
+    "设备型号和序列号",
+    "客户名称和合同号",
+    "位置、类别和时限"
+   ],
+   "answer": 3,
+   "explain": "第 21 页：异常直接转成工单，同时带上位置、类别和时限。",
+   "source_page": 21,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "NetFlex 通过什么让管理者快速判断通信系统的整体状态？",
+   "options": [
+    "LTE 虚拟频道",
+    "健康度评分",
+    "人员历史轨迹",
+    "巡检周期模板"
+   ],
+   "answer": 1,
+   "explain": "第 22 页：通过健康度评分快速判断系统整体状态。",
+   "source_page": 22,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "使用这套方案时，现场的语音、位置等运营数据必须上传到外部云端才能分析。",
+   "options": null,
+   "answer": false,
+   "explain": "第 23 页：信息可汇集到用户自己的本地服务器，敏感运营数据可留在本地环境，不必上传外部云端。",
+   "source_page": 23,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "按课件观点，在谈 AI 辅助之前，首先要具备什么？",
+   "options": [
+    "可靠的语音、位置、任务和设备数据",
+    "一套全自动无人值守的处置流程",
+    "足够的公有云算力和大模型平台",
+    "更多的专业频率和更大的数据带宽"
+   ],
+   "answer": 0,
+   "explain": "第 24 页：先有可靠的语音、位置、任务和设备数据，再形成运营语境，最后才谈 AI 辅助。",
+   "source_page": 24,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "课件总结的三种「确定性」不包括以下哪项？",
+   "options": [
+    "价格确定性",
+    "通信确定性",
+    "交付确定性",
+    "架构确定性"
+   ],
+   "answer": 0,
+   "explain": "第 25 页：三种确定性是架构确定性、通信确定性、交付确定性。",
+   "source_page": 25,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "CSE Global 那笔订单，课件认为比 1500 万美元金额更值得关注的是什么？",
+   "options": [
+    "采购范围从设计、安装延伸到持续维护",
+    "覆盖三大洲，说明终端走向全球集采",
+    "执行期四年，说明终端换代周期变长",
+    "订单金额大，说明终端采购需求激增"
+   ],
+   "answer": 0,
+   "explain": "第 3 页：更值得关注的不是金额而是采购范围——从系统设计、安装到持续维护，是跨区域、全生命周期的通信基础设施能力。",
+   "source_page": 3,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "课件引用 Uptime Institute 关于人为因素的研究，正确的解读是？",
+   "options": [
+    "人为因素多与程序有关，所以重点应完善书面程序",
+    "该数据证明对讲系统能直接降低人为因素导致的停机",
+    "不能直接证明对讲降停机，但说明异常时需实时协同",
+    "人为因素是主因，因此应优先投资自动化而非通信"
+   ],
+   "answer": 2,
+   "explain": "第 4 页：数据不能直接证明对讲系统可以降低停机率，但说明异常发生时现场需要实时、明确的执行协同。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "课件说建设速度挑战中「单看每个问题都能解决」，那真正的难点在哪？",
+   "options": [
+    "一期运行、二期施工，导致频率互相干扰",
+    "多方并行推进，导致通信设备供货不足",
+    "一年内投运，迫使通信系统过度设计",
+    "多重压力叠加，通信被推到工程后端"
+   ],
+   "answer": 3,
+   "explain": "第 6 页：单看每一个问题都能解决，但压力叠加以后，通信系统最容易被推到工程后端。",
+   "source_page": 6,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "只要园区里每栋楼单独测试都能正常通信，园区整体就能作为一套系统运行。",
+   "options": null,
+   "answer": false,
+   "explain": "第 7 页：局部都能工作，并不代表园区整体能作为一个系统运行；跨楼漫游、呼叫组、运维等问题会集中出现。",
+   "source_page": 7,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "「以园区为中心」的架构，为什么能做到一期运行时二期施工不影响现网？",
+   "options": [
+    "每期各建一套独立系统，彼此物理隔离互不干扰",
+    "新楼增加远端节点，接入同一套频道和运维体系",
+    "二期临时改用公网 LTE，待验收后再并入专网",
+    "二期施工期间暂停一期通信，完工后统一割接"
+   ],
+   "answer": 1,
+   "explain": "第 8 页：新楼增加的是远端覆盖节点，扩建可直接接入同一套频道、身份和运维体系。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "从「以建筑为中心」转向「以园区为中心」后，以下哪些说法成立？",
+   "options": [
+    "新楼可接入同一套频道、身份和运维体系",
+    "统一核心仍可做主备和光路冗余",
+    "扩建时增加的是远端覆盖节点",
+    "每栋新楼仍需单独申请一套频率"
+   ],
+   "answer": [
+    0,
+    1,
+    2
+   ],
+   "explain": "第 7、8 页：统一核心经光纤延伸，扩建只加远端节点并接入同一体系；统一核心不等于单点，可做主备冗余；不再逐栋重复申请频率。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "按「复制标准」的思路，把首期园区模式复制到另一个国家时应怎么做？",
+   "options": [
+    "沿用同一标准，按当地频率和合规做必要调整",
+    "原样照搬首期方案，包括频率规划和认证文件",
+    "保持设备型号一致，其余交由当地集成商决定",
+    "到新国家后结合当地条件重新设计一套方案"
+   ],
+   "answer": 0,
+   "explain": "第 9 页：后续楼宇沿用同一标准，到不同国家再针对当地频率和合规做必要调整。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "为什么课件说多国复制时，让所有通信都走专业专网会出问题？",
+   "options": [
+    "专网终端无法跨国使用，需要逐国更换型号",
+    "DMR 专网覆盖范围有限，难以延伸到多栋建筑",
+    "专网语音的私密性不足，不适合数据中心业务",
+    "各国频率管理不同，频率会制约工期、成本和扩展"
+   ],
+   "answer": 3,
+   "explain": "第 10 页：各国频段、许可、主体、功率和周期不同，坚持全部走专网，频率就会成为工期、成本和扩展能力的约束。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "关于马来西亚、泰国、新加坡三地的专业频率情况，哪些说法符合课件？",
+   "options": [
+    "泰国每对频率还会带来额外成本",
+    "三地的许可类型和审批周期基本一致",
+    "马来西亚频率审批通常要预留几个月",
+    "新加坡可分配的专业无线资源比较有限"
+   ],
+   "answer": [
+    0,
+    2,
+    3
+   ],
+   "explain": "第 10 页：马来西亚需预留几个月，泰国每对频率有额外成本，新加坡资源有限；各国管理并不一致。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "把巡检和业务数据交给 Wi-Fi、LTE 承载，意味着降低了专业通信的等级。",
+   "options": null,
+   "answer": false,
+   "explain": "第 11 页：这不是降低专业通信的等级，而是把稀缺频率用在最需要的地方。",
+   "source_page": 11,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "「网络可以分工，终端必须统一」，主要是为了解决什么问题？",
+   "options": [
+    "不把多网络的复杂度留给一线人员",
+    "便于把语音和位置数据统一上传云端",
+    "减少向各国监管机构申请的频率对数",
+    "减少园区所需的基站和远端数量"
+   ],
+   "answer": 0,
+   "explain": "第 12 页：网络可以分工，但不能把复杂度留给一线人员，始终一台设备、一套操作习惯。",
+   "source_page": 12,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "关于 PNR2100 上各项能力的分工，哪些说法正确？",
+   "options": [
+    "DMR 负责使命关键语音",
+    "GPS 和 LTE 负责关键语音的备份",
+    "LTE 负责广域通信、数据和虚拟频道",
+    "DMR 负责跨城市的广域调度"
+   ],
+   "answer": [
+    0,
+    2
+   ],
+   "explain": "第 12 页：DMR 负责使命关键语音，4G LTE 负责广域通信、数据和虚拟频道，GPS 和 BLE 用于位置与任务协同。",
+   "source_page": 12,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "下列「网络—业务」对应中，哪一项符合课件的分工？",
+   "options": [
+    "机房应急通信—园区 Wi-Fi",
+    "安保通话—公网 LTE 优先",
+    "园区巡检数据—DMR 专网",
+    "跨城市调度—4G LTE"
+   ],
+   "answer": 3,
+   "explain": "第 11、13 页：安保应急走 DMR，巡检数据走 Wi-Fi/IP，跨楼跨园区跨城市调度走 4G LTE。",
+   "source_page": 13,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "课件认为海外合规「真正的风险」是什么？",
+   "options": [
+    "认证与频率许可费用高，压缩项目利润",
+    "申报文件太多，项目团队人手不足",
+    "各国审批流程本身太慢，拖累整体工期",
+    "BOM 冻结后才发现频段、型号等不符"
+   ],
+   "answer": 3,
+   "explain": "第 14 页：真正的风险不是流程慢，而是设计和 BOM 冻结后才发现频段、功率、型号或进口条件不符合当地要求。",
+   "source_page": 14,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "国内项目与海外项目在合规关注点上有什么区别？",
+   "options": [
+    "国内重在频率许可，海外重在办理设备认证",
+    "国内先确认型号核准，海外还要过各国认证与频率许可",
+    "国内型号核准通过后，东南亚各国可以互认",
+    "海外各国统一由 MCMC 负责认证与频率许可"
+   ],
+   "answer": 1,
+   "explain": "第 14 页：国内首先确认无线电发射设备型号核准；海外每个国家有自己的认证和频率许可体系（MCMC、SIRIM、IMDA、SDPPI、NBTC）。",
+   "source_page": 14,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "如果在 BOM 冻结后才发现频段不符合当地要求，通常只需补改申报文件即可。",
+   "options": null,
+   "answer": false,
+   "explain": "第 14 页：那时改的不只是文件，可能还要改 BOM、架构甚至现场施工。",
+   "source_page": 14,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "与「连接」层相比，「协同」层多解决了什么？",
+   "options": [
+    "把事件、数据和分析沉淀下来",
+    "让覆盖从单栋扩展到整个园区",
+    "让人和人之间能够实时通话",
+    "把人员、位置和任务放进同一体系"
+   ],
+   "answer": 3,
+   "explain": "第 15 页：连接是人和人实时通话；协同把人员、位置和任务放到同一套体系；沉淀事件、数据和分析属于运营层。",
+   "source_page": 15,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "语音和数据「各行其道」，对数据中心最主要的好处是？",
+   "options": [
+    "可逐步取消 DMR 专网以节省建设成本",
+    "语音和数据分属两套系统，便于分开管理",
+    "保留专网安全性，同时释放数据能力",
+    "终端改用单一 LTE 模块，采购价格更低"
+   ],
+   "answer": 2,
+   "explain": "第 16 页：关键语音走 DMR、数据走 LTE 等宽带网络，既保留专网安全性，也释放数据业务能力。",
+   "source_page": 16,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "定位、任务、告警等运营功能要可靠，前提是网络、覆盖、终端和平台从一开始就协同设计。",
+   "options": null,
+   "answer": true,
+   "explain": "第 17 页：只有网络、覆盖、终端和平台从一开始协同设计，后面的定位、任务、告警和运营数据才有可靠基础。",
+   "source_page": 17,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "课件强调 NetFlex 对数据中心的意义，本质上是什么？",
+   "options": [
+    "把关键语音迁移到宽带网络上承载",
+    "集中展示终端电量和信号强度参数",
+    "在现有系统之外再增加一个软件平台",
+    "减少信息分散，形成统一管理视图"
+   ],
+   "answer": 3,
+   "explain": "第 18 页：这些功能不是为了增加一个软件平台，而是减少信息分散，形成人、任务和设备状态的统一管理视图。",
+   "source_page": 18,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "有了人员定位后，现场调度方式发生了什么变化？",
+   "options": [
+    "先看到人在哪，再进行调度",
+    "人员进楼后切到楼层图，室外轨迹清空",
+    "调度员改为通过平台文字派单",
+    "室外 GIS 看人员，楼内改用对讲询问"
+   ],
+   "answer": 0,
+   "explain": "第 19 页：室内外地图连续切换；过去先问「你在哪里」，现在先看到人在哪里再调度。",
+   "source_page": 19,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "与传统巡检管理相比，NetFlex 巡检最大的改进是什么？",
+   "options": [
+    "巡检改为按需临时派发，取消周期任务",
+    "能还原过程，路线与语音同记录可复盘",
+    "固定路线后按完成率考核，减少过程数据",
+    "由 AI 判断巡检是否合格，代替管理者审核"
+   ],
+   "answer": 1,
+   "explain": "第 20 页：传统只能看最终结果；现在可看完成、遗漏、延误，路线和语音关联同一任务记录可复盘。",
+   "source_page": 20,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "AI 识别巡检语音中的状态和异常，前提是建立在可追溯的现场数据之上。",
+   "options": null,
+   "answer": true,
+   "explain": "第 20 页：AI 可以进一步识别语音中的状态和异常，但它首先建立在可追溯的现场数据之上。",
+   "source_page": 20,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "从发现异常到闭环处置，以下哪些做法符合课件描述？",
+   "options": [
+    "工单状态实时更新并最终归档",
+    "一线在 PNR2100 上接单并回填结果",
+    "先电话口头确认，事后再补录纸质记录",
+    "按实时位置派给合适的现场人员"
+   ],
+   "answer": [
+    0,
+    1,
+    3
+   ],
+   "explain": "第 21 页：异常转工单、按实时位置派单、PNR2100 接单回填、状态实时更新，形成发现—派单—处置—归档链路。",
+   "source_page": 21,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "NetFlex 中「健康度评分」与「拓扑视图」的分工是？",
+   "options": [
+    "前者统计工单时效，后者列出设备型号",
+    "前者评巡检质量，后者显示人员实时位置",
+    "前者看链路关系，后者判断整体健康状态",
+    "前者判整体状态，后者看链路和影响范围"
+   ],
+   "answer": 3,
+   "explain": "第 22 页：健康度评分用于快速判断系统整体状态；拓扑视图能看到链路关系和影响范围。",
+   "source_page": 22,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "为什么「数据存在本地服务器」对数据中心客户尤其重要？",
+   "options": [
+    "本地服务器能提升对讲语音通话质量",
+    "本地存储便于向外部云端批量同步",
+    "敏感运营数据可留在自己的本地环境",
+    "集中存储后可以不再保留工单记录"
+   ],
+   "answer": 2,
+   "explain": "第 23 页：敏感运营数据可以保留在自己的本地环境中，而不是必须上传到外部云端。",
+   "source_page": 23,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "课件三种确定性中，「交付确定性」对应的做法是？",
+   "options": [
+    "认证、频率、供应链要求前置到设计",
+    "统一核心、光纤扩展、标准化复制",
+    "在线纳管设备，用健康度评分做预警",
+    "按任务选择网络，频率聚焦关键通信"
+   ],
+   "answer": 0,
+   "explain": "第 25 页：交付确定性是把认证、频率和供应链要求前置到设计阶段。",
+   "source_page": 25,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "某已投运数据中心称「系统早装好了」，但动力层和地下空间通话一直不稳。最准确的判断是？",
+   "options": [
+    "人为因素所致，加强程序执行培训即可",
+    "覆盖盲区：数据中心结构易成弱区，装了不等于可用",
+    "频率数量不足，再向监管申请一对频率即可",
+    "扩建碎片化所致，统一各期呼叫组即可解决"
+   ],
+   "answer": 1,
+   "explain": "第 4、5 页：机柜、重型结构、电池区、动力层等容易形成弱区；系统装了，关键区域不一定真正可用。",
+   "source_page": 5,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；场景题但仅需第5页覆盖盲区原话，降为中"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "某园区三期由三家厂商各建一套系统，运营方说「每栋都能用，但整体很乱」。最贴切的诊断与方向是？",
+   "options": [
+    "统一采购同一型号终端，即可解决漫游与呼叫组",
+    "以建筑为中心致碎片化，应统一核心、频道与运维",
+    "保留三套系统，上层加一个统一的运维平台",
+    "各栋室内覆盖不达标，应逐栋补强覆盖"
+   ],
+   "answer": 1,
+   "explain": "第 5、7、8 页：不同系统编号、呼叫组、漫游和运维不统一；方向是以园区为中心统一核心信源、频道、呼叫组和运维。",
+   "source_page": 7,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "柔佛某园区一期已投运、二期在施工、三期在规划，业主还打算之后复制到海外。哪套方案最合适？",
+   "options": [
+    "统一核心经光纤延伸，新楼加远端节点；首栋定标准后续沿用",
+    "统一核心采用单台设备，以免主备切换增加复杂度",
+    "每栋独立建系统，但统一终端型号以便备件复用",
+    "统一核心，但每期按当期需求重新规划频道和呼叫组"
+   ],
+   "answer": 0,
+   "explain": "第 8、9 页：以园区为中心统一核心、频道、呼叫组和运维，新楼只加远端节点；复制的是首栋确定的建设标准。统一核心不等于单点，可做冗余。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "客户顾问担心统一核心成为单点故障，又担心光路出问题没人知道。最完整的回应是？",
+   "options": [
+    "统一核心不变，光路由巡检人员定期人工检查",
+    "统一核心不变，故障时改由 LTE 承载关键语音",
+    "每栋楼独立部署核心，用光纤互联实现跨楼漫游",
+    "核心可做主备和光路冗余，光路异常由平台告警定位"
+   ],
+   "answer": 3,
+   "explain": "第 8、22 页：统一核心不等于单点，可做主备和光路冗余；NetFlex 可对光路异常等直接告警并定位到设备和位置。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "客户要把马来西亚做成的首期园区模式复制到泰国，最合适的做法是？",
+   "options": [
+    "沿用首栋标准，频率方案照搬马来西亚已获批的配置",
+    "按 NBTC 要求重新设计架构和 BOM，不沿用首期标准",
+    "沿用首栋标准，NBTC 相关认证等设备到场后再办理",
+    "沿用首栋标准，设计阶段按泰国频率成本与 NBTC 要求调整"
+   ],
+   "answer": 3,
+   "explain": "第 9、10、14 页：复制标准、到当地做必要调整；泰国每对频率有额外成本，认证对应 NBTC，且合规须在设计阶段前置。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "新加坡项目业主想把巡检、工单数据也放进 DMR 专网「更安全」。结合当地情况，你建议？",
+   "options": [
+    "频率留给安保应急，巡检走 Wi-Fi/IP，跨园区走 LTE",
+    "语音和巡检数据都走 DMR，仅跨园区调度改用 LTE",
+    "安保应急迁到园区 Wi-Fi，专网留给跨园区调度",
+    "巡检工单走 DMR 数据信道，安保语音改走 LTE"
+   ],
+   "answer": 0,
+   "explain": "第 10、11、16 页：新加坡专业无线资源有限；专业频率只服务安保、应急和关键操作，数据交给 Wi-Fi/IP 和 LTE，语音数据各行其道。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "值班员要同时带对讲机和手机，跨园区联络还得换设备。最贴切的推荐是？",
+   "options": [
+    "PNR2100：DMR 管关键语音，LTE 管跨园区广域与数据",
+    "保留对讲机，另配 LTE 手机负责跨园区，分工清晰",
+    "PNR2100：关键语音和跨园区都走 LTE，DMR 仅作备份",
+    "PNR2100：用 GPS 和 BLE 实现跨园区的语音联络"
+   ],
+   "answer": 0,
+   "explain": "第 12、13 页：一台终端集成 DMR 与 LTE；DMR 负责使命关键语音，LTE 负责广域通信、数据和虚拟频道，GPS/BLE 用于位置与任务协同。",
+   "source_page": 12,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；单页（第12页）应用，D'GPS/BLE做语音'偏假，评中"
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 3,
+   "question": "一家跨城市、多园区的数据中心运营商在规划通信。以下哪些分工安排是合理的？",
+   "options": [
+    "园区巡检数据走 Wi-Fi 或内部 IP",
+    "位置和状态数据也走 DMR 窄带以确保安全",
+    "机房安保和应急语音走 DMR 专网",
+    "跨城市调度走 4G LTE"
+   ],
+   "answer": [
+    0,
+    2,
+    3
+   ],
+   "explain": "第 11、13、16 页：关键语音走 DMR，园区数据走 Wi-Fi/IP，跨城市走 LTE；业务数据不必挤在窄带通道里。",
+   "source_page": 13,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；主要依据第11页分工，跨页综合有限，评中"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "中国设计院为印尼数据中心做通信设计，BOM 下周冻结，尚未核对当地要求。最准确的提醒是？",
+   "options": [
+    "冻结前按 SDPPI 核对频段、功率、型号和进口条件",
+    "以 SIRIM 认证结果作为东南亚通用依据再冻结",
+    "沿用国内已核准型号，冻结后再由代理办理 SDPPI",
+    "冻结前先按 NBTC 要求核对频段和功率限制"
+   ],
+   "answer": 0,
+   "explain": "第 14 页（结合第 9 页）：BOM 冻结后才发现不符，可能要改 BOM、架构甚至施工；印尼对应 SDPPI，须设计阶段前置。SIRIM 属马来西亚、NBTC 属泰国。",
+   "source_page": 14,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；信息全在第14页，属单页应用，评中"
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 3,
+   "question": "中国业主同时推进国内园区和马来西亚园区，设计阶段应前置确认哪些事项？",
+   "options": [
+    "用国内型号核准替代马来西亚认证",
+    "国内无线电发射设备型号核准",
+    "马来西亚 MCMC、SIRIM 相关要求",
+    "先冻结 BOM，再预留几个月办频率审批"
+   ],
+   "answer": [
+    1,
+    2
+   ],
+   "explain": "第 10、14 页：国内要确认型号核准，马来西亚有 MCMC/SIRIM 体系且频率审批需预留几个月，都须在架构冻结前确认。",
+   "source_page": 14,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2"
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 3,
+   "question": "数据中心运维总监想要「人、任务、设备状态在一个视图里」，NetFlex 的哪些能力直接对应？",
+   "options": [
+    "替代 DMR 承载使命关键语音",
+    "巡检与工单闭环",
+    "人员定位与地图调度",
+    "通信系统健康预警"
+   ],
+   "answer": [
+    1,
+    2,
+    3
+   ],
+   "explain": "第 18、19、21、22 页：NetFlex 的直接价值包括人员定位、地图调度、巡检、工单闭环和系统健康预警；关键语音仍走 DMR。",
+   "source_page": 18,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "电池区突发异常，值班经理要尽快让最近的人到场处置并留下记录。最合适的组合是？",
+   "options": [
+    "定位找到最近人员，异常转工单按位置派单并回填",
+    "查看巡检模板，按计划路线推断谁在电池区附近",
+    "用健康度评分定位异常设备，再通知值班长处理",
+    "对讲群呼询问谁在附近，再口头指派到场处置"
+   ],
+   "answer": 0,
+   "explain": "第 19、21 页：一张地图看清人员位置；异常转工单并根据实时位置派给更合适的人，在 PNR2100 接单回填形成闭环。",
+   "source_page": 21,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；答案为唯一组合两项能力的选项，略偏完整外观，评中"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "屋顶冷却区漏水，客户事后要能复盘「谁发现、谁处理、用时多久」。哪种做法最能满足？",
+   "options": [
+    "异常转工单，但固定由发现的巡检员本人处理",
+    "巡检看最终完成率，异常时电话通知主管处理",
+    "由 AI 识别语音中的异常并自动关闭对应工单",
+    "巡检路线与语音同记录，转工单闭环归档并存本地"
+   ],
+   "answer": 3,
+   "explain": "第 20、21、23 页：巡检路线和语音关联同一任务记录；发现—派单—处置—归档完整链路；数据沉淀在本地服务器可复盘。",
+   "source_page": 21,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；答案堆叠多项能力，外观最完整，干扰项C有一定迷惑性，评中"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "客户反映某楼层对讲时好时坏，过去总是坏了才知道。你会重点介绍哪项能力？",
+   "options": [
+    "提高该楼层巡检频次，巡检时顺带测试通话质量",
+    "为该楼层再申请一对频率并加装独立中继台",
+    "在线纳管远端与天馈，光路、驻波比告警定位到设备",
+    "查看该楼层人员历史轨迹，找出信号差的区域"
+   ],
+   "answer": 2,
+   "explain": "第 17、22 页：基站、远端、天馈和终端可在线纳管，光路异常、驻波比等直接告警并定位，拓扑看影响范围。",
+   "source_page": 22,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "客户安全团队既担心运营数据外泄，又希望日后用 AI 分析。最贴切的回应是？",
+   "options": [
+    "不记录语音和位置，保留工单结果以防外泄",
+    "先上线 AI 分析，数据存放位置后续再讨论",
+    "数据上传外部云端做 AI 分析，全程加密传输",
+    "数据沉淀在客户本地服务器，AI 建立在这些可信数据上"
+   ],
+   "answer": 3,
+   "explain": "第 23、24 页：信息汇集到用户自己的本地服务器，敏感数据保留本地；AI 应建立在持续、可信的通信和运营数据之上。",
+   "source_page": 23,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "客户想「上线就让 AI 自动处置告警、替代值班人员」。哪种引导最符合课件？",
+   "options": [
+    "AI 能识别巡检语音异常，因此可直接替代值班判断",
+    "先积累数据，再由 AI 接管处置，人员做事后复核",
+    "先积累数据形成事件语境，AI 辅助识别，判断留给人",
+    "先上线 AI 自动处置，再用处置结果反向积累数据"
+   ],
+   "answer": 2,
+   "explain": "第 20、24 页：先有可靠的语音、位置、任务和设备数据，再形成事件、责任和时间线语境，最后才谈 AI 辅助；AI 不应替代现场人员判断。",
+   "source_page": 24,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；依据集中在第24页，B为良好近似项，但非跨页综合，评中"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "客户采购部只想按对讲终端单价比价。哪种说法最能讲清价值？",
+   "options": [
+    "价值在 DMR+LTE 双模终端，比单模终端更值钱",
+    "价值在于安装速度更快，可以明显缩短工期",
+    "头部客户也按终端数量采购，我们单价更有竞争力",
+    "头部客户已按全生命周期采购，我们交付三种确定性"
+   ],
+   "answer": 3,
+   "explain": "第 3、25 页：头部客户采购的是设计、安装到维护的全生命周期能力；我们交付架构、通信、交付三种确定性，不是更快地安装设备。",
+   "source_page": 25,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 3,
+   "question": "客户要在一年内建成多栋楼，并计划复制到泰国和印尼。以下哪些做法能真正降低不确定性？",
+   "options": [
+    "首栋定好标准，后续楼宇沿用",
+    "首栋按当地条件设计，海外各自重出 BOM",
+    "认证、频率、供应链要求前置到设计",
+    "先冻结架构保进度，合规在交付前集中办理"
+   ],
+   "answer": [
+    0,
+    2
+   ],
+   "explain": "第 6、9、14、25 页：复制标准、把合规与供应链前置，才能快而不乱；架构冻结后再做合规正是风险所在。",
+   "source_page": 25,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  }
+ ]
+}

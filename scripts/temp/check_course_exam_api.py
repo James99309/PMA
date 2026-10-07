@@ -38,6 +38,12 @@ with app.app_context():
     from app.models.training import TrainingQuizAttempt, get_local_time
     from app.services.course_exam import logic as L
     import app.views.knowledge_wiki as KW
+    from app.services.course_exam import service as S
+
+    # 种子题库自动导入另由 check_course_exam_seed.py 验证;这里指向不存在的目录关掉它,
+    # 保持本脚本「题库只有 ZZTEST 题」的前提,也不在 pma_local 留下种子题
+    S.SEED_DIR = os.path.join(get_project_root(), 'zz-no-seed-dir')
+    S.reset_seed_memo()
 
     # worktree 里课件不入 git;盘上没有就借主仓的 course_assets(只读)
     if not any(os.path.isfile(KW._course_html_path(r.key))

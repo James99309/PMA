@@ -8,6 +8,8 @@
   no_question / already_answered / bad_answer(提交值非法,保留断点) / stale_question(题目已变,断点作废)
 """
 import json
+import logging
+import os
 import random
 
 from sqlalchemy.exc import IntegrityError
@@ -321,7 +323,6 @@ def import_legacy_json(course_key, course_assets_dir):
 
     每题过 normalize_question,不合法的跳过;难度统一按 2(中)。
     """
-    import os
     from sqlalchemy import text
     path = os.path.join(course_assets_dir, course_key + '.quiz.json')
     if not os.path.isfile(path):
@@ -360,3 +361,116 @@ def import_legacy_json(course_key, course_assets_dir):
         n += 1
     db.session.commit()
     return n
+
+
+# ---------- 种子题库导入(随代码发布的离线审定题库) ----------
+
+_seed_log = logging.getLogger(__name__)
+
+# app/course_exam_seeds/<course_key>.json —— 随代码发布(生产 app/ 只读挂载,只读取)
+SEED_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                           '..', '..', 'course_exam_seeds'))
+_SEED_STATUSES = ('active', 'review', 'disabled')
+# 本进程已确认「无需再导入」的课(已有题 / 无种子文件 / 已导入),命中即不再查库
+_SEED_CHECKED = set()
+
+
+def reset_seed_memo():
+    """清空本进程的种子检查记忆(测试用)。"""
+    _SEED_CHECKED.clear()
+
+
+def _seed_path(course_key):
+    # course_key 来自课程表,仍防路径穿越
+    if not course_key or '/' in course_key or '\\' in course_key or course_key.startswith('.'):
+        return None
+    path = os.path.join(SEED_DIR, course_key + '.json')
+    return path if os.path.isfile(path) else None
+
+
+def _seed_rows(course_key, data):
+    """种子文件 → CourseQuizQuestion 列表;每题再过一遍 normalize_question,不合法跳过并记日志。"""
+    out = []
+    qs = data.get('questions') if isinstance(data, dict) else None
+    for i, raw in enumerate(qs or []):
+        if not isinstance(raw, dict):
+            _seed_log.warning('种子题库 %s 第 %d 题不是对象,跳过', course_key, i + 1)
+            continue
+        question = str(raw.get('question') or '').strip()
+        try:
+            if not question:
+                raise ValueError('题干为空')
+            norm = L.normalize_question({'qtype': raw.get('qtype'), 'difficulty': raw.get('difficulty'),
+                                         'options': raw.get('options'), 'answer': raw.get('answer')})
+        except ValueError as e:
+            _seed_log.warning('种子题库 %s 第 %d 题不合法,跳过: %s', course_key, i + 1, e)
+            continue
+        status = raw.get('status') if raw.get('status') in _SEED_STATUSES else 'review'
+        ai_d = L._as_int(raw.get('ai_difficulty'))
+        page = L._as_int(raw.get('source_page'))
+        explain, note = raw.get('explain'), raw.get('review_note')
+        out.append(CourseQuizQuestion(
+            course_key=course_key, qtype=norm['qtype'], difficulty=norm['difficulty'],
+            ai_difficulty=ai_d if ai_d in L.POINTS else None, question=question,
+            options=norm['options'] if norm['qtype'] != 'judge' else None, answer=norm['answer'],
+            explain=str(explain) if explain else None, source_page=page,
+            status=status, origin='ai', review_note=str(note) if note else None, created_by=None))
+    return out
+
+
+def ensure_seeded(course_key):
+    """本课题库完全为空(任何状态都没有)且有种子文件 → 整体导入。返回导入条数。
+
+    优先于旧版 .quiz.json:调用方先调本函数,仍为空才走 import_legacy_json。
+    与 import_legacy_json 共用同一把 advisory 锁,锁内重判是否为空,并发首访只导一次。
+    """
+    if course_key in _SEED_CHECKED:
+        return 0
+    path = _seed_path(course_key)
+    if path is None:
+        _SEED_CHECKED.add(course_key)
+        return 0
+    from sqlalchemy import text
+    if db.engine.dialect.name == 'postgresql':
+        db.session.execute(text('SELECT pg_advisory_xact_lock(hashtext(:k))'),
+                           {'k': 'course_exam_import:' + course_key})
+    if CourseQuizQuestion.query.filter_by(course_key=course_key).first():
+        db.session.commit()
+        _SEED_CHECKED.add(course_key)
+        return 0
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        db.session.commit()
+        _seed_log.exception('种子题库 %s 读取失败', course_key)
+        _SEED_CHECKED.add(course_key)
+        return 0
+    if isinstance(data, dict) and data.get('course_key') not in (None, course_key):
+        db.session.commit()
+        _seed_log.warning('种子题库 %s 的 course_key 不匹配(%s),不导入', course_key, data.get('course_key'))
+        _SEED_CHECKED.add(course_key)
+        return 0
+    rows = _seed_rows(course_key, data)
+    db.session.add_all(rows)
+    db.session.commit()
+    _SEED_CHECKED.add(course_key)
+    _seed_log.info('种子题库 %s 导入 %d 题', course_key, len(rows))
+    return len(rows)
+
+
+def ensure_seeded_many(course_keys):
+    """批量版(小源面板用):一次查询找出哪些课已有题,只对确实为空且有种子的课逐个导入。"""
+    todo = [k for k in dict.fromkeys(course_keys) if k not in _SEED_CHECKED]
+    with_seed = []
+    for k in todo:
+        if _seed_path(k) is None:
+            _SEED_CHECKED.add(k)
+        else:
+            with_seed.append(k)
+    if not with_seed:
+        return 0
+    have = {ck for (ck,) in db.session.query(CourseQuizQuestion.course_key)
+            .filter(CourseQuizQuestion.course_key.in_(with_seed)).distinct().all()}
+    _SEED_CHECKED.update(have)
+    return sum(ensure_seeded(k) for k in with_seed if k not in have)

@@ -37,7 +37,8 @@ def get_project_root():
 ROOT = get_project_root()
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
 from _pma_testkit import (make_app, start_server, stop_server, create_temp_user,  # noqa: E402
-                          delete_temp_user, add_temp_bank, delete_temp_bank)
+                          delete_temp_user, add_temp_bank, delete_temp_bank,
+                          empty_seed_keys, delete_seed_imports)
 
 USERNAME = 'zz_cb_e2e'
 PASSWORD = 'CbE2e-Only-2026!'
@@ -377,16 +378,19 @@ def run_browser():
 
 
 proc = None
+SEED_KEYS = []
 try:
     cleanup()
     uid = setup()
     UID = uid
     print('INFO 临时账号 id', uid)
+    SEED_KEYS = empty_seed_keys(app)          # 本次可能被自动导入种子题库的课,结束时删掉
     proc = start_server(args.port, os.path.join(args.shots, 'server.log'), EXAM_KEY)
     print('INFO 服务已启动', BASE)
     run_browser()
 finally:
     stop_server(proc)
+    check(delete_seed_imports(app, SEED_KEYS), f'清理:自动导入的种子题已硬删({SEED_KEYS})')
     check(cleanup(), '清理:临时账号与 ZZE2E 题已硬删')
     print('\n' + ('全部通过' if not fails else f'{len(fails)} 项失败:\n  - ' + '\n  - '.join(fails)))
 sys.exit(1 if fails else 0)

@@ -1,0 +1,989 @@
+{
+ "course_key": "smart-task-intercom",
+ "version": 1,
+ "generated": "2026-10-07",
+ "questions": [
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 融合了哪两种通信方式？",
+   "options": [
+    "DMR 专网数字通信 + 4G LTE 公网语音",
+    "模拟常规对讲 + 4G LTE 公网语音视频",
+    "4G LTE 公网语音 + Wi-Fi 局域网语音",
+    "DMR 专网数字通信 + 卫星应急短报文通信"
+   ],
+   "answer": 0,
+   "explain": "第 2 页：PNR2100 是融合 DMR 专网通信与 4G LTE 公网语音的双模智能任务终端。",
+   "source_page": 2,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "PNR2100 与 NetFlex 业务平台深度集成。",
+   "options": null,
+   "answer": true,
+   "explain": "第 2 页：PNR2100 具备任务下发、定位反馈等能力，并与 NetFlex 业务平台深度集成。",
+   "source_page": 2,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "三种通信模态中，哪一种可以灵活创建虚拟频道、免频率许可？",
+   "options": [
+    "4G LTE 公网广域语音",
+    "双模智能守候（自动选网）",
+    "BLE 蓝牙直连短距离通话",
+    "DMR 专网安全保障（数字加密）"
+   ],
+   "answer": 0,
+   "explain": "第 3 页：4G LTE 公网负责跨城跨区广域调度，可灵活创建虚拟频道、免频率许可。",
+   "source_page": 3,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "DMR 专网模态能在加密专网系统中为封闭空间提供无盲区通信。",
+   "options": null,
+   "answer": true,
+   "explain": "第 3 页：DMR 专网在加密专网系统中为封闭空间提供无盲区通信，是应急时刻的最佳保障。",
+   "source_page": 3,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "双模守候的常态下（公网正常），日常调度和平台任务同步走哪张网？",
+   "options": [
+    "BLE 蓝牙定位广播网络",
+    "两张网轮流承载、按时段切换",
+    "4G LTE 公网",
+    "DMR 专网直通组呼"
+   ],
+   "answer": 2,
+   "explain": "第 4 页：常态公网在线时，日常调度、跨区呼叫、平台任务同步全部通过 4G LTE 公网承载。",
+   "source_page": 4,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "答案/干扰项存疑；干扰项过假：『BLE 定位广播网络』承载日常调度、『按时段轮流承载』一眼可排除，实际只剩 DMR/4G 二选一"
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "双模守候在公网和专网之间切换时，需要使用者手动按键确认。",
+   "options": null,
+   "answer": false,
+   "explain": "第 4 页：切换在后台完成，终端实时侦测并自动切换，使用者零操作。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 用来显示任务卡片的屏幕是多大？",
+   "options": [
+    "1.77 英寸高清彩屏",
+    "2.0 英寸高清彩屏",
+    "2.4 英寸高清彩屏",
+    "2.8 英寸高清触摸彩屏"
+   ],
+   "answer": 1,
+   "explain": "第 5 页：任务以卡片形式呈现在 2.0 英寸高清彩屏上。",
+   "source_page": 5,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "任务卡片下发到终端后，提供哪三个直达按键？",
+   "options": [
+    "确认 / 转发 / 归档删除",
+    "接收 / 拒绝 / 暂停处理",
+    "确认 / 回复 / 取消",
+    "回复 / 上报 / 一键告警"
+   ],
+   "answer": 2,
+   "explain": "第 5 页：每条任务一张卡片，确认 / 回复 / 取消三键直达，无需翻菜单。",
+   "source_page": 5,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 终端遗失后，可以怎么处理？",
+   "options": [
+    "通过一键 SOS 让终端自动报警",
+    "只能挂失后等待找回",
+    "把终端切换到 DMR 专网直通",
+    "在系统上一键远程锁定并关闭终端"
+   ],
+   "answer": 3,
+   "explain": "第 6 页：终端遗失，可在系统上一键远程锁定并关闭，远程排除隐患。",
+   "source_page": 6,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "每台 PNR2100 都有唯一产品识别码，系统能主动识别恶意克隆设备并将其排除在团队之外。",
+   "options": null,
+   "answer": true,
+   "explain": "第 6 页：每台终端具唯一产品识别码，系统主动识别恶意克隆设备，将其排除在团队之外。",
+   "source_page": 6,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 在室内主要靠什么定位？",
+   "options": [
+    "DMR 专网信号",
+    "4G LTE 基站",
+    "BLE 蓝牙",
+    "GPS"
+   ],
+   "answer": 2,
+   "explain": "第 7 页：室外靠 GPS，室内靠 BLE。",
+   "source_page": 7,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 的蓝牙规格是？",
+   "options": [
+    "BT5.0 + BLE Audio",
+    "BT4.2 + BLE",
+    "BT5.2 + BLE",
+    "BT4.0 + BLE 定位"
+   ],
+   "answer": 1,
+   "explain": "第 7 / 11 页：蓝牙 BT4.2 + BLE，支持耳机通信与定位广播。",
+   "source_page": 7,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "通过 NetFlex 平台，可以远程查看终端的电量、位置和任务状态。",
+   "options": null,
+   "answer": true,
+   "explain": "第 8 页：电量、位置、任务状态等关键信息实时上传、远程可查。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 机身的防护等级是？",
+   "options": [
+    "IP67",
+    "IP54",
+    "IP65",
+    "IP68"
+   ],
+   "answer": 0,
+   "explain": "第 9 页：IP67 防尘防喷水，整机密封防护。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 的工作温度范围是？",
+   "options": [
+    "-30 ~ 60 °C",
+    "-40 ~ 70 °C",
+    "-10 ~ +50 °C",
+    "-20 ~ 55 °C"
+   ],
+   "answer": 3,
+   "explain": "第 9 页：工作温度 -20~55 °C（-40~70 °C 是存储温度）。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 的电池容量是？",
+   "options": [
+    "2600 mAh",
+    "3000 mAh",
+    "4000 mAh（内置）",
+    "3400 mAh"
+   ],
+   "answer": 3,
+   "explain": "第 9 页：3400 mAh 可拆卸锂电池，长时续航、现场快换。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "PNR2100 的电池是内置的，不可拆卸。",
+   "options": null,
+   "answer": false,
+   "explain": "第 9 页：配备 3400 mAh 可拆卸锂电池，支持现场快换。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "课件中，港口码头装卸调度场景强调的是哪一点？",
+   "options": [
+    "露天遮蔽环境稳定通信，盲区一键组呼",
+    "多岗位呼叫、任务通知与实时回执",
+    "多站点批量派单、跟踪进度",
+    "设备故障上报、语音组呼与工单任务闭环"
+   ],
+   "answer": 0,
+   "explain": "第 10 页：港口码头装卸调度——露天遮蔽环境稳定通信，盲区一键组呼。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "课件中，矿业 · 山区 · 海岛开发场景主打的是「多站点批量派单、跟踪进度」。",
+   "options": null,
+   "answer": false,
+   "explain": "第 10 页：矿业 · 山区 · 海岛强调地形分散、GPS+LTE 联合定位与任务反馈；多站点批量派单、跟踪进度是物流配送的描述。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 使用的操作系统是？",
+   "options": [
+    "Android",
+    "RTOS",
+    "Linux",
+    "HarmonyOS"
+   ],
+   "answer": 1,
+   "explain": "第 11 页：操作系统 RTOS。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 的 DMR 专网频段是？",
+   "options": [
+    "350–400 MHz",
+    "400–470 MHz (UHF)",
+    "806–870 MHz",
+    "136–174 MHz (VHF 频段)"
+   ],
+   "answer": 1,
+   "explain": "第 11 页：DMR 频段 400–470 MHz (UHF)。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "PNR2100 专网的发射功率是多少？",
+   "options": [
+    "2W",
+    "0.5W",
+    "4W",
+    "5W"
+   ],
+   "answer": 0,
+   "explain": "第 11 页：发射功率 专网 2W。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 1,
+   "question": "PNR2100 整机重量约 219g，这个数字不含电池。",
+   "options": null,
+   "answer": false,
+   "explain": "第 11 页：整机重量约 219g，是含电池与天线的重量。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "以下哪一项不是 PNR2100 支持的登录方式？",
+   "options": [
+    "账号密码",
+    "指纹识别",
+    "快速免登录",
+    "微信扫码"
+   ],
+   "answer": 1,
+   "explain": "第 11 页：登录方式为账号密码 / 微信扫码 / 快速免登录。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 1,
+   "question": "现场人员按下一键 SOS 后，告警人的位置会怎样呈现？",
+   "options": [
+    "由终端语音播报给周围人",
+    "以短信形式发给同组组员",
+    "直接在地图上标注上报",
+    "只保存在终端本地记录中"
+   ],
+   "answer": 2,
+   "explain": "第 6 页：一键 SOS，告警人位置直接在地图上标注上报，指挥中心实时定位、即时处置。",
+   "source_page": 6,
+   "status": "active",
+   "ai_difficulty": 1,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "和只用 4G 公网的对讲相比，双模守候主要解决了什么问题？",
+   "options": [
+    "盲区或公网中断时自动切 DMR 专网，不掉线",
+    "让屏幕同时显示公网与专网两路通话记录",
+    "提升 4G 公网通话音质，弱信号下也更清晰",
+    "让 DMR 专网也能免频率许可、灵活建虚拟频道"
+   ],
+   "answer": 0,
+   "explain": "第 3、4 页：一旦进入盲区或公网中断，终端自动切到 DMR 专网兜底，通话从不掉线；单用 4G 做不到。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "关于 DMR 专网和 4G LTE 公网两种模态的侧重，哪种说法正确？",
+   "options": [
+    "DMR 重在跨城跨区广域调度；4G 重在封闭空间无盲区、加密应急",
+    "DMR 专网主要负责 GPS+BLE 定位，4G 公网主要负责语音通话",
+    "两者都主打免频率许可和虚拟频道，区别只在于通话音质高低",
+    "DMR 重在封闭空间无盲区、加密应急；4G 重在跨城跨区广域调度"
+   ],
+   "answer": 3,
+   "explain": "第 3 页：DMR 专网为封闭空间提供无盲区通信、数字加密抗干扰；4G LTE 公网负责跨城跨区广域调度。",
+   "source_page": 3,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "双模守候下，即使公网信号正常，日常调度也优先走 DMR 专网，4G 只在专网故障时才启用。",
+   "options": null,
+   "answer": false,
+   "explain": "第 4 页：常态公网在线时日常调度走 4G LTE；进盲区或公网中断才切 DMR 专网兜底，角色正好相反。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "安全管控能力中，哪些是用来防止「信息外泄 / 被外人监听」的？",
+   "options": [
+    "终端遗失后远程锁定并关闭",
+    "唯一识别码，主动排除克隆设备",
+    "DMR 数字加密、频段独享，团队内闭环",
+    "一键 SOS，告警人位置直接在地图上报"
+   ],
+   "answer": [
+    0,
+    1,
+    2
+   ],
+   "explain": "第 6 页：加密专网、遗失远程关闭、唯一识别防克隆都服务于信息内控；一键 SOS 同在安全页，但解决的是遇险求救而非防泄密。",
+   "source_page": 6,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "讲「信息内控、防旁路监听」时，为什么强调 DMR 专网而不是 4G 公网？",
+   "options": [
+    "DMR 免频率许可、可灵活建虚拟频道，外人进不来",
+    "DMR 覆盖跨城跨区，信息不经过第三方城市",
+    "DMR 在封闭机房无盲区，监听设备收不到信号",
+    "DMR 数字加密、频段独享，语音数据团队内闭环"
+   ],
+   "answer": 3,
+   "explain": "第 3、6 页：DMR 专网数字加密、频段独享，语音与数据在团队内部闭环；免频率许可、跨城跨区是 4G 公网的特点。",
+   "source_page": 6,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "GPS 和 BLE 在 PNR2100 定位中是怎么分工的？",
+   "options": [
+    "GPS 负责全部定位，BLE 只用于连接蓝牙耳机",
+    "GPS 管室内，BLE 管室外，两者联合定位",
+    "两者都只用于室外，室内改靠 4G 基站定位",
+    "GPS 管室外，BLE 管室内，两者联合"
+   ],
+   "answer": 3,
+   "explain": "第 7 页：室外靠 GPS，室内靠 BLE，联合适配复杂地形、建筑密集或室内场景。",
+   "source_page": 7,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1；单页原话（室外 GPS/室内 BLE），与第 10 题考点重复"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "巡检员从室外步道走进楼内，终端的定位依据会发生什么变化？",
+   "options": [
+    "由 GPS 转为 DMR 专网信号测距定位",
+    "由 GPS 转为 BLE，配合信标可到楼层级",
+    "由 BLE 转为 GPS，进楼后卫星信号更稳定",
+    "由 GPS 转为 4G 基站定位，精度提升到楼层级"
+   ],
+   "answer": 1,
+   "explain": "第 7 页：室外靠 GPS、室内靠 BLE；BLE 配合信标实现楼层级室内导引，室外→室内连续追踪。",
+   "source_page": 7,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "现场按下一键 SOS 时，终端侧和平台侧分别发生什么？",
+   "options": [
+    "终端上报位置；平台远程关闭该终端以防泄密",
+    "终端弹出任务卡片待确认；平台群发告警短信",
+    "终端自动切 DMR 组呼；平台远程锁定该终端",
+    "终端上报告警人位置；平台弹闪烁告警点、联动就近处置"
+   ],
+   "answer": 3,
+   "explain": "第 6、8 页：一键 SOS 告警人位置在地图上报；平台地图即时弹出闪烁告警点，联动就近人员处置。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "PNR2100 与 NetFlex 平台的联动包括哪些？",
+   "options": [
+    "任务派发与状态回执",
+    "人员与终端实时定位上图、多角色看板调度",
+    "由 NetFlex 平台替代 DMR 专网，承担盲区直通组呼",
+    "终端电量、位置远程同步"
+   ],
+   "answer": [
+    0,
+    1,
+    3
+   ],
+   "explain": "第 8 页：NetFlex 联动包括任务派发回执、终端状态远程同步、实时定位可视化调度和一键 SOS；盲区直通组呼靠 DMR 专网（第 4 页）。",
+   "source_page": 8,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "答案/干扰项存疑；难度不一致:标注 2 / 复核 1；唯一干扰项『NetFlex 替代 DMR 专网承担盲区直通组呼』过假，答案即『除明显错项外全选』，且为单页列举记忆"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "「卡片三键直达」和「通话·任务·告警一屏」分别解决什么问题？",
+   "options": [
+    "前者支持离线存储任务；后者支持多路同时通话",
+    "前者戴手套能操作；后者暗光环境能看清",
+    "前者免翻菜单、操作快；后者信息集中不分散",
+    "前者信息集中不分散；后者免翻菜单、操作快"
+   ],
+   "answer": 2,
+   "explain": "第 5 页：每条任务一张卡片、确认/回复/取消三键直达无需翻菜单；通话记录、任务卡片与告警一屏显示，信息不再分散。",
+   "source_page": 5,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "一线在任务卡片上点「确认」或「回复」后，结果会作为状态回执回到 NetFlex 平台，任务形成闭环。",
+   "options": null,
+   "answer": true,
+   "explain": "第 5、8 页：卡片支持确认/回复；平台下发、终端回执，任务闭环全程在线、可追溯。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "规格里的「-20~55 °C」和「-40~70 °C」分别指什么？",
+   "options": [
+    "前者是电池充电温度，后者是整机工作温度",
+    "前者是工作温度，后者是存储温度",
+    "前者是存储温度，后者是工作温度",
+    "两者都是工作温度，分别对应专网和公网"
+   ],
+   "answer": 1,
+   "explain": "第 9 页：-20~55 °C 为工作温度，-40~70 °C 为极端存储温度。",
+   "source_page": 9,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1；与第 14 题考点重复（工作/存储温度区分）"
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "下列哪些参数直接支撑「恶劣环境连续工作」这一卖点？",
+   "options": [
+    "≤95% 高湿环境耐受（45°C）",
+    "ASR1606 处理器 625MHz",
+    "RAM 8MB + ROM 8MB",
+    "IP67 防尘防喷水"
+   ],
+   "answer": [
+    0,
+    3
+   ],
+   "explain": "第 9 页：IP67 与 ≤95% 湿度耐受属于三防与全天候作业指标；处理器和存储是硬件规格（第 11 页）。",
+   "source_page": 9,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "PNR2100 能在雨雪、粉尘、高低温环境下照常工作，靠的是 IP67 整机密封防护加上 -20~55°C 宽温域工作设计。",
+   "options": null,
+   "answer": true,
+   "explain": "第 9 页：IP67 防尘防喷水、整机密封防护；-20~55°C 宽温域工作，雨雪粉尘高低温照常运转。",
+   "source_page": 9,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "制造业和物流业两个场景，课件强调的侧重点有何不同？",
+   "options": [
+    "制造重故障上报与工单闭环；物流重多站点派单与进度跟踪",
+    "制造重露天遮蔽盲区组呼；物流重多岗位呼叫与回执",
+    "制造重多站点派单与进度跟踪；物流重故障上报与工单闭环",
+    "制造重地形分散联合定位；物流重露天遮蔽稳定通信"
+   ],
+   "answer": 0,
+   "explain": "第 10 页：制造业——设备故障上报、语音组呼与工单任务闭环；物流——多站点批量派单、跟踪进度。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 2,
+   "question": "以下哪些是课件第 10 页明确列出的适合行业场景？",
+   "options": [
+    "港口码头装卸调度",
+    "商场 · 写字楼 · 物业",
+    "医院后勤保障与护工呼叫",
+    "地铁车站运营与站务调度"
+   ],
+   "answer": [
+    0,
+    1
+   ],
+   "explain": "第 10 页：列出制造、物流、港口码头、商场写字楼物业、矿业山区海岛；地铁、医院虽是协作场景，但课件未列出。",
+   "source_page": 10,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "关于 PNR2100 的公网频段，哪种说法正确？",
+   "options": [
+    "FDD-LTE B1/3/5/8/41，TDD-LTE B34/38/39/40",
+    "FDD-LTE B1/3/5/8，TDD-LTE B34/38/39/40/41",
+    "只支持 TDD-LTE B34/38/39/40/41，不支持 FDD-LTE",
+    "FDD-LTE B34/38/39/40/41，TDD-LTE B1/3/5/8"
+   ],
+   "answer": 1,
+   "explain": "第 11 页：公网频段 FDD-LTE B1/3/5/8 · TDD-LTE B34/38/39/40/41。",
+   "source_page": 11,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "关于规格里的「2W」和「3400mAh」，哪种理解正确？",
+   "options": [
+    "2W 是专网发射功率，3400mAh 是可拆卸电池",
+    "2W 是专网发射功率，3400mAh 是内置不可拆电池",
+    "2W 是 4G 公网发射功率，3400mAh 是可拆卸电池",
+    "2W 是喇叭输出功率，3400mAh 是可拆卸电池容量"
+   ],
+   "answer": 0,
+   "explain": "第 11 页：发射功率专网 2W；喇叭为 8Ω/1W；电池 3400mAh 可拆卸锂电池。",
+   "source_page": 11,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "judge",
+   "difficulty": 2,
+   "question": "既然终端遗失可以远程关闭，唯一识别码就只是用来统计设备数量的。",
+   "options": null,
+   "answer": false,
+   "explain": "第 6 页：唯一识别码用于系统主动识别恶意克隆设备并排除在团队之外，与遗失远程关闭是两项不同的安全能力。",
+   "source_page": 6,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "答案/干扰项存疑；难度不一致:标注 2 / 复核 1；判断题陈述为稻草人（『只是用来统计设备数量』），一眼判错，无区分度"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "按课件，PNR2100 最核心面向的是哪类客户需求？",
+   "options": [
+    "高清视频回传与移动办公应用",
+    "单兵定位追踪、无需语音与任务",
+    "纯公网广域对讲、免除专网建设",
+    "高安全、高指令传达效率的任务协作"
+   ],
+   "answer": 3,
+   "explain": "第 2 页：面向需要高安全性、高指令传达效率的工业、政企、园区等任务协作型场景。",
+   "source_page": 2,
+   "status": "review",
+   "ai_difficulty": 1,
+   "review_note": "难度不一致:标注 2 / 复核 1"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "调度员能在平台地图上看到每个人的位置，靠的是哪两环配合？",
+   "options": [
+    "终端 GPS+BLE 定位 + 实时上传 NetFlex",
+    "DMR 专网信号测距 + 平台地图自动上图",
+    "终端 GPS+BLE 定位 + 本地彩屏显示坐标",
+    "4G 基站粗定位 + 平台按时间估算轨迹"
+   ],
+   "answer": 0,
+   "explain": "第 7、8 页：GPS+BLE 联合定位，终端位置同步至平台；NetFlex 上人员与终端实时定位上图。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 2,
+   "question": "PNR2100 和只能通话的传统对讲机相比，最本质的区别是？",
+   "options": [
+    "用 4G 公网替代专网，不再需要 DMR 对讲",
+    "主要升级为 2.0 英寸彩屏，界面更清晰",
+    "通信之外还集成任务下发、定位与平台协同",
+    "主要增加蓝牙耳机通话，解放双手作业"
+   ],
+   "answer": 2,
+   "explain": "第 2、5 页：PNR2100 集专业通信与广域通信，并具备任务下发、定位反馈、平台协同能力，「智能任务」是其落点。",
+   "source_page": 2,
+   "status": "active",
+   "ai_difficulty": 2,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "数据中心客户：运维人员要跨园区调度，又常进出封闭机房和地下层，那里 4G 很差。最该重点介绍哪项能力？",
+   "options": [
+    "DMR 专网单模：加密抗干扰，完全不依赖公网覆盖",
+    "GPS + BLE 联合定位：封闭机房里也能持续定位",
+    "4G LTE 公网：虚拟频道、免频率许可，跨园区调度足够",
+    "双模守候：平时走 4G 调度，进盲区自动切 DMR"
+   ],
+   "answer": 3,
+   "explain": "第 3、4 页：双模守候兼顾广域调度与盲区兜底；单用公网盲区会掉线，单用专网缺少广域能力，定位解决不了通话问题。",
+   "source_page": 4,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "某集团在三个城市有站点，总部要统一调度；各站点还有地下泵房，公网常没信号。应怎么讲方案？",
+   "options": [
+    "4G 虚拟频道跨城调度，泵房里双模自动切 DMR 兜底",
+    "跨城与地下都交给 DMR 专网，加密频段独享更安全",
+    "DMR 专网负责跨城调度，4G 公网负责地下泵房覆盖",
+    "4G 虚拟频道跨城调度即可，泵房里靠 BLE 定位找人"
+   ],
+   "answer": 0,
+   "explain": "第 3、4 页：4G 公网跨城跨区、可建虚拟频道；进地下等盲区时双模守候自动切 DMR 专网直通。",
+   "source_page": 3,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "政企安全负责人担心三件事：被外人旁路监听、设备丢失后被捡去继续听、仿冒机混进来。对应能力依次是？",
+   "options": [
+    "DMR 加密 / 远程锁定关闭 / GPS+BLE 定位找回设备",
+    "DMR 加密 / 远程锁定关闭 / 唯一识别码防克隆",
+    "DMR 加密 / 一键 SOS 位置上报 / 唯一识别码防克隆",
+    "4G 虚拟频道隔离 / 远程锁定关闭 / 唯一识别码"
+   ],
+   "answer": 1,
+   "explain": "第 6 页：DMR 数字加密防旁路监听；终端遗失远程锁定关闭；唯一识别码主动排除克隆设备。",
+   "source_page": 6,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；三个痛点均在第 6 页一一对应，属同页映射，难度更接近 2"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "园区巡检员要从室外步道进入 B 座机房（公网很弱），主管要求全程看到位置、机房里也能喊得应。应推荐哪组？",
+   "options": [
+    "GPS 单独定位上图 + 4G 公网虚拟频道对讲",
+    "GPS+BLE 联合定位上图 + 4G 公网虚拟频道对讲",
+    "BLE 信标楼层导引 + 一键 SOS 位置告警",
+    "GPS+BLE 联合定位上图 + 双模切 DMR 组呼"
+   ],
+   "answer": 3,
+   "explain": "第 4、7 页：室外 GPS、室内 BLE 连续追踪并上传平台；机房等盲区由双模守候切 DMR 专网直通组呼。",
+   "source_page": 7,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "物业经理：派单靠口头，不知道谁接了、做完没；保洁保安又分散在各楼层。最完整的方案是？",
+   "options": [
+    "一键 SOS 告警 + 平台闪烁告警点追踪各岗位任务",
+    "双模守候保证不掉线 + 语音组呼逐个确认完成情况",
+    "NetFlex 派单 + 卡片回执，平台定位看各岗位",
+    "NetFlex 派单 + 卡片回执，岗位位置靠语音组呼询问"
+   ],
+   "answer": 2,
+   "explain": "第 5、8、10 页：任务卡片确认/回复、平台派发与状态回执形成闭环；实时定位上图看清每个岗位在哪。",
+   "source_page": 8,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "化工园区客户问：夜间独自巡检的员工遇险，怎样才能最快被找到并获救？最完整的回答是？",
+   "options": [
+    "员工切到 DMR 专网直通，组呼喊附近同事前来救援",
+    "一键 SOS 位置上图，平台弹告警点、联动就近处置",
+    "一键 SOS，终端本地屏幕弹告警，由路过同事发现处置",
+    "主管在 NetFlex 平台上远程锁定该员工终端并报警"
+   ],
+   "answer": 1,
+   "explain": "第 6、8 页：一键 SOS 位置直接上图，平台即时弹出闪烁告警点，指挥中心锁定位置并联动就近处置。",
+   "source_page": 8,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；与第 24、32 题 SOS 考点重复；场景外壳下实为第 6/8 页 SOS 联动复述"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "北方港口客户：冬季露天作业最低到 -30°C，问能否正常通话。销售最恰当的回答是？",
+   "options": [
+    "可以，存储温度到 -40°C，所以 -30°C 能正常工作",
+    "可以，IP67 整机密封防护就能保证低温正常通话",
+    "工作温度标称 -20~55°C，不能承诺 -30°C 正常工作",
+    "可以，电池可拆卸现场快换，低温续航不受影响"
+   ],
+   "answer": 2,
+   "explain": "第 9、11 页：工作温度 -20°C ~ +55°C，存储温度 -40°C ~ +70°C，两者不能混用。",
+   "source_page": 9,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；核心只是区分工作温度与存储温度（单一主题），场景包装不构成跨页综合"
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 3,
+   "question": "矿山客户关心设备在雨水、粉尘、潮湿环境下能否长时间连续作业。下列哪些可以如实讲给他？",
+   "options": [
+    "3400mAh 可拆卸锂电池，现场快换",
+    "≤95%（45°C）高湿耐受，抗凝露",
+    "存储温度 -40~70°C，可在 -40°C 下照常通话",
+    "IP67 防尘防喷水，整机密封"
+   ],
+   "answer": [
+    0,
+    1,
+    3
+   ],
+   "explain": "第 9 页：IP67、3400mAh 可拆卸电池、≤95% 湿度耐受均为三防全天候卖点；-40~70°C 是存储温度而非工作温度。",
+   "source_page": 9,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2"
+  },
+  {
+   "qtype": "multi",
+   "difficulty": 3,
+   "question": "港口客户：露天装卸区有集装箱遮挡形成盲区，调度要看到人员位置，并把装卸任务直接派到人。应推荐哪些能力？",
+   "options": [
+    "双模守候，盲区自动切 DMR 组呼",
+    "NetFlex 任务派发与状态回执",
+    "BLE 信标楼层级室内导引，精确到楼层",
+    "人员与终端实时定位上图"
+   ],
+   "answer": [
+    0,
+    1,
+    3
+   ],
+   "explain": "第 4、8、10 页：盲区靠 DMR 兜底组呼，NetFlex 提供定位上图与任务派发回执；露天堆场无楼层，BLE 楼层导引不对症。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "客户说：「我们园区 4G 覆盖很好，没必要要专网。」最有说服力的回应是？",
+   "options": [
+    "只有接入 DMR 专网，才能使用 NetFlex 任务平台",
+    "DMR 专网可灵活创建虚拟频道，调度比 4G 更灵活",
+    "公网中断或进地下机房时 DMR 自动兜底，切换无感",
+    "4G 公网需要申请频率许可，DMR 专网完全不需要"
+   ],
+   "answer": 2,
+   "explain": "第 3、4 页：公网中断或进盲区时自动切 DMR 专网直通，回到覆盖再切回；DMR 是应急时刻的最佳保障。",
+   "source_page": 4,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；本质是双模守候价值（第 3/4 页同一主题），干扰项为特性张冠李戴，难度约 2"
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "工厂客户：工人戴手套，设备故障要快速上报给维修班组，还要跟踪修好没有。最贴切的组合是？",
+   "options": [
+    "蓝牙耳机通话 + 语音组呼口头上报故障情况",
+    "双模守候通话不掉线 + 平台实时定位维修人员",
+    "卡片三键直达上报 + NetFlex 派单回执闭环",
+    "卡片三键直达 + 一键 SOS 告警通知维修班组"
+   ],
+   "answer": 2,
+   "explain": "第 5、8、10 页：制造业强调故障上报与工单闭环；卡片三键直达戴手套也好操作，NetFlex 派发回执可追溯；SOS 用于人员遇险。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "物流客户：多城市站点批量派单，要看在途进度；还担心司机终端丢失泄露单据信息。应推荐？",
+   "options": [
+    "4G 广域 + NetFlex 派单回执 + 遗失远程锁定",
+    "4G 广域 + NetFlex 派单回执 + 唯一识别码防克隆",
+    "DMR 专网跨城 + NetFlex 派单回执 + 遗失远程锁定",
+    "4G 广域 + 一键 SOS 报警上图 + 遗失远程锁定"
+   ],
+   "answer": 0,
+   "explain": "第 3、6、8、10 页：跨城靠 4G 公网，派单跟踪靠 NetFlex 派发回执，终端遗失靠远程锁定关闭；防克隆针对仿冒机而非丢失。",
+   "source_page": 10,
+   "status": "active",
+   "ai_difficulty": 3,
+   "review_note": null
+  },
+  {
+   "qtype": "single",
+   "difficulty": 3,
+   "question": "客户 IT 提出：要能接有线或蓝牙耳机、换班时快速登录、插卡直接用公网。哪组描述符合规格？",
+   "options": [
+    "Type-C 耳机 + 微信扫码登录 + eSIM 免插卡",
+    "3.5mm 耳机 + 指纹识别快速登录 + Nano SIM 卡",
+    "仅支持蓝牙耳机 + 账号密码登录 + Micro SIM 卡",
+    "3.5mm/蓝牙耳机 + 扫码或免登录 + Nano SIM"
+   ],
+   "answer": 3,
+   "explain": "第 7、11 页：接口含 3.5mm 耳机，BT4.2+BLE 支持耳机通信；登录方式账号密码/微信扫码/快速免登录；SIM 为 Nano SIM。",
+   "source_page": 11,
+   "status": "review",
+   "ai_difficulty": 2,
+   "review_note": "难度不一致:标注 3 / 复核 2；规格查表（第 7/11 页），属记忆+对照，不是场景综合"
+  }
+ ]
+}

@@ -117,6 +117,16 @@ def _exam_gate(course_key, pages):
     return None
 
 
+def _seed_quietly(keys):
+    """首次访问自动导入随代码发布的种子题库(本进程记忆已检查过的课,常态零查询)。
+    导入失败只记日志,不影响页面 / 考核本身。"""
+    try:
+        S.ensure_seeded_many(keys)
+    except Exception:
+        db.session.rollback()
+        logger.exception('种子题库导入失败 %s', keys)
+
+
 _buddy_pref_warned = False
 
 
@@ -182,6 +192,7 @@ def exam_current(key):
     blocked = _exam_gate(ck, pages)
     if blocked:
         return blocked
+    _seed_quietly([ck])
     return jsonify({'success': True, 'data': S.current_question(current_user.id, ck)})
 
 
@@ -206,6 +217,7 @@ def exam_next(key):
     blocked = _exam_gate(ck, pages)
     if blocked:
         return blocked
+    _seed_quietly([ck])
     return jsonify({'success': True, 'data': S.next_question(current_user.id, ck)})
 
 
@@ -238,6 +250,7 @@ def buddy():
 
     courses = []
     if keys:
+        _seed_quietly(keys)          # 题库健康要按导入后的题算
         progress = {p.course_key: p for p in CourseLearningProgress.query.filter(
             CourseLearningProgress.user_id == uid,
             CourseLearningProgress.course_key.in_(keys)).all()}
@@ -360,6 +373,7 @@ def bank_page(key):
     ck, pages = _course_or_404(key)
     import app.views.knowledge_wiki as KW     # 按模块属性取,测试可改指课件目录
     from app.services.course_exam import generator
+    _seed_quietly([ck])              # 种子优先;仍为空才导旧版 .quiz.json
     try:
         S.import_legacy_json(ck, KW.COURSE_ASSETS_DIR)
     except Exception:
