@@ -11,6 +11,8 @@
 **设计依据:** `docs/plans/2026-10-07-course-exam-bank-design.md`
 **前端原型(已经用户确认):** `docs/plans/assets/2026-10-07-course-buddy-prototype.html`
 
+> **范围调整（2026-10-07，用户决定）**：取消 Task 15（成绩汇总页）；Task 16 去掉英文翻译（`messages.po`），只保留个人开关 + 组件文档登记。界面文案仍按规范用 `_()` 包裹，便于以后补译。
+
 ---
 
 ## 全局约定(每个任务都适用)
