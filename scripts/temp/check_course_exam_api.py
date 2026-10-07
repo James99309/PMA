@@ -103,6 +103,27 @@ with app.app_context():
         d = c.get('/api/learning/buddy').get_json()['data']
         return d, next((x for x in d['courses'] if x['key'] == KEY), None)
 
+    # ---- _get_course_pages:mtime 变化即重解析;pop(key) 仍可清缓存;读不到文件不缓存 ----
+    import tempfile
+    def deck(labels):
+        secs = ''.join(f'<section data-label="{x}" data-speaker-notes="n{x}"></section>' for x in labels)
+        return f'<script type="__bundler/template">{secs}</script>'
+    with tempfile.TemporaryDirectory() as td:
+        fp, ck = os.path.join(td, 'deck.html'), 'zz-cache-test'
+        with open(fp, 'w') as f: f.write(deck(['a']))
+        os.utime(fp, (1_000_000, 1_000_000))
+        first = KW._get_course_pages(ck, fp)
+        with open(fp, 'w') as f: f.write(deck(['a', 'b']))
+        os.utime(fp, (1_000_000, 1_000_000))
+        check(len(first) == 1 and len(KW._get_course_pages(ck, fp)) == 1, '页面缓存:mtime 未变命中缓存')
+        os.utime(fp, (2_000_000, 2_000_000))
+        check(len(KW._get_course_pages(ck, fp)) == 2, '页面缓存:mtime 变化后重新解析')
+        KW._COURSE_PAGES_CACHE.pop(ck, None)
+        check(ck not in KW._COURSE_PAGES_CACHE, '页面缓存:pop(key) 照常清除')
+        check(KW._get_course_pages('zz-missing', os.path.join(td, 'nope.html')) == []
+              and 'zz-missing' not in KW._COURSE_PAGES_CACHE, '页面缓存:文件不存在返回 [] 且不缓存')
+        KW._COURSE_PAGES_CACHE.pop(ck, None)
+
     base = f'/api/learning/{KEY}'
     client = app.test_client()
     with client.session_transaction() as s:
@@ -141,13 +162,30 @@ with app.app_context():
         r = client.post(base + '/read-ping', data='not json', content_type='text/plain')
         check(r.status_code == 200, '非 JSON 请求体也不报错')
 
-        # ---- CSRF 开启时无 token 的 POST 被拒 ----
+        # ---- 非对象 JSON 请求体不 500 ----
+        for body in ([1], 'x'):
+            r = client.post(base + '/read-ping', json=body)
+            check(r.status_code == 200, f'read-ping json={body!r} → 200(实际 {r.status_code})')
+            r = client.post('/api/learning/buddy/toggle', json=body)
+            check(r.status_code == 400, f'toggle json={body!r} → 400(实际 {r.status_code})')
+
+        # ---- CSRF:开启时无 token 被拒(JSON error=csrf);取新 token 后放行;其他路径行为不变 ----
         app.config['WTF_CSRF_ENABLED'] = True
         try:
             before = dict(prog().page_seconds)
             r = client.post(base + '/read-ping', json={'page': 1, 'seconds': 15})
-            check(r.status_code == 400, f'CSRF 开启 + 无 token → 400(实际 {r.status_code})')
+            j = r.get_json(silent=True) or {}
+            check(r.status_code == 400 and j.get('error') == 'csrf' and j.get('message'),
+                  f'CSRF 开启 + 无 token → 400 JSON error=csrf(实际 {r.status_code} {j.get("error")})')
             check(dict(prog().page_seconds) == before, 'CSRF 拒绝时未进入视图(进度未变)')
+            r = client.get('/api/learning/csrf')
+            token = (r.get_json() or {}).get('token')
+            check(r.status_code == 200 and token, 'GET /api/learning/csrf 返回 token')
+            r = client.post(base + '/read-ping', json={'page': 1, 'seconds': 15}, headers={'X-CSRFToken': token})
+            check(r.status_code == 200 and r.get_json()['success'], '带 X-CSRFToken 重试 → 200')
+            r = app.test_client().post('/auth/login', data={'username': 'x', 'password': 'y'})
+            check(r.status_code == 400 and not (r.is_json and (r.get_json() or {}).get('error') == 'csrf'),
+                  f'非 /api/learning/ 路径 CSRF 失败保持原行为(实际 {r.status_code} {r.content_type})')
         finally:
             app.config['WTF_CSRF_ENABLED'] = False
 
@@ -202,6 +240,34 @@ with app.app_context():
         check(r.status_code == 200 and j['data']['question']['id'] != qid and not j['data']['answered'],
               'exam/next 换题')
         check(not find_keys(j, {'answer', 'explain', 'correct_answer'}), 'exam/next 响应不泄露答案')
+
+        # ---- 非对象 JSON 提交答案不 500 ----
+        for body in ([1], 'x'):
+            r = client.post(base + '/exam/answer', json=body)
+            check(r.status_code in (400, 409) and r.status_code != 500,
+                  f'exam/answer json={body!r} → 4xx(实际 {r.status_code})')
+
+        # ---- 解析不出页面的课:暂不支持考核 ----
+        orig_pages = KW._get_course_pages
+        KW._get_course_pages = lambda k, p: [] if k == KEY else orig_pages(k, p)
+        try:
+            snap = (dict(prog().page_seconds), prog().last_ping_at)
+            r = client.get(base + '/progress')
+            check(r.status_code == 200 and r.get_json()['data']['read'].get('unavailable') is True,
+                  '无页面:progress 带 read.unavailable')
+            r = client.post(base + '/read-ping', json={'page': 1, 'seconds': 15})
+            check(r.status_code == 200 and (dict(prog().page_seconds), prog().last_ping_at) == snap,
+                  '无页面:read-ping 空转 200、进度不变')
+            for method, path in (('get', '/exam/current'), ('post', '/exam/answer'), ('post', '/exam/next')):
+                r = getattr(client, method)(base + path, json={'answer': 0} if method == 'post' else None)
+                check(r.status_code == 403 and r.get_json()['error'] == 'unavailable' and r.get_json()['message'],
+                      f'无页面:{path} → 403 unavailable')
+            d, bc = buddy_course(client)
+            check(bc is None, '无页面:小源不列本课')
+        finally:
+            KW._get_course_pages = orig_pages
+        d, bc = buddy_course(client)
+        check(bc is not None, '恢复页面后小源重新列出本课')
 
         # ---- 小源列表分数 / 排序 / 满分不列 ----
         d, bc = buddy_course(client)

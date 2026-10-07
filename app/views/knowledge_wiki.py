@@ -164,9 +164,17 @@ def _parse_course_pages(abs_path):
 
 
 def _get_course_pages(course_key, abs_path):
-    if course_key not in _COURSE_PAGES_CACHE:
-        _COURSE_PAGES_CACHE[course_key] = _parse_course_pages(abs_path)
-    return _COURSE_PAGES_CACHE[course_key]
+    # 缓存值为 (mtime, pages):课件文件被替换(mtime 变)即重新解析;
+    # 仍以 course_key 为键,既有的 _COURSE_PAGES_CACHE.pop(key) 照常生效
+    try:
+        mtime = os.path.getmtime(abs_path)
+    except OSError:
+        return _parse_course_pages(abs_path)       # 读不到文件:不缓存
+    hit = _COURSE_PAGES_CACHE.get(course_key)
+    if hit is None or hit[0] != mtime:
+        hit = (mtime, _parse_course_pages(abs_path))
+        _COURSE_PAGES_CACHE[course_key] = hit
+    return hit[1]
 
 
 def _list_courses():
