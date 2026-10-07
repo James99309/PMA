@@ -12,10 +12,12 @@ import logging
 import os
 from collections import defaultdict
 
-from flask import Blueprint, jsonify, request, abort, url_for
+from flask import Blueprint, jsonify, request, abort, url_for, render_template, current_app
 from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from flask_wtf.csrf import CSRFError, generate_csrf
+
+from sqlalchemy import text
 
 from app import db
 from app.models.course import InteractiveCourse
@@ -32,6 +34,13 @@ _ERROR_STATUS = {
     'bad_answer': 400,
     'already_answered': 409,
     'stale_question': 409,
+    'forbidden': 403,
+    'not_found': 404,
+    'unavailable': 400,
+    'invalid_plan': 400,
+    'running': 409,
+    'bad_params': 400,
+    'regenerate_failed': 422,
 }
 
 
@@ -51,6 +60,20 @@ def _error_message(code):
         return _('该课程暂不支持考核')
     if code == 'csrf':
         return _('页面已过期，请刷新后重试')
+    if code == 'forbidden':
+        return _('无权管理题库')
+    if code == 'not_found':
+        return _('题目不存在')
+    if code == 'invalid_plan':
+        return _('出题数量不正确：每档为非负整数，总数 1~300')
+    if code == 'running':
+        return _('本课程正在生成题库，请等待完成')
+    if code == 'bad_params':
+        return _('参数不正确')
+    if code == 'regenerate_failed':
+        return _('AI 重出失败，请稍后再试')
+    if code == 'no_pages':
+        return _('该课程没有逐页讲解，无法出题')
     return _('操作失败')
 
 
@@ -258,3 +281,242 @@ def buddy_toggle():
         return jsonify({'success': False, 'error': 'bad_params',
                         'message': _('参数不正确')}), 400
     return jsonify({'success': True, 'data': {'enabled': S.set_buddy_enabled(current_user.id, enabled)}})
+
+
+# ══════════ 题库管理(admin / CEO / HR):生成 / 审题 / 编辑 / 停用 / 重出 / 实测难度 ══════════
+# 权限见 S.can_manage_bank;页面无权 → 403 页,API 无权 → 403 JSON。
+
+_STATUSES = ('active', 'review', 'disabled')
+_CONTENT_FIELDS = ('qtype', 'question', 'options', 'answer', 'explain')
+
+
+def _bank_forbidden():
+    return None if S.can_manage_bank(current_user) else _fail('forbidden', 403)
+
+
+def _bank_question(course_key, qid):
+    q = db.session.get(CourseQuizQuestion, qid)
+    return q if q is not None and q.course_key == course_key else None
+
+
+def _first_attempt_stats(course_key):
+    """每人每题只看首次作答 → {question_id(str): (n_first, correct_first)}。"""
+    rows = db.session.execute(text("""
+        SELECT question_id, count(*) AS n, sum(CASE WHEN is_correct THEN 1 ELSE 0 END) AS c
+        FROM (SELECT DISTINCT ON (user_id, question_id) question_id, is_correct
+              FROM training_quiz_attempt
+              WHERE course_slug = :k AND module_slug = :m
+              ORDER BY user_id, question_id, attempted_at, id) first_try
+        GROUP BY question_id"""), {'k': course_key, 'm': S.MODULE_SLUG}).fetchall()
+    return {str(qid): (int(n), int(c or 0)) for qid, n, c in rows}
+
+
+def _bank_payload(course_key, pages):
+    from app.services.course_exam import generator
+    qs = (CourseQuizQuestion.query.filter_by(course_key=course_key)
+          .order_by(CourseQuizQuestion.id).all())
+    stats = _first_attempt_stats(course_key)
+    out = []
+    for q in qs:
+        d = q.to_admin_dict()
+        n, c = stats.get(str(q.id), (0, 0))
+        d['stats'] = {'n_first': n, 'correct_first': c,
+                      'empirical': L.empirical_difficulty(c, n),
+                      'suspicious': L.suspicious(c, n)}
+        out.append(d)
+    active = [q.as_logic() for q in qs if q.status == 'active']
+    return {
+        'health': L.bank_health(active),
+        'questions': out,
+        'min_read_seconds': S.get_min_read_seconds(course_key),
+        'auto_read_seconds': L.required_read_seconds(pages) if pages else 0,
+        'pages': len(pages),
+        'generating': generator.is_running(course_key),
+    }
+
+
+@learning_bp.route('/wiki/play/<key>/bank')
+@login_required
+def bank_page(key):
+    if not S.can_manage_bank(current_user):
+        abort(403)
+    ck, pages = _course_or_404(key)
+    import app.views.knowledge_wiki as KW     # 按模块属性取,测试可改指课件目录
+    from app.services.course_exam import generator
+    try:
+        S.import_legacy_json(ck, KW.COURSE_ASSETS_DIR)
+    except Exception:
+        db.session.rollback()
+        logger.exception('旧题库导入失败 %s', ck)
+    row = InteractiveCourse.query.filter_by(key=ck).first()
+    return render_template('knowledge/at_course_bank.html', course_key=ck,
+                           course_title=row.title if row else ck,
+                           page_labels=[p.get('label') or '' for p in pages],
+                           default_plan=generator.DEFAULT_PLAN)
+
+
+@learning_bp.route('/api/learning/<key>/bank')
+@login_required
+def bank_list(key):
+    denied = _bank_forbidden()
+    if denied:
+        return denied
+    ck, pages = _course_or_404(key)
+    return jsonify({'success': True, 'data': _bank_payload(ck, pages)})
+
+
+@learning_bp.route('/api/learning/<key>/bank/generate', methods=['POST'])
+@login_required
+def bank_generate(key):
+    denied = _bank_forbidden()
+    if denied:
+        return denied
+    ck, pages = _course_or_404(key)
+    if not pages:
+        return _fail('no_pages', 400)
+    from app.services.course_exam import generator
+    data = _json_obj()
+    plan = data.get('plan') if 'plan' in data else generator.DEFAULT_PLAN
+    replace = data.get('replace') is True
+    try:
+        # 先调用:它会 commit 当前 session(抢占跨进程生成标记)
+        started = generator.start_generation(current_app._get_current_object(), ck, pages,
+                                             current_user.id, plan, replace)
+    except ValueError:
+        return _fail('invalid_plan', 400)
+    if not started:
+        return _fail('running', 409)
+    return jsonify({'success': True, 'data': {'generating': True}})
+
+
+@learning_bp.route('/api/learning/<key>/bank/<int:qid>', methods=['PUT'])
+@login_required
+def bank_update(key, qid):
+    denied = _bank_forbidden()
+    if denied:
+        return denied
+    ck, _pages = _course_or_404(key)
+    q = _bank_question(ck, qid)
+    if q is None:
+        return _fail('not_found', 404)
+    data = _json_obj()
+    status = data.get('status', q.status)
+    if status not in _STATUSES:
+        return _fail('bad_params', 400)
+    merged = {'qtype': data.get('qtype', q.qtype),
+              'difficulty': data.get('difficulty', q.difficulty),
+              'options': data.get('options', q.options),
+              'answer': data.get('answer', q.answer)}
+    question = data.get('question', q.question)
+    explain = data.get('explain', q.explain)
+    try:
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError(_('题干不能为空'))
+        if explain is not None and not isinstance(explain, str):
+            raise ValueError(_('解析须为文本'))
+        if merged['qtype'] == 'judge':
+            merged['options'] = None
+        norm = L.normalize_question(merged)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': 'invalid_question', 'message': str(e)}), 400
+    question = question.strip()
+    explain = (explain or '').strip() or None
+    content_changed = (norm['qtype'] != q.qtype or question != q.question
+                       or (norm.get('options') if norm['qtype'] != 'judge' else None) != q.options
+                       or norm['answer'] != q.answer or explain != q.explain)
+    q.qtype = norm['qtype']
+    q.difficulty = norm['difficulty']
+    q.question = question
+    q.options = norm['options'] if norm['qtype'] != 'judge' else None
+    q.answer = norm['answer']
+    q.explain = explain
+    if 'source_page' in data:
+        sp = L._as_int(data.get('source_page')) if data.get('source_page') not in (None, '') else None
+        q.source_page = sp if sp and sp > 0 else None
+    q.status = status
+    if content_changed:
+        q.origin = 'edited'      # 人工改过内容:重建题库时保留
+    db.session.commit()
+    return jsonify({'success': True, 'data': q.to_admin_dict()})
+
+
+@learning_bp.route('/api/learning/<key>/bank/<int:qid>/regenerate', methods=['POST'])
+@login_required
+def bank_regenerate(key, qid):
+    denied = _bank_forbidden()
+    if denied:
+        return denied
+    ck, pages = _course_or_404(key)
+    if not pages:
+        return _fail('no_pages', 400)
+    q = _bank_question(ck, qid)
+    if q is None:
+        return _fail('not_found', 404)
+    from app.services.course_exam import generator
+    src = q.to_admin_dict()
+    others = [t for (t,) in db.session.query(CourseQuizQuestion.question).filter(
+        CourseQuizQuestion.course_key == ck, CourseQuizQuestion.id != q.id,
+        CourseQuizQuestion.status != 'disabled').all()]
+    db.session.rollback()       # AI 调用耗时较长,别挂着空闲事务
+    try:
+        new = generator.regenerate_one(pages, src, existing_questions=others)
+        norm = L.normalize_question({'qtype': new.get('qtype'), 'difficulty': new.get('difficulty'),
+                                     'options': new.get('options'), 'answer': new.get('answer')})
+        question = new.get('question')
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError('empty question')
+    except ValueError:
+        logger.warning('单题重出无可用结果 %s#%s', ck, qid, exc_info=True)
+        return _fail('regenerate_failed', 422)
+    except Exception:
+        logger.exception('单题重出调用失败 %s#%s', ck, qid)
+        return _fail('regenerate_failed', 502)
+    q = _bank_question(ck, qid)
+    if q is None:
+        return _fail('not_found', 404)
+    q.qtype = norm['qtype']
+    q.difficulty = norm['difficulty']
+    q.question = question.strip()
+    q.options = norm['options'] if norm['qtype'] != 'judge' else None
+    q.answer = norm['answer']
+    q.explain = (new.get('explain') or '').strip() or None
+    q.source_page = new.get('source_page')
+    q.ai_difficulty = None
+    q.status = 'review'
+    q.origin = 'ai'
+    q.review_note = '单题重出'
+    db.session.commit()
+    return jsonify({'success': True, 'data': q.to_admin_dict()})
+
+
+@learning_bp.route('/api/learning/<key>/bank/approve-all', methods=['POST'])
+@login_required
+def bank_approve_all(key):
+    denied = _bank_forbidden()
+    if denied:
+        return denied
+    ck, _pages = _course_or_404(key)
+    n = CourseQuizQuestion.query.filter_by(course_key=ck, status='review').update(
+        {'status': 'active'}, synchronize_session=False)
+    db.session.commit()
+    return jsonify({'success': True, 'data': {'approved': n}})
+
+
+@learning_bp.route('/api/learning/<key>/settings', methods=['POST'])
+@login_required
+def bank_settings(key):
+    denied = _bank_forbidden()
+    if denied:
+        return denied
+    ck, pages = _course_or_404(key)
+    raw = _json_obj().get('min_read_seconds')
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        value = None
+    else:
+        value = L._as_int(raw)
+        if value is None or not 0 <= value <= S.MAX_MIN_READ_SECONDS:
+            return _fail('bad_params', 400)
+    value = S.set_min_read_seconds(ck, value, current_user.id)
+    return jsonify({'success': True, 'data': {
+        'min_read_seconds': value,
+        'auto_read_seconds': L.required_read_seconds(pages) if pages else 0}})

@@ -1,0 +1,664 @@
+{#
+  课程题库管理页(admin / CEO / HR)—— /wiki/play/<key>/bank
+  ─────────────────────────────────────────────────────────────
+  数据全部走 /api/learning/<key>/bank*(learning_bp,CSRF 头 X-CSRFToken);
+  题库 ≤ 约 300 题,一次拉全量,筛选在前端做。
+  功能:统计 + 健康告警 + 达标阅读时长 / 生成题库(后台,轮询状态)/ 全部通过待审 /
+       单题:改难度、编辑、停用|恢复、AI 重出、采纳实测建议难度。
+#}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_topbar.html' import at_topbar with context %}
+{% from 'components/at_purchase_order.html' import at_modal_shell %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>PMA · {{ _('题库管理') }} · {{ course_title }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-confirm.js') }}"></script>
+<style>
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; font-size:16px; }
+  [hidden] { display:none !important; }
+  .bk-main { max-width:1360px; margin:0 auto; padding:24px 32px 60px; }
+  .bk-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .bk-eyebrow { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); }
+  .bk-title { margin:6px 0 0; font-size:22px; font-weight:600; }
+  .bk-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  body.at-page .bk-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:7px;
+                         border:1px solid var(--line-2); background:var(--bg-elev); color:var(--ink); font:inherit; font-size:13px;
+                         cursor:pointer; text-decoration:none; white-space:nowrap; }
+  body.at-page .bk-btn:hover { background:var(--bg-hover); }
+  body.at-page .bk-btn:disabled { opacity:.5; cursor:not-allowed; }
+  body.at-page .bk-btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  body.at-page .bk-btn-primary:hover { background:var(--accent); filter:brightness(1.06); }
+  body.at-page .bk-btn-sm { height:26px; padding:0 8px; font-size:12px; gap:4px; border-radius:6px; }
+  body.at-page .bk-btn-sm .material-symbols-outlined { font-size:14px; }
+  body.at-page .bk-btn-danger { color:var(--danger); }
+
+  .bk-banner { margin-top:16px; padding:11px 14px; border-radius:9px; font-size:13px; display:flex; align-items:center; gap:10px; }
+  .bk-banner-warn { background:var(--danger-soft); color:var(--danger); }
+  .bk-banner-info { background:var(--info-soft); color:var(--info); }
+  .bk-spin { width:14px; height:14px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent;
+             animation:bk-rot .8s linear infinite; flex-shrink:0; display:inline-block; }
+  @keyframes bk-rot { to { transform:rotate(360deg); } }
+
+  .bk-stats { margin-top:18px; display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:12px; }
+  @media (max-width: 1100px) { .bk-stats { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+  .bk-card { background:var(--bg-elev); border:1px solid var(--line); border-radius:10px; padding:14px 16px; min-width:0; }
+  .bk-card-label { font-size:12px; color:var(--ink-3); }
+  .bk-card-val { font-size:22px; font-weight:600; margin-top:4px; font-family:var(--font-mono); }
+  .bk-card-sub { font-size:11.5px; color:var(--ink-3); margin-top:4px; }
+  .bk-card-val.bk-bad { color:var(--danger); }
+  .bk-read { display:flex; gap:6px; align-items:center; margin-top:6px; }
+  .bk-input, .bk-select, .bk-textarea { box-sizing:border-box; height:32px; padding:0 9px; background:var(--bg-page);
+         border:1px solid var(--line-2); border-radius:6px; color:var(--ink); font:inherit; font-size:13px; outline:none; }
+  .bk-input:focus, .bk-select:focus, .bk-textarea:focus { border-color:var(--accent); }
+  .bk-textarea { height:auto; padding:8px 10px; resize:vertical; line-height:1.5; width:100%; }
+
+  .bk-filters { margin-top:20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .bk-count { margin-left:auto; font-size:12px; color:var(--ink-3); }
+
+  .bk-table-wrap { margin-top:10px; background:var(--bg-elev); border:1px solid var(--line); border-radius:10px; overflow-x:auto; }
+  table.bk-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .bk-table th { text-align:left; font-weight:500; font-size:11.5px; color:var(--ink-3); padding:10px 10px;
+                 border-bottom:1px solid var(--line); white-space:nowrap; background:var(--bg-page); }
+  .bk-table td { padding:9px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  .bk-table tr:last-child td { border-bottom:0; }
+  .bk-table tr.bk-off td { opacity:.55; }
+  .bk-q { max-width:440px; cursor:pointer; }
+  .bk-q-text { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.45; }
+  .bk-q:hover .bk-q-text { color:var(--accent); }
+  .bk-note { margin-top:4px; font-size:11.5px; color:var(--warn); }
+  .bk-chip { display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:10px; font-size:11.5px; white-space:nowrap; }
+  .bk-chip-active { background:var(--success-soft); color:var(--success); }
+  .bk-chip-review { background:var(--warn-soft); color:var(--warn); }
+  .bk-chip-disabled { background:var(--bg-sunk); color:var(--ink-3); }
+  .bk-dim { color:var(--ink-3); }
+  .bk-diff-sel { height:26px; font-size:12px; padding:0 4px; }
+  .bk-emp { font-family:var(--font-mono); font-size:12px; }
+  .bk-emp-off { color:var(--danger); font-weight:600; }
+  .bk-ops { display:flex; gap:4px; flex-wrap:wrap; }
+  .bk-empty { padding:50px 0; text-align:center; color:var(--ink-3); font-size:13px; }
+
+  /* 编辑弹窗 */
+  .bk-form { display:flex; flex-direction:column; gap:12px; }
+  .bk-row { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px; }
+  .bk-lbl { display:block; font-size:11.5px; color:var(--ink-3); margin-bottom:4px; }
+  .bk-opt { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+  .bk-opt .bk-input { flex:1; }
+  .bk-opt-letter { width:16px; font-family:var(--font-mono); color:var(--ink-3); font-size:12px; }
+  .bk-err { color:var(--danger); font-size:12px; min-height:16px; }
+</style>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='wiki_at') }}
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+  {{ at_topbar() }}
+
+  <main class="bk-main">
+    <div class="bk-head">
+      <div>
+        <div class="bk-eyebrow">KNOWLEDGE · {{ _('题库管理') }}</div>
+        <h1 class="at-serif bk-title">{{ course_title }}</h1>
+        <div class="bk-dim" style="font-size:13px;margin-top:6px;">{{ _('AI 出题后经独立复核：一致的直接启用，存疑的进入待审，确认后才会被抽到。') }}</div>
+      </div>
+      <div class="bk-actions">
+        <a class="bk-btn" href="{{ url_for('knowledge_wiki.at_wiki_page') }}">
+          <span class="material-symbols-outlined">arrow_back</span>{{ _('返回知识库') }}</a>
+        <a class="bk-btn" href="{{ url_for('knowledge_wiki.play_course', course_key=course_key) }}" target="_blank" rel="noopener">
+          <span class="material-symbols-outlined">slideshow</span>{{ _('打开课程') }}</a>
+        {% if page_labels %}
+        <button type="button" class="bk-btn" id="bkApproveAll" onclick="bkApproveAll()" disabled>
+          <span class="material-symbols-outlined">done_all</span><span id="bkApproveAllText">{{ _('全部通过待审') }}</span></button>
+        <button type="button" class="bk-btn bk-btn-primary" id="bkGenBtn" onclick="bkOpenGenerate()">
+          <span class="material-symbols-outlined">auto_awesome</span>{{ _('生成题库') }}</button>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not page_labels %}
+    <div class="bk-banner bk-banner-warn" id="bkNoPages">
+      <span class="material-symbols-outlined">info</span>{{ _('该课程没有逐页讲解，无法出题') }}</div>
+    {% endif %}
+    <div class="bk-banner bk-banner-info" id="bkGenBanner" hidden>
+      <span class="bk-spin"></span>{{ _('生成中，完成后会站内通知你') }}</div>
+    <div class="bk-banner bk-banner-warn" id="bkHealthBanner" hidden>
+      <span class="material-symbols-outlined">warning</span><span id="bkHealthText"></span></div>
+
+    <div class="bk-stats" id="bkStats"></div>
+
+    <div class="bk-filters">
+      <select class="bk-select" id="bkFDiff" onchange="bkRender()">
+        <option value="">{{ _('全部难度') }}</option>
+        <option value="1">{{ _('易') }}</option><option value="2">{{ _('中') }}</option><option value="3">{{ _('难') }}</option>
+      </select>
+      <select class="bk-select" id="bkFType" onchange="bkRender()">
+        <option value="">{{ _('全部题型') }}</option>
+        <option value="single">{{ _('单选') }}</option><option value="multi">{{ _('多选') }}</option><option value="judge">{{ _('判断') }}</option>
+      </select>
+      <select class="bk-select" id="bkFStatus" onchange="bkRender()">
+        <option value="">{{ _('全部状态') }}</option>
+        <option value="active">{{ _('启用') }}</option><option value="review">{{ _('待审') }}</option><option value="disabled">{{ _('停用') }}</option>
+      </select>
+      <select class="bk-select" id="bkFPage" onchange="bkRender()">
+        <option value="">{{ _('全部页') }}</option>
+        {% for lbl in page_labels %}<option value="{{ loop.index }}">{{ _('第 %(n)s 页', n=loop.index) }}{% if lbl %} · {{ lbl|truncate(16, True, '…') }}{% endif %}</option>{% endfor %}
+        <option value="none">{{ _('未标页') }}</option>
+      </select>
+      <input class="bk-input" id="bkFText" placeholder="{{ _('搜索题干') }}" oninput="bkRender()" style="width:200px;">
+      <span class="bk-count" id="bkCount"></span>
+    </div>
+
+    <div class="bk-table-wrap">
+      <table class="bk-table">
+        <thead><tr>
+          <th>#</th>
+          <th>{{ _('题干') }}</th>
+          <th>{{ _('题型') }}</th>
+          <th>{{ _('页') }}</th>
+          <th>{{ _('标注难度') }}</th>
+          <th>{{ _('AI 复核') }}</th>
+          <th title="{{ _('首次作答正确率，样本 ≥10 才显示') }}">{{ _('实测') }}</th>
+          <th>{{ _('状态') }}</th>
+          <th>{{ _('操作') }}</th>
+        </tr></thead>
+        <tbody id="bkBody"><tr><td colspan="9" class="bk-empty">{{ _('加载中…') }}</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</div>
+
+{# ── 编辑弹窗 ── #}
+{% set _edit_footer = '<button type="button" class="bk-btn" onclick="document.getElementById(\'bkEditModal\').style.display=\'none\'">' ~ _('取消') ~ '</button>'
+                    ~ '<button type="button" class="bk-btn bk-btn-primary" id="bkEditSave" onclick="bkSaveEdit()">' ~ _('保存') ~ '</button>' %}
+{% call at_modal_shell('bkEditModal', _('编辑题目'), icon='edit', width=720, footer_html=_edit_footer) %}
+  <div class="bk-form">
+    <div class="bk-row">
+      <div><label class="bk-lbl">{{ _('题型') }}</label>
+        <select class="bk-select" id="bkEType" style="width:100%;" onchange="bkTypeChanged()">
+          <option value="single">{{ _('单选') }}</option><option value="multi">{{ _('多选') }}</option><option value="judge">{{ _('判断') }}</option>
+        </select></div>
+      <div><label class="bk-lbl">{{ _('难度') }}</label>
+        <select class="bk-select" id="bkEDiff" style="width:100%;">
+          <option value="1">{{ _('易') }} (1)</option><option value="2">{{ _('中') }} (2)</option><option value="3">{{ _('难') }} (3)</option>
+        </select></div>
+      <div><label class="bk-lbl">{{ _('状态') }}</label>
+        <select class="bk-select" id="bkEStatus" style="width:100%;">
+          <option value="active">{{ _('启用') }}</option><option value="review">{{ _('待审') }}</option><option value="disabled">{{ _('停用') }}</option>
+        </select></div>
+      <div><label class="bk-lbl">{{ _('出处页') }}</label>
+        <input class="bk-input" id="bkEPage" type="number" min="1" max="{{ page_labels|length }}" style="width:100%;"></div>
+    </div>
+    <div><label class="bk-lbl">{{ _('题干') }}</label>
+      <textarea class="bk-textarea" id="bkEQuestion" rows="3"></textarea></div>
+    <div id="bkEOptsWrap">
+      <label class="bk-lbl" id="bkEOptsLabel"></label>
+      <div id="bkEOpts"></div>
+      <button type="button" class="bk-btn bk-btn-sm" onclick="bkAddOption()">
+        <span class="material-symbols-outlined">add</span>{{ _('添加选项') }}</button>
+    </div>
+    <div id="bkEJudgeWrap" hidden>
+      <label class="bk-lbl">{{ _('正确答案') }}</label>
+      <label style="margin-right:16px;"><input type="radio" name="bkEJudge" value="true"> {{ _('正确') }}</label>
+      <label><input type="radio" name="bkEJudge" value="false"> {{ _('错误') }}</label>
+    </div>
+    <div><label class="bk-lbl">{{ _('解析') }}</label>
+      <textarea class="bk-textarea" id="bkEExplain" rows="2"></textarea></div>
+    <div id="bkENote" class="bk-note" hidden></div>
+    <div class="bk-err" id="bkEErr"></div>
+  </div>
+{% endcall %}
+
+{# ── 生成题库弹窗 ── #}
+{% set _gen_footer = '<button type="button" class="bk-btn" onclick="document.getElementById(\'bkGenModal\').style.display=\'none\'">' ~ _('取消') ~ '</button>'
+                   ~ '<button type="button" class="bk-btn bk-btn-primary" id="bkGenSubmit" onclick="bkSubmitGenerate()">' ~ _('开始生成') ~ '</button>' %}
+{% call at_modal_shell('bkGenModal', _('生成题库'), icon='plus', width=520, footer_html=_gen_footer) %}
+  <div class="bk-form">
+    <div class="bk-dim" style="font-size:12.5px;line-height:1.6;">{{ _('按难度分三批出题并独立复核，约 3~5 分钟，完成后站内通知。只想补题时，把不需要的难度填 0。') }}</div>
+    <div class="bk-row" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+      <div><label class="bk-lbl">{{ _('易') }} (1{{ _('分') }})</label>
+        <input class="bk-input" id="bkG1" type="number" min="0" max="300" value="{{ default_plan[1] }}" style="width:100%;" oninput="bkGenTotal()"></div>
+      <div><label class="bk-lbl">{{ _('中') }} (2{{ _('分') }})</label>
+        <input class="bk-input" id="bkG2" type="number" min="0" max="300" value="{{ default_plan[2] }}" style="width:100%;" oninput="bkGenTotal()"></div>
+      <div><label class="bk-lbl">{{ _('难') }} (3{{ _('分') }})</label>
+        <input class="bk-input" id="bkG3" type="number" min="0" max="300" value="{{ default_plan[3] }}" style="width:100%;" oninput="bkGenTotal()"></div>
+    </div>
+    <div class="bk-dim" style="font-size:12px;" id="bkGTotal"></div>
+    <label style="font-size:13px;display:flex;gap:8px;align-items:flex-start;">
+      <input type="checkbox" id="bkGReplace" style="margin-top:3px;">
+      <span>{{ _('替换现有 AI 题') }}<br><span class="bk-dim" style="font-size:12px;">{{ _('勾选后旧的 AI 题会被停用；人工编辑过的题和导入的题保留。不勾选则在现有题库上追加。') }}</span></span>
+    </label>
+    <div class="bk-err" id="bkGErr"></div>
+  </div>
+{% endcall %}
+
+<script>
+(function () {
+  var KEY = {{ course_key|tojson }};
+  var API = '/api/learning/' + encodeURIComponent(KEY);
+  var T = {
+    diff: {1: {{ _('易')|tojson }}, 2: {{ _('中')|tojson }}, 3: {{ _('难')|tojson }}},
+    type: {single: {{ _('单选')|tojson }}, multi: {{ _('多选')|tojson }}, judge: {{ _('判断')|tojson }}},
+    status: {active: {{ _('启用')|tojson }}, review: {{ _('待审')|tojson }}, disabled: {{ _('停用')|tojson }}},
+    total: {{ _('题目总数')|tojson }}, activeN: {{ _('启用')|tojson }}, reviewN: {{ _('待审')|tojson }},
+    disabledN: {{ _('停用')|tojson }}, byDiff: {{ _('难度分布(启用)')|tojson }}, byType: {{ _('题型分布(启用)')|tojson }},
+    maxScore: {{ _('理论总分')|tojson }}, maxScoreSub: {{ _('启用题分值合计，须 ≥ 100')|tojson }},
+    readTime: {{ _('达标阅读时长(秒)')|tojson }}, auto: {{ _('自动')|tojson }}, save: {{ _('保存')|tojson }},
+    autoHint: {{ _('留空 = 按讲解字数自动估算')|tojson }}, current: {{ _('当前生效')|tojson }},
+    seconds: {{ _('秒')|tojson }}, minutes: {{ _('分钟')|tojson }},
+    healthBad: {{ _('理论总分 < 100，学员无法满分；启用题分值合计仅 %s 分。请生成或审核通过更多题目。')|tojson }},
+    empty: {{ _('暂无题目，点右上角「生成题库」')|tojson }}, noMatch: {{ _('没有符合筛选条件的题目')|tojson }},
+    shown: {{ _('显示 %s / %s 题')|tojson }},
+    edit: {{ _('编辑')|tojson }}, disable: {{ _('停用')|tojson }}, restore: {{ _('恢复')|tojson }},
+    regen: {{ _('AI 重出')|tojson }}, regenIng: {{ _('出题中…')|tojson }}, adopt: {{ _('采纳')|tojson }},
+    adoptTip: {{ _('采纳实测建议难度')|tojson }}, suspicious: {{ _('首次正确率 < 20%，疑似题目有误')|tojson }},
+    samples: {{ _('人')|tojson }}, suggest: {{ _('建议')|tojson }},
+    approveAll: {{ _('全部通过待审')|tojson }}, approveAllN: {{ _('全部通过待审(%s)')|tojson }},
+    approveTitle: {{ _('全部通过待审')|tojson }}, approveMsg: {{ _('将 %s 道待审题全部设为启用，确定吗？')|tojson }},
+    approved: {{ _('已通过 %s 题')|tojson }}, saved: {{ _('已保存')|tojson }}, failed: {{ _('操作失败')|tojson }},
+    regenTitle: {{ _('AI 重出这道题')|tojson }}, regenMsg: {{ _('将用同难度、同页的新题覆盖这道题(原题内容不保留)，新题进入待审。确定吗？')|tojson }},
+    regenDone: {{ _('已重出，新题待审')|tojson }}, genStarted: {{ _('已开始生成，完成后会站内通知你')|tojson }},
+    genDone: {{ _('题库生成任务已结束')|tojson }}, genTotal: {{ _('合计 %s 题，理论满分 %s 分')|tojson }},
+    optsSingle: {{ _('选项(勾选唯一正确项)')|tojson }}, optsMulti: {{ _('选项(勾选全部正确项，至少 2 个且不能全选)')|tojson }},
+    optPh: {{ _('选项内容')|tojson }}, needJudge: {{ _('请选择判断题答案')|tojson }},
+    netErr: {{ _('网络错误，请重试')|tojson }}, confirm: {{ _('确定')|tojson }}, page: {{ _('第 %s 页')|tojson }}
+  };
+  var POINTS = {1: 1, 2: 2, 3: 3};
+  var state = {data: null, polling: null, wasGenerating: false, busy: {}};
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+    });
+  }
+  function fmt(tpl) {
+    var args = Array.prototype.slice.call(arguments, 1), i = 0;
+    return tpl.replace(/%s/g, function () { return args[i++]; });
+  }
+  function token() { return document.querySelector('meta[name=csrf-token]').getAttribute('content'); }
+
+  // 统一请求:带 CSRF 头;token 过期(error=csrf)时取新 token 重试一次
+  function req(method, url, body, retried) {
+    var opt = {method: method, credentials: 'same-origin', headers: {'X-CSRFToken': token()}};
+    if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    return fetch(url, opt).then(function (r) {
+      return r.json().catch(function () { return {success: false, message: T.failed}; }).then(function (j) {
+        if (!r.ok && j && j.error === 'csrf' && !retried) {
+          return fetch('/api/learning/csrf', {credentials: 'same-origin'}).then(function (x) { return x.json(); })
+            .then(function (t) {
+              document.querySelector('meta[name=csrf-token]').setAttribute('content', t.token);
+              return req(method, url, body, true);
+            });
+        }
+        j = j || {};
+        j._status = r.status;
+        return j;
+      });
+    }).catch(function () { return {success: false, message: T.netErr, _status: 0}; });
+  }
+  function toastErr(j) { window.ATToast && ATToast.error(T.failed, (j && j.message) || ''); }
+
+  // ── 数据 ──
+  function load() {
+    return req('GET', API + '/bank').then(function (j) {
+      if (!j.success) { toastErr(j); return; }
+      state.data = j.data;
+      renderStats();
+      bkRender();
+      syncGenerating();
+    });
+  }
+
+  function syncGenerating() {
+    var on = !!state.data.generating;
+    document.getElementById('bkGenBanner').hidden = !on;
+    var btn = document.getElementById('bkGenBtn');
+    if (btn) btn.disabled = on;
+    if (on && !state.polling) {
+      state.polling = setInterval(load, 5000);
+    } else if (!on && state.polling) {
+      clearInterval(state.polling);
+      state.polling = null;
+    }
+    if (state.wasGenerating && !on && window.ATToast) ATToast.success(T.genDone);
+    state.wasGenerating = on;
+  }
+
+  function counts() {
+    var c = {total: 0, active: 0, review: 0, disabled: 0};
+    state.data.questions.forEach(function (q) { c.total++; c[q.status] = (c[q.status] || 0) + 1; });
+    return c;
+  }
+
+  function card(label, val, sub, bad) {
+    return '<div class="bk-card"><div class="bk-card-label">' + esc(label) + '</div>' +
+      '<div class="bk-card-val' + (bad ? ' bk-bad' : '') + '">' + val + '</div>' +
+      (sub ? '<div class="bk-card-sub">' + sub + '</div>' : '') + '</div>';
+  }
+  function human(sec) {
+    return sec >= 60 ? (Math.round(sec / 6) / 10) + ' ' + T.minutes : sec + ' ' + T.seconds;
+  }
+
+  function renderStats() {
+    var d = state.data, h = d.health, c = counts();
+    var html = '';
+    html += card(T.total, c.total, esc(T.activeN) + ' ' + c.active + ' · ' + esc(T.reviewN) + ' ' + c.review +
+                 ' · ' + esc(T.disabledN) + ' ' + c.disabled);
+    html += card(T.byDiff, h.by_difficulty[1] + ' / ' + h.by_difficulty[2] + ' / ' + h.by_difficulty[3],
+                 esc(T.diff[1] + ' / ' + T.diff[2] + ' / ' + T.diff[3]));
+    html += card(T.byType, h.by_type.single + ' / ' + (h.by_type.multi || 0) + ' / ' + h.by_type.judge,
+                 esc(T.type.single + ' / ' + T.type.multi + ' / ' + T.type.judge));
+    html += card(T.reviewN, c.review, '', false);
+    html += card(T.maxScore, h.max_score, esc(T.maxScoreSub), !h.ok);
+    var eff = d.min_read_seconds != null ? d.min_read_seconds : d.auto_read_seconds;
+    html += '<div class="bk-card"><div class="bk-card-label">' + esc(T.readTime) + '</div>' +
+      '<div class="bk-read"><input class="bk-input" id="bkReadInput" type="number" min="0" style="width:96px;" ' +
+      'placeholder="' + esc(T.auto + ' ' + d.auto_read_seconds) + '" value="' + (d.min_read_seconds != null ? d.min_read_seconds : '') + '">' +
+      '<button type="button" class="bk-btn bk-btn-sm" id="bkReadSave">' + esc(T.save) + '</button></div>' +
+      '<div class="bk-card-sub">' + esc(T.current) + ' ' + esc(human(eff)) + ' · ' + esc(T.autoHint) + '</div></div>';
+    document.getElementById('bkStats').innerHTML = html;
+    document.getElementById('bkReadSave').onclick = saveRead;
+
+    var hb = document.getElementById('bkHealthBanner');
+    hb.hidden = h.ok || c.total === 0 && !d.pages;
+    document.getElementById('bkHealthText').textContent = fmt(T.healthBad, h.max_score);
+
+    var ab = document.getElementById('bkApproveAll');
+    if (ab) {
+      ab.disabled = c.review === 0;
+      document.getElementById('bkApproveAllText').textContent = c.review ? fmt(T.approveAllN, c.review) : T.approveAll;
+    }
+  }
+
+  function saveRead() {
+    var v = document.getElementById('bkReadInput').value.trim();
+    req('POST', API + '/settings', {min_read_seconds: v === '' ? null : v}).then(function (j) {
+      if (!j.success) { toastErr(j); return; }
+      state.data.min_read_seconds = j.data.min_read_seconds;
+      renderStats();
+      window.ATToast && ATToast.success(T.saved);
+    });
+  }
+
+  function byId(id) {
+    for (var i = 0; i < state.data.questions.length; i++) if (state.data.questions[i].id === id) return state.data.questions[i];
+    return null;
+  }
+  function replaceQ(nq) {
+    var qs = state.data.questions;
+    for (var i = 0; i < qs.length; i++) if (qs[i].id === nq.id) { nq.stats = qs[i].stats; qs[i] = nq; }
+  }
+  function recomputeHealth() {
+    var by_d = {1: 0, 2: 0, 3: 0}, by_t = {single: 0, multi: 0, judge: 0}, max = 0;
+    state.data.questions.forEach(function (q) {
+      if (q.status !== 'active') return;
+      by_d[q.difficulty]++; by_t[q.qtype]++; max += POINTS[q.difficulty];
+    });
+    state.data.health = {total: by_d[1] + by_d[2] + by_d[3], by_difficulty: by_d, by_type: by_t, max_score: max, ok: max >= 100};
+  }
+  function afterChange() { recomputeHealth(); renderStats(); bkRender(); }
+
+  // ── 列表 ──
+  window.bkRender = function () {
+    if (!state.data) return;
+    var fd = document.getElementById('bkFDiff').value, ft = document.getElementById('bkFType').value,
+        fs = document.getElementById('bkFStatus').value, fp = document.getElementById('bkFPage').value,
+        fx = document.getElementById('bkFText').value.trim().toLowerCase();
+    var all = state.data.questions;
+    var rows = all.filter(function (q) {
+      if (fd && String(q.difficulty) !== fd) return false;
+      if (ft && q.qtype !== ft) return false;
+      if (fs && q.status !== fs) return false;
+      if (fp === 'none' && q.source_page) return false;
+      if (fp && fp !== 'none' && String(q.source_page) !== fp) return false;
+      if (fx && q.question.toLowerCase().indexOf(fx) < 0) return false;
+      return true;
+    });
+    document.getElementById('bkCount').textContent = fmt(T.shown, rows.length, all.length);
+    var body = document.getElementById('bkBody');
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="9" class="bk-empty">' + esc(all.length ? T.noMatch : T.empty) + '</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(rowHtml).join('');
+  };
+
+  function rowHtml(q) {
+    var st = q.stats || {}, emp = '';
+    if (st.empirical) {
+      var rate = Math.round(st.correct_first * 100 / st.n_first);
+      var off = st.empirical !== q.difficulty;
+      emp = '<span class="bk-emp' + (off ? ' bk-emp-off' : '') + '" title="' + esc(st.correct_first + '/' + st.n_first) + '">' +
+        rate + '% · ' + esc(T.diff[st.empirical]) + '</span>' +
+        (st.suspicious ? ' <span class="material-symbols-outlined" style="color:var(--danger);font-size:15px;vertical-align:-3px;" title="' + esc(T.suspicious) + '">report</span>' : '') +
+        (off ? '<div style="margin-top:4px;"><button type="button" class="bk-btn bk-btn-sm" data-act="adopt" data-id="' + q.id + '" title="' + esc(T.adoptTip) + '">' +
+          esc(T.adopt + ' ' + T.suggest + ' ' + T.diff[st.empirical]) + '</button></div>' : '');
+    } else {
+      emp = '<span class="bk-dim" style="font-size:12px;">' + (st.n_first || 0) + ' ' + esc(T.samples) + '</span>';
+    }
+    var aiD = q.ai_difficulty ? esc(T.diff[q.ai_difficulty]) : '<span class="bk-dim">—</span>';
+    if (q.ai_difficulty && q.ai_difficulty !== q.difficulty) aiD = '<span style="color:var(--warn);font-weight:600;">' + aiD + '</span>';
+    var sel = '<select class="bk-select bk-diff-sel" data-act="diff" data-id="' + q.id + '">' +
+      [1, 2, 3].map(function (d) { return '<option value="' + d + '"' + (d === q.difficulty ? ' selected' : '') + '>' + esc(T.diff[d]) + '</option>'; }).join('') +
+      '</select>';
+    var busy = state.busy[q.id];
+    var ops = '<div class="bk-ops">' +
+      '<button type="button" class="bk-btn bk-btn-sm" data-act="edit" data-id="' + q.id + '"><span class="material-symbols-outlined">edit</span>' + esc(T.edit) + '</button>' +
+      (q.status === 'disabled'
+        ? '<button type="button" class="bk-btn bk-btn-sm" data-act="restore" data-id="' + q.id + '"><span class="material-symbols-outlined">undo</span>' + esc(T.restore) + '</button>'
+        : '<button type="button" class="bk-btn bk-btn-sm bk-btn-danger" data-act="disable" data-id="' + q.id + '"><span class="material-symbols-outlined">block</span>' + esc(T.disable) + '</button>') +
+      '<button type="button" class="bk-btn bk-btn-sm" data-act="regen" data-id="' + q.id + '"' + (busy ? ' disabled' : '') + '>' +
+        (busy ? '<span class="bk-spin" style="width:11px;height:11px;"></span>' + esc(T.regenIng) : '<span class="material-symbols-outlined">auto_awesome</span>' + esc(T.regen)) + '</button>' +
+      '</div>';
+    return '<tr data-qid="' + q.id + '"' + (q.status === 'disabled' ? ' class="bk-off"' : '') + '>' +
+      '<td class="bk-dim" style="font-family:var(--font-mono);font-size:12px;">' + q.id + '</td>' +
+      '<td class="bk-q" data-act="edit" data-id="' + q.id + '"><div class="bk-q-text" title="' + esc(q.question) + '">' + esc(q.question) + '</div>' +
+        (q.status === 'review' && q.review_note ? '<div class="bk-note">' + esc(q.review_note) + '</div>' : '') + '</td>' +
+      '<td style="white-space:nowrap;">' + esc(T.type[q.qtype] || q.qtype) + '</td>' +
+      '<td class="bk-dim" style="white-space:nowrap;">' + (q.source_page || '—') + '</td>' +
+      '<td>' + sel + '</td>' +
+      '<td style="white-space:nowrap;">' + aiD + '</td>' +
+      '<td>' + emp + '</td>' +
+      '<td><span class="bk-chip bk-chip-' + q.status + '">' + esc(T.status[q.status] || q.status) + '</span></td>' +
+      '<td>' + ops + '</td></tr>';
+  }
+
+  function put(id, patch) {
+    return req('PUT', API + '/bank/' + id, patch).then(function (j) {
+      if (!j.success) { toastErr(j); return null; }
+      replaceQ(j.data);
+      afterChange();
+      return j.data;
+    });
+  }
+
+  document.getElementById('bkBody').addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]');
+    if (!el || el.tagName === 'SELECT') return;
+    var id = +el.getAttribute('data-id'), act = el.getAttribute('data-act'), q = byId(id);
+    if (!q) return;
+    if (act === 'edit') openEdit(q);
+    else if (act === 'disable') put(id, {status: 'disabled'});
+    else if (act === 'restore') put(id, {status: 'active'});
+    else if (act === 'adopt') put(id, {difficulty: q.stats.empirical});
+    else if (act === 'regen') confirmRegen(q);
+  });
+  document.getElementById('bkBody').addEventListener('change', function (e) {
+    var el = e.target;
+    if (el.getAttribute('data-act') !== 'diff') return;
+    var id = +el.getAttribute('data-id');
+    put(id, {difficulty: +el.value}).then(function (r) { if (!r) bkRender(); });
+  });
+
+  function confirmRegen(q) {
+    ATConfirm.show({
+      title: T.regenTitle, message: T.regenMsg, confirmText: T.regen, variant: 'warn',
+      onConfirm: function () {
+        state.busy[q.id] = true;
+        bkRender();
+        req('POST', API + '/bank/' + q.id + '/regenerate').then(function (j) {
+          delete state.busy[q.id];
+          if (!j.success) { toastErr(j); bkRender(); return; }
+          replaceQ(j.data);
+          afterChange();
+          window.ATToast && ATToast.success(T.regenDone);
+        });
+      }
+    });
+  }
+
+  window.bkApproveAll = function () {
+    var n = counts().review;
+    if (!n) return;
+    ATConfirm.show({
+      title: T.approveTitle, message: fmt(T.approveMsg, n), confirmText: T.confirm,
+      onConfirm: function () {
+        req('POST', API + '/bank/approve-all').then(function (j) {
+          if (!j.success) { toastErr(j); return; }
+          window.ATToast && ATToast.success(fmt(T.approved, j.data.approved));
+          load();
+        });
+      }
+    });
+  };
+
+  // ── 编辑弹窗 ──
+  var editing = null;
+  function openEdit(q) {
+    editing = q;
+    document.getElementById('bkEType').value = q.qtype;
+    document.getElementById('bkEDiff').value = String(q.difficulty);
+    document.getElementById('bkEStatus').value = q.status;
+    document.getElementById('bkEPage').value = q.source_page || '';
+    document.getElementById('bkEQuestion').value = q.question;
+    document.getElementById('bkEExplain').value = q.explain || '';
+    var note = document.getElementById('bkENote');
+    note.hidden = !q.review_note;
+    note.textContent = q.review_note || '';
+    document.getElementById('bkEErr').textContent = '';
+    var opts = q.qtype === 'judge' ? ['', '', '', ''] : q.options.slice();
+    var ans = q.qtype === 'multi' ? q.answer : (q.qtype === 'single' ? [q.answer] : []);
+    renderOpts(opts, ans);
+    document.querySelectorAll('input[name=bkEJudge]').forEach(function (r) {
+      r.checked = q.qtype === 'judge' && String(q.answer) === r.value;
+    });
+    bkTypeChanged(true);
+    document.getElementById('bkEditModal').style.display = 'flex';
+  }
+
+  function currentOpts() {
+    return Array.prototype.map.call(document.querySelectorAll('#bkEOpts .bk-opt'), function (row) {
+      return {text: row.querySelector('.bk-input').value, on: row.querySelector('input[data-correct]').checked};
+    });
+  }
+  function renderOpts(opts, ans) {
+    var multi = document.getElementById('bkEType').value === 'multi';
+    var type = multi ? 'checkbox' : 'radio';
+    document.getElementById('bkEOpts').innerHTML = opts.map(function (t, i) {
+      return '<div class="bk-opt"><span class="bk-opt-letter">' + String.fromCharCode(65 + i) + '</span>' +
+        '<input type="' + type + '" name="bkECorrect" data-correct' + (ans.indexOf(i) >= 0 ? ' checked' : '') + '>' +
+        '<input class="bk-input" value="' + esc(t) + '" placeholder="' + esc(T.optPh) + '">' +
+        '<button type="button" class="bk-btn bk-btn-sm" data-rm="' + i + '" title="×"><span class="material-symbols-outlined">close</span></button></div>';
+    }).join('');
+  }
+  document.getElementById('bkEOpts').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-rm]');
+    if (!b) return;
+    var cur = currentOpts(), i = +b.getAttribute('data-rm');
+    cur.splice(i, 1);
+    renderOpts(cur.map(function (o) { return o.text; }),
+               cur.map(function (o, k) { return o.on ? k : -1; }).filter(function (k) { return k >= 0; }));
+  });
+  window.bkAddOption = function () {
+    var cur = currentOpts();
+    if (cur.length >= 8) return;
+    cur.push({text: '', on: false});
+    renderOpts(cur.map(function (o) { return o.text; }),
+               cur.map(function (o, k) { return o.on ? k : -1; }).filter(function (k) { return k >= 0; }));
+  };
+  window.bkTypeChanged = function (initial) {
+    var t = document.getElementById('bkEType').value;
+    document.getElementById('bkEOptsWrap').hidden = t === 'judge';
+    document.getElementById('bkEJudgeWrap').hidden = t !== 'judge';
+    document.getElementById('bkEOptsLabel').textContent = t === 'multi' ? T.optsMulti : T.optsSingle;
+    if (initial !== true && t !== 'judge') {
+      var cur = currentOpts(), on = cur.map(function (o, k) { return o.on ? k : -1; }).filter(function (k) { return k >= 0; });
+      if (t === 'single') on = on.slice(0, 1);
+      renderOpts(cur.map(function (o) { return o.text; }), on);
+    }
+  };
+
+  window.bkSaveEdit = function () {
+    if (!editing) return;
+    var t = document.getElementById('bkEType').value, err = document.getElementById('bkEErr');
+    var body = {
+      qtype: t, difficulty: +document.getElementById('bkEDiff').value,
+      status: document.getElementById('bkEStatus').value,
+      question: document.getElementById('bkEQuestion').value,
+      explain: document.getElementById('bkEExplain').value,
+      source_page: document.getElementById('bkEPage').value || null
+    };
+    if (t === 'judge') {
+      var r = document.querySelector('input[name=bkEJudge]:checked');
+      if (!r) { err.textContent = T.needJudge; return; }
+      body.answer = r.value === 'true';
+      body.options = null;
+    } else {
+      var cur = currentOpts().filter(function (o) { return o.text.trim() || o.on; });
+      body.options = cur.map(function (o) { return o.text.trim(); });
+      var on = cur.map(function (o, k) { return o.on ? k : -1; }).filter(function (k) { return k >= 0; });
+      body.answer = t === 'multi' ? on : (on.length ? on[0] : null);
+    }
+    var btn = document.getElementById('bkEditSave');
+    btn.disabled = true;
+    req('PUT', API + '/bank/' + editing.id, body).then(function (j) {
+      btn.disabled = false;
+      if (!j.success) { err.textContent = j.message || T.failed; return; }
+      replaceQ(j.data);
+      afterChange();
+      document.getElementById('bkEditModal').style.display = 'none';
+      window.ATToast && ATToast.success(T.saved);
+    });
+  };
+
+  // ── 生成题库 ──
+  window.bkGenTotal = function () {
+    var n = [1, 2, 3].map(function (d) { return Math.max(0, parseInt(document.getElementById('bkG' + d).value, 10) || 0); });
+    document.getElementById('bkGTotal').textContent = fmt(T.genTotal, n[0] + n[1] + n[2], n[0] + n[1] * 2 + n[2] * 3);
+  };
+  window.bkOpenGenerate = function () {
+    document.getElementById('bkGErr').textContent = '';
+    bkGenTotal();
+    document.getElementById('bkGenModal').style.display = 'flex';
+  };
+  window.bkSubmitGenerate = function () {
+    var plan = {};
+    [1, 2, 3].forEach(function (d) { plan[d] = document.getElementById('bkG' + d).value.trim(); });
+    var btn = document.getElementById('bkGenSubmit');
+    btn.disabled = true;
+    req('POST', API + '/bank/generate', {plan: plan, replace: document.getElementById('bkGReplace').checked}).then(function (j) {
+      btn.disabled = false;
+      if (!j.success) { document.getElementById('bkGErr').textContent = j.message || T.failed; return; }
+      document.getElementById('bkGenModal').style.display = 'none';
+      window.ATToast && ATToast.info(T.genStarted);
+      state.data.generating = true;
+      syncGenerating();
+    });
+  };
+
+  load();
+})();
+</script>
+</body>
+</html>

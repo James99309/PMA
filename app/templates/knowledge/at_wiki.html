@@ -163,11 +163,12 @@
   .kb-card-ops { position:absolute; bottom:10px; right:10px; display:flex; gap:5px; z-index:3;
                  opacity:0; transition:opacity 120ms; }
   .kb-card-wrap:hover .kb-card-ops { opacity:1; }
-  body.at-page .kb-card-ops button { width:30px; height:30px; border-radius:7px; border:1px solid var(--line);
+  body.at-page .kb-card-ops button, body.at-page .kb-card-ops a { width:30px; height:30px; border-radius:7px; border:1px solid var(--line);
                         background:var(--bg-elev); color:var(--ink-2); cursor:pointer;
                         display:flex; align-items:center; justify-content:center;
                         box-shadow:0 2px 8px rgba(0,0,0,.14); }
-  body.at-page .kb-card-ops button:hover { background:var(--bg-hover); color:var(--ink); border-color:var(--accent); }
+  body.at-page .kb-card-ops a { box-sizing:border-box; text-decoration:none; }
+  body.at-page .kb-card-ops button:hover, body.at-page .kb-card-ops a:hover { background:var(--bg-hover); color:var(--ink); border-color:var(--accent); }
   .kb-card-ops .material-symbols-outlined { font-size:16px; }
 </style>
 </head>
@@ -530,14 +531,22 @@
                 <div class="kb-cdesc">{{ c.desc }}</div>
               </div>
             </a>
-            {% if is_admin and c.owner_id == current_user_id %}
+            {% set _owner_ops = is_admin and c.owner_id == current_user_id %}
+            {% if _owner_ops or can_manage_bank %}
             <div class="kb-card-ops">
+              {% if can_manage_bank %}
+              <a class="kb-bank-link" title="{{ _('题库管理') }}" data-bank-link="{{ c.key }}"
+                 href="{{ url_for('learning.bank_page', key=c.key) }}" target="_blank" rel="noopener">
+                <span class="material-symbols-outlined">quiz</span></a>
+              {% endif %}
+              {% if _owner_ops %}
               <button title="{{ _('编辑') }}" onclick='cmOpenEdit({{ c|tojson }})'>
                 <span class="material-symbols-outlined">edit</span></button>
               <button title="{{ _('生成缩略图') }}" onclick="cmGenThumbs({{ c.id }})">
                 <span class="material-symbols-outlined">image</span></button>
               <button title="{{ _('删除') }}" onclick='cmConfirmDelete({{ c.id }}, {{ c.title|tojson }})'>
                 <span class="material-symbols-outlined">delete</span></button>
+              {% endif %}
             </div>
             {% endif %}
           </div>

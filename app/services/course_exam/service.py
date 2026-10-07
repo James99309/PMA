@@ -30,6 +30,26 @@ def get_min_read_seconds(course_key):
     return row.min_read_seconds if row else None
 
 
+# 题库管理(生成/审题/编辑/阅读时长设置)只开放给这些角色
+BANK_MANAGER_ROLES = ('admin', 'ceo', 'hr_manager')
+MAX_MIN_READ_SECONDS = 36000
+
+
+def can_manage_bank(user):
+    return bool(user and getattr(user, 'is_authenticated', False)
+                and getattr(user, 'role', None) in BANK_MANAGER_ROLES)
+
+
+def set_min_read_seconds(course_key, value, user_id):
+    """写本课阅读时长覆盖值;value 为 None = 恢复按讲解字数自动估算。会 commit。"""
+    from app.services.course_exam.generator import _ensure_setting
+    row = _ensure_setting(course_key)
+    row.min_read_seconds = value
+    row.updated_by = user_id
+    db.session.commit()
+    return row.min_read_seconds
+
+
 def buddy_enabled(user_id):
     """小源是否显示;无偏好行默认开启。"""
     row = db.session.get(LearningBuddyPref, user_id)

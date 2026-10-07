@@ -224,6 +224,7 @@ def _find_course(course_key):
 @login_required
 def at_wiki_page():
     """AT 版知识库 —— 文章库(复用 wikiApp)+ 互动课程。"""
+    from app.services.course_exam.service import can_manage_bank
     ensure_wiki_structure()
     grouped = _list_courses_grouped()
     return render_template(
@@ -235,6 +236,7 @@ def at_wiki_page():
         is_admin=_is_admin(),
         is_dept_manager=getattr(current_user, 'is_department_manager', False),
         current_user_id=current_user.id,
+        can_manage_bank=can_manage_bank(current_user),
     )
 
 
