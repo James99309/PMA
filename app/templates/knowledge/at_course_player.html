@@ -272,7 +272,9 @@
   function cpBindFrameActivity() {
     try {
       var d = cpFrame.contentWindow.document;
-      ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) {
+      if (d.__cpActivityBound) return;          // 同一文档只绑一次(load 与 readyState 兜底可能都触发)
+      d.__cpActivityBound = true;
+      ['pointerdown', 'keydown', 'wheel', 'touchstart', 'touchmove', 'scroll'].forEach(function (ev) {
         d.addEventListener(ev, cpActivity, { passive: true, capture: true });
       });
     } catch (e) {}
@@ -281,6 +283,14 @@
     try { cpFrame.contentWindow.addEventListener('hashchange', cpSyncFromFrame); } catch (e) {}
     cpBindFrameActivity();
   });
+  // 本脚本执行前 iframe 可能已加载完(load 事件已错过):立即补绑
+  try {
+    var cpFrameDoc = cpFrame.contentWindow.document;
+    if (cpFrameDoc.readyState === 'complete' && cpFrameDoc.URL !== 'about:blank') {
+      cpFrame.contentWindow.addEventListener('hashchange', cpSyncFromFrame);   // 同一函数重复添加会被浏览器去重
+      cpBindFrameActivity();
+    }
+  } catch (e) {}
   setInterval(cpSyncFromFrame, 300);
   cpRender(cpTotal ? 1 : 0);
 </script>

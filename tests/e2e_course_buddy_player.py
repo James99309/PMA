@@ -189,6 +189,13 @@ def run_browser():
         check(not r0['unlocked'] and r0['pages_total'] == total,
               f'服务端页数与播放器一致(server {r0["pages_total"]} / player {total})')
         shot(page, '01-course-locked')
+        # iframe 内 scroll / touchmove 也转发为活动;每个文档只绑一次(各触发恰好 1 次)
+        fa = page.evaluate("""() => { const d = document.getElementById('cpFrame').contentWindow.document;
+            let n = 0; const o = window.CourseBuddy.activity;
+            window.CourseBuddy.activity = function () { n++; return o.apply(this, arguments); };
+            d.dispatchEvent(new Event('scroll')); d.dispatchEvent(new Event('touchmove'));
+            window.CourseBuddy.activity = o; return {bound: !!d.__cpActivityBound, n: n}; }""")
+        check(fa['bound'] and fa['n'] == 2, f'课件 iframe 的 scroll/touchmove 转发为活动且只绑一次 {fa}')
 
         # ---- 3. 真实翻页 → 服务端计时 → 解锁 ----
         seen_hist = [r0['pages_seen']]
