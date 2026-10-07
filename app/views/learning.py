@@ -8,6 +8,7 @@
 CSRF:本蓝图不豁免,前端 POST 统一带 X-CSRFToken 头;token 过期时返回 JSON error='csrf',
 前端调 GET /api/learning/csrf 取新 token 后重试。
 """
+import logging
 import os
 from collections import defaultdict
 
@@ -23,6 +24,7 @@ from app.services.course_exam import service as S
 from app.services.course_exam import logic as L
 
 learning_bp = Blueprint('learning', __name__)
+logger = logging.getLogger(__name__)
 
 # 服务层错误码 → HTTP 状态码
 _ERROR_STATUS = {
@@ -88,17 +90,24 @@ def _exam_gate(course_key, pages):
     return None
 
 
+_buddy_pref_warned = False
+
+
 @learning_bp.app_context_processor
 def _inject_course_buddy():
     """模板里判断是否挂载小源:cb_buddy_enabled() 仅在登录态下查一次偏好行(无行默认开启)。"""
     def cb_buddy_enabled():
+        if not current_user.is_authenticated:
+            return False
         try:
-            if not current_user.is_authenticated:
-                return False
-            return S.buddy_enabled(current_user.id)
+            # 保存点包住查询:出错只回滚保存点,不波及页面所在请求的外层事务
+            with db.session.begin_nested():
+                return S.buddy_enabled(current_user.id)
         except Exception:
-            # 偏好查询失败不影响页面渲染,只是不显示小源
-            db.session.rollback()
+            global _buddy_pref_warned
+            if not _buddy_pref_warned:
+                _buddy_pref_warned = True
+                logger.debug('小源偏好查询失败,本页不挂载小源', exc_info=True)
             return False
     return {'cb_buddy_enabled': cb_buddy_enabled}
 

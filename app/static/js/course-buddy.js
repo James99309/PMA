@@ -37,7 +37,20 @@
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 忽略 */ } }
   function today() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
 
-  var IDLE_MS = 120000, PING_MS = 15000, CHAT_KEY = 'cb-chat', POS_KEY = 'cb-pos', CHAT_MAX = 50;
+  // 对话记录 / 每日提醒按用户隔离(同一浏览器换账号互不可见);位置 cb-pos 按设备共用
+  var UID = C.uid != null ? String(C.uid) : '';
+  var IDLE_MS = 120000, PING_MS = 15000, POS_KEY = 'cb-pos', CHAT_MAX = 50;
+  var CHAT_KEY = 'cb-chat:' + UID, NAG_KEY = 'cb-nag-date:' + UID;
+  (function purgeOtherUsersChat() {
+    try {
+      var drop = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k === 'cb-chat' || k === 'cb-nag-date' || (k && k.indexOf('cb-chat:') === 0 && k !== CHAT_KEY)) drop.push(k);
+      }
+      drop.forEach(function (k) { localStorage.removeItem(k); });
+    } catch (e) { /* 忽略 */ }
+  })();
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ===================== 接口 ===================== */
@@ -51,10 +64,22 @@
     if (open) render();
   }
 
+  function expiredError(status) { return new ApiError({ status: status || 0, error: 'expired', message: t('expired'), expired: true }); }
+
+  // 取新 CSRF token;拿到 HTML(被重定向到登录页)或 401 视为会话过期,绝不把 JSON 解析异常抛给界面
   function refreshCsrf() {
-    return fetch(C.csrfUrl || (API + '/csrf'), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) { if (j && j.token) window.CB_CSRF = j.token; });
+    return fetch(C.csrfUrl || (API + '/csrf'), {
+      credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function (r) {
+      var ct = r.headers.get('content-type') || '';
+      if (r.status === 401 || r.redirected || ct.indexOf('application/json') < 0) { markExpired(); throw expiredError(r.status); }
+      return r.json().then(function (j) {
+        if (!j || !j.token) throw new ApiError({ status: r.status, error: 'csrf', message: t('err_generic') });
+        window.CB_CSRF = j.token;
+      }, function () { throw new ApiError({ status: r.status, error: 'csrf', message: t('err_generic') }); });
+    }, function () {
+      throw new ApiError({ status: 0, error: 'network', message: t('err_network') });
+    });
   }
 
   function api(method, url, body, opts) {
@@ -67,25 +92,28 @@
       init.body = JSON.stringify(body || {});
       if (opts.keepalive) init.keepalive = true;
     }
+    function retry() {
+      return refreshCsrf().then(function () { return api(method, url, body, { retried: true, keepalive: opts.keepalive }); });
+    }
     return fetch(url, init).then(function (res) {
       var ct = res.headers.get('content-type') || '';
+      if (res.status === 401) { markExpired(); throw expiredError(401); }
       if (ct.indexOf('application/json') < 0) {
         // 会话过期时全局登录检查 302 到登录页,fetch 跟随后拿到 HTML 200
-        if (res.redirected || res.ok) { markExpired(); throw new ApiError({ status: res.status, error: 'expired', message: t('expired'), expired: true }); }
+        if (res.redirected || res.ok) { markExpired(); throw expiredError(res.status); }
+        // 非 /api/learning 路径(如 /api/wiki/query)CSRF 失败是 Flask-WTF 默认的 HTML 400:换 token 重试一次
+        if (res.status === 400 && method !== 'GET' && !opts.retried) return retry();
         throw new ApiError({ status: res.status, error: 'http', message: t('err_generic') });
       }
       return res.json().then(function (j) {
-        if (res.status === 401) {
-          markExpired();
-          throw new ApiError({ status: 401, error: 'expired', message: t('expired'), expired: true });
-        }
-        if (res.status === 400 && j && j.error === 'csrf' && !opts.retried) {
-          return refreshCsrf().then(function () { return api(method, url, body, { retried: true, keepalive: opts.keepalive }); });
-        }
+        if (res.status === 400 && j && j.error === 'csrf' && !opts.retried) return retry();
         if (!res.ok || !j || j.success === false) {
           throw new ApiError({ status: res.status, error: j && j.error, message: (j && j.message) || t('err_generic') });
         }
         return j.data;
+      }, function (e) {
+        if (e instanceof ApiError) throw e;
+        throw new ApiError({ status: res.status, error: 'http', message: t('err_generic') });
       });
     }, function () {
       throw new ApiError({ status: 0, error: 'network', message: t('err_network') });
@@ -125,12 +153,12 @@
   wrap.className = 'cb-wrap cb-side-right';
   wrap.id = 'cbWrap';
   wrap.innerHTML = '<div class="cb-bubble cb-off" aria-live="polite"></div><span class="cb-badge" hidden></span>' +
-    '<button class="cb-pet" type="button" aria-haspopup="dialog" aria-label="' + esc(t('open_label')) + '"><svg viewBox="0 0 200 200" aria-hidden="true"></svg></button>';
+    '<button class="cb-pet" type="button" aria-haspopup="dialog" aria-label="' + esc(t('open_label')) + '" aria-expanded="false" aria-controls="cbPanel"><span class="cb-breathe"><svg viewBox="0 0 200 200" aria-hidden="true"></svg></span></button>';
   document.body.appendChild(wrap);
   var pet = wrap.querySelector('.cb-pet'), svg = wrap.querySelector('svg'),
     bubble = wrap.querySelector('.cb-bubble'), badge = wrap.querySelector('.cb-badge');
   svg.innerHTML = DEFS + '<ellipse id="cb-shadow" cx="100" cy="183" rx="50" ry="7" fill="#0A141C" opacity=".14" filter="url(#cb-soft)"/>' +
-    '<g id="cb-hop"><g id="cb-lean"><g id="cb-squash"><g class="cb-breath">' + YUAN + '</g></g></g></g>';
+    '<g id="cb-hop"><g id="cb-lean"><g id="cb-squash">' + YUAN + '</g></g></g>';
   var R = {};
   ['lean', 'squash', 'hop', 'antenna', 'eyes', 'shadow', 'mouth', 'mouth-open'].forEach(function (k) { R[k] = svg.querySelector('#cb-' + k); });
   R.pupils = [svg.querySelector('#cb-pupil-l'), svg.querySelector('#cb-pupil-r')];
@@ -146,6 +174,7 @@
   panel.className = 'cb-panel cb-off';
   panel.id = 'cbPanel';
   panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
   panel.setAttribute('aria-label', t('panel_label'));
   panel.innerHTML = '<div class="cb-grab"></div>' +
     '<div class="cb-head"><div class="cb-t"><h3 id="cbTitle"></h3><div class="cb-sub" id="cbSub"></div></div>' +
@@ -153,9 +182,11 @@
     '<div class="cb-tabs"><div class="cb-seg" role="tablist"><button type="button" role="tab" data-tab="ask">' + esc(t('ask')) + '</button>' +
     '<button type="button" role="tab" data-tab="exam"></button></div></div>' +
     '<div class="cb-body" id="cbBody"></div>' +
+    '<div class="cb-foot" id="cbFoot" hidden></div>' +
     '<div class="cb-compose" id="cbCompose" hidden><input id="cbInput" maxlength="500" autocomplete="off" placeholder="' + esc(t('placeholder')) + '">' +
     '<button type="button" id="cbSend">' + esc(t('send')) + '</button></div>';
   document.body.appendChild(panel);
+  var foot = panel.querySelector('#cbFoot');
   var body = panel.querySelector('#cbBody'), compose = panel.querySelector('#cbCompose'),
     input = panel.querySelector('#cbInput'), sendBtn = panel.querySelector('#cbSend'),
     examBtn = panel.querySelector('[data-tab=exam]');
@@ -173,17 +204,25 @@
   /* ===================== 动作 ===================== */
   function anim(el, f, ms) { if (reduce || !el || !el.animate) return; el.animate(f, { duration: ms, easing: 'cubic-bezier(.3,.7,.4,1)' }); }
   var ant = 0, antVel = 0;
-  function jelly() { anim(R.squash, [{ transform: 'scale(1,1)' }, { transform: 'scale(1.2,.78)' }, { transform: 'scale(.9,1.12)' }, { transform: 'scale(1.05,.96)' }, { transform: 'scale(1,1)' }], 560); antVel += 9; }
+  function jelly() { kick(); anim(R.squash, [{ transform: 'scale(1,1)' }, { transform: 'scale(1.2,.78)' }, { transform: 'scale(.9,1.12)' }, { transform: 'scale(1.05,.96)' }, { transform: 'scale(1,1)' }], 560); antVel += 9; }
   function hop(h) {
+    kick();
     anim(R.hop, [{ transform: 'translateY(0)' }, { transform: 'translateY(' + -(h || 12) + 'px)' }, { transform: 'translateY(0)' }], 420);
     anim(R.shadow, [{ transform: 'scale(1)', opacity: .14 }, { transform: 'scale(.78)', opacity: .08 }, { transform: 'scale(1)', opacity: .14 }], 420);
     antVel -= 6;
   }
   function blink() { if (wrap.classList.contains('cb-sleeping')) return; anim(R.eyes, [{ transform: 'scaleY(1)' }, { transform: 'scaleY(.08)' }, { transform: 'scaleY(1)' }], 170); }
-  (function loop() { setTimeout(function () { if (destroyed) return; if (!document.hidden) { blink(); if (Math.random() < .22) setTimeout(blink, 230); } loop(); }, 2200 + Math.random() * 3800); })();
+  // 眨眼只在最近有活动的 ~10s 内进行;之后完全静止(呼吸为合成层动画,不占主线程)
+  (function loop() {
+    setTimeout(function () {
+      if (destroyed) return;
+      if (!document.hidden && !idleStill()) { blink(); if (Math.random() < .22) setTimeout(blink, 230); }
+      loop();
+    }, 2200 + Math.random() * 3800);
+  })();
   var talkT;
   function talk(ms) {
-    wrap.classList.add('cb-talking'); clearInterval(talkT); var end = Date.now() + ms;
+    kick(); wrap.classList.add('cb-talking'); clearInterval(talkT); var end = Date.now() + ms;
     talkT = setInterval(function () {
       var mo = R['mouth-open'], mc = R.mouth;
       if (Date.now() > end) { clearInterval(talkT); mo.style.opacity = '0'; mc.style.opacity = '1'; wrap.classList.remove('cb-talking'); return; }
@@ -198,26 +237,53 @@
     bT = setTimeout(function () { bubble.classList.add('cb-off'); }, ms || 2800);
   }
 
+  /* 眼神/身体倾斜/天线弹簧:rAF 只在需要时跑,收敛后停帧(空闲页零开销),
+     指针移动/跳动/果冻/说话/开关面板时 kick() 重启;无操作时游移最多 ~10s 后归位 */
   var mouse = { x: innerWidth * .4, y: innerHeight * .4, t: Date.now() }, look = { x: 0, y: 0 }, lean = 0;
-  addEventListener('pointermove', function (e) { mouse.x = e.clientX; mouse.y = e.clientY; mouse.t = Date.now(); if (course) markActivity(); }, { passive: true });
-  (function frame(now) {
-    if (destroyed) return;
-    if (!document.hidden) {
-      var r = pet.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height * .55, tx, ty;
-      if (open) { tx = pos.side === 'left' ? 2.6 : -2.6; ty = -3; }
-      else if (Date.now() - mouse.t > 4500) { var k = now / 1400; tx = Math.sin(k) * 3.4; ty = Math.sin(k * .7) * 1.6; }
-      else { var dx = mouse.x - cx, dy = mouse.y - cy, d = Math.hypot(dx, dy) || 1, m = Math.min(1, d / 260) * 3.6; tx = dx / d * m; ty = dy / d * m; }
-      look.x += (tx - look.x) * .18; look.y += (ty - look.y) * .18;
-      var tr = 'translate(' + look.x.toFixed(2) + 'px,' + look.y.toFixed(2) + 'px)';
-      R.pupils.forEach(function (p) { p.style.transform = tr; });
-      var target = reduce || open ? 0 : Math.max(-1, Math.min(1, (mouse.x - cx) / 420)) * 6, prev = lean;
-      lean += (target - lean) * .1;
-      R.lean.style.transform = 'rotate(' + lean.toFixed(2) + 'deg)';
-      antVel += (-(lean - prev) * 6) + (-ant * .09); antVel *= .86; ant += antVel * .5;
-      R.antenna.style.transform = 'rotate(' + (reduce ? 0 : ant).toFixed(2) + 'deg)';
+  var rafId = 0, lastKick = Date.now(), petRect = null, WANDER_MS = 10000, EPS = 0.02;
+  window.__cbFrames = window.__cbFrames || 0;      // 调试计数:空闲时不应增长
+  function idleStill() { return Date.now() - Math.max(mouse.t, lastKick) >= WANDER_MS; }
+  function updatePetRect() { petRect = pet.getBoundingClientRect(); }
+  function kick() {
+    lastKick = Date.now();
+    if (!rafId && !destroyed && !document.hidden) rafId = requestAnimationFrame(frame);
+  }
+  function frame(now) {
+    rafId = 0;
+    if (destroyed || document.hidden) return;
+    window.__cbFrames++;
+    if (!petRect) updatePetRect();
+    var r = petRect, cx = r.left + r.width / 2, cy = r.top + r.height * .55, tx, ty, wander = false;
+    var t0 = Date.now(), mouseIdle = t0 - mouse.t > 4500;
+    if (open) { tx = pos.side === 'left' ? 2.6 : -2.6; ty = -3; }
+    else if (mouseIdle) {
+      wander = !reduce && !idleStill();
+      if (wander) { var k = now / 1400; tx = Math.sin(k) * 3.4; ty = Math.sin(k * .7) * 1.6; }
+      else { tx = 0; ty = 0; }
     }
-    requestAnimationFrame(frame);
-  })(0);
+    else { var dx = mouse.x - cx, dy = mouse.y - cy, d = Math.hypot(dx, dy) || 1, m = Math.min(1, d / 260) * 3.6; tx = dx / d * m; ty = dy / d * m; }
+    look.x += (tx - look.x) * .18; look.y += (ty - look.y) * .18;
+    var target = reduce || open ? 0 : Math.max(-1, Math.min(1, (mouse.x - cx) / 420)) * 6, prev = lean;
+    lean += (target - lean) * .1;
+    antVel += (-(lean - prev) * 6) + (-ant * .09); antVel *= .86; ant += antVel * .5;
+    var settled = !wander && Math.abs(tx - look.x) < EPS && Math.abs(ty - look.y) < EPS &&
+      Math.abs(target - lean) < EPS && Math.abs(antVel) < 0.01 && Math.abs(ant) < EPS;
+    if (settled) { look.x = tx; look.y = ty; lean = target; ant = 0; antVel = 0; }
+    var tr = 'translate(' + look.x.toFixed(2) + 'px,' + look.y.toFixed(2) + 'px)';
+    R.pupils.forEach(function (p) { p.style.transform = tr; });
+    R.lean.style.transform = 'rotate(' + lean.toFixed(2) + 'deg)';
+    R.antenna.style.transform = 'rotate(' + (reduce ? 0 : ant).toFixed(2) + 'deg)';
+    if (!settled) rafId = requestAnimationFrame(frame);
+  }
+  addEventListener('pointermove', function (e) {
+    mouse.x = e.clientX; mouse.y = e.clientY; mouse.t = Date.now();
+    if (!rafId) kick();
+  }, { passive: true });
+  document.addEventListener('visibilitychange', function () {
+    wrap.classList.toggle('cb-paused', document.hidden);
+    if (!document.hidden) kick();
+  });
+  wrap.addEventListener('transitionend', function (e) { if (e.target === wrap) updatePetRect(); });
 
   /* ===================== 位置:拖动 / 吸附左右 / 藏边 / 记忆 ===================== */
   var pos = lsGet(POS_KEY);
@@ -248,6 +314,7 @@
     if (pos.side === 'left') { wrap.style.left = (pos.tucked ? leftInset() - 12 : leftInset()) + 'px'; wrap.style.right = ''; }
     else { wrap.style.right = '12px'; wrap.style.left = ''; }
     wrap.style.top = ''; wrap.style.bottom = pos.bottom + 'px';
+    updatePetRect();
     placePanel();
   }
   function placePanel() {
@@ -263,6 +330,7 @@
   var drag = null, suppress = false;
   pet.addEventListener('pointerdown', function (e) {
     if (e.button !== 0) return;
+    e.preventDefault();          // 避免拖动时选中页面文字;click 照常触发
     var r = wrap.getBoundingClientRect();
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, moved: false };
   });
@@ -276,6 +344,7 @@
     }
     wrap.style.right = ''; wrap.style.bottom = '';
     wrap.style.left = (e.clientX - drag.dx) + 'px'; wrap.style.top = (e.clientY - drag.dy) + 'px';
+    updatePetRect();
   });
   function endDrag(e) {
     if (!drag || (e && e.pointerId !== drag.id)) return;
@@ -311,17 +380,27 @@
   pet.addEventListener('pointerenter', function () { if (open || drag || pos.tucked) return; hop(10); });
 
   /* ===================== 面板 ===================== */
+  function focusSafe(el) { try { if (el) el.focus({ preventScroll: true }); } catch (e) { /* 忽略 */ } }
   function toggle(o) {
+    var was = open;
     open = o;
     panel.classList.toggle('cb-off', !o);
     scrim.classList.toggle('cb-on', o);
     bubble.classList.add('cb-off');
+    pet.setAttribute('aria-expanded', o ? 'true' : 'false');
+    kick();
     if (o) {
       // 每次打开重新取断点题/课程列表(断点在服务端,幂等)
       ex = null; exNote = ''; buddyList = null; keepExam = false;
       render();
       requestAnimationFrame(placePanel);
-      if (tab === 'ask' && innerWidth > 640) setTimeout(function () { try { input.focus({ preventScroll: true }); } catch (e) { /* 忽略 */ } }, 60);
+      setTimeout(function () {
+        // 桌面提问页直接聚焦输入框;其余(含窄屏,避免弹键盘)聚焦面板内第一个可聚焦元素
+        if (tab === 'ask' && innerWidth > 640) focusSafe(input);
+        else focusSafe(panel.querySelector('button:not([disabled]):not([hidden]), [href], input:not([disabled])'));
+      }, 60);
+    } else if (was) {
+      focusSafe(pet);
     }
   }
   panel.querySelector('.cb-x').onclick = function () { toggle(false); };
@@ -330,6 +409,11 @@
     if (e.key === 'Escape' && open) toggle(false);
     if (course) markActivity();
   });
+  // 课程内活动来源(iframe 内的事件由 Task 13 的播放器转发给 CourseBuddy.activity)
+  ['pointermove', 'pointerdown', 'wheel', 'touchstart'].forEach(function (ev) {
+    addEventListener(ev, function () { if (course) markActivity(); }, { passive: true });
+  });
+  addEventListener('scroll', function () { if (course) markActivity(); }, { passive: true, capture: true });
   // 窄屏下拉拖动条关闭
   (function () {
     var g = panel.querySelector('.cb-grab'), y0 = null;
@@ -378,10 +462,14 @@
     panel.querySelector('#cbSub').textContent = sub;
   }
 
+  // 主按钮(提交答案 / 下一题 / 完成)放在不随内容滚动的底栏,长题目时也始终可见
+  function setFoot(html) { foot.innerHTML = html || ''; foot.hidden = !html; }
+
   function render() {
     if (destroyed) return;
     renderHead();
     compose.hidden = tab !== 'ask';
+    if (tab === 'ask') setFoot('');
     input.placeholder = course ? t('placeholder') : t('placeholder_all');
     if (tab === 'ask') renderAsk(); else renderExam();
     placePanel();
@@ -446,7 +534,9 @@
       return box.innerHTML;
     } catch (e) { return plain(text); }
   }
-  function safeUrl(u) { return (typeof u === 'string' && u.charAt(0) === '/' && u.charAt(1) !== '/') ? u : ''; }
+  function safeUrl(u) {
+    return (typeof u === 'string' && u.charAt(0) === '/' && u.charAt(1) !== '/' && u.indexOf('\\') < 0) ? u : '';
+  }
 
   function renderAsk() {
     var intro = course ? t('ask_intro_course') : t('ask_intro_all');
@@ -562,6 +652,7 @@
 
   function renderCourseList() {
     var h = expiredNote();
+    setFoot('');
     if (buddyList == null) {
       body.innerHTML = h + '<div class="cb-loading">' + esc(t('loading')) + '</div>';
       if (!expired) loadBuddyList();
@@ -599,6 +690,7 @@
     var key = currentExamKey();
     var h = expiredNote();
     if (!course) h += '<button type="button" class="cb-back" id="cbBack">‹ ' + esc(t('pick_course')) + '</button>';
+    setFoot('');
     if (!ex || exKey !== key) {
       body.innerHTML = h + '<div class="cb-loading">' + esc(t('loading')) + '</div>';
       bindBack();
@@ -618,11 +710,11 @@
 
     if (ex.done) {
       h += '<div class="cb-locked"><div class="cb-big">' + (ex.perfect ? '🏆' : '☕') + '</div>' +
-        esc(ex.perfect ? t('perfect_done') : t('exhausted')) + '</div>' + noteHtml() +
-        '<button type="button" class="cb-primary" id="cbClose">' + esc(t('done')) + '</button>';
+        esc(ex.perfect ? t('perfect_done') : t('exhausted')) + '</div>' + noteHtml();
       body.innerHTML = h;
+      setFoot('<button type="button" class="cb-primary" id="cbClose">' + esc(t('done')) + '</button>');
       bindBack();
-      body.querySelector('#cbClose').onclick = function () { finishExam(); };
+      foot.querySelector('#cbClose').onclick = function () { finishExam(); };
       return;
     }
 
@@ -638,7 +730,7 @@
           var cls = '';
           if (answered) { if (v === res.correct_answer) cls = 'cb-right'; else if (v === res.your_answer) cls = 'cb-wrong'; }
           else if (picked === v) cls = 'cb-sel';
-          return '<button type="button" class="' + cls + '" data-v="' + v + '"' + (answered ? ' tabindex="-1"' : '') + '>' + esc(v ? t('yes') : t('no')) + '</button>';
+          return '<button type="button" class="' + cls + '" data-v="' + v + '" aria-pressed="' + (answered ? v === res.your_answer : picked === v) + '"' + (answered ? ' tabindex="-1"' : '') + '>' + esc(v ? t('yes') : t('no')) + '</button>';
         }).join('') + '</div>';
       } else {
         var multi = q.qtype === 'multi';
@@ -653,11 +745,13 @@
             if (sel) cls += ' cb-sel';
           }
           var k = (multi && !answered) ? (sel ? '✓' : '') : String.fromCharCode(65 + i);
-          return '<button type="button" class="' + cls + '" data-i="' + i + '"' + (answered ? ' tabindex="-1"' : '') + '><span class="cb-k">' + k + '</span><span>' + esc(o) + '</span></button>';
+          var pressed = answered ? (multi ? inArr(res.your_answer, i) : res.your_answer === i) : sel;
+          return '<button type="button" class="' + cls + '" data-i="' + i + '" aria-pressed="' + pressed + '"' + (answered ? ' tabindex="-1"' : '') + '><span class="cb-k">' + k + '</span><span>' + esc(o) + '</span></button>';
         }).join('') + '</div>';
       }
     }
 
+    var footHtml;
     if (answered) {
       var head = res.correct ? '<b class="cb-ok">' + esc(t('right')) + ' +' + (res.gained || 0) + '</b>'
         : '<b class="cb-no">' + esc(t('wrong')) + '</b> · ' + esc(t('wrong_tip'));
@@ -666,14 +760,23 @@
       if (res.just_perfect) h += '<div class="cb-cheer">🏆 ' + esc(t('perfect')) + '</div>';
       else if (res.just_passed) h += '<div class="cb-cheer">🎉 ' + esc(t('passed')) + '</div>';
       h += noteHtml();
-      h += '<button type="button" class="cb-primary" id="cbNext"' + (exBusy ? ' disabled' : '') + '>' + esc(sc >= 100 ? t('done') : t('next')) + '</button>';
+      footHtml = '<button type="button" class="cb-primary" id="cbNext"' + (exBusy ? ' disabled' : '') + '>' + esc(sc >= 100 ? t('done') : t('next')) + '</button>';
     } else {
       var empty = picked === null || (Array.isArray(picked) && !picked.length);
       h += noteHtml();
-      h += '<button type="button" class="cb-primary" id="cbSubmit"' + (empty || exBusy ? ' disabled' : '') + '>' + esc(t('submit')) + '</button>';
+      footHtml = '<button type="button" class="cb-primary" id="cbSubmit"' + (empty || exBusy ? ' disabled' : '') + '>' + esc(t('submit')) + '</button>';
     }
+    var keepScroll = body.scrollTop;
     body.innerHTML = h;
+    setFoot(footHtml);
     bindBack();
+    if (answered) {
+      // 结果态把解析滚进可视区
+      var exEl = body.querySelector('.cb-explain');
+      if (exEl && exEl.scrollIntoView) exEl.scrollIntoView({ block: 'nearest' });
+    } else {
+      body.scrollTop = keepScroll;
+    }
 
     if (!answered && q) {
       body.querySelectorAll('[data-i]').forEach(function (b) {
@@ -687,10 +790,10 @@
         };
       });
       body.querySelectorAll('[data-v]').forEach(function (b) { b.onclick = function () { picked = b.dataset.v === 'true'; exNote = ''; renderExam(); }; });
-      var sb = body.querySelector('#cbSubmit');
+      var sb = foot.querySelector('#cbSubmit');
       if (sb) sb.onclick = function () { submitAnswer(key); };
     } else if (answered) {
-      body.querySelector('#cbNext').onclick = function () {
+      foot.querySelector('#cbNext').onclick = function () {
         if ((res.score || 0) >= 100 || ex.perfect) { finishExam(); return; }
         nextQuestion(key);
       };
@@ -762,6 +865,7 @@
   function stopTimer() {
     if (timer.iv) { clearInterval(timer.iv); timer.iv = null; }
   }
+  // 已知取舍:秒数按整秒累计,翻页/上报时不足 1 秒的零头丢弃,每页最多少记约 1 秒,对解锁判断影响可忽略
   function tick() {
     var now = Date.now();
     if (timer.pending > 0 && now - timer.lastFlush >= PING_MS) flush(false);
@@ -844,14 +948,14 @@
     var shownHello = false;
     try { shownHello = sessionStorage.getItem('cb-hello') === '1'; } catch (e) { /* 忽略 */ }
     var d = today();
-    var nagged = lsGet('cb-nag-date') === d;
+    var nagged = lsGet(NAG_KEY) === d;
     if (nagged) {
       if (!shownHello) { say(t('hello')); try { sessionStorage.setItem('cb-hello', '1'); } catch (e) { /* 忽略 */ } }
       return;
     }
     api('GET', API + '/buddy').then(function (data) {
       if (data && data.enabled === false) { destroy(); return; }
-      lsSet('cb-nag-date', d);
+      lsSet(NAG_KEY, d);
       var n = (data && Array.isArray(data.courses)) ? data.courses.length : 0;
       if (course) return;
       if (n > 0) say(t('nag', { n: n }), 3600);
@@ -867,7 +971,7 @@
       if (course && course.key === o.key) { course.title = o.title || course.title; course.totalPages = o.totalPages || course.totalPages; return; }
       if (course) { flush(false); stopTimer(); }
       course = { key: String(o.key), title: o.title || '', totalPages: o.totalPages || 0 };
-      prog = null; examCourse = null; ex = null; exKey = null; timer.pending = 0; timer.page = timer.page || 1;
+      prog = null; examCourse = null; ex = null; exKey = null; timer.pending = 0; timer.page = parseInt(o.currentPage, 10) || 1;
       tab = 'exam';
       markActivity();
       applyPos();
@@ -897,7 +1001,7 @@
   var queued = (window.__cbQueue || []).slice();
   window.__cbQueue = [];
   window.CourseBuddy = api_;
-  applyPos(); syncPet();
+  applyPos(); syncPet(); kick();
   queued.forEach(function (c) { try { api_[c[0]].apply(null, c[1] || []); } catch (e) { /* 忽略 */ } });
   setTimeout(greet, 900);
 })();

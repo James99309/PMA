@@ -28,7 +28,8 @@
 .cb-wrap [hidden], .cb-panel [hidden] { display: none !important; }
 
 /* ── 小源 ── */
-.cb-wrap{position:fixed;z-index:950;width:96px;height:96px;touch-action:none;
+/* 小源本体压在页面之上、AT 模态/抽屉(z 100+)之下;面板/遮罩是用户主动打开的,保持最高 */
+.cb-wrap{position:fixed;z-index:90;width:96px;height:96px;touch-action:none;
   transition:transform .35s cubic-bezier(.3,1.4,.5,1),opacity .3s,left .35s cubic-bezier(.3,1.3,.5,1),right .35s cubic-bezier(.3,1.3,.5,1)}
 .cb-wrap.cb-dragging{transition:none}
 .cb-wrap.cb-tucked.cb-side-right{transform:translateX(62%);opacity:.9}
@@ -46,7 +47,9 @@
 .cb-side-left .cb-bubble{left:52px;border-radius:14px 14px 14px 4px;transform-origin:0 100%}
 .cb-bubble.cb-off{opacity:0;transform:scale(.6) translateY(6px)}
 .cb-tucked .cb-bubble,.cb-dragging .cb-bubble{opacity:0}
-.cb-wrap .cb-breath{transform-box:view-box;transform-origin:100px 176px;animation:cb-breath 3.4s ease-in-out infinite}
+/* 呼吸放在 HTML 包裹层上做合成层 transform,不让含 feTurbulence 滤镜的 SVG 每帧重新栅格化 */
+.cb-wrap .cb-breathe{display:block;width:100%;height:100%;transform-origin:50% 88%;animation:cb-breath 3.4s ease-in-out infinite;will-change:transform}
+.cb-wrap.cb-tucked .cb-breathe,.cb-wrap.cb-paused .cb-breathe,.cb-wrap.cb-dragging .cb-breathe{animation-play-state:paused}
 @keyframes cb-breath{0%,100%{transform:scale(1,1)}50%{transform:scale(1.018,1.035)}}
 #cb-squash,#cb-lean,#cb-hop,#cb-antenna,#cb-eyes,#cb-shadow{transform-box:view-box}
 #cb-squash,#cb-lean,#cb-hop{transform-origin:100px 176px}
@@ -84,7 +87,9 @@
 .cb-panel .cb-seg button:disabled{cursor:not-allowed;opacity:.55}
 .cb-panel .cb-tabs{padding:10px 22px 4px}
 .cb-panel .cb-ring{width:16px;height:16px}
-.cb-panel .cb-body{flex:1;overflow:auto;padding:12px 22px 22px;min-height:0}
+.cb-panel .cb-body{flex:1;overflow:auto;overscroll-behavior:contain;padding:12px 22px 22px;min-height:0}
+.cb-panel .cb-foot{flex:none;padding:12px 22px 18px;border-top:1px solid var(--cb-line-soft)}
+.cb-panel .cb-foot .cb-primary{margin-top:0}
 .cb-panel .cb-note{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--cb-bad);background:var(--cb-bad-bg);border-radius:10px;padding:8px 11px}
 .cb-panel .cb-note a{color:inherit;font-weight:600;text-decoration:underline}
 .cb-panel .cb-loading{color:var(--cb-ink-3);font-size:13px;padding:24px 0;text-align:center}
@@ -178,14 +183,15 @@
 
 /* 窄屏:底部抽屉 */
 @media (max-width:640px){
-  .cb-panel{left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%;max-width:100%;max-height:90vh;
+  .cb-panel{left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%;max-width:100%;max-height:90vh;max-height:90dvh;
     border-radius:24px 24px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
   .cb-panel.cb-off{transform:translateY(40px)}
   .cb-panel .cb-grab{display:block}
+  .cb-panel .cb-compose input{font-size:16px}
   .cb-scrim{background:rgba(20,18,14,.35);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .cb-wrap .cb-breath,.cb-wrap.cb-sleeping .cb-zz,.cb-panel .cb-typing i{animation:none}
+  .cb-wrap .cb-breathe,.cb-wrap.cb-sleeping .cb-zz,.cb-panel .cb-typing i{animation:none}
   .cb-wrap,.cb-panel,.cb-wrap .cb-bubble{transition:none}
 }

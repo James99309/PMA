@@ -11,7 +11,8 @@
   window.CB_CSRF = {{ csrf_token()|tojson }};
   window.CB_CONFIG = {
     enabled: true,
-    apiBase: '/api/learning',
+    uid: {{ current_user.id|tojson }},
+    apiBase: {{ url_for('learning.csrf_token').rsplit('/', 1)[0]|tojson }},
     csrfUrl: {{ url_for('learning.csrf_token')|tojson }},
     wikiQuery: {{ url_for('knowledge_wiki.query_endpoint')|tojson }},
     loginUrl: {{ url_for('auth.login')|tojson }},

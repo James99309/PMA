@@ -40,8 +40,8 @@ def get_project_root():
 
 
 ROOT = get_project_root()
-sys.path.insert(0, os.path.join(ROOT, 'scripts', 'temp'))
-from _report_flow_testkit import make_app  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, 'tests'))
+from _pma_testkit import make_app  # noqa: E402
 
 USERNAME = 'zz_cb_e2e'
 PASSWORD = 'CbE2e-Only-2026!'
@@ -64,6 +64,7 @@ from app import db  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 fails = []
+UID = None
 
 
 def check(cond, msg):
@@ -140,8 +141,8 @@ def setup():
 
 SERVER_CODE = r'''
 import os, sys
-sys.path.insert(0, os.path.join(os.getcwd(), 'scripts', 'temp'))
-from _report_flow_testkit import make_app
+sys.path.insert(0, os.path.join(os.getcwd(), 'tests'))
+from _pma_testkit import make_app
 flask_app = make_app()
 import app.views.knowledge_wiki as KW
 main_assets = sys.argv[2]
@@ -195,6 +196,9 @@ def run_browser():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not args.headed)
         ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, locale='zh-CN')
+        # 页面级 rAF 计数(含页面自身脚本),用于空闲开销对比
+        ctx.add_init_script("""(() => { window.__rafCalls = 0; const o = window.requestAnimationFrame.bind(window);
+            window.requestAnimationFrame = (cb) => o((t) => { window.__rafCalls++; cb(t); }); })()""")
         page = ctx.new_page()
 
         def on_console(m):
@@ -222,9 +226,37 @@ def run_browser():
         page.click('button[type=submit]')
         page.wait_for_load_state('networkidle')
         check('/auth/login' not in page.url, f'登录成功(当前 {page.url})')
+        # ---- 0. 空闲渲染开销(CDP):面板关闭、无操作 6s 后,5s 内的重排/样式重算/rAF 次数 ----
+        page.goto(BASE + '/')
+        page.wait_for_selector('#cbWrap .cb-pet', state='visible')
+        page.mouse.move(700, 450)
+        # 无操作 ~10s 后小源完全静止(游移/眨眼停止);再多等 1s 余量后开始计 5s
+        page.wait_for_timeout(12500)
+        cdp = ctx.new_cdp_session(page)
+        cdp.send('Performance.enable')
+
+        def metrics():
+            m = {x['name']: x['value'] for x in cdp.send('Performance.getMetrics')['metrics']}
+            m['cbFrames'] = page.evaluate('() => window.__cbFrames || 0')
+            m['rafCalls'] = page.evaluate('() => window.__rafCalls || 0')
+            return m
+        m1 = metrics()
+        page.wait_for_timeout(5000)
+        m2 = metrics()
+        idle = {k: m2[k] - m1[k] for k in ('LayoutCount', 'RecalcStyleCount', 'cbFrames', 'rafCalls')}
+        print('INFO 空闲 5s 指标增量:', idle)
+        check(idle['cbFrames'] == 0, f'空闲时小源 rAF 已停帧(cbFrames 增量 {idle["cbFrames"]})')
+        check(idle['LayoutCount'] <= 2 and idle['RecalcStyleCount'] <= 6,
+              f'空闲时重排/样式重算接近 0(Layout {idle["LayoutCount"]}, RecalcStyle {idle["RecalcStyleCount"]})')
+        cdp.detach()
+
         page.wait_for_timeout(2500)        # 等登录落地页上的首次问候跑完,再清状态,避免竞态
-        page.evaluate("""() => { sessionStorage.removeItem('cb-hello'); localStorage.removeItem('cb-pos'); localStorage.removeItem('cb-chat');
-                                 localStorage.removeItem('cb-nag-date'); localStorage.setItem('at-sidebar-pinned','0'); }""")
+        page.evaluate("""() => { sessionStorage.removeItem('cb-hello');
+            Object.keys(localStorage).filter(k => k.startsWith('cb-')).forEach(k => localStorage.removeItem(k));
+            localStorage.setItem('at-sidebar-pinned','0');
+            // 旧版未分用户的对话 + 其他账号的对话:加载后应被清掉
+            localStorage.setItem('cb-chat', '[{"me":true,"t":"legacy"}]');
+            localStorage.setItem('cb-chat:999999', '[{"me":true,"t":"other"}]'); }""")
 
         # ---- 1. 两个 AT 页挂载 ----
         for path, name in (('/', 'dashboard'), ('/wiki/at', 'wiki')):
@@ -233,13 +265,17 @@ def run_browser():
             n = page.evaluate("() => document.querySelectorAll('.cb-wrap').length")
             check(n == 1, f'{name} 页小源出现且仅 1 个(实际 {n})')
             if name == 'dashboard':
+                gone = page.evaluate("() => localStorage.getItem('cb-chat') === null && localStorage.getItem('cb-chat:999999') === null")
+                check(gone, '加载时清掉旧版未分用户对话与其他账号对话')
+                z = page.evaluate("() => +getComputedStyle(document.getElementById('cbWrap')).zIndex")
+                check(z < 100, f'小源本体层级低于 AT 模态(z-index={z})')
                 try:
                     page.wait_for_function("() => !!document.querySelector('.cb-bubble:not(.cb-off)')", timeout=8000)
                 except Exception:
                     pass
                 bub = page.evaluate("() => { const b = document.querySelector('.cb-bubble:not(.cb-off)'); return b ? b.textContent : null; }")
                 check(bool(bub), f'首个页面小源说话气泡(每日提醒/问候)「{bub}」')
-                nag = page.evaluate("() => localStorage.getItem('cb-nag-date')")
+                nag = page.evaluate("(u) => localStorage.getItem('cb-nag-date:' + u)", UID)
                 check(bool(nag), f'每日提醒已记日期 cb-nag-date={nag}')
             shot(page, f'01-{name}')
 
@@ -320,8 +356,9 @@ def run_browser():
         n_bot = page.evaluate("() => document.querySelectorAll('#cbBody .cb-msg.cb-bot').length")
         err = page.evaluate("() => !!document.querySelector('#cbBody .cb-msg.cb-err')")
         check(n_bot >= 2, f'收到回答气泡({"错误气泡" if err else "正常回答"})')
-        stored = page.evaluate("() => (JSON.parse(localStorage.getItem('cb-chat'))||[]).length")
-        check(stored == 2, f'对话已存 localStorage cb-chat({stored} 条)')
+        stored = page.evaluate("""() => { const k = Object.keys(localStorage).filter(k => k.startsWith('cb-chat:'));
+            return {keys: k, n: k.length === 1 ? (JSON.parse(localStorage.getItem(k[0])) || []).length : -1}; }""")
+        check(stored['n'] == 2 and stored['keys'] == [f'cb-chat:{UID}'], f'对话按用户存 localStorage {stored}')
         shot(page, '06-ask-answer')
 
         # ---- 4. 课程外考核 ----
@@ -336,7 +373,7 @@ def run_browser():
         if idx >= 0:
             page.locator('#cbBody .cb-citem').nth(idx).click()
             page.wait_for_selector('#cbBody .cb-qtext', timeout=15000)
-            check(page.locator('#cbSubmit').is_disabled(), '未作答时「提交答案」置灰')
+            check(page.locator('#cbFoot #cbSubmit').is_disabled(), '未作答时「提交答案」(底栏)置灰')
             if page.locator('#cbBody .cb-judge button').count():
                 page.locator('#cbBody .cb-judge button').first.click()
             else:
@@ -347,7 +384,7 @@ def run_browser():
             page.wait_for_selector('#cbBody .cb-explain', timeout=15000)
             right = page.evaluate("() => document.querySelectorAll('#cbBody .cb-right').length")
             check(right >= 1, f'结果态:正确项绿色标出({right} 个)')
-            check(page.locator('#cbNext').is_visible(), '结果态出现「下一题」')
+            check(page.locator('#cbFoot #cbNext').is_visible(), '结果态「下一题」在固定底栏且可见')
             shot(page, '09-exam-result')
             page.click('#cbNext')
             page.wait_for_selector('#cbBody .cb-qtext', timeout=15000)
@@ -366,6 +403,10 @@ def run_browser():
         page.keyboard.press('Escape')
         page.wait_for_timeout(400)
         check(page.evaluate("() => document.getElementById('cbPanel').classList.contains('cb-off')"), 'Esc 关闭面板')
+        a11y = page.evaluate("""() => ({focusPet: document.activeElement && document.activeElement.classList.contains('cb-pet'),
+            expanded: document.querySelector('.cb-pet').getAttribute('aria-expanded'),
+            modal: document.getElementById('cbPanel').getAttribute('aria-modal')})""")
+        check(a11y['focusPet'] and a11y['expanded'] == 'false' and a11y['modal'] == 'true', f'关闭后焦点回到小源、aria 状态正确 {a11y}')
 
         # ---- 5. 课程内(播放页 + setCourse) ----
         page.goto(BASE + f'/wiki/play/{LOCKED_KEY}')
@@ -436,6 +477,7 @@ proc = None
 try:
     cleanup()
     uid = setup()
+    UID = uid
     print('INFO 临时账号 id', uid)
     proc = start_server()
     print('INFO 服务已启动', BASE)
