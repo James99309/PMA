@@ -183,7 +183,8 @@
     '<div class="cb-menu" id="cbMenu" hidden></div></div>' +
     '<button class="cb-x" type="button" aria-label="' + esc(t('close')) + '">' + CLOSE + '</button></div>' +
     '<div class="cb-tabs"><div class="cb-seg" role="tablist"><button type="button" role="tab" data-tab="ask">' + esc(t('ask')) + '</button>' +
-    '<button type="button" role="tab" data-tab="exam"></button></div></div>' +
+    '<button type="button" role="tab" data-tab="exam"></button></div>' +
+    '<div class="cb-readhint" id="cbReadHint" hidden></div></div>' +
     '<div class="cb-body" id="cbBody"></div>' +
     '<div class="cb-foot" id="cbFoot" hidden></div>' +
     '<div class="cb-compose" id="cbCompose" hidden><input id="cbInput" maxlength="500" autocomplete="off" placeholder="' + esc(t('placeholder')) + '">' +
@@ -491,6 +492,25 @@
   });
 
   function readPercent() { return prog && prog.read ? (prog.read.percent || 0) : 0; }
+  // 未解锁时差在哪:还有几页没看 / 还差多少时长(两者都可能缺)
+  function readGap() {
+    var r = prog && prog.read;
+    if (!r || r.unlocked || r.unavailable) return null;
+    var total = r.pages_total || 0, seen = r.pages_seen || 0;
+    var left = Math.max(0, (r.required_seconds || 0) - (r.effective_seconds || 0));
+    return { seen: seen, total: total, pagesLeft: Math.max(0, total - seen), secLeft: left };
+  }
+  function timeLeftText(sec) {
+    return sec >= 60 ? t('hint_min', { m: Math.ceil(sec / 60) }) : t('hint_sec', { s: Math.max(1, Math.ceil(sec)) });
+  }
+  function readHint() {
+    var g = readGap();
+    if (!g) return '';
+    var parts = [t('hint_seen', { s: g.seen, n: g.total })];
+    if (g.pagesLeft > 0) parts.push(t('hint_pages', { n: g.pagesLeft }));
+    if (g.secLeft > 0) parts.push(timeLeftText(g.secLeft));
+    return parts.join(' · ');
+  }
   function unlocked() { return !!(prog && prog.read && prog.read.unlocked); }
   function unavailable() { return !!(prog && prog.read && prog.read.unavailable); }
   function score() { return prog && prog.exam ? (prog.exam.score || 0) : 0; }
@@ -511,6 +531,9 @@
     examBtn.hidden = hidden;
     examBtn.disabled = disabled;
     if (waiting) examBtn.title = t('bank_not_ready'); else examBtn.removeAttribute('title');
+    var hintEl = panel.querySelector('#cbReadHint'), hint = course && !hidden ? readHint() : '';
+    hintEl.textContent = hint;
+    hintEl.hidden = !hint;
     // 未读完仍显示阅读进度(阅读照常计时);读完了题库还没好才显示「准备中」
     examBtn.innerHTML = (waiting && unlocked()) ? esc(t('exam')) + ' · ' + esc(t('not_ready_short'))
       : disabled ? ring(readPercent()) + esc(t('read')) + ' ' + readPercent() + '%'
@@ -984,6 +1007,7 @@
   }
 
   var lastCheer = 0;
+  var gapHint = null;          // 已提醒过的缺口('time' / 'pages'),每门课各一次
   function applyProgress(d, initial) {
     if (!d || !d.read) return;
     var wasUnlocked = unlocked();
@@ -995,8 +1019,13 @@
     if (!initial) {
       if (!wasUnlocked && unlocked()) { hop(18); jelly(); say(notReady() ? t('bank_not_ready') : t('unlock'), 4200); }
       else if (!unlocked() && !unavailable()) {
-        var q = Math.floor(readPercent() / 25) * 25;
-        if (q > lastCheer && q > 0) { lastCheer = q; say(t('read_cheer', { p: readPercent() })); }
+        var g = readGap(), q = Math.floor(readPercent() / 25) * 25;
+        // 只差一项时点明差在哪(各提醒一次),否则按 25% 档鼓励
+        if (g && g.pagesLeft === 0 && g.secLeft > 0 && gapHint !== 'time') {
+          gapHint = 'time'; say(t('hint_all_pages', { t: timeLeftText(g.secLeft) }), 4200);
+        } else if (g && g.secLeft === 0 && g.pagesLeft > 0 && gapHint !== 'pages') {
+          gapHint = 'pages'; say(t('hint_time_ok', { n: g.pagesLeft }), 4200);
+        } else if (q > lastCheer && q > 0) { lastCheer = q; say(t('read_cheer', { p: readPercent() })); }
       }
     } else {
       lastCheer = Math.floor(readPercent() / 25) * 25;
@@ -1017,8 +1046,11 @@
     if (course && prog && !unavailable() && !pf) {
       badge.hidden = false;
       badge.textContent = unlocked() ? score() + '/100' : t('read') + ' ' + readPercent() + '%';
+      var hint = readHint();
+      if (hint) pet.title = hint; else pet.removeAttribute('title');
     } else {
       badge.hidden = true;
+      pet.removeAttribute('title');
     }
   }
 
@@ -1057,7 +1089,7 @@
       if (course && course.key === o.key) { course.title = o.title || course.title; course.totalPages = o.totalPages || course.totalPages; return; }
       if (course) { flush(false); stopTimer(); }
       course = { key: String(o.key), title: o.title || '', totalPages: o.totalPages || 0 };
-      prog = null; examCourse = null; ex = null; exKey = null; timer.pending = 0; timer.visited = {}; timer.page = parseInt(o.currentPage, 10) || 1;
+      prog = null; examCourse = null; ex = null; exKey = null; timer.pending = 0; timer.visited = {}; timer.page = parseInt(o.currentPage, 10) || 1; gapHint = null;
       tab = 'exam';
       markActivity();
       applyPos();
