@@ -280,6 +280,21 @@ def is_unlocked(page_seconds, pages, override=None):
     return _pages_total(ps, pages) >= required_read_seconds(pages, override)
 
 
+def read_percent(page_seconds, pages, override=None):
+    """展示用阅读进度:时长进度与翻页进度取较小者,未解锁前封顶 99。
+
+    解锁要求「时长达标 + 每页都看过」,只按时长算会出现「才看一半就 99%」的误导。
+    """
+    if not pages:
+        return 0
+    ps = norm_page_seconds(page_seconds)
+    required = required_read_seconds(pages, override)
+    time_pct = 100 if required <= 0 else _pages_total(ps, pages) * 100 // required
+    seen = sum(1 for i in range(1, len(pages) + 1) if ps.get(str(i), 0) > 0)
+    page_pct = seen * 100 // len(pages)
+    return min(99, int(time_pct), page_pct)
+
+
 # ---------- 题库健康 / 实测难度 ----------
 
 MIN_SAMPLES = 10

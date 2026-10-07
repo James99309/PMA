@@ -284,3 +284,12 @@ def test_record_ping_invalid_page_returns_cleaned_dict():
 def test_norm_page_seconds_is_public():
     assert L.norm_page_seconds({1: 5, '1': 3, '2': -4, '3': 'x'}) == {'1': 8, '2': 0, '3': 0}
     assert L.norm_page_seconds(None) == {}
+
+
+def test_read_percent_is_min_of_time_and_pages():
+    pages = [{'notes': ''}] * 4                         # 每页估算 20s → required = 56
+    assert L.read_percent({}, pages) == 0
+    assert L.read_percent({'1': 60}, pages) == 25        # 时长早已达标,但只看了 1/4 页
+    assert L.read_percent({'1': 5, '2': 5, '3': 5, '4': 5}, pages) == 35   # 页都看过,时长 20/56
+    assert L.read_percent({'1': 60, '2': 60, '3': 60, '4': 60}, pages) == 99  # 未解锁前封顶 99
+    assert L.read_percent({'1': 10}, []) == 0

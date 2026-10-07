@@ -252,6 +252,33 @@
     setTimeout(cpSyncFromFrame, 60);
   }
 
+  // 跳到第 n 页(1-based):deck 只认键盘,按差值连续派发方向键,再同步页码/备注
+  function cpJump(n) {
+    n = parseInt(n, 10);
+    if (!n || !cpTotal) return;
+    n = Math.max(1, Math.min(cpTotal, n));
+    var cur = cpReadHash() || cpCur || 1;
+    var delta = n - cur;
+    if (!delta) return;
+    try {
+      var w = cpFrame.contentWindow;
+      var key = delta > 0 ? 'ArrowRight' : 'ArrowLeft';
+      var kc = delta > 0 ? 39 : 37;
+      for (var i = 0; i < Math.abs(delta); i++) {
+        w.document.dispatchEvent(new w.KeyboardEvent('keydown',
+          { key: key, code: key, keyCode: kc, which: kc, bubbles: true }));
+      }
+    } catch (e) {}
+    setTimeout(cpSyncFromFrame, 60);
+  }
+  window.cpJump = cpJump;
+
+  // 外壳 URL 的 #N 变化(如小源回答里点课件缩略图,同页只改 hash 不会重载)→ 跳到该页
+  window.addEventListener('hashchange', function () {
+    var m = (location.hash || '').match(/(\d+)/);
+    if (m) cpJump(m[1]);
+  });
+
   function cpToggleNotes() {
     var panel = document.getElementById('cpNotes');
     var icon = document.getElementById('cpNotesIcon');

@@ -116,7 +116,7 @@ def progress_dict(p, pages, override=None):
     required = L.required_read_seconds(pages, override)
     eff = L.effective_read_seconds(ps, pages)
     unlocked = bool(p and p.unlocked_at)
-    percent = 100 if unlocked else (min(99, int(eff * 100 / required)) if required else 0)
+    percent = 100 if unlocked else L.read_percent(ps, pages, override)
     return {
         'read': {'percent': percent, 'unlocked': unlocked, 'page_seconds': ps,
                  'required_seconds': required, 'effective_seconds': eff,
