@@ -56,3 +56,38 @@ def pick_question(bank, score, correct_ids, recent_ids, rng):
     for d in (3, 2, 1):           # 浮点兜底
         if by_d[d]:
             return rng.choice(by_d[d])
+
+
+def shuffle_order(n, rng):
+    order = list(range(n))
+    rng.shuffle(order)
+    return order
+
+
+def option_order_for(q, rng):
+    if q['qtype'] == 'judge':
+        return None
+    return shuffle_order(len(q['options']), rng)
+
+
+def to_original(qtype, shown, order):
+    """把前端提交的「显示位」换算成原始选项下标。非法输入抛 ValueError。"""
+    if qtype == 'judge':
+        if not isinstance(shown, bool):
+            raise ValueError('judge 答案须为 bool')
+        return shown
+    def one(i):
+        if not isinstance(i, int) or isinstance(i, bool) or not 0 <= i < len(order):
+            raise ValueError('选项下标越界')
+        return order[i]
+    if qtype == 'single':
+        return one(shown)
+    if not isinstance(shown, list) or not shown:
+        raise ValueError('multi 答案须为非空列表')
+    return sorted({one(i) for i in shown})
+
+
+def is_correct(q, original):
+    if q['qtype'] == 'multi':
+        return sorted(original) == sorted(q['answer'])
+    return original == q['answer']

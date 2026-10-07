@@ -67,3 +67,34 @@ def test_pick_biases_easy_when_low_score():
     rng = random.Random(42)
     easy = sum(L.pick_question(bank, 0, set(), [], rng)['difficulty'] == 1 for _ in range(700))
     assert easy > 500   # 期望 6/7 ≈ 600
+
+
+def test_shuffle_order_is_permutation():
+    order = L.shuffle_order(4, random.Random(3))
+    assert sorted(order) == [0, 1, 2, 3]
+
+
+def test_judge_has_no_order():
+    assert L.option_order_for({'qtype': 'judge'}, random.Random(0)) is None
+
+
+def test_to_original_single_and_multi():
+    order = [2, 0, 3, 1]          # 显示位 i → 原始下标 order[i]
+    assert L.to_original('single', 0, order) == 2
+    assert L.to_original('multi', [1, 3], order) == [0, 1]
+    assert L.to_original('judge', True, None) is True
+
+
+def test_to_original_rejects_bad_input():
+    import pytest
+    with pytest.raises(ValueError):
+        L.to_original('single', 9, [0, 1])
+    with pytest.raises(ValueError):
+        L.to_original('judge', 'yes', None)
+
+
+def test_is_correct():
+    assert L.is_correct({'qtype': 'single', 'answer': 2}, 2)
+    assert L.is_correct({'qtype': 'multi', 'answer': [0, 3]}, [3, 0])
+    assert not L.is_correct({'qtype': 'multi', 'answer': [0, 3]}, [0])
+    assert L.is_correct({'qtype': 'judge', 'answer': False}, False)
