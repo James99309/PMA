@@ -231,7 +231,7 @@ def _find_course(course_key):
 def at_wiki_page():
     """AT 版知识库 —— 文章库(复用 wikiApp)+ 互动课程。"""
     from app.services.course_exam.service import can_manage_bank
-    from app.services.course_exam.access import visible_course_keys, reviewing_keys
+    from app.services.course_exam.access import visible_course_keys, reviewing_keys, has_subordinates
     ensure_wiki_structure()
     grouped = _list_courses_grouped()
     courses = _list_courses()
@@ -253,6 +253,8 @@ def at_wiki_page():
         can_manage_bank=manager,
         # 题库审核人:卡片上按课显示「题库管理」入口(管理员看全部,不查库)
         reviewable_keys=set() if manager else reviewing_keys(current_user),
+        # 培训管理入口:管理员,或有直属下属的人(只看成绩)
+        can_view_training=manager or has_subordinates(current_user.id),
     )
 
 

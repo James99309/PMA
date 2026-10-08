@@ -170,6 +170,18 @@
   body.at-page .kb-card-ops a { box-sizing:border-box; text-decoration:none; }
   body.at-page .kb-card-ops button:hover, body.at-page .kb-card-ops a:hover { background:var(--bg-hover); color:var(--ink); border-color:var(--accent); }
   .kb-card-ops .material-symbols-outlined { font-size:16px; }
+  /* 我的培训 */
+  .mt-row { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; margin-top:10px; }
+  .mt-card { display:block; text-decoration:none; color:var(--ink); background:var(--bg-elev); border:1px solid var(--line);
+             border-radius:10px; padding:12px 14px; transition:border-color 120ms; }
+  .mt-card:hover { border-color:var(--accent); }
+  .mt-title { font-size:13.5px; font-weight:600; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mt-status { font-size:12px; color:var(--ink-3); margin-top:5px; display:flex; justify-content:space-between; gap:8px; }
+  .mt-status b { font-weight:500; color:var(--ink-2); }
+  .mt-status b.ok { color:var(--success); } .mt-status b.full { color:#9A7400; }
+  .mt-bar { height:5px; border-radius:3px; background:var(--bg-sunk); margin-top:8px; overflow:hidden; }
+  .mt-bar i { display:block; height:100%; background:var(--accent); }
+  .mt-bar i.ok { background:var(--success); } .mt-bar i.full { background:#C9A227; }
 </style>
 </head>
 <body class="at-page">
@@ -438,6 +450,17 @@
           <h1 class="at-serif" style="margin:6px 0 0;font-size:22px;font-weight:600;">{{ _('互动课程') }}</h1>
           <div class="at-dim" style="font-size:13px;margin-top:6px;">{{ 'Watch the video, explore the interactive deck, or download the original PPT — one body of knowledge, three ways.' if _en else '看视频、玩互动课件、或下载原始 PPT —— 一份知识,三种方式。' }}</div>
         </div>
+        {% if can_view_training %}
+        <a class="cm-btn" id="kbTrainingLink" href="{{ url_for('learning.training_page') }}">
+          <span class="material-symbols-outlined">school</span>{{ _('培训管理') }}</a>
+        {% endif %}
+      </div>
+
+      {# ── 我的培训:被拉入的课 + 有进度的开放课(JS 拉取,无课程则整块隐藏,失败静默)── #}
+      <div id="kbMyTraining" hidden style="margin-top:18px;">
+        <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">
+          <span class="material-symbols-outlined" style="font-size:17px;color:var(--accent);">school</span>{{ _('我的培训') }}</div>
+        <div class="mt-row" id="kbMyTrainingList"></div>
       </div>
 
       {# ── 三子 tab 切换条(下划线风格,占满宽)+ 右侧上传按钮同排 ── #}
@@ -821,6 +844,47 @@
       }
     });
   };
+</script>
+
+{# 我的培训:GET /api/learning/my;文案由 _() 注入,JS 内无中文字面量 #}
+<script>
+(function () {
+  var T = {
+    notStarted: {{ _('未开始')|tojson }}, reading: {{ _('阅读 %s%')|tojson }}, examing: {{ _('考核 %s 分')|tojson }},
+    passed: {{ _('已及格 · %s 分')|tojson }}, perfect: {{ _('满分')|tojson }}, watching: {{ _('观看 %s%')|tojson }},
+    watched: {{ _('已看完')|tojson }}, ppt: {{ _('PPT 下载')|tojson }}, assigned: {{ _('指定学习')|tojson }}
+  };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+    });
+  }
+  function status(c) {
+    if (c.media_type === 'video') {
+      if (c.passed) return {text: T.watched, cls: 'ok', pct: 100};
+      return {text: c.read_percent ? T.watching.replace('%s', c.read_percent) : T.notStarted, cls: '', pct: c.read_percent};
+    }
+    if (c.media_type === 'ppt') return {text: T.ppt, cls: '', pct: 0};
+    if (c.perfect) return {text: T.perfect, cls: 'full', pct: 100};
+    if (c.passed) return {text: T.passed.replace('%s', c.score), cls: 'ok', pct: c.score};
+    if (c.unlocked) return {text: T.examing.replace('%s', c.score), cls: '', pct: c.score};
+    return {text: c.read_percent ? T.reading.replace('%s', c.read_percent) : T.notStarted, cls: '', pct: c.read_percent};
+  }
+  fetch('/api/learning/my', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+    var list = j && j.success && j.data && j.data.courses;
+    if (!list || !list.length) return;
+    document.getElementById('kbMyTrainingList').innerHTML = list.map(function (c) {
+      var s = status(c);
+      return '<a class="mt-card" data-my-course="' + esc(c.key) + '" href="' + esc(c.url) + '"' +
+        (c.media_type === 'ppt' ? '' : ' target="_blank" rel="noopener"') + '>' +
+        '<div class="mt-title" title="' + esc(c.title) + '">' + esc(c.title) + '</div>' +
+        '<div class="mt-status"><b class="' + s.cls + '">' + esc(s.text) + '</b>' +
+        (c.enrolled ? '<span>' + esc(T.assigned) + '</span>' : '') + '</div>' +
+        '<div class="mt-bar"><i class="' + s.cls + '" style="width:' + Math.max(0, Math.min(100, s.pct || 0)) + '%"></i></div></a>';
+    }).join('');
+    document.getElementById('kbMyTraining').hidden = false;
+  }).catch(function () {});
+})();
 </script>
 
 {# 复用的 wikiApp 逻辑(含 Jinja i18n/csrf/is_admin/current_user_id)#}
