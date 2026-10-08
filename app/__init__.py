@@ -308,6 +308,7 @@ def create_app(config_class=Config):
     from app.models.course import InteractiveCourse
     from app.models.course_exam import (
         CourseQuizQuestion, CourseLearningProgress, CourseExamSetting, LearningBuddyPref,
+        CourseAccess, CourseEnrollment, CourseReviewer,
     )
     from app.models.video_watch import VideoWatchState
 

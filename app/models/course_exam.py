@@ -92,3 +92,43 @@ class LearningBuddyPref(db.Model):
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     enabled = Column(Boolean, nullable=False, default=True, server_default='true')
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+
+
+# ══════════ 培训管理:课程开放模式 / 指定学员 / 题库审核人(纯新增表) ══════════
+
+class CourseAccess(db.Model):
+    """课程开放模式;无行 = open(全员开放),存量课程行为不变。"""
+    __tablename__ = 'course_access'
+
+    course_key = Column(String(80), primary_key=True)
+    mode = Column(String(12), nullable=False, default='open', server_default='open')  # open / restricted
+    updated_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+
+
+class CourseEnrollment(db.Model):
+    """课程指定学员(一次性快照:按部门拉入也是逐人落行,之后新入职不自动加入)。"""
+    __tablename__ = 'course_enrollments'
+
+    id = Column(Integer, primary_key=True)
+    course_key = Column(String(80), nullable=False)               # 由 ux_course_enroll 前缀覆盖
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    source = Column(String(12), nullable=False, default='user', server_default='user')  # user / department
+    source_detail = Column(String(100), nullable=True)            # 按部门拉入时记部门名
+    added_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    added_at = Column(DateTime, default=get_local_time, nullable=False)
+
+    __table_args__ = (Index('ux_course_enroll', 'course_key', 'user_id', unique=True),)
+
+
+class CourseReviewer(db.Model):
+    """课程题库审核人:可审题/编辑/停用/改难度/单题重出,不可整套生成与改课程设置。"""
+    __tablename__ = 'course_reviewers'
+
+    id = Column(Integer, primary_key=True)
+    course_key = Column(String(80), nullable=False)               # 由 ux_course_reviewer 前缀覆盖
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    added_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    added_at = Column(DateTime, default=get_local_time, nullable=False)
+
+    __table_args__ = (Index('ux_course_reviewer', 'course_key', 'user_id', unique=True),)
