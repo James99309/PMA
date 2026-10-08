@@ -47,6 +47,9 @@ for handler in logging.getLogger().handlers:
 
 logger = logging.getLogger(__name__)
 
+# /storage/<path> 免登录路由禁止下发的顶层目录
+_STORAGE_DENY_DIRS = frozenset({'secrets', 'backups', 'knowledge_base', 'course_assets', 'course_pdf'})
+
 # 定义受保护模板文件列表 - 这些文件不应被随意修改
 PROTECTED_TEMPLATES = [
     # 'project/list.html',  # 项目列表页面 - 临时移除保护以进行阶段过滤修复
@@ -1390,10 +1393,16 @@ def create_app(config_class=Config):
             requested_path = os.path.join(storage_dir, filename)
             requested_path = os.path.abspath(requested_path)
             
-            if not requested_path.startswith(storage_dir):
+            if not requested_path.startswith(storage_dir + os.sep):
                 logger.warning(f"拒绝访问存储目录外的文件: {filename}")
                 abort(403)
-            
+
+            # 本路由免登录:敏感目录一律不下发(推送密钥/备份/知识库原文/课程文件)
+            top_dir = os.path.relpath(requested_path, storage_dir).split(os.sep, 1)[0]
+            if top_dir in _STORAGE_DENY_DIRS:
+                logger.warning(f"拒绝通过 /storage 访问受保护目录: {filename}")
+                abort(404)
+
             # 检查文件是否存在
             if not os.path.exists(requested_path):
                 logger.warning(f"请求的文件不存在: {filename}")
@@ -1407,6 +1416,8 @@ def create_app(config_class=Config):
                                            as_attachment=True, download_name=download_name)
             return send_from_directory(storage_dir, filename)
             
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"服务本地存储文件失败: {str(e)}")
             abort(500)
