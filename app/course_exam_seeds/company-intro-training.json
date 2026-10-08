@@ -1,6 +1,6 @@
 {
  "course_key": "company-intro-training",
- "version": 2,
+ "version": 3,
  "generated": "2026-10-08",
  "questions": [
   {
@@ -21,17 +21,22 @@
    "review_note": null
   },
   {
-   "qtype": "single",
+   "qtype": "multi",
    "difficulty": 1,
-   "question": "在和源的亚太布局中，亚太区总部设在哪里？",
+   "question": "在和源的亚太布局中，亚太区总部和分公司分别是",
    "options": [
     "东京",
     "新加坡",
     "曼谷",
-    "吉隆坡"
+    "吉隆坡",
+    "雅加达"
    ],
-   "answer": 1,
-   "explain": "第 6 页：以中国上海为总部、新加坡为亚太区总部、吉隆坡为副总部。",
+   "answer": [
+    1,
+    3,
+    4
+   ],
+   "explain": "第 6 页：以中国上海为总部、新加坡为亚太区总部、吉隆坡和雅加达为分公司",
    "source_page": 6,
    "status": "active",
    "ai_difficulty": 1,
@@ -40,15 +45,15 @@
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "同时获得马来西亚 SIRIM 认证和新加坡 IMDA 设备注册的产品是？",
+   "question": "SIRIM 是哪个国家的产品型号认证？",
    "options": [
-    "RFT-BDA400B 光纤远端单元",
-    "DRFT-BDA410/M 基地电台",
-    "Mark1000 MAX 数字直放站",
-    "MAEX10 防爆全向天线"
+    "泰国",
+    "新加坡",
+    "马来西亚",
+    "印度尼西亚"
    ],
    "answer": 2,
-   "explain": "第 7 页：SIRIM 认证与 IMDA 设备注册的适用产品均为 Mark1000 MAX。",
+   "explain": "第 7 页：SIRIM 为马来西亚的型号认证",
    "source_page": 7,
    "status": "active",
    "ai_difficulty": 1,
@@ -108,12 +113,12 @@
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "超高层整栋架构中，控制室用什么把信号分送到每层的远端单元？",
+   "question": "超高层整栋架构中，基站用什么材料把信号分送到每层的远端单元？",
    "options": [
     "无线微波链路",
     "同轴电缆",
-    "4 芯单模光纤",
-    "8 芯多模光纤"
+    "单模光纤",
+    "多模光纤"
    ],
    "answer": 2,
    "explain": "第 16 页：控制室以 4 芯单模光纤分送至每层远端单元。",
@@ -130,7 +135,7 @@
     "只覆盖室外的区域",
     "仅提供单一基站信号覆盖的独立区域",
     "只供公网终端使用的区域",
-    "提供两个及以上基站信号覆盖的区域"
+    "提供两个及以上不同业态的基站信号覆盖的公共区域"
    ],
    "answer": 3,
    "explain": "第 17 页：共享区 Shared Zone 提供两个及以上基站信号覆盖。",
@@ -152,14 +157,14 @@
    "answer": 0,
    "explain": "第 18 页：两台直放站叠放 = 增通道 + 扩覆盖，互不干扰。",
    "source_page": 18,
-   "status": "active",
+   "status": "disabled",
    "ai_difficulty": 1,
    "review_note": null
   },
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "城市级光纤 DAS 的场强分布特点是？",
+   "question": "光纤 DAS 的场强分布特点是？",
    "options": [
     "楼内弱场、边界强场",
     "全楼均匀强场",
@@ -176,7 +181,7 @@
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "按课件的覆盖半径设计，下行信号在开放空间的覆盖半径约为？",
+   "question": "按覆盖半径设计，下行信号在开放空间的覆盖半径约为？",
    "options": [
     "30~50 m",
     "50~150 m",
@@ -230,12 +235,12 @@
    "question": "MA11 智能室内天线的指示灯在信号强度小于 0dBm 时显示什么颜色？",
    "options": [
     "蓝色",
-    "红色",
+    "橘红色",
     "白色",
     "绿色"
    ],
    "answer": 1,
-   "explain": "第 24 页：MA11 <10dBm 白色、>10dBm 白转绿、<0dBm 红色。",
+   "explain": "第 24 页：MA11 <10dBm 白色、>10dBm 白转绿、<0dBm 橘红色。",
    "source_page": 24,
    "status": "active",
    "ai_difficulty": 1,
@@ -243,25 +248,25 @@
   },
   {
    "qtype": "single",
-   "difficulty": 1,
+   "difficulty": 2,
    "question": "RFoF 多区域组网的核心优势之一是？",
    "options": [
-    "多站点同频组网、互不干扰",
+    "多区域可以同频组网、互不干扰",
     "一套系统只能连接一个区域",
     "每个区域必须使用不同频率",
     "必须依赖公网传输"
    ],
    "answer": 0,
-   "explain": "第 25 页：多站点同频 · 互不干扰，多个区域共用同一频率组网。",
+   "explain": "第 25 页：多区域同频 · 互不干扰，多个区域共用同一频率组网。",
    "source_page": 25,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "答案/干扰项存疑；干扰项多为绝对化/反题意表述（只能连一个区域、必须依赖公网），正确项是唯一正面选项，一眼可选"
+   "review_note": null
   },
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "信源基站中，作为核心语音与数据交换单元、可按需选配组柜的是？",
+   "question": "信源基站中，作为核心语音与数据交换单元是？",
    "options": [
     "MARK1000 MAX 信道机",
     "FHJ400 多信道分合路器",
@@ -269,7 +274,7 @@
     "一体化基站"
    ],
    "answer": 0,
-   "explain": "第 29 页：MARK1000 MAX 信道机为核心的语音与数据交换单元，可按需选配组柜。",
+   "explain": "第 29 页：MARK1000 MAX 信道机为核心的语音与数据交换单元",
    "source_page": 29,
    "status": "active",
    "ai_difficulty": 1,
@@ -329,7 +334,7 @@
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "智能天馈六型号中，E-ANTD 是哪种类型的天线？",
+   "question": "天馈六型号中，E-ANTD 是哪种类型的天线？",
    "options": [
     "定向板状天线",
     "蓝牙定位天线",
@@ -417,8 +422,8 @@
    "question": "对离线终端，NetFlex 补发遥毙等指令的策略是？",
    "options": [
     "每 5s 一次、最多 15 次",
-    "每 15s 一次、最多 5 次",
-    "每 30s 一次、最多 3 次",
+    "每 15s 一次、最多 5 次, 设备开始检测到主动发送遥毙",
+    "每 30s 一次、最多 3 次,不在继续尝试",
     "每 60s 一次、不限次数"
    ],
    "answer": 1,
@@ -460,10 +465,10 @@
   {
    "qtype": "judge",
    "difficulty": 1,
-   "question": "DRFT-BDA410/M 光纤远端单元的欧盟 CE·RED 认证依据的是 RED 2014/53/EU 指令。",
+   "question": "DRFT-BDA410/M 光纤远端单元采用模拟光纤信号传输方式。",
    "options": null,
-   "answer": true,
-   "explain": "第 7 页：CE·RED 认证依据标准 RED 2014/53/EU，适用产品 DRFT-BDA410/M。",
+   "answer": false,
+   "explain": "产品知识：DRFT-BDA410/M 采用数字信号处理的光纤传输技术（非模拟），长距离传输信号质量有保障。",
    "source_page": 7,
    "status": "active",
    "ai_difficulty": 1,
@@ -578,9 +583,9 @@
    "answer": 2,
    "explain": "第 26 页覆盖区按需精准划分、信号锁定目标区域，与第 19 页「信号锁定建筑内、避免外泄」一致。",
    "source_page": 26,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "答案/干扰项存疑；题干已含「按需精准划分、锁定」提示，A/B/D 与题意直接矛盾或无关，干扰项过假"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -706,7 +711,7 @@
    "difficulty": 2,
    "question": "一体化基站与 MARK1000 MAX 信道机的区别是？",
    "options": [
-    "一体化开箱即用；MARK1000 MAX 可选配组柜",
+    "一体化开箱在工厂调试组装配置后运达现场,部署更快速可靠",
     "一体化用于室内；MARK1000 MAX 用于室外",
     "一体化只传数据；MARK1000 MAX 只传语音",
     "一体化可选配组柜；MARK1000 MAX 开箱即用"
@@ -738,16 +743,16 @@
   {
    "qtype": "single",
    "difficulty": 2,
-   "question": "超薄智能天线在停车区域与墙体区域的覆盖距离相比如何？",
+   "question": "按覆盖半径设计，上行有效覆盖在开放空间（如停车场）与分隔空间的半径分别约为？",
    "options": [
-    "墙体区 15–35 m，比停车区 10–15 m 远",
-    "两者相同，都是 10–15 m",
-    "停车区 50~150 m，墙体区 30~50 m",
-    "停车区 15–35 m，比墙体区 10–15 m 远"
+    "开放空间 35~100 m，分隔空间 15~35 m",
+    "开放空间 50~150 m，分隔空间 30~50 m",
+    "开放空间 15~35 m，分隔空间 10~15 m",
+    "开放空间 35~100 m，分隔空间 30~50 m"
    ],
-   "answer": 3,
-   "explain": "第 23 页：停车区域 15–35 m，墙体区域 10–15 m；50~150 m / 30~50 m 是第 21 页的下行覆盖半径。",
-   "source_page": 23,
+   "answer": 0,
+   "explain": "第 21 页：上行有效范围 Rx −45~−55 dBm，开放空间 35~100 m、分隔空间 15~35 m；50~150 m / 30~50 m 是下行覆盖半径；15–35 m / 10–15 m 是第 23 页超薄智能天线规格。",
+   "source_page": 21,
    "status": "active",
    "ai_difficulty": 2,
    "review_note": null
@@ -791,7 +796,7 @@
    "difficulty": 2,
    "question": "关于遥毙与遥开，说法正确的是？",
    "options": [
-    "离职遥毙排除出网，找回后遥开恢复",
+    "丢失后遥毙排除出网，找回后遥开恢复",
     "终端离线时遥毙无效，只能等其开机",
     "遥毙后终端永久报废，无法再遥开",
     "遥开用于给新终端开通公网频道"
@@ -799,9 +804,9 @@
    "answer": 0,
    "explain": "第 44 页：遥毙即刻排除出网，找回后遥开恢复；离线终端会自动按策略补发指令。",
    "source_page": 44,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1；C/D 干扰项偏假，仅 B 有迷惑性，难度偏低"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -854,9 +859,9 @@
    ],
    "explain": "第 14 页：光纤 DAS 受限空间灵活部署、小信号分布式发射、模块化、智能化云端管理；大功率发射是传统系统特点。",
    "source_page": 14,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -896,9 +901,9 @@
    ],
    "explain": "第 33 页：同缆馈电、场强感知自我检测、iBeacon 蓝牙定位、MAEX 防爆；不含 4G 公网中继。",
    "source_page": 33,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -936,9 +941,9 @@
    ],
    "explain": "第 15 页痛点；第 45 页：故障告警精准定位、拓扑可视故障溯源。轨迹回放与遥毙针对人员和终端，不是设备故障。",
    "source_page": 45,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 3,
-   "review_note": "难度不一致:标注 2 / 复核 3"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -993,9 +998,9 @@
    "answer": true,
    "explain": "第 43 页：PNR2100 接单执行，一线人员直接接收任务、现场处置并回填结果，工单状态实时更新。",
    "source_page": 43,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "judge",
@@ -1005,9 +1010,9 @@
    "answer": true,
    "explain": "第 20 页：近端 0dBm，经光纤到远端 30dBm、天线口 15dBm，全链路电平逐级精算。",
    "source_page": 20,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "judge",
@@ -1017,9 +1022,9 @@
    "answer": false,
    "explain": "第 18 页：叠放即可达到分开部署的效果，实现原有目的且互不干扰。",
    "source_page": 18,
-   "status": "review",
+   "status": "disabled",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "judge",
@@ -1029,9 +1034,9 @@
    "answer": false,
    "explain": "第 25 页：多站点使用相同频率组网而互不干扰。",
    "source_page": 25,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "judge",
@@ -1041,9 +1046,9 @@
    "answer": false,
    "explain": "第 24 页：正好相反——MA11 以颜色指示信号强度，MA12 以蓝色进行室内轨迹追踪。",
    "source_page": 24,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "judge",
@@ -1070,9 +1075,9 @@
    "answer": 2,
    "explain": "第 30 页：FHJ400 支持 4–6 路信道机合路，剥离矩阵可同时驱动 4–6 台 OMU；双工器负责收发合路（第 28 页链路分工）。",
    "source_page": 30,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；场景计算题但只依赖第30页单页数字，跨页综合不足，评 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1113,17 +1118,17 @@
    "difficulty": 3,
    "question": "某机场物业已用 DistriNET，现在要同时增加通道容量和覆盖范围，但机房空间紧张。应建议？",
    "options": [
-    "两台直放站叠放：增通道又扩覆盖，互不干扰",
+    "在机柜中增加信道机,在需要覆盖的区域拉光纤和远端机来扩覆盖，互不干扰",
     "换大功率直放站，并把天线口电平调高补偿",
     "把独立区改为共享区，让两个基站覆盖同一区域",
     "两台直放站分开部署到两个机房，各管一片"
    ],
    "answer": 0,
-   "explain": "第 18 页：DistriNET 中两台直放站叠放即可增通道 + 扩覆盖、互不干扰；第 20 页过度补偿会抬高上行噪声。",
+   "explain": "第 18 页：DistriNET 中两台信道机即可增通道 + 光纤和远端机扩覆盖、互不干扰；第 20 页过度补偿会抬高上行噪声。",
    "source_page": 18,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1155,16 +1160,16 @@
    "answer": 3,
    "explain": "第 36 页：PNR2000 数字与模拟并行，从模拟系统低成本平滑过渡；第 37 页 PNR2100 的双模、定位是此场景不需要的能力，PNR2000 不支持 4G。",
    "source_page": 36,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；题干「模拟机、平滑过渡、不需公网」与 PNR2000 原文关键词直接对应，评 2 而非 3"
+   "review_note": null
   },
   {
    "qtype": "single",
-   "difficulty": 3,
+   "difficulty": 2,
    "question": "一名员工离职没交回对讲机，而且这台机已经关机。管理员应如何处理？",
    "options": [
-    "远程遥毙，离线时系统每 15s 补发、最多 5 次",
+    "远程遥毙，离线时系统每 15s 补发、最多 5 次,加入白名单,在下次开机时主动遥毙",
     "用轨迹回放找到终端位置，再上门手动停用",
     "等其开机后再遥开，并从白名单中删除",
     "远程遥毙，离线时系统每 5s 补发、最多 15 次"
@@ -1172,9 +1177,9 @@
    "answer": 0,
    "explain": "第 44 页：远程遥毙排除出网，离线终端自动补发（每 15s 一次、最多 5 次）；遥开是找回后恢复；第 41 页轨迹回放并非处置手段。",
    "source_page": 44,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1189,9 +1194,9 @@
    "answer": 1,
    "explain": "第 46 页：云部署 + 边缘网关保障断网自治、云端汇聚多项目，适合连锁楼宇；本地部署适合数据主权场景；第 45 页健康度评分不能替代边缘自治。",
    "source_page": 46,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；「连锁、统一看、断网」与云+边缘原文关键词直接对应，评 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1206,7 +1211,7 @@
    "answer": 3,
    "explain": "第 33–34 页：MA11 场强感知，点位自证健康、验收巡检效率倍增；第 5 页整体交付：按验收网格逐点实测场强、出具验收报告。",
    "source_page": 33,
-   "status": "active",
+   "status": "disabled",
    "ai_difficulty": 3,
    "review_note": null
   },
@@ -1223,9 +1228,9 @@
    "answer": 1,
    "explain": "第 21 页：下行开放空间 50~150 m、分隔空间 30~50 m，35~100 m / 15~35 m 是上行；第 23–24 页的 15 m、10–15 m 是智能天线场景参数。",
    "source_page": 21,
-   "status": "review",
+   "status": "disabled",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1257,9 +1262,9 @@
    "answer": 1,
    "explain": "第 22 页：每个区域独立基站避免干扰、保障私密，所有公共区域并网连接；第 17 页独立区/共享区概念。",
    "source_page": 22,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1274,9 +1279,9 @@
    "answer": 3,
    "explain": "第 37 页：4G LTE 公网广域语音，跨城跨区调度、免频率许可、分散站点同处一网；第 25 页 RFoF 用于建筑/园区内多区域组网。",
    "source_page": 37,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；「免频率许可、分散站点」与原文关键词直接对应，评 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1291,9 +1296,9 @@
    "answer": 1,
    "explain": "第 8 页：同样的产品，交付能力不同，结果天差地别；第 5 页：设计、制造、交付、运营由同一支原厂团队负责。",
    "source_page": 8,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "答案/干扰项存疑；难度不一致:标注 3 / 复核 2；A/C/D 均为荒谬推论（无需勘测验收/无需定制/单价一定最低），干扰项过假，答案是唯一像样的选项"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1325,9 +1330,9 @@
    "answer": 0,
    "explain": "第 7 页：MAEX10 获欧盟 ATEX 与中国 Ex 防爆合格证，适用化工石化；第 33 页 MAEX 防爆型号 IIC/IIIC 双重防爆。",
    "source_page": 7,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；B 不是天线，与「末端天线」直接冲突；且「防爆证书」关键词直指 MAEX10，评 2"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -1387,9 +1392,9 @@
    ],
    "explain": "第 46 页：石化等数据主权场景适合本地部署；第 8 页工业现场：冗余可靠链路、防爆合规设计。",
    "source_page": 46,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；唯一错项 D 被「数据主权」直接排除，近似干扰不足，评 2"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -1408,9 +1413,9 @@
    ],
    "explain": "第 39 页：CMP2600 每槽独立充电管理芯片、每槽 1A；与充电栈组合成智能充电柜；网口连接 NetFlex 跟踪电池健康；第 35 页：充电是批量部署的另一半。",
    "source_page": 39,
-   "status": "review",
+   "status": "disabled",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1510,9 +1515,9 @@
    "answer": 1,
    "explain": "第 42 页：用模板一次配置，系统自动生成周期性巡检任务，路线、点位与频次固定下来不遗漏。",
    "source_page": 42,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 1 / 复核 2；干扰项为NetFlex其他真实功能(转工单/就近派单/AI识别)，需区分功能归属"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1561,9 +1566,9 @@
    "answer": 2,
    "explain": "第 5 页：系统设计阶段深入现场勘测，定制信号覆盖与通信分区方案，预留冗余与扩展能力。",
    "source_page": 5,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 1 / 复核 2；干扰项为其余三阶段的真实描述，需区分阶段"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1612,9 +1617,9 @@
    "answer": 1,
    "explain": "第 46 页：边缘网关保障现场实时性与断网自治，云端负责汇聚多项目统一运营。",
    "source_page": 46,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 1 / 复核 2；干扰项分别取自云端职责与本地部署特点，似是而非"
+   "review_note": null
   },
   {
    "qtype": "judge",
