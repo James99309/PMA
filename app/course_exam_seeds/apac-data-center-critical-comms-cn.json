@@ -1,6 +1,6 @@
 {
  "course_key": "apac-data-center-critical-comms-cn",
- "version": 2,
+ "version": 3,
  "generated": "2026-10-08",
  "questions": [
   {
@@ -50,17 +50,23 @@
    "review_note": null
   },
   {
-   "qtype": "single",
+   "qtype": "multi",
    "difficulty": 1,
-   "question": "2025 年 4 月 CSE Global 披露其美国子公司拿到的数据中心关键通信订单，总值是多少？",
+   "question": "2025 年 4 月 CSE Global 披露其美国子公司拿到的数据中心关键通信1500万美金,说明哪些机会？",
    "options": [
-    "1000 万美元",
-    "2500 万美元",
-    "1500 万美元",
-    "1500 万新元"
+    "关键通信作为基础建设而不再仅购买对讲机设备",
+    "用户需要一个从设计到交付,和长期服务能力的服务商",
+    "整个服务包括基站,室内分布系统和终端",
+    "供应商的机会和入口将从单一设备供应转向整体服务能力",
+    "未来关键通信将被4G通信替代"
    ],
-   "answer": 2,
-   "explain": "第 3 页：大型数据中心客户总值 1500 万美元的关键通信订单。",
+   "answer": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "explain": "第 3 页：CSE Global 这笔 1500 万美元订单，更值得关注的是采购范围——从系统设计、安装到持续维护，同时包含使命关键无线对讲和室内分布系统；头部客户采购的已不是一批终端，而是跨区域、全生命周期的通信基础设施能力，供应商的机会因此从单一设备供应转向整体服务能力。课件并未提出关键通信将被 4G 替代。",
    "source_page": 3,
    "status": "active",
    "ai_difficulty": 1,
@@ -115,7 +121,7 @@
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "数据中心投运后，课件说反复遇到的两类通信问题是？",
+   "question": "数据中心投运后，反复遇到的两类通信问题是？",
    "options": [
     "终端续航不足和电池老化过快",
     "覆盖盲区和扩建后的碎片化",
@@ -195,7 +201,7 @@
   {
    "qtype": "single",
    "difficulty": 1,
-   "question": "课件说要实现快速复制，真正要复制的是什么？",
+   "question": "实现快速复制，真正要复制的是什么？",
    "options": [
     "首期的供应商合同",
     "一整套建设标准",
@@ -495,7 +501,7 @@
   {
    "qtype": "single",
    "difficulty": 2,
-   "question": "课件引用 Uptime Institute 关于人为因素的研究，正确的解读是？",
+   "question": "引用 Uptime Institute 关于人为因素的研究，正确的解读是？",
    "options": [
     "人为因素多与程序有关，所以重点应完善书面程序",
     "该数据证明对讲系统能直接降低人为因素导致的停机",
@@ -534,9 +540,9 @@
    "answer": false,
    "explain": "第 7 页：局部都能工作，并不代表园区整体能作为一个系统运行；跨楼漫游、呼叫组、运维等问题会集中出现。",
    "source_page": 7,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -639,9 +645,9 @@
    "answer": false,
    "explain": "第 11 页：这不是降低专业通信的等级，而是把稀缺频率用在最需要的地方。",
    "source_page": 11,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -693,7 +699,7 @@
    "answer": 3,
    "explain": "第 11、13 页：安保应急走 DMR，巡检数据走 Wi-Fi/IP，跨楼跨园区跨城市调度走 4G LTE。",
    "source_page": 13,
-   "status": "active",
+   "status": "disabled",
    "ai_difficulty": 2,
    "review_note": null
   },
@@ -739,9 +745,9 @@
    "answer": false,
    "explain": "第 14 页：那时改的不只是文件，可能还要改 BOM、架构甚至现场施工。",
    "source_page": 14,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -785,14 +791,14 @@
    "answer": true,
    "explain": "第 17 页：只有网络、覆盖、终端和平台从一开始协同设计，后面的定位、任务、告警和运营数据才有可靠基础。",
    "source_page": 17,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "single",
    "difficulty": 2,
-   "question": "课件强调 NetFlex 对数据中心的意义，本质上是什么？",
+   "question": "强调 NetFlex 对数据中心的意义，本质上是什么？",
    "options": [
     "把关键语音迁移到宽带网络上承载",
     "集中展示终端电量和信号强度参数",
@@ -848,9 +854,9 @@
    "answer": true,
    "explain": "第 20 页：AI 可以进一步识别语音中的状态和异常，但它首先建立在可追溯的现场数据之上。",
    "source_page": 20,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 1,
-   "review_note": "难度不一致:标注 2 / 复核 1"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -937,9 +943,9 @@
    "answer": 1,
    "explain": "第 4、5 页：机柜、重型结构、电池区、动力层等容易形成弱区；系统装了，关键区域不一定真正可用。",
    "source_page": 5,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；场景题但仅需第5页覆盖盲区原话，降为中"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1039,9 +1045,9 @@
    "answer": 0,
    "explain": "第 12、13 页：一台终端集成 DMR 与 LTE；DMR 负责使命关键语音，LTE 负责广域通信、数据和虚拟频道，GPS/BLE 用于位置与任务协同。",
    "source_page": 12,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；单页（第12页）应用，D'GPS/BLE做语音'偏假，评中"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -1060,9 +1066,9 @@
    ],
    "explain": "第 11、13、16 页：关键语音走 DMR，园区数据走 Wi-Fi/IP，跨城市走 LTE；业务数据不必挤在窄带通道里。",
    "source_page": 13,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；主要依据第11页分工，跨页综合有限，评中"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1077,9 +1083,9 @@
    "answer": 0,
    "explain": "第 14 页（结合第 9 页）：BOM 冻结后才发现不符，可能要改 BOM、架构甚至施工；印尼对应 SDPPI，须设计阶段前置。SIRIM 属马来西亚、NBTC 属泰国。",
    "source_page": 14,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；信息全在第14页，属单页应用，评中"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -1097,9 +1103,9 @@
    ],
    "explain": "第 10、14 页：国内要确认型号核准，马来西亚有 MCMC/SIRIM 体系且频率审批需预留几个月，都须在架构冻结前确认。",
    "source_page": 14,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2"
+   "review_note": null
   },
   {
    "qtype": "multi",
@@ -1118,9 +1124,9 @@
    ],
    "explain": "第 18、19、21、22 页：NetFlex 的直接价值包括人员定位、地图调度、巡检、工单闭环和系统健康预警；关键语音仍走 DMR。",
    "source_page": 18,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1135,9 +1141,9 @@
    "answer": 0,
    "explain": "第 19、21 页：一张地图看清人员位置；异常转工单并根据实时位置派给更合适的人，在 PNR2100 接单回填形成闭环。",
    "source_page": 21,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；答案为唯一组合两项能力的选项，略偏完整外观，评中"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1152,9 +1158,9 @@
    "answer": 3,
    "explain": "第 20、21、23 页：巡检路线和语音关联同一任务记录；发现—派单—处置—归档完整链路；数据沉淀在本地服务器可复盘。",
    "source_page": 21,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；答案堆叠多项能力，外观最完整，干扰项C有一定迷惑性，评中"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1169,9 +1175,9 @@
    "answer": 2,
    "explain": "第 17、22 页：基站、远端、天馈和终端可在线纳管，光路异常、驻波比等直接告警并定位，拓扑看影响范围。",
    "source_page": 22,
-   "status": "review",
+   "status": "active",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1203,9 +1209,9 @@
    "answer": 2,
    "explain": "第 20、24 页：先有可靠的语音、位置、任务和设备数据，再形成事件、责任和时间线语境，最后才谈 AI 辅助；AI 不应替代现场人员判断。",
    "source_page": 24,
-   "status": "review",
+   "status": "disabled",
    "ai_difficulty": 2,
-   "review_note": "难度不一致:标注 3 / 复核 2；依据集中在第24页，B为良好近似项，但非跨页综合，评中"
+   "review_note": null
   },
   {
    "qtype": "single",
@@ -1220,7 +1226,7 @@
    "answer": 3,
    "explain": "第 3、25 页：头部客户采购的是设计、安装到维护的全生命周期能力；我们交付架构、通信、交付三种确定性，不是更快地安装设备。",
    "source_page": 25,
-   "status": "active",
+   "status": "disabled",
    "ai_difficulty": 3,
    "review_note": null
   },
