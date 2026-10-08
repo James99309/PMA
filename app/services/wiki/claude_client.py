@@ -28,6 +28,7 @@
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -59,6 +60,12 @@ BETA_1M_HEADER = 'context-1m-2025-08-07'
 
 # 默认 HTTP 超时（秒）—— Wiki 编译大文本通过代理可能需要 5 分钟以上
 DEFAULT_TIMEOUT = float(os.environ.get('WIKI_HTTP_TIMEOUT', '600'))
+
+# 连接阶段(TCP 建连 + TLS 握手)单独限时:代理 / 隧道抖动时快速失败再重试一次,
+# 不必干等整个读超时。TLS 握手超时(`_ssl.c:999: The handshake operation timed out`)
+# 在 httpcore 里同样映射为 httpx.ConnectTimeout。读 / 写仍用调用方给的 timeout。
+CONNECT_TIMEOUT = 15.0
+CONNECT_RETRY_DELAY = 1.0     # 连接失败后隔 1s 重试 1 次(请求尚未发出,重试安全)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -98,6 +105,7 @@ class WikiClaudeClient:
         api_key: str | None = None,
         base_url: str | None = None,
         timeout: float | None = None,
+        transport: httpx.BaseTransport | None = None,
     ):
         key = api_key or os.environ.get('ANTHROPIC_API_KEY', '').strip()
         if not key:
@@ -114,7 +122,12 @@ class WikiClaudeClient:
 
         # trust_env=False 禁用系统 HTTP_PROXY，避免本机 Clash/Shadowsocks
         # 把 Tailscale 内网请求错误地转给公网代理，返回 503。
-        self._http = httpx.Client(trust_env=False, timeout=self._timeout)
+        # transport 仅供测试注入 httpx.MockTransport
+        self._http = httpx.Client(
+            trust_env=False,
+            timeout=httpx.Timeout(self._timeout, connect=min(CONNECT_TIMEOUT, self._timeout)),
+            transport=transport,
+        )
 
         if url:
             logger.info(f'[Wiki Claude] base_url={self._base_url} (trust_env=False)')
@@ -123,6 +136,26 @@ class WikiClaudeClient:
 
     def close(self):
         self._http.close()
+
+    def _post_with_connect_retry(self, url, payload, headers):
+        """连接阶段失败(ConnectTimeout / ConnectError,含 TLS 握手超时)自动重试 1 次;
+        读超时 / HTTP 错误不重试(请求可能已被上游处理,重试会重复计费)。"""
+        for attempt in (1, 2):
+            try:
+                return self._http.post(url, json=payload, headers=headers)
+            except (httpx.ConnectTimeout, httpx.ConnectError) as e:
+                if attempt == 1:
+                    logger.warning(f'[Wiki Claude] 连接失败,{CONNECT_RETRY_DELAY:g}s 后重试 1 次: '
+                                   f'{type(e).__name__}: {e}')
+                    time.sleep(CONNECT_RETRY_DELAY)
+                    continue
+                if isinstance(e, httpx.TimeoutException):
+                    raise WikiClaudeError(f'Claude API 超时（{self._timeout}s）: {e}') from e
+                raise WikiClaudeError(f'Claude API 网络错误: {e}') from e
+            except httpx.TimeoutException as e:
+                raise WikiClaudeError(f'Claude API 超时（{self._timeout}s）: {e}') from e
+            except httpx.HTTPError as e:
+                raise WikiClaudeError(f'Claude API 网络错误: {e}') from e
 
     def complete(
         self,
@@ -188,12 +221,7 @@ class WikiClaudeClient:
 
         url = f'{self._base_url}/v1/messages'
 
-        try:
-            resp = self._http.post(url, json=payload, headers=headers)
-        except httpx.TimeoutException as e:
-            raise WikiClaudeError(f'Claude API 超时（{self._timeout}s）: {e}') from e
-        except httpx.HTTPError as e:
-            raise WikiClaudeError(f'Claude API 网络错误: {e}') from e
+        resp = self._post_with_connect_retry(url, payload, headers)
 
         if resp.status_code >= 400:
             body_preview = (resp.text or '')[:500]
