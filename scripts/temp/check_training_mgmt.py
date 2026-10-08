@@ -200,6 +200,20 @@ with app.app_context():
         check(len(rm) == 1 and (rm[0].extra_data or {}).get('url', '').endswith(f'/wiki/play/{KEY}/bank'),
               '审核人通知 1 条,链接到题库页')
 
+        # 评审 #6:并发下审核人已被别的请求插入 —— 不 500、不重复通知
+        orig_rows = A._reviewer_rows
+        try:
+            A._reviewer_rows = lambda key: {}          # 模拟读到的是插入前的旧快照
+            r = A.set_reviewers(KEY, [uid['zztm_rev']], uid['zztm_mgr'])
+            check(r['added'] == [], f'并发重复插入审核人:on conflict 跳过({r})')
+        finally:
+            A._reviewer_rows = orig_rows
+        check(Message.query.filter_by(recipient_id=uid['zztm_rev'], message_type='course_reviewer').count() == 1,
+              '并发重复插入不重复通知')
+        # 评审 #7:department 与 user_ids 同时给 → 400
+        r = mc.post(base + '/enrollments', json={'department': DEPT, 'user_ids': [uid['zztm_out']]})
+        check(r.status_code == 400 and r.get_json()['error'] == 'bad_params', 'department + user_ids 同时给 → 400')
+
         # ---------- 管理总览 ----------
         r = mc.get('/api/learning/admin/courses')
         row = next((c for c in r.get_json()['data']['courses'] if c['key'] == KEY), None)
@@ -373,6 +387,22 @@ with app.app_context():
               f'反复错题:只认当前题干、错≥2({[(x["question_id"], x["wrong"]) for x in rw]})')
         check(d['read']['total_seconds'] == 30 and d['exam']['attempts'] == 6, '明细:阅读秒数 + 作答总数')
         check(C['zztm_stu'].get(f"{base}/report/{uid['zztm_stu']}").status_code == 200, '本人看自己明细 200')
+        # 评审 #1:未拉入者看自己在受限课上的明细 → 404,且不泄露课名
+        r = C['zztm_out'].get(f"{base}/report/{uid['zztm_out']}")
+        check(r.status_code == 404 and 'ZZTM 培训课' not in r.get_data(as_text=True), f'未拉入者看自己受限课明细 → 404 不含课名({r.status_code})')
+        # 评审 #2:无权者探测不存在的课程 key → 403(先判权限,不暴露存在性)
+        check(C['zztm_out'].get('/api/learning/zz-no-such/report').status_code == 403, '无权者探测不存在课程成绩 → 403')
+        check(C['zztm_out'].get(f"/api/learning/zz-no-such/report/{uid['zztm_stu']}").status_code == 403,
+              '无权者探测不存在课程明细 → 403')
+        check(C['zztm_out'].get(f"{base}/report").status_code == 403, '无权者看存在课程成绩 → 403(与不存在同码)')
+        check(mc.get('/api/learning/zz-no-such/report').status_code == 404, '管理员看不存在课程 → 404')
+        # 评审 #8:审核人标记
+        rows = mc.get(base + '/report').get_json()['data']['rows']
+        flags = {x['user']['id']: x['is_reviewer'] for x in rows}
+        check(flags.get(uid['zztm_rev']) is True and flags.get(uid['zztm_stu']) is False, f'成绩行 is_reviewer 标记')
+        d = mc.get('/api/learning/report/overview').get_json()['data']
+        check(d['cells'][str(uid['zztm_rev'])][KEY]['is_reviewer'] is True
+              and d['cells'][str(uid['zztm_stu'])][KEY]['is_reviewer'] is False, '总览格子 is_reviewer 标记')
         check(C['zztm_sup'].get(f"{base}/report/{uid['zztm_out']}").status_code == 403, '上级看非下属 → 403')
         check(C['zztm_out'].get(f"{base}/report/{uid['zztm_stu']}").status_code == 403, '普通人看他人 → 403')
 

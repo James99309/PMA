@@ -722,6 +722,8 @@ def enrollments_add(key):
         return denied
     data = _json_obj()
     try:
+        if 'department' in data and 'user_ids' in data:
+            raise ValueError('department 与 user_ids 只能二选一')
         if 'department' in data:
             dept = data.get('department')
             if not isinstance(dept, str) or not dept.strip():
@@ -809,8 +811,8 @@ def report_overview():
 @learning_bp.route('/api/learning/<key>/report')
 @login_required
 def report_course(key):
-    ck = _any_course_key(key)
-    data = A.course_report(ck, current_user) if ck else None
+    # course_report 内先判权限再查课程(ck 为 None 也交给它,无权者统一 403)
+    data = A.course_report(_any_course_key(key), current_user)
     if data == 'forbidden':
         return _fail('report_forbidden', 403)
     if data is None:
@@ -821,10 +823,8 @@ def report_course(key):
 @learning_bp.route('/api/learning/<key>/report/<int:user_id>')
 @login_required
 def report_user(key, user_id):
-    if not A.can_view_user_report(current_user, user_id):
-        return _fail('report_forbidden', 403)
-    ck = _any_course_key(key)
-    data = A.user_detail(ck, user_id, current_user) if ck else None
+    # 权限判断只在 user_detail 里做一次(先权限后课程存在性)
+    data = A.user_detail(_any_course_key(key), user_id, current_user)
     if data == 'forbidden':
         return _fail('report_forbidden', 403)
     if data is None:

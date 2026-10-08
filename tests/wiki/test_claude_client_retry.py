@@ -46,7 +46,15 @@ def test_connect_error_retried_once_then_ok(monkeypatch):
 def test_connect_fails_twice_raises_without_third_try(monkeypatch):
     handler, calls = _seq(httpx.ConnectTimeout('t1'), httpx.ConnectTimeout('t2'),
                           httpx.Response(200, json=OK_BODY))
-    with pytest.raises(CC.WikiClaudeError, match='超时'):
+    # 文案要说连接超时(15s)与已重试,而不是整体 timeout
+    with pytest.raises(CC.WikiClaudeError, match='连接 AI 服务超时（15s，已重试 1 次）'):
+        _client(handler, monkeypatch).complete('s', 'u', model='m')
+    assert len(calls) == 2
+
+
+def test_connect_error_twice_message(monkeypatch):
+    handler, calls = _seq(httpx.ConnectError('r1'), httpx.ConnectError('r2'))
+    with pytest.raises(CC.WikiClaudeError, match='连接 AI 服务失败（已重试 1 次）'):
         _client(handler, monkeypatch).complete('s', 'u', model='m')
     assert len(calls) == 2
 

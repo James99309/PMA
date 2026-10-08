@@ -119,13 +119,14 @@ class WikiClaudeClient:
         self._base_url = (url or self.ANTHROPIC_OFFICIAL).rstrip('/')
 
         self._timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
+        self._connect_timeout = min(CONNECT_TIMEOUT, self._timeout)
 
         # trust_env=False 禁用系统 HTTP_PROXY，避免本机 Clash/Shadowsocks
         # 把 Tailscale 内网请求错误地转给公网代理，返回 503。
         # transport 仅供测试注入 httpx.MockTransport
         self._http = httpx.Client(
             trust_env=False,
-            timeout=httpx.Timeout(self._timeout, connect=min(CONNECT_TIMEOUT, self._timeout)),
+            timeout=httpx.Timeout(self._timeout, connect=self._connect_timeout),
             transport=transport,
         )
 
@@ -150,8 +151,9 @@ class WikiClaudeClient:
                     time.sleep(CONNECT_RETRY_DELAY)
                     continue
                 if isinstance(e, httpx.TimeoutException):
-                    raise WikiClaudeError(f'Claude API 超时（{self._timeout}s）: {e}') from e
-                raise WikiClaudeError(f'Claude API 网络错误: {e}') from e
+                    raise WikiClaudeError(
+                        f'连接 AI 服务超时（{self._connect_timeout:g}s，已重试 1 次）: {e}') from e
+                raise WikiClaudeError(f'连接 AI 服务失败（已重试 1 次）: {e}') from e
             except httpx.TimeoutException as e:
                 raise WikiClaudeError(f'Claude API 超时（{self._timeout}s）: {e}') from e
             except httpx.HTTPError as e:

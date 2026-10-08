@@ -355,17 +355,30 @@ def list_reviewers(key):
     return [_user_brief(u) for u in rows]
 
 
+def _reviewer_rows(key):
+    """{user_id: CourseReviewer} —— 本课当前审核人(单独成函数,便于测试模拟并发旧快照)。"""
+    return {r.user_id: r for r in CourseReviewer.query.filter_by(course_key=key).all()}
+
+
 def set_reviewers(key, user_ids, by):
     """全量覆盖审核人(只接受在职的人;非法 id 忽略)。新增的人发站内通知。会 commit。"""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
     want = [u.id for u in _active_users(normalize_user_ids(list(user_ids)))]
-    have = {r.user_id: r for r in CourseReviewer.query.filter_by(course_key=key).all()}
+    have = _reviewer_rows(key)
     removed = [uid for uid in have if uid not in want]
-    added = [uid for uid in want if uid not in have]
-    for uid in removed:
-        db.session.delete(have[uid])
-    now = get_local_time()
-    for uid in added:
-        db.session.add(CourseReviewer(course_key=key, user_id=uid, added_by=by, added_at=now))
+    if removed:
+        CourseReviewer.query.filter(CourseReviewer.course_key == key,
+                                    CourseReviewer.user_id.in_(removed)).delete(synchronize_session=False)
+    todo = [uid for uid in want if uid not in have]
+    added = []
+    if todo:
+        # 并发安全:别的请求已插入同一 (课程, 人) 时跳过,只给真正新增的人发通知
+        now = get_local_time()
+        stmt = (pg_insert(CourseReviewer.__table__)
+                .values([{'course_key': key, 'user_id': uid, 'added_by': by, 'added_at': now} for uid in todo])
+                .on_conflict_do_nothing(index_elements=['course_key', 'user_id'])
+                .returning(CourseReviewer.__table__.c.user_id))
+        added = [r[0] for r in db.session.execute(stmt).fetchall()]
     if added:
         row = _course_row(key)
         title = row.title if row else key
@@ -469,13 +482,14 @@ def _cell(media, prog, pages, override):
 def course_report(key, viewer):
     """单课成绩表。返回 None = 课程不存在;'forbidden' = 无权(非管理员且无直属下属)。"""
     from app.models.user import User
-    row = _course_row(key)
-    if row is None:
-        return None
+    # 先判权限再查课程:无权者无法用 key 探测课程是否存在
     manager = is_manager(viewer)
     subs = set() if manager else subordinate_ids(_authed_id(viewer))
     if not manager and not subs:
         return 'forbidden'
+    row = _course_row(key) if key else None
+    if row is None:
+        return None
     media = row.media_type or 'html'
     eq = CourseEnrollment.query.filter_by(course_key=key)
     if not manager:
@@ -494,6 +508,8 @@ def course_report(key, viewer):
                         TrainingQuizAttempt.user_id.in_(list(pop)))
                 .group_by(TrainingQuizAttempt.user_id).all()):
             att[uid] = (int(n), int(c or 0), last)
+    reviewers = {u for (u,) in db.session.query(CourseReviewer.user_id).filter(
+        CourseReviewer.course_key == key, CourseReviewer.user_id.in_(list(pop))).all()} if pop else set()
     pages = _pages_for(key) if media == 'html' else []
     override = S.get_min_read_seconds(key) if media == 'html' else None
     rows = []
@@ -505,7 +521,7 @@ def course_report(key, viewer):
         n, c, last = att.get(uid, (0, 0, None))
         e = enrolled.get(uid)
         cell['last_activity'] = _iso(_max_dt(cell['last_activity'], last))
-        cell.update({'user': _user_brief(u), 'enrolled': e is not None,
+        cell.update({'user': _user_brief(u), 'enrolled': e is not None, 'is_reviewer': uid in reviewers,
                      'enrolled_at': _iso(e.added_at) if e else None,
                      'attempts': n, 'correct': c})
         rows.append(cell)
@@ -536,6 +552,11 @@ def overview(viewer):
     enrolled = {(e.course_key, e.user_id) for e in (eq.all() if eq is not None else [])}
     prog = _progress_map(keys_by_media, None if manager else subs)
     pairs = enrolled | set(prog)
+    rq = db.session.query(CourseReviewer.course_key, CourseReviewer.user_id).filter(
+        CourseReviewer.course_key.in_(keys)) if keys else None
+    if rq is not None and not manager:
+        rq = rq.filter(CourseReviewer.user_id.in_(list(subs)))
+    reviewer_pairs = set(rq.all()) if rq is not None else set()
     pages = {k: _pages_for(k) for k in {k for k, _ in pairs if media_of.get(k) == 'html'}}
     overrides = _overrides(pages.keys())
     cells = defaultdict(dict)
@@ -546,6 +567,7 @@ def overview(viewer):
         c = _cell(media_of[k], prog.get((k, uid)), pages.get(k, []), overrides.get(k))
         c['last_activity'] = _iso(c['last_activity'])
         c['enrolled'] = (k, uid) in enrolled
+        c['is_reviewer'] = (k, uid) in reviewer_pairs
         cells[uid][k] = c
         s = summary[k]
         s['enrolled'] += c['enrolled']
@@ -569,11 +591,14 @@ def user_detail(key, user_id, viewer):
     """某人某课明细。None = 课程/人不存在;'forbidden' = 无权(非管理员、非本人、非直属上级)。"""
     from app.models.user import User
     if not can_view_user_report(viewer, user_id):
-        return 'forbidden'
-    row = _course_row(key)
+        return 'forbidden'                           # 先判权限再查课程,无权者无法探测 key
+    row = _course_row(key) if key else None
     u = db.session.get(User, user_id)
     if row is None or u is None:
         return None
+    vid = _authed_id(viewer)
+    if vid == user_id and not is_manager(viewer) and not can_view_course(viewer, row.key):
+        return None      # 本人看自己:受限课未授权视同不存在(上级看下属不受此限)
     media = row.media_type or 'html'
     out = {'course': {'key': row.key, 'title': row.title, 'media_type': media},
            'user': _user_brief(u),
@@ -630,6 +655,7 @@ def my_training(user):
     for k, m in media_of.items():
         keys_by_media[m].append(k)
     prog = {k: p for (k, _u), p in _progress_map(keys_by_media, {uid}).items()}
+    overrides = _overrides([k for k in prog if media_of[k] == 'html'])
     out = []
     for c in courses:
         k = c.key
@@ -639,7 +665,7 @@ def my_training(user):
         # enrolled 本身即可见;open 课全员可见 —— 无需再判 can_view_course
         media = media_of[k]
         pages = _pages_for(k) if media == 'html' and k in prog else []
-        cell = _cell(media, prog.get(k), pages, S.get_min_read_seconds(k) if pages else None)
+        cell = _cell(media, prog.get(k), pages, overrides.get(k))
         cell['last_activity'] = _iso(cell['last_activity'])
         cell.update({'key': k, 'title': c.title, 'subtitle': c.subtitle or '', 'media_type': media,
                      'mode': mode, 'enrolled': k in enrolled,
