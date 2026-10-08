@@ -401,6 +401,25 @@ def subordinate_ids(viewer_id):
         Affiliation.viewer_id == viewer_id, Affiliation.owner_id != viewer_id).all()}
 
 
+def has_subordinates(user_id):
+    """是否有直属下属(一次 EXISTS 查询)。培训管理入口 / 成绩页门禁用。"""
+    from app.models.user import Affiliation
+    if not user_id:
+        return False
+    return db.session.query(db.session.query(Affiliation.id).filter(
+        Affiliation.viewer_id == user_id, Affiliation.owner_id != user_id).exists()).scalar()
+
+
+def training_page_mode(user):
+    """培训管理页访问级别:'full'(管理员)/ 'scores'(有直属下属,只看成绩)/ None(无权)。"""
+    uid = _authed_id(user)
+    if uid is None:
+        return None
+    if is_manager(user):
+        return 'full'
+    return 'scores' if has_subordinates(uid) else None
+
+
 def can_view_user_report(viewer, user_id):
     uid = _authed_id(viewer)
     if uid is None:

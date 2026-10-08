@@ -1,0 +1,733 @@
+{#
+  培训管理页 —— /wiki/training(learning_bp.training_page)
+  ─────────────────────────────────────────────────────────────
+  page_mode='full'  :管理员(admin / CEO / HR)—— 总览 + 每课「学员 / 审核人 / 成绩」
+  page_mode='scores':有直属下属的人 —— 只看成绩(后端只返回其直属下属)
+  数据全部走 /api/learning/*(见 app/views/learning.py「培训管理」段),写操作带 X-CSRFToken。
+  JS 内不写中文字面量,文案统一由下方 T 字典(_() 注入)提供。
+#}
+{% from 'components/at_sidebar.html' import at_sidebar with context %}
+{% from 'components/at_topbar.html' import at_topbar with context %}
+{% from 'components/at_people_select.html' import at_people_select %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+{% include 'components/_js_i18n.html' %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>PMA · {{ _('培训管理') }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/at-theme.css') }}">
+<link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<script src="{{ url_for('static', filename='js/at-prefs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-sidebar.js') }}"></script>
+<script src="{{ url_for('static', filename='js/at-people-select.js') }}"></script>
+<style>
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; font-size:16px; }
+  [hidden] { display:none !important; }
+  .tr-main { max-width:1440px; margin:0 auto; padding:24px 32px 60px; }
+  .tr-eyebrow { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); }
+  .tr-title { margin:6px 0 0; font-size:22px; font-weight:600; }
+  .tr-sub { font-size:13px; color:var(--ink-3); margin-top:6px; }
+  .tr-layout { margin-top:20px; display:grid; grid-template-columns:280px minmax(0,1fr); gap:20px; align-items:start; }
+  @media (max-width: 960px) { .tr-layout { grid-template-columns:1fr; } }
+
+  /* 左栏课程列表 */
+  .tr-side { background:var(--bg-elev); border:1px solid var(--line); border-radius:10px; overflow:hidden; position:sticky; top:72px; }
+  .tr-side-item { display:block; width:100%; text-align:left; padding:11px 14px; border:0; border-bottom:1px solid var(--line-soft);
+                  background:transparent; color:var(--ink); font:inherit; cursor:pointer; }
+  .tr-side-item:last-child { border-bottom:0; }
+  .tr-side-item:hover { background:var(--bg-hover); }
+  .tr-side-item.is-on { background:var(--accent-soft); }
+  .tr-side-title { font-size:13px; font-weight:500; display:flex; align-items:center; gap:6px; }
+  .tr-side-meta { margin-top:5px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:11.5px; color:var(--ink-3); }
+  .tr-dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+  .tr-dot-ok { background:var(--success); } .tr-dot-bad { background:var(--danger); }
+
+  .tr-chip { display:inline-flex; align-items:center; height:19px; padding:0 7px; border-radius:10px; font-size:11px; white-space:nowrap;
+             background:var(--bg-sunk); color:var(--ink-2); }
+  .tr-chip-open { background:var(--success-soft); color:var(--success); }
+  .tr-chip-restricted { background:var(--warn-soft); color:var(--warn); }
+  .tr-chip-rev { background:var(--info-soft); color:var(--info); }
+
+  .tr-panel { background:var(--bg-elev); border:1px solid var(--line); border-radius:10px; padding:18px 20px; min-width:0; }
+  .tr-panel-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .tr-h2 { margin:0; font-size:17px; font-weight:600; }
+  .tr-tabs { display:flex; gap:2px; border-bottom:1px solid var(--line); margin-top:14px; }
+  .tr-tab { padding:9px 16px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--ink-3);
+            font:inherit; font-size:13px; cursor:pointer; margin-bottom:-1px; }
+  .tr-tab.is-on { color:var(--accent); border-bottom-color:var(--accent); font-weight:500; }
+  .tr-section { margin-top:18px; }
+  .tr-label { font-size:12px; color:var(--ink-3); margin-bottom:6px; }
+  .tr-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .tr-hint { font-size:12px; color:var(--ink-3); margin-top:6px; }
+  .tr-confirm { margin-top:10px; padding:10px 12px; border-radius:8px; background:var(--warn-soft); color:var(--warn);
+                font-size:13px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .tr-confirm span { flex:1; min-width:200px; }
+
+  body.at-page .tr-btn { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 13px; border-radius:7px;
+                         border:1px solid var(--line-2); background:var(--bg-elev); color:var(--ink); font:inherit; font-size:13px;
+                         cursor:pointer; text-decoration:none; white-space:nowrap; }
+  body.at-page .tr-btn:hover { background:var(--bg-hover); }
+  body.at-page .tr-btn:disabled { opacity:.5; cursor:not-allowed; }
+  body.at-page .tr-btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  body.at-page .tr-btn-primary:hover { background:var(--accent); filter:brightness(1.06); }
+  body.at-page .tr-btn-sm { height:26px; padding:0 9px; font-size:12px; border-radius:6px; }
+  body.at-page .tr-btn-danger { color:var(--danger); }
+  .tr-input, .tr-select { box-sizing:border-box; height:32px; padding:0 9px; background:var(--bg-page); border:1px solid var(--line-2);
+                          border-radius:6px; color:var(--ink); font:inherit; font-size:13px; outline:none; }
+  .tr-input:focus, .tr-select:focus { border-color:var(--accent); }
+  .tr-radio { display:inline-flex; align-items:center; gap:6px; margin-right:18px; font-size:13px; cursor:pointer; }
+
+  .tr-table-wrap { margin-top:10px; border:1px solid var(--line); border-radius:9px; overflow:auto; }
+  table.tr-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .tr-table th { text-align:left; font-weight:500; font-size:11.5px; color:var(--ink-3); padding:9px 10px; background:var(--bg-page);
+                 border-bottom:1px solid var(--line); white-space:nowrap; }
+  .tr-table td { padding:8px 10px; border-bottom:1px solid var(--line-soft); vertical-align:middle; white-space:nowrap; }
+  .tr-table tr:last-child td { border-bottom:0; }
+  .tr-table tr.tr-click { cursor:pointer; }
+  .tr-table tr.tr-click:hover td { background:var(--bg-hover); }
+  .tr-empty { padding:44px 0; text-align:center; color:var(--ink-3); font-size:13px; }
+  .tr-dim { color:var(--ink-3); }
+  .tr-mono { font-family:var(--font-mono); font-size:12px; }
+
+  /* 分数条:带 60 分及格刻度 */
+  .tr-bar { position:relative; width:110px; height:8px; border-radius:4px; background:var(--bg-sunk); display:inline-block; vertical-align:middle; }
+  .tr-bar i { position:absolute; left:0; top:0; bottom:0; border-radius:4px; background:var(--warn); }
+  .tr-bar i.ok { background:var(--success); } .tr-bar i.full { background:#C9A227; }
+  .tr-bar b { position:absolute; left:60%; top:-3px; bottom:-3px; width:1px; background:var(--ink-3); }
+
+  /* 总览矩阵 */
+  .tr-matrix th.tr-ch { min-width:120px; max-width:160px; white-space:normal; vertical-align:bottom; }
+  .tr-ch-title { font-size:12px; color:var(--ink); font-weight:500; line-height:1.35; }
+  .tr-ch-sum { font-size:10.5px; color:var(--ink-3); margin-top:3px; line-height:1.4; }
+  .tr-matrix td.tr-cell { text-align:center; padding:5px 6px; }
+  .tr-c { display:inline-flex; align-items:center; justify-content:center; gap:3px; min-width:62px; height:26px; padding:0 7px;
+          border-radius:6px; font-size:12px; font-family:var(--font-mono); cursor:pointer; position:relative; }
+  .tr-c-idle { background:var(--bg-sunk); color:var(--ink-3); }
+  .tr-c-exam { background:var(--warn-soft); color:var(--warn); }
+  .tr-c-pass { background:var(--success-soft); color:var(--success); }
+  .tr-c-full { background:#F3E3A6; color:#7A5B00; }
+  .tr-c sup { font-size:9px; font-family:inherit; color:var(--info); }
+  .tr-legend { display:flex; gap:12px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-3); margin-top:10px; align-items:center; }
+  .tr-legend .tr-c { min-width:0; height:18px; cursor:default; font-size:10.5px; }
+
+  /* 明细抽屉 */
+  .tr-drawer-mask { position:fixed; inset:0; background:rgba(0,0,0,.28); z-index:80; }
+  .tr-drawer { position:fixed; top:0; right:0; bottom:0; width:min(520px, 100vw); background:var(--bg-elev); z-index:81;
+               box-shadow:-8px 0 24px rgba(0,0,0,.12); display:flex; flex-direction:column; }
+  .tr-drawer header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); }
+  .tr-drawer-body { padding:16px 20px 30px; overflow-y:auto; flex:1; }
+  .tr-kv { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; }
+  .tr-kv div { background:var(--bg-page); border-radius:8px; padding:10px 12px; }
+  .tr-kv small { display:block; font-size:11px; color:var(--ink-3); }
+  .tr-kv strong { display:block; font-size:18px; font-weight:600; margin-top:3px; font-family:var(--font-mono); }
+  .tr-pg { display:grid; grid-template-columns:28px minmax(0,1fr) 120px 44px; gap:8px; align-items:center; font-size:12px; margin-top:5px; }
+  .tr-pg .lbl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-2); }
+  .tr-pg .bar { height:7px; background:var(--bg-sunk); border-radius:4px; overflow:hidden; }
+  .tr-pg .bar i { display:block; height:100%; background:var(--accent); }
+  .tr-wrong { padding:9px 0; border-bottom:1px solid var(--line-soft); font-size:13px; display:flex; gap:10px; }
+  .tr-wrong span { flex:1; line-height:1.45; }
+  .tr-wrong b { color:var(--danger); font-family:var(--font-mono); font-weight:600; white-space:nowrap; }
+</style>
+</head>
+<body class="at-page">
+
+<div style="display:flex;min-height:100vh;">
+{{ at_sidebar(active_key='wiki_training') }}
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+  {{ at_topbar() }}
+
+  <main class="tr-main" id="trApp" data-mode="{{ page_mode }}">
+    <div class="tr-eyebrow">KNOWLEDGE · {{ _('培训管理') }}</div>
+    <h1 class="at-serif tr-title">{{ _('培训管理') }}</h1>
+    <div class="tr-sub">
+      {% if page_mode == 'full' %}{{ _('设置课程开放范围、指定学员与题库审核人，查看学习与考核成绩。') }}
+      {% else %}{{ _('查看你直属下属的学习与考核成绩。') }}{% endif %}
+    </div>
+
+    <div class="tr-layout">
+      <aside class="tr-side" id="trSide"><div class="tr-empty">{{ _('加载中…') }}</div></aside>
+
+      <section class="tr-panel" id="trPanel">
+        {# ── 总览 ── #}
+        <div id="trOverview">
+          <div class="tr-panel-head">
+            <h2 class="tr-h2">{{ _('成绩总览') }}</h2>
+            <div class="tr-row">
+              <select class="tr-select" id="trDeptFilter"><option value="">{{ _('全部部门') }}</option></select>
+              <input class="tr-input" id="trNameFilter" placeholder="{{ _('搜索姓名') }}" style="width:160px;">
+            </div>
+          </div>
+          <div class="tr-legend">
+            <span class="tr-c tr-c-idle">40%</span>{{ _('未解锁(阅读进度)') }}
+            <span class="tr-c tr-c-exam">36</span>{{ _('考核中') }}
+            <span class="tr-c tr-c-pass">72</span>{{ _('已及格') }}
+            <span class="tr-c tr-c-full">100</span>{{ _('满分') }}
+            <span class="tr-chip tr-chip-rev">{{ _('审') }}</span>{{ _('题库审核人') }}
+            <span>{{ _('空白 = 不在范围(未拉入且未开始)') }}</span>
+          </div>
+          <div class="tr-table-wrap"><table class="tr-table tr-matrix" id="trMatrix"><tbody><tr><td class="tr-empty">{{ _('加载中…') }}</td></tr></tbody></table></div>
+        </div>
+
+        {# ── 单课 ── #}
+        <div id="trCourse" hidden>
+          <div class="tr-panel-head">
+            <div>
+              <h2 class="tr-h2" id="trCTitle"></h2>
+              <div class="tr-row" style="margin-top:6px;" id="trCMeta"></div>
+            </div>
+            <div class="tr-row">
+              <a class="tr-btn" id="trCOpen" target="_blank" rel="noopener"><span class="material-symbols-outlined">open_in_new</span>{{ _('打开课程') }}</a>
+            </div>
+          </div>
+          <div class="tr-tabs" id="trTabs">
+            {% if page_mode == 'full' %}
+            <button type="button" class="tr-tab" data-tab="students">{{ _('学员') }}</button>
+            <button type="button" class="tr-tab" data-tab="reviewers">{{ _('审核人') }}</button>
+            {% endif %}
+            <button type="button" class="tr-tab" data-tab="scores">{{ _('成绩') }}</button>
+          </div>
+
+          {% if page_mode == 'full' %}
+          {# 学员 #}
+          <div data-pane="students" hidden>
+            <div class="tr-section">
+              <div class="tr-label">{{ _('开放模式') }}</div>
+              <label class="tr-radio"><input type="radio" name="trMode" value="open">{{ _('全员开放') }}</label>
+              <label class="tr-radio"><input type="radio" name="trMode" value="restricted">{{ _('仅指定学员') }}</label>
+              <div class="tr-confirm" id="trModeConfirm" hidden>
+                <span>{{ _('未拉入的人将看不到这门课（知识库不显示、链接打不开、不能考核）。确定切换为「仅指定学员」吗？') }}</span>
+                <button type="button" class="tr-btn tr-btn-sm tr-btn-primary" id="trModeYes">{{ _('确定切换') }}</button>
+                <button type="button" class="tr-btn tr-btn-sm" id="trModeNo">{{ _('取消') }}</button>
+              </div>
+            </div>
+            <div class="tr-section">
+              <div class="tr-label">{{ _('添加学员') }}</div>
+              <div class="tr-row" style="align-items:flex-start;">
+                {{ at_people_select('trEnrollSel', placeholder=_('搜索并选择人员'), users_url='/api/learning/users') }}
+                <button type="button" class="tr-btn tr-btn-primary" id="trEnrollBtn"><span class="material-symbols-outlined">person_add</span>{{ _('添加') }}</button>
+              </div>
+            </div>
+            <div class="tr-section">
+              <div class="tr-label">{{ _('按部门拉入') }}</div>
+              <div class="tr-row">
+                <select class="tr-select" id="trDeptSel" style="min-width:240px;"><option value="">{{ _('选择部门') }}</option></select>
+                <button type="button" class="tr-btn" id="trDeptBtn" disabled><span class="material-symbols-outlined">group_add</span>{{ _('拉入该部门') }}</button>
+              </div>
+              <div class="tr-hint">{{ _('一次性拉入该部门当前在职的人；之后新入职的人不会自动加入。') }}</div>
+              <div class="tr-confirm" id="trDeptConfirm" hidden>
+                <span id="trDeptConfirmText"></span>
+                <button type="button" class="tr-btn tr-btn-sm tr-btn-primary" id="trDeptYes">{{ _('确定拉入') }}</button>
+                <button type="button" class="tr-btn tr-btn-sm" id="trDeptNo">{{ _('取消') }}</button>
+              </div>
+            </div>
+            <div class="tr-section">
+              <div class="tr-label" id="trEnrollCount"></div>
+              <div class="tr-table-wrap"><table class="tr-table" id="trEnrollTable"><tbody></tbody></table></div>
+            </div>
+          </div>
+
+          {# 审核人 #}
+          <div data-pane="reviewers" hidden>
+            <div class="tr-section">
+              <div class="tr-label">{{ _('题库审核人') }}</div>
+              <div class="tr-row" style="align-items:flex-start;">
+                {{ at_people_select('trRevSel', placeholder=_('搜索并选择审核人'), users_url='/api/learning/users') }}
+                <button type="button" class="tr-btn tr-btn-primary" id="trRevSave"><span class="material-symbols-outlined">save</span>{{ _('保存') }}</button>
+              </div>
+              <div class="tr-hint">{{ _('审核人可审题、改题、停用题和单题 AI 重出，不能整套生成题库或改课程设置。新指定的审核人会收到站内通知。') }}</div>
+              <div class="tr-hint" id="trRevBankWrap" hidden><a id="trRevBank" target="_blank" rel="noopener">{{ _('打开本课题库') }} →</a></div>
+              <div class="tr-hint" id="trRevNoBank" hidden>{{ _('该课程不是互动课件，没有考核题库。') }}</div>
+            </div>
+          </div>
+          {% endif %}
+
+          {# 成绩 #}
+          <div data-pane="scores" hidden>
+            <div class="tr-section">
+              <div class="tr-row" style="justify-content:space-between;">
+                <div class="tr-label" id="trScoreCount" style="margin:0;"></div>
+                <select class="tr-select" id="trScoreSort">
+                  <option value="score">{{ _('按分数排序') }}</option>
+                  <option value="activity">{{ _('按最近活动排序') }}</option>
+                </select>
+              </div>
+              <div class="tr-table-wrap"><table class="tr-table" id="trScoreTable"><tbody></tbody></table></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</div>
+
+{# 明细抽屉 #}
+<div class="tr-drawer-mask" id="trDrawerMask" hidden></div>
+<aside class="tr-drawer" id="trDrawer" hidden>
+  <header>
+    <div><div class="tr-h2" id="trDTitle"></div><div class="tr-dim" style="font-size:12px;margin-top:3px;" id="trDSub"></div></div>
+    <button type="button" class="tr-btn tr-btn-sm" id="trDClose" aria-label="close"><span class="material-symbols-outlined">close</span></button>
+  </header>
+  <div class="tr-drawer-body" id="trDBody"></div>
+</aside>
+
+<script>
+(function () {
+  var MODE = document.getElementById('trApp').getAttribute('data-mode');   // full / scores
+  var MY_COMPANY = {{ my_company|tojson }};
+  var T = {
+    overview: {{ _('总览')|tojson }}, overviewSub: {{ _('全部课程 × 学员')|tojson }},
+    media: {html: {{ _('互动课件')|tojson }}, video: {{ _('视频')|tojson }}, ppt: {{ _('PPT')|tojson }}},
+    mode: {open: {{ _('全员开放')|tojson }}, restricted: {{ _('仅指定学员')|tojson }}},
+    students: {{ _('学员 %s')|tojson }}, bankOk: {{ _('题库就绪')|tojson }}, bankBad: {{ _('题库不足 100 分')|tojson }},
+    reviewer: {{ _('审核人')|tojson }}, revShort: {{ _('审')|tojson }},
+    noCourses: {{ _('暂无课程')|tojson }}, noStudents: {{ _('暂无学员')|tojson }}, noScores: {{ _('暂无成绩')|tojson }},
+    noPeople: {{ _('范围内暂无学员或学习记录')|tojson }},
+    sumLine: {{ _('拉入 %s · 开始 %s · 及格 %s · 满分 %s')|tojson }},
+    name: {{ _('姓名')|tojson }}, dept: {{ _('部门')|tojson }}, source: {{ _('来源')|tojson }}, addedAt: {{ _('加入时间')|tojson }},
+    ops: {{ _('操作')|tojson }}, remove: {{ _('移除')|tojson }}, removeQ: {{ _('确认移除？')|tojson }}, yes: {{ _('是')|tojson }}, no: {{ _('否')|tojson }},
+    srcUser: {{ _('单人')|tojson }}, srcDept: {{ _('部门：%s')|tojson }}, enrollCount: {{ _('已拉入 %s 人')|tojson }},
+    enrolled: {{ _('拉入')|tojson }}, read: {{ _('阅读')|tojson }}, unlocked: {{ _('解锁')|tojson }}, score: {{ _('分数')|tojson }},
+    passedAt: {{ _('及格时间')|tojson }}, perfectAt: {{ _('满分时间')|tojson }}, lastAct: {{ _('最近活动')|tojson }},
+    answers: {{ _('答题 / 正确率')|tojson }}, yesMark: {{ _('是')|tojson }}, noMark: {{ _('否')|tojson }},
+    scoreCount: {{ _('共 %s 人')|tojson }}, added: {{ _('已添加 %s 人')|tojson }}, noneSel: {{ _('请先选择人员')|tojson }},
+    deptConfirm: {{ _('将一次性拉入「%s」当前在职的 %s 人，确定吗？')|tojson }}, deptOpt: {{ _('%s（%s 人）')|tojson }},
+    saved: {{ _('已保存')|tojson }}, failed: {{ _('操作失败')|tojson }}, netErr: {{ _('网络错误，请重试')|tojson }},
+    modeSaved: {{ _('开放模式已更新')|tojson }}, removed: {{ _('已移除')|tojson }},
+    revSaved: {{ _('审核人已更新：新增 %s 人，移除 %s 人')|tojson }},
+    dReading: {{ _('阅读')|tojson }}, dExam: {{ _('考核')|tojson }}, dWrong: {{ _('反复错题 Top 5')|tojson }},
+    dNoWrong: {{ _('没有错 2 次及以上的题')|tojson }}, dPercent: {{ _('阅读进度')|tojson }}, dEff: {{ _('有效阅读')|tojson }},
+    dReq: {{ _('达标要求')|tojson }}, dAttempts: {{ _('作答数')|tojson }}, dAcc: {{ _('正确率')|tojson }},
+    dPages: {{ _('逐页阅读秒数')|tojson }}, dWatch: {{ _('观看进度')|tojson }}, dDone: {{ _('已看完')|tojson }},
+    dNoProgress: {{ _('该课程没有学习进度记录')|tojson }}, wrongN: {{ _('错 %s 次')|tojson }},
+    sec: {{ _('秒')|tojson }}, minute: {{ _('分钟')|tojson }}, notStarted: {{ _('未开始')|tojson }}, loading: {{ _('加载中…')|tojson }}
+  };
+
+  var state = {courses: [], sel: '', tab: null, overview: null, report: null, deptOpts: [], removing: null,
+               pendingMode: null, pendingDept: null};
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+    });
+  }
+  function fmt(tpl) {
+    var args = Array.prototype.slice.call(arguments, 1), i = 0;
+    return tpl.replace(/%s/g, function () { return args[i++]; });
+  }
+  function dt(iso) { return iso ? iso.replace('T', ' ').slice(0, 16) : '—'; }
+  function token() { return document.querySelector('meta[name=csrf-token]').getAttribute('content'); }
+  function $(id) { return document.getElementById(id); }
+
+  // 统一请求:带 CSRF 头;token 过期(error=csrf)时取新 token 重试一次(同题库页)
+  function req(method, url, body, retried) {
+    var opt = {method: method, credentials: 'same-origin', headers: {'X-CSRFToken': token()}};
+    if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    return fetch(url, opt).then(function (r) {
+      if (r.redirected && /\/auth\/login/.test(r.url)) { window.location.reload(); return {success: false}; }
+      return r.json().catch(function () { return {success: false, message: T.failed}; }).then(function (j) {
+        if (!r.ok && j && j.error === 'csrf' && !retried) {
+          return fetch('/api/learning/csrf', {credentials: 'same-origin'}).then(function (x) { return x.json(); })
+            .then(function (t) {
+              document.querySelector('meta[name=csrf-token]').setAttribute('content', t.token);
+              return req(method, url, body, true);
+            });
+        }
+        j = j || {};
+        j._status = r.status;
+        return j;
+      });
+    }).catch(function () { return {success: false, message: T.netErr, _status: 0}; });
+  }
+  function toastErr(j) { window.ATToast && ATToast.error(T.failed, (j && j.message) || ''); }
+  function api(key, tail) { return '/api/learning/' + encodeURIComponent(key) + (tail || ''); }
+  function course(key) {
+    for (var i = 0; i < state.courses.length; i++) if (state.courses[i].key === key) return state.courses[i];
+    return null;
+  }
+  function modeChip(m) { return '<span class="tr-chip tr-chip-' + m + '">' + esc(T.mode[m] || m) + '</span>'; }
+  function revBadge(on) { return on ? ' <span class="tr-chip tr-chip-rev">' + esc(T.reviewer) + '</span>' : ''; }
+
+  // ── 左栏 ──
+  function renderSide() {
+    var html = '<button type="button" class="tr-side-item' + (state.sel ? '' : ' is-on') + '" data-key="">' +
+      '<div class="tr-side-title"><span class="material-symbols-outlined">grid_view</span>' + esc(T.overview) + '</div>' +
+      '<div class="tr-side-meta">' + esc(T.overviewSub) + '</div></button>';
+    if (!state.courses.length) html += '<div class="tr-empty">' + esc(T.noCourses) + '</div>';
+    state.courses.forEach(function (c) {
+      var meta = '<span class="tr-chip">' + esc(T.media[c.media_type] || c.media_type) + '</span>' + modeChip(c.mode);
+      if (c.enrolled_count != null) meta += '<span>' + esc(fmt(T.students, c.enrolled_count)) + '</span>';
+      if (c.bank) meta += '<span class="tr-dot ' + (c.bank.ok ? 'tr-dot-ok' : 'tr-dot-bad') + '" title="' +
+        esc(c.bank.ok ? T.bankOk : T.bankBad) + '"></span>';
+      html += '<button type="button" class="tr-side-item' + (state.sel === c.key ? ' is-on' : '') + '" data-key="' + esc(c.key) + '">' +
+        '<div class="tr-side-title">' + esc(c.title) + '</div><div class="tr-side-meta">' + meta + '</div></button>';
+    });
+    $('trSide').innerHTML = html;
+  }
+  $('trSide').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-key]');
+    if (b) select(b.getAttribute('data-key'));
+  });
+
+  function loadCourses() {
+    if (MODE === 'full') {
+      return req('GET', '/api/learning/admin/courses').then(function (j) {
+        if (!j.success) { toastErr(j); return; }
+        state.courses = j.data.courses;
+        renderSide();
+      });
+    }
+    return loadOverview().then(function () {
+      state.courses = state.overview ? state.overview.courses : [];
+      renderSide();
+    });
+  }
+
+  function select(key) {
+    state.sel = key;
+    renderSide();
+    $('trOverview').hidden = !!key;
+    $('trCourse').hidden = !key;
+    if (!key) { (state.overview ? Promise.resolve() : loadOverview()).then(renderOverview); return; }
+    var c = course(key);
+    $('trCTitle').textContent = c.title;
+    $('trCMeta').innerHTML = '<span class="tr-chip">' + esc(T.media[c.media_type] || c.media_type) + '</span>' + modeChip(c.mode);
+    if (c.url) { $('trCOpen').href = c.url; $('trCOpen').hidden = false; } else { $('trCOpen').hidden = true; }
+    switchTab(MODE === 'full' ? (state.tab || 'students') : 'scores');
+  }
+
+  function switchTab(tab) {
+    state.tab = tab;
+    document.querySelectorAll('#trTabs .tr-tab').forEach(function (b) { b.classList.toggle('is-on', b.getAttribute('data-tab') === tab); });
+    document.querySelectorAll('[data-pane]').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== tab; });
+    if (tab === 'students') loadStudents();
+    else if (tab === 'reviewers') loadReviewers();
+    else loadScores();
+  }
+  $('trTabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tab]');
+    if (b) switchTab(b.getAttribute('data-tab'));
+  });
+
+  // ── 总览 ──
+  function loadOverview() {
+    return req('GET', '/api/learning/report/overview').then(function (j) {
+      if (!j.success) { toastErr(j); return; }
+      state.overview = j.data;
+      var depts = {};
+      j.data.users.forEach(function (u) { if (u.department) depts[u.department] = 1; });
+      var sel = $('trDeptFilter'), cur = sel.value;
+      sel.innerHTML = sel.options[0].outerHTML + Object.keys(depts).sort().map(function (d) {
+        return '<option value="' + esc(d) + '">' + esc(d) + '</option>';
+      }).join('');
+      sel.value = cur;
+    });
+  }
+  function cellHtml(c, key, uid) {
+    if (!c) return '';
+    var cls, txt;
+    if (c.perfect) { cls = 'full'; txt = String(c.score || 100); }
+    else if (c.passed) { cls = 'pass'; txt = c.score ? String(c.score) : '✓'; }
+    else if (c.unlocked) { cls = 'exam'; txt = String(c.score); }
+    else { cls = 'idle'; txt = c.read_percent ? c.read_percent + '%' : T.notStarted; }
+    return '<span class="tr-c tr-c-' + cls + '" data-cell="' + esc(key) + '" data-uid="' + uid + '">' + esc(txt) +
+      (c.is_reviewer ? '<sup>' + esc(T.revShort) + '</sup>' : '') + '</span>';
+  }
+  function renderOverview() {
+    var d = state.overview, tbl = $('trMatrix');
+    if (!d) return;
+    var dept = $('trDeptFilter').value, term = $('trNameFilter').value.trim().toLowerCase();
+    var users = d.users.filter(function (u) {
+      return (!dept || u.department === dept) && (!term || u.name.toLowerCase().indexOf(term) >= 0);
+    });
+    if (!d.courses.length) { tbl.innerHTML = '<tbody><tr><td class="tr-empty">' + esc(T.noCourses) + '</td></tr></tbody>'; return; }
+    var head = '<thead><tr><th>' + esc(T.name) + '</th>' + d.courses.map(function (c) {
+      var s = c.summary;
+      return '<th class="tr-ch"><div class="tr-ch-title">' + esc(c.title) + '</div><div class="tr-ch-sum">' +
+        modeChip(c.mode) + '<br>' + esc(fmt(T.sumLine, s.enrolled, s.started, s.passed, s.perfect)) + '</div></th>';
+    }).join('') + '</tr></thead>';
+    var body = users.map(function (u) {
+      var cells = d.cells[String(u.id)] || {};
+      return '<tr><td><div>' + esc(u.name) + '</div><div class="tr-dim" style="font-size:11.5px;">' + esc(u.department) + '</div></td>' +
+        d.courses.map(function (c) { return '<td class="tr-cell">' + cellHtml(cells[c.key], c.key, u.id) + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    if (!users.length) body = '<tr><td class="tr-empty" colspan="' + (d.courses.length + 1) + '">' + esc(T.noPeople) + '</td></tr>';
+    tbl.innerHTML = head + '<tbody>' + body + '</tbody>';
+  }
+  $('trDeptFilter').addEventListener('change', renderOverview);
+  $('trNameFilter').addEventListener('input', renderOverview);
+  $('trMatrix').addEventListener('click', function (e) {
+    var c = e.target.closest('[data-cell]');
+    if (c) openDetail(c.getAttribute('data-cell'), +c.getAttribute('data-uid'));
+  });
+
+  // ── 学员(管理员)──
+  var enrollSel = null, revSel = null;
+  function loadStudents() {
+    var key = state.sel;
+    $('trModeConfirm').hidden = true;
+    state.pendingMode = null;
+    if (enrollSel) enrollSel.clear();
+    $('trEnrollTable').innerHTML = '<tbody><tr><td class="tr-empty">' + esc(T.loading) + '</td></tr></tbody>';
+    req('GET', api(key, '/enrollments')).then(function (j) {
+      if (key !== state.sel) return;
+      if (!j.success) { toastErr(j); return; }
+      setModeRadio(j.data.mode);
+      renderEnrollments(j.data.enrollments);
+    });
+    if (!state.deptOpts.length) loadDepts();
+  }
+  function setModeRadio(m) {
+    document.querySelectorAll('input[name=trMode]').forEach(function (r) { r.checked = r.value === m; });
+  }
+  function renderEnrollments(rows) {
+    state.removing = null;
+    $('trEnrollCount').textContent = fmt(T.enrollCount, rows.length);
+    if (!rows.length) { $('trEnrollTable').innerHTML = '<tbody><tr><td class="tr-empty">' + esc(T.noStudents) + '</td></tr></tbody>'; return; }
+    $('trEnrollTable').innerHTML = '<thead><tr><th>' + esc(T.name) + '</th><th>' + esc(T.dept) + '</th><th>' + esc(T.source) +
+      '</th><th>' + esc(T.addedAt) + '</th><th>' + esc(T.ops) + '</th></tr></thead><tbody>' + rows.map(function (r) {
+        var src = r.source === 'department' ? fmt(T.srcDept, r.source_detail) : T.srcUser;
+        return '<tr data-uid="' + r.id + '"><td>' + esc(r.name) + '</td><td>' + esc(r.department) + '</td><td>' + esc(src) +
+          '</td><td class="tr-mono">' + esc(dt(r.added_at)) + '</td><td class="tr-ops">' + removeBtn(r.id) + '</td></tr>';
+      }).join('') + '</tbody>';
+  }
+  function removeBtn(uid) {
+    return '<button type="button" class="tr-btn tr-btn-sm tr-btn-danger" data-rm="' + uid + '">' + esc(T.remove) + '</button>';
+  }
+  // 行内二次确认:移除 → 「确认移除？ 是 / 否」
+  $('trEnrollTable').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    var td = b.closest('td');
+    if (b.hasAttribute('data-rm')) {
+      td.innerHTML = '<span class="tr-dim" style="margin-right:6px;">' + esc(T.removeQ) + '</span>' +
+        '<button type="button" class="tr-btn tr-btn-sm tr-btn-danger" data-rm-yes="' + b.getAttribute('data-rm') + '">' + esc(T.yes) + '</button> ' +
+        '<button type="button" class="tr-btn tr-btn-sm" data-rm-no="' + b.getAttribute('data-rm') + '">' + esc(T.no) + '</button>';
+    } else if (b.hasAttribute('data-rm-no')) {
+      td.innerHTML = removeBtn(b.getAttribute('data-rm-no'));
+    } else if (b.hasAttribute('data-rm-yes')) {
+      b.disabled = true;
+      req('DELETE', api(state.sel, '/enrollments/' + b.getAttribute('data-rm-yes'))).then(function (j) {
+        if (!j.success) { toastErr(j); b.disabled = false; return; }
+        window.ATToast && ATToast.success(T.removed);
+        afterEnrollChange();
+      });
+    }
+  });
+  function afterEnrollChange() {
+    loadStudents();
+    state.overview = null;
+    loadCourses();
+  }
+
+  document.querySelectorAll('input[name=trMode]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      var c = course(state.sel);
+      if (r.value === 'restricted' && c.mode !== 'restricted') {
+        state.pendingMode = 'restricted';
+        $('trModeConfirm').hidden = false;          // 页面内确认条,不用 window.confirm
+      } else if (r.value === 'open' && c.mode !== 'open') {
+        saveMode('open');
+      }
+    });
+  });
+  if ($('trModeNo')) {
+    $('trModeNo').onclick = function () {
+      $('trModeConfirm').hidden = true;
+      state.pendingMode = null;
+      setModeRadio(course(state.sel).mode);
+    };
+    $('trModeYes').onclick = function () { $('trModeConfirm').hidden = true; saveMode('restricted'); };
+  }
+  function saveMode(m) {
+    var key = state.sel;
+    req('POST', api(key, '/access'), {mode: m}).then(function (j) {
+      if (!j.success) { toastErr(j); setModeRadio(course(key).mode); return; }
+      course(key).mode = j.data.mode;
+      state.overview = null;
+      renderSide();
+      $('trCMeta').innerHTML = '<span class="tr-chip">' + esc(T.media[course(key).media_type]) + '</span>' + modeChip(j.data.mode);
+      window.ATToast && ATToast.success(T.modeSaved);
+    });
+  }
+
+  $('trEnrollBtn') && ($('trEnrollBtn').onclick = function () {
+    var ids = enrollSel ? enrollSel.getValue() : [];
+    if (!ids.length) { window.ATToast && ATToast.info(T.noneSel); return; }
+    var btn = this;
+    btn.disabled = true;
+    req('POST', api(state.sel, '/enrollments'), {user_ids: ids}).then(function (j) {
+      btn.disabled = false;
+      if (!j.success) { toastErr(j); return; }
+      window.ATToast && ATToast.success(fmt(T.added, j.data.added));
+      afterEnrollChange();
+    });
+  });
+
+  function loadDepts() {
+    req('GET', '/api/learning/departments').then(function (j) {
+      if (!j.success) return;
+      state.deptOpts = j.data.departments;
+      // 本公司部门在前;其他公司的部门带公司名前缀(同名部门可能跨公司,如经销商「销售部」)
+      var opts = state.deptOpts.map(function (d, i) { return {d: d, i: i, mine: d.company_name === MY_COMPANY}; });
+      opts.sort(function (a, b) { return (b.mine - a.mine) || a.i - b.i; });
+      $('trDeptSel').innerHTML = $('trDeptSel').options[0].outerHTML + opts.map(function (o) {
+        var label = (o.mine || !o.d.company_name ? '' : o.d.company_name + ' · ') + o.d.department;
+        return '<option value="' + o.i + '">' + esc(fmt(T.deptOpt, label, o.d.count)) + '</option>';
+      }).join('');
+    });
+  }
+  $('trDeptSel') && $('trDeptSel').addEventListener('change', function () {
+    $('trDeptBtn').disabled = this.value === '';
+    $('trDeptConfirm').hidden = true;
+  });
+  $('trDeptBtn') && ($('trDeptBtn').onclick = function () {
+    var d = state.deptOpts[+$('trDeptSel').value];
+    if (!d) return;
+    state.pendingDept = d;
+    $('trDeptConfirmText').textContent = fmt(T.deptConfirm, d.department, d.count);
+    $('trDeptConfirm').hidden = false;
+  });
+  $('trDeptNo') && ($('trDeptNo').onclick = function () { $('trDeptConfirm').hidden = true; state.pendingDept = null; });
+  $('trDeptYes') && ($('trDeptYes').onclick = function () {
+    var d = state.pendingDept;
+    if (!d) return;
+    $('trDeptConfirm').hidden = true;
+    req('POST', api(state.sel, '/enrollments'), {department: d.department, company_name: d.company_name}).then(function (j) {
+      if (!j.success) { toastErr(j); return; }
+      window.ATToast && ATToast.success(fmt(T.added, j.data.added));
+      afterEnrollChange();
+    });
+  });
+
+  // ── 审核人(管理员)──
+  function loadReviewers() {
+    var key = state.sel, c = course(key);
+    $('trRevBankWrap').hidden = !(c.bank && c.bank.bank_url);
+    $('trRevNoBank').hidden = !!c.bank;
+    if (c.bank && c.bank.bank_url) $('trRevBank').href = c.bank.bank_url;
+    if (revSel) revSel.clear();
+    req('GET', api(key, '/reviewers')).then(function (j) {
+      if (key !== state.sel) return;
+      if (!j.success) { toastErr(j); return; }
+      revSel && revSel.setValue(j.data.reviewers.map(function (u) { return u.id; }));
+    });
+  }
+  $('trRevSave') && ($('trRevSave').onclick = function () {
+    var btn = this, key = state.sel;
+    btn.disabled = true;
+    req('PUT', api(key, '/reviewers'), {user_ids: revSel ? revSel.getValue() : []}).then(function (j) {
+      btn.disabled = false;
+      if (!j.success) { toastErr(j); return; }
+      revSel.setValue(j.data.reviewers.map(function (u) { return u.id; }));
+      var c = course(key);
+      if (c) c.reviewers = j.data.reviewers;
+      state.overview = null;
+      window.ATToast && ATToast.success(fmt(T.revSaved, j.data.added.length, j.data.removed.length));
+    });
+  });
+
+  // ── 成绩 ──
+  function loadScores() {
+    var key = state.sel;
+    $('trScoreTable').innerHTML = '<tbody><tr><td class="tr-empty">' + esc(T.loading) + '</td></tr></tbody>';
+    req('GET', api(key, '/report')).then(function (j) {
+      if (key !== state.sel) return;
+      if (!j.success) { toastErr(j); return; }
+      state.report = j.data;
+      renderScores();
+    });
+  }
+  function scoreBar(r) {
+    var cls = r.perfect ? 'full' : (r.passed ? 'ok' : '');
+    return '<span class="tr-bar"><i class="' + cls + '" style="width:' + Math.min(100, r.score || 0) + '%"></i><b></b></span> ' +
+      '<span class="tr-mono">' + (r.score || 0) + '</span>';
+  }
+  function renderScores() {
+    var rows = (state.report && state.report.rows || []).slice();
+    var by = $('trScoreSort').value;
+    rows.sort(by === 'activity'
+      ? function (a, b) { return String(b.last_activity || '').localeCompare(String(a.last_activity || '')); }
+      : function (a, b) { return (b.score - a.score) || (b.read_percent - a.read_percent); });
+    $('trScoreCount').textContent = fmt(T.scoreCount, rows.length);
+    if (!rows.length) { $('trScoreTable').innerHTML = '<tbody><tr><td class="tr-empty">' + esc(T.noScores) + '</td></tr></tbody>'; return; }
+    $('trScoreTable').innerHTML = '<thead><tr>' + [T.name, T.dept, T.enrolled, T.read, T.unlocked, T.score, T.passedAt, T.perfectAt,
+      T.lastAct, T.answers].map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      rows.map(function (r) {
+        var acc = r.attempts ? Math.round(r.correct * 100 / r.attempts) + '%' : '—';
+        return '<tr class="tr-click" data-uid="' + r.user.id + '"><td>' + esc(r.user.name) + revBadge(r.is_reviewer) + '</td>' +
+          '<td>' + esc(r.user.department) + '</td><td>' + esc(r.enrolled ? T.yesMark : T.noMark) + '</td>' +
+          '<td class="tr-mono">' + r.read_percent + '%</td><td>' + esc(r.unlocked ? T.yesMark : T.noMark) + '</td>' +
+          '<td>' + scoreBar(r) + '</td><td class="tr-mono">' + esc(dt(r.passed_at)) + '</td><td class="tr-mono">' + esc(dt(r.perfect_at)) +
+          '</td><td class="tr-mono">' + esc(dt(r.last_activity)) + '</td><td class="tr-mono">' + r.attempts + ' / ' + acc + '</td></tr>';
+      }).join('') + '</tbody>';
+  }
+  $('trScoreSort').addEventListener('change', renderScores);
+  $('trScoreTable').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr[data-uid]');
+    if (tr) openDetail(state.sel, +tr.getAttribute('data-uid'));
+  });
+
+  // ── 明细抽屉 ──
+  function closeDetail() { $('trDrawer').hidden = true; $('trDrawerMask').hidden = true; }
+  $('trDClose').onclick = closeDetail;
+  $('trDrawerMask').onclick = closeDetail;
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('trDrawer').hidden) closeDetail(); });
+  function human(s) { return s >= 60 ? Math.round(s / 6) / 10 + ' ' + T.minute : s + ' ' + T.sec; }
+  function openDetail(key, uid) {
+    $('trDrawer').hidden = false;
+    $('trDrawerMask').hidden = false;
+    $('trDTitle').textContent = '';
+    $('trDSub').textContent = '';
+    $('trDBody').innerHTML = '<div class="tr-empty">' + esc(T.loading) + '</div>';
+    req('GET', api(key, '/report/' + uid)).then(function (j) {
+      if (!j.success) { $('trDBody').innerHTML = '<div class="tr-empty">' + esc(j.message || T.failed) + '</div>'; return; }
+      var d = j.data, h = '';
+      $('trDTitle').textContent = d.user.name;
+      $('trDSub').textContent = (d.user.department ? d.user.department + ' · ' : '') + d.course.title;
+      if (d.read) {
+        var maxSec = Math.max.apply(null, [1].concat(d.read.pages.map(function (p) { return p.seconds; })));
+        h += '<div class="tr-label">' + esc(T.dReading) + '</div><div class="tr-kv">' +
+          '<div><small>' + esc(T.dPercent) + '</small><strong>' + d.read.percent + '%</strong></div>' +
+          '<div><small>' + esc(T.dEff) + '</small><strong>' + esc(human(d.read.effective_seconds)) + '</strong></div>' +
+          '<div><small>' + esc(T.dReq) + '</small><strong>' + esc(human(d.read.required_seconds)) + '</strong></div></div>';
+        h += '<div class="tr-label" style="margin-top:16px;">' + esc(T.dPages) + '</div>' + d.read.pages.map(function (p) {
+          return '<div class="tr-pg"><span class="tr-mono tr-dim">' + p.page + '</span><span class="lbl" title="' + esc(p.label) + '">' +
+            esc(p.label) + '</span><span class="bar"><i style="width:' + Math.round(p.seconds * 100 / maxSec) + '%"></i></span>' +
+            '<span class="tr-mono">' + p.seconds + '</span></div>';
+        }).join('');
+        var acc = d.exam.attempts ? Math.round(d.exam.correct * 100 / d.exam.attempts) + '%' : '—';
+        h += '<div class="tr-label" style="margin-top:18px;">' + esc(T.dExam) + '</div><div class="tr-kv">' +
+          '<div><small>' + esc(T.score) + '</small><strong>' + d.exam.score + '</strong></div>' +
+          '<div><small>' + esc(T.dAttempts) + '</small><strong>' + d.exam.attempts + '</strong></div>' +
+          '<div><small>' + esc(T.dAcc) + '</small><strong>' + acc + '</strong></div></div>';
+        h += '<div class="tr-label" style="margin-top:18px;">' + esc(T.dWrong) + '</div>' + (d.repeated_wrong.length
+          ? d.repeated_wrong.map(function (w) {
+              return '<div class="tr-wrong"><span>' + esc(w.question) + '</span><b>' + esc(fmt(T.wrongN, w.wrong)) + '</b></div>';
+            }).join('')
+          : '<div class="tr-dim" style="font-size:13px;">' + esc(T.dNoWrong) + '</div>');
+      } else if (d.watch) {
+        h += '<div class="tr-kv"><div><small>' + esc(T.dWatch) + '</small><strong>' + Math.round((d.watch.max_progress || 0) * 100) +
+          '%</strong></div><div><small>' + esc(T.dDone) + '</small><strong>' + esc(d.watch.completed ? T.yesMark : T.noMark) +
+          '</strong></div></div>';
+      } else {
+        h += '<div class="tr-empty">' + esc(T.dNoProgress) + '</div>';
+      }
+      $('trDBody').innerHTML = h;
+    });
+  }
+
+  // ── 启动 ──
+  if (MODE === 'full' && window.AtPeopleSelect) {
+    enrollSel = AtPeopleSelect.init('trEnrollSel', {usersUrl: '/api/learning/users', excludeSelf: false});
+    revSel = AtPeopleSelect.init('trRevSel', {usersUrl: '/api/learning/users', excludeSelf: false});
+  }
+  loadCourses().then(function () { select(''); });
+})();
+</script>
+</body>
+</html>

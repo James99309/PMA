@@ -202,8 +202,26 @@ def _inject_course_buddy():
                 memo[1][key] = False
         return memo[1][key]
 
+    def cb_can_view_training():
+        # 培训管理入口(侧栏 / 知识库):管理员不查库;其余人同请求只查一次「是否有直属下属」
+        if not current_user.is_authenticated:
+            return False
+        if S.can_manage_bank(current_user):
+            return True
+        cached = getattr(g, '_cb_training', None)
+        if cached is None or cached[0] != current_user.id:
+            try:
+                with db.session.begin_nested():
+                    val = A.has_subordinates(current_user.id)
+            except Exception:
+                logger.warning('培训管理入口判断失败', exc_info=True)
+                val = False
+            cached = (current_user.id, bool(val))
+            g._cb_training = cached
+        return cached[1]
+
     return {'cb_buddy_enabled': cb_buddy_enabled, 'cb_can_manage_bank': cb_can_manage_bank,
-            'cb_can_review_bank': cb_can_review_bank}
+            'cb_can_review_bank': cb_can_review_bank, 'cb_can_view_training': cb_can_view_training}
 
 
 @learning_bp.route('/api/learning/csrf')
@@ -680,6 +698,18 @@ def _managed_course(key):
     return ck, None
 
 
+@learning_bp.route('/wiki/training')
+@login_required
+def training_page():
+    """培训管理页:管理员看完整页(课程设置 / 学员 / 审核人 / 成绩);
+    有直属下属的人只看成绩(仅下属);其他人 403。"""
+    mode = A.training_page_mode(current_user)
+    if mode is None:
+        abort(403)
+    return render_template('knowledge/at_training.html', page_mode=mode,
+                           my_company=current_user.company_name or '')
+
+
 @learning_bp.route('/api/learning/admin/courses')
 @login_required
 def admin_courses():
@@ -770,8 +800,10 @@ def users():
     if denied:
         return denied
     company = None if request.args.get('all') == '1' else (current_user.company_name or None)
-    return jsonify({'success': True, 'data': {'users': A.active_users(company),
-                                              'my_company': current_user.company_name or ''}})
+    users = A.active_users(company)
+    # 顶层 users 为兼容 components/at_people_select(它读 d.users)
+    return jsonify({'success': True, 'users': users,
+                    'data': {'users': users, 'my_company': current_user.company_name or ''}})
 
 
 @learning_bp.route('/api/learning/<key>/reviewers')
