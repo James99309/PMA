@@ -50,8 +50,9 @@ flask_app.run(host='127.0.0.1', port=int(sys.argv[1]), use_reloader=False, threa
 '''
 
 
-def start_server(port, log_path, probe_course_key):
-    """后台起一个本机 pma_local 实例(PORT 派生独立 cookie 名);返回 Popen,须配 stop_server。"""
+def start_server(port, log_path, probe_course_key, assets_dir=None):
+    """后台起一个本机 pma_local 实例(PORT 派生独立 cookie 名);返回 Popen,须配 stop_server。
+    assets_dir:课件目录(默认借主仓 course_assets;临时课程用 make_temp_course 建的目录)。"""
     import subprocess
     import time
     import urllib.request
@@ -60,7 +61,7 @@ def start_server(port, log_path, probe_course_key):
                 'DATABASE_URL': 'postgresql://nijie@localhost:5432/pma_local',
                 'PMA_DB_TYPE': 'sp8d', 'FORCE_LOCAL_STORAGE': 'true'})
     log = open(log_path, 'w')
-    proc = subprocess.Popen([sys.executable, '-c', _SERVER_CODE, str(port), MAIN_ASSETS, probe_course_key],
+    proc = subprocess.Popen([sys.executable, '-c', _SERVER_CODE, str(port), assets_dir or MAIN_ASSETS, probe_course_key],
                             cwd=get_project_root(), env=env, stdout=log, stderr=subprocess.STDOUT,
                             start_new_session=True)
     deadline = time.time() + 120
@@ -196,3 +197,54 @@ def delete_seed_imports(app, keys):
         CourseQuizQuestion.query.filter(CourseQuizQuestion.course_key.in_(keys)).delete(synchronize_session=False)
         db.session.commit()
         return not CourseQuizQuestion.query.filter(CourseQuizQuestion.course_key.in_(keys)).count()
+
+
+# ───────────── 临时课程:不碰真实课程的题库 / 设置 ─────────────
+# 题库类测试原先直接用真实课程 smart-task-intercom,一旦该课有真实题库(用户审过的)就断言失真。
+# 改为建一门 ZZ 临时课程:课件经临时目录软链借用主仓同一份 HTML(页数 / 页名不变),
+# 临时目录里同时软链主仓全部课件,其他真实课程照常可用。
+
+def make_temp_course(app, key, title, src_key='smart-task-intercom'):
+    """建临时课程目录 + interactive_courses 行;返回临时目录路径(配 drop_temp_course)。"""
+    import tempfile
+    from app import db
+    from app.models.course import InteractiveCourse
+    d = tempfile.mkdtemp(prefix='zz-course-assets-')
+    for name in os.listdir(MAIN_ASSETS) if os.path.isdir(MAIN_ASSETS) else []:
+        os.symlink(os.path.join(MAIN_ASSETS, name), os.path.join(d, name))
+    src = os.path.join(MAIN_ASSETS, src_key + '.html')
+    if not os.path.isfile(src):
+        raise RuntimeError('主仓课件不存在: ' + src)
+    os.symlink(src, os.path.join(d, key + '.html'))
+    if os.path.isdir(os.path.join(MAIN_ASSETS, src_key + '.thumbs')):
+        os.symlink(os.path.join(MAIN_ASSETS, src_key + '.thumbs'), os.path.join(d, key + '.thumbs'))
+    with app.app_context():
+        import app.views.knowledge_wiki as KW
+        n = len(KW._parse_course_pages(src))
+        InteractiveCourse.query.filter_by(key=key).delete()
+        db.session.add(InteractiveCourse(key=key, title=title, media_type='html', page_count=n,
+                                         has_thumbs=os.path.isdir(os.path.join(d, key + '.thumbs')), cover_page=1))
+        db.session.commit()
+    return d
+
+
+def drop_temp_course(app, key, assets_dir):
+    """删临时课程行及其在培训 / 考核表里的所有行,删临时目录。返回是否干净。"""
+    import shutil
+    from app import db
+    from sqlalchemy import text
+    with app.app_context():
+        for sql in ("DELETE FROM course_quiz_questions WHERE course_key=:k",
+                    "DELETE FROM course_learning_progress WHERE course_key=:k",
+                    "DELETE FROM course_exam_settings WHERE course_key=:k",
+                    "DELETE FROM course_access WHERE course_key=:k",
+                    "DELETE FROM course_enrollments WHERE course_key=:k",
+                    "DELETE FROM course_reviewers WHERE course_key=:k",
+                    "DELETE FROM training_quiz_attempt WHERE course_slug=:k",
+                    "DELETE FROM interactive_courses WHERE key=:k"):
+            db.session.execute(text(sql), {'k': key})
+        db.session.commit()
+        left = db.session.execute(text("SELECT count(*) FROM interactive_courses WHERE key=:k"), {'k': key}).scalar()
+    if assets_dir:
+        shutil.rmtree(assets_dir, ignore_errors=True)
+    return not left

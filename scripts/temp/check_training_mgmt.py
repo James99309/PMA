@@ -413,6 +413,19 @@ with app.app_context():
         mine = C['zztm_out'].get('/api/learning/my').get_json()['data']['courses']
         check(not any(x['key'] in KEYS for x in mine), '未拉入者我的培训不含受限课')
 
+        # ---------- 培训管理页门禁(批次 B)----------
+        r = mc.get('/wiki/training')
+        check(r.status_code == 200 and 'data-mode="full"' in r.get_data(as_text=True), '培训管理页:管理员 full')
+        r = C['zztm_sup'].get('/wiki/training')
+        h = r.get_data(as_text=True)
+        check(r.status_code == 200 and 'data-mode="scores"' in h and 'data-tab="students"' not in h, '培训管理页:有下属的人只看成绩')
+        check(C['zztm_out'].get('/wiki/training').status_code == 403, '培训管理页:普通人 403')
+        check(A.training_page_mode(U['zztm_rev']) is None, '审核人身份本身不给培训管理页')
+        j = mc.get('/api/learning/users').get_json()
+        check(isinstance(j.get('users'), list) and j['users'] == j['data']['users'], '/api/learning/users 顶层 users 兼容 at_people_select')
+        check('/wiki/training' in C['zztm_sup'].get('/wiki/at').get_data(as_text=True)
+              and '/wiki/training' not in C['zztm_out'].get('/wiki/at').get_data(as_text=True), '入口:上级可见、普通人不可见')
+
         # ---------- 切回 open ----------
         r = mc.post(base + '/access', json={'mode': 'open'})
         db.session.expire_all()

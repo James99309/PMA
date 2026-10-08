@@ -10,7 +10,8 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _report_flow_testkit import make_app, get_project_root
 
-KEY = 'smart-task-intercom'
+# ZZ 临时课程(课件软链借用 smart-task-intercom),不受真实课程已有题库影响
+KEY = 'zz-bank-api-course'
 PREFIX = 'ZZBANK-'
 
 app = make_app()
@@ -37,10 +38,11 @@ with app.app_context():
     from app.services.course_exam import generator, logic as L
     import app.views.knowledge_wiki as KW
 
-    if not os.path.isfile(KW._course_html_path(KEY)):
-        main_assets = os.path.normpath(os.path.join(get_project_root(), '..', '..', 'app', 'course_assets'))
-        KW.COURSE_ASSETS_DIR = main_assets
-        print('INFO 课件目录改指主仓:', main_assets)
+    sys.path.insert(0, os.path.join(get_project_root(), 'tests'))
+    from _pma_testkit import make_temp_course, drop_temp_course
+    ASSETS = make_temp_course(app, KEY, 'ZZ 题库 API 课程')
+    KW.COURSE_ASSETS_DIR = ASSETS                      # 临时目录:本课 + 主仓全部课件软链
+    print('INFO 临时课程课件目录:', ASSETS)
     course, path = KW._find_course(KEY)
     assert course, '测试课程不存在'
     PAGES = KW._get_course_pages(KEY, path)
@@ -363,6 +365,7 @@ with app.app_context():
         left += TrainingQuizAttempt.query.filter(TrainingQuizAttempt.course_slug == KEY,
                                                  TrainingQuizAttempt.question_id.in_(qids or ['-'])).count()
         print('清理完成,残留行数:', left)
+        check(drop_temp_course(app, KEY, ASSETS), '清理:临时课程已删除')
 
     print('\n' + ('全部通过' if not fails else f'{len(fails)} 项失败:\n  - ' + '\n  - '.join(fails)))
     sys.exit(1 if fails else 0)

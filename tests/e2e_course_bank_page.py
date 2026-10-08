@@ -16,7 +16,8 @@
   export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
   ../../venv/bin/python tests/e2e_course_bank_page.py [--port 5094] [--shots DIR]
 
-自清理:临时账号 zz_bank_e2e_hr / zz_bank_e2e_s 及关联行、ZZE2B- 临时题全部硬删;该课 course_exam_settings 还原。
+自清理:临时账号 zz_bank_e2e_hr / zz_bank_e2e_s 及关联行、ZZE2B- 临时题全部硬删;
+临时课程 zz-bank-e2e-course 及其题库 / 设置 / 课件临时目录全部删除(不碰任何真实课程)。
 """
 import argparse
 import os
@@ -38,11 +39,12 @@ ROOT = get_project_root()
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
 from _pma_testkit import (make_app, start_server, stop_server, create_temp_user,  # noqa: E402
                           delete_temp_user, add_temp_bank, delete_temp_bank,
-                          empty_seed_keys, delete_seed_imports)
+                          empty_seed_keys, delete_seed_imports, make_temp_course, drop_temp_course)
 
 HR_USER, SALES_USER = 'zz_bank_e2e_hr', 'zz_bank_e2e_s'
 PASSWORD = 'BankE2e-Page-2026!'
-KEY = 'smart-task-intercom'
+# 用 ZZ 临时课程(课件软链借用 smart-task-intercom),不受真实课程已有题库影响
+KEY = 'zz-bank-e2e-course'
 QPREFIX = 'ZZE2B-'
 
 ap = argparse.ArgumentParser()
@@ -360,13 +362,15 @@ def cleanup():
 
 proc = None
 SEED_KEYS = []
+ASSETS = None
 try:
     cleanup()
+    ASSETS = make_temp_course(app, KEY, 'ZZ 题库 E2E 课程')
     create_temp_user(app, HR_USER, PASSWORD, role='hr_manager')
     create_temp_user(app, SALES_USER, PASSWORD, role='sales_manager')
     seed()
     SEED_KEYS = empty_seed_keys(app)          # 本次可能被自动导入种子题库的课,结束时删掉
-    proc = start_server(args.port, os.path.join(args.shots, 'server.log'), KEY)
+    proc = start_server(args.port, os.path.join(args.shots, 'server.log'), KEY, assets_dir=ASSETS)
     print('INFO 服务已启动', BASE)
     run_browser()
 finally:
@@ -374,5 +378,6 @@ finally:
     check(delete_seed_imports(app, SEED_KEYS), f'清理:自动导入的种子题已硬删({SEED_KEYS})')
     check(restore_setting(), '清理:course_exam_settings 已还原')
     check(cleanup(), '清理:临时账号与 ZZE2B 题已硬删')
+    check(drop_temp_course(app, KEY, ASSETS), '清理:临时课程已删除')
     print('\n' + ('全部通过' if not fails else f'{len(fails)} 项失败:\n  - ' + '\n  - '.join(fails)))
 sys.exit(1 if fails else 0)
