@@ -123,8 +123,10 @@
         {% if page_labels %}
         <button type="button" class="bk-btn" id="bkApproveAll" onclick="bkApproveAll()" disabled>
           <span class="material-symbols-outlined">done_all</span><span id="bkApproveAllText">{{ _('全部通过待审') }}</span></button>
+        {% if can_manage %}{# 整套生成仅管理员;审核人不显示 #}
         <button type="button" class="bk-btn bk-btn-primary" id="bkGenBtn" onclick="bkOpenGenerate()">
           <span class="material-symbols-outlined">auto_awesome</span>{{ _('生成题库') }}</button>
+        {% endif %}
         {% endif %}
       </div>
     </div>
@@ -144,8 +146,9 @@
       <div class="bk-card" id="bkReadCard">
         <div class="bk-card-label">{{ _('达标阅读时长(秒)') }}</div>
         <div class="bk-read">
-          <input class="bk-input" id="bkReadInput" type="number" min="0" style="width:96px;">
-          <button type="button" class="bk-btn bk-btn-sm" id="bkReadSave">{{ _('保存') }}</button>
+          {# 阅读时长设置仅管理员可改;审核人只读(保留元素,JS 照常渲染数值) #}
+          <input class="bk-input" id="bkReadInput" type="number" min="0" style="width:96px;"{% if not can_manage %} disabled{% endif %}>
+          <button type="button" class="bk-btn bk-btn-sm" id="bkReadSave"{% if not can_manage %} hidden{% endif %}>{{ _('保存') }}</button>
         </div>
         <div class="bk-card-sub" id="bkReadSub"></div>
       </div>

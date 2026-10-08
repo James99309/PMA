@@ -532,9 +532,10 @@
               </div>
             </a>
             {% set _owner_ops = is_admin and c.owner_id == current_user_id %}
-            {% if _owner_ops or can_manage_bank %}
+            {% set _bank_ops = can_manage_bank or (reviewable_keys is defined and c.key in reviewable_keys) %}
+            {% if _owner_ops or _bank_ops %}
             <div class="kb-card-ops">
-              {% if can_manage_bank %}
+              {% if _bank_ops %}
               <a class="kb-bank-link" title="{{ _('题库管理') }}" data-bank-link="{{ c.key }}"
                  href="{{ url_for('learning.bank_page', key=c.key) }}" target="_blank" rel="noopener">
                 <span class="material-symbols-outlined">quiz</span></a>

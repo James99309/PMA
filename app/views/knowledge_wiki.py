@@ -205,6 +205,12 @@ def _course_html_path(safe_key):
     return os.path.join(COURSE_ASSETS_DIR, safe_key + '.html')
 
 
+def _can_view_course(course_key):
+    """受限课程(培训管理指定学员)未授权 → 视同不存在。公开 /wiki/pub/ 路由不调用。"""
+    from app.services.course_exam.access import can_view_course
+    return can_view_course(current_user, course_key)
+
+
 def _find_course(course_key):
     """按 key 读 DB 课程 + 校验课件文件存在;返回 (course_dict, abs_path) 或 (None, None)。"""
     safe_key = secure_filename(course_key)
@@ -225,18 +231,28 @@ def _find_course(course_key):
 def at_wiki_page():
     """AT 版知识库 —— 文章库(复用 wikiApp)+ 互动课程。"""
     from app.services.course_exam.service import can_manage_bank
+    from app.services.course_exam.access import visible_course_keys, reviewing_keys
     ensure_wiki_structure()
     grouped = _list_courses_grouped()
+    courses = _list_courses()
+    # 受限课程只对管理员 / 审核人 / 已拉入学员列出(批量 3 次查询,不随课程数增长)
+    visible = set(visible_course_keys(current_user, [c['key'] for c in courses]))
+    courses = [c for c in courses if c['key'] in visible]
+    for grp in grouped:
+        grouped[grp] = [c for c in grouped[grp] if c['key'] in visible]
+    manager = can_manage_bank(current_user)
     return render_template(
         'knowledge/at_wiki.html',
-        courses=_list_courses(),
+        courses=courses,
         courses_video=grouped['video'],
         courses_html=grouped['html'],
         courses_ppt=grouped['ppt'],
         is_admin=_is_admin(),
         is_dept_manager=getattr(current_user, 'is_department_manager', False),
         current_user_id=current_user.id,
-        can_manage_bank=can_manage_bank(current_user),
+        can_manage_bank=manager,
+        # 题库审核人:卡片上按课显示「题库管理」入口(管理员看全部,不查库)
+        reviewable_keys=set() if manager else reviewing_keys(current_user),
     )
 
 
@@ -245,7 +261,7 @@ def at_wiki_page():
 def play_course(course_key):
     """课程播放页 —— PMA 外壳(返回 + 逐页同步备注)+ 内嵌课件 iframe。"""
     course, path = _find_course(course_key)
-    if not course:
+    if not course or not _can_view_course(course['key']):
         abort(404)
     pages = _get_course_pages(course['key'], path)
     # 多文件包:iframe 指向包内 index.html(相对资源经 /pkg/ 伺服);单文件走 /asset
@@ -261,7 +277,7 @@ def play_course(course_key):
 def play_video(course_key):
     """视频课程播放页 —— HTML5 <video> + 章节列表 + 看完记录。"""
     row = _find_media_course(course_key, 'video')
-    if not row:
+    if not row or not _can_view_course(row.key):
         abort(404)
     from app.models.video_watch import VideoWatchState
     st = VideoWatchState.query.filter_by(user_id=current_user.id, course_key=row.key).first()
@@ -274,7 +290,7 @@ def play_video(course_key):
 def course_asset(course_key):
     """把自包含课件 HTML 作为 iframe 源整页下发(登录用户可见)。"""
     course, path = _find_course(course_key)
-    if not course:
+    if not course or not _can_view_course(course['key']):
         abort(404)
     return send_file(path, mimetype='text/html')
 
@@ -322,7 +338,7 @@ def course_video(course_key):
     浏览器 <video> 拖动进度会发 Range 请求,只拉需要那段;服务器同时只持 512KB。
     """
     row = _find_media_course(course_key, 'video')
-    if not row:
+    if not row or not _can_view_course(row.key):
         abort(404)
 
     from app.utils.synology_webdav_client import get_synology_webdav_client
@@ -369,7 +385,7 @@ def course_video(course_key):
 def video_progress(course_key):
     """上报视频观看进度:记续播位置 + 看过最大进度,>=90% 标完成。"""
     row = _find_media_course(course_key, 'video')
-    if not row:
+    if not row or not _can_view_course(row.key):
         return jsonify({'success': False}), 404
     data = request.get_json(silent=True) or {}
     try:
@@ -400,7 +416,7 @@ def video_progress(course_key):
 def course_download(course_key):
     """PPT/PDF 下载 —— 从 NAS WebDAV 流式下发,强制另存。"""
     row = _find_media_course(course_key, 'ppt')
-    if not row:
+    if not row or not _can_view_course(row.key):
         abort(404)
     from app.utils.synology_webdav_client import get_synology_webdav_client
     client = get_synology_webdav_client()
@@ -433,7 +449,7 @@ def course_pkg(course_key, rel):
     仅登录可见;safe_join 防目录穿越;mp4 由 send_file 支持 Range(可拖动进度)。
     """
     safe = secure_filename(course_key)
-    if not safe:
+    if not safe or not _can_view_course(safe):
         abort(404)
     base = os.path.join(COURSE_ASSETS_DIR, safe)
     if not os.path.isdir(base):
@@ -449,7 +465,7 @@ def course_pkg(course_key, rel):
 def course_thumb(course_key, page):
     """逐页缩略图(用于问答答案卡片预览;默认第1页可当封面)。"""
     safe = secure_filename(course_key)
-    if not safe:
+    if not safe or not _can_view_course(safe):
         abort(404)
     path = os.path.join(COURSE_ASSETS_DIR, safe + '.thumbs', f'{page}.png')
     if not os.path.isfile(path):
@@ -722,7 +738,7 @@ def course_cover(course_key):
     """课程自定义封面图 —— 从 NAS WebDAV 流式下发。"""
     safe = secure_filename(course_key)
     row = InteractiveCourse.query.filter_by(key=safe).first()
-    if not row or not row.cover_url:
+    if not row or not row.cover_url or not _can_view_course(row.key):
         abort(404)
     from app.utils.synology_webdav_client import get_synology_webdav_client
     client = get_synology_webdav_client()
@@ -2030,6 +2046,8 @@ def query_endpoint():
     course_key = (data.get('course_key') or '').strip() if isinstance(data.get('course_key'), str) else ''
     if course_key:
         scope_course, scope_path = _find_course(course_key)
+        if scope_course and not _can_view_course(scope_course['key']):
+            scope_course, scope_path = None, None     # 受限课未授权:按全库处理,不按其 topic 收窄
         if scope_course and not topic:
             topic = scope_course.get('topic') or None
 
@@ -2059,12 +2077,16 @@ def query_endpoint():
                     'thumb_url': url_for('knowledge_wiki.course_thumb', course_key=key, page=pg),
                     'play_url': url_for('knowledge_wiki.play_course', course_key=key) + '#' + str(pg),
                 })
-        for ca in ([] if scope_course else (result.get('cited_articles') or [])):
+        cited = [] if scope_course else (result.get('cited_articles') or [])
+        cited_keys = [(ca.get('slug') or '')[:-5] for ca in cited if (ca.get('slug') or '').endswith('-deck')]
+        from app.services.course_exam.access import visible_course_keys
+        visible = set(visible_course_keys(current_user, cited_keys)) if cited_keys else set()
+        for ca in cited:
             slug = ca.get('slug') or ''
             if not slug.endswith('-deck'):
                 continue
             key = slug[:-5]
-            if key in seen:
+            if key in seen or key not in visible:     # 受限课未授权:不出缩略图
                 continue
             course, path = _find_course(key)
             if not course:

@@ -25,6 +25,7 @@ from app.models.course import InteractiveCourse
 from app.models.course_exam import CourseQuizQuestion, CourseLearningProgress, CourseExamSetting
 from app.services.course_exam import service as S
 from app.services.course_exam import logic as L
+from app.services.course_exam import access as A
 
 learning_bp = Blueprint('learning', __name__)
 logger = logging.getLogger(__name__)
@@ -81,6 +82,12 @@ def _error_message(code):
         return _('题库准备中，暂不能考核')
     if code == 'no_pages':
         return _('该课程没有逐页讲解，无法出题')
+    if code == 'manager_only':
+        return _('仅管理员可操作')
+    if code == 'report_forbidden':
+        return _('无权查看成绩')
+    if code == 'course_not_found':
+        return _('课程不存在')
     return _('操作失败')
 
 
@@ -101,13 +108,22 @@ def _json_obj():
 
 
 def _course_or_404(key):
-    """只支持 HTML 课件。返回 (course_key, pages);pages 可能为 [](暂不支持考核)。"""
+    """只支持 HTML 课件。返回 (course_key, pages);pages 可能为 [](暂不支持考核)。
+    不判可见性:学员路由用 _visible_course_or_404,题库路由用 _bank_access。"""
     # 延迟导入,避免 knowledge_wiki ↔ learning 循环依赖
     from app.views.knowledge_wiki import _find_course, _get_course_pages
     course, path = _find_course(key)
     if not course or (course.get('media_type') or 'html') != 'html':
         abort(404)
     return course['key'], _get_course_pages(course['key'], path)
+
+
+def _visible_course_or_404(key):
+    """学员路由:受限课程未授权 → 404(视同不存在,不泄露存在性)。"""
+    ck, pages = _course_or_404(key)
+    if not A.can_view_course(current_user, ck):
+        abort(404)
+    return ck, pages
 
 
 def _exam_gate(course_key, pages):
@@ -167,7 +183,27 @@ def _inject_course_buddy():
         # 纯角色判断,不查库(admin / ceo / hr_manager)
         return S.can_manage_bank(current_user)
 
-    return {'cb_buddy_enabled': cb_buddy_enabled, 'cb_can_manage_bank': cb_can_manage_bank}
+    def cb_can_review_bank(key):
+        # 管理员 或 该课审核人;管理员不查库,其余同请求同课只查一次
+        if not current_user.is_authenticated:
+            return False
+        if S.can_manage_bank(current_user):
+            return True
+        memo = getattr(g, '_cb_review_bank', None)
+        if memo is None or memo[0] != current_user.id:
+            memo = (current_user.id, {})
+            g._cb_review_bank = memo
+        if key not in memo[1]:
+            try:
+                with db.session.begin_nested():
+                    memo[1][key] = A.is_reviewer(current_user, key)
+            except Exception:
+                logger.warning('题库审核人查询失败 %s', key, exc_info=True)
+                memo[1][key] = False
+        return memo[1][key]
+
+    return {'cb_buddy_enabled': cb_buddy_enabled, 'cb_can_manage_bank': cb_can_manage_bank,
+            'cb_can_review_bank': cb_can_review_bank}
 
 
 @learning_bp.route('/api/learning/csrf')
@@ -182,7 +218,7 @@ def csrf_token():
 @learning_bp.route('/api/learning/<key>/progress')
 @login_required
 def progress(key):
-    ck, pages = _course_or_404(key)
+    ck, pages = _visible_course_or_404(key)
     data = S.read_status(current_user.id, ck, pages)
     if not pages:
         data['read']['unavailable'] = True
@@ -196,7 +232,7 @@ def progress(key):
 @learning_bp.route('/api/learning/<key>/read-ping', methods=['POST'])
 @login_required
 def read_ping(key):
-    ck, pages = _course_or_404(key)
+    ck, pages = _visible_course_or_404(key)
     if not pages:
         # 无页面可计时:空转,不建进度行
         data = S.read_status(current_user.id, ck, pages)
@@ -213,7 +249,7 @@ def read_ping(key):
 @learning_bp.route('/api/learning/<key>/exam/current')
 @login_required
 def exam_current(key):
-    ck, pages = _course_or_404(key)
+    ck, pages = _visible_course_or_404(key)
     blocked = _exam_gate(ck, pages)
     if blocked:
         return blocked
@@ -223,7 +259,7 @@ def exam_current(key):
 @learning_bp.route('/api/learning/<key>/exam/answer', methods=['POST'])
 @login_required
 def exam_answer(key):
-    ck, pages = _course_or_404(key)
+    ck, pages = _visible_course_or_404(key)
     blocked = _exam_gate(ck, pages)
     if blocked:
         return blocked
@@ -237,7 +273,7 @@ def exam_answer(key):
 @learning_bp.route('/api/learning/<key>/exam/next', methods=['POST'])
 @login_required
 def exam_next(key):
-    ck, pages = _course_or_404(key)
+    ck, pages = _visible_course_or_404(key)
     blocked = _exam_gate(ck, pages)
     if blocked:
         return blocked
@@ -268,7 +304,8 @@ def buddy():
         pages = _get_course_pages(r.key, path)
         if pages:                               # 解析不出页面 = 暂不支持考核
             pages_by_key[r.key] = pages
-    rows = [r for r in rows if r.key in pages_by_key]
+    visible = set(A.visible_course_keys(current_user, list(pages_by_key)))   # 受限课未授权 → 不列出
+    rows = [r for r in rows if r.key in pages_by_key and r.key in visible]
     keys = [r.key for r in rows]
 
     courses = []
@@ -339,8 +376,21 @@ def _regen_client():
 _CONTENT_FIELDS = ('qtype', 'question', 'options', 'answer', 'explain')
 
 
-def _bank_forbidden():
-    return None if S.can_manage_bank(current_user) else _fail('forbidden', 403)
+def _bank_access(key, manager_only=False):
+    """题库权限。返回 (course_key, pages, None) 或 (None, None, 错误响应)。
+
+    manager_only=False:查看/编辑/停用/改难度/采纳建议难度/通过待审/单题重出 —— 管理员或该课审核人;
+    manager_only=True:整套生成题库、阅读时长设置 —— 仅管理员。
+    看不到该课的人一律 404(不泄露受限课程的存在),看得到但无权的 403。
+    """
+    ck, pages = _course_or_404(key)
+    if S.can_manage_bank(current_user):
+        return ck, pages, None
+    if not manager_only and A.is_reviewer(current_user, ck):
+        return ck, pages, None
+    if not A.can_view_course(current_user, ck):
+        abort(404)
+    return None, None, _fail('forbidden', 403)
 
 
 def _bank_question(course_key, qid):
@@ -392,9 +442,9 @@ def _bank_payload(course_key, pages):
 @learning_bp.route('/wiki/play/<key>/bank')
 @login_required
 def bank_page(key):
-    if not S.can_manage_bank(current_user):
+    ck, pages, denied = _bank_access(key)
+    if denied:
         abort(403)
-    ck, pages = _course_or_404(key)
     import app.views.knowledge_wiki as KW     # 按模块属性取,测试可改指课件目录
     from app.services.course_exam import generator
     _seed_quietly([ck])              # 种子优先;仍为空才导旧版 .quiz.json
@@ -407,26 +457,25 @@ def bank_page(key):
     return render_template('knowledge/at_course_bank.html', course_key=ck,
                            course_title=row.title if row else ck,
                            page_labels=[p.get('label') or '' for p in pages],
-                           default_plan=generator.DEFAULT_PLAN)
+                           default_plan=generator.DEFAULT_PLAN,
+                           can_manage=S.can_manage_bank(current_user))
 
 
 @learning_bp.route('/api/learning/<key>/bank')
 @login_required
 def bank_list(key):
-    denied = _bank_forbidden()
+    ck, pages, denied = _bank_access(key)
     if denied:
         return denied
-    ck, pages = _course_or_404(key)
     return jsonify({'success': True, 'data': _bank_payload(ck, pages)})
 
 
 @learning_bp.route('/api/learning/<key>/bank/generate', methods=['POST'])
 @login_required
 def bank_generate(key):
-    denied = _bank_forbidden()
+    ck, pages, denied = _bank_access(key, manager_only=True)
     if denied:
         return denied
-    ck, pages = _course_or_404(key)
     if not pages:
         return _fail('no_pages', 400)
     from app.services.course_exam import generator
@@ -447,10 +496,9 @@ def bank_generate(key):
 @learning_bp.route('/api/learning/<key>/bank/<int:qid>', methods=['PUT'])
 @login_required
 def bank_update(key, qid):
-    denied = _bank_forbidden()
+    ck, pages, denied = _bank_access(key)
     if denied:
         return denied
-    ck, pages = _course_or_404(key)
     q = _bank_question(ck, qid)
     if q is None:
         return _fail('not_found', 404)
@@ -505,10 +553,9 @@ def bank_update(key, qid):
 @learning_bp.route('/api/learning/<key>/bank/<int:qid>/regenerate', methods=['POST'])
 @login_required
 def bank_regenerate(key, qid):
-    denied = _bank_forbidden()
+    ck, pages, denied = _bank_access(key)
     if denied:
         return denied
-    ck, pages = _course_or_404(key)
     q = _bank_question(ck, qid)
     if q is None:
         return _fail('not_found', 404)
@@ -577,10 +624,9 @@ def _apply_regenerated(ck, qid, new, norm, question):
 @learning_bp.route('/api/learning/<key>/bank/approve-all', methods=['POST'])
 @login_required
 def bank_approve_all(key):
-    denied = _bank_forbidden()
+    ck, _pages, denied = _bank_access(key)
     if denied:
         return denied
-    ck, _pages = _course_or_404(key)
     n = CourseQuizQuestion.query.filter_by(course_key=ck, status='review').update(
         {'status': 'active'}, synchronize_session=False)
     db.session.commit()
@@ -590,10 +636,9 @@ def bank_approve_all(key):
 @learning_bp.route('/api/learning/<key>/settings', methods=['POST'])
 @login_required
 def bank_settings(key):
-    denied = _bank_forbidden()
+    ck, pages, denied = _bank_access(key, manager_only=True)
     if denied:
         return denied
-    ck, pages = _course_or_404(key)
     raw = _json_obj().get('min_read_seconds')
     if raw is None or (isinstance(raw, str) and not raw.strip()):
         value = None
@@ -605,3 +650,4 @@ def bank_settings(key):
     return jsonify({'success': True, 'data': {
         'min_read_seconds': value,
         'auto_read_seconds': L.required_read_seconds(pages) if pages else 0}})
+
