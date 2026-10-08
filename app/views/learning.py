@@ -651,3 +651,188 @@ def bank_settings(key):
         'min_read_seconds': value,
         'auto_read_seconds': L.required_read_seconds(pages) if pages else 0}})
 
+
+# ══════════ 培训管理(admin / CEO / HR):开放模式 / 指定学员 / 审核人 / 成绩 ══════════
+# 写操作同蓝图 CSRF 保护(前端带 X-CSRFToken)。课程不限 media_type(视频 / PPT 课也可指定学员)。
+
+def _manager_only():
+    return None if S.can_manage_bank(current_user) else _fail('manager_only', 403)
+
+
+def _any_course_key(key):
+    """管理接口用:按 key 找课程(任意 media_type),返回规范 key 或 None。"""
+    from werkzeug.utils import secure_filename
+    safe = secure_filename(key or '')
+    if not safe:
+        return None
+    row = InteractiveCourse.query.filter_by(key=safe).first()
+    return row.key if row else None
+
+
+def _managed_course(key):
+    """(course_key, None) 或 (None, 错误响应)。先判管理员再判课程存在。"""
+    denied = _manager_only()
+    if denied:
+        return None, denied
+    ck = _any_course_key(key)
+    if ck is None:
+        return None, _fail('course_not_found', 404)
+    return ck, None
+
+
+@learning_bp.route('/api/learning/admin/courses')
+@login_required
+def admin_courses():
+    denied = _manager_only()
+    if denied:
+        return denied
+    return jsonify({'success': True, 'data': {'courses': A.admin_courses()}})
+
+
+@learning_bp.route('/api/learning/<key>/access', methods=['POST'])
+@login_required
+def course_access(key):
+    ck, denied = _managed_course(key)
+    if denied:
+        return denied
+    try:
+        mode = A.set_course_mode(ck, _json_obj().get('mode'), current_user.id)
+    except ValueError:
+        return _fail('bad_params', 400)
+    return jsonify({'success': True, 'data': {'key': ck, 'mode': mode}})
+
+
+@learning_bp.route('/api/learning/<key>/enrollments')
+@login_required
+def enrollments_list(key):
+    ck, denied = _managed_course(key)
+    if denied:
+        return denied
+    return jsonify({'success': True, 'data': {'key': ck, 'mode': A.course_mode(ck),
+                                              'enrollments': A.list_enrollments(ck)}})
+
+
+@learning_bp.route('/api/learning/<key>/enrollments', methods=['POST'])
+@login_required
+def enrollments_add(key):
+    """{user_ids:[...]} 逐个拉入;或 {department:"...", company_name?:"..."} 按部门一次性快照拉入。
+    company_name 缺省 = 操作人所在公司(同名部门可能跨公司,如经销商账号的「销售部」)。"""
+    ck, denied = _managed_course(key)
+    if denied:
+        return denied
+    data = _json_obj()
+    try:
+        if 'department' in data:
+            dept = data.get('department')
+            if not isinstance(dept, str) or not dept.strip():
+                raise ValueError('department')
+            company = data['company_name'] if 'company_name' in data else (current_user.company_name or None)
+            if company is not None and not isinstance(company, str):
+                raise ValueError('company_name')
+            added = A.enroll_department(ck, dept.strip(), current_user.id, company_name=company or None)
+        else:
+            added = A.enroll_users(ck, A.normalize_user_ids(data.get('user_ids')), current_user.id)
+    except ValueError:
+        db.session.rollback()
+        return _fail('bad_params', 400)
+    return jsonify({'success': True, 'data': {'added': added, 'enrollments': A.list_enrollments(ck)}})
+
+
+@learning_bp.route('/api/learning/<key>/enrollments/<int:user_id>', methods=['DELETE'])
+@login_required
+def enrollments_remove(key, user_id):
+    ck, denied = _managed_course(key)
+    if denied:
+        return denied
+    return jsonify({'success': True, 'data': {'removed': A.unenroll(ck, user_id)}})
+
+
+@learning_bp.route('/api/learning/departments')
+@login_required
+def departments():
+    """在职人员部门列表(按公司 + 部门去重,带人数)。?company_name= 过滤;缺省返回全部公司。"""
+    denied = _manager_only()
+    if denied:
+        return denied
+    company = (request.args.get('company_name') or '').strip() or None
+    return jsonify({'success': True, 'data': {'departments': A.departments(company),
+                                              'my_company': current_user.company_name or ''}})
+
+
+@learning_bp.route('/api/learning/users')
+@login_required
+def users():
+    """人员选择器数据源:在职用户 [{id,name,department,company_name,active}]。
+    默认只返回操作人所在公司;?all=1 返回全部公司。"""
+    denied = _manager_only()
+    if denied:
+        return denied
+    company = None if request.args.get('all') == '1' else (current_user.company_name or None)
+    return jsonify({'success': True, 'data': {'users': A.active_users(company),
+                                              'my_company': current_user.company_name or ''}})
+
+
+@learning_bp.route('/api/learning/<key>/reviewers')
+@login_required
+def reviewers_get(key):
+    ck, denied = _managed_course(key)
+    if denied:
+        return denied
+    return jsonify({'success': True, 'data': {'reviewers': A.list_reviewers(ck)}})
+
+
+@learning_bp.route('/api/learning/<key>/reviewers', methods=['PUT'])
+@login_required
+def reviewers_put(key):
+    ck, denied = _managed_course(key)
+    if denied:
+        return denied
+    try:
+        ids = A.normalize_user_ids(_json_obj().get('user_ids'))
+    except ValueError:
+        return _fail('bad_params', 400)
+    r = A.set_reviewers(ck, ids, current_user.id)
+    return jsonify({'success': True, 'data': dict(r, reviewers=A.list_reviewers(ck))})
+
+
+# ---------- 成绩:管理员看全部,直属上级看下属,学员看自己 ----------
+
+@learning_bp.route('/api/learning/report/overview')
+@login_required
+def report_overview():
+    data = A.overview(current_user)
+    if data == 'forbidden':
+        return _fail('report_forbidden', 403)
+    return jsonify({'success': True, 'data': data})
+
+
+@learning_bp.route('/api/learning/<key>/report')
+@login_required
+def report_course(key):
+    ck = _any_course_key(key)
+    data = A.course_report(ck, current_user) if ck else None
+    if data == 'forbidden':
+        return _fail('report_forbidden', 403)
+    if data is None:
+        return _fail('course_not_found', 404)
+    return jsonify({'success': True, 'data': data})
+
+
+@learning_bp.route('/api/learning/<key>/report/<int:user_id>')
+@login_required
+def report_user(key, user_id):
+    if not A.can_view_user_report(current_user, user_id):
+        return _fail('report_forbidden', 403)
+    ck = _any_course_key(key)
+    data = A.user_detail(ck, user_id, current_user) if ck else None
+    if data == 'forbidden':
+        return _fail('report_forbidden', 403)
+    if data is None:
+        return _fail('course_not_found', 404)
+    return jsonify({'success': True, 'data': data})
+
+
+@learning_bp.route('/api/learning/my')
+@login_required
+def my_training():
+    return jsonify({'success': True, 'data': {'courses': A.my_training(current_user)}})

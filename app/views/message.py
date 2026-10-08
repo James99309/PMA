@@ -62,6 +62,9 @@ def get_panel_data():
                 can_view = True
 
             msg_dict['can_view_calendar'] = can_view
+            # 培训管理通知(拉入学员 / 指定审核人):跳课程或题库页
+            if msg.related_object_type == 'course':
+                msg_dict['detail_url'] = (msg.extra_data or {}).get('url') or '#'
             mention_list.append(msg_dict)
 
         # 1.5 获取审批通知消息（结果通知 + 抄送，未读）

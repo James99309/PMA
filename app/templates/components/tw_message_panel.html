@@ -504,6 +504,10 @@ function messagePanel() {
             if (item.message_type && item.message_type.startsWith('approval_')) {
                 return item.detail_url || '#';
             }
+            // 培训管理通知:后端给出课程 / 题库页链接
+            if (item.related_object_type === 'course') {
+                return item.detail_url || '#';
+            }
             // 跟进记录回复:跳到对应 AT 详情页并锚定该条跟进记录(#at-action-<id> 由 at-action-replies.js 定位展开)
             if (item.message_type === 'action_reply') {
                 const aid = (item.metadata && item.metadata.action_id) ? `#at-action-${item.metadata.action_id}` : '';
