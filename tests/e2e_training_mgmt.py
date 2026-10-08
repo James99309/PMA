@@ -10,8 +10,8 @@
   4. 有下属的经理:能进培训管理但只看成绩(只含下属);普通人 403
   5. 无未捕获 pageerror / 培训页 console error
 
-真实课程 key(smart-task-intercom):开始时记录 course_access / course_enrollments / course_reviewers
-对该 key 的原状,结束时原样恢复;题库只动 ZZTRE- 临时题,真实题与真实进度不碰。
+全程只用 ZZ 临时课程 zz-train-e2e-course(make_temp_course,课件软链借用 smart-task-intercom),
+结束 drop_temp_course 删掉该课全部行;不切换、不改动任何真实课程,真实题与真实进度不碰。
 
 运行(worktree 根目录):
   export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib
@@ -38,14 +38,18 @@ ROOT = get_project_root()
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
 from _pma_testkit import (make_app, start_server, stop_server, create_temp_user,  # noqa: E402
                           delete_temp_user, add_temp_bank, delete_temp_bank,
-                          empty_seed_keys, delete_seed_imports)
+                          empty_seed_keys, delete_seed_imports, make_temp_course, drop_temp_course)
 
 PASSWORD = 'TrainE2e-Mgmt-2026!'
+XREV = 'zz_tr_e2e_xrev'          # 别的公司的人:验证跨公司审核人可选 / 可显示 / 可移除
+XCOMPANY = 'ZZ 外部测试公司'
 HR, MGR, SUB, SALES, REV, D1 = ('zz_tr_e2e_hr', 'zz_tr_e2e_mgr', 'zz_tr_e2e_sub',
                                 'zz_tr_e2e_s', 'zz_tr_e2e_rev', 'zz_tr_e2e_d1')
-USERS = [HR, MGR, SUB, SALES, REV, D1]
+USERS = [HR, MGR, SUB, SALES, REV, D1, XREV]
 DEPT = 'ZZTRE2E部'
-KEY = 'smart-task-intercom'
+# ZZ 临时课程(课件软链借用 smart-task-intercom):绝不把真实课程切成 restricted、也不给它加临时题
+KEY = 'zz-train-e2e-course'
+assert KEY.startswith('zz-')
 QPREFIX = 'ZZTRE-'
 
 ap = argparse.ArgumentParser()
@@ -61,7 +65,6 @@ from app import db  # noqa: E402
 
 fails = []
 UID = {}
-saved = {}
 
 
 def check(cond, msg):
@@ -71,36 +74,6 @@ def check(cond, msg):
 
 
 # ───────────── 数据准备 / 还原 ─────────────
-
-def snapshot():
-    """记录真实课程在三张培训表里的原状(按行全字段)。"""
-    from app.models.course_exam import CourseAccess, CourseEnrollment, CourseReviewer
-    with app.app_context():
-        def rows(model, flt):
-            cols = [c.name for c in model.__table__.columns]
-            return [{c: getattr(r, c) for c in cols} for r in model.query.filter(flt).all()]
-        saved['access'] = rows(CourseAccess, CourseAccess.course_key == KEY)
-        saved['enroll'] = rows(CourseEnrollment, CourseEnrollment.course_key == KEY)
-        saved['review'] = rows(CourseReviewer, CourseReviewer.course_key == KEY)
-        db.session.rollback()
-    print('INFO 原状:access', len(saved['access']), 'enroll', len(saved['enroll']), 'review', len(saved['review']))
-
-
-def restore():
-    from app.models.course_exam import CourseAccess, CourseEnrollment, CourseReviewer
-    from sqlalchemy import insert
-    with app.app_context():
-        for model, k in ((CourseAccess, 'access'), (CourseEnrollment, 'enroll'), (CourseReviewer, 'review')):
-            model.query.filter(model.course_key == KEY).delete(synchronize_session=False)
-            if saved.get(k):
-                db.session.execute(insert(model.__table__), saved[k])
-        db.session.commit()
-        ok = (len(CourseAccess.query.filter_by(course_key=KEY).all()) == len(saved.get('access', []))
-              and CourseEnrollment.query.filter_by(course_key=KEY).count() == len(saved.get('enroll', []))
-              and CourseReviewer.query.filter_by(course_key=KEY).count() == len(saved.get('review', [])))
-        db.session.rollback()
-        return ok
-
 
 def seed():
     from app.models.user import User, Affiliation
@@ -113,6 +86,7 @@ def seed():
     with app.app_context():
         for n in (SUB, D1):
             db.session.get(User, UID[n]).department = DEPT
+        db.session.get(User, UID[XREV]).company_name = XCOMPANY
         db.session.add(Affiliation(owner_id=UID[SUB], viewer_id=UID[MGR]))
         now = get_local_time()
         # 下属有进度(临时账号的进度行,随账号硬删)
@@ -242,15 +216,28 @@ def run_browser():
         hp.wait_for_selector('[data-pane="students"]:not([hidden])')
         hp.wait_for_function("document.querySelector('input[name=trMode]:checked') !== null")
         check(hp.locator('input[name=trMode][value=open]').is_checked(), '默认开放模式 = 全员开放')
+        hp.wait_for_function("document.getElementById('trEnrollCount').textContent !== ''")
+        check('可选' in hp.locator('#trModeHint').inner_text() and not hp.locator('#trModeEmpty').is_visible(),
+              '全员开放:说明为「可选…」,无空名单警示')
         hp.check('input[name=trMode][value=restricted]')
         check(hp.locator('#trModeConfirm').is_visible(), '切「仅指定学员」出现页面内确认条')
+        check('只有下方名单' in hp.locator('#trModeHint').inner_text() and hp.locator('#trModeEmpty').is_visible(),
+              '待确认切换时:说明改为受限文案 + 名单为空红色警示')
         hp.click('#trModeNo')
         check(hp.locator('input[name=trMode][value=open]').is_checked() and db_state()['mode'] == 'open',
               '确认条点取消 → 回到全员开放、未保存')
         hp.check('input[name=trMode][value=restricted]')
+        hp.check('input[name=trMode][value=open]')
+        check(not hp.locator('#trModeConfirm').is_visible() and db_state()['mode'] == 'open',
+              '确认条出现后改选「全员开放」→ 确认条收起、未保存')
+        check('可选' in hp.locator('#trModeHint').inner_text() and not hp.locator('#trModeEmpty').is_visible(),
+              '改回全员开放:说明恢复「可选…」')
+        hp.check('input[name=trMode][value=restricted]')
         hp.click('#trModeYes')
         hp.wait_for_function("document.querySelector('#trSide [data-key=\"%s\"] .tr-chip-restricted') !== null" % KEY)
         check(db_state()['mode'] == 'restricted', '确认后保存为 restricted')
+        check('只有下方名单' in hp.locator('#trModeHint').inner_text() and hp.locator('#trModeEmpty').is_visible(),
+              '保存为受限且名单为空:红色警示可见')
         shot(hp, '02-students-restricted')
 
         # 普通销售:拉入前看不到
@@ -264,6 +251,8 @@ def run_browser():
         hp.click('#trEnrollBtn')
         hp.wait_for_selector(f'#trEnrollTable tr[data-uid="{UID[SALES]}"]', timeout=10000)
         check(UID[SALES] in db_state()['enrolled'], '按人添加 → 数据库已拉入')
+        hp.wait_for_function("document.getElementById('trModeEmpty').hidden === true", timeout=10000)
+        check(not hp.locator('#trModeEmpty').is_visible(), '名单非空后:空名单警示消失')
 
         # 按部门添加(本公司 temp 部门)
         opt = hp.locator('#trDeptSel option', has_text=DEPT)
@@ -293,8 +282,41 @@ def run_browser():
         hp.click('#trRevSave')
         hp.wait_for_function('() => !document.getElementById("trRevSave").disabled')
         hp.wait_for_timeout(500)
-        check(db_state()['reviewers'] == {UID[REV]} | {r['user_id'] for r in saved['review']}, '保存审核人 → 数据库')
+        check(db_state()['reviewers'] == {UID[REV]}, '保存审核人 → 数据库')
         check(message_count(UID[REV], 'course_reviewer') == 1, '审核人收到站内通知')
+        # I1:跨公司人员可选(下拉按「公司 · 部门」分组)→ 保存 → 重进标签仍显示 chip → 可移除
+        pick(hp, 'trRevSel', UID[XREV], 'ZZ ' + XREV)
+        hp.click('#trRevSave')
+        hp.wait_for_function('() => !document.getElementById("trRevSave").disabled')
+        hp.wait_for_timeout(400)
+        check(db_state()['reviewers'] == {UID[REV], UID[XREV]}, '跨公司审核人可选并保存')
+        hp.click('#trTabs [data-tab="scores"]')
+        hp.click('#trTabs [data-tab="reviewers"]')
+        try:
+            hp.wait_for_selector(f'#trRevSel [data-chip="{UID[XREV]}"]', timeout=10000)
+            chip_ok = True
+        except Exception:
+            chip_ok = False
+        check(chip_ok, '重进审核人标签:跨公司审核人显示为 chip')
+        hp.click(f'#trRevSel [data-chip="{UID[XREV]}"] [data-rm]')
+        hp.click('#trRevSave')
+        hp.wait_for_function('() => !document.getElementById("trRevSave").disabled')
+        hp.wait_for_timeout(400)
+        check(db_state()['reviewers'] == {UID[REV]}, '跨公司审核人 chip 可移除并保存')
+        hp.click('#trTabs [data-tab="students"]')
+        hp.wait_for_selector('[data-pane="students"]:not([hidden])')
+        hp.click('#trEnrollSel [data-ps-input]')
+        hp.fill('#trEnrollSel [data-ps-input]', 'ZZ ' + XREV)
+        try:
+            hp.wait_for_selector(f'#trEnrollSel [data-ps-menu] [data-uid="{UID[XREV]}"]', timeout=10000)
+            x_ok = True
+        except Exception:
+            x_ok = False
+        check(x_ok and hp.locator('#trEnrollSel [data-ps-menu] .at-ps-grp', has_text=XCOMPANY).count() == 1,
+              '学员选择器:跨公司人员可见,分组显示公司名')
+        hp.fill('#trEnrollSel [data-ps-input]', '')
+        hp.click('#trCTitle')
+        hp.click('#trTabs [data-tab="reviewers"]')
         shot(hp, '04-reviewers')
 
         # 成绩 + 明细
@@ -377,13 +399,14 @@ def run_browser():
 
 proc = None
 SEED_KEYS = []
+ASSETS = None
 try:
     cleanup_users()
     delete_temp_bank(app, QPREFIX)
-    snapshot()
+    ASSETS = make_temp_course(app, KEY, 'ZZ 培训 E2E 课程')
     seed()
     SEED_KEYS = empty_seed_keys(app)
-    proc = start_server(args.port, os.path.join(args.shots, 'server.log'), KEY)
+    proc = start_server(args.port, os.path.join(args.shots, 'server.log'), KEY, assets_dir=ASSETS)
     print('INFO 服务已启动', BASE)
     run_browser()
 except Exception as e:          # 浏览器步骤异常(超时等)也算失败
@@ -393,8 +416,8 @@ except Exception as e:          # 浏览器步骤异常(超时等)也算失败
 finally:
     stop_server(proc)
     check(delete_seed_imports(app, SEED_KEYS), f'清理:自动导入的种子题已硬删({SEED_KEYS})')
-    if saved:
-        check(restore(), '清理:培训三表对该课原样恢复')
+    if ASSETS:
+        check(drop_temp_course(app, KEY, ASSETS), '清理:临时课程及其培训 / 题库 / 进度行已删除')
     check(delete_temp_bank(app, QPREFIX), '清理:ZZTRE 临时题已硬删')
     check(cleanup_users(), '清理:临时账号已硬删')
     print('\n' + ('全部通过' if not fails else f'{len(fails)} 项失败:\n  - ' + '\n  - '.join(fails)))

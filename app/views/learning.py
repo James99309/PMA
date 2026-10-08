@@ -203,22 +203,8 @@ def _inject_course_buddy():
         return memo[1][key]
 
     def cb_can_view_training():
-        # 培训管理入口(侧栏 / 知识库):管理员不查库;其余人同请求只查一次「是否有直属下属」
-        if not current_user.is_authenticated:
-            return False
-        if S.can_manage_bank(current_user):
-            return True
-        cached = getattr(g, '_cb_training', None)
-        if cached is None or cached[0] != current_user.id:
-            try:
-                with db.session.begin_nested():
-                    val = A.has_subordinates(current_user.id)
-            except Exception:
-                logger.warning('培训管理入口判断失败', exc_info=True)
-                val = False
-            cached = (current_user.id, bool(val))
-            g._cb_training = cached
-        return cached[1]
+        # 培训管理入口(侧栏 / 知识库):与知识库页视图共用同一份 g 缓存,同请求只查一次
+        return A.can_view_training(current_user)
 
     return {'cb_buddy_enabled': cb_buddy_enabled, 'cb_can_manage_bank': cb_can_manage_bank,
             'cb_can_review_bank': cb_can_review_bank, 'cb_can_view_training': cb_can_view_training}
@@ -795,15 +781,24 @@ def departments():
 @login_required
 def users():
     """人员选择器数据源:在职用户 [{id,name,department,company_name,active}]。
-    默认只返回操作人所在公司;?all=1 返回全部公司。"""
+    默认只返回操作人所在公司;?all=1 返回全部公司(培训页审核人 / 学员选择器用,跨公司的人也能选)。
+
+    返回体里 users 出现两次,是有意的:
+      - data.users:原始数据(department 为本人部门),供本页自己的脚本使用;
+      - 顶层 users:兼容 components/at_people_select(它只读 d.users,并按 department 分组显示),
+        其中别的公司的人 department 改写为「公司 · 部门」,下拉里能分辨同名部门;不改组件本身。
+    """
     denied = _manager_only()
     if denied:
         return denied
-    company = None if request.args.get('all') == '1' else (current_user.company_name or None)
+    mine = current_user.company_name or ''
+    company = None if request.args.get('all') == '1' else (mine or None)
     users = A.active_users(company)
-    # 顶层 users 为兼容 components/at_people_select(它读 d.users)
-    return jsonify({'success': True, 'users': users,
-                    'data': {'users': users, 'my_company': current_user.company_name or ''}})
+    picker = [dict(u, department=(u['company_name'] + ' · ' + (u['department'] or '-'))
+                   if u['company_name'] and u['company_name'] != mine else u['department'])
+              for u in users]
+    return jsonify({'success': True, 'users': picker,
+                    'data': {'users': users, 'my_company': mine}})
 
 
 @learning_bp.route('/api/learning/<key>/reviewers')

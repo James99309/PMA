@@ -204,12 +204,37 @@ def delete_seed_imports(app, keys):
 # 改为建一门 ZZ 临时课程:课件经临时目录软链借用主仓同一份 HTML(页数 / 页名不变),
 # 临时目录里同时软链主仓全部课件,其他真实课程照常可用。
 
+TEMP_COURSE_PREFIX = 'zz-'
+
+
+def _assert_temp_key(key):
+    # 护栏:临时课程 key 必须带 zz- 前缀,任何删除前都校验,绝不误删真实课程
+    if not isinstance(key, str) or not key.startswith(TEMP_COURSE_PREFIX) or len(key) <= len(TEMP_COURSE_PREFIX):
+        raise ValueError(f'临时课程 key 必须以 {TEMP_COURSE_PREFIX} 开头: {key!r}')
+
+
 def make_temp_course(app, key, title, src_key='smart-task-intercom'):
-    """建临时课程目录 + interactive_courses 行;返回临时目录路径(配 drop_temp_course)。"""
+    """建临时课程目录 + interactive_courses 行;返回临时目录路径(配 drop_temp_course)。
+    key 必须以 zz- 开头;中途失败会删掉已建的临时目录再抛出。"""
+    _assert_temp_key(key)
+    return _make_temp_course(app, key, title, src_key)
+
+
+def _make_temp_course(app, key, title, src_key):
+    import shutil
     import tempfile
     from app import db
     from app.models.course import InteractiveCourse
     d = tempfile.mkdtemp(prefix='zz-course-assets-')
+    try:
+        _fill_temp_course(app, d, key, title, src_key, db, InteractiveCourse)
+    except Exception:
+        shutil.rmtree(d, ignore_errors=True)       # 失败也清掉 mkdtemp(只删软链,不跟随进主仓)
+        raise
+    return d
+
+
+def _fill_temp_course(app, d, key, title, src_key, db, InteractiveCourse):
     for name in os.listdir(MAIN_ASSETS) if os.path.isdir(MAIN_ASSETS) else []:
         os.symlink(os.path.join(MAIN_ASSETS, name), os.path.join(d, name))
     src = os.path.join(MAIN_ASSETS, src_key + '.html')
@@ -225,11 +250,11 @@ def make_temp_course(app, key, title, src_key='smart-task-intercom'):
         db.session.add(InteractiveCourse(key=key, title=title, media_type='html', page_count=n,
                                          has_thumbs=os.path.isdir(os.path.join(d, key + '.thumbs')), cover_page=1))
         db.session.commit()
-    return d
 
 
 def drop_temp_course(app, key, assets_dir):
     """删临时课程行及其在培训 / 考核表里的所有行,删临时目录。返回是否干净。"""
+    _assert_temp_key(key)
     import shutil
     from app import db
     from sqlalchemy import text

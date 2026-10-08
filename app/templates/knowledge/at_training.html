@@ -63,6 +63,7 @@
   .tr-label { font-size:12px; color:var(--ink-3); margin-bottom:6px; }
   .tr-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .tr-hint { font-size:12px; color:var(--ink-3); margin-top:6px; }
+  .tr-hint-danger { color:var(--danger); }
   .tr-confirm { margin-top:10px; padding:10px 12px; border-radius:8px; background:var(--warn-soft); color:var(--warn);
                 font-size:13px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .tr-confirm span { flex:1; min-width:200px; }
@@ -205,10 +206,13 @@
                 <button type="button" class="tr-btn tr-btn-sm" id="trModeNo">{{ _('取消') }}</button>
               </div>
             </div>
+            {# 模式说明:随当前模式 / 待确认切换实时更新(open 时拉人是可选的) #}
+            <div class="tr-hint" id="trModeHint" style="margin-top:12px;"></div>
+            <div class="tr-hint tr-hint-danger" id="trModeEmpty" hidden></div>
             <div class="tr-section">
               <div class="tr-label">{{ _('添加学员') }}</div>
               <div class="tr-row" style="align-items:flex-start;">
-                {{ at_people_select('trEnrollSel', placeholder=_('搜索并选择人员'), users_url='/api/learning/users') }}
+                {{ at_people_select('trEnrollSel', placeholder=_('搜索并选择人员'), users_url='/api/learning/users?all=1') }}
                 <button type="button" class="tr-btn tr-btn-primary" id="trEnrollBtn"><span class="material-symbols-outlined">person_add</span>{{ _('添加') }}</button>
               </div>
             </div>
@@ -236,7 +240,7 @@
             <div class="tr-section">
               <div class="tr-label">{{ _('题库审核人') }}</div>
               <div class="tr-row" style="align-items:flex-start;">
-                {{ at_people_select('trRevSel', placeholder=_('搜索并选择审核人'), users_url='/api/learning/users') }}
+                {{ at_people_select('trRevSel', placeholder=_('搜索并选择审核人'), users_url='/api/learning/users?all=1') }}
                 <button type="button" class="tr-btn tr-btn-primary" id="trRevSave"><span class="material-symbols-outlined">save</span>{{ _('保存') }}</button>
               </div>
               <div class="tr-hint">{{ _('审核人可审题、改题、停用题和单题 AI 重出，不能整套生成题库或改课程设置。新指定的审核人会收到站内通知。') }}</div>
@@ -305,6 +309,9 @@
     dReq: {{ _('达标要求')|tojson }}, dAttempts: {{ _('作答数')|tojson }}, dAcc: {{ _('正确率')|tojson }},
     dPages: {{ _('逐页阅读秒数')|tojson }}, dWatch: {{ _('观看进度')|tojson }}, dDone: {{ _('已看完')|tojson }},
     dNoProgress: {{ _('该课程没有学习进度记录')|tojson }}, wrongN: {{ _('错 %s 次')|tojson }},
+    hintOpen: {{ _('可选：拉入的学员会在『我的培训』里看到这门课，成绩表也会列出尚未开始的人。')|tojson }},
+    hintRestricted: {{ _('只有下方名单里的人（以及管理员/HR/审核人）能看到并考核这门课。')|tojson }},
+    hintEmpty: {{ _('当前名单为空：除管理员/HR/审核人外，没有人能看到这门课。')|tojson }},
     sec: {{ _('秒')|tojson }}, minute: {{ _('分钟')|tojson }}, notStarted: {{ _('未开始')|tojson }}, loading: {{ _('加载中…')|tojson }}
   };
 
@@ -345,6 +352,8 @@
     }).catch(function () { return {success: false, message: T.netErr, _status: 0}; });
   }
   function toastErr(j) { window.ATToast && ATToast.error(T.failed, (j && j.message) || ''); }
+  var OK_MS = 1800;            // 成功提示短一点,连续操作不堆叠;错误提示用默认时长
+  function toastOk(msg) { window.ATToast && ATToast.success(msg, '', OK_MS); }
   function api(key, tail) { return '/api/learning/' + encodeURIComponent(key) + (tail || ''); }
   function course(key) {
     for (var i = 0; i < state.courses.length; i++) if (state.courses[i].key === key) return state.courses[i];
@@ -472,6 +481,7 @@
     var key = state.sel;
     $('trModeConfirm').hidden = true;
     state.pendingMode = null;
+    state.enrollCount = null;           // 名单未加载前不显示「名单为空」警示
     if (enrollSel) enrollSel.clear();
     $('trEnrollTable').innerHTML = '<tbody><tr><td class="tr-empty">' + esc(T.loading) + '</td></tr></tbody>';
     req('GET', api(key, '/enrollments')).then(function (j) {
@@ -484,9 +494,21 @@
   }
   function setModeRadio(m) {
     document.querySelectorAll('input[name=trMode]').forEach(function (r) { r.checked = r.value === m; });
+    renderModeHint();
+  }
+  // 模式说明:待确认切换优先,其次课程当前模式;restricted 且名单为空时追加红色警示
+  function renderModeHint() {
+    var c = course(state.sel);
+    if (!c || !$('trModeHint')) return;
+    var m = state.pendingMode || c.mode;
+    $('trModeHint').textContent = m === 'restricted' ? T.hintRestricted : T.hintOpen;
+    $('trModeEmpty').textContent = T.hintEmpty;
+    $('trModeEmpty').hidden = !(m === 'restricted' && state.enrollCount === 0);
   }
   function renderEnrollments(rows) {
     state.removing = null;
+    state.enrollCount = rows.length;
+    renderModeHint();
     $('trEnrollCount').textContent = fmt(T.enrollCount, rows.length);
     if (!rows.length) { $('trEnrollTable').innerHTML = '<tbody><tr><td class="tr-empty">' + esc(T.noStudents) + '</td></tr></tbody>'; return; }
     $('trEnrollTable').innerHTML = '<thead><tr><th>' + esc(T.name) + '</th><th>' + esc(T.dept) + '</th><th>' + esc(T.source) +
@@ -514,7 +536,7 @@
       b.disabled = true;
       req('DELETE', api(state.sel, '/enrollments/' + b.getAttribute('data-rm-yes'))).then(function (j) {
         if (!j.success) { toastErr(j); b.disabled = false; return; }
-        window.ATToast && ATToast.success(T.removed);
+        toastOk(T.removed);
         afterEnrollChange();
       });
     }
@@ -531,28 +553,34 @@
       if (r.value === 'restricted' && c.mode !== 'restricted') {
         state.pendingMode = 'restricted';
         $('trModeConfirm').hidden = false;          // 页面内确认条,不用 window.confirm
-      } else if (r.value === 'open' && c.mode !== 'open') {
-        saveMode('open');
+        renderModeHint();
+      } else if (r.value === 'open') {
+        // 选回「全员开放」:先收起确认条、清掉待确认状态;当前已是 restricted 才需要保存
+        $('trModeConfirm').hidden = true;
+        state.pendingMode = null;
+        renderModeHint();
+        if (c.mode !== 'open') saveMode('open');
       }
     });
   });
   if ($('trModeNo')) {
     $('trModeNo').onclick = function () {
       $('trModeConfirm').hidden = true;
-      state.pendingMode = null;
+      state.pendingMode = null;      // setModeRadio 里会重绘说明
       setModeRadio(course(state.sel).mode);
     };
-    $('trModeYes').onclick = function () { $('trModeConfirm').hidden = true; saveMode('restricted'); };
+    $('trModeYes').onclick = function () { $('trModeConfirm').hidden = true; state.pendingMode = null; saveMode('restricted'); };
   }
   function saveMode(m) {
     var key = state.sel;
     req('POST', api(key, '/access'), {mode: m}).then(function (j) {
       if (!j.success) { toastErr(j); setModeRadio(course(key).mode); return; }
       course(key).mode = j.data.mode;
+      if (key === state.sel) setModeRadio(j.data.mode);     // 以服务端返回为准回填单选
       state.overview = null;
       renderSide();
       $('trCMeta').innerHTML = '<span class="tr-chip">' + esc(T.media[course(key).media_type]) + '</span>' + modeChip(j.data.mode);
-      window.ATToast && ATToast.success(T.modeSaved);
+      toastOk(T.modeSaved);
     });
   }
 
@@ -564,7 +592,7 @@
     req('POST', api(state.sel, '/enrollments'), {user_ids: ids}).then(function (j) {
       btn.disabled = false;
       if (!j.success) { toastErr(j); return; }
-      window.ATToast && ATToast.success(fmt(T.added, j.data.added));
+      toastOk(fmt(T.added, j.data.added));
       afterEnrollChange();
     });
   });
@@ -578,6 +606,7 @@
       opts.sort(function (a, b) { return (b.mine - a.mine) || a.i - b.i; });
       $('trDeptSel').innerHTML = $('trDeptSel').options[0].outerHTML + opts.map(function (o) {
         var label = (o.mine || !o.d.company_name ? '' : o.d.company_name + ' · ') + o.d.department;
+        o.d.label = label;                       // 确认条沿用同一显示名(含公司前缀)
         return '<option value="' + o.i + '">' + esc(fmt(T.deptOpt, label, o.d.count)) + '</option>';
       }).join('');
     });
@@ -590,7 +619,7 @@
     var d = state.deptOpts[+$('trDeptSel').value];
     if (!d) return;
     state.pendingDept = d;
-    $('trDeptConfirmText').textContent = fmt(T.deptConfirm, d.department, d.count);
+    $('trDeptConfirmText').textContent = fmt(T.deptConfirm, d.label || d.department, d.count);
     $('trDeptConfirm').hidden = false;
   });
   $('trDeptNo') && ($('trDeptNo').onclick = function () { $('trDeptConfirm').hidden = true; state.pendingDept = null; });
@@ -600,7 +629,7 @@
     $('trDeptConfirm').hidden = true;
     req('POST', api(state.sel, '/enrollments'), {department: d.department, company_name: d.company_name}).then(function (j) {
       if (!j.success) { toastErr(j); return; }
-      window.ATToast && ATToast.success(fmt(T.added, j.data.added));
+      toastOk(fmt(T.added, j.data.added));
       afterEnrollChange();
     });
   });
@@ -628,7 +657,7 @@
       var c = course(key);
       if (c) c.reviewers = j.data.reviewers;
       state.overview = null;
-      window.ATToast && ATToast.success(fmt(T.revSaved, j.data.added.length, j.data.removed.length));
+      toastOk(fmt(T.revSaved, j.data.added.length, j.data.removed.length));
     });
   });
 
@@ -724,8 +753,9 @@
 
   // ── 启动 ──
   if (MODE === 'full' && window.AtPeopleSelect) {
-    enrollSel = AtPeopleSelect.init('trEnrollSel', {usersUrl: '/api/learning/users', excludeSelf: false});
-    revSel = AtPeopleSelect.init('trRevSel', {usersUrl: '/api/learning/users', excludeSelf: false});
+    // ?all=1:跨公司的人也能选(其他公司的人在下拉里按「公司 · 部门」分组),已选的跨公司审核人也能渲染成 chip
+    enrollSel = AtPeopleSelect.init('trEnrollSel', {usersUrl: '/api/learning/users?all=1', excludeSelf: false});
+    revSel = AtPeopleSelect.init('trRevSel', {usersUrl: '/api/learning/users?all=1', excludeSelf: false});
   }
   loadCourses().then(function () { select(''); });
 })();

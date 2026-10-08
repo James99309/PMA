@@ -410,6 +410,28 @@ def has_subordinates(user_id):
         Affiliation.viewer_id == user_id, Affiliation.owner_id != user_id).exists()).scalar()
 
 
+def can_view_training(user):
+    """培训管理入口可见性(侧栏 / 知识库按钮共用):管理员不查库;其他人同一请求只查一次
+    「是否有直属下属」(缓存在 flask.g,按用户 id 记,防跨请求串号)。查询失败按无入口处理。"""
+    from flask import g
+    uid = _authed_id(user)
+    if uid is None:
+        return False
+    if is_manager(user):
+        return True
+    cached = getattr(g, '_cb_training', None)
+    if cached is None or cached[0] != uid:
+        try:
+            with db.session.begin_nested():
+                val = has_subordinates(uid)
+        except Exception:
+            logger.warning('培训管理入口判断失败', exc_info=True)
+            val = False
+        cached = (uid, bool(val))
+        g._cb_training = cached
+    return cached[1]
+
+
 def training_page_mode(user):
     """培训管理页访问级别:'full'(管理员)/ 'scores'(有直属下属,只看成绩)/ None(无权)。"""
     uid = _authed_id(user)
